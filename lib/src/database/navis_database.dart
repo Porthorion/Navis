@@ -69,6 +69,7 @@ import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
+import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:path/path.dart' as p;
@@ -87,6 +88,7 @@ part 'navis_database.g.dart';
     AlbumsTable,
     SongsTable,
     SongSearchTextTable,
+    AlbumArtistIndexTable,
     GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
@@ -186,7 +188,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 86;
+  int get schemaVersion => 87;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -465,6 +467,28 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 86 && to >= 86) {
       await from85To86(migrator);
+    }
+    if (from < 87 && to >= 87) {
+      await from86To87(migrator);
+    }
+  }
+
+  /// Adds track-matching keys to the derived search index and the derived
+  /// album artist index. Both are lazily maintained derived data, so there is
+  /// no blocking backfill: existing search rows count as stale until their
+  /// keys are written.
+  Future<void> from86To87(Migrator migrator) async {
+    for (final column in <GeneratedColumn<Object>>[
+      songSearchTextTable.matchTitle,
+      songSearchTextTable.matchArtist,
+      songSearchTextTable.matchAlbum,
+    ]) {
+      if (!await _columnExists('song_search_text', column.name)) {
+        await migrator.addColumn(songSearchTextTable, column);
+      }
+    }
+    if (!await _tableExists('album_artist_index')) {
+      await migrator.createTable(albumArtistIndexTable);
     }
   }
 
@@ -2238,6 +2262,16 @@ FROM scrobble_queue;
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);',
     );
+    // Exact lookups on the derived search index: track-matching title keys,
+    // and title-then-artist prefixes for downloads-folder matching.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_song_search_text_match_title '
+      'ON song_search_text(match_title);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_song_search_text_search '
+      'ON song_search_text(search_text);',
+    );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_starred ON songs(starred) WHERE starred IS NOT NULL;',
     );
@@ -2327,6 +2361,7 @@ FROM scrobble_queue;
     await customStatement('PRAGMA analysis_limit = 400');
     await customStatement('PRAGMA optimize');
     await libraryDao.scheduleSongSearchIndexRefresh();
+    await libraryDao.refreshAlbumArtistIndex();
   }
 
   Future<bool> _tableExists(String tableName) async {

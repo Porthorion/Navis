@@ -1918,7 +1918,23 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   script and folds Latin diacritics and common Arabic letter variants. The SQL
   prefilter requires each query token as an in-order subsequence, which every
   ranked match (exact, prefix, substring, token, fuzzy) satisfies, so ranking
-  is unchanged.
+  is unchanged. Since schema 87 each row also stores `match_title`,
+  `match_artist`, and `match_album` in the `normalizeMetadata` form (rows
+  without them count as stale). `getTrackMatchCandidates` selects only songs
+  that could match a list of external tracks (Last.fm artist top tracks,
+  ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
+  title keys, or artist keys that are equal, contain or are contained, or
+  share a word. A snapshot built from those makes the same matches as one
+  built from the whole library. Deferred maintenance normalizes in an isolate.
+- The artist page reads its albums through `album_artist_index`, a derived
+  table of each album's artist keys (`i:<id>` for the album artist and each
+  credit, `n:<normalized name>` for a name-only album artist and each credited
+  name), current only while its `source` equals the album's raw artist id,
+  name, and credits. Readers repair stale rows before querying, so no album
+  write path maintains it. `watchArtistAlbumBuckets` re-reads only the
+  artist's candidate albums (plus albums of the artist's songs) at most four
+  times a second, classifies them with the same rules as before, and emits
+  only changes; `getArtistPlaybackSnapshot` uses the same candidates.
 - Per-song and per-page provider families (`songByIdProvider`,
   `songStarredProvider`, `songDownloadStateProvider`,
   `songPlaybackIndicatorStateProvider`, `pagedAlbumsProvider`, …) are

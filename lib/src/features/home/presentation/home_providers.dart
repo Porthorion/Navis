@@ -886,7 +886,10 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
         .toList(growable: false);
   }
 
-  final localSongsSnapshot = await dao.getAllSongs();
+  // Only songs that could match an unresolved recommendation.
+  final localSongsSnapshot = await dao.getTrackMatchCandidates(
+    _listenBrainzUnresolvedMatchQueries(resolvedPlaylists),
+  );
   if (!ref.mounted) {
     return;
   }
@@ -1032,7 +1035,11 @@ Future<ListenBrainzDiscoverPlaylist> _rematchListenBrainzPlaylist(
   }
 
   _clearListenBrainzPlaylistMatchCache(playlist.playlist);
-  final localSongsSnapshot = await db.libraryDao.getAllSongs();
+  final localSongsSnapshot = await db.libraryDao.getTrackMatchCandidates(
+    _listenBrainzUnresolvedMatchQueries(<ListenBrainzDiscoverPlaylist>[
+      playlist,
+    ]),
+  );
   final localCandidates = await _loadListenBrainzLocalCandidateSnapshot(
     localSongsSnapshot,
   );
@@ -1426,6 +1433,19 @@ ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
       status: ListenBrainzRecommendationMatchStatus.unmatched,
     ),
   };
+}
+
+/// Title and artist of every recommendation still needing a local match.
+Iterable<({String title, String artist})> _listenBrainzUnresolvedMatchQueries(
+  List<ListenBrainzDiscoverPlaylist> playlists,
+) sync* {
+  for (final playlist in playlists) {
+    for (final recommendation in playlist.recommendations) {
+      if (recommendation.isPlayable) continue;
+      final query = _listenBrainzTrackMatchQuery(recommendation.track);
+      yield (title: query.title, artist: query.artist);
+    }
+  }
 }
 
 TrackMatchQuery _listenBrainzTrackMatchQuery(ListenBrainzPlaylistTrack track) {

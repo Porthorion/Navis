@@ -1323,13 +1323,14 @@ final likedArtistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   return dao.watchLikedArtists();
 });
 
-final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
-  ref,
-  artistId,
-) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchArtistById(artistId);
-});
+final artistByIdProvider = StreamProvider.autoDispose
+    .family<ArtistsTableData?, String>((
+      ref,
+      artistId,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchArtistById(artistId);
+    });
 
 final albumsByArtistProvider =
     StreamProvider.family<List<AlbumsTableData>, String>((ref, artistId) {
@@ -1337,8 +1338,10 @@ final albumsByArtistProvider =
       return dao.watchAlbumsByArtist(artistId);
     });
 
-final artistAlbumSectionsProvider =
-    StreamProvider.family<ArtistAlbumSections, String>((ref, artistId) {
+// Auto-disposed: a visited artist's album watch must not keep re-running on
+// every library write after the page closes.
+final artistAlbumSectionsProvider = StreamProvider.autoDispose
+    .family<ArtistAlbumSections, String>((ref, artistId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao
           .watchArtistAlbumBuckets(artistId)

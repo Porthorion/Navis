@@ -17,6 +17,16 @@ class SongSearchTextTable extends Table {
 
   TextColumn get searchText => text()();
 
+  /// The title, artist, and album keys used to match external track lists
+  /// (Last.fm top tracks, recommendations) to local songs, in the
+  /// `normalizeMetadata` form. Null only for rows written before schema 87,
+  /// which are treated as stale.
+  TextColumn get matchTitle => text().nullable()();
+
+  TextColumn get matchArtist => text().nullable()();
+
+  TextColumn get matchAlbum => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {songId};
 

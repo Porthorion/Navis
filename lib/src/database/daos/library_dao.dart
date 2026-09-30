@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -25,6 +27,11 @@ import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
+import 'package:navis/src/database/tables/album_artist_index_table.dart';
+import 'package:navis/src/database/tables/artist_ref_converter.dart';
+import 'package:navis/src/features/player/domain/lyrics_matcher.dart'
+    show normalizeMetadata;
+import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
@@ -159,6 +166,7 @@ class DownloadReconciliationSong {
     AlbumsTable,
     SongsTable,
     SongSearchTextTable,
+    AlbumArtistIndexTable,
     GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
@@ -259,7 +267,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<ArtistPlaybackSnapshot> getArtistPlaybackSnapshot(String artistId) {
+  Future<ArtistPlaybackSnapshot> getArtistPlaybackSnapshot(
+    String artistId,
+  ) async {
+    // Repair the derived artist index before the read transaction, which
+    // must not hold the writer while keys are computed.
+    await refreshAlbumArtistIndex();
     return transaction(() async {
       final artist = await getArtistById(artistId);
       final directSongs =
@@ -271,21 +284,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
                     _selectableForBulkUse,
               ))
               .get();
-      final visibleAlbums =
-          await (select(albumsTable)..where(
-                (table) =>
-                    table.isProvisional.equals(false) |
-                    table.isExternal.equals(true),
-              ))
-              .get();
+      final relatedAlbumIds = directSongs
+          .map((song) => song.albumId)
+          .nonNulls
+          .toSet();
+      final visibleAlbums = await _artistAlbumCandidates(
+        artistId: artistId,
+        artistName: artist?.name,
+        relatedAlbumIds: relatedAlbumIds,
+      );
       final buckets = _buildArtistAlbumBuckets(
         albums: visibleAlbums,
         artistId: artistId,
         artistName: artist?.name,
-        relatedSongAlbumIds: directSongs
-            .map((song) => song.albumId)
-            .nonNulls
-            .toSet(),
+        relatedSongAlbumIds: relatedAlbumIds,
       );
       final albums = [...buckets.primaryAlbums, ...buckets.featuredInAlbums]
         ..sort((a, b) {
@@ -373,69 +385,243 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return (album: album, songs: songs);
   }
 
+  Future<int>? _albumArtistIndexRefresh;
+
+  static const String _albumArtistSourceSql =
+      "ifnull(a.artist_id, '') || char(31) || ifnull(a.artist_name, '') "
+      '|| char(31) || a.artists';
+
+  /// Writes every missing or stale `album_artist_index` row. Single-flight;
+  /// concurrent callers share one refresh. Returns the rows written.
+  Future<int> refreshAlbumArtistIndex() {
+    return _albumArtistIndexRefresh ??= _refreshAlbumArtistIndex()
+        .catchError((Object error) {
+          AppLogger.debug('Album artist index refresh skipped: $error');
+          return 0;
+        })
+        .whenComplete(() => _albumArtistIndexRefresh = null);
+  }
+
+  Future<int> _refreshAlbumArtistIndex({int batchSize = 1000}) async {
+    var written = 0;
+    while (true) {
+      final rows = await customSelect(
+        '''
+        SELECT a.id AS id, a.artist_id AS artist_id,
+          a.artist_name AS artist_name, a.artists AS artists
+        FROM albums a
+        LEFT JOIN album_artist_index x ON x.album_id = a.id
+        WHERE x.source IS NOT ($_albumArtistSourceSql)
+        LIMIT ?
+        ''',
+        variables: <Variable<Object>>[Variable<int>(batchSize)],
+        readsFrom: {albumsTable, albumArtistIndexTable},
+      ).get();
+      if (rows.isEmpty) break;
+      final raw = <(String, String?, String?, String)>[
+        for (final row in rows)
+          (
+            row.read<String>('id'),
+            row.readNullable<String>('artist_id'),
+            row.readNullable<String>('artist_name'),
+            row.read<String>('artists'),
+          ),
+      ];
+      // A handful of freshly written albums is cheaper to key here than to
+      // copy into an isolate.
+      final entries = raw.length > 64
+          ? await Isolate.run(
+              () => raw.map(albumArtistIndexEntry).toList(growable: false),
+            )
+          : raw.map(albumArtistIndexEntry).toList(growable: false);
+      const chunkSize = 300;
+      for (var offset = 0; offset < entries.length; offset += chunkSize) {
+        final chunk = entries.sublist(
+          offset,
+          math.min(offset + chunkSize, entries.length),
+        );
+        await customStatement(
+          'INSERT INTO album_artist_index(album_id, source, artist_keys) '
+          'VALUES ${List<String>.filled(chunk.length, '(?, ?, ?)').join(', ')} '
+          'ON CONFLICT(album_id) DO UPDATE SET '
+          'source = excluded.source, artist_keys = excluded.artist_keys',
+          <Object?>[
+            for (final entry in chunk) ...<Object?>[
+              entry.albumId,
+              entry.source,
+              entry.artistKeys,
+            ],
+          ],
+        );
+      }
+      written += rows.length;
+      if (rows.length < batchSize) break;
+    }
+    if (written > 0) {
+      await customStatement(
+        'DELETE FROM album_artist_index '
+        'WHERE album_id NOT IN (SELECT id FROM albums)',
+      );
+    }
+    return written;
+  }
+
+  /// Visible albums that may belong to an artist page: those whose album
+  /// artist or credits carry the artist's id or normalized name, plus
+  /// [relatedAlbumIds]. [_buildArtistAlbumBuckets] then classifies them
+  /// exactly as it would classify the whole library.
+  Future<List<AlbumsTableData>> _artistAlbumCandidates({
+    required String artistId,
+    required String? artistName,
+    required Iterable<String> relatedAlbumIds,
+  }) async {
+    await refreshAlbumArtistIndex();
+    final idKey = '\u001fi:${artistId.trim()}\u001f';
+    final name = normalizeMetadata(artistName ?? '');
+    final byKey = await customSelect(
+      '''
+      SELECT a.* FROM albums a
+      JOIN album_artist_index x ON x.album_id = a.id
+      WHERE (a.is_provisional = 0 OR a.is_external = 1)
+        AND (instr(x.artist_keys, ?) > 0 OR (? <> '' AND instr(x.artist_keys, ?) > 0))
+      ''',
+      variables: <Variable<Object>>[
+        Variable<String>(idKey),
+        Variable<String>(name),
+        Variable<String>('\u001fn:$name\u001f'),
+      ],
+      readsFrom: {albumsTable, albumArtistIndexTable},
+    ).map((row) => albumsTable.map(row.data)).get();
+    final seen = byKey.map((album) => album.id).toSet();
+    final missing = relatedAlbumIds
+        .where((id) => id.isNotEmpty && !seen.contains(id))
+        .toSet()
+        .toList(growable: false);
+    final related = <AlbumsTableData>[];
+    for (
+      var offset = 0;
+      offset < missing.length;
+      offset += _safeSqlVariableChunkSize
+    ) {
+      related.addAll(
+        await (select(albumsTable)..where(
+              (table) =>
+                  table.id.isIn(
+                    missing.sublist(
+                      offset,
+                      math.min(
+                        offset + _safeSqlVariableChunkSize,
+                        missing.length,
+                      ),
+                    ),
+                  ) &
+                  (table.isProvisional.equals(false) |
+                      table.isExternal.equals(true)),
+            ))
+            .get(),
+      );
+    }
+    return <AlbumsTableData>[...byKey, ...related];
+  }
+
+  Future<ArtistAlbumBuckets> _loadArtistAlbumBuckets(
+    String artistId,
+    String? artistName,
+  ) async {
+    final related = await customSelect(
+      '''
+      SELECT DISTINCT album_id FROM songs
+      WHERE artist_id = ?
+        AND (is_provisional = 0 OR is_external = 1)
+        AND server_deleted_at IS NULL
+        AND album_id IS NOT NULL
+      ''',
+      variables: <Variable<Object>>[Variable<String>(artistId)],
+      readsFrom: {songsTable},
+    ).map((row) => row.read<String>('album_id').trim()).get();
+    final relatedIds = related.where((id) => id.isNotEmpty).toSet();
+    final candidates = await _artistAlbumCandidates(
+      artistId: artistId,
+      artistName: artistName,
+      relatedAlbumIds: relatedIds,
+    );
+    return _buildArtistAlbumBuckets(
+      albums: candidates,
+      artistId: artistId,
+      artistName: artistName,
+      relatedSongAlbumIds: relatedIds,
+    );
+  }
+
+  /// The artist page's primary and Featured In albums. Each album or song
+  /// write re-reads only the artist's candidate albums (see
+  /// [_artistAlbumCandidates]) at most four times a second, and a bucket set
+  /// is emitted only when it changed.
   Stream<ArtistAlbumBuckets> watchArtistAlbumBuckets(String artistId) {
     final id = artistId.trim();
     if (id.isEmpty) {
       return Stream<ArtistAlbumBuckets>.value(const ArtistAlbumBuckets());
     }
+    return watchArtistById(id)
+        .map((artist) => artist?.name)
+        .distinct()
+        .switchMap(
+          (artistName) =>
+              tableUpdates(
+                    TableUpdateQuery.onAllTables([albumsTable, songsTable]),
+                  )
+                  .map((_) => null)
+                  .startWith(null)
+                  .throttleTime(
+                    const Duration(milliseconds: 250),
+                    trailing: true,
+                  )
+                  .switchMap(
+                    (_) => Stream.fromFuture(
+                      _loadArtistAlbumBuckets(id, artistName),
+                    ),
+                  ),
+        )
+        .distinct(
+          (a, b) =>
+              _sameAlbums(a.primaryAlbums, b.primaryAlbums) &&
+              _sameAlbums(a.featuredInAlbums, b.featuredInAlbums),
+        );
+  }
 
-    final controller = StreamController<ArtistAlbumBuckets>();
-    ArtistsTableData? currentArtist;
-    List<AlbumsTableData> currentAlbums = const <AlbumsTableData>[];
-    Set<String> currentSongAlbumIds = const <String>{};
-
-    void emitBuckets() {
-      controller.add(
-        _buildArtistAlbumBuckets(
-          albums: currentAlbums,
-          artistId: id,
-          artistName: currentArtist?.name,
-          relatedSongAlbumIds: currentSongAlbumIds,
-        ),
-      );
+  static bool _sameAlbums(List<AlbumsTableData> a, List<AlbumsTableData> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
     }
+    return true;
+  }
 
-    final artistSub = watchArtistById(id).listen(
-      (artist) {
-        currentArtist = artist;
-        emitBuckets();
-      },
-      onError: controller.addError,
-    );
-
-    final albumsSub =
-        (select(albumsTable)..where(
+  /// The artist page buckets computed by classifying every visible album in
+  /// the library; the reference for [watchArtistAlbumBuckets] in tests.
+  @visibleForTesting
+  Future<ArtistAlbumBuckets> debugArtistAlbumBucketsByFullScan(
+    String artistId,
+  ) async {
+    final id = artistId.trim();
+    final artist = await getArtistById(id);
+    final albums =
+        await (select(albumsTable)..where(
               (table) =>
                   table.isProvisional.equals(false) |
                   table.isExternal.equals(true),
             ))
-            .watch()
-            .listen(
-              (albums) {
-                currentAlbums = albums;
-                emitBuckets();
-              },
-              onError: controller.addError,
-            );
-
-    final songsSub = watchSongsByArtist(id).listen(
-      (songs) {
-        currentSongAlbumIds = songs
-            .map((song) => song.albumId?.trim() ?? '')
-            .where((albumId) => albumId.isNotEmpty)
-            .toSet();
-        emitBuckets();
-      },
-      onError: controller.addError,
+            .get();
+    final songs = await watchSongsByArtist(id).first;
+    return _buildArtistAlbumBuckets(
+      albums: albums,
+      artistId: id,
+      artistName: artist?.name,
+      relatedSongAlbumIds: songs
+          .map((song) => song.albumId?.trim() ?? '')
+          .where((albumId) => albumId.isNotEmpty)
+          .toSet(),
     );
-
-    controller.onCancel = () async {
-      await artistSub.cancel();
-      await albumsSub.cancel();
-      await songsSub.cancel();
-    };
-
-    return controller.stream;
   }
 
   Stream<ArtistsTableData?> watchArtistById(String artistId) {
@@ -3167,9 +3353,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Normalizes and stores every missing or stale local-search index row, in
-  /// bounded transactions. Returns the number of rows written.
+  /// bounded transactions. Returns the number of rows written. Rows written
+  /// before schema 87 lack track-matching keys and count as stale.
   ///
-  /// Raw statements are used so the derived index never wakes song watchers.
+  /// Raw statements are used so the derived index never wakes song watchers,
+  /// and normalization runs off the UI isolate.
   Future<int> refreshSongSearchIndex({int batchSize = 2000}) async {
     var written = 0;
     while (true) {
@@ -3179,29 +3367,26 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           songs.artist_name AS artist_name, songs.album_name AS album_name
         FROM songs
         LEFT JOIN song_search_text t ON t.song_id = songs.id
-        WHERE t.source IS NOT ($_songSearchSourceSql)
+        WHERE t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL
         LIMIT ?
         ''',
         variables: <Variable<Object>>[Variable<int>(batchSize)],
         readsFrom: {songsTable, songSearchTextTable},
       ).get();
       if (rows.isEmpty) break;
-      final stored = await _storeSongSearchText([
+      final raw = <(String, String, String?, String?)>[
         for (final row in rows)
           (
-            songId: row.read<String>('id'),
-            source: _songSearchSource(
-              row.read<String>('title'),
-              row.readNullable<String>('artist_name'),
-              row.readNullable<String>('album_name'),
-            ),
-            searchText: buildSongSearchText(
-              title: row.read<String>('title'),
-              artistName: row.readNullable<String>('artist_name'),
-              albumName: row.readNullable<String>('album_name'),
-            ),
+            row.read<String>('id'),
+            row.read<String>('title'),
+            row.readNullable<String>('artist_name'),
+            row.readNullable<String>('album_name'),
           ),
-      ]);
+      ];
+      final entries = await Isolate.run(
+        () => raw.map(songSearchIndexEntry).toList(growable: false),
+      );
+      final stored = await _storeSongSearchText(entries);
       if (!stored) break;
       written += rows.length;
       if (rows.length < batchSize) break;
@@ -3213,12 +3398,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return written;
   }
 
-  Future<bool> _storeSongSearchText(
-    List<({String songId, String source, String searchText})> entries,
-  ) async {
+  Future<bool> _storeSongSearchText(List<SongSearchIndexEntry> entries) async {
     // One multi-row statement per chunk keeps a full rebuild to about a
     // hundred round trips to the database isolate.
-    const chunkSize = 500;
+    const chunkSize = 300;
     for (var offset = 0; offset < entries.length; offset += chunkSize) {
       final chunk = entries.sublist(
         offset,
@@ -3226,15 +3409,22 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       );
       try {
         await customStatement(
-          'INSERT INTO song_search_text(song_id, source, search_text) VALUES '
-          '${List<String>.filled(chunk.length, '(?, ?, ?)').join(', ')} '
+          'INSERT INTO song_search_text(song_id, source, search_text, '
+          'match_title, match_artist, match_album) VALUES '
+          '${List<String>.filled(chunk.length, '(?, ?, ?, ?, ?, ?)').join(', ')} '
           'ON CONFLICT(song_id) DO UPDATE SET '
-          'source = excluded.source, search_text = excluded.search_text',
+          'source = excluded.source, search_text = excluded.search_text, '
+          'match_title = excluded.match_title, '
+          'match_artist = excluded.match_artist, '
+          'match_album = excluded.match_album',
           <Object?>[
             for (final entry in chunk) ...<Object?>[
               entry.songId,
               entry.source,
               entry.searchText,
+              entry.matchTitle,
+              entry.matchArtist,
+              entry.matchAlbum,
             ],
           ],
         );
@@ -3246,6 +3436,73 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       }
     }
     return true;
+  }
+
+  /// Songs that could match any of [tracks] (title and artist) under
+  /// `LocalTrackMatchSnapshot` rules: every song whose title key equals a
+  /// track's, and every song whose artist key could satisfy its artist
+  /// fallback (equal, containing or contained, or sharing a word). A snapshot
+  /// built from these makes the same matches as one built from the whole
+  /// library, without loading every song. Rows whose keys are stale are
+  /// included and matched in Dart, and trigger an index refresh.
+  Future<List<SongsTableData>> getTrackMatchCandidates(
+    Iterable<({String title, String artist})> tracks,
+  ) async {
+    final titleKeys = <String>{};
+    final artistKeys = <String>{};
+    for (final track in tracks) {
+      final title = normalizeMetadata(track.title);
+      if (title.isNotEmpty) titleKeys.add(title);
+      final artist = normalizeMetadata(track.artist);
+      if (artist.isNotEmpty) artistKeys.add(artist);
+    }
+    final artistTokens = <String>{
+      for (final artist in artistKeys)
+        ...artist.split(' ').where((token) => token.length > 1),
+    };
+    final conditions = <String>[
+      't.source IS NOT ($_songSearchSourceSql)',
+      't.match_title IS NULL',
+    ];
+    final variables = <Variable<Object>>[];
+    for (var offset = 0; offset < titleKeys.length; offset += 400) {
+      final chunk = titleKeys.skip(offset).take(400).toList(growable: false);
+      conditions.add(
+        't.match_title IN (${List<String>.filled(chunk.length, '?').join(', ')})',
+      );
+      variables.addAll(chunk.map(Variable<String>.new));
+    }
+    for (final artist in artistKeys) {
+      conditions.add(
+        "(t.match_artist <> '' AND (t.match_artist = ? "
+        'OR instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0))',
+      );
+      variables
+        ..add(Variable<String>(artist))
+        ..add(Variable<String>(artist))
+        ..add(Variable<String>(artist));
+    }
+    for (final token in artistTokens) {
+      conditions.add("instr(' ' || t.match_artist || ' ', ?) > 0");
+      variables.add(Variable<String>(' $token '));
+    }
+    final rows = await customSelect(
+      '''
+      SELECT songs.*,
+        t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL
+          AS index_stale
+      FROM songs
+      LEFT JOIN song_search_text t ON t.song_id = songs.id
+      WHERE songs.server_deleted_at IS NULL AND songs.is_provisional = 0
+        AND (${conditions.join(' OR ')})
+      ''',
+      variables: variables,
+      readsFrom: {songsTable, songSearchTextTable},
+    ).get();
+    if (rows.any((row) => row.read<bool>('index_stale'))) {
+      unawaited(scheduleSongSearchIndexRefresh());
+    }
+    return rows.map((row) => songsTable.map(row.data)).toList();
   }
 
   static const String _songSearchSourceSql =
@@ -3757,16 +4014,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return b.compareTo(a);
   }
 
-  String _normalizeMetadataLookup(String value) {
-    final lower = value.toLowerCase().trim();
-    final withoutParen = lower.replaceAll(RegExp(r'\([^)]*\)'), ' ');
-    final withoutFeat = withoutParen.replaceAll(
-      RegExp(r'\b(feat\.?|ft\.?)\b.*$'),
-      ' ',
-    );
-    final withoutPunct = withoutFeat.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
-    return withoutPunct.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
+  // The same normalization as track matching; the derived album artist
+  // index stores keys in this form.
+  String _normalizeMetadataLookup(String value) => normalizeMetadata(value);
 }
 
 class _SongSearchMatch {
@@ -3798,4 +4048,71 @@ class AlbumDownloadSummary {
   /// Sum of in-progress download fractions for tracks not yet downloaded.
   final double inFlightProgress;
   final bool queued;
+}
+
+/// One derived `song_search_text` row.
+typedef SongSearchIndexEntry = ({
+  String songId,
+  String source,
+  String searchText,
+  String matchTitle,
+  String matchArtist,
+  String matchAlbum,
+});
+
+/// Builds the derived search and track-matching keys for a raw song
+/// (id, title, artist name, album name). Top level so it can run in an
+/// isolate.
+SongSearchIndexEntry songSearchIndexEntry(
+  (String, String, String?, String?) song,
+) {
+  final (id, title, artistName, albumName) = song;
+  return (
+    songId: id,
+    source: '$title\u001f${artistName ?? ''}\u001f${albumName ?? ''}',
+    searchText: buildSongSearchText(
+      title: title,
+      artistName: artistName,
+      albumName: albumName,
+    ),
+    matchTitle: normalizeMetadata(title),
+    matchArtist: normalizeMetadata(artistName ?? ''),
+    matchAlbum: normalizeMetadata(albumName ?? ''),
+  );
+}
+
+/// One derived `album_artist_index` row.
+typedef AlbumArtistIndexEntry = ({
+  String albumId,
+  String source,
+  String artistKeys,
+});
+
+/// Builds an album's artist keys from its raw artist id, artist name, and
+/// credits JSON, matching the artist page's classification: the album
+/// artist's id, or its normalized name when it has no id, and each credit's
+/// id and normalized name. Top level so it can run in an isolate.
+AlbumArtistIndexEntry albumArtistIndexEntry(
+  (String, String?, String?, String) album,
+) {
+  final (id, artistId, artistName, artistsJson) = album;
+  final keys = <String>{};
+  final albumArtistId = artistId?.trim() ?? '';
+  if (albumArtistId.isNotEmpty) {
+    keys.add('i:$albumArtistId');
+  } else {
+    final name = normalizeMetadata(artistName ?? '');
+    if (name.isNotEmpty) keys.add('n:$name');
+  }
+  for (final credit in const ArtistRefListConverter().fromSql(artistsJson)) {
+    final creditId = credit.id.trim();
+    if (creditId.isNotEmpty) keys.add('i:$creditId');
+    final name = normalizeMetadata(credit.name);
+    if (name.isNotEmpty) keys.add('n:$name');
+  }
+  return (
+    albumId: id,
+    source: '${artistId ?? ''}\u001f${artistName ?? ''}\u001f$artistsJson',
+    artistKeys: keys.isEmpty ? '' : '\u001f${keys.join('\u001f')}\u001f',
+  );
 }

@@ -9941,8 +9941,48 @@ class $SongSearchTextTableTable extends SongSearchTextTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _matchTitleMeta = const VerificationMeta(
+    'matchTitle',
+  );
   @override
-  List<GeneratedColumn> get $columns => [songId, source, searchText];
+  late final GeneratedColumn<String> matchTitle = GeneratedColumn<String>(
+    'match_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _matchArtistMeta = const VerificationMeta(
+    'matchArtist',
+  );
+  @override
+  late final GeneratedColumn<String> matchArtist = GeneratedColumn<String>(
+    'match_artist',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _matchAlbumMeta = const VerificationMeta(
+    'matchAlbum',
+  );
+  @override
+  late final GeneratedColumn<String> matchAlbum = GeneratedColumn<String>(
+    'match_album',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    songId,
+    source,
+    searchText,
+    matchTitle,
+    matchArtist,
+    matchAlbum,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -9979,6 +10019,27 @@ class $SongSearchTextTableTable extends SongSearchTextTable
     } else if (isInserting) {
       context.missing(_searchTextMeta);
     }
+    if (data.containsKey('match_title')) {
+      context.handle(
+        _matchTitleMeta,
+        matchTitle.isAcceptableOrUnknown(data['match_title']!, _matchTitleMeta),
+      );
+    }
+    if (data.containsKey('match_artist')) {
+      context.handle(
+        _matchArtistMeta,
+        matchArtist.isAcceptableOrUnknown(
+          data['match_artist']!,
+          _matchArtistMeta,
+        ),
+      );
+    }
+    if (data.containsKey('match_album')) {
+      context.handle(
+        _matchAlbumMeta,
+        matchAlbum.isAcceptableOrUnknown(data['match_album']!, _matchAlbumMeta),
+      );
+    }
     return context;
   }
 
@@ -10003,6 +10064,18 @@ class $SongSearchTextTableTable extends SongSearchTextTable
         DriftSqlType.string,
         data['${effectivePrefix}search_text'],
       )!,
+      matchTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_title'],
+      ),
+      matchArtist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_artist'],
+      ),
+      matchAlbum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_album'],
+      ),
     );
   }
 
@@ -10020,10 +10093,21 @@ class SongSearchTextTableData extends DataClass
   final String songId;
   final String source;
   final String searchText;
+
+  /// The title, artist, and album keys used to match external track lists
+  /// (Last.fm top tracks, recommendations) to local songs, in the
+  /// `normalizeMetadata` form. Null only for rows written before schema 87,
+  /// which are treated as stale.
+  final String? matchTitle;
+  final String? matchArtist;
+  final String? matchAlbum;
   const SongSearchTextTableData({
     required this.songId,
     required this.source,
     required this.searchText,
+    this.matchTitle,
+    this.matchArtist,
+    this.matchAlbum,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -10031,6 +10115,15 @@ class SongSearchTextTableData extends DataClass
     map['song_id'] = Variable<String>(songId);
     map['source'] = Variable<String>(source);
     map['search_text'] = Variable<String>(searchText);
+    if (!nullToAbsent || matchTitle != null) {
+      map['match_title'] = Variable<String>(matchTitle);
+    }
+    if (!nullToAbsent || matchArtist != null) {
+      map['match_artist'] = Variable<String>(matchArtist);
+    }
+    if (!nullToAbsent || matchAlbum != null) {
+      map['match_album'] = Variable<String>(matchAlbum);
+    }
     return map;
   }
 
@@ -10039,6 +10132,15 @@ class SongSearchTextTableData extends DataClass
       songId: Value(songId),
       source: Value(source),
       searchText: Value(searchText),
+      matchTitle: matchTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(matchTitle),
+      matchArtist: matchArtist == null && nullToAbsent
+          ? const Value.absent()
+          : Value(matchArtist),
+      matchAlbum: matchAlbum == null && nullToAbsent
+          ? const Value.absent()
+          : Value(matchAlbum),
     );
   }
 
@@ -10051,6 +10153,9 @@ class SongSearchTextTableData extends DataClass
       songId: serializer.fromJson<String>(json['songId']),
       source: serializer.fromJson<String>(json['source']),
       searchText: serializer.fromJson<String>(json['searchText']),
+      matchTitle: serializer.fromJson<String?>(json['matchTitle']),
+      matchArtist: serializer.fromJson<String?>(json['matchArtist']),
+      matchAlbum: serializer.fromJson<String?>(json['matchAlbum']),
     );
   }
   @override
@@ -10060,6 +10165,9 @@ class SongSearchTextTableData extends DataClass
       'songId': serializer.toJson<String>(songId),
       'source': serializer.toJson<String>(source),
       'searchText': serializer.toJson<String>(searchText),
+      'matchTitle': serializer.toJson<String?>(matchTitle),
+      'matchArtist': serializer.toJson<String?>(matchArtist),
+      'matchAlbum': serializer.toJson<String?>(matchAlbum),
     };
   }
 
@@ -10067,10 +10175,16 @@ class SongSearchTextTableData extends DataClass
     String? songId,
     String? source,
     String? searchText,
+    Value<String?> matchTitle = const Value.absent(),
+    Value<String?> matchArtist = const Value.absent(),
+    Value<String?> matchAlbum = const Value.absent(),
   }) => SongSearchTextTableData(
     songId: songId ?? this.songId,
     source: source ?? this.source,
     searchText: searchText ?? this.searchText,
+    matchTitle: matchTitle.present ? matchTitle.value : this.matchTitle,
+    matchArtist: matchArtist.present ? matchArtist.value : this.matchArtist,
+    matchAlbum: matchAlbum.present ? matchAlbum.value : this.matchAlbum,
   );
   SongSearchTextTableData copyWithCompanion(SongSearchTextTableCompanion data) {
     return SongSearchTextTableData(
@@ -10079,6 +10193,15 @@ class SongSearchTextTableData extends DataClass
       searchText: data.searchText.present
           ? data.searchText.value
           : this.searchText,
+      matchTitle: data.matchTitle.present
+          ? data.matchTitle.value
+          : this.matchTitle,
+      matchArtist: data.matchArtist.present
+          ? data.matchArtist.value
+          : this.matchArtist,
+      matchAlbum: data.matchAlbum.present
+          ? data.matchAlbum.value
+          : this.matchAlbum,
     );
   }
 
@@ -10087,20 +10210,33 @@ class SongSearchTextTableData extends DataClass
     return (StringBuffer('SongSearchTextTableData(')
           ..write('songId: $songId, ')
           ..write('source: $source, ')
-          ..write('searchText: $searchText')
+          ..write('searchText: $searchText, ')
+          ..write('matchTitle: $matchTitle, ')
+          ..write('matchArtist: $matchArtist, ')
+          ..write('matchAlbum: $matchAlbum')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(songId, source, searchText);
+  int get hashCode => Object.hash(
+    songId,
+    source,
+    searchText,
+    matchTitle,
+    matchArtist,
+    matchAlbum,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is SongSearchTextTableData &&
           other.songId == this.songId &&
           other.source == this.source &&
-          other.searchText == this.searchText);
+          other.searchText == this.searchText &&
+          other.matchTitle == this.matchTitle &&
+          other.matchArtist == this.matchArtist &&
+          other.matchAlbum == this.matchAlbum);
 }
 
 class SongSearchTextTableCompanion
@@ -10108,15 +10244,24 @@ class SongSearchTextTableCompanion
   final Value<String> songId;
   final Value<String> source;
   final Value<String> searchText;
+  final Value<String?> matchTitle;
+  final Value<String?> matchArtist;
+  final Value<String?> matchAlbum;
   const SongSearchTextTableCompanion({
     this.songId = const Value.absent(),
     this.source = const Value.absent(),
     this.searchText = const Value.absent(),
+    this.matchTitle = const Value.absent(),
+    this.matchArtist = const Value.absent(),
+    this.matchAlbum = const Value.absent(),
   });
   SongSearchTextTableCompanion.insert({
     required String songId,
     required String source,
     required String searchText,
+    this.matchTitle = const Value.absent(),
+    this.matchArtist = const Value.absent(),
+    this.matchAlbum = const Value.absent(),
   }) : songId = Value(songId),
        source = Value(source),
        searchText = Value(searchText);
@@ -10124,11 +10269,17 @@ class SongSearchTextTableCompanion
     Expression<String>? songId,
     Expression<String>? source,
     Expression<String>? searchText,
+    Expression<String>? matchTitle,
+    Expression<String>? matchArtist,
+    Expression<String>? matchAlbum,
   }) {
     return RawValuesInsertable({
       if (songId != null) 'song_id': songId,
       if (source != null) 'source': source,
       if (searchText != null) 'search_text': searchText,
+      if (matchTitle != null) 'match_title': matchTitle,
+      if (matchArtist != null) 'match_artist': matchArtist,
+      if (matchAlbum != null) 'match_album': matchAlbum,
     });
   }
 
@@ -10136,11 +10287,17 @@ class SongSearchTextTableCompanion
     Value<String>? songId,
     Value<String>? source,
     Value<String>? searchText,
+    Value<String?>? matchTitle,
+    Value<String?>? matchArtist,
+    Value<String?>? matchAlbum,
   }) {
     return SongSearchTextTableCompanion(
       songId: songId ?? this.songId,
       source: source ?? this.source,
       searchText: searchText ?? this.searchText,
+      matchTitle: matchTitle ?? this.matchTitle,
+      matchArtist: matchArtist ?? this.matchArtist,
+      matchAlbum: matchAlbum ?? this.matchAlbum,
     );
   }
 
@@ -10156,6 +10313,15 @@ class SongSearchTextTableCompanion
     if (searchText.present) {
       map['search_text'] = Variable<String>(searchText.value);
     }
+    if (matchTitle.present) {
+      map['match_title'] = Variable<String>(matchTitle.value);
+    }
+    if (matchArtist.present) {
+      map['match_artist'] = Variable<String>(matchArtist.value);
+    }
+    if (matchAlbum.present) {
+      map['match_album'] = Variable<String>(matchAlbum.value);
+    }
     return map;
   }
 
@@ -10164,7 +10330,282 @@ class SongSearchTextTableCompanion
     return (StringBuffer('SongSearchTextTableCompanion(')
           ..write('songId: $songId, ')
           ..write('source: $source, ')
-          ..write('searchText: $searchText')
+          ..write('searchText: $searchText, ')
+          ..write('matchTitle: $matchTitle, ')
+          ..write('matchArtist: $matchArtist, ')
+          ..write('matchAlbum: $matchAlbum')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AlbumArtistIndexTableTable extends AlbumArtistIndexTable
+    with TableInfo<$AlbumArtistIndexTableTable, AlbumArtistIndexTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AlbumArtistIndexTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _albumIdMeta = const VerificationMeta(
+    'albumId',
+  );
+  @override
+  late final GeneratedColumn<String> albumId = GeneratedColumn<String>(
+    'album_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistKeysMeta = const VerificationMeta(
+    'artistKeys',
+  );
+  @override
+  late final GeneratedColumn<String> artistKeys = GeneratedColumn<String>(
+    'artist_keys',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [albumId, source, artistKeys];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'album_artist_index';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AlbumArtistIndexTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('album_id')) {
+      context.handle(
+        _albumIdMeta,
+        albumId.isAcceptableOrUnknown(data['album_id']!, _albumIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_albumIdMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('artist_keys')) {
+      context.handle(
+        _artistKeysMeta,
+        artistKeys.isAcceptableOrUnknown(data['artist_keys']!, _artistKeysMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_artistKeysMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {albumId};
+  @override
+  AlbumArtistIndexTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AlbumArtistIndexTableData(
+      albumId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      artistKeys: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_keys'],
+      )!,
+    );
+  }
+
+  @override
+  $AlbumArtistIndexTableTable createAlias(String alias) {
+    return $AlbumArtistIndexTableTable(attachedDatabase, alias);
+  }
+
+  @override
+  bool get withoutRowId => true;
+}
+
+class AlbumArtistIndexTableData extends DataClass
+    implements Insertable<AlbumArtistIndexTableData> {
+  final String albumId;
+  final String source;
+
+  /// Keys joined and wrapped by U+001F: `i:<artist id>` for the album artist
+  /// and each credited artist, and `n:<normalized name>` for a name-only
+  /// album artist and each credited name.
+  final String artistKeys;
+  const AlbumArtistIndexTableData({
+    required this.albumId,
+    required this.source,
+    required this.artistKeys,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['album_id'] = Variable<String>(albumId);
+    map['source'] = Variable<String>(source);
+    map['artist_keys'] = Variable<String>(artistKeys);
+    return map;
+  }
+
+  AlbumArtistIndexTableCompanion toCompanion(bool nullToAbsent) {
+    return AlbumArtistIndexTableCompanion(
+      albumId: Value(albumId),
+      source: Value(source),
+      artistKeys: Value(artistKeys),
+    );
+  }
+
+  factory AlbumArtistIndexTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AlbumArtistIndexTableData(
+      albumId: serializer.fromJson<String>(json['albumId']),
+      source: serializer.fromJson<String>(json['source']),
+      artistKeys: serializer.fromJson<String>(json['artistKeys']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'albumId': serializer.toJson<String>(albumId),
+      'source': serializer.toJson<String>(source),
+      'artistKeys': serializer.toJson<String>(artistKeys),
+    };
+  }
+
+  AlbumArtistIndexTableData copyWith({
+    String? albumId,
+    String? source,
+    String? artistKeys,
+  }) => AlbumArtistIndexTableData(
+    albumId: albumId ?? this.albumId,
+    source: source ?? this.source,
+    artistKeys: artistKeys ?? this.artistKeys,
+  );
+  AlbumArtistIndexTableData copyWithCompanion(
+    AlbumArtistIndexTableCompanion data,
+  ) {
+    return AlbumArtistIndexTableData(
+      albumId: data.albumId.present ? data.albumId.value : this.albumId,
+      source: data.source.present ? data.source.value : this.source,
+      artistKeys: data.artistKeys.present
+          ? data.artistKeys.value
+          : this.artistKeys,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AlbumArtistIndexTableData(')
+          ..write('albumId: $albumId, ')
+          ..write('source: $source, ')
+          ..write('artistKeys: $artistKeys')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(albumId, source, artistKeys);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AlbumArtistIndexTableData &&
+          other.albumId == this.albumId &&
+          other.source == this.source &&
+          other.artistKeys == this.artistKeys);
+}
+
+class AlbumArtistIndexTableCompanion
+    extends UpdateCompanion<AlbumArtistIndexTableData> {
+  final Value<String> albumId;
+  final Value<String> source;
+  final Value<String> artistKeys;
+  const AlbumArtistIndexTableCompanion({
+    this.albumId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.artistKeys = const Value.absent(),
+  });
+  AlbumArtistIndexTableCompanion.insert({
+    required String albumId,
+    required String source,
+    required String artistKeys,
+  }) : albumId = Value(albumId),
+       source = Value(source),
+       artistKeys = Value(artistKeys);
+  static Insertable<AlbumArtistIndexTableData> custom({
+    Expression<String>? albumId,
+    Expression<String>? source,
+    Expression<String>? artistKeys,
+  }) {
+    return RawValuesInsertable({
+      if (albumId != null) 'album_id': albumId,
+      if (source != null) 'source': source,
+      if (artistKeys != null) 'artist_keys': artistKeys,
+    });
+  }
+
+  AlbumArtistIndexTableCompanion copyWith({
+    Value<String>? albumId,
+    Value<String>? source,
+    Value<String>? artistKeys,
+  }) {
+    return AlbumArtistIndexTableCompanion(
+      albumId: albumId ?? this.albumId,
+      source: source ?? this.source,
+      artistKeys: artistKeys ?? this.artistKeys,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (albumId.present) {
+      map['album_id'] = Variable<String>(albumId.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (artistKeys.present) {
+      map['artist_keys'] = Variable<String>(artistKeys.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AlbumArtistIndexTableCompanion(')
+          ..write('albumId: $albumId, ')
+          ..write('source: $source, ')
+          ..write('artistKeys: $artistKeys')
           ..write(')'))
         .toString();
   }
@@ -32767,6 +33208,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $SongsTableTable songsTable = $SongsTableTable(this);
   late final $SongSearchTextTableTable songSearchTextTable =
       $SongSearchTextTableTable(this);
+  late final $AlbumArtistIndexTableTable albumArtistIndexTable =
+      $AlbumArtistIndexTableTable(this);
   late final $GenresTableTable genresTable = $GenresTableTable(this);
   late final $AlbumInfoCacheTableTable albumInfoCacheTable =
       $AlbumInfoCacheTableTable(this);
@@ -32889,6 +33332,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     albumsTable,
     songsTable,
     songSearchTextTable,
+    albumArtistIndexTable,
     genresTable,
     albumInfoCacheTable,
     externalLyricsCacheTable,
@@ -39555,12 +39999,18 @@ typedef $$SongSearchTextTableTableCreateCompanionBuilder =
       required String songId,
       required String source,
       required String searchText,
+      Value<String?> matchTitle,
+      Value<String?> matchArtist,
+      Value<String?> matchAlbum,
     });
 typedef $$SongSearchTextTableTableUpdateCompanionBuilder =
     SongSearchTextTableCompanion Function({
       Value<String> songId,
       Value<String> source,
       Value<String> searchText,
+      Value<String?> matchTitle,
+      Value<String?> matchArtist,
+      Value<String?> matchAlbum,
     });
 
 class $$SongSearchTextTableTableFilterComposer
@@ -39584,6 +40034,21 @@ class $$SongSearchTextTableTableFilterComposer
 
   ColumnFilters<String> get searchText => $composableBuilder(
     column: $table.searchText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchTitle => $composableBuilder(
+    column: $table.matchTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchArtist => $composableBuilder(
+    column: $table.matchArtist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchAlbum => $composableBuilder(
+    column: $table.matchAlbum,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -39611,6 +40076,21 @@ class $$SongSearchTextTableTableOrderingComposer
     column: $table.searchText,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get matchTitle => $composableBuilder(
+    column: $table.matchTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get matchArtist => $composableBuilder(
+    column: $table.matchArtist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get matchAlbum => $composableBuilder(
+    column: $table.matchAlbum,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongSearchTextTableTableAnnotationComposer
@@ -39630,6 +40110,21 @@ class $$SongSearchTextTableTableAnnotationComposer
 
   GeneratedColumn<String> get searchText => $composableBuilder(
     column: $table.searchText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get matchTitle => $composableBuilder(
+    column: $table.matchTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get matchArtist => $composableBuilder(
+    column: $table.matchArtist,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get matchAlbum => $composableBuilder(
+    column: $table.matchAlbum,
     builder: (column) => column,
   );
 }
@@ -39680,20 +40175,32 @@ class $$SongSearchTextTableTableTableManager
                 Value<String> songId = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> searchText = const Value.absent(),
+                Value<String?> matchTitle = const Value.absent(),
+                Value<String?> matchArtist = const Value.absent(),
+                Value<String?> matchAlbum = const Value.absent(),
               }) => SongSearchTextTableCompanion(
                 songId: songId,
                 source: source,
                 searchText: searchText,
+                matchTitle: matchTitle,
+                matchArtist: matchArtist,
+                matchAlbum: matchAlbum,
               ),
           createCompanionCallback:
               ({
                 required String songId,
                 required String source,
                 required String searchText,
+                Value<String?> matchTitle = const Value.absent(),
+                Value<String?> matchArtist = const Value.absent(),
+                Value<String?> matchAlbum = const Value.absent(),
               }) => SongSearchTextTableCompanion.insert(
                 songId: songId,
                 source: source,
                 searchText: searchText,
+                matchTitle: matchTitle,
+                matchArtist: matchArtist,
+                matchAlbum: matchAlbum,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -39722,6 +40229,183 @@ typedef $$SongSearchTextTableTableProcessedTableManager =
         >,
       ),
       SongSearchTextTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$AlbumArtistIndexTableTableCreateCompanionBuilder =
+    AlbumArtistIndexTableCompanion Function({
+      required String albumId,
+      required String source,
+      required String artistKeys,
+    });
+typedef $$AlbumArtistIndexTableTableUpdateCompanionBuilder =
+    AlbumArtistIndexTableCompanion Function({
+      Value<String> albumId,
+      Value<String> source,
+      Value<String> artistKeys,
+    });
+
+class $$AlbumArtistIndexTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $AlbumArtistIndexTableTable> {
+  $$AlbumArtistIndexTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistKeys => $composableBuilder(
+    column: $table.artistKeys,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AlbumArtistIndexTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $AlbumArtistIndexTableTable> {
+  $$AlbumArtistIndexTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistKeys => $composableBuilder(
+    column: $table.artistKeys,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AlbumArtistIndexTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $AlbumArtistIndexTableTable> {
+  $$AlbumArtistIndexTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get albumId =>
+      $composableBuilder(column: $table.albumId, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get artistKeys => $composableBuilder(
+    column: $table.artistKeys,
+    builder: (column) => column,
+  );
+}
+
+class $$AlbumArtistIndexTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $AlbumArtistIndexTableTable,
+          AlbumArtistIndexTableData,
+          $$AlbumArtistIndexTableTableFilterComposer,
+          $$AlbumArtistIndexTableTableOrderingComposer,
+          $$AlbumArtistIndexTableTableAnnotationComposer,
+          $$AlbumArtistIndexTableTableCreateCompanionBuilder,
+          $$AlbumArtistIndexTableTableUpdateCompanionBuilder,
+          (
+            AlbumArtistIndexTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $AlbumArtistIndexTableTable,
+              AlbumArtistIndexTableData
+            >,
+          ),
+          AlbumArtistIndexTableData,
+          PrefetchHooks Function()
+        > {
+  $$AlbumArtistIndexTableTableTableManager(
+    _$NavisDatabase db,
+    $AlbumArtistIndexTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AlbumArtistIndexTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AlbumArtistIndexTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AlbumArtistIndexTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> albumId = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> artistKeys = const Value.absent(),
+              }) => AlbumArtistIndexTableCompanion(
+                albumId: albumId,
+                source: source,
+                artistKeys: artistKeys,
+              ),
+          createCompanionCallback:
+              ({
+                required String albumId,
+                required String source,
+                required String artistKeys,
+              }) => AlbumArtistIndexTableCompanion.insert(
+                albumId: albumId,
+                source: source,
+                artistKeys: artistKeys,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AlbumArtistIndexTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $AlbumArtistIndexTableTable,
+      AlbumArtistIndexTableData,
+      $$AlbumArtistIndexTableTableFilterComposer,
+      $$AlbumArtistIndexTableTableOrderingComposer,
+      $$AlbumArtistIndexTableTableAnnotationComposer,
+      $$AlbumArtistIndexTableTableCreateCompanionBuilder,
+      $$AlbumArtistIndexTableTableUpdateCompanionBuilder,
+      (
+        AlbumArtistIndexTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $AlbumArtistIndexTableTable,
+          AlbumArtistIndexTableData
+        >,
+      ),
+      AlbumArtistIndexTableData,
       PrefetchHooks Function()
     >;
 typedef $$GenresTableTableCreateCompanionBuilder =
@@ -54359,6 +55043,8 @@ class $NavisDatabaseManager {
       $$SongsTableTableTableManager(_db, _db.songsTable);
   $$SongSearchTextTableTableTableManager get songSearchTextTable =>
       $$SongSearchTextTableTableTableManager(_db, _db.songSearchTextTable);
+  $$AlbumArtistIndexTableTableTableManager get albumArtistIndexTable =>
+      $$AlbumArtistIndexTableTableTableManager(_db, _db.albumArtistIndexTable);
   $$GenresTableTableTableManager get genresTable =>
       $$GenresTableTableTableManager(_db, _db.genresTable);
   $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>

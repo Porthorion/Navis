@@ -210,10 +210,16 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
       .toList(growable: true);
 
   try {
+    // Only songs that could match these tracks, not the whole library.
     final songs = await ref
         .read(navisDatabaseProvider)
         .libraryDao
-        .getAllSongs();
+        .getTrackMatchCandidates(
+          rawTracks.map((track) {
+            final query = _artistTopTrackMatchQuery(track);
+            return (title: query.title, artist: query.artist);
+          }),
+        );
     final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync(songs);
     for (var index = 0; index < rawTracks.length; index++) {
       final track = rawTracks[index];
