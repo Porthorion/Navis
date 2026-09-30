@@ -86,6 +86,11 @@ construction and provider mutation during build as hard failures. Use
 screenshots, and platform-specific validation; use `docs/ci-cd.md` for release
 and CI-equivalent gates.
 
+Android runtime evidence can use a temporary emulator that you create, use
+and delete yourself; see "Temporary Android emulators" in
+`docs/development-workflow.md`. Never wipe or uninstall from an emulator you
+did not start.
+
 For visible Flutter changes, inspect an app-owned screenshot from
 `POST /v1/presentation/screenshot`. Use the authenticated Navis diagnostics API
 for runtime control; do not substitute AT-SPI, OCR, xdotool, window scraping,

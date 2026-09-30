@@ -109,8 +109,10 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             setState(() => _visualValue = next);
           })
           ..addStatusListener((status) {
-            if (status == AnimationStatus.completed ||
-                status == AnimationStatus.dismissed) {
+            // Only a finished glide stops ticking. `forward(from: 0)` on a
+            // completed controller first reports `dismissed` as it rewinds,
+            // which previously silenced every glide after the first.
+            if (status == AnimationStatus.completed) {
               _glideTicks = false;
             }
           });
@@ -195,6 +197,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 
   void _adjust(int hundredths) {
     _dragging = false;
+    _glideTicks = false;
     _settle.stop();
     final next = widget.range.constrain(
       stepAdjustment(widget.value, hundredths),
@@ -270,6 +273,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
           }
           if (key == LogicalKeyboardKey.home) {
             _dragging = false;
+            _glideTicks = false;
             _settle.stop();
             _wheelPixels = 0;
             setState(
@@ -309,6 +313,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
             onHorizontalDragStart: widget.enabled
                 ? (_) {
                     _focus.requestFocus();
+                    _glideTicks = false;
                     _settle.stop();
                     _dragging = true;
                     _visualValue = widget.value;

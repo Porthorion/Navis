@@ -1295,8 +1295,9 @@ projection therefore publishes position, buffered position and duration
 divided by the speed, reports 1×, and multiplies system seek requests back to
 track time. At 1× it forwards values unchanged, and metadata is republished
 only when the item or speed changes. Linux MPRIS keeps the spec's track-time
-Position and publishes Rate on every speed change. Windows SMTC does not yet
-publish a playback rate.
+Position and publishes Rate on every speed change. Windows SMTC has no rate,
+so `WindowsSmtcBridge` publishes its timeline in real listening time and
+converts SMTC seek and skip requests back to track time.
 
 Queue replacement prefetches lyrics only for the selected song and the next
 two. `lyricsProvider` watches just the playing item's lookup metadata, so a

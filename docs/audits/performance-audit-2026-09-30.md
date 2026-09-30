@@ -92,7 +92,8 @@ The UX foundation (`94e80ed5`) was committed and merged before a second batch:
 - the desktop album-card hover Play button is built only while hovered;
 - at non-1× speeds, the system media session shows real listening time
   (`RealTimeProjectionAudioHandler`), so Bluetooth, car and lock-screen
-  clocks stay correct, and Linux MPRIS publishes Rate on every speed change.
+  clocks stay correct; Linux MPRIS publishes Rate on every speed change and
+  the Windows SMTC timeline uses real listening time.
 
 Post-merge Linux run: idle while playing 8.3 % CPU (baseline 25.9 %), cold
 restart with a saved queue ready in 1.0 s, artist shuffle 9.1 s, local search

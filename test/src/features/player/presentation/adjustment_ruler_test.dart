@@ -285,6 +285,23 @@ void main() {
       expect(haptics, contains('HapticFeedbackType.selectionClick'));
     });
 
+    testWidgets('every later jump ticks too, not only the first', (
+      tester,
+    ) async {
+      final (haptics, visualValue, setValue) = await pumpRuler(tester);
+      for (final target in <double>[1.5, 0.75, 1.25, 1]) {
+        haptics.clear();
+        setValue(target);
+        await tester.pump();
+        for (var i = 0; i < 40; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pumpAndSettle();
+        expect(visualValue(), target);
+        expect(haptics, isNotEmpty, reason: 'jump to $target was silent');
+      }
+    });
+
     testWidgets('reduced motion jumps without haptics', (tester) async {
       final (haptics, visualValue, setValue) = await pumpRuler(
         tester,

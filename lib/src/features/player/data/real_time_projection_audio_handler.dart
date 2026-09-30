@@ -95,7 +95,11 @@ MediaItem? projectMediaItemToRealTime(MediaItem? item, double speed) {
   return item.copyWith(duration: _divide(duration, speed));
 }
 
-@visibleForTesting
+/// Converts a track position to real listening time at [speed].
+Duration trackToRealTimePosition(Duration position, double speed) =>
+    _isNormalSpeed(speed) ? position : _divide(position, speed);
+
+/// Converts a real listening time position back to track time at [speed].
 Duration realTimeToTrackPosition(Duration position, double speed) {
   if (_isNormalSpeed(speed)) return position;
   return Duration(microseconds: (position.inMicroseconds * speed).round());

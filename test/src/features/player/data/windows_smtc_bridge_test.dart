@@ -195,6 +195,41 @@ void main() {
       await bridge.dispose();
     });
 
+    test('presents real listening time at non-normal speeds', () async {
+      final handler = _FakePlaybackHandler(
+        initialSnapshot: const PlaybackSnapshot.idle().copyWith(
+          queueSongIds: <String>['song-1'],
+          currentSongId: 'song-1',
+          currentIndex: 0,
+          processingState: AudioProcessingState.ready,
+          playing: true,
+          duration: Duration(seconds: 180),
+          position: Duration(seconds: 90),
+        ),
+        initialMediaItem: const MediaItem(id: 'song-1', title: 'Track'),
+      );
+      final client = _FakeWindowsSmtcClient();
+      final bridge = WindowsSmtcBridge(
+        handler: handler,
+        createClient: () async => client,
+        isWindowsRuntime: () => true,
+      );
+      await _flushAsync();
+      expect(client.lastState?.timeline.endTimeMs, 180000);
+
+      handler.emitAdjustments(const PlaybackAdjustments(speed: 1.5));
+      await _flushAsync();
+      expect(client.lastState?.timeline.endTimeMs, 120000);
+      expect(client.lastState?.timeline.positionMs, 60000);
+
+      // A request to 1:20 of the 2:00 real-time timeline is 2:00 of track.
+      client.emitPositionRequest(const Duration(seconds: 80));
+      await _flushAsync();
+      expect(handler.seekCalls, <Duration>[const Duration(seconds: 120)]);
+
+      await bridge.dispose();
+    });
+
     test('clamps SMTC seek requests and ignores live-radio seeks', () async {
       final handler = _FakePlaybackHandler(
         initialSnapshot: const PlaybackSnapshot.idle().copyWith(
@@ -590,12 +625,21 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Map<String, Object?> collectPlaybackDiagnostics() =>
       const <String, Object?>{};
 
+  PlaybackAdjustments adjustments = const PlaybackAdjustments();
+  final StreamController<PlaybackAdjustments> _adjustmentsController =
+      StreamController<PlaybackAdjustments>.broadcast();
+
+  void emitAdjustments(PlaybackAdjustments values) {
+    adjustments = values;
+    _adjustmentsController.add(values);
+  }
+
   @override
-  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
+  PlaybackAdjustments get playbackAdjustments => adjustments;
 
   @override
   Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
-      const Stream.empty();
+      _adjustmentsController.stream;
 
   @override
   PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>

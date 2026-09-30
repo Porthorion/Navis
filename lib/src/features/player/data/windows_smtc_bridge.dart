@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -38,6 +39,7 @@ class WindowsSmtcBridge {
   StreamSubscription<bool>? _shuffleSubscription;
   StreamSubscription<RepeatMode>? _repeatSubscription;
   StreamSubscription<Duration>? _positionChangeSubscription;
+  StreamSubscription<Object?>? _adjustmentsSubscription;
   StreamSubscription<Duration>? _playbackPositionSubscription;
   Timer? _timelineTimer;
   Duration _latestPlaybackPosition;
@@ -88,7 +90,17 @@ class WindowsSmtcBridge {
       _handlePlaybackPosition,
       onError: _logStreamError('Windows SMTC playback position stream'),
     );
+    // The timeline is published in real listening time, so a speed change
+    // changes both its length and position.
+    _adjustmentsSubscription = _handler.playbackAdjustmentsStream.listen(
+      (_) => unawaited(_syncState()),
+      onError: _logStreamError('Windows SMTC playback adjustments stream'),
+    );
   }
+
+  /// SMTC has no playback rate, so the timeline and seek requests use real
+  /// listening time: a 3:00 track at 1.5× is presented as 2:00.
+  double get _speed => _handler.playbackAdjustments.speed;
 
   void _wireControlListeners(WindowsSmtcClient smtc) {
     _buttonSubscription = smtc.buttonPressStream.listen(
@@ -149,7 +161,9 @@ class WindowsSmtcBridge {
     final capabilities = navisOsControlCapabilitiesForSnapshot(_latestSnapshot);
     if (_isDisposed || !capabilities.canSeek) return;
     try {
-      await _handler.seek(_clampPosition(position));
+      await _handler.seek(
+        _clampPosition(realTimeToTrackPosition(position, _speed)),
+      );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Windows SMTC position change request failed: $error\n$stackTrace',
@@ -157,8 +171,11 @@ class WindowsSmtcBridge {
     }
   }
 
-  Future<void> _seekRelative(Duration delta) =>
-      _handler.seek(_clampPosition(_latestPlaybackPosition + delta));
+  Future<void> _seekRelative(Duration delta) => _handler.seek(
+    _clampPosition(
+      _latestPlaybackPosition + realTimeToTrackPosition(delta, _speed),
+    ),
+  );
 
   Duration _clampPosition(Duration position) {
     final duration = _latestSnapshot.duration;
@@ -203,8 +220,10 @@ class WindowsSmtcBridge {
     final snapshot = _latestSnapshot;
     final item = _latestMediaItem;
     final capabilities = navisOsControlCapabilitiesForSnapshot(snapshot);
-    final duration = snapshot.duration;
-    final position = _clampPosition(_latestPlaybackPosition);
+    final speed = _speed;
+    final duration = trackToRealTimePosition(snapshot.duration, speed);
+    final trackPosition = _clampPosition(_latestPlaybackPosition);
+    final position = trackToRealTimePosition(trackPosition, speed);
     final active = snapshot.hasActivePlayback && item != null;
     final status = switch (snapshot.processingState) {
       AudioProcessingState.loading ||
@@ -260,7 +279,7 @@ class WindowsSmtcBridge {
     try {
       await write;
       if (revision == _stateRevision) {
-        _lastTimelinePosition = position;
+        _lastTimelinePosition = trackPosition;
       }
     } on Object catch (error, stackTrace) {
       AppLogger.warning('Windows SMTC state sync failed: $error\n$stackTrace');
@@ -303,6 +322,7 @@ class WindowsSmtcBridge {
     await _shuffleSubscription?.cancel();
     await _repeatSubscription?.cancel();
     await _positionChangeSubscription?.cancel();
+    await _adjustmentsSubscription?.cancel();
     await _stateWrites;
     final smtc = _smtc;
     _smtc = null;

@@ -61,7 +61,11 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
-        'At speeds other than 1.00×, Bluetooth, car and headphone displays, the lock screen, notification and Android Auto now show real listening time, so a 3:00 song at 1.50× shows 2:00 and the elapsed time stays in step; seeking from them lands where you expect. Linux desktop media widgets now follow speed changes made in the app',
+        'Choosing a speed chip, preset or Reset now sweeps the speed and pitch rulers with haptic ticks every time; previously only the first choice animated with ticks',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'At speeds other than 1.00×, Bluetooth, car and headphone displays, the lock screen, notification and Android Auto now show real listening time, so a 3:00 song at 1.50× shows 2:00 and the elapsed time stays in step; seeking from them lands where you expect. Linux and Windows desktop media controls now follow speed changes made in the app',
         type: _EntryType.fix,
       ),
       _Entry(

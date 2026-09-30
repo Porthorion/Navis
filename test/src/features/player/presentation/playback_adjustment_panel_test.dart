@@ -253,6 +253,48 @@ void main() {
     expect(find.text('0.90×'), findsOneWidget);
   });
 
+  testWidgets('every chip or preset change glides the ruler with haptics', (
+    tester,
+  ) async {
+    final haptics = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          haptics.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await mount(tester);
+
+    Future<void> pumpFrames() async {
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    for (final pick in <String>['1.5', '0.75', '1', '1.25', '0.5']) {
+      haptics.clear();
+      await tester.tap(find.byKey(ValueKey('adjustment-speed-chip-$pick')));
+      await tester.pump();
+      await pumpFrames();
+      expect(haptics, isNotEmpty, reason: 'chip $pick glided without ticks');
+    }
+
+    haptics.clear();
+    await choosePreset(tester, 'Normal');
+    await pumpFrames();
+    expect(haptics, isNotEmpty, reason: 'preset glided without ticks');
+  });
+
   testWidgets('speed chips select common speeds and mark the current one', (
     tester,
   ) async {

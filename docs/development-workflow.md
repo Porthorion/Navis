@@ -258,6 +258,28 @@ behavior under test:
 | Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
 | macOS or iOS integration | Linux startup smoke plus the affected Apple target and its supported platform interface |
 
+### Temporary Android emulators
+
+Agents may create a disposable Android Virtual Device for runtime evidence and
+must delete it when the work is done. Shared emulators and their installed
+sidecars can belong to other sessions: do not wipe, uninstall from, or stop
+an emulator you did not start.
+
+- Create the AVD by copying an existing AVD's `config.ini` (not its data) to
+  `~/.android/avd/<Name>.avd/` with a new `AvdId`, plus a matching
+  `<Name>.ini` whose `path` points there. `avdmanager` is not required. Raise
+  `disk.dataPartition.size` (for example to 16G); Android refuses installs
+  when less than about 10 % of the data partition is free.
+- Boot it with `emulator -avd <Name> -no-snapshot -no-boot-anim -wipe-data`,
+  wait for `sys.boot_completed`, and build x86_64-only APKs
+  (`--target-platform android-x64`) for it.
+- Install only sidecar packages; grant the notification permission to a
+  diagnostics sidecar (`pm grant <package>
+  android.permission.POST_NOTIFICATIONS`) so the prompt does not block its UI
+  bootstrap.
+- When finished, stop it with `adb -s <serial> emu kill` and delete
+  `~/.android/avd/<Name>.avd` and `<Name>.ini`.
+
 MPRIS, SMTC, MediaBrowser, and corresponding Apple interfaces are authoritative
 only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
