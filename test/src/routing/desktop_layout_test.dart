@@ -97,17 +97,21 @@ void main() {
   });
 
   test(
-    'resolveAdaptiveShellMode returns compact-wide for AAOS car screen (16:9 landscape)',
+    'resolveAdaptiveShellMode keeps the standard rail for 16:9 tablet sizes',
     () {
-      // Android Automotive OS emulator: 1408×792dp, aspect ratio ≈ 1.78.
-      expect(
-        resolveAdaptiveShellMode(
-          desktopRuntime: false,
-          viewportSize: const Size(1408, 792),
-          safePadding: EdgeInsets.zero,
-        ),
-        AdaptiveShellMode.compactWideLandscape,
-      );
+      // Height, not aspect ratio, decides the compact rail: a 16:9 tablet
+      // (or a same-sized car display) is tall enough for the standard rail.
+      for (final size in const <Size>[Size(1280, 720), Size(1408, 792)]) {
+        expect(
+          resolveAdaptiveShellMode(
+            desktopRuntime: false,
+            viewportSize: size,
+            safePadding: EdgeInsets.zero,
+          ),
+          AdaptiveShellMode.standardRail,
+          reason: '$size',
+        );
+      }
     },
   );
 

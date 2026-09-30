@@ -997,6 +997,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final useDesktopShell = adaptiveContext.useDesktopShell;
     final desktopLayoutClass = adaptiveContext.desktopLayoutClass;
     final useCompactWideLandscape = adaptiveContext.useCompactWideLandscape;
+    // The top-inset proxy is for car displays that do not report their
+    // bottom bar; ordinary rails use the real bottom inset.
+    final railBottomInset = useCompactWideLandscape
+        ? effectiveCarBottomInset
+        : mediaViewPadding.bottom;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
     final isMiniPlayerMode = desktopRuntime
@@ -1144,13 +1149,26 @@ class _AppShellState extends ConsumerState<AppShell> {
       });
     }
     final railDestinations = <_ShellDestination>[
-      _ShellDestination(icon: Icons.home_outlined, label: l10n.navHome),
+      _ShellDestination(
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
+        label: l10n.navHome,
+      ),
       _ShellDestination(
         icon: Icons.library_music_outlined,
+        selectedIcon: Icons.library_music_rounded,
         label: l10n.navLibrary,
       ),
-      _ShellDestination(icon: Icons.search, label: l10n.navSearch),
-      _ShellDestination(icon: Icons.settings_outlined, label: l10n.navSettings),
+      _ShellDestination(
+        icon: Icons.search,
+        selectedIcon: Icons.search_rounded,
+        label: l10n.navSearch,
+      ),
+      _ShellDestination(
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings_rounded,
+        label: l10n.navSettings,
+      ),
     ];
 
     void onDestinationSelected(int index) {
@@ -1163,7 +1181,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       _navExpandRequestNotifier.value++;
       final branchIndex = visibleBranchIndices[index];
-      if (branchIndex == ShellBranch.search.index) {
+      if (branchIndex == ShellBranch.search.index &&
+          branchIndex == navigationShell.currentIndex) {
+        // Re-selecting Search focuses its field; arriving from another tab
+        // shows the results without raising the keyboard.
         ref.read(searchFocusRequestProvider.notifier).increment();
       }
       if (branchIndex == ShellBranch.home.index &&
@@ -1248,7 +1269,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       switch (action) {
         case DesktopCommandAction.focusSearch:
+          // Unlike Go to Search, this also focuses the field. The request is
+          // sent after the tab switch so a first visit's page sees it.
           onDestinationSelected(ShellBranch.search.index);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ref.read(searchFocusRequestProvider.notifier).increment();
+            }
+          });
           return;
         case DesktopCommandAction.openQuickSearch:
           _openQuickSearchOverlay();
@@ -1564,7 +1592,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   left: !useCompactWideLandscape,
                                   right: !useCompactWideLandscape,
                                   minimum: EdgeInsets.only(
-                                    bottom: effectiveCarBottomInset,
+                                    bottom: railBottomInset,
                                   ),
                                   child: SizedBox(
                                     width: sideRailWidth,
@@ -1657,7 +1685,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     bottom:
                                         useCompactWideLandscape && showPlayer
                                         ? 0
-                                        : effectiveCarBottomInset,
+                                        : railBottomInset,
                                   ),
                                   child: Column(
                                     children: <Widget>[
@@ -1881,12 +1909,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                             key:
                                                                 _queueOverlayKey,
                                                             fullscreen: true,
-                                                            onDismiss: () => ref
-                                                                .read(
-                                                                  playerOverlayStackProvider
-                                                                      .notifier,
-                                                                )
-                                                                .hideQueue(),
+                                                            onDismiss:
+                                                                _handleQueueOverlayDismissed,
                                                           ),
                                                         ),
                                                     ],
@@ -2051,7 +2075,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                             order: const NumericFocusOrder(10),
                             child: _QueueOverlay(
                               key: _queueOverlayKey,
-                              fullscreen: useRailNavigation,
                               onDismiss: _handleQueueOverlayDismissed,
                             ),
                           ),
@@ -2101,18 +2124,30 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 destinations: <NavigationDestination>[
                                   NavigationDestination(
                                     icon: Icon(railDestinations[0].icon),
+                                    selectedIcon: Icon(
+                                      railDestinations[0].selectedIcon,
+                                    ),
                                     label: railDestinations[0].label,
                                   ),
                                   NavigationDestination(
                                     icon: Icon(railDestinations[1].icon),
+                                    selectedIcon: Icon(
+                                      railDestinations[1].selectedIcon,
+                                    ),
                                     label: railDestinations[1].label,
                                   ),
                                   NavigationDestination(
                                     icon: Icon(railDestinations[2].icon),
+                                    selectedIcon: Icon(
+                                      railDestinations[2].selectedIcon,
+                                    ),
                                     label: railDestinations[2].label,
                                   ),
                                   NavigationDestination(
                                     icon: Icon(railDestinations[3].icon),
+                                    selectedIcon: Icon(
+                                      railDestinations[3].selectedIcon,
+                                    ),
                                     label: railDestinations[3].label,
                                   ),
                                 ],

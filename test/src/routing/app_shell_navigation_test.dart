@@ -573,7 +573,7 @@ void main() {
       findsNothing,
     );
     expect(
-      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_outlined)),
+      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_rounded)),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -2661,6 +2661,39 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Search focuses its field only when re-selected', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder searchDestination() => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(ShellBranch.search.index);
+    bool searchFieldFocused() => desktopCommandBlockedByTextInput();
+
+    await tester.tap(searchDestination());
+    await tester.pumpAndSettle();
+    expect(searchFieldFocused(), isFalse);
+
+    await tester.tap(searchDestination());
+    await tester.pumpAndSettle();
+    expect(searchFieldFocused(), isTrue);
+  });
 
   testWidgets('switching tabs closes a menu opened inside the tab', (
     tester,

@@ -1,9 +1,16 @@
 part of 'app_shell.dart';
 
 class _ShellDestination {
-  const _ShellDestination({required this.icon, required this.label});
+  const _ShellDestination({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 
   final IconData icon;
+
+  /// Filled variant shown for the selected destination.
+  final IconData selectedIcon;
   final String label;
 }
 
@@ -52,7 +59,9 @@ class _CompactIconRail extends StatelessWidget {
                           onTap: () => onDestinationSelected(i),
                           child: Center(
                             child: Icon(
-                              destinations[i].icon,
+                              i == selectedIndex
+                                  ? destinations[i].selectedIcon
+                                  : destinations[i].icon,
                               size: iconSize,
                               color: i == selectedIndex
                                   ? colorScheme.primary
@@ -372,7 +381,7 @@ class _RailNavTile extends StatelessWidget {
               Badge(
                 isLabelVisible: showBadge,
                 child: Icon(
-                  destination.icon,
+                  selected ? destination.selectedIcon : destination.icon,
                   size: 24,
                   color: selected
                       ? colorScheme.onSecondaryContainer
