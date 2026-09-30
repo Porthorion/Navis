@@ -36,6 +36,22 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Shuffling or playing an artist with many remote albums no longer slows the app down: each newly loaded release joins the queue in one step, the Queue opens straight away while releases load, and long queues hand only the next few dozen songs to the player at a time, so starting, skipping and editing them stays instant',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Choosing a custom Downloads folder no longer freezes the app on Android: the folder is scanned in the background, your existing files are adopted as they are without being rewritten, and files with Arabic, Japanese, Chinese or accented names are now recognised',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Songs added, removed or reordered while a queue is still loading are no longer lost, and adding songs before the one that is playing no longer records it twice in play history or scrobbles it twice',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist pages open faster on large libraries and stay smooth while their releases load',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Choosing a speed chip, preset or Reset now sweeps the speed and pitch rulers with haptic ticks every time; previously only the first choice animated with ticks',
         type: ChangelogEntryType.fix,
       ),

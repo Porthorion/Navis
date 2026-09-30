@@ -1223,6 +1223,15 @@ class NavisAudioHandler extends BaseAudioHandler
     return ids;
   }
 
+  /// Drops every deferred song, for a queue that is being replaced or
+  /// cleared, and restores the user's repeat mode and release backoff.
+  Future<void> _clearDeferredTail() async {
+    _deferredTail.clear();
+    _tailReleaseFailures = 0;
+    _tailReleaseRetryAt = null;
+    await _syncNativeLoopMode();
+  }
+
   _DeferredQueueEntry _deferredEntryFor(SongsTableData song) =>
       _DeferredQueueEntry(song.id, song.isExternal ? song : null);
 
@@ -1285,7 +1294,7 @@ class NavisAudioHandler extends BaseAudioHandler
   /// materialised queue. It runs only while the queue lane is idle and yields
   /// to every user command.
   void _maybeReleaseTail() {
-    if (!_shouldReleaseTail()) return;
+    if (_disposeHandlerStarted || !_shouldReleaseTail()) return;
     final started = _queueLane.tryRunIdle((token) async {
       if (!_shouldReleaseTail()) return;
       try {
@@ -1339,6 +1348,8 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_deferredTail.isEmpty || count <= 0) return const <int?>[];
     final take = math.min(count, _deferredTail.length);
     final entries = _deferredTail.sublist(0, take);
+    final queueRevision = _queueItems.revision;
+    final tailRevision = _deferredTail.revision;
     final rows = await _rowsForDeferredEntries(entries);
     token?.checkCancelled();
     final prepared = <_PreparedQueueItem>[];
@@ -1365,9 +1376,15 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       token?.checkCancelled();
     }
-    // The lane serialises queue work, so the tail is unchanged since [take]
-    // was read.
-    if (prepared.isNotEmpty) {
+    // The lane serialises queue work, but a restore outside it (Android Auto
+    // resume) can replace the queue meanwhile; release nothing then.
+    if (_queueItems.revision != queueRevision ||
+        _deferredTail.revision != tailRevision) {
+      throw OperationCancelledException();
+    }
+    if (prepared.isEmpty) {
+      _deferredTail.removeRange(0, take);
+    } else {
       final inactiveDeck = _crossfadePlayer;
       final deckInSync =
           inactiveDeck != null &&
@@ -1381,7 +1398,10 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: prepared.first.song.id,
         cancelAfterSuccess: false,
       );
+      // Move the page from the tail to the materialised queue in one step,
+      // so no snapshot sees it in both.
       _queueItems.addAll(prepared.map((item) => item.mediaItem));
+      _deferredTail.removeRange(0, take);
       if (deckInSync) {
         try {
           await inactiveDeck.addAudioSources(
@@ -1398,7 +1418,6 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       _observeLockCacheForPrepared(prepared);
     }
-    _deferredTail.removeRange(0, take);
     final dropped = take - prepared.length;
     _tailReleaseCount++;
     _tailReleasedSongCount += prepared.length;
@@ -3324,7 +3343,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // setAudioSource) maps index 0 → startItem.mediaItem, not the first
     // album track.  Phase 2 will insert/append the remaining items.
     _queueItems.clear();
-    _deferredTail.clear();
+    await _clearDeferredTail();
     _queueItems.add(startItem.mediaItem);
     if (songs.length > 1) {
       _setQueueReplacementMetadataAnchor(
@@ -3714,7 +3733,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems
       ..clear()
       ..addAll(prepared.map((entry) => entry.mediaItem));
-    _deferredTail.clear();
+    await _clearDeferredTail();
 
     final audioSources = prepared
         .map((entry) => entry.audioSource)
@@ -4416,6 +4435,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Publishes a queue edit: one queue emission, one coalesced save, one
   /// snapshot.
   void _afterQueueEdit({required String context}) {
+    // An edit may have emptied the deferred tail, which re-enables repeat-all.
+    unawaited(
+      _syncNativeLoopMode().catchError((Object error) {
+        AppLogger.debug('Repeat mode sync after "$context" failed: $error');
+      }),
+    );
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _scheduleQueueItemsPersistence(context: context);
     _broadcastPlaybackState();
@@ -4800,8 +4825,7 @@ class NavisAudioHandler extends BaseAudioHandler
           token.checkCancelled();
         }
 
-        _deferredTail.clear();
-        await _syncNativeLoopMode();
+        await _clearDeferredTail();
         _clearQueueReplacementMetadataAnchor();
         _clearPendingLogicalQueue();
         if (_queueItems.isNotEmpty) {
@@ -4984,17 +5008,24 @@ class NavisAudioHandler extends BaseAudioHandler
         // Deferred song moved into the player's window: resolve it and insert
         // it with one native call.
         final entry = _deferredTail.removeAt(oldIndex - materialized);
-        final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
-          entry,
-        ]);
-        final (:prepared, offsets: _) = await _prepareRowsConcurrently(rows);
-        final inserted = prepared.isEmpty
-            ? const <_PreparedQueueItem>[]
-            : await _applyMaterialisedInsert(
-                prepared,
-                at: adjustedIndex,
-                operation: 'reorder into window',
-              );
+        final List<_PreparedQueueItem> inserted;
+        try {
+          final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+            entry,
+          ]);
+          final (:prepared, offsets: _) = await _prepareRowsConcurrently(rows);
+          inserted = prepared.isEmpty
+              ? const <_PreparedQueueItem>[]
+              : await _applyMaterialisedInsert(
+                  prepared,
+                  at: adjustedIndex,
+                  operation: 'reorder into window',
+                );
+        } on Object {
+          // Keep the song queued where it was.
+          _deferredTail.insert(oldIndex - materialized, entry);
+          rethrow;
+        }
         if (inserted.isEmpty) _tailDroppedSongCount++;
       } else {
         if (adjustedIndex >= materialized &&
@@ -5464,7 +5495,8 @@ class NavisAudioHandler extends BaseAudioHandler
       confirmedIndex: confirmedIndex,
       confirmedPosition: _player.position,
       effectiveOrder: effectiveOrder,
-      loopAll: _player.loopMode == LoopMode.all,
+      // The user's mode: the native loop is off while songs are deferred.
+      loopAll: _desiredLoopMode == LoopMode.all,
     );
     final cue = switch (decision.outcome) {
       PlaybackNavigationOutcome.next => TransportVisualIntent.next,
@@ -6768,7 +6800,7 @@ class NavisAudioHandler extends BaseAudioHandler
           generation: queueGeneration,
           songId: song.id,
         );
-        _deferredTail.clear();
+        await _clearDeferredTail();
         _queueItems
           ..clear()
           ..add(
@@ -7131,9 +7163,10 @@ class NavisAudioHandler extends BaseAudioHandler
     int failedIndex, {
     required bool autoPlay,
   }) async {
+    // The next song may still be deferred; playFromIndex releases it.
     final nextIndex = _nextPlayableIndexAfterFailure(
       failedIndex,
-      _queueItems.length,
+      _logicalQueueIds.length,
     );
     if (nextIndex != null) {
       await playFromIndex(nextIndex);
@@ -7604,7 +7637,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
 
         _queueItems.clear();
-        _deferredTail.clear();
+        await _clearDeferredTail();
         _updateScrobbleSession(null);
 
         final radioMediaItem = MediaItem(
@@ -7835,7 +7868,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) async {
     _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
-    _deferredTail.clear();
+    await _clearDeferredTail();
     if (generation > 0) {
       await _runTimedPlayerOperation(
         generation: generation,

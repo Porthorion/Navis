@@ -56,7 +56,10 @@ ANDROID_DATA = f'/data/user/0/{ANDROID_PACKAGE}'
 ANDROID_HANDSHAKE = (f'/sdcard/Android/data/{ANDROID_PACKAGE}/files/'
                      'navis-diagnostics/handshake.json')
 ANDROID_PORT = 19485
-GOLDEN = PROFILE / 'golden.sqlite'
+# NAVIS_PERF_GOLDEN selects another snapshot, for example one at an older
+# schema for a baseline build that cannot open a newer database.
+GOLDEN = pathlib.Path(os.environ.get('NAVIS_PERF_GOLDEN',
+                                     str(PROFILE / 'golden.sqlite')))
 FOLDER_FIXTURE = PROFILE / 'folder-fixture'
 REMOTE_ARTIST = os.environ.get('NAVIS_PERF_REMOTE_ARTIST', 'SQUARE ENIX MUSIC')
 SEARCH_QUERIES = [

@@ -1008,7 +1008,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         songs.artist_name AS artist_name, songs.suffix AS suffix,
         t.search_text AS search_text
       FROM song_search_text t
-      JOIN songs ON songs.id = t.song_id
+      -- CROSS JOIN keeps the title range on the index as the outer loop;
+      -- otherwise SQLite may scan every song (about 500 times slower).
+      CROSS JOIN songs ON songs.id = t.song_id
       WHERE t.search_text >= ? AND t.search_text < ?
         AND t.source = ($_songSearchSourceSql)
         AND songs.server_deleted_at IS NULL AND songs.is_provisional = 0

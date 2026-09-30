@@ -898,6 +898,30 @@ void main() {
       expect(player.appliedLoopMode, LoopMode.all);
     });
 
+    test('repeat all resumes when a new queue has nothing deferred', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      expect(player.appliedLoopMode, LoopMode.off);
+      await handler.replaceQueue(['song-3'], expandMatchFlows: false);
+      expect(player.appliedLoopMode, LoopMode.all);
+      expect(handler.snapshot.repeatMode, AudioServiceRepeatMode.all);
+    });
+
+    test('previous from the first song wraps into the deferred tail with '
+        'repeat all', () async {
+      final (handler, _, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await handler.skipToPrevious();
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-59' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.queueSongIds, ids(60));
+    });
+
     test('an upcoming merge keeps the next two songs and one native '
         'removal', () async {
       final (handler, player, database) = await windowed(30);
