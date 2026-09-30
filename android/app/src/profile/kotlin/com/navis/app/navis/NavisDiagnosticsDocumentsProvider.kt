@@ -27,6 +27,17 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
     private val denyReadsMarker: File
         get() = File(fixtureRoot, ".navis-diagnostics-deny-reads")
 
+    // Optional per-call delay (milliseconds, file outside the tree) so perf
+    // diagnostics can model a real external-storage provider, whose calls
+    // cross a process boundary, instead of this in-process fixture.
+    private val latencyMarker: File
+        get() = File(requireNotNull(context).filesDir, "navis-saf-fixture-latency-ms")
+
+    private fun simulateProviderLatency() {
+        val millis = latencyMarker.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull()
+        if (millis != null && millis > 0) Thread.sleep(millis)
+    }
+
     override fun onCreate(): Boolean {
         return fixtureRoot.exists() || fixtureRoot.mkdirs()
     }
@@ -54,6 +65,7 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor =
         MatrixCursor(projection ?: defaultDocumentProjection).also { result ->
+            simulateProviderLatency()
             includeDocument(result, resolveDocument(documentId), documentId)
         }
 
@@ -62,6 +74,7 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         projection: Array<out String>?,
         sortOrder: String?,
     ): Cursor = MatrixCursor(projection ?: defaultDocumentProjection).also { result ->
+        simulateProviderLatency()
         val parent = resolveDocument(parentDocumentId)
         require(parent.isDirectory) { "Not a directory" }
         parent.listFiles()?.sortedBy { it.name }?.forEach { child ->
@@ -74,6 +87,7 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         mode: String,
         signal: android.os.CancellationSignal?,
     ): ParcelFileDescriptor {
+        simulateProviderLatency()
         val document = resolveDocument(documentId)
         // Keep Navis's index available while denying media reads. This models a
         // provider losing access to one child document and lets diagnostics
@@ -93,6 +107,7 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
         require(displayName.isNotBlank() && displayName != "." && displayName != "..")
+        simulateProviderLatency()
         val parent = resolveDocument(parentDocumentId)
         require(parent.isDirectory) { "Parent is not a directory" }
         val target = resolveChild(parent, displayName)

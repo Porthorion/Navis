@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -106,6 +107,23 @@ class SyncDiagnosticsServer {
   final List<Map<String, Object?>> _slowFrameSamples = <Map<String, Object?>>[];
   DateTime _frameWindowStartedAt = DateTime.now();
   int _frameWindowCount = 0;
+  // Heartbeat: a ticker that requests every frame, recording the wall-clock
+  // gap between frames, plus a short timer measuring event-loop lag. A blocked
+  // UI or (merged) platform thread produces no frames at all, so frame timings
+  // alone cannot show a freeze; these gaps can.
+  bool _heartbeatEnabled = false;
+  bool _heartbeatCallbackRegistered = false;
+  Timer? _heartbeatLagTimer;
+  final Stopwatch _heartbeatWatch = Stopwatch();
+  int _heartbeatLastTickMicros = 0;
+  int _heartbeatLastLagMicros = 0;
+  final List<int> _heartbeatGapMicros = <int>[];
+  final List<int> _eventLoopLagMicros = <int>[];
+  Map<String, Object?> _playbackCounterBaseline = const <String, Object?>{};
+  // Drift table-update notifications per table since the last metrics reset;
+  // each one re-runs every live query that reads the table.
+  final Map<String, int> _tableUpdateCounts = <String, int>{};
+  StreamSubscription<Set<TableUpdate>>? _tableUpdateSubscription;
   final List<int> _databaseCanaryMicros = <int>[];
   final Map<String, List<int>> _databaseCanaryMicrosByPhase =
       <String, List<int>>{};
@@ -141,6 +159,18 @@ class SyncDiagnosticsServer {
       const Duration(seconds: 1),
       (_) => unawaited(_runDatabaseCanary()),
     );
+    _tableUpdateSubscription = _container
+        .read(navisDatabaseProvider)
+        .tableUpdates()
+        .listen((updates) {
+          for (final update in updates) {
+            _tableUpdateCounts.update(
+              update.table,
+              (count) => count + 1,
+              ifAbsent: () => 1,
+            );
+          }
+        });
     final handler = _container.read(audioHandlerProvider);
     _playbackFailureSubscription = handler?.loadFailureStream.listen((_) {
       _playbackFailureCount++;
@@ -162,6 +192,9 @@ class SyncDiagnosticsServer {
     _server = null;
     _canaryTimer?.cancel();
     _canaryTimer = null;
+    _stopHeartbeat();
+    await _tableUpdateSubscription?.cancel();
+    _tableUpdateSubscription = null;
     SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
     await _playbackFailureSubscription?.cancel();
     _playbackFailureSubscription = null;
@@ -1628,6 +1661,54 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
       }
+      if (request.method == 'POST' && path == '/v1/downloads/folder/adopt') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final String folder;
+        if (body['fixture'] == true) {
+          folder = await const AndroidSafStorage().diagnosticsFixtureTree();
+        } else {
+          final requested = body['path'];
+          final root = File(handshakePath).parent.absolute.path;
+          if (requested is! String ||
+              !requested.startsWith('$root${Platform.pathSeparator}')) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'path must be inside the diagnostics root',
+            });
+            return;
+          }
+          folder = requested;
+        }
+        // Same sequence as choosing a folder in Downloads settings.
+        final service = _container.read(downloadServiceProvider);
+        final watch = Stopwatch()..start();
+        final preview = await service.previewCustomDownloadFolder(folder);
+        final previewMs = watch.elapsedMilliseconds;
+        await service.configureCustomDownloadFolder(
+          enabled: true,
+          path: folder,
+        );
+        final configureMs = watch.elapsedMilliseconds;
+        final result = await service.importCustomDownloadFolder(preview);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'items': preview.items.length,
+          'importedCount': result.importedCount,
+          'skippedCount': result.skippedCount,
+          'previewMs': previewMs,
+          'configureMs': configureMs - previewMs,
+          'commitMs': watch.elapsedMilliseconds - configureMs,
+          'dispositions': <String, int>{
+            for (final disposition in PermanentDownloadImportDisposition.values)
+              disposition.name: preview.items
+                  .where((item) => item.disposition == disposition)
+                  .length,
+          },
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/cache/status') {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
@@ -2423,7 +2504,29 @@ class SyncDiagnosticsServer {
         _databaseCanaryMicrosByPhase.clear();
         _slowDatabaseCanarySamples.clear();
         _playbackFailureCount = 0;
+        _heartbeatGapMicros.clear();
+        _eventLoopLagMicros.clear();
+        _heartbeatLastTickMicros = _heartbeatWatch.elapsedMicroseconds;
+        _heartbeatLastLagMicros = _heartbeatWatch.elapsedMicroseconds;
+        _playbackCounterBaseline = _playbackCounters();
+        _tableUpdateCounts.clear();
         await _respond(request, HttpStatus.ok, {'status': 'reset'});
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/diagnostics/heartbeat') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final enabled = body['enabled'];
+        if (enabled is! bool) throw const FormatException();
+        if (enabled) {
+          _startHeartbeat();
+        } else {
+          _stopHeartbeat();
+        }
+        await _respond(request, HttpStatus.ok, {'heartbeat': enabled});
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/local-search') {
@@ -3327,6 +3430,10 @@ class SyncDiagnosticsServer {
       'frameSpan': _sampleSummary(_frameSpanMicros),
       'slowFrameSamples': _slowFrameSamples,
       'frameWindow': _frameWindowJson(),
+      'frameGap': _gapSummary(_heartbeatGapMicros),
+      'eventLoopLag': _gapSummary(_eventLoopLagMicros),
+      'playbackCounters': _playbackCounterDelta(),
+      'tableUpdates': Map<String, int>.of(_tableUpdateCounts),
       'imageCache': _imageCacheJson(),
       'providers': providerCounter?.toJson(),
       'databaseCanary': _sampleSummary(_databaseCanaryMicros),
@@ -3757,6 +3864,85 @@ class SyncDiagnosticsServer {
       'maxMicros': sorted.last,
       'over16ms': sorted.where((value) => value > 16667).length,
       'over33ms': sorted.where((value) => value > 33333).length,
+    };
+  }
+
+  void _startHeartbeat() {
+    if (_heartbeatEnabled) return;
+    _heartbeatEnabled = true;
+    _heartbeatWatch
+      ..reset()
+      ..start();
+    _heartbeatLastTickMicros = 0;
+    _heartbeatLastLagMicros = 0;
+    // A persistent frame callback that requests the next frame, rather than
+    // a Ticker: presentation waits treat running tickers as animations and
+    // would never see the UI settle.
+    if (!_heartbeatCallbackRegistered) {
+      _heartbeatCallbackRegistered = true;
+      SchedulerBinding.instance.addPersistentFrameCallback((_) {
+        if (!_heartbeatEnabled) return;
+        final now = _heartbeatWatch.elapsedMicroseconds;
+        _heartbeatGapMicros.add(now - _heartbeatLastTickMicros);
+        _heartbeatLastTickMicros = now;
+        _trimSamples(_heartbeatGapMicros);
+        SchedulerBinding.instance.scheduleFrame();
+      });
+    }
+    SchedulerBinding.instance.scheduleFrame();
+    const interval = Duration(milliseconds: 8);
+    _heartbeatLagTimer = Timer.periodic(interval, (_) {
+      final now = _heartbeatWatch.elapsedMicroseconds;
+      final lag = now - _heartbeatLastLagMicros - interval.inMicroseconds;
+      _eventLoopLagMicros.add(lag < 0 ? 0 : lag);
+      _heartbeatLastLagMicros = now;
+      _trimSamples(_eventLoopLagMicros);
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatEnabled = false;
+    _heartbeatLagTimer?.cancel();
+    _heartbeatLagTimer = null;
+    _heartbeatWatch.stop();
+  }
+
+  Map<String, Object?> _gapSummary(List<int> values) {
+    if (values.isEmpty) {
+      return const <String, Object?>{'samples': 0};
+    }
+    final sorted = List<int>.of(values)..sort();
+    int percentile(double value) =>
+        sorted[((sorted.length - 1) * value).round()];
+    return <String, Object?>{
+      'samples': sorted.length,
+      'p50Micros': percentile(0.5),
+      'p99Micros': percentile(0.99),
+      'maxMicros': sorted.last,
+      'over50ms': sorted.where((value) => value > 50000).length,
+      'over250ms': sorted.where((value) => value > 250000).length,
+      'over1000ms': sorted.where((value) => value > 1000000).length,
+    };
+  }
+
+  Map<String, Object?> _playbackCounters() {
+    final counters = _container
+        .read(audioHandlerProvider)
+        ?.collectPlaybackDiagnostics()['counters'];
+    return counters is Map<String, Object?>
+        ? counters
+        : const <String, Object?>{};
+  }
+
+  Map<String, Object?> _playbackCounterDelta() {
+    final current = _playbackCounters();
+    return <String, Object?>{
+      for (final entry in current.entries)
+        entry.key: switch (entry.value) {
+          final int value =>
+            value - ((_playbackCounterBaseline[entry.key] as int?) ?? 0),
+          final other => other,
+        },
     };
   }
 

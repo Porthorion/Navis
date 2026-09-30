@@ -326,10 +326,28 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   `POST /v1/session/connect`; it is never logged.
 - The default profile clones the normal Navis database once into
   `build/perf-diagnostics/profile` and points the clone at the credential
-  file's server and user. Later runs reuse it (clearing only its saved queue).
-  `--fresh` starts empty and measures the first sync instead.
+  file's server and user. `--fresh` starts empty and measures the first sync
+  instead, then keeps a `golden.sqlite` snapshot of the synced catalogue.
+  Later runs restore that snapshot (when present) and clear the saved queue,
+  downloads, and custom download folder, so remote hydration or adopted
+  files from an earlier run never change the next run's workload.
 - `--scenarios` selects from `idle`, `queue2k`, `queue10k`, `library`,
-  `search`, `artist`, and `cold`. `--skip-build` reuses the last profile build.
+  `search`, `artist`, `artist-remote`, `folder-import`, and `cold`.
+  `--skip-build` reuses the last profile build; `NAVIS_PERF_BUNDLE` (Linux) or
+  `NAVIS_PERF_APK` (Android) runs a saved build instead, for example an
+  unmodified baseline.
+- `artist-remote` opens the artist named by `NAVIS_PERF_REMOTE_ARTIST`
+  (default `SQUARE ENIX MUSIC`, which has many remote releases on the test
+  server), waits for its release metadata, presses Shuffle through
+  `POST /v1/presentation/artist-action`, and opens the Queue every five
+  seconds while releases hydrate.
+- `folder-import` builds `--folder-files` (default 400) small files named
+  `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
+  header) and adopts them through `POST /v1/downloads/folder/adopt`, the same
+  preview, configure and import sequence as choosing a folder in Downloads.
+  On Android it stages them into the profile-only SAF fixture provider and
+  writes `NAVIS_PERF_SAF_LATENCY_MS` (default 2) as a per-call delay, so the
+  in-process fixture behaves like the real external-storage provider.
 - `--android <serial>` builds and installs the `com.navis.app.navis.perf`
   profile sidecar, keeps its database in private internal storage, and drives
   the same scenarios over `adb forward`. `--android-seed` copies the synced
@@ -340,8 +358,15 @@ The report fields it relies on are part of the authenticated diagnostics API:
 `over33ms` counts, a `frameWindow` rate since the last
 `POST /v1/diagnostics/metrics/reset`, `imageCache` usage, and `providers`
 (live provider counts and the largest provider families, without family
-arguments). `GET /v1/playback/status` includes `playerSequenceLength`,
-`queueFill` stage timings, and persistence-lane counts. Read-only
+arguments). `POST /v1/diagnostics/heartbeat {"enabled": true}` requests every
+frame and records the wall-clock gap between frames (`frameGap`) and event
+loop lag (`eventLoopLag`); a blocked UI or merged platform thread produces no
+frames, so frame timings alone cannot show a freeze. The report also counts
+`playbackCounters` (snapshot broadcasts, queue emissions and their items,
+native player operations) and `tableUpdates` (Drift change notifications per
+table) since the last reset. `GET /v1/playback/status` includes `playerSequenceLength`,
+`materializedLength`, `deferredLength`, `queueFill` stage timings, and
+persistence-lane counts. Read-only
 `GET /v1/diagnostics/local-search?query=` times the production local artist,
 album and song searches and returns only counts and durations.
 

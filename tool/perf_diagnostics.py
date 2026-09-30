@@ -26,9 +26,11 @@ import json
 import os
 import pathlib
 import random
+import shlex
 import shutil
 import sqlite3
 import stat
+import struct
 import subprocess
 import sys
 import threading
@@ -40,14 +42,23 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASE = ROOT / 'build' / 'perf-diagnostics'
 PROFILE = BASE / 'profile'
-BUNDLE = ROOT / 'build' / 'linux' / 'x64' / 'profile' / 'bundle' / 'navis'
-APK = (ROOT / 'build' / 'app' / 'outputs' / 'flutter-apk' /
-       'app-sideload-profile.apk')
+# NAVIS_PERF_BUNDLE runs a saved build (for example an unmodified baseline)
+# instead of the current profile bundle.
+BUNDLE = pathlib.Path(os.environ.get(
+    'NAVIS_PERF_BUNDLE',
+    str(ROOT / 'build' / 'linux' / 'x64' / 'profile' / 'bundle' / 'navis')))
+APK = pathlib.Path(os.environ.get(
+    'NAVIS_PERF_APK',
+    str(ROOT / 'build' / 'app' / 'outputs' / 'flutter-apk' /
+        'app-sideload-profile.apk')))
 ANDROID_PACKAGE = 'com.navis.app.navis.perf'
 ANDROID_DATA = f'/data/user/0/{ANDROID_PACKAGE}'
 ANDROID_HANDSHAKE = (f'/sdcard/Android/data/{ANDROID_PACKAGE}/files/'
                      'navis-diagnostics/handshake.json')
 ANDROID_PORT = 19485
+GOLDEN = PROFILE / 'golden.sqlite'
+FOLDER_FIXTURE = PROFILE / 'folder-fixture'
+REMOTE_ARTIST = os.environ.get('NAVIS_PERF_REMOTE_ARTIST', 'SQUARE ENIX MUSIC')
 SEARCH_QUERIES = [
     'love', 'the', 'bohemian rhapsody', 'bhmn rhpsdy', 'beyonce', 'café',
     'عمرو', 'حب', '東京', 'zz',
@@ -133,11 +144,25 @@ def prepare_profile(credentials: dict, fresh: bool) -> None:
     os.chmod(password, 0o600)
     database = PROFILE / 'navis.sqlite'
     if database.exists() and not fresh:
+        if GOLDEN.exists():
+            # Restore the post-first-sync snapshot, so remote hydration,
+            # adopted downloads and queues from earlier runs never change the
+            # workload of this one.
+            for suffix in ('-wal', '-shm'):
+                pathlib.Path(f'{database}{suffix}').unlink(missing_ok=True)
+            with sqlite3.connect(f'file:{GOLDEN}?mode=ro', uri=True) as golden, \
+                    sqlite3.connect(database) as clone:
+                golden.backup(clone)
         # Each run starts without a saved queue so launches are comparable; the
         # cold-restart scenario saves its own queue during the run.
         with sqlite3.connect(database) as clone:
             clone.execute('DELETE FROM play_queue_items')
             clone.execute('DELETE FROM play_queue')
+            clone.execute('DELETE FROM cached_tracks')
+            clone.execute('DELETE FROM download_queue')
+            clone.execute(
+                'UPDATE app_settings SET custom_download_folder_enabled=0, '
+                'custom_download_folder_path=NULL')
             clone.commit()
         return
     if fresh:
@@ -332,6 +357,21 @@ class AndroidApp(App):
         return {'handshakeS': round(handshake_s, 2),
                 'handlerReadyS': round(time.monotonic() - started, 2)}
 
+    def stage_saf_fixture(self, fixture: pathlib.Path) -> None:
+        staging = '/data/local/tmp/navis-folder'
+        self.shell('rm', '-rf', staging)
+        subprocess.run(self.adb + ['push', str(fixture), staging],
+                       check=True, capture_output=True)
+        latency = os.environ.get('NAVIS_PERF_SAF_LATENCY_MS', '2')
+        # adb joins arguments into one remote command line, so the script
+        # must be quoted to run entirely as the app user.
+        script = ('rm -rf files/navis-saf-fixture && '
+                  'mkdir -p files/navis-saf-fixture && '
+                  f'cp -r {staging}/. files/navis-saf-fixture/ && '
+                  f'echo {int(latency)} > files/navis-saf-fixture-latency-ms')
+        self.shell('run-as', ANDROID_PACKAGE, 'sh', '-c', shlex.quote(script))
+        self.shell('rm', '-rf', staging)
+
     def cpu_seconds(self) -> float:
         fields = self.shell('cat', f'/proc/{self.pid}/stat')
         parts = fields.rsplit(')', 1)[1].split()
@@ -364,7 +404,19 @@ def frame_summary(report: dict) -> dict:
         value = report.get(key, {}).get(field)
         return None if value is None else round(value / 1000, 2)
     frames = report.get('frames', {})
+    gap = report.get('frameGap', {})
+    lag = report.get('eventLoopLag', {})
     return {
+        'buildP99Ms': ms('frameBuild', 'p99Micros'),
+        'rasterP99Ms': ms('frameRaster', 'p99Micros'),
+        'frameGapMaxMs': ms('frameGap', 'maxMicros'),
+        'frameGapP99Ms': ms('frameGap', 'p99Micros'),
+        'frameGapsOver50ms': gap.get('over50ms'),
+        'frameGapsOver250ms': gap.get('over250ms'),
+        'eventLoopLagMaxMs': ms('eventLoopLag', 'maxMicros'),
+        'eventLoopLagOver50ms': lag.get('over50ms'),
+        'playbackCounters': report.get('playbackCounters'),
+        'tableUpdates': report.get('tableUpdates'),
         'samples': frames.get('samples', 0),
         'p50Ms': ms('frames', 'p50Micros'),
         'p95Ms': ms('frames', 'p95Micros'),
@@ -392,7 +444,9 @@ class Runner:
         self.database = database
         self.results: dict = {}
 
-    def measure(self, name: str, action):
+    def measure(self, name: str, action, heartbeat: bool = False):
+        if heartbeat:
+            self.app.api('/v1/diagnostics/heartbeat', {'enabled': True})
         self.app.api('/v1/diagnostics/metrics/reset', {})
         cpu_before = self.app.cpu_seconds()
         started = time.monotonic()
@@ -404,6 +458,8 @@ class Runner:
             error = str(failure)
         elapsed = time.monotonic() - started
         report = self.app.api('/v1/diagnostics/report')
+        if heartbeat:
+            self.app.api('/v1/diagnostics/heartbeat', {'enabled': False})
         result = frame_summary(report)
         result['elapsedS'] = round(elapsed, 2)
         result['cpuPercent'] = round(
@@ -429,6 +485,123 @@ class Runner:
                 'SELECT artist_id FROM songs WHERE artist_id IS NOT NULL '
                 'GROUP BY artist_id ORDER BY COUNT(*) DESC LIMIT 1').fetchone()
         return row[0] if row else None
+
+    def remote_artist_id(self) -> str | None:
+        with sqlite3.connect(f'file:{self.database}?mode=ro', uri=True) as db:
+            row = db.execute(
+                'SELECT id FROM artists WHERE name = ? COLLATE NOCASE LIMIT 1',
+                (REMOTE_ARTIST,)).fetchone()
+        return row[0] if row else None
+
+    def artist_page(self, artist: str):
+        # Opening the page requests the artist's remote releases; wait for
+        # that metadata to land so the shuffle scenario starts from the same
+        # state the user sees before pressing Shuffle.
+        self.app.api('/v1/presentation/navigate',
+                     {'location': f'/library/artists/{artist}'})
+        time.sleep(10)
+        return {'artistId': artist}
+
+    def remote_artist_shuffle(self):
+        started = time.monotonic()
+        self.app.api('/v1/presentation/artist-action', {'action': 'shuffle'})
+        first_audio = None
+        queue_open_ms = []
+        next_probe = time.monotonic() + 4
+        final = None
+        deadline = time.monotonic() + 360
+        while time.monotonic() < deadline:
+            status = self.app.api('/v1/artists/playback/status')
+            if first_audio is None:
+                playback = self.app.api('/v1/playback/status')
+                if playback.get('playing') and playback.get('positionMs', 0) > 0:
+                    first_audio = round(time.monotonic() - started, 2)
+            if status.get('stage') in ('completed', 'failed', 'cancelled'):
+                final = status
+                break
+            if time.monotonic() >= next_probe:
+                # Opening the Queue while the artist is still loading is the
+                # interaction that used to become unusable.
+                opened = time.monotonic()
+                try:
+                    self.app.api('/v1/presentation/player-overlay',
+                                 {'surface': 'queue', 'visible': True},
+                                 timeout=30)
+                    queue_open_ms.append(round((time.monotonic() - opened) * 1000))
+                    time.sleep(1.5)
+                    self.app.api('/v1/presentation/player-overlay',
+                                 {'surface': 'queue', 'visible': False},
+                                 timeout=30)
+                except Exception as error:  # reported, never fatal
+                    queue_open_ms.append(f'error:{type(error).__name__}')
+                next_probe = time.monotonic() + 5
+            time.sleep(0.5)
+        playback = self.app.api('/v1/playback/status')
+        return {
+            'stage': (final or {}).get('stage', 'timeout'),
+            'artistPrepareS': round(time.monotonic() - started, 1),
+            'firstAudioS': first_audio,
+            'albums': f"{(final or {}).get('completedAlbums')}/{(final or {}).get('totalAlbums')}",
+            'availableTracks': (final or {}).get('availableTracks'),
+            'queueLength': playback.get('queueLength'),
+            'playerSequenceLength': playback.get('playerSequenceLength'),
+            'deferredLength': playback.get('deferredLength'),
+            'queueOpenMs': queue_open_ms,
+        }
+
+    def build_folder_fixture(self, count: int, flac_kb: int, other_kb: int,
+                             target: pathlib.Path) -> dict:
+        with sqlite3.connect(f'file:{self.database}?mode=ro', uri=True) as db:
+            rows = db.execute(
+                "SELECT title, COALESCE(artist_name, ''), "
+                "LOWER(COALESCE(suffix, 'mp3')) FROM songs "
+                'WHERE server_deleted_at IS NULL AND is_provisional = 0 '
+                'ORDER BY id').fetchall()
+        random.Random(count).shuffle(rows)
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True)
+        payload = os.urandom(max(flac_kb, other_kb) * 1024)
+        written = 0
+        seen = set()
+
+        def clean(value: str) -> str:
+            value = value.replace('/', ' ').replace('\0', ' ').strip()
+            return value[:120] or 'Unknown'
+
+        for title, artist, suffix in rows:
+            if written >= count:
+                break
+            folder = target / clean(artist)
+            path = folder / f'{clean(title)}.{suffix or "mp3"}'
+            if path in seen:
+                continue
+            seen.add(path)
+            folder.mkdir(exist_ok=True)
+            with open(path, 'wb') as out:
+                if suffix == 'flac':
+                    out.write(_minimal_flac_header())
+                    out.write(payload[:flac_kb * 1024])
+                else:
+                    out.write(payload[:other_kb * 1024])
+            written += 1
+        return {'files': written}
+
+    def folder_import(self, count: int):
+        if isinstance(self.app, AndroidApp):
+            fixture = self.app.output / 'folder-fixture'
+            built = self.build_folder_fixture(count, 512, 128, fixture)
+            self.app.stage_saf_fixture(fixture)
+            shutil.rmtree(fixture)
+            body = {'fixture': True}
+        else:
+            built = self.build_folder_fixture(count, 1024, 256, FOLDER_FIXTURE)
+            body = {'path': str(FOLDER_FIXTURE)}
+        started = time.monotonic()
+        result = self.app.api('/v1/downloads/folder/adopt', body, timeout=1800)
+        result['adoptS'] = round(time.monotonic() - started, 1)
+        result.update(built)
+        return result
 
     def idle(self, seconds: float):
         time.sleep(seconds)
@@ -462,8 +635,11 @@ class Runner:
         deadline = time.monotonic() + fill_timeout
         while time.monotonic() < deadline:
             status = self.app.api('/v1/playback/status')
-            if status.get('queueLength') == count and \
-                    status.get('playerSequenceLength', 0) >= count - 5:
+            # A released-window queue holds only part of it in the player;
+            # the rest is deferred, and both count as filled.
+            held = (status.get('playerSequenceLength', 0) +
+                    status.get('deferredLength', 0))
+            if status.get('queueLength') == count and held >= count - 5:
                 filled = time.monotonic() - started
                 break
             time.sleep(1)
@@ -482,6 +658,7 @@ class Runner:
             'fillTimedOut': filled is None,
             'apiCall': call,
             'playerSequenceLength': status.get('playerSequenceLength'),
+            'deferredLength': status.get('deferredLength'),
             'queueLength': status.get('queueLength'),
             'navigation': status.get('navigation'),
             'startupStages': stages,
@@ -539,9 +716,25 @@ class Runner:
                 'playing': status.get('playing')}
 
 
+def _minimal_flac_header() -> bytes:
+    # fLaC, a 34-byte STREAMINFO, then a last VORBIS_COMMENT block holding
+    # only a vendor string; the audio frames that follow are opaque bytes.
+    streaminfo = bytes([0, 0]) + struct.pack('>H', 4096) + bytes(30)
+    vendor = b'navis-perf'
+    comment = struct.pack('<I', len(vendor)) + vendor + struct.pack('<I', 0)
+    return (b'fLaC' + bytes([0]) + len(streaminfo).to_bytes(3, 'big') +
+            streaminfo + bytes([0x84]) + len(comment).to_bytes(3, 'big') +
+            comment)
+
+
 def first_sync(app: App, runner: Runner, credentials: dict):
     def action():
         started = time.monotonic()
+        # Launch disables automatic sync so scenarios are not disturbed; the
+        # first catalog sync needs it, or the planner defers it.
+        app.api('/v1/diagnostics/overrides',
+                {'networkType': 'wifi', 'automaticSyncAllowed': True})
+        app.api('/v1/diagnostics/sync-foreground', {'active': True})
         app.api('/v1/presentation/onboarding/complete', {})
         app.api('/v1/session/connect', {
             'url': credentials['url'], 'username': credentials['username'],
@@ -553,6 +746,8 @@ def first_sync(app: App, runner: Runner, credentials: dict):
                 status.get('initialSync') in ('complete', None) else None
 
         final = wait_until(ready, 900, 'first sync', interval=5)
+        app.api('/v1/diagnostics/overrides',
+                {'networkType': 'wifi', 'automaticSyncAllowed': False})
         report = app.api('/v1/diagnostics/report')
         return {'firstSyncS': round(time.monotonic() - started, 1),
                 'catalog': report.get('catalog'),
@@ -569,7 +764,9 @@ def write_summary(output: pathlib.Path, summary: dict):
         notes = {k: v for k, v in r.items() if k in (
             'firstAudioS', 'fillCompleteS', 'fillTimedOut', 'songsP50Ms',
             'songsMaxMs', 'scrolledPx', 'artistPrepareS', 'firstSyncS',
-            'handshakeS', 'handlerReadyS', 'error', 'dbCanaryP95Ms')}
+            'handshakeS', 'handlerReadyS', 'error', 'dbCanaryP95Ms',
+            'frameGapMaxMs', 'frameGapsOver250ms', 'eventLoopLagMaxMs',
+            'queueOpenMs', 'albums', 'adoptS', 'importedCount', 'files')}
         lines.append(
             f"| {name} | {r.get('p50Ms')} | {r.get('p95Ms')} | {r.get('p99Ms')} | "
             f"{r.get('maxMs')} | {r.get('over16ms')} | {r.get('fps')} | "
@@ -590,7 +787,10 @@ def main() -> int:
                         help='copy the synced Linux profile database to the '
                              'Android sidecar before running')
     parser.add_argument('--scenarios', default='all',
-                        help='comma list: idle,queue2k,library,search,queue10k,artist,cold')
+                        help='comma list: idle,queue2k,library,search,queue10k,'
+                             'artist,artist-remote,folder-import,cold')
+    parser.add_argument('--folder-files', type=int, default=400,
+                        help='files in the folder-import fixture')
     args = parser.parse_args()
     wanted = set(args.scenarios.split(','))
 
@@ -624,6 +824,15 @@ def main() -> int:
         runner.results['S2_launch'] = launch
         if args.fresh:
             first_sync(app, runner, credentials)
+            if not android:
+                # Later runs restore this post-sync snapshot so they all start
+                # from the same catalog, before any scenario mutates it.
+                time.sleep(25)  # let deferred maintenance finish its pass
+                with sqlite3.connect(
+                        f'file:{PROFILE / "navis.sqlite"}?mode=ro',
+                        uri=True) as source, sqlite3.connect(GOLDEN) as golden:
+                    source.backup(golden)
+                os.chmod(GOLDEN, 0o600)
         else:
             app.api('/v1/presentation/onboarding/complete', {})
         app.api('/v1/presentation/navigate', {'location': '/'})
@@ -650,6 +859,22 @@ def main() -> int:
                            lambda: runner.play_queue(10000, 240, skips=5))
         if enabled('artist'):
             runner.measure('S4c_artist_shuffle', runner.artist_shuffle)
+        if enabled('artist-remote'):
+            artist = runner.remote_artist_id()
+            if artist is None:
+                runner.results['S7_remote_artist'] = {
+                    'error': f'artist {REMOTE_ARTIST!r} not in catalog'}
+            else:
+                runner.measure('S7a_remote_artist_page',
+                               lambda: runner.artist_page(artist), heartbeat=True)
+                runner.measure('S7b_remote_artist_shuffle',
+                               runner.remote_artist_shuffle, heartbeat=True)
+        if enabled('folder-import'):
+            app.api('/v1/presentation/navigate', {'location': '/'})
+            time.sleep(2)
+            runner.measure('S8_folder_import',
+                           lambda: runner.folder_import(args.folder_files),
+                           heartbeat=True)
         if enabled('cold'):
             app.stop()
             launch = app.launch('cold-restart')
