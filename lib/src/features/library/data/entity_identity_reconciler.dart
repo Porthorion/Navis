@@ -54,10 +54,14 @@ class EntityIdentityReconciler {
     // --- Albums -----------------------------------------------------------
     final provisionalAlbums = await _database.songIdentityDao
         .getProvisionalAlbums();
-    final candidateAlbums = await _database.librarySyncCandidateDao.getAlbums(
-      serverId: serverId,
-      generation: generation,
-    );
+    // Nothing provisional means nothing to reconcile, so skip reading every
+    // candidate row.
+    final candidateAlbums = provisionalAlbums.isEmpty
+        ? const <LibrarySyncCandidateAlbumsTableData>[]
+        : await _database.librarySyncCandidateDao.getAlbums(
+            serverId: serverId,
+            generation: generation,
+          );
     final candidateAlbumsById = <String, LibrarySyncCandidateAlbumsTableData>{
       for (final album in candidateAlbums) album.id: album,
     };
@@ -73,6 +77,12 @@ class EntityIdentityReconciler {
     final provisionalAlbumsById = <String, AlbumsTableData>{
       for (final album in provisionalAlbums) album.id: album,
     };
+    // Candidates do not change while old albums are matched to them, so the
+    // index is built once rather than once per old album.
+    final albumMbidIndex = _indexMbidCandidates(
+      candidatesById: candidateAlbumsById,
+      candidateMbid: (row) => row.releaseMbid,
+    );
     final albumAliases = <String, String>{};
     for (final oldAlbum in provisionalAlbums) {
       if (candidateAlbumsById.containsKey(oldAlbum.id)) {
@@ -85,10 +95,7 @@ class EntityIdentityReconciler {
         oldMbid: oldAlbum.releaseMbid,
         relationshipTargets: albumTargets[oldAlbum.id] ?? const <String>{},
         candidatesById: candidateAlbumsById,
-        mbidIndex: _indexMbidCandidates(
-          candidatesById: candidateAlbumsById,
-          candidateMbid: (row) => row.releaseMbid,
-        ),
+        mbidIndex: albumMbidIndex,
         candidateName: (row) => row.name,
       );
       if (decision.targetId == null) {
@@ -123,6 +130,7 @@ class EntityIdentityReconciler {
     // --- Artists ----------------------------------------------------------
     final provisionalArtists = await _database.songIdentityDao
         .getProvisionalArtists();
+    if (provisionalArtists.isEmpty) return summary;
     final candidateArtists = await _database.librarySyncCandidateDao.getArtists(
       serverId: serverId,
       generation: generation,
@@ -149,6 +157,10 @@ class EntityIdentityReconciler {
       (artistTargets[oldArtistId] ??= <String>{}).add(newArtistId);
     }
 
+    final artistMbidIndex = _indexMbidCandidates(
+      candidatesById: candidateArtistsById,
+      candidateMbid: (row) => row.artistMbid,
+    );
     for (final oldArtist in provisionalArtists) {
       if (candidateArtistsById.containsKey(oldArtist.id)) {
         continue;
@@ -158,10 +170,7 @@ class EntityIdentityReconciler {
         oldMbid: oldArtist.artistMbid,
         relationshipTargets: artistTargets[oldArtist.id] ?? const <String>{},
         candidatesById: candidateArtistsById,
-        mbidIndex: _indexMbidCandidates(
-          candidatesById: candidateArtistsById,
-          candidateMbid: (row) => row.artistMbid,
-        ),
+        mbidIndex: artistMbidIndex,
         candidateName: (row) => row.name,
       );
       if (decision.targetId == null) {

@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -23,6 +24,13 @@ const _perfSongCount = int.fromEnvironment(
 );
 const _perfAlbumCount = int.fromEnvironment(
   'NAVIS_PERF_ALBUM_COUNT',
+  defaultValue: 100,
+);
+
+/// Albums (and artists) renamed by the id-rebuild measurement:
+/// `NAVIS_PERF_REBUILD_ALBUM_COUNT=2000 flutter test ...`.
+const _perfRebuildAlbumCount = int.fromEnvironment(
+  'NAVIS_PERF_REBUILD_ALBUM_COUNT',
   defaultValue: 100,
 );
 
@@ -141,6 +149,121 @@ void main() {
         );
       },
       timeout: const Timeout(Duration(minutes: 10)),
+      skip: !sqliteAvailable,
+    );
+    test(
+      'promotion after a whole-library id rebuild records timings',
+      () async {
+        // Every album and artist gets a new id with the same MusicBrainz
+        // identifiers, and one song per album is downloaded, so each old
+        // album and artist stays provisional and goes through identity
+        // reconciliation against every candidate.
+        final database = NavisDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: FakeSyncCredentialStore(),
+        );
+        await serverConfigRepository.save(
+          ServerConfigModel(
+            url: 'https://example.com',
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+        );
+        final api = FakeLibrarySyncApi();
+        final engine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 8,
+          wifiAlbumConcurrency: 8,
+          cellularAlbumConcurrency: 8,
+          otherAlbumConcurrency: 8,
+          writeChunkSize: 512,
+          isolateThreshold: 1000,
+        );
+        const albums = _perfRebuildAlbumCount;
+        void serve(String prefix) {
+          api.artists
+            ..clear()
+            ..addAll([
+              for (var i = 0; i < albums; i++)
+                Artist(
+                  id: '$prefix-artist-$i',
+                  name: 'Artist $i',
+                  musicBrainzId: 'artist-mbid-$i',
+                ),
+            ]);
+          final pages = [
+            for (var i = 0; i < albums; i++)
+              Album(
+                id: '$prefix-album-$i',
+                name: 'Album $i',
+                artistId: '$prefix-artist-$i',
+                songCount: 2,
+                musicBrainzId: 'release-mbid-$i',
+                songs: [
+                  for (var t = 0; t < 2; t++)
+                    Song(
+                      id: '$prefix-song-$i-$t',
+                      title: 'Track $i $t',
+                      albumId: '$prefix-album-$i',
+                      artistId: '$prefix-artist-$i',
+                      track: t + 1,
+                      musicBrainzId: 'rec-$i-$t',
+                    ),
+                ],
+              ),
+          ];
+          api.fastPathPages
+            ..clear()
+            ..[0] = pages;
+          api.albumDetails
+            ..clear()
+            ..addAll({for (final album in pages) album.id: album});
+        }
+
+        serve('v1');
+        expect(
+          (await engine.forceFullSync()).status,
+          LibrarySyncStatus.succeeded,
+        );
+        for (var i = 0; i < albums; i++) {
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: 'v1-song-$i-0',
+              filePath: '/nonexistent/v1-song-$i-0.mp3',
+              fileSize: 3,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.utc(2026),
+            ),
+          );
+        }
+        serve('v2');
+        final timings = <int>[];
+        for (var run = 0; run < 3; run++) {
+          final watch = Stopwatch()..start();
+          await engine.forceFullSync();
+          timings.add(watch.elapsedMilliseconds);
+        }
+        final aliases = await database
+            .customSelect(
+              "SELECT COUNT(*) AS n FROM entity_identity_aliases "
+              "WHERE entity_type IN ('album', 'artist')",
+            )
+            .getSingle();
+        // Every old album and artist is matched by MusicBrainz id.
+        expect(aliases.read<int>('n'), 2 * albums);
+        // ignore: avoid_print
+        print(
+          'rebuild measurement: albums=$albums runMs=${timings.join(',')}',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 20)),
       skip: !sqliteAvailable,
     );
   });
