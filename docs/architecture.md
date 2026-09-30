@@ -1334,7 +1334,19 @@ orders only what the player holds), and repeat-all stays off natively until
 nothing is deferred, so the player never wraps early; the reported repeat mode
 is the user's. `GET /v1/playback/status` reports `materializedLength`,
 `deferredLength`, and release counters. Known limit: restoring at, or jumping
-to, a far index still materialises the prefix before it.
+to, a far index still materialises the prefix before it. Remote rows keep
+their own row whenever a materialised song returns to the tail (reorders,
+deferred ranges, far jumps, seek recovery, crossfade deck sync): the
+handler remembers the rows of materialised remote songs instead of re-reading
+their ids, which would drop them or swap in a matched local song.
+
+Every native queue edit runs under a timeout, including single removals and
+moves. A timeout rebuilds both players, which leaves the active one empty, so
+queue edits reload the materialised queue into the rebuilt player at the same
+song, position and play state before the edit reports its failure, keeping
+later edits in the lane consistent. Songs past the release window go back to
+the tail. An edit the Dart queue applied first (remove, move) stays applied;
+an insert that timed out is not applied.
 
 The queue lane (`NavisSupersedingLane`) has four kinds of work. Replacements
 supersede everything; navigation cancels replacements and idle work but lets

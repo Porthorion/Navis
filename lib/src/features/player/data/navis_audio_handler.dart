@@ -1444,6 +1444,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _runTimedPlayerOperation(
         generation: _activeLoadGeneration,
         operation: 'release deferred queue',
+        reloadQueueOnTimeout: true,
         action: () => _player.addAudioSources(
           prepared.map((item) => item.audioSource).toList(growable: false),
         ),
@@ -1687,6 +1688,9 @@ class NavisAudioHandler extends BaseAudioHandler
     // command superseded the generation meanwhile; dropping it would leave
     // the Dart queue and the player out of step.
     bool cancelAfterSuccess = true,
+    // For edits of a loaded queue: the player rebuilt after a timeout starts
+    // empty, so the materialised queue is loaded into it again.
+    bool reloadQueueOnTimeout = false,
   }) async {
     timeout ??= _playerLoadTimeout;
     _lastFailedSongId = null;
@@ -1736,11 +1740,19 @@ class NavisAudioHandler extends BaseAudioHandler
           isTimeout: true,
         );
       }
+      final capture = (
+        index: _player.currentIndex,
+        position: _player.position,
+        playing: _player.playing,
+      );
       await _recoverPlayersFromTimeout(
         generation: generation,
         operation: operation,
         songId: songId,
       );
+      if (reloadQueueOnTimeout && isCurrent) {
+        await _reloadQueueAfterTimeout(capture);
+      }
       if (!isCurrent) throw OperationCancelledException();
       throw PlaybackLoadTimeoutException(
         operation: operation,
@@ -1748,6 +1760,67 @@ class NavisAudioHandler extends BaseAudioHandler
         timeoutDuration: timeout,
       );
     }
+  }
+
+  /// Loads the materialised queue into a player rebuilt after a queue edit
+  /// timed out, at the same song and position. Without it the Dart queue
+  /// would list songs the empty player does not hold. Runs inside the lane
+  /// work that timed out, so waiting edits see matching queues. Songs past
+  /// the release window go back to the deferred tail; songs that can no
+  /// longer be prepared are dropped.
+  Future<void> _reloadQueueAfterTimeout(
+    ({int? index, Duration position, bool playing}) capture,
+  ) async {
+    if (_queueItems.isEmpty) return;
+    final current = (capture.index ?? 0).clamp(0, _queueItems.length - 1);
+    final end = _player.shuffleModeEnabled
+        ? _queueItems.length
+        : math.min(_queueItems.length, current + _queueWindow.ahead + 1);
+    final items = _queueItems.sublist(0, end);
+    final beyond = _queueItems.sublist(end);
+    try {
+      final rows = await _rowsForDeferredEntries(
+        items.map(_deferredEntryForItem).toList(growable: false),
+      );
+      final (:prepared, :offsets) = await _prepareRowsConcurrently(rows);
+      if (prepared.isEmpty) {
+        throw StateError('No queued song can be prepared.');
+      }
+      // The current song, or the next one that is still available.
+      final landed =
+          offsets.skip(current).nonNulls.firstOrNull ?? prepared.length - 1;
+      final dropped = <String>[
+        for (var i = 0; i < items.length; i++)
+          if (offsets[i] == null) items[i].id,
+      ];
+      _queueItems
+        ..clear()
+        ..addAll(prepared.map((item) => item.mediaItem));
+      _deferredTail.insertAll(0, beyond.map(_deferredEntryForItem));
+      await _player
+          .setAudioSources(
+            prepared.map((item) => item.audioSource).toList(growable: false),
+            initialIndex: landed,
+            initialPosition: offsets[current] == null
+                ? Duration.zero
+                : capture.position,
+          )
+          .timeout(_playerLoadTimeout);
+      _setCurrentMediaItem(_queueItems[landed]);
+      if (dropped.isNotEmpty) {
+        AppLogger.warning(
+          'Queue reload after a timeout dropped ${dropped.length} songs '
+          'that could not be prepared: ${dropped.take(8).join(', ')}',
+        );
+      }
+      if (capture.playing) unawaited(_player.play());
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Could not reload the queue after a player timeout. '
+        '$error\n$stackTrace',
+      );
+    }
+    _afterQueueEdit(context: 'reload queue after timeout');
   }
 
   void _markSongLockCachingBypassed(String songId, {required String reason}) {
@@ -2562,16 +2635,10 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       return;
     }
-    final songIds = _queueItems.map((item) => item.id).toList(growable: false);
-    final songs = await _libraryDao.getSongsByIds(songIds);
-    final songsById = <String, SongsTableData>{
-      for (final song in songs) song.id: song,
-    };
-    final orderedSongs = songIds
-        .map((songId) => songsById[songId])
-        .whereType<SongsTableData>()
-        .toList(growable: false);
-    if (orderedSongs.length != songIds.length) {
+    final orderedSongs = (await _rowsForDeferredEntries(
+      _queueItems.map(_deferredEntryForItem).toList(growable: false),
+    )).nonNulls.toList(growable: false);
+    if (orderedSongs.length != _queueItems.length) {
       throw StateError(
         'Inactive deck queue sync failed due to missing song metadata.',
       );
@@ -3737,6 +3804,7 @@ class NavisAudioHandler extends BaseAudioHandler
           prepared.map((item) => item.audioSource).toList(growable: false),
         ),
         songId: prepared.first.song.id,
+        reloadQueueOnTimeout: true,
       );
     } on PlaybackLoadTimeoutException catch (error) {
       _lastFailedSongId = error.songId ?? prepared.first.song.id;
@@ -4448,6 +4516,7 @@ class NavisAudioHandler extends BaseAudioHandler
             : _player.insertAudioSources(index, sources),
         songId: items.first.song.id,
         cancelAfterSuccess: false,
+        reloadQueueOnTimeout: true,
       );
     }
 
@@ -4647,6 +4716,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _runTimedPlayerOperation(
       generation: _activeLoadGeneration,
       operation: 'defer materialised queue',
+      reloadQueueOnTimeout: true,
       action: () => _player.removeAudioSourceRange(from, end),
       songId: _queueItems[from].id,
       timeout: _playerResetTimeout,
@@ -4911,6 +4981,42 @@ class NavisAudioHandler extends BaseAudioHandler
     });
   }
 
+  /// Applies a queue edit the Dart queue already reflects to the active
+  /// player, and then to the inactive crossfade deck when [mirror] says it
+  /// is in step. A stuck native call times out and reloads the queue into
+  /// rebuilt players instead of holding the queue lane forever.
+  Future<void> _timedQueueEdit(
+    String operation,
+    Future<void> Function(AudioPlayer player) action, {
+    required String songId,
+    bool Function(AudioPlayer deck)? mirror,
+  }) async {
+    await _runTimedPlayerOperation(
+      generation: _activeLoadGeneration,
+      operation: operation,
+      action: () => action(_player),
+      songId: songId,
+      timeout: _playerResetTimeout,
+      cancelAfterSuccess: false,
+      reloadQueueOnTimeout: true,
+    );
+    final deck = _crossfadePlayer;
+    if (deck == null || !(mirror?.call(deck) ?? false)) return;
+    try {
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: '$operation inactive',
+        action: () => action(deck),
+        songId: songId,
+        timeout: _playerResetTimeout,
+        cancelAfterSuccess: false,
+        reloadQueueOnTimeout: true,
+      );
+    } on Object catch (error) {
+      AppLogger.debug('$operation inactive deck mirror failed: $error');
+    }
+  }
+
   Future<void> _removeQueueSourceRange(
     int start,
     int end, {
@@ -4923,6 +5029,7 @@ class NavisAudioHandler extends BaseAudioHandler
       action: () => _player.removeAudioSourceRange(start, end),
       songId: '$start-$end',
       timeout: _playerResetTimeout,
+      reloadQueueOnTimeout: true,
     );
     final inactiveDeck = _crossfadePlayer;
     if (inactiveDeck == null) {
@@ -4935,6 +5042,8 @@ class NavisAudioHandler extends BaseAudioHandler
         action: () => inactiveDeck.removeAudioSourceRange(start, end),
         songId: '$start-$end',
         timeout: _playerResetTimeout,
+        // Recovery rebuilds both decks, emptying the active one too.
+        reloadQueueOnTimeout: true,
       );
     } on Object catch (error) {
       AppLogger.debug(
@@ -5026,12 +5135,13 @@ class NavisAudioHandler extends BaseAudioHandler
       // Remove the audio source and queue item incrementally — this does NOT
       // interrupt playback of other items.  If the currently playing item is
       // removed, just_audio automatically advances to the next item.
-      _queueItems.removeAt(index);
-      await _player.removeAudioSourceAt(index);
-      final inactiveDeck = _crossfadePlayer;
-      if (inactiveDeck != null && inactiveDeck.sequence.length > index) {
-        await inactiveDeck.removeAudioSourceAt(index);
-      }
+      final removed = _queueItems.removeAt(index);
+      await _timedQueueEdit(
+        'remove queue item',
+        (player) => player.removeAudioSourceAt(index),
+        songId: removed.id,
+        mirror: (deck) => deck.sequence.length > index,
+      );
 
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       // Update the mediaItem stream to match whatever is now current.
@@ -5117,25 +5227,28 @@ class NavisAudioHandler extends BaseAudioHandler
           // Move the audio source in the player's playlist — this does NOT
           // interrupt playback; just_audio tracks the current item internally.
           _nativeMoveCount++;
-          await _player.moveAudioSource(oldIndex, adjustedIndex);
-          final inactiveDeck = _crossfadePlayer;
-          if (inactiveDeck != null &&
-              inactiveDeck.sequence.length > oldIndex &&
-              inactiveDeck.sequence.length > adjustedIndex) {
-            await inactiveDeck.moveAudioSource(oldIndex, adjustedIndex);
-          }
+          await _timedQueueEdit(
+            'reorder queue',
+            (player) => player.moveAudioSource(oldIndex, adjustedIndex),
+            songId: movedItem.id,
+            mirror: (deck) =>
+                deck.sequence.length > oldIndex &&
+                deck.sequence.length > adjustedIndex,
+          );
         } else {
           // Materialised song moved behind the window: take it out of the
           // player and defer it at its new logical position.
+          // Deferred before the native call, so a timeout cannot lose it.
           final movedItem = _queueItems.removeAt(oldIndex);
-          await _player.removeAudioSourceAt(oldIndex);
-          final inactiveDeck = _crossfadePlayer;
-          if (inactiveDeck != null && inactiveDeck.sequence.length > oldIndex) {
-            await inactiveDeck.removeAudioSourceAt(oldIndex);
-          }
           _deferredTail.insert(
             adjustedIndex - _queueItems.length,
             _deferredEntryForItem(movedItem),
+          );
+          await _timedQueueEdit(
+            'reorder behind window',
+            (player) => player.removeAudioSourceAt(oldIndex),
+            songId: movedItem.id,
+            mirror: (deck) => deck.sequence.length > oldIndex,
           );
         }
       }

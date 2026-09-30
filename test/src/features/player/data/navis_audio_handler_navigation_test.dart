@@ -327,6 +327,8 @@ void main() {
     bool crossfade = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+    List<_ControllableAudioPlayer>? rebuiltPlayers,
   }) async {
     final database = createTestDatabase();
     final songs = <SongsTableCompanion>[];
@@ -402,6 +404,14 @@ void main() {
       starSyncDao: database.starSyncDao,
       player: player,
       queueWindow: queueWindow,
+      timeouts: timeouts,
+      playerFactory: rebuiltPlayers == null
+          ? null
+          : () {
+              final rebuilt = _ControllableAudioPlayer();
+              rebuiltPlayers.add(rebuilt);
+              return rebuilt;
+            },
     );
     await handler.waitUntilReady();
     return (handler, player, database);
@@ -796,6 +806,80 @@ void main() {
         )
         .timeout(const Duration(seconds: 5));
     expect(player.currentIndex, 1);
+  });
+
+  group('a queue edit whose native call never returns', () {
+    const timeouts = NavisPlaybackTimeouts(
+      load: Duration(milliseconds: 150),
+      reset: Duration(milliseconds: 150),
+    );
+    List<String> ids(int count) =>
+        List<String>.generate(count, (i) => 'song-$i');
+
+    Future<
+      (
+        NavisAudioHandler,
+        _ControllableAudioPlayer,
+        List<_ControllableAudioPlayer>,
+      )
+    >
+    playingAt(int index) async {
+      final directory = await Directory.systemTemp.createTemp('navis-hang-');
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, database) = await createHandler(
+        directory,
+        10,
+        timeouts: timeouts,
+        rebuiltPlayers: rebuilt,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(ids(10), expandMatchFlows: false);
+      expect(player.sourceIds, ids(10));
+      player
+        ..moveTo(index)
+        ..isPlaying = true;
+      return (handler, player, rebuilt);
+    }
+
+    test('an insert that times out reloads the queue it left', () async {
+      final (handler, player, rebuilt) = await playingAt(3);
+      player.hang.add('insertAudioSources');
+
+      await expectLater(
+        handler.playNext(<String>['song-0'], expandMatchFlows: false),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+
+      final active = rebuilt.first;
+      expect(active.sourceIds, ids(10));
+      expect(active.index, 3);
+      expect(active.isPlaying, isTrue);
+      expect(handler.snapshot.queueSongIds, ids(10));
+      expect(handler.snapshot.currentSongId, 'song-3');
+
+      // The next edit lands on the reloaded player.
+      await handler.addToQueue(<String>['song-1'], expandMatchFlows: false);
+      expect(active.sourceIds, <String>[...ids(10), 'song-1']);
+    });
+
+    test('a removal that times out still removes the song', () async {
+      final (handler, player, rebuilt) = await playingAt(3);
+      player.hang.add('removeAudioSourceAt');
+
+      await expectLater(
+        handler.removeAt(6),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+
+      final expected = ids(10)..removeAt(6);
+      expect(rebuilt.first.sourceIds, expected);
+      expect(rebuilt.first.index, 3);
+      expect(handler.snapshot.queueSongIds, expected);
+    });
   });
 
   group('released queue window', () {
