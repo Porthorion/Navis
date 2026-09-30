@@ -1670,6 +1670,30 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
       }
+      if (request.method == 'POST' && path == '/v1/downloads/enqueue') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final songIds = body['songIds'];
+        if (songIds is! List ||
+            songIds.isEmpty ||
+            songIds.any((id) => id is! String || id.trim().isEmpty)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songIds must be a non-empty list of song ids',
+          });
+          return;
+        }
+        final service = _container.read(downloadServiceProvider);
+        for (final id in songIds.cast<String>()) {
+          await service.enqueueSong(id.trim());
+        }
+        await _respond(request, HttpStatus.accepted, <String, Object?>{
+          'queued': songIds.length,
+        });
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/downloads/folder/adopt') {
         if (!allowsMutations) {
           await _forbidden(request);

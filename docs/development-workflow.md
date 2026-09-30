@@ -303,6 +303,11 @@ check the reported `currentIndex`, that `deferredHeadLength` +
 sample or control call disagrees. `NAVIS_PARITY_BUNDLE` runs a built profile
 bundle instead of `flutter run`.
 
+Clone-only `POST /v1/downloads/enqueue {"songIds": [...]}` queues permanent
+downloads through the production download service (a song already in the
+rolling cache is promoted instead of downloaded), for download and
+interruption checks without driving the UI.
+
 Clone-only `POST /v1/playback/shuffle {"enabled": bool}` and
 `POST /v1/playback/repeat {"mode": "none"|"one"|"all"}` drive the production
 handler. `GET /v1/playback/status` reports the user's `shuffleEnabled` and,
