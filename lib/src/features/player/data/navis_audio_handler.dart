@@ -243,6 +243,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// yet; released in pages as playback approaches them.
   final _RevisionedList<_DeferredQueueEntry> _deferredTail =
       _RevisionedList<_DeferredQueueEntry>();
+
+  /// The caller's rows for remote songs that are, or were, materialised,
+  /// so a remote song moved back into [_deferredTail] keeps its own row
+  /// instead of being re-read by id (which misses it, or finds the local
+  /// song it was matched to). Pruned to the materialised queue as it grows.
+  final Map<String, SongsTableData> _remoteRows = <String, SongsTableData>{};
   final NavisQueueWindow _queueWindow;
   List<String>? _logicalIdsCache;
   int _logicalIdsQueueRevision = -1;
@@ -1246,6 +1252,27 @@ class NavisAudioHandler extends BaseAudioHandler
 
   _DeferredQueueEntry _deferredEntryFor(SongsTableData song) =>
       _DeferredQueueEntry(song.id, song.isExternal ? song : null);
+
+  /// The deferred form of a materialised item, keeping a remote row.
+  _DeferredQueueEntry _deferredEntryForItem(MediaItem item) =>
+      _DeferredQueueEntry(item.id, _remoteRows[item.id]);
+
+  /// Every queued song in logical order, as deferred entries.
+  List<_DeferredQueueEntry> _logicalQueueEntries() => <_DeferredQueueEntry>[
+    for (final item in _queueItems) _deferredEntryForItem(item),
+    ..._deferredTail,
+  ];
+
+  void _rememberRemoteRow(SongsTableData song) {
+    if (!song.isExternal) return;
+    _remoteRows[song.id] = song;
+    if (_remoteRows.length > 2 * _queueItems.length + 64) {
+      final materialised = <String>{for (final item in _queueItems) item.id};
+      _remoteRows.removeWhere(
+        (id, _) => id != song.id && !materialised.contains(id),
+      );
+    }
+  }
 
   bool _shouldDeferTail(int queueLength) =>
       !_player.shuffleModeEnabled && queueLength > _queueWindow.deferThreshold;
@@ -3279,6 +3306,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (source.sidecarCacheFilePath != null) {
       _rememberSidecarSong(song);
     }
+    _rememberRemoteRow(song);
     return _PreparedQueueItem(
       song: song,
       source: source,
@@ -4628,7 +4656,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems.removeRange(from, end);
     _deferredTail.insertAll(
       0,
-      moved.map((item) => _DeferredQueueEntry(item.id)),
+      moved.map(_deferredEntryForItem),
     );
     if (deckInSync) {
       try {
@@ -5107,7 +5135,7 @@ class NavisAudioHandler extends BaseAudioHandler
           }
           _deferredTail.insert(
             adjustedIndex - _queueItems.length,
-            _DeferredQueueEntry(movedItem.id),
+            _deferredEntryForItem(movedItem),
           );
         }
       }
@@ -5670,10 +5698,9 @@ class NavisAudioHandler extends BaseAudioHandler
               index = before + landed;
             } else {
               // Far into the tail: rebuild the player around the target.
-              final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
-                for (final item in _queueItems) _DeferredQueueEntry(item.id),
-                ..._deferredTail,
-              ]);
+              final rows = await _rowsForDeferredEntries(
+                _logicalQueueEntries(),
+              );
               _checkQueueWorkCurrent(token, generation);
               final songs = <SongsTableData>[];
               var jumpIndex = -1;
@@ -6304,6 +6331,8 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       for (var index = 0; index < _deferredTail.length; index++) {
         final entry = _deferredTail[index];
+        // A remote row keeps its own id and source.
+        if (entry.song != null) continue;
         final canonicalId = _canonicalSongId(entry.id);
         if (canonicalId != entry.id) {
           _deferredTail[index] = _DeferredQueueEntry(canonicalId);
@@ -6944,14 +6973,9 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final songs = await _libraryDao.getSongsByIds(queueSongIds);
-    final songsById = <String, SongsTableData>{
-      for (final song in songs) song.id: song,
-    };
-    final orderedSongs = queueSongIds
-        .map((songId) => songsById[songId])
-        .whereType<SongsTableData>()
-        .toList(growable: false);
+    final orderedSongs = (await _rowsForDeferredEntries(
+      _logicalQueueEntries(),
+    )).nonNulls.toList(growable: false);
     if (orderedSongs.length != queueSongIds.length) {
       AppLogger.warning(
         'Seek recovery could not rebuild the full queue from the local songs '
@@ -7519,6 +7543,12 @@ class NavisAudioHandler extends BaseAudioHandler
         _queueItems[i] = item.copyWith(extras: extras);
         updated = true;
       }
+    }
+    final remote = _remoteRows[songId];
+    if (remote != null) {
+      _remoteRows[songId] = remote.copyWith(
+        starred: Value(liked ? DateTime.now() : null),
+      );
     }
     // Remote rows kept in the deferred tail carry their own liked state.
     for (var i = 0; i < _deferredTail.length; i++) {

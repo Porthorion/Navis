@@ -906,6 +906,61 @@ void main() {
       expect(player.sourceIds, ids(59));
     });
 
+    group('a remote row matched to a local song', () {
+      // The caller's remote row shares a local id; re-reading it by id would
+      // silently swap in the local row.
+      Future<List<SongsTableData>> queueWithRemote(
+        NavisDatabase database,
+      ) async {
+        final rows = await database.libraryDao.getSongsByIds(ids(60));
+        return <SongsTableData>[
+          for (final row in rows)
+            row.id == 'song-3'
+                ? row.copyWith(title: 'Remote 3', isExternal: true)
+                : row,
+        ];
+      }
+
+      String titleOf(NavisAudioHandler handler, String id) =>
+          handler.queue.value.firstWhere((item) => item.id == id).title;
+
+      test('keeps its row through a far jump rebuild', () async {
+        final (handler, _, database) = await windowed(60);
+        await handler.replaceQueueWithData(
+          await queueWithRemote(database),
+          startIndex: 0,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+        await handler.playFromIndex(50);
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-50' &&
+              !handler.snapshot.isLoading,
+        );
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+      });
+
+      test('keeps its row when moved behind the window and back', () async {
+        final (handler, player, database) = await windowed(60);
+        await handler.replaceQueueWithData(
+          await queueWithRemote(database),
+          startIndex: 0,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await handler.reorderQueue(3, 40);
+        expect(player.sourceIds, isNot(contains('song-3')));
+        await handler.reorderQueue(
+          handler.snapshot.queueSongIds.indexOf('song-3'),
+          3,
+        );
+        await until(() => player.sourceIds.contains('song-3'));
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+      });
+    });
+
     test('edits inside the deferred tail touch no native state', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
