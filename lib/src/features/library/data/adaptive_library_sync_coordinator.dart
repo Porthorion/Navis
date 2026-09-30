@@ -225,7 +225,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         serverId,
       ),
       lastAuxiliarySyncedAt: persisted.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: persisted.lastGenresSyncedAt,
     );
     onProgress?.call(completed);
     return completed;
@@ -285,19 +284,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       } on Object {
         // _executePlanned records the failed attempt and work backoff.
       }
-    }
-  }
-
-  /// Genre metadata is no longer synchronized. Finish any durable work left
-  /// by an older app version so it cannot keep the sync backlog non-empty.
-  Future<void> _retireDisabledGenreWork(int serverId) async {
-    final work = await _database.librarySyncDao.getWork(
-      serverId: serverId,
-      kind: LibrarySyncPlanKind.targetedHydration.name,
-      entityId: librarySyncTargetWorkKey(const LibrarySyncTarget.genres()),
-    );
-    if (work?.status == 'queued' || work?.status == 'failed') {
-      await _database.librarySyncDao.markCompleted(work!.id, now: _now());
     }
   }
 
@@ -437,7 +423,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       }
       persisted = await _database.librarySyncDao.getOrCreateState(serverId);
     }
-    await _retireDisabledGenreWork(serverId);
     final canProbeCircuitEarly = switch (request.trigger) {
       LibrarySyncTrigger.user ||
       LibrarySyncTrigger.interaction ||
@@ -658,7 +643,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         lastCheckedAt: persisted.lastCheckedAt,
         lastCatalogUpdatedAt: persisted.lastCatalogSyncedAt,
         lastAuxiliarySyncedAt: persisted.lastAuxiliarySyncedAt,
-        lastGenresSyncedAt: persisted.lastGenresSyncedAt,
         freshness: _freshnessForDeferred(plan),
         planKind: plan.kind,
         planReason: plan.reason,
@@ -1296,7 +1280,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         SyncEndpoint.album => {'getAlbum'},
         SyncEndpoint.playlists => {'getPlaylists', 'getPlaylist'},
         SyncEndpoint.starred => {'getStarredContent'},
-        SyncEndpoint.genres => {'getGenres'},
         SyncEndpoint.bulkSongs => {'searchSongsPage'},
       },
   };

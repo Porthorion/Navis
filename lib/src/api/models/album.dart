@@ -20,7 +20,6 @@ abstract class Album with _$Album {
     int? songCount,
     int? duration,
     int? year,
-    String? genre,
     String? coverArt,
     DateTime? starred,
     int? userRating,

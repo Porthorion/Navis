@@ -263,7 +263,6 @@ Future<SearchResult3> _searchLocal(
             artistId: a.artistId,
             songCount: a.songCount,
             year: a.year,
-            genre: a.genre,
             coverArt: a.coverArt,
             starred: a.starred,
             isExternal: a.isExternal,

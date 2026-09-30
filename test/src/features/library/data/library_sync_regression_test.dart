@@ -866,18 +866,14 @@ void main() {
     () async {
       await session();
       await seed();
-      final changed = album.copyWith(
-        genre: 'Corrected genre',
-        year: 2026,
-        playCount: 4,
-      );
+      final changed = album.copyWith(year: 2026, playCount: 4);
       api.newestPages[0] = [changed];
       api.artistDetails['ar'] = api.artistDetails['ar']!.copyWith(
         albums: [changed],
       );
       await coordinator.requestSync(const LibrarySyncRequest.checkForUpdates());
       expect(api.calls.where((call) => call.startsWith('getAlbum:')), isEmpty);
-      expect((await db.libraryDao.getAlbumById('a'))!.genre, 'Corrected genre');
+      expect((await db.libraryDao.getAlbumById('a'))!.year, 2026);
       expect(await db.libraryDao.watchSongsByAlbum('a').first, hasLength(2));
       expect(await db.libraryDao.countPendingHydrationAlbums(), 0);
     },
@@ -1215,7 +1211,6 @@ void main() {
       expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
       final state = await db.librarySyncDao.getOrCreateState(serverId);
       expect(state.lastAuxiliarySyncedAt, isNotNull);
-      expect(state.lastGenresSyncedAt, isNull);
       api.calls.clear();
       await coordinator.requestSync(const LibrarySyncRequest.automatic());
       expect(api.calls, isNot(contains('getStarredContent')));
@@ -1270,28 +1265,6 @@ void main() {
       );
     },
   );
-  test('F43 retires queued genre work without a server request', () async {
-    final id = await session();
-    await seed();
-    await db.librarySyncDao.enqueueWork(
-      serverId: id,
-      kind: LibrarySyncPlanKind.targetedHydration.name,
-      entityId: '@genres',
-      priority: 20,
-    );
-
-    await coordinator.requestSync(const LibrarySyncRequest.checkForUpdates());
-
-    expect(api.calls, isNot(contains('getGenres')));
-    expect(
-      (await db.librarySyncDao.getWork(
-        serverId: id,
-        kind: LibrarySyncPlanKind.targetedHydration.name,
-        entityId: '@genres',
-      ))?.status,
-      'completed',
-    );
-  });
   test(
     'F05 resumed mixed external page uses the raw transport offset',
     () async {

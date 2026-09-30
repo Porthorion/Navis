@@ -241,7 +241,6 @@ class _RequiredLibraryRebuildScreenState
         LibrarySyncStage.cleaningCandidate ||
         LibrarySyncStage.finalizing => l10n.requiredSyncStageFinalizing,
         LibrarySyncStage.fetchingStarred ||
-        LibrarySyncStage.fetchingGenres ||
         LibrarySyncStage.fetchingPlaylists => l10n.requiredSyncStageSongs,
         _ => l10n.requiredSyncStagePreparing,
       },

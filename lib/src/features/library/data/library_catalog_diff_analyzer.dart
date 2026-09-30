@@ -243,7 +243,6 @@ class LibraryCatalogDiffAnalyzer {
         existing.songCount != candidate.songCount ||
         existing.duration != candidate.duration ||
         existing.year != candidate.year ||
-        existing.genre != candidate.genre ||
         existing.coverArt != candidate.coverArt ||
         existing.songsHydrated != candidate.songsHydrated ||
         existing.playCount != candidate.playCount ||

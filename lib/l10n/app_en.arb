@@ -191,7 +191,6 @@
   "syncSettingsNextRetryLabel": "Automatic Retry After Failure",
   "syncSettingsLastCatalogUpdateLabel": "Last Catalog Update",
   "syncSettingsLastAuxiliaryUpdateLabel": "Starred and Playlist Headers",
-  "syncSettingsLastGenresUpdateLabel": "Genres",
   "syncSettingsLastLibraryChangeLabel": "Last Library Change",
   "syncSettingsAndroidBackgroundTitle": "Android Background Sync",
   "syncSettingsAndroidBackgroundDisabled": "Foreground checks remain available. Android background scheduling is disabled for this app build while its reliability certification is incomplete.",
@@ -641,7 +640,6 @@
   "libraryTabAlbums": "Albums",
   "libraryTabLiked": "Liked",
   "libraryTabSongs": "Songs",
-  "libraryTabGenres": "Genres",
   "librarySyncRunning": "Syncing library metadata...",
   "librarySyncRunningStage": "Syncing: {stage}",
   "@librarySyncRunningStage": {
@@ -672,7 +670,6 @@
   "librarySyncStagePersisting": "Persisting metadata",
   "librarySyncStageSongs": "Scanning songs",
   "librarySyncStageStarred": "Updating liked items",
-  "librarySyncStageGenres": "Fetching genres",
   "librarySyncStagePlaylists": "Updating playlists",
   "librarySyncStageFinalizing": "Finalizing",
   "librarySyncFailureFallback": "Library sync failed.",
@@ -752,20 +749,6 @@
   "librarySongsEmptySubtitle": "Run a sync to populate your library.",
   "librarySongsErrorTitle": "Could Not Load Songs",
   "librarySongsSortLabel": "Sort Songs By",
-  "libraryGenresEmptyTitle": "No Genres Found",
-  "libraryGenresEmptySubtitle": "Run a sync to populate your library.",
-  "libraryGenresErrorTitle": "Could Not Load Genres",
-  "libraryGenresCount": "{albums} albums • {songs} songs",
-  "@libraryGenresCount": {
-    "placeholders": {
-      "albums": {
-        "type": "int"
-      },
-      "songs": {
-        "type": "int"
-      }
-    }
-  },
   "librarySortRecentlyAdded": "Recently Added",
   "librarySortNewest": "Newest (Year)",
   "librarySortByYear": "By Year",
@@ -801,19 +784,6 @@
       "title": {}
     }
   },
-  "libraryGenreDetailTitle": "{genre}",
-  "@libraryGenreDetailTitle": {
-    "placeholders": {
-      "genre": {}
-    }
-  },
-  "libraryGenreAlbumsTab": "Albums",
-  "libraryGenreSongsTab": "Songs",
-  "libraryGenreAlbumsEmptyTitle": "No Albums in This Genre",
-  "libraryGenreAlbumsEmptySubtitle": "Sync to refresh genre albums.",
-  "libraryGenreSongsEmptyTitle": "No Songs in This Genre",
-  "libraryGenreSongsEmptySubtitle": "Sync to refresh genre songs.",
-  "libraryGenreLoadErrorTitle": "Could Not Load Genre",
   "artistCardAlbumCount": "{count, plural, =1{1 album} other{{count} albums}}",
   "@artistCardAlbumCount": {
     "placeholders": {

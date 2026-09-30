@@ -254,12 +254,6 @@ extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
           targetExecutor.syncPlaylistHeaders(onProgress: onProgress),
         LibrarySyncTargetKind.starred when targetExecutor != null =>
           targetExecutor.syncStarredContent(onProgress: onProgress),
-        // Genre metadata is not part of Navis's library sync contract. Keep
-        // this compatibility branch for a persisted pre-1.4 target, but do
-        // not turn it into an unrelated catalog verification pass.
-        LibrarySyncTargetKind.genres => _genresSyncDisabled(
-          onProgress: onProgress,
-        ),
         _ => continueVerification(
           priorityAlbumIds: priorityAlbumIds,
           onProgress: onProgress,
@@ -267,19 +261,6 @@ extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
       },
     };
   }
-}
-
-Future<LibrarySyncState> _genresSyncDisabled({
-  LibrarySyncProgressCallback? onProgress,
-}) {
-  final state = LibrarySyncState(
-    status: LibrarySyncStatus.skipped,
-    stage: LibrarySyncStage.completed,
-    completedAt: DateTime.now(),
-    metadataReady: true,
-  );
-  onProgress?.call(state);
-  return Future<LibrarySyncState>.value(state);
 }
 
 abstract class LibrarySyncApi {
@@ -1855,9 +1836,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         LibrarySyncTargetKind.starred => syncStarredContent(
           onProgress: onProgress,
         ),
-        LibrarySyncTargetKind.genres => _genresSyncDisabled(
-          onProgress: onProgress,
-        ),
         _ => _runWithLock(
           force: true,
           forceFull: false,
@@ -2162,8 +2140,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     try {
       _ensureBackgroundWorkAllowed();
       final auxiliaryDue = await _shouldSyncAuxiliary(serverConfig.id);
-      // Typed catalog operations never absorb starred, playlist-header, or
-      // genre refreshes. Those are their own auxiliary targets. Legacy entry
+      // Typed catalog operations never absorb starred or playlist-header
+      // refreshes. Those are their own auxiliary targets. Legacy entry
       // points retain the previous combined behavior for one release.
       final syncAuxiliary =
           _activeExecutionPlan == null && (manual || auxiliaryDue);
@@ -4030,7 +4008,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 songCount: Value(album.songCount),
                 duration: Value(album.duration),
                 year: Value(album.year),
-                genre: Value(album.genre),
                 coverArt: Value(album.coverArt),
                 songsHydrated: Value(album.songsHydrated),
                 starred: pendingStars['album']!.contains(album.id)
@@ -6600,7 +6577,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ambiguousMatchCount: metrics.ambiguousMatchCount,
       starredSynchronized: metrics.starredSynchronized,
       playlistHeadersSynchronized: metrics.playlistHeadersSynchronized,
-      genresSynchronized: metrics.genresSynchronized,
     );
   }
 
@@ -6670,7 +6646,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         current.songCount != next.songCount ||
         current.duration != next.duration ||
         current.year != next.year ||
-        current.genre != next.genre ||
         current.coverArt != next.coverArt ||
         !_sameStoredTimestamp(current.starred, next.starred) ||
         current.userRating != next.userRating ||
@@ -6805,7 +6780,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             songCount: Value(row.songCount),
             duration: Value(row.duration),
             year: Value(row.year),
-            genre: Value(row.genre),
             coverArt: Value(row.coverArt),
             songsHydrated: Value(!pendingHydrationSet.contains(row.id)),
             starred: Value(row.starred),
@@ -6974,7 +6948,6 @@ class _SyncRunMetrics {
   bool verificationContinuation = false;
   bool starredSynchronized = false;
   bool playlistHeadersSynchronized = false;
-  bool genresSynchronized = false;
   String? skippedReason;
   final Map<String, int> apiRequestsByEndpoint = <String, int>{};
   final List<_SyncFailureDiagnostic> failureDiagnostics =
@@ -7109,7 +7082,6 @@ class _AlbumRow {
     this.songCount,
     this.duration,
     this.year,
-    this.genre,
     this.coverArt,
     this.starred,
     this.userRating,
@@ -7130,7 +7102,6 @@ class _AlbumRow {
   final int? songCount;
   final int? duration;
   final int? year;
-  final String? genre;
   final String? coverArt;
   final DateTime? starred;
   final int? userRating;
@@ -7233,7 +7204,6 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
             songCount: json['songCount'] as int?,
             duration: json['duration'] as int?,
             year: json['year'] as int?,
-            genre: json['genre'] as String?,
             coverArt: json['coverArt'] as String?,
             starred: _parseIsoDate(json['starred'] as String?),
             userRating: json['userRating'] as int?,

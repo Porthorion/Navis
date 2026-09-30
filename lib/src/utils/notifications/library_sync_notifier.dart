@@ -208,7 +208,6 @@ String _stageLabel(LibrarySyncState state) {
     LibrarySyncStage.persistingMetadata => 'Saving metadata',
     LibrarySyncStage.fetchingSongs => 'Hydrating songs',
     LibrarySyncStage.fetchingStarred => 'Updating liked items',
-    LibrarySyncStage.fetchingGenres => 'Refreshing genres',
     LibrarySyncStage.fetchingPlaylists => 'Updating playlists',
     LibrarySyncStage.collectingCandidate => 'Building catalog update',
     LibrarySyncStage.validatingCandidate => 'Validating catalog update',

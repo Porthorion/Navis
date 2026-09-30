@@ -375,7 +375,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       SELECT CASE
         WHEN entity_id = '@starred' THEN 'starred'
         WHEN entity_id = '@playlistHeaders' THEN 'playlistHeaders'
-        WHEN entity_id = '@genres' THEN 'genres'
         WHEN entity_id LIKE 'album:%' THEN 'album'
         WHEN entity_id LIKE 'artist:%' THEN 'artist'
         WHEN entity_id LIKE 'playlist:%' THEN 'playlist'
@@ -637,8 +636,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       return SyncRunIntent.repairLibrary;
     }
     if (target.kind == LibrarySyncTargetKind.starred ||
-        target.kind == LibrarySyncTargetKind.playlistHeaders ||
-        target.kind == LibrarySyncTargetKind.genres) {
+        target.kind == LibrarySyncTargetKind.playlistHeaders) {
       return SyncRunIntent.auxiliaryRefresh;
     }
     if (target.kind != LibrarySyncTargetKind.catalog) {

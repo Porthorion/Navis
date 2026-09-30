@@ -14,7 +14,7 @@ void main() {
     int bytes = 10000,
     bool Function()? allowed,
   }) => SyncRequestScope(
-    allowedEndpoints: {'getGenres'},
+    allowedEndpoints: {'getPlaylists'},
     maxRequests: requests,
     maxNewestPages: 1,
     maxAlbumHydrations: 1,
@@ -44,7 +44,7 @@ void main() {
       final accepted = {
         'subsonic-response': {
           'status': 'ok',
-          'genres': {'genre': <Object?>[]},
+          'playlists': {'playlist': <Object?>[]},
         },
       };
       dio.interceptors.add(
@@ -80,7 +80,7 @@ void main() {
         ),
       );
       final budget = scope();
-      await budget.run(() => client(dio).getGenres());
+      await budget.run(() => client(dio).getPlaylists());
       final telemetry = budget.transportTelemetry();
       final attempts = telemetry['attempts']! as List;
       expect(budget.requestCount, 2);
@@ -96,7 +96,7 @@ void main() {
       expect(attempts.map((e) => e['requestOrdinal']), [1, 1]);
       expect(attempts.map((e) => e['retry']), [0, 1]);
       expect(attempts.map((e) => e['outcome']), ['failed', 'envelopeAccepted']);
-      expect(telemetry['endpointBytes'], {'getGenres': budget.byteCount});
+      expect(telemetry['endpointBytes'], {'getPlaylists': budget.byteCount});
       expect(jsonEncode(telemetry), isNot(contains('private-response-body')));
       expect(jsonEncode(telemetry), isNot(contains('example.test')));
       expect(jsonEncode(telemetry), isNot(contains('fixture')));
@@ -106,7 +106,7 @@ void main() {
   test('bounded attempt traces retain complete aggregate accounting', () {
     final budget = scope(requests: 200, bytes: 100000);
     for (var i = 1; i <= 150; i++) {
-      final attempt = budget.beginTransport('getGenres');
+      final attempt = budget.beginTransport('getPlaylists');
       attempt.observe(i);
       attempt.observe(i - 1);
       attempt.finish(succeeded: true);
@@ -132,7 +132,7 @@ void main() {
         () => Future.wait(
           List.generate(20, (_) async {
             try {
-              await budget.request('getGenres', () async {
+              await budget.request('getPlaylists', () async {
                 active++;
                 if (active > maximum) maximum = active;
                 await gate.future;
@@ -193,9 +193,9 @@ void main() {
                 data: {
                   'subsonic-response': {
                     'status': 'ok',
-                    'genres': {
-                      'genre': [
-                        {'value': 'Jazz'},
+                    'playlists': {
+                      'playlist': [
+                        {'id': 'p1', 'name': 'Fixture'},
                       ],
                     },
                   },
@@ -208,16 +208,16 @@ void main() {
       );
       final api = client(dio);
       final budget = scope();
-      await budget.run(() => api.getGenres());
+      await budget.run(() => api.getPlaylists());
       expect(budget.requestCount, 1);
       expect(budget.byteCount, greaterThan(0));
       final bytes = budget.byteCount;
-      await api.getGenres();
+      await api.getPlaylists();
       expect(budget.requestCount, 1);
       expect(budget.byteCount, bytes);
       final tiny = scope(bytes: 8);
       await expectLater(
-        tiny.run(() => api.getGenres()),
+        tiny.run(() => api.getPlaylists()),
         throwsA(isA<SubsonicSyncLimitException>()),
       );
       expect(tiny.stopped?.reason, 'byteBudget');
@@ -253,7 +253,7 @@ void main() {
       );
       final budget = scope(requests: 1);
       await expectLater(
-        budget.run(() => client(dio).getGenres()),
+        budget.run(() => client(dio).getPlaylists()),
         throwsA(isA<SubsonicSyncLimitException>()),
       );
       expect(attempts, 1);
@@ -290,7 +290,7 @@ void main() {
       );
       final before = DateTime.now().toUtc();
       await expectLater(
-        client(dio).getGenres().timeout(const Duration(seconds: 2)),
+        client(dio).getPlaylists().timeout(const Duration(seconds: 2)),
         throwsA(
           isA<SubsonicGenericException>().having(
             (error) => error.retryAt?.isAfter(

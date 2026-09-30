@@ -16,7 +16,6 @@ import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
-import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -123,7 +122,6 @@ class DownloadReconciliationSong {
     AlbumsTable,
     SongsTable,
     SongSearchTextTable,
-    GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
     CachedTracksTable,
@@ -838,49 +836,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query;
   }
 
-  Stream<List<GenresTableData>> watchGenres() {
-    final query = select(genresTable)
-      ..orderBy([(table) => OrderingTerm.asc(table.name)]);
-    return query.watch();
-  }
-
-  Stream<List<AlbumsTableData>> watchAlbumsByGenre(String genre) {
-    final query = select(albumsTable)
-      ..where(
-        (table) =>
-            table.genre.equals(genre) & table.isProvisional.equals(false),
-      )
-      ..orderBy([
-        (table) => OrderingTerm.desc(table.year),
-        (table) => OrderingTerm.asc(table.name),
-      ]);
-    return query.watch();
-  }
-
-  Stream<List<SongsTableData>> watchSongsByGenre(String genre) {
-    final query =
-        select(songsTable).join([
-            innerJoin(
-              albumsTable,
-              albumsTable.id.equalsExp(songsTable.albumId),
-            ),
-          ])
-          ..where(
-            albumsTable.genre.equals(genre) &
-                albumsTable.isProvisional.equals(false) &
-                songsTable.isProvisional.equals(false) &
-                songsTable.serverDeletedAt.isNull(),
-          )
-          ..orderBy([
-            OrderingTerm.asc(songsTable.artistName),
-            OrderingTerm.asc(songsTable.albumName),
-            OrderingTerm.asc(songsTable.track),
-          ]);
-    return query.watch().map(
-      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
-    );
-  }
-
   Future<void> replaceArtists(List<ArtistsTableCompanion> artists) async {
     await transaction(() async {
       await delete(artistsTable).go();
@@ -1582,15 +1537,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           ),
         );
       }
-    });
-  }
-
-  Future<void> replaceGenres(List<GenresTableCompanion> genres) async {
-    await transaction(() async {
-      await delete(genresTable).go();
-      await batch((batch) {
-        batch.insertAll(genresTable, genres);
-      });
     });
   }
 
@@ -2471,7 +2417,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       await delete(songsTable).go();
       await delete(albumsTable).go();
       await delete(artistsTable).go();
-      await delete(genresTable).go();
     });
   }
 

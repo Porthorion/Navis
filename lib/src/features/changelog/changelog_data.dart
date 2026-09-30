@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        "Genre tags are no longer tracked: editing only an album's genre on your server no longer makes Navis re-sync that album, and leftover genre data is cleared from the device",
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Choosing a speed chip, preset or Reset now sweeps the speed and pitch rulers with haptic ticks every time; previously only the first choice animated with ticks',
         type: ChangelogEntryType.fix,
       ),

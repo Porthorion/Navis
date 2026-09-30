@@ -19,7 +19,6 @@ _Album _$AlbumFromJson(Map<String, dynamic> json) => _Album(
   songCount: (json['songCount'] as num?)?.toInt(),
   duration: (json['duration'] as num?)?.toInt(),
   year: (json['year'] as num?)?.toInt(),
-  genre: json['genre'] as String?,
   coverArt: json['coverArt'] as String?,
   starred: json['starred'] == null
       ? null
@@ -47,7 +46,6 @@ Map<String, dynamic> _$AlbumToJson(_Album instance) => <String, dynamic>{
   'songCount': instance.songCount,
   'duration': instance.duration,
   'year': instance.year,
-  'genre': instance.genre,
   'coverArt': instance.coverArt,
   'starred': instance.starred?.toIso8601String(),
   'userRating': instance.userRating,

@@ -571,9 +571,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Starred and Playlist Headers';
 
   @override
-  String get syncSettingsLastGenresUpdateLabel => 'Genres';
-
-  @override
   String get syncSettingsLastLibraryChangeLabel => 'Last Library Change';
 
   @override
@@ -1548,9 +1545,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryTabSongs => 'Songs';
 
   @override
-  String get libraryTabGenres => 'Genres';
-
-  @override
   String get librarySyncRunning => 'Syncing library metadata...';
 
   @override
@@ -1585,9 +1579,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get librarySyncStageStarred => 'Updating liked items';
-
-  @override
-  String get librarySyncStageGenres => 'Fetching genres';
 
   @override
   String get librarySyncStagePlaylists => 'Updating playlists';
@@ -1716,21 +1707,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySongsSortLabel => 'Sort Songs By';
 
   @override
-  String get libraryGenresEmptyTitle => 'No Genres Found';
-
-  @override
-  String get libraryGenresEmptySubtitle =>
-      'Run a sync to populate your library.';
-
-  @override
-  String get libraryGenresErrorTitle => 'Could Not Load Genres';
-
-  @override
-  String libraryGenresCount(int albums, int songs) {
-    return '$albums albums • $songs songs';
-  }
-
-  @override
   String get librarySortRecentlyAdded => 'Recently Added';
 
   @override
@@ -1795,32 +1771,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String librarySongPlayNextQueued(Object title) {
     return '\"$title\" added to play next.';
   }
-
-  @override
-  String libraryGenreDetailTitle(Object genre) {
-    return '$genre';
-  }
-
-  @override
-  String get libraryGenreAlbumsTab => 'Albums';
-
-  @override
-  String get libraryGenreSongsTab => 'Songs';
-
-  @override
-  String get libraryGenreAlbumsEmptyTitle => 'No Albums in This Genre';
-
-  @override
-  String get libraryGenreAlbumsEmptySubtitle => 'Sync to refresh genre albums.';
-
-  @override
-  String get libraryGenreSongsEmptyTitle => 'No Songs in This Genre';
-
-  @override
-  String get libraryGenreSongsEmptySubtitle => 'Sync to refresh genre songs.';
-
-  @override
-  String get libraryGenreLoadErrorTitle => 'Could Not Load Genre';
 
   @override
   String artistCardAlbumCount(int count) {

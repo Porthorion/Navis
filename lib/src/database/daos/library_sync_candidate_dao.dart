@@ -201,7 +201,6 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
             songCount: album.songCount,
             duration: album.duration,
             year: album.year,
-            genre: album.genre,
             coverArt: album.coverArt,
             releaseMbid: album.releaseMbid,
             songsHydrated: album.songsHydrated,
@@ -540,7 +539,6 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
         candidate.songCount == existing.songCount &&
         candidate.duration == existing.duration &&
         candidate.year == existing.year &&
-        candidate.genre == existing.genre &&
         candidate.coverArt == existing.coverArt;
   }
 

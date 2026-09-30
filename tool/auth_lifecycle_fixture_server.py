@@ -46,7 +46,6 @@ ALBUM = {
     "songCount": 1,
     "duration": 4,
     "year": 2026,
-    "genre": "Diagnostics",
     "coverArt": "fixture-cover",
     "created": "2026-01-01T00:00:00Z",
 }
@@ -95,7 +94,6 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
         "songCount": 1,
         "duration": 4,
         "year": 2025,
-        "genre": "Diagnostics",
         "coverArt": "fixture-cover",
         "created": "2025-01-01T00:00:00Z",
     }
@@ -107,7 +105,6 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
         "songCount": 1,
         "duration": 4,
         "year": 2026,
-        "genre": "Diagnostics",
         "coverArt": "fixture-cover",
         "created": "2026-08-01T00:00:00Z",
     }
@@ -263,17 +260,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         if endpoint == "getSong":
             self._json(_root(song=SONG))
-            return
-        if endpoint == "getGenres":
-            self._json(
-                _root(
-                    genres={
-                        "genre": [
-                            {"name": "Diagnostics", "songCount": 1, "albumCount": 1}
-                        ]
-                    }
-                )
-            )
             return
         if endpoint == "getStarred2":
             self._json(_root(starred2={"artist": [], "album": [], "song": []}))

@@ -35,7 +35,6 @@ import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/cache_system_state_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
-import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
@@ -87,7 +86,6 @@ part 'navis_database.g.dart';
     AlbumsTable,
     SongsTable,
     SongSearchTextTable,
-    GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
     PlaylistsTable,
@@ -186,7 +184,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 86;
+  int get schemaVersion => 87;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -465,6 +463,46 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 86 && to >= 86) {
       await from85To86(migrator);
+    }
+    if (from < 87 && to >= 87) {
+      await from86To87(migrator);
+    }
+  }
+
+  /// Genres are not a Navis concept (product decision 2026-09-30). Drops the
+  /// unused genre cache and genre columns, and purges durable genre sync work
+  /// so no retired target can be resumed or keep the sync backlog non-empty.
+  Future<void> from86To87(Migrator migrator) async {
+    await customStatement('DROP TABLE IF EXISTS genres');
+    for (final (table, column) in const [
+      ('albums', 'genre'),
+      ('library_sync_candidate_albums', 'genre'),
+      ('library_sync_state', 'last_genres_synced_at'),
+    ]) {
+      if (await _columnExists(table, column)) {
+        await customStatement('ALTER TABLE $table DROP COLUMN $column');
+      }
+    }
+    if (await _tableExists('library_sync_work')) {
+      await customStatement(
+        "DELETE FROM library_sync_work WHERE entity_id = '@genres'",
+      );
+    }
+    // Run requests store the target-kind enum index; 6 was always the retired
+    // genres target and no longer decodes. Dependent attempt and outcome rows
+    // are removed explicitly rather than relying on foreign-key enforcement.
+    if (await _tableExists('library_sync_run_request')) {
+      const retired =
+          'SELECT id FROM library_sync_run_request WHERE target_kind = 6';
+      await customStatement(
+        'DELETE FROM library_sync_run_outcome WHERE request_id IN ($retired)',
+      );
+      await customStatement(
+        'DELETE FROM library_sync_run_attempt WHERE request_id IN ($retired)',
+      );
+      await customStatement(
+        'DELETE FROM library_sync_run_request WHERE target_kind = 6',
+      );
     }
   }
 
@@ -1360,9 +1398,6 @@ class NavisDatabase extends _$NavisDatabase {
           lastCatalogSyncedAt: Value(lastSynced),
           lastAuxiliarySyncedAt: Value(
             _parseSyncDate(navis['auxiliarySyncLastSyncedAt']),
-          ),
-          lastGenresSyncedAt: Value(
-            _parseSyncDate(navis['genresSyncLastSyncedAt']),
           ),
           lastAuditAt: Value(
             _parseSyncDate(navis['libraryHealthCheckedAt']),

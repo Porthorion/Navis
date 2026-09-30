@@ -4,6 +4,10 @@ This correction follows the completed responsive overhaul and polish. Their
 historical acceptance records remain unchanged. Automotive work remains in the
 separate Polestar investigation.
 
+> Note (2026-09-30): the Genre detail surface referenced below was removed by
+> product decision; Genre rows in this record describe the state at the time
+> of the audit, not current behavior.
+
 ## Regression and decision
 
 The Android audit in `build/mobile-layout-audit/` confirmed oversized Liked,

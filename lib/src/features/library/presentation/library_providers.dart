@@ -3,10 +3,7 @@ export 'package:navis/src/providers/app_providers.dart'
         albumListProvider,
         albumProvider,
         albumsByArtistProvider,
-        albumsByGenreProvider,
         artistByIdProvider,
         artistInfoProvider,
         artistsProvider,
-        genresProvider,
-        songsByGenreProvider,
         songsProvider;
