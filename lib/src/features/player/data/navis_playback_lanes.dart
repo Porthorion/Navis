@@ -186,7 +186,13 @@ class NavisSupersedingLane {
       _active = null;
     }
     _draining = false;
-    onDrained?.call();
+    // The drain runs unawaited, so a throwing listener would otherwise
+    // surface as an unhandled zone error.
+    try {
+      onDrained?.call();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('Queue lane drain listener failed. $error\n$stackTrace');
+    }
   }
 }
 

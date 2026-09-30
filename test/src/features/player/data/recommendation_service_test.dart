@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -6,6 +8,8 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+import '../../../../helpers/test_database.dart';
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 
@@ -169,4 +173,41 @@ void main() {
     expect(result.songs.single.id, 'navidrome');
     expect(result.source, RecommendationSource.instantMix);
   });
+
+  test(
+    'the eligible library follows catalog changes between refills',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+        SongsTableCompanion.insert(id: 'song-2', title: 'Two'),
+      ]);
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      final service = container.read(recommendationServiceProvider);
+
+      Future<Set<String>> ids() async => (await service.eligibleLibrary(
+        const RadioFilters(),
+      )).map((song) => song.id).toSet();
+
+      expect(await ids(), <String>{'song-1', 'song-2'});
+      expect(await ids(), <String>{'song-1', 'song-2'});
+
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-3', title: 'Three'),
+      ]);
+      await pumpEventQueue();
+
+      expect(await ids(), <String>{'song-1', 'song-2', 'song-3'});
+    },
+    skip: !sqliteAvailable,
+  );
 }

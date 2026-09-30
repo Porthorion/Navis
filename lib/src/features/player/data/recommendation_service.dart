@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -49,10 +50,38 @@ class RecommendationService {
   final Ref _ref;
   final Random _random;
 
+  /// Radio refills ask for the eligible library every few songs; reading the
+  /// whole catalog and checking local files each time is the expensive part.
+  /// The result is reused until songs or cached tracks change, the network
+  /// or filters differ, or it is older than [_eligibleLibraryMaxAge].
+  static const Duration _eligibleLibraryMaxAge = Duration(minutes: 2);
+  ({Object key, int revision, DateTime at, List<SongsTableData> songs})?
+  _eligibleLibraryCache;
+  int _libraryRevision = 0;
+  bool _watchingLibrary = false;
+
   Future<List<SongsTableData>> eligibleLibrary(RadioFilters filters) async {
     final db = _ref.read(navisDatabaseProvider);
-    final catalog = await db.libraryDao.getAllSongs();
+    if (!_watchingLibrary) {
+      _watchingLibrary = true;
+      final subscription = db
+          .tableUpdates(
+            TableUpdateQuery.onAllTables([db.songsTable, db.cachedTracksTable]),
+          )
+          .listen((_) => _libraryRevision++);
+      _ref.onDispose(subscription.cancel);
+    }
     final offline = _ref.read(networkTypeProvider) == NetworkType.offline;
+    final key = (filters.likedOnly, filters.downloadedOnly, offline);
+    final cached = _eligibleLibraryCache;
+    if (cached != null &&
+        cached.key == key &&
+        cached.revision == _libraryRevision &&
+        DateTime.now().difference(cached.at) < _eligibleLibraryMaxAge) {
+      return List<SongsTableData>.of(cached.songs);
+    }
+    final revision = _libraryRevision;
+    final catalog = await db.libraryDao.getAllSongs();
     final cache = {
       for (final entry in await db.cacheDao.getCachedTracks())
         entry.songId: entry,
@@ -90,6 +119,12 @@ class RecommendationService {
       }
       eligible.add(song);
     }
+    _eligibleLibraryCache = (
+      key: key,
+      revision: revision,
+      at: DateTime.now(),
+      songs: List<SongsTableData>.unmodifiable(eligible),
+    );
     return eligible;
   }
 

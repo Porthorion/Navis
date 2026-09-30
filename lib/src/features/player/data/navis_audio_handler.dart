@@ -6858,7 +6858,6 @@ class NavisAudioHandler extends BaseAudioHandler
       Uri.file(cacheFile.path),
       tag: mediaItem,
     );
-    final previousLoopMode = _player.loopMode;
     final previousShuffle = _player.shuffleModeEnabled;
     final queueGeneration = _supersedeQueueWork(
       isLoading: true,
@@ -6907,7 +6906,9 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) {
       return true;
     }
-    await _player.setLoopMode(previousLoopMode);
+    // The user's repeat mode, not the native one saved before the rebuild
+    // (which is off while songs are deferred).
+    await _syncNativeLoopMode();
     await _player.setShuffleModeEnabled(previousShuffle);
     final landed = _player.position;
     if ((position - landed).abs() >= const Duration(seconds: 2)) {
@@ -6956,7 +6957,6 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final previousLoopMode = _player.loopMode;
     final previousShuffleModeEnabled = _player.shuffleModeEnabled;
 
     // Prefer a one-shot direct-stream rebuild for this seek. Do not permanently
@@ -6991,7 +6991,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) {
       return;
     }
-    await _player.setLoopMode(previousLoopMode);
+    await _syncNativeLoopMode();
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
     // media_kit can drop initialPosition; correct before resuming playback.
     final landed = _player.position;
