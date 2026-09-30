@@ -16,6 +16,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../helpers/test_database.dart';
 
@@ -1438,6 +1439,168 @@ void main() {
       },
       skip: !sqliteAvailable || Platform.isWindows,
     );
+
+    group('partial files', () {
+      late Directory supportDir;
+      late _MockDio dio;
+      final savePaths = <String>[];
+
+      DownloadService serviceWith({String? customFolder}) {
+        final downloadService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => SubsonicApiClient(
+            baseUrl: 'https://example.com',
+            authConfig: const SubsonicAuthConfig(
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+            enableLogging: false,
+          ),
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customFolder != null,
+          readCustomDownloadFolderPath: () => customFolder,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          dio: dio,
+        );
+        addTearDown(downloadService.stop);
+        return downloadService;
+      }
+
+      void answerDownload({required bool fail}) {
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          final savePath = invocation.positionalArguments[1] as String;
+          savePaths.add(savePath);
+          await File(savePath).parent.create(recursive: true);
+          await File(savePath).writeAsBytes(<int>[1, 2, 3, 4]);
+          final options = RequestOptions(path: 'download');
+          if (fail) {
+            throw DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+            );
+          }
+          return Response<void>(requestOptions: options, statusCode: 200);
+        });
+      }
+
+      Future<void> enqueueSong() async {
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            artistName: const Value('Artist'),
+            suffix: const Value('mp3'),
+          ),
+        ]);
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+      }
+
+      List<String> audioFilesIn(Directory root) => root
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map((file) => p.relative(file.path, from: root.path))
+          .where((path) => !path.contains('.navis-downloads'))
+          .toList();
+
+      setUp(() async {
+        supportDir = await Directory.systemTemp.createTemp('navis_part_');
+        dio = _MockDio();
+        savePaths.clear();
+      });
+
+      tearDown(() async {
+        if (await supportDir.exists()) await supportDir.delete(recursive: true);
+      });
+
+      test(
+        'a download is written under a part name and renamed when complete',
+        () async {
+          answerDownload(fail: false);
+          await enqueueSong();
+
+          await serviceWith().processQueuedDownloads();
+
+          final track = await database.cacheDao.getCachedTrack('song-1');
+          expect(savePaths.single, '${track!.filePath}.navis-part');
+          expect(File(track.filePath).existsSync(), isTrue);
+          expect(File(savePaths.single).existsSync(), isFalse);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+
+      test(
+        'a failed transfer never leaves a file under the song name',
+        () async {
+          answerDownload(fail: true);
+          await enqueueSong();
+
+          await serviceWith().processQueuedDownloads();
+
+          expect(savePaths, isNotEmpty);
+          expect(
+            audioFilesIn(Directory('${supportDir.path}/audio/permanent')),
+            isEmpty,
+          );
+          expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+
+      test(
+        'startup removes part files of interrupted downloads in a custom '
+        'folder and keeps the user files there',
+        () async {
+          final custom = Directory('${supportDir.path}/custom')..createSync();
+          final part = File('${custom.path}/Other/Old Song.flac.navis-part')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(<int>[1]);
+          final mine = File('${custom.path}/Artist/Mine.mp3')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(<int>[2]);
+          final mineLookalike = File(
+            '${custom.path}/Artist/notes.navis-partial',
+          )..writeAsBytesSync(<int>[3]);
+          await enqueueSong();
+          final item =
+              (await database.downloadQueueDao.getQueuedItems()).single;
+          await database.downloadQueueDao.updateStatus(
+            item.id,
+            DownloadStatus.downloading,
+          );
+          // Startup resumes the queue; keep that transfer from finishing.
+          answerDownload(fail: true);
+
+          await serviceWith(customFolder: custom.path).start();
+
+          expect(part.existsSync(), isFalse);
+          expect(mine.existsSync(), isTrue);
+          expect(mineLookalike.existsSync(), isTrue);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+    });
 
     test(
       'removeDownloadedTrack prunes empty artist folders but keeps root folder',

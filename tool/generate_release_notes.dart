@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'A download interrupted by a crash, power loss or closing the app no longer leaves a half-written song under its real name in your Downloads folder; unfinished downloads use a temporary name that Navis removes on the next start, and the retried download keeps the normal file name',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Signing out and removing local data, or switching servers, no longer deletes music files from your own Downloads folder; only files Navis keeps in its private storage are removed',
         type: _EntryType.fix,
       ),

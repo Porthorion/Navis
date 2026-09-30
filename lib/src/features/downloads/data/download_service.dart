@@ -142,7 +142,8 @@ class DownloadService {
     _stopped = false;
     await _migrateUnsafeAndroidCustomFolder();
     // Recover items left in 'downloading' from a previous app kill.
-    await _downloadQueueDao.requeueStuckDownloads();
+    final interrupted = await _downloadQueueDao.requeueStuckDownloads();
+    if (interrupted > 0) await _removePartialDownloads();
 
     // A custom root belongs to the user. Files not present in Navis's local
     // database may be import candidates and must never be deleted implicitly.
@@ -586,8 +587,18 @@ class DownloadService {
     final destination = File(newPath);
     try {
       await Directory(p.dirname(newPath)).create(recursive: true);
-      if (!await destination.exists()) {
-        await file.copy(newPath);
+      // A file already at the destination is reused only when it is a whole
+      // copy; anything else is replaced through a part file.
+      if (!await destination.exists() ||
+          await destination.length() != await file.length()) {
+        final part = File('$newPath$downloadPartSuffix');
+        try {
+          await file.copy(part.path);
+          await _renameIntoPlace(part, destination);
+        } on FileSystemException {
+          await tryDeleteFile(part);
+          rethrow;
+        }
       }
     } on FileSystemException catch (e) {
       AppLogger.warning(
@@ -719,8 +730,13 @@ class DownloadService {
     // Mark as downloading.
     await _downloadQueueDao.updateStatus(item.id, DownloadStatus.downloading);
 
-    // Resolve destination file early so we can clean up on failure.
+    // Resolve destination file early so we can clean up on failure. The
+    // download is written to [partFile] and renamed to [destFile] only when
+    // complete, so an interrupted download never looks like a finished file.
     File? destFile;
+    File? partFile;
+    var renamed = false;
+    var registered = false;
 
     try {
       // Resolve download URL.
@@ -743,6 +759,7 @@ class DownloadService {
       final song = songs.first;
       final songTitle = song.title;
       destFile = await _resolveDownloadFile(song, item);
+      partFile = File('${destFile.path}$downloadPartSuffix');
 
       _activeCancelToken = CancelToken();
       // Dio reports every received chunk. Persist progress at most twice a
@@ -752,7 +769,7 @@ class DownloadService {
       final sincePersisted = Stopwatch()..start();
       final response = await _dio.downloadUri(
         downloadUri,
-        destFile.path,
+        partFile.path,
         cancelToken: _activeCancelToken,
         onReceiveProgress: (received, total) {
           if (!_stopped && total > 0) {
@@ -781,13 +798,27 @@ class DownloadService {
       );
 
       if (_stopped) {
-        await tryDeleteFile(destFile);
+        await tryDeleteFile(partFile);
         return;
       }
 
       if (response.statusCode != null &&
           response.statusCode! >= 200 &&
           response.statusCode! < 300) {
+        await _renameIntoPlace(partFile, destFile);
+        renamed = true;
+        // Tag before measuring, so the registered size is the final one.
+        // Tags only help a later rescan; they never cost the download.
+        try {
+          await _permanentDownloadImportService.writeIdentityTags(
+            destFile,
+            songId,
+          );
+        } on Object catch (error) {
+          AppLogger.warning(
+            'DownloadService: Identity tags not written for $songId: $error',
+          );
+        }
         // Register in cached_tracks as permanent.
         final stat = await destFile.stat();
         _reportNetworkUsage?.call(
@@ -800,12 +831,8 @@ class DownloadService {
         if (_isSafRoot(_readCustomDownloadFolderPath())) {
           final treeUri = _readCustomDownloadFolderPath()!;
           final relativePath = _safRelativePathFor(song, format);
-          // Tag the local file before its single upload; a document is never
-          // copied back out to be tagged.
-          await _permanentDownloadImportService.writeIdentityTags(
-            destFile,
-            songId,
-          );
+          // The local file was tagged before its single upload; a document
+          // is never copied back out to be tagged.
           final locator = await _safStorage.writeFromFile(
             treeUri: treeUri,
             relativePath: relativePath,
@@ -851,6 +878,7 @@ class DownloadService {
               lastAccessedAt: DateTime.now(),
             ),
           );
+          registered = true;
           // The download is registered; the sidecar record and identity tags
           // are bookkeeping and must never cost the user the finished file
           // (for example while antivirus briefly locks the sidecar).
@@ -892,7 +920,7 @@ class DownloadService {
           '(${stat.size} bytes)',
         );
       } else {
-        await tryDeleteFile(destFile);
+        await tryDeleteFile(partFile);
         // 404 Not Found / 410 Gone — resource is permanently unavailable, no point retrying.
         if (response.statusCode == 404 || response.statusCode == 410) {
           AppLogger.warning(
@@ -914,14 +942,14 @@ class DownloadService {
       await DownloadNotifier.dismissProgress().catchError((_) {});
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
-        await tryDeleteFile(destFile);
+        await tryDeleteFile(partFile);
         if (!_stopped) {
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
         }
       } else {
         final statusCode = e.response?.statusCode;
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
-        await tryDeleteFile(destFile);
+        await tryDeleteFile(partFile);
         if (statusCode == 404 || statusCode == 410) {
           await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
         }
@@ -929,10 +957,49 @@ class DownloadService {
       }
     } on Object catch (e, st) {
       AppLogger.warning('DownloadService: Error for $songId: $e\n$st');
-      await tryDeleteFile(destFile);
+      await tryDeleteFile(partFile);
+      // Only a file this attempt put in place and never registered.
+      if (renamed && !registered) await tryDeleteFile(destFile);
       await _handleFailure(item, e.toString());
     } finally {
       _activeCancelToken = null;
+    }
+  }
+
+  /// Gives a finished download its real name in one step. Windows refuses
+  /// the rename while a scanner briefly holds the new file, so it retries.
+  Future<void> _renameIntoPlace(File part, File destination) async {
+    for (var attempt = 1; ; attempt++) {
+      try {
+        await part.rename(destination.path);
+        return;
+      } on FileSystemException {
+        if (attempt == 3) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 200 * attempt));
+      }
+    }
+  }
+
+  /// Removes `*.navis-part` files left by downloads interrupted by a crash or
+  /// kill, in the active download folder. Only files with that suffix, which
+  /// Navis alone writes, are touched; links are not followed.
+  Future<void> _removePartialDownloads() async {
+    if (_isSafRoot(_readCustomDownloadFolderPath())) return;
+    try {
+      final root = await _permanentDirectory();
+      if (!await root.exists()) return;
+      await for (final entity in root.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is File && entity.path.endsWith(downloadPartSuffix)) {
+          await tryDeleteFile(entity);
+        }
+      }
+    } on Object catch (error) {
+      AppLogger.warning(
+        'DownloadService: Partial download cleanup failed: $error',
+      );
     }
   }
 
@@ -1401,8 +1468,7 @@ class DownloadService {
         );
         reservedTargetPaths.add(targetPath);
         if (p.equals(entry.filePath, targetPath) ||
-            (!sourceWasSaf &&
-                await _isSameFile(entry.filePath, targetPath))) {
+            (!sourceWasSaf && await _isSameFile(entry.filePath, targetPath))) {
           // Already in place, possibly named through a linked folder.
           continue;
         }
