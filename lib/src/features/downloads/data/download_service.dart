@@ -1434,9 +1434,9 @@ class DownloadService {
         if (sourceWasSaf) {
           safSourcesToDelete.add(entry.filePath);
         } else if (previousParent != null && currentRootDirectory != null) {
-          await _deleteEmptyDirectoriesUpwards(
-            startDirectory: previousParent,
-            stopAtDirectory: currentRootDirectory.path,
+          await pruneEmptyParentDirectories(
+            startDirectoryPath: previousParent.path,
+            stopAtDirectoryPath: currentRootDirectory.path,
           );
         }
         if (materializedSource != null) {
@@ -1488,14 +1488,14 @@ class DownloadService {
           lastAccessedAt: moved.entry.lastAccessedAt,
         ),
       );
-      await _deleteEmptyDirectoriesUpwards(
-        startDirectory: File(moved.targetPath).parent,
-        stopAtDirectory: targetRootDirectoryPath,
+      await pruneEmptyParentDirectories(
+        startDirectoryPath: File(moved.targetPath).parent.path,
+        stopAtDirectoryPath: targetRootDirectoryPath,
       );
       if (currentRootDirectoryPath != null) {
-        await _deleteEmptyDirectoriesUpwards(
-          startDirectory: File(moved.entry.filePath).parent,
-          stopAtDirectory: currentRootDirectoryPath,
+        await pruneEmptyParentDirectories(
+          startDirectoryPath: File(moved.entry.filePath).parent.path,
+          stopAtDirectoryPath: currentRootDirectoryPath,
         );
       }
     }
@@ -1610,30 +1610,6 @@ class DownloadService {
     } on FileSystemException {
       await source.copy(destination.path);
       await source.delete();
-    }
-  }
-
-  Future<void> _deleteEmptyDirectoriesUpwards({
-    required Directory startDirectory,
-    required String stopAtDirectory,
-  }) async {
-    final stopAt = p.normalize(stopAtDirectory);
-    var current = startDirectory;
-    while (true) {
-      final currentPath = p.normalize(current.path);
-      if (currentPath == stopAt) {
-        return;
-      }
-      final entries = await current.list().toList();
-      if (entries.isNotEmpty) {
-        return;
-      }
-      await current.delete();
-      final parent = current.parent;
-      if (p.normalize(parent.path) == currentPath) {
-        return;
-      }
-      current = parent;
     }
   }
 

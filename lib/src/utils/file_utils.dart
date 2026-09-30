@@ -42,11 +42,16 @@ Future<void> pruneEmptyParentDirectories({
   }
 
   while (currentPath != stopAt) {
-    final entries = await current.list().toList();
-    if (entries.isNotEmpty) {
+    try {
+      final entries = await current.list().toList();
+      if (entries.isNotEmpty) {
+        return;
+      }
+      await current.delete();
+    } on FileSystemException {
+      // Already gone, not empty after all, or locked (Windows): stop here.
       return;
     }
-    await current.delete();
     final parent = current.parent;
     final parentPath = _normalizePath(parent.path);
     if (parentPath == currentPath) {
