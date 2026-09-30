@@ -57,6 +57,9 @@ flows and platform contracts.
   direct stream. Read the playback section of `docs/architecture.md` first.
 - Preserve the router's narrow auth refresh contract; do not rebuild it from
   broad/timestamped configuration state.
+- Navigate through `NavService` and build locations with `AppRoutes`
+  (`lib/src/routing/`); never write route strings or call GoRouter directly
+  from features. A source guard test enforces this.
 - Database changes require a stepwise migration, generated Drift output, and
   `test/src/database/migrations/navis_migration_test.dart` updates.
 - After Freezed, JSON, Drift table, or DAO changes run `make gen` and commit

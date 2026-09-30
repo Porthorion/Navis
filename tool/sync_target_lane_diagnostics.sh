@@ -272,7 +272,7 @@ PY
 # and the visible rail use. None of these transitions may start or relabel
 # catalog work, change catalog counts, or add a controller ledger event.
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/ledger-before-navigation.json"
-locations=(/ /library /library#liked / /library#liked)
+locations=(/ /library /library?section=liked / /library?section=liked)
 for index in "${!locations[@]}"; do
   location="${locations[$index]}"
   api POST /v1/presentation/navigate "$(python3 - "$location" <<'PY'
@@ -324,7 +324,7 @@ for index in 0 1; do
   if (( index == 0 )); then
     location='/'
   else
-    location='/library#liked'
+    location='/library?section=liked'
   fi
   api POST /v1/presentation/navigate "$(python3 - "$location" <<'PY'
 import json, sys

@@ -61,6 +61,42 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Desktop now has Back and Forward: buttons at the top of the sidebar, Alt+Left/Right (Cmd+[ and Cmd+] on macOS) and the mouse side buttons. They remember each tab\'s pages, work from the moment Navis opens, and never jump you to a different tab\'s copy of a page',
+        type: _EntryType.newFeature,
+      ),
+      _Entry(
+        'Library remembers the section you were on (Albums, Liked, Artists, Playlists or Radio) when you come back to it, and on smaller desktop windows or icon-only sidebars the sections appear as tabs at the top of Library so they are always one click away',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Switching to Mini Player and back no longer resets your open pages, and clicking the album or artist in Mini Player returns to the full window to show it',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Back and Escape now close things in the same order everywhere: quick search, then the queue, then lyrics or Now Playing panels, then the page. On phones, Back closes lyrics before the player, and menus left open in a tab close when you switch tabs',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'The desktop lyrics view now closes when you navigate, press Escape or playback stops, instead of covering the next page',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Back buttons on Settings pages, albums, the changelog and other pages return to where you opened them from, and \u201cBack to Library\u201d on a missing album or playlist no longer leaves that page behind in the tab you came from',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        '16:9 tablets now use the full navigation rail with Library sections instead of the compact car-style rail',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Search only raises the keyboard when you tap Search again or press Ctrl+K, and the selected tab shows a filled icon',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'On iPhone and iPad, swiping from the left edge goes back from detail pages',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         "Genre tags are no longer tracked: editing only an album's genre on your server no longer makes Navis re-sync that album, and leftover genre data is cleared from the device",
         type: _EntryType.improvement,
       ),

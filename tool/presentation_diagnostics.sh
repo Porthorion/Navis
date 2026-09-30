@@ -42,13 +42,13 @@ if [[ "$MODE" != "clone" ]] ||
    [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
    [[ "$ARTIST_TOP_TRACKS_FIXTURE" == "1" && ! "$ROUTE" =~ ^/library/artists/[^/]+/top-tracks$ ]] ||
    [[ -n "$RADIO_FILTER_QUERY" && -n "$LIBRARY_FILTER_QUERY" ]] ||
-   [[ -n "$RADIO_FILTER_QUERY" && "$ROUTE" != "/library#radio" ]] ||
+   [[ -n "$RADIO_FILTER_QUERY" && "$ROUTE" != "/library?section=radio" ]] ||
    [[ -n "$LIBRARY_FILTER_QUERY" && "$ROUTE" != "/library" ]] ||
    (( ${#RADIO_FILTER_QUERY} > 64 || ${#LIBRARY_FILTER_QUERY} > 64 )) ||
    [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
   echo "Set NAVIS_PRESENTATION_SEARCH_QUERY only with the /search route." >&2
-  echo "Set NAVIS_PRESENTATION_RADIO_FILTER_QUERY only with /library#radio (up to 64 characters)." >&2
+  echo "Set NAVIS_PRESENTATION_RADIO_FILTER_QUERY only with /library?section=radio (up to 64 characters)." >&2
   echo "Set NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY only with /library (up to 64 characters)." >&2
   echo "Set NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1 only with an artist top-tracks route." >&2
   echo "Set NAVIS_PRESENTATION_BOOTSTRAP_RECOVERY=1 with at least four injected bootstrap failures." >&2
@@ -829,20 +829,20 @@ PYVERIFY
       if [[ "$width" == "800" ]]; then height=600; else height=1280; fi
       resize_responsive_window "$prefix-responsive-window-$width" "$width" "$height"
       for section in home albums liked artists radio; do
-        if [[ "$section" == "home" ]]; then location=/; else location="/library#$section"; fi
+        if [[ "$section" == "home" ]]; then location=/; else location="/library?section=$section"; fi
         api POST /v1/presentation/navigate "{\"location\":\"$location\"}" \
           > "$OUTPUT_ROOT/$prefix-responsive-$section-$width-navigation.json"
         sleep 1
         capture_window_screenshot "$prefix-responsive-$section-$width" "$prefix-$section-$width"
       done
     done
-    api POST /v1/presentation/navigate '{"location":"/library#liked"}' \
+    api POST /v1/presentation/navigate '{"location":"/library?section=liked"}' \
       > "$OUTPUT_ROOT/$prefix-liked-scroll-navigation.json"
     sleep 1
     api POST /v1/presentation/library-scroll '{"pixels":500}' \
       > "$OUTPUT_ROOT/$prefix-liked-scroll.json"
     capture_window_screenshot "$prefix-liked-scrolled" "$prefix-liked-scrolled"
-    api POST /v1/presentation/navigate '{"location":"/library#albums"}' \
+    api POST /v1/presentation/navigate '{"location":"/library?section=albums"}' \
       > "$OUTPUT_ROOT/$prefix-artwork-navigation.json"
     for artwork in small large; do
       api POST /v1/presentation/appearance "{\"gridArtworkSize\":\"$artwork\"}" \
@@ -862,7 +862,7 @@ PYVERIFY
   fi
   if [[ "$LABEL" == "responsive-polish" ]]; then
     resize_responsive_window "$prefix-polish-wide" 1366 900
-    api POST /v1/presentation/navigate '{"location":"/library#albums"}' \
+    api POST /v1/presentation/navigate '{"location":"/library?section=albums"}' \
       > "$OUTPUT_ROOT/$prefix-polish-albums-navigation.json"
     sleep 1
     capture_window_screenshot "$prefix-polish-albums" "$prefix-polish-albums"
@@ -876,7 +876,7 @@ PYALBUM
     capture_window_screenshot "$prefix-polish-album-detail" "$prefix-polish-album-detail"
     resize_responsive_window "$prefix-polish-minimum" 800 600
     capture_window_screenshot "$prefix-polish-album-minimum" "$prefix-polish-album-minimum"
-    api POST /v1/presentation/navigate '{"location":"/library#liked"}' \
+    api POST /v1/presentation/navigate '{"location":"/library?section=liked"}' \
       > "$OUTPUT_ROOT/$prefix-polish-liked-navigation.json"
     sleep 1
     capture_window_screenshot "$prefix-polish-liked-before" "$prefix-polish-liked-before"

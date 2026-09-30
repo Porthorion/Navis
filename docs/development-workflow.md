@@ -222,9 +222,11 @@ presentation. Open the resulting Sync Settings screenshot and verify the
 `Last library change` summary matches the authenticated ledger counts; a later
 no-op operation must not displace that destructive-operation explanation.
 
-The endpoint's local `/library#section` destinations are deliberately mapped to
-the production `librarySectionProvider`, matching the desktop rail and
-navigation history. The target-lane gate uses `/library#liked` to prove that
+The endpoint accepts only locations that match an app route. Library section
+destinations use the canonical `/library?section=<name>` location, which the
+shell maps to the production `librarySectionProvider` exactly as the sidebar and
+navigation history do; the older `/library#<name>` form is still accepted and
+normalised. The target-lane gate uses `/library?section=liked` to prove that
 the Liked surface remains a local read: its status, aggregate catalog counts,
 and controller ledger must remain unchanged across the online and explicitly
 offline navigation traces.
@@ -452,7 +454,7 @@ the tree remains otherwise usable.
   `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'` on `/library` captures
   the real Albums filtered-empty state before and after restart. Together with
   the deterministic `radioPresentationFixture` override,
-  `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library#radio`
+  `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library?section=radio`
   captures the Radio equivalent without querying or modifying the configured
   server.
 - `NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1` on an existing local
@@ -582,7 +584,7 @@ Liked Albums paging callbacks at 1366×900 and 800×600 before and after restart
 
 ```bash
 NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
-  ./tool/presentation_diagnostics.sh clone /library#liked responsive-polish
+  ./tool/presentation_diagnostics.sh clone /library?section=liked responsive-polish
 ```
 
 Its authenticated clone-only `POST /v1/presentation/library-action` accepts
@@ -691,7 +693,7 @@ uses local cloned songs only; it never starts audio or alters the persisted
 queue.
 For an Albums filtered-empty capture, use route `/library` with
 `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'`. For Radio's equivalent,
-use `/library#radio` with `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`.
+use `/library?section=radio` with `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`.
 The latter enables a deterministic clone-only station fixture; both paths use
 the authenticated Library-filter control and capture the settled state before
 and after a clean restart.

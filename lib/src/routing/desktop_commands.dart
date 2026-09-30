@@ -424,16 +424,6 @@ final desktopShortcutBindingsProvider =
       Map<DesktopCommandAction, DesktopShortcutBinding?>
     >(DesktopShortcutBindingsNotifier.new);
 
-class DesktopCommandIntent extends Intent {
-  const DesktopCommandIntent(this.action);
-
-  final DesktopCommandAction action;
-}
-
-typedef DesktopCommandExecutor = FutureOr<void> Function(
-  DesktopCommandAction action,
-);
-
 bool desktopCommandBlockedByTextInput() {
   final focusNode = FocusManager.instance.primaryFocus;
   if (focusNode == null) {
@@ -450,44 +440,6 @@ bool desktopCommandBlockedByTextInput() {
   }
   // Walk up the tree to catch EditableText hosted inside composite widgets.
   return focusContext.findAncestorStateOfType<EditableTextState>() != null;
-}
-
-Map<ShortcutActivator, Intent> buildDesktopShortcutMap(
-  TargetPlatform platform, {
-  bool includeEscape = true,
-  Map<DesktopCommandAction, DesktopShortcutBinding?>? shortcutBindings,
-}) {
-  final shortcuts = <ShortcutActivator, Intent>{
-    const SingleActivator(LogicalKeyboardKey.space): const DesktopCommandIntent(
-      DesktopCommandAction.playPause,
-    ),
-    const SingleActivator(LogicalKeyboardKey.arrowRight):
-        const DesktopCommandIntent(DesktopCommandAction.nextTrack),
-    const SingleActivator(LogicalKeyboardKey.arrowLeft):
-        const DesktopCommandIntent(DesktopCommandAction.previousTrack),
-    SingleActivator(
-      LogicalKeyboardKey.period,
-      alt: true,
-      includeRepeats: false,
-    ): const DesktopCommandIntent(
-      DesktopCommandAction.nextTrack,
-    ),
-    SingleActivator(LogicalKeyboardKey.comma, alt: true, includeRepeats: false):
-        const DesktopCommandIntent(DesktopCommandAction.previousTrack),
-  };
-  final bindings = shortcutBindings ?? defaultDesktopShortcutBindings();
-  for (final entry in bindings.entries) {
-    final binding = entry.value;
-    if (binding == null) {
-      continue;
-    }
-    shortcuts[binding.toActivator(platform)] = DesktopCommandIntent(entry.key);
-  }
-  if (includeEscape) {
-    shortcuts[const SingleActivator(LogicalKeyboardKey.escape)] =
-        const DesktopCommandIntent(DesktopCommandAction.toggleNowPlaying);
-  }
-  return shortcuts;
 }
 
 bool _isBindingMatchForEvent(
