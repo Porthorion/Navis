@@ -477,6 +477,29 @@
   "homeContinueListeningTitle": "Continue Listening",
   "homeContinueListeningResume": "Resume",
   "homeContinueListeningOpenNowPlaying": "Open player",
+  "homeShowcaseReasonLikedDiscovery": "Similar to your likes",
+  "homeShowcaseReasonServer": "From your server",
+  "homeShowcaseReasonLibrary": "From your library",
+  "homeShowcaseReasonListenBrainz": "ListenBrainz",
+  "homeShowcasePlayTooltip": "Play {album}",
+  "@homeShowcasePlayTooltip": {
+    "placeholders": {
+      "album": {
+        "type": "String"
+      }
+    }
+  },
+  "homeShowcaseAlbumSemantics": "Album, {album} by {artist}",
+  "@homeShowcaseAlbumSemantics": {
+    "placeholders": {
+      "album": {
+        "type": "String"
+      },
+      "artist": {
+        "type": "String"
+      }
+    }
+  },
   "homeRecentlyLikedAlbumsTitle": "Recently Liked Albums",
   "homeRecentlyLikedAlbumsEmptyTitle": "No Liked Albums Yet",
   "homeRecentlyLikedAlbumsEmptySubtitle": "Like albums to pin your favorites here.",

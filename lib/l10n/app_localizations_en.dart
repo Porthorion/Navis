@@ -1154,6 +1154,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeContinueListeningOpenNowPlaying => 'Open player';
 
   @override
+  String get homeShowcaseReasonLikedDiscovery => 'Similar to your likes';
+
+  @override
+  String get homeShowcaseReasonServer => 'From your server';
+
+  @override
+  String get homeShowcaseReasonLibrary => 'From your library';
+
+  @override
+  String get homeShowcaseReasonListenBrainz => 'ListenBrainz';
+
+  @override
+  String homeShowcasePlayTooltip(String album) {
+    return 'Play $album';
+  }
+
+  @override
+  String homeShowcaseAlbumSemantics(String album, String artist) {
+    return 'Album, $album by $artist';
+  }
+
+  @override
   String get homeRecentlyLikedAlbumsTitle => 'Recently Liked Albums';
 
   @override

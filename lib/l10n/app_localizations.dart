@@ -2040,6 +2040,42 @@ abstract class AppLocalizations {
   /// **'Open player'**
   String get homeContinueListeningOpenNowPlaying;
 
+  /// No description provided for @homeShowcaseReasonLikedDiscovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Similar to your likes'**
+  String get homeShowcaseReasonLikedDiscovery;
+
+  /// No description provided for @homeShowcaseReasonServer.
+  ///
+  /// In en, this message translates to:
+  /// **'From your server'**
+  String get homeShowcaseReasonServer;
+
+  /// No description provided for @homeShowcaseReasonLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'From your library'**
+  String get homeShowcaseReasonLibrary;
+
+  /// No description provided for @homeShowcaseReasonListenBrainz.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz'**
+  String get homeShowcaseReasonListenBrainz;
+
+  /// No description provided for @homeShowcasePlayTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Play {album}'**
+  String homeShowcasePlayTooltip(String album);
+
+  /// No description provided for @homeShowcaseAlbumSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Album, {album} by {artist}'**
+  String homeShowcaseAlbumSemantics(String album, String artist);
+
   /// No description provided for @homeRecentlyLikedAlbumsTitle.
   ///
   /// In en, this message translates to:

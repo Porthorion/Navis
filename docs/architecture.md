@@ -486,6 +486,39 @@ target-selection rules.
 - Decision record:
   [decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
 
+### Home: You Might Like
+
+`you_might_like_widgets.dart` (a part of `home_screen.dart`) renders the
+recommendation showcase.
+
+**Phones and tablets: a focused cover flow.**
+- **Cover size:** square and uncropped, 62% of the width, capped at 260 px
+  (300–320 px on tablets) and at 42% of the screen height so landscape
+  still fits.
+- **Neighbours:** the page controller's viewport fraction is derived from
+  that size so neighbours peek. Their scale and opacity follow the page
+  offset continuously.
+- **Play:** only the focused cover shows Play, which calls
+  `playAlbumById` in `album_context_menu.dart`. ListenBrainz picks open
+  their weekly playlist instead.
+- **Info panel:** `_ShowcaseInfoPanel` under the carousel crossfades the
+  title (tap to open), the artist, and a line such as
+  "2023 • 12 songs · Similar to your likes". `_showcaseReasonLabel` maps
+  each `HomeRandomShowcaseSource` or ListenBrainz item to its reason.
+
+**Desktop:** the art, track list and cover strip are unchanged. The panel
+header adds the same reason line and a compact Play/Shuffle pair.
+
+**Colour wash (`_ShowcaseColourWash`, both layouts):**
+- Decodes the cached 600 px cover at 16 px and stretches it. There is no
+  live blur and no extra network request.
+- A veil of the page colour covers it (lighter in light themes and on
+  desktop), so it needs no offscreen layer while idle.
+- Reduced motion removes its crossfade.
+
+Paging, auto-advance and the test/diagnostics keys
+`home-random-hero-carousel(-page-N)` are unchanged.
+
 ### Common Widgets (`lib/src/common_widgets/`)
 
 Reusable UI components used across features:

@@ -331,6 +331,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'You Might Like on phones shows whole, uncropped square covers in a swipeable cover flow, with the title, artist, year, song count and why it was picked beneath, a Play button on the focused cover, and a soft wash of the cover\'s colours behind it. On desktop the track list gains the same reason line and Play and Shuffle buttons',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Missing album artwork now shows a softly shaded tile with an icon sized to the cover, so grids, headers and the Mini Player no longer look broken where art is absent',
         type: ChangelogEntryType.improvement,
       ),

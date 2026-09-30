@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -1521,6 +1522,144 @@ void main() {
       expect(currentPageKey(), initialPage);
     },
   );
+
+  testWidgets(
+    'You Might Like shows square covers with details and Play below',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          const HomeRandomShowcaseAlbum(
+            id: 'flow-1',
+            name: 'Flow One',
+            artist: 'Artist One',
+            coverArtId: 'cover-flow-1',
+            year: 2023,
+            songCount: 12,
+            source: HomeRandomShowcaseSource.likedDiscovery,
+          ),
+          const HomeRandomShowcaseAlbum(
+            id: 'flow-2',
+            name: 'Flow Two',
+            artist: 'Artist Two',
+            coverArtId: 'cover-flow-2',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+          HomeRandomShowcaseListenBrainz.loading(
+            sourcePatch: 'weekly-jams',
+            displayTitle: 'Weekly Jams',
+          ),
+        ],
+      );
+
+      final carousel = find.byKey(
+        const ValueKey<String>('home-random-hero-carousel'),
+      );
+      final cover = find
+          .descendant(of: carousel, matching: find.byType(HeroCoverArt))
+          .first;
+      final coverSize = tester.getSize(cover);
+      expect(coverSize.width, coverSize.height);
+
+      final info = find.byKey(const ValueKey<String>('home-showcase-info'));
+      expect(
+        find.descendant(of: info, matching: find.text('Flow One')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: info, matching: find.text('Artist One')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: info,
+          matching: find.text('2023 • 12 songs · Similar to your likes'),
+        ),
+        findsOneWidget,
+      );
+      final play = find.byKey(const ValueKey<String>('home-showcase-play'));
+      expect(play, findsOneWidget);
+      expect(tester.widget<IconButton>(play).tooltip, 'Play Flow One');
+      await expectLater(
+        find.byType(HomeScreen),
+        matchesGoldenFile('goldens/home_you_might_like_phone_390.png'),
+      );
+
+      await tester.drag(carousel, const Offset(-240, 0));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: info, matching: find.text('Flow Two')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: info, matching: find.text('From your server')),
+        findsOneWidget,
+      );
+      expect(play, findsOneWidget);
+
+      await tester.drag(carousel, const Offset(-240, 0));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: info, matching: find.text('Weekly Jams')),
+        findsOneWidget,
+      );
+      // Weekly playlists open their detail instead of playing directly.
+      expect(play, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('You Might Like fits a landscape phone without overflow', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    view.physicalSize = const Size(844, 390);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      nativeTouch: true,
+      randomAlbums: const <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseAlbum(
+          id: 'land-1',
+          name: 'Landscape One',
+          artist: 'Artist',
+          coverArtId: 'cover-land-1',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+        HomeRandomShowcaseAlbum(
+          id: 'land-2',
+          name: 'Landscape Two',
+          artist: 'Artist',
+          coverArtId: 'cover-land-2',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ],
+    );
+    final cover = find
+        .descendant(
+          of: find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+          matching: find.byType(HeroCoverArt),
+        )
+        .first;
+    // The whole cover fits within the short landscape viewport.
+    expect(tester.getSize(cover).height, lessThanOrEqualTo(390 * 0.42 + 0.5));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('random section renders dedicated hero carousel', (tester) async {
     await tester.pumpWidget(

@@ -27,8 +27,10 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -64,6 +66,7 @@ import 'package:url_launcher/url_launcher.dart';
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
 part 'home_support_widgets.dart';
+part 'you_might_like_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -2345,7 +2348,9 @@ class _DesktopRandomAlbumsPagerState
       return const SizedBox.shrink();
     }
 
-    return Column(
+    final currentItem =
+        _displayedAlbums[_currentPage.clamp(0, _displayedAlbums.length - 1)];
+    final pager = Column(
       key: const ValueKey<String>('home-random-desktop-pager'),
       children: <Widget>[
         LayoutBuilder(
@@ -2445,6 +2450,17 @@ class _DesktopRandomAlbumsPagerState
             },
           ),
         ],
+      ],
+    );
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: _ShowcaseColourWash(
+            coverArtId: _showcaseWashCoverId(currentItem),
+            subtle: true,
+          ),
+        ),
+        pager,
       ],
     );
   }
@@ -2955,24 +2971,64 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return ListView.separated(
-          key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
-          padding: EdgeInsets.zero,
-          itemCount: allSongs.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 4),
-          itemBuilder: (context, index) {
-            final song = allSongs[index];
-            return _DesktopRandomAlbumSongRow(
-              song: song,
-              albumTracks: allSongs,
-              queueStartIndex: index,
-              displayIndex: index + 1,
-            );
-          },
-        );
-      },
+    final colors = Theme.of(context).colorScheme;
+    Future<void> queueAll({required bool shuffle}) {
+      final songs = <SongsTableData>[...allSongs];
+      if (shuffle) songs.shuffle();
+      ref
+          .read(librarySyncControllerProvider.notifier)
+          .registerAlbumInteraction(album.id);
+      return ref.read(queueProvider.notifier).replaceWithTableData(songs);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 0, 6),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  _showcaseMetaLine(l10n, album),
+                  key: const ValueKey<String>('home-random-desktop-reason'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              EntityActionBar(
+                compact: true,
+                playKey: const ValueKey<String>('home-random-desktop-play'),
+                shuffleKey: const ValueKey<String>(
+                  'home-random-desktop-shuffle',
+                ),
+                onPlay: () => unawaited(queueAll(shuffle: false)),
+                onShuffle: () => unawaited(queueAll(shuffle: true)),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
+            padding: EdgeInsets.zero,
+            itemCount: allSongs.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 4),
+            itemBuilder: (context, index) {
+              final song = allSongs[index];
+              return _DesktopRandomAlbumSongRow(
+                song: song,
+                albumTracks: allSongs,
+                queueStartIndex: index,
+                displayIndex: index + 1,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3246,7 +3302,8 @@ class _RandomAlbumsHeroCarouselState
     extends ConsumerState<_RandomAlbumsHeroCarousel>
     with WidgetsBindingObserver {
   static const int _kVirtualLoopCycles = 10000;
-  late final PageController _pageController;
+  late PageController _pageController;
+  double _viewportFraction = 0.66;
   late List<HomeRandomShowcaseItem> _displayedAlbums;
   late final RecommendationAutoAdvance _autoAdvance;
   final GlobalKey _viewportKey = GlobalKey();
@@ -3279,7 +3336,7 @@ class _RandomAlbumsHeroCarouselState
       _displayedAlbums.length,
     );
     _pageController = PageController(
-      viewportFraction: widget.desktopMode ? 0.58 : 0.84,
+      viewportFraction: _viewportFraction,
       initialPage: initialPage,
     );
     _autoAdvance = RecommendationAutoAdvance(
@@ -3406,7 +3463,7 @@ class _RandomAlbumsHeroCarouselState
       final currentPage = _currentVirtualPage;
       final previousController = _pageController;
       _pageController = PageController(
-        viewportFraction: widget.desktopMode ? 0.58 : 0.84,
+        viewportFraction: _viewportFraction,
         initialPage: currentPage,
       );
       previousController.dispose();
@@ -3482,25 +3539,6 @@ class _RandomAlbumsHeroCarouselState
 
   void _pauseAutoAdvanceTemporarily() => _autoAdvance.recordInteraction();
 
-  void _animateToRelativePage(int delta) {
-    if (!mounted ||
-        !_pageController.hasClients ||
-        _displayedAlbums.length <= 1) {
-      return;
-    }
-    _pauseAutoAdvanceTemporarily();
-    final target = _currentVirtualPage + delta;
-    if (_reduceMotion) {
-      _pageController.jumpToPage(target);
-    } else {
-      _pageController.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
   int _initialVirtualPage(int albumCount) {
     if (albumCount <= 1) {
       return 0;
@@ -3525,19 +3563,39 @@ class _RandomAlbumsHeroCarouselState
     return cycle * albumCount + logicalPage;
   }
 
-  double _heroHeightFor(double availableWidth) {
+  /// Side of the focused square cover: a generous share of the width, but
+  /// capped so tablets and landscape phones keep the whole section in view.
+  double _coverSideFor(double availableWidth, Size screen) {
     final compact = widget.density == _HomeSectionDensity.compact;
-    if (widget.desktopMode) {
-      return (availableWidth * (compact ? 0.28 : 0.32)).clamp(
-        compact ? 260.0 : 300.0,
-        compact ? 420.0 : 500.0,
-      );
-    }
-    return switch (widget.adaptiveLayoutClass) {
-      AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
-      AdaptiveLayoutClass.tabletMedium => compact ? 224 : 244,
-      AdaptiveLayoutClass.tabletExpanded => compact ? 236 : 258,
+    final cap = switch (widget.adaptiveLayoutClass) {
+      AdaptiveLayoutClass.phoneCompact => compact ? 236.0 : 260.0,
+      AdaptiveLayoutClass.tabletMedium => compact ? 280.0 : 300.0,
+      AdaptiveLayoutClass.tabletExpanded => compact ? 300.0 : 320.0,
     };
+    return math.min(
+      math.min(availableWidth * 0.62, cap),
+      math.max(140.0, screen.height * 0.42),
+    );
+  }
+
+  /// Page controllers fix their viewport fraction, so a new width that needs
+  /// a different peek swaps in a controller at the same page.
+  void _syncViewportFraction(double fraction) {
+    if ((fraction - _viewportFraction).abs() < 0.005) return;
+    _viewportFraction = fraction;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pageController.viewportFraction == _viewportFraction) {
+        return;
+      }
+      final previous = _pageController;
+      setState(() {
+        _pageController = PageController(
+          viewportFraction: _viewportFraction,
+          initialPage: _currentVirtualPage,
+        );
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    });
   }
 
   @override
@@ -3548,21 +3606,37 @@ class _RandomAlbumsHeroCarouselState
 
     _scheduleVisibilityCheck();
     final motion = MotionPolicy.of(context);
-    final currentPageLabel =
-        'home-random-hero-carousel-page-${_currentLogicalPage.clamp(0, _displayedAlbums.length - 1)}';
+    final currentIndex = _currentLogicalPage.clamp(
+      0,
+      _displayedAlbums.length - 1,
+    );
+    final currentItem = _displayedAlbums[currentIndex];
+    final currentPageLabel = 'home-random-hero-carousel-page-$currentIndex';
+    const shadowTop = 8.0;
+    const shadowBottom = 24.0;
+    const peekGap = 16.0;
 
-    return Column(
+    final section = Column(
       children: <Widget>[
         LayoutBuilder(
           builder: (context, constraints) {
             final availableWidth = constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
-            final height = _heroHeightFor(availableWidth);
+            final side = _coverSideFor(
+              availableWidth,
+              MediaQuery.sizeOf(context),
+            );
+            _syncViewportFraction(
+              ((side + peekGap) / availableWidth).clamp(0.2, 1.0),
+            );
 
-            Widget carouselViewport = PageView.builder(
+            final carouselViewport = PageView.builder(
               key: const ValueKey<String>('home-random-hero-carousel'),
               controller: _pageController,
+              // Full-width carousel: let cover shadows fall off softly
+              // instead of being cut at the viewport edges.
+              clipBehavior: Clip.none,
               itemCount: _displayedAlbums.length <= 1 ? 1 : null,
               onPageChanged: (index) {
                 if (!mounted) {
@@ -3581,42 +3655,45 @@ class _RandomAlbumsHeroCarouselState
                   index,
                   _displayedAlbums.length,
                 );
-                return Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: widget.desktopMode ? 8 : 6,
+                final card = SizedBox.square(
+                  dimension: side,
+                  child: _ShowcaseCoverCard(
+                    item: _displayedAlbums[logicalIndex],
+                    heroContext: widget.heroContext,
+                    focused: _currentVirtualPage == index,
                   ),
-                  child: AnimatedScale(
-                    duration: motion.feedback,
-                    curve: Curves.easeOutCubic,
-                    scale: _currentVirtualPage == index ? 1 : 0.93,
-                    child: _RandomAlbumsHeroCard(
-                      album: _displayedAlbums[logicalIndex],
-                      heroContext: widget.heroContext,
-                    ),
+                );
+                // Neighbours shrink and dim with the swipe itself rather
+                // than snapping once the page settles.
+                return Center(
+                  child: AnimatedBuilder(
+                    animation: _pageController,
+                    child: card,
+                    builder: (context, child) {
+                      final position =
+                          _pageController.hasClients &&
+                              _pageController.position.hasContentDimensions
+                          ? _pageController.page ??
+                                _currentVirtualPage.toDouble()
+                          : _currentVirtualPage.toDouble();
+                      final distance = (position - index).abs().clamp(
+                        0.0,
+                        1.0,
+                      );
+                      return Opacity(
+                        opacity: 1 - 0.45 * distance,
+                        child: Transform.scale(
+                          scale: 1 - 0.14 * distance,
+                          child: child,
+                        ),
+                      );
+                    },
                   ),
                 );
               },
             );
 
-            if (widget.desktopMode) {
-              carouselViewport = ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: <Color>[
-                    Colors.transparent,
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
-                  stops: <double>[0, 0.08, 0.92, 1],
-                ).createShader(bounds),
-                blendMode: BlendMode.dstIn,
-                child: carouselViewport,
-              );
-            }
-
-            Widget viewportChild = Listener(
+            final viewportChild = Listener(
               onPointerDown: (_) {
                 _gestureActive = true;
                 _pauseAutoAdvanceTemporarily();
@@ -3650,37 +3727,22 @@ class _RandomAlbumsHeroCarouselState
               ),
             );
 
-            if (widget.desktopMode && _displayedAlbums.length > 1) {
-              viewportChild = Stack(
-                children: <Widget>[
-                  Positioned.fill(child: viewportChild),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _CarouselEdgeArrow(
-                      icon: Icons.chevron_left_rounded,
-                      onPressed: () => _animateToRelativePage(-1),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _CarouselEdgeArrow(
-                      icon: Icons.chevron_right_rounded,
-                      onPressed: () => _animateToRelativePage(1),
-                    ),
-                  ),
-                ],
-              );
-            }
-
             return SizedBox(
               key: _viewportKey,
-              height: height,
-              child: viewportChild,
+              height: side + shadowTop + shadowBottom,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  top: shadowTop,
+                  bottom: shadowBottom,
+                ),
+                child: viewportChild,
+              ),
             );
           },
         ),
+        _ShowcaseInfoPanel(item: currentItem, heroContext: widget.heroContext),
         if (_displayedAlbums.length > 1) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: NavisSpace.sm),
           Wrap(
             key: ValueKey<String>(currentPageLabel),
             spacing: 6,
@@ -3691,10 +3753,10 @@ class _RandomAlbumsHeroCarouselState
               (index) => AnimatedContainer(
                 duration: motion.feedback,
                 curve: Curves.easeOutCubic,
-                width: _currentLogicalPage == index ? 16 : 6,
+                width: currentIndex == index ? 16 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: _currentLogicalPage == index
+                  color: currentIndex == index
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(
                           context,
@@ -3705,6 +3767,17 @@ class _RandomAlbumsHeroCarouselState
             ),
           ),
         ],
+      ],
+    );
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: _ShowcaseColourWash(
+            coverArtId: _showcaseWashCoverId(currentItem),
+          ),
+        ),
+        section,
       ],
     );
   }

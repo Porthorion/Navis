@@ -111,3 +111,16 @@ These remain deliberately literal:
 - the smart-queue and brand colours;
 - the amber partial-download badge, which sits on a fixed scrim;
 - the equalizer painters.
+
+## You Might Like redesign
+
+Follow-up decisions:
+- **Phones:** a focused cover flow.
+- **Desktop:** light alignment only.
+- **No reshuffle button.**
+
+The phone cards used to crop square covers to about 300×228 and printed
+titles over darkened art. They now show uncropped covers with the details and
+the recommendation reason below, a Play button on the focused cover, and a
+colour wash. Desktop gained the reason line and Play/Shuffle. See
+`docs/architecture.md` → *Home: You Might Like*.
