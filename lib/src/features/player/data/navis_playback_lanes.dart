@@ -191,7 +191,9 @@ class NavisSupersedingLane {
     try {
       onDrained?.call();
     } on Object catch (error, stackTrace) {
-      AppLogger.warning('Queue lane drain listener failed. $error\n$stackTrace');
+      AppLogger.warning(
+        'Queue lane drain listener failed. $error\n$stackTrace',
+      );
     }
   }
 }
