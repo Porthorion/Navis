@@ -285,6 +285,24 @@ only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
 
+### Shuffle parity diagnostics
+
+Run `python3 tool/shuffle_parity_diagnostics.py` after changing shuffle, queue
+order, or the media_kit adapter. It serves a 40-song loopback fixture, launches
+an isolated muted Linux profile against an empty database, turns shuffle on,
+presses Next five times and lets two tracks advance on their own. Each sample
+compares the reported `songId` with the song mpv is playing
+(`native.mediaKitCurrent`, reduced to the stream `id` or cache file name so no
+credential-bearing URI is reported). The run writes
+`build/shuffle-parity-diagnostics/<timestamp>/report.json` and exits 1 when any
+sample or control call disagrees. `NAVIS_PARITY_BUNDLE` runs a built profile
+bundle instead of `flutter run`.
+
+Clone-only `POST /v1/playback/shuffle {"enabled": bool}` and
+`POST /v1/playback/repeat {"mode": "none"|"one"|"all"}` drive the production
+handler. `GET /v1/playback/status` reports the native index, shuffle flag,
+sequence ids (first 64), effective order and `mediaKitCurrent` under `native`.
+
 ### Artist playback diagnostics
 
 Run `python3 tool/artist_playback_diagnostics.py` for the artist queue regression.

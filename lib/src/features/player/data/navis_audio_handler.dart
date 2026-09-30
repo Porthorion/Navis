@@ -89,8 +89,12 @@ class NavisAudioHandler extends BaseAudioHandler
     PlaybackAdjustmentCapabilities? adjustmentCapabilities,
     EqCapabilities? equalizerCapabilities,
     AudioPlayer Function()? crossfadePlayerFactory,
+    AudioPlayer Function()? playerFactory,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
   }) : _queueWindow = queueWindow,
+       _timeouts = timeouts,
+       _playerFactory = playerFactory,
        _adjustmentCapabilities = adjustmentCapabilities,
        _injectedEqualizerCapabilities = equalizerCapabilities,
        _crossfadePlayerFactory = crossfadePlayerFactory,
@@ -161,6 +165,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final PlaybackAdjustmentCapabilities? _adjustmentCapabilities;
   final EqCapabilities? _injectedEqualizerCapabilities;
   final AudioPlayer Function()? _crossfadePlayerFactory;
+
+  /// Builds the main player instead of the platform player (tests).
+  final AudioPlayer Function()? _playerFactory;
+  final NavisPlaybackTimeouts _timeouts;
 
   AudioPlayer _newCrossfadePlayer() =>
       _crossfadePlayerFactory?.call() ?? _buildBaseAudioPlayer();
@@ -349,11 +357,11 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void>? _playerDisposalFuture;
   bool _disposeHandlerStarted = false;
   bool _disposeHandlerCompleted = false;
-  static const Duration _playerLoadTimeout = Duration(seconds: 12);
-  static const Duration _remotePlaybackStallTimeout = Duration(seconds: 12);
-  static const Duration _seekBufferingRecoveryTimeout = Duration(seconds: 3);
-  static const Duration _playerResetTimeout = Duration(seconds: 4);
-  static const Duration _playerControlTimeout = Duration(seconds: 4);
+  Duration get _playerLoadTimeout => _timeouts.load;
+  Duration get _remotePlaybackStallTimeout => _timeouts.remoteStall;
+  Duration get _seekBufferingRecoveryTimeout => _timeouts.seekBufferingRecovery;
+  Duration get _playerResetTimeout => _timeouts.reset;
+  Duration get _playerControlTimeout => _timeouts.control;
   int _loadGeneration = 0;
   int _activeLoadGeneration = 0;
   String? _loadingSongId;
@@ -1041,7 +1049,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   AudioPlayer _buildAudioPlayer({required bool enableEqualizer}) {
     _equalizerPipelineEnabled = enableEqualizer;
-    return _buildBaseAudioPlayer();
+    return _playerFactory?.call() ?? _buildBaseAudioPlayer();
   }
 
   AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
@@ -1647,12 +1655,13 @@ class NavisAudioHandler extends BaseAudioHandler
     required String operation,
     required Future<T> Function() action,
     String? songId,
-    Duration timeout = _playerLoadTimeout,
+    Duration? timeout,
     // Queue edits must commit a native change that succeeded, even if a newer
     // command superseded the generation meanwhile; dropping it would leave
     // the Dart queue and the player out of step.
     bool cancelAfterSuccess = true,
   }) async {
+    timeout ??= _playerLoadTimeout;
     _lastFailedSongId = null;
     _timedPlayerOperationCount++;
     final startupTrace = _activeStartupTrace;
@@ -5372,6 +5381,18 @@ class NavisAudioHandler extends BaseAudioHandler
     });
   }
 
+  /// Reduces a media URI to a song reference that carries no credentials:
+  /// the stream `id` parameter, or the file name for local sources.
+  static String? _diagnosticMediaReference(String? uri) {
+    if (uri == null) return null;
+    final parsed = Uri.tryParse(uri);
+    if (parsed == null) return null;
+    if (parsed.scheme == 'http' || parsed.scheme == 'https') {
+      return parsed.queryParameters['id'];
+    }
+    return parsed.pathSegments.isEmpty ? null : parsed.pathSegments.last;
+  }
+
   @override
   Map<String, Object?> collectPlaybackDiagnostics() {
     final snapshot = _snapshot;
@@ -5384,6 +5405,22 @@ class NavisAudioHandler extends BaseAudioHandler
       'playerSequenceLength': _player.sequence.length,
       'materializedLength': _queueItems.length,
       'deferredLength': _deferredTail.length,
+      // Native order as the player holds it, for parity checks against the
+      // logical queue (limited so large queues stay cheap to report).
+      'native': <String, Object?>{
+        'index': _player.currentIndex,
+        'shuffleEnabled': _player.shuffleModeEnabled,
+        'sequenceIds': <String?>[
+          for (final source in _player.sequence.take(64))
+            source.tag is MediaItem ? (source.tag as MediaItem).id : null,
+        ],
+        'effectiveIndices': _player.effectiveIndices.take(64).toList(),
+        // What mpv itself is playing, reduced to the stream `id` parameter or
+        // the cache file name so no credential-bearing URI is reported.
+        'mediaKitCurrent': JustAudioMediaKit.debugCurrentMediaUris()
+            ?.map(_diagnosticMediaReference)
+            .toList(),
+      },
       'queueFill': _lastQueueFill,
       'counters': <String, Object?>{
         'tailReleases': _tailReleaseCount,

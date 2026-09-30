@@ -91,6 +91,18 @@ class JustAudioMediaKit extends JustAudioPlatform {
     JustAudioPlatform.instance = JustAudioMediaKit();
   }
 
+  /// Diagnostics only: the media each live player is actually playing, as
+  /// reported by mpv. Values are URIs and may carry credentials; callers must
+  /// reduce them before exposing them.
+  static List<String?>? debugCurrentMediaUris() {
+    final instance = JustAudioPlatform.instance;
+    if (instance is! JustAudioMediaKit) return null;
+    return <String?>[
+      for (final player in instance._players.values)
+        player.debugCurrentMediaUri,
+    ];
+  }
+
   @override
   Future<AudioPlayerPlatform> init(InitRequest request) async {
     if (_players.containsKey(request.id)) {

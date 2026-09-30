@@ -52,6 +52,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return medias[_player.state.playlist.index];
   }
 
+  /// Diagnostics only: the URI of the media mpv is playing.
+  String? get debugCurrentMediaUri => _currentMedia?.uri;
+
   EqualizerConfigurationMessage? _equalizer;
   EqualizerStateMessage _eqState = const EqualizerStateMessage(enabled: false);
   Future<void> _audioLane = Future<void>.value();

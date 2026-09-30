@@ -63,6 +63,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
 
+  /// Mutations named here never complete, as a stuck native call would.
+  final Set<String> hang = <String>{};
+
+  Future<void> _hangIf(String method) =>
+      hang.contains(method) ? Completer<void>().future : Future<void>.value();
+
   Future<T> _mutate<T>(Future<T> Function() action) async {
     _activeMutations++;
     if (_activeMutations > maxConcurrentMutations) {
@@ -181,12 +187,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> removeAudioSourceAt(int index) => _mutate(() async {
+    await _hangIf('removeAudioSourceAt');
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
   });
 
   @override
   Future<void> removeAudioSourceRange(int start, int end) => _mutate(() async {
+    await _hangIf('removeAudioSourceRange');
     rangeRemovals++;
     _sources.removeRange(start, end);
   });
@@ -225,6 +233,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
+    await _hangIf('setAudioSources');
     state = ProcessingState.loading;
     final gate = loadGate;
     loadGate = null;
@@ -268,6 +277,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> addAudioSources(List<AudioSource> sources) => _mutate(() async {
+    await _hangIf('addAudioSources');
     batchMutationCount++;
     // Like a native batch: one failing source fails the whole call.
     if (failAppendSongId != null &&
@@ -284,6 +294,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> insertAudioSources(int at, List<AudioSource> sources) =>
       _mutate(() async {
+        await _hangIf('insertAudioSources');
         batchMutationCount++;
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;

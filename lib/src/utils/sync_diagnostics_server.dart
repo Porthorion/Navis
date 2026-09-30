@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
@@ -2465,6 +2467,50 @@ class SyncDiagnosticsServer {
           await handler.skipToNext();
         } else {
           await handler.skipToPrevious();
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          (path == '/v1/playback/shuffle' || path == '/v1/playback/repeat')) {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        if (path == '/v1/playback/shuffle') {
+          final enabled = body['enabled'];
+          if (enabled is! bool) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'enabled must be boolean',
+            });
+            return;
+          }
+          await handler.setShuffleMode(
+            enabled
+                ? AudioServiceShuffleMode.all
+                : AudioServiceShuffleMode.none,
+          );
+        } else {
+          final mode = switch (body['mode']) {
+            'none' => AudioServiceRepeatMode.none,
+            'one' => AudioServiceRepeatMode.one,
+            'all' => AudioServiceRepeatMode.all,
+            _ => null,
+          };
+          if (mode == null) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'mode must be none, one or all',
+            });
+            return;
+          }
+          await handler.setRepeatMode(mode);
         }
         await _respond(
           request,
