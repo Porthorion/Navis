@@ -188,7 +188,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 87;
+  int get schemaVersion => 88;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -470,6 +470,25 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 87 && to >= 87) {
       await from86To87(migrator);
+    }
+    if (from < 88 && to >= 88) {
+      await from87To88(migrator);
+    }
+  }
+
+  /// Records each saved queue row's unshuffled position, so a shuffled
+  /// queue restores in the order it was playing and can still be
+  /// unshuffled. Existing rows stay null: they were saved in unshuffled
+  /// order.
+  Future<void> from87To88(Migrator migrator) async {
+    if (!await _columnExists(
+      'play_queue_items',
+      playQueueItemsTable.originalOrder.name,
+    )) {
+      await migrator.addColumn(
+        playQueueItemsTable,
+        playQueueItemsTable.originalOrder,
+      );
     }
   }
 

@@ -1335,12 +1335,31 @@ seeks, farther taps rebuild the player around it, and removes and reorders
 inside the tail are Dart-only. Songs that cannot be resolved when released are
 dropped, except that a song that is only unplayable for now (offline without a
 cached copy, or no server session) stays deferred with every song after it and
-the release backs off and retries. Turning shuffle on releases the whole tail first (native shuffle
-orders only what the player holds), and repeat-all stays off natively until
+the release backs off and retries. Shuffled queues defer like any other (see
+Shuffle below), and repeat-all stays off natively until
 nothing is deferred, so the player never wraps early; the reported repeat mode
 is the user's. `GET /v1/playback/status` reports `materializedLength`,
 `deferredLength`, and release counters. Known limit: restoring at, or jumping
-to, a far index still materialises the prefix before it. Remote rows keep
+to, a far index still materialises the prefix before it.
+
+Shuffle is owned by Navis, not the player (`_shuffleEnabled`,
+`navis_shuffle_order.dart`). Native shuffle is never enabled: it can order
+only what the player holds, and media_kit's `playlist-shuffle` physically
+reorders mpv's playlist while just_audio keeps the old order, so the song
+reported as playing was not the song heard. Instead the logical queue is
+always the play order, so the Queue shows the real order and next/previous
+step by one. Turning shuffle on keeps the history and the current song and
+shuffles the rest; a queue started with shuffle on begins at the chosen song
+with the others shuffled. The unshuffled order is kept in `_originalOrder`
+and reconciled lazily with edits made while shuffled
+(`reconcileOriginalRanks`: songs matched by occurrence, a song played next
+lands after the current song, appended songs go last, removed songs drop).
+Turning shuffle off restores that order around the current song without
+interrupting it (`_rearrangeQueue`). Schema v88 saves each queue row's
+unshuffled position in `play_queue_items.original_order` next to its play
+position, so a shuffled queue restores in the order it was playing; a queue
+saved by an older build (shuffle on, no original order) keeps its history and
+current song and shuffles the rest. Remote rows keep
 their own row whenever a materialised song returns to the tail (reorders,
 deferred ranges, far jumps, seek recovery, crossfade deck sync): the
 handler remembers the rows of materialised remote songs instead of re-reading
@@ -1381,7 +1400,7 @@ Dart queue never diverges from the player.
 
 Phase 2 resolves sources concurrently within a batch (8 songs first, then 64)
 and applies each batch with one `addAudioSources`/`insertAudioSources` call:
-every native insert re-sends the whole shuffle order and rebuilds the player
+every native insert re-sends the whole (identity) shuffle order and rebuilds the player
 sequence, so per-song inserts were quadratic in queue length. Songs after the
 selection are appended before the prefix is inserted, so the next track is
 ready for gapless playback first. The handler subscribes to just_audio's

@@ -15158,8 +15158,24 @@ class $PlayQueueItemsTableTable extends PlayQueueItemsTable
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _originalOrderMeta = const VerificationMeta(
+    'originalOrder',
+  );
   @override
-  List<GeneratedColumn> get $columns => [queueId, songId, sortOrder];
+  late final GeneratedColumn<int> originalOrder = GeneratedColumn<int>(
+    'original_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    queueId,
+    songId,
+    sortOrder,
+    originalOrder,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -15196,6 +15212,15 @@ class $PlayQueueItemsTableTable extends PlayQueueItemsTable
     } else if (isInserting) {
       context.missing(_sortOrderMeta);
     }
+    if (data.containsKey('original_order')) {
+      context.handle(
+        _originalOrderMeta,
+        originalOrder.isAcceptableOrUnknown(
+          data['original_order']!,
+          _originalOrderMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -15220,6 +15245,10 @@ class $PlayQueueItemsTableTable extends PlayQueueItemsTable
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      originalOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}original_order'],
+      ),
     );
   }
 
@@ -15234,10 +15263,16 @@ class PlayQueueItemsTableData extends DataClass
   final int queueId;
   final String songId;
   final int sortOrder;
+
+  /// While shuffle is on, the row's position in the unshuffled queue;
+  /// [sortOrder] is the play order. Null when shuffle is off, and in queues
+  /// saved before schema v88.
+  final int? originalOrder;
   const PlayQueueItemsTableData({
     required this.queueId,
     required this.songId,
     required this.sortOrder,
+    this.originalOrder,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -15245,6 +15280,9 @@ class PlayQueueItemsTableData extends DataClass
     map['queue_id'] = Variable<int>(queueId);
     map['song_id'] = Variable<String>(songId);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || originalOrder != null) {
+      map['original_order'] = Variable<int>(originalOrder);
+    }
     return map;
   }
 
@@ -15253,6 +15291,9 @@ class PlayQueueItemsTableData extends DataClass
       queueId: Value(queueId),
       songId: Value(songId),
       sortOrder: Value(sortOrder),
+      originalOrder: originalOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalOrder),
     );
   }
 
@@ -15265,6 +15306,7 @@ class PlayQueueItemsTableData extends DataClass
       queueId: serializer.fromJson<int>(json['queueId']),
       songId: serializer.fromJson<String>(json['songId']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      originalOrder: serializer.fromJson<int?>(json['originalOrder']),
     );
   }
   @override
@@ -15274,6 +15316,7 @@ class PlayQueueItemsTableData extends DataClass
       'queueId': serializer.toJson<int>(queueId),
       'songId': serializer.toJson<String>(songId),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'originalOrder': serializer.toJson<int?>(originalOrder),
     };
   }
 
@@ -15281,16 +15324,23 @@ class PlayQueueItemsTableData extends DataClass
     int? queueId,
     String? songId,
     int? sortOrder,
+    Value<int?> originalOrder = const Value.absent(),
   }) => PlayQueueItemsTableData(
     queueId: queueId ?? this.queueId,
     songId: songId ?? this.songId,
     sortOrder: sortOrder ?? this.sortOrder,
+    originalOrder: originalOrder.present
+        ? originalOrder.value
+        : this.originalOrder,
   );
   PlayQueueItemsTableData copyWithCompanion(PlayQueueItemsTableCompanion data) {
     return PlayQueueItemsTableData(
       queueId: data.queueId.present ? data.queueId.value : this.queueId,
       songId: data.songId.present ? data.songId.value : this.songId,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      originalOrder: data.originalOrder.present
+          ? data.originalOrder.value
+          : this.originalOrder,
     );
   }
 
@@ -15299,20 +15349,22 @@ class PlayQueueItemsTableData extends DataClass
     return (StringBuffer('PlayQueueItemsTableData(')
           ..write('queueId: $queueId, ')
           ..write('songId: $songId, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('originalOrder: $originalOrder')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(queueId, songId, sortOrder);
+  int get hashCode => Object.hash(queueId, songId, sortOrder, originalOrder);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlayQueueItemsTableData &&
           other.queueId == this.queueId &&
           other.songId == this.songId &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.originalOrder == this.originalOrder);
 }
 
 class PlayQueueItemsTableCompanion
@@ -15320,17 +15372,20 @@ class PlayQueueItemsTableCompanion
   final Value<int> queueId;
   final Value<String> songId;
   final Value<int> sortOrder;
+  final Value<int?> originalOrder;
   final Value<int> rowid;
   const PlayQueueItemsTableCompanion({
     this.queueId = const Value.absent(),
     this.songId = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.originalOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlayQueueItemsTableCompanion.insert({
     required int queueId,
     required String songId,
     required int sortOrder,
+    this.originalOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : queueId = Value(queueId),
        songId = Value(songId),
@@ -15339,12 +15394,14 @@ class PlayQueueItemsTableCompanion
     Expression<int>? queueId,
     Expression<String>? songId,
     Expression<int>? sortOrder,
+    Expression<int>? originalOrder,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (queueId != null) 'queue_id': queueId,
       if (songId != null) 'song_id': songId,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (originalOrder != null) 'original_order': originalOrder,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -15353,12 +15410,14 @@ class PlayQueueItemsTableCompanion
     Value<int>? queueId,
     Value<String>? songId,
     Value<int>? sortOrder,
+    Value<int?>? originalOrder,
     Value<int>? rowid,
   }) {
     return PlayQueueItemsTableCompanion(
       queueId: queueId ?? this.queueId,
       songId: songId ?? this.songId,
       sortOrder: sortOrder ?? this.sortOrder,
+      originalOrder: originalOrder ?? this.originalOrder,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -15375,6 +15434,9 @@ class PlayQueueItemsTableCompanion
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (originalOrder.present) {
+      map['original_order'] = Variable<int>(originalOrder.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -15387,6 +15449,7 @@ class PlayQueueItemsTableCompanion
           ..write('queueId: $queueId, ')
           ..write('songId: $songId, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('originalOrder: $originalOrder, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -43456,6 +43519,7 @@ typedef $$PlayQueueItemsTableTableCreateCompanionBuilder =
       required int queueId,
       required String songId,
       required int sortOrder,
+      Value<int?> originalOrder,
       Value<int> rowid,
     });
 typedef $$PlayQueueItemsTableTableUpdateCompanionBuilder =
@@ -43463,6 +43527,7 @@ typedef $$PlayQueueItemsTableTableUpdateCompanionBuilder =
       Value<int> queueId,
       Value<String> songId,
       Value<int> sortOrder,
+      Value<int?> originalOrder,
       Value<int> rowid,
     });
 
@@ -43529,6 +43594,11 @@ class $$PlayQueueItemsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get originalOrder => $composableBuilder(
+    column: $table.originalOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$PlayQueueTableTableFilterComposer get queueId {
     final $$PlayQueueTableTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -43590,6 +43660,11 @@ class $$PlayQueueItemsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get originalOrder => $composableBuilder(
+    column: $table.originalOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$PlayQueueTableTableOrderingComposer get queueId {
     final $$PlayQueueTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -43648,6 +43723,11 @@ class $$PlayQueueItemsTableTableAnnotationComposer
   });
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get originalOrder => $composableBuilder(
+    column: $table.originalOrder,
+    builder: (column) => column,
+  );
 
   $$PlayQueueTableTableAnnotationComposer get queueId {
     final $$PlayQueueTableTableAnnotationComposer composer = $composerBuilder(
@@ -43735,11 +43815,13 @@ class $$PlayQueueItemsTableTableTableManager
                 Value<int> queueId = const Value.absent(),
                 Value<String> songId = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<int?> originalOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlayQueueItemsTableCompanion(
                 queueId: queueId,
                 songId: songId,
                 sortOrder: sortOrder,
+                originalOrder: originalOrder,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -43747,11 +43829,13 @@ class $$PlayQueueItemsTableTableTableManager
                 required int queueId,
                 required String songId,
                 required int sortOrder,
+                Value<int?> originalOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlayQueueItemsTableCompanion.insert(
                 queueId: queueId,
                 songId: songId,
                 sortOrder: sortOrder,
+                originalOrder: originalOrder,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

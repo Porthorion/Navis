@@ -300,8 +300,10 @@ bundle instead of `flutter run`.
 
 Clone-only `POST /v1/playback/shuffle {"enabled": bool}` and
 `POST /v1/playback/repeat {"mode": "none"|"one"|"all"}` drive the production
-handler. `GET /v1/playback/status` reports the native index, shuffle flag,
-sequence ids (first 64), effective order and `mediaKitCurrent` under `native`.
+handler. `GET /v1/playback/status` reports the user's `shuffleEnabled` and,
+under `native`, the native index, the native shuffle flag (always false: Navis
+owns shuffle, so the native sequence is the play order),
+sequence ids (first 64), effective order and `mediaKitCurrent`.
 
 ### Artist playback diagnostics
 

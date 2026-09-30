@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Shuffle is now handled by Navis on every platform: the Queue shows the order songs will really play in, the song shown as playing on desktop always matches what you hear, long shuffled queues start as quickly as unshuffled ones, and a shuffled queue survives restarts in the same order; turning shuffle off returns to the original order, including songs added meanwhile',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs from an artist queue that turn out to be unplayable only when the player reaches them now stay visible in the Queue as unavailable rows, instead of silently disappearing',
         type: ChangelogEntryType.fix,
       ),
