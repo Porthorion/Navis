@@ -13,6 +13,9 @@ enum DesktopCommandAction {
   focusSearch,
   openQuickSearch,
   toggleQueue,
+
+  /// Escape: closes the top-most panel, overlay or dialog. The name predates
+  /// that behaviour and is kept because saved bindings are keyed by it.
   toggleNowPlaying,
   goHome,
   goLibrary,

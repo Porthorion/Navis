@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -770,12 +771,12 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Builder(
           builder: (context) {
-            final page = buildSlideFadePage<void>(
+            final page = (buildSlideFadePage<void>(
               context: context,
               key: const ValueKey<String>('album-detail'),
               heroDriven: true,
               child: child,
-            );
+            ) as CustomTransitionPage<void>);
             return page.transitionsBuilder(
               context,
               const AlwaysStoppedAnimation<double>(0.5),
@@ -802,12 +803,12 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Builder(
           builder: (context) {
-            final page = buildSlideFadePage<void>(
+            final page = (buildSlideFadePage<void>(
               context: context,
               key: const ValueKey<String>('mobile-album-detail'),
               fadeOnly: true,
               child: child,
-            );
+            ) as CustomTransitionPage<void>);
             expect(page.transitionDuration, const Duration(milliseconds: 180));
             expect(
               page.reverseTransitionDuration,
@@ -841,11 +842,11 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Builder(
             builder: (context) {
-              final page = buildSlideFadePage<void>(
+              final page = (buildSlideFadePage<void>(
                 context: context,
                 key: const ValueKey<String>('detail'),
                 child: child,
-              );
+              ) as CustomTransitionPage<void>);
               expect(page.transitionDuration, Duration.zero);
               expect(page.reverseTransitionDuration, Duration.zero);
               return page.transitionsBuilder(
@@ -924,6 +925,36 @@ void main() {
 
     expect(container.read(appRouterProvider), same(router));
     expect(router.state.matchedLocation, '/library');
+  });
+
+  testWidgets('iOS detail pages keep the edge-swipe back gesture', (
+    tester,
+  ) async {
+    late Page<void> page;
+    late Page<void> heroPage;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        home: Builder(
+          builder: (context) {
+            page = buildSlideFadePage<void>(
+              context: context,
+              key: const ValueKey('detail'),
+              child: const SizedBox(),
+            );
+            heroPage = buildSlideFadePage<void>(
+              context: context,
+              key: const ValueKey('hero'),
+              heroDriven: true,
+              child: const SizedBox(),
+            );
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(page, isA<CupertinoPage<void>>());
+    expect(heroPage, isA<CustomTransitionPage<void>>());
   });
 
   testWidgets('every AppRoutes location resolves to a real route', (

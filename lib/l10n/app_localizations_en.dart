@@ -370,11 +370,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopShortcutsGoSettingsDescription => 'Open settings';
 
   @override
-  String get desktopShortcutsToggleNowPlayingTitle => 'Toggle Now Playing';
+  String get desktopShortcutsToggleNowPlayingTitle => 'Close overlay';
 
   @override
   String get desktopShortcutsToggleNowPlayingDescription =>
-      'Expand or collapse now playing';
+      'Close the top-most panel, overlay or dialog';
 
   @override
   String get desktopShortcutsPlayPauseTitle => 'Play / Pause';
@@ -578,9 +578,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsAndroidBackgroundTitle => 'Android Background Sync';
-
-  @override
-  String get syncSettingsBackToSettings => 'Back to Settings';
 
   @override
   String get syncSettingsAndroidBackgroundDisabled =>

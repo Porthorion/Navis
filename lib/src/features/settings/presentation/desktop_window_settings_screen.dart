@@ -37,7 +37,7 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leading: IconButton(
-          tooltip: l10n.syncSettingsBackToSettings,
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               NavService.back(context, fallback: AppRoutes.settings),

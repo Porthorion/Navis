@@ -1138,6 +1138,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       });
       return true;
     }
+    if (_showLyrics) {
+      // Inline lyrics replace the artwork; back returns to it before the
+      // player collapses.
+      setState(() => _showLyrics = false);
+      return true;
+    }
     return false;
   }
 

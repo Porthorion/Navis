@@ -166,7 +166,7 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(1280, 800));
       await pumpAbout(tester, updateInfo: null, desktopMode: true);
 
-      expect(find.byTooltip('Back to Settings'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
       expect(find.text('Navis'), findsOneWidget);
     });
 

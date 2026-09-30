@@ -63,7 +63,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         automaticallyImplyLeading: !isDesktop,
         leading: isDesktop
             ? IconButton(
-                tooltip: l10n.syncSettingsBackToSettings,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () =>
                     NavService.back(context, fallback: AppRoutes.settings),

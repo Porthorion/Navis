@@ -75,7 +75,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Mini Player'), findsOneWidget);
     expect(find.text('Keep Mini Player on top'), findsOneWidget);
     expect(controller.isMiniPlayerMode, isFalse);

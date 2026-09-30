@@ -317,7 +317,7 @@ class _ListenBrainzWeeklyDetailContentState
                         tooltip: MaterialLocalizations.of(
                           context,
                         ).backButtonTooltip,
-                        onPressed: () => context.pop(),
+                        onPressed: () => NavService.back(context),
                         icon: const Icon(Icons.arrow_back),
                       ),
                       const SizedBox(height: 4),
@@ -400,7 +400,7 @@ class _ListenBrainzWeeklyDetailContentState
           systemOverlayStyle: SystemUiOverlayStyle.light,
           leading: _buildAnimatedNavButton(
             icon: Icons.arrow_back,
-            onPressed: () => context.pop(),
+            onPressed: () => NavService.back(context),
           ),
           title: Opacity(
             opacity: toolbarTitleOpacity,
@@ -4316,12 +4316,21 @@ class _HomeActionRow extends ConsumerWidget {
       ref.read(downloadedOnlyFilterProvider.notifier).enabled = !downloadedOnly;
     }
 
+    // Desktop View has no expanded player; its Now Playing surface is the
+    // lyrics overlay, which radio does not open.
+    void expandPlayer() {
+      if (resolveAdaptiveContextFor(context).desktopRuntime) {
+        return;
+      }
+      ref.read(playerOverlayStackProvider.notifier).expand();
+    }
+
     Future<void> startInstantRadio() async {
       if (radioState.busy) return;
       if (radioState.retryCount >= 5) {
         final result = await ref.read(personalRadioProvider.notifier).retry();
         if (context.mounted && result.succeeded) {
-          ref.read(playerOverlayStackProvider.notifier).expand();
+          expandPlayer();
         }
         return;
       }
@@ -4339,7 +4348,7 @@ class _HomeActionRow extends ConsumerWidget {
           );
       if (!context.mounted) return;
       if (result.succeeded) {
-        ref.read(playerOverlayStackProvider.notifier).expand();
+        expandPlayer();
       } else {
         showAppNotice(
           context,

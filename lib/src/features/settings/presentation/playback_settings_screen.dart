@@ -94,7 +94,7 @@ class _PlaybackSettingsScreenState
         automaticallyImplyLeading: !desktopMode,
         leading: desktopMode
             ? IconButton(
-                tooltip: l10n.syncSettingsBackToSettings,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () =>
                     NavService.back(context, fallback: AppRoutes.settings),

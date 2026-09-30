@@ -44,6 +44,8 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
 
+import 'package:navis/src/features/home/presentation/home_screen.dart';
+
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
 
@@ -2536,6 +2538,88 @@ void main() {
     await tester.pump(const Duration(milliseconds: 150));
     expect(find.byType(ExpandablePlayerSheet), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'desktop lyrics overlay is Now Playing and closes on navigation and '
+    'Escape',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final lyricsOverlay = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_DesktopLyricsOverlay',
+      );
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsOneWidget);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit4);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsNothing);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('switching tabs closes a menu opened inside the tab', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final homeContext = tester.element(find.byType(HomeScreen));
+    unawaited(
+      showDialog<void>(
+        context: homeContext,
+        useRootNavigator: false,
+        builder: (_) => const AlertDialog(content: Text('Tab menu')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Tab menu'), findsOneWidget);
+
+    // The dialog's barrier sits inside the tab, so the bar stays tappable.
+    Finder destination(IconData icon) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.byIcon(icon),
+    );
+    await tester.tap(destination(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(destination(Icons.home_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Tab menu'), findsNothing);
   });
 
   testWidgets('escape closes queue before collapsing now playing', (

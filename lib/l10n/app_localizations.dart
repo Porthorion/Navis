@@ -763,13 +763,13 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsToggleNowPlayingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Toggle Now Playing'**
+  /// **'Close overlay'**
   String get desktopShortcutsToggleNowPlayingTitle;
 
   /// No description provided for @desktopShortcutsToggleNowPlayingDescription.
   ///
   /// In en, this message translates to:
-  /// **'Expand or collapse now playing'**
+  /// **'Close the top-most panel, overlay or dialog'**
   String get desktopShortcutsToggleNowPlayingDescription;
 
   /// No description provided for @desktopShortcutsPlayPauseTitle.
@@ -1137,12 +1137,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Android Background Sync'**
   String get syncSettingsAndroidBackgroundTitle;
-
-  /// No description provided for @syncSettingsBackToSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Back to Settings'**
-  String get syncSettingsBackToSettings;
 
   /// No description provided for @syncSettingsAndroidBackgroundDisabled.
   ///

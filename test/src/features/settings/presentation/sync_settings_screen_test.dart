@@ -151,7 +151,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Last Library Change'), findsOneWidget);
     expect(
       find.text(

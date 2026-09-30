@@ -345,6 +345,16 @@ abstract final class NavService {
   }) {
     clearExitPrompt();
     _prepareForNavigation(context, ref);
+    // Menus opened from a page live on that tab's navigator, which the shell
+    // context above does not reach.
+    final tabNavigator = navigationShell
+        .route
+        .branches[navigationShell.currentIndex]
+        .navigatorKey
+        .currentState;
+    if (tabNavigator != null) {
+      _dismissPopupRoutes(tabNavigator);
+    }
     navigationShell.goBranch(branch.index, initialLocation: initialLocation);
   }
 

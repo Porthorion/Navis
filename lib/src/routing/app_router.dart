@@ -1,4 +1,5 @@
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,13 +46,19 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// A Hero-driven route deliberately has no route-level transition: fading the
 /// whole destination also fades the Hero's landing artwork, which produces a
 /// visible brightness jump as Flutter hands the flight back to that widget.
-CustomTransitionPage<T> buildSlideFadePage<T>({
+///
+/// On iOS, routes without a Hero use [CupertinoPage] so the edge-swipe back
+/// gesture works; a custom transition page has no gesture.
+Page<T> buildSlideFadePage<T>({
   required BuildContext context,
   required LocalKey key,
   required Widget child,
   bool heroDriven = false,
   bool fadeOnly = false,
 }) {
+  if (!heroDriven && Theme.of(context).platform == TargetPlatform.iOS) {
+    return CupertinoPage<T>(key: key, child: child);
+  }
   final motion = MotionPolicy.of(context);
   return CustomTransitionPage<T>(
     key: key,

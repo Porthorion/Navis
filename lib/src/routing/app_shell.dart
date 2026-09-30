@@ -125,7 +125,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   FocusNode? _queueReturnFocusNode;
   bool _restoreQueueFocusOnDismiss = false;
   bool _showQuickSearchOverlay = false;
-  bool _showDesktopLyricsOverlay = false;
   Timer? _queueCoverArtPrefetchDebounce;
   int _queueCoverArtPrefetchToken = 0;
   bool _globalKeyHandlerInstalled = false;
@@ -199,6 +198,52 @@ class _AppShellState extends ConsumerState<AppShell> {
       return false;
     }
     return _nowPlayingBackInterceptor?.call() ?? false;
+  }
+
+  /// Dismisses the top-most transient shell surface: quick search, then the
+  /// queue, then a panel inside Now Playing.
+  ///
+  /// Back and Escape both start here so they close surfaces in the same
+  /// order. Returns whether a surface consumed the request.
+  bool _dismissTopShellSurface() {
+    if (_showQuickSearchOverlay) {
+      AppLogger.debug('[ACP_INPUT] dismiss top surface: quick-search');
+      _closeQuickSearchOverlay();
+      return true;
+    }
+    if (ref.read(queueOverlayVisibleProvider)) {
+      final dismissing = _queueOverlayKey.currentState?.isDismissing ?? false;
+      AppLogger.debug(
+        '[ACP_INPUT] dismiss top surface: queue (dismissing=$dismissing)',
+      );
+      if (!dismissing) {
+        _hideQueueWithAnimation();
+      }
+      return true;
+    }
+    if (_dismissNowPlayingInternalOverlayIfExpanded()) {
+      AppLogger.debug('[ACP_INPUT] dismiss top surface: now-playing panel');
+      return true;
+    }
+    return false;
+  }
+
+  /// The shell's system back handler, shared by every back entry point.
+  ///
+  /// Closes the top-most shell surface first, then defers to
+  /// [NavService.handleSystemBack] for Now Playing, page pops, the Home tab
+  /// and double-back exit.
+  void _handleShellBack() {
+    if (_dismissTopShellSurface()) {
+      NavService.clearExitPrompt();
+      return;
+    }
+    NavService.handleSystemBack(
+      ref: ref,
+      context: context,
+      navigationShell: widget.navigationShell,
+      noticeController: _appNoticeController,
+    );
   }
 
   /// The single global key-event handler that replaces the previous
@@ -492,14 +537,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     _requestShellFocus();
   }
 
+  /// Desktop View presents Now Playing as the lyrics overlay, so the
+  /// overlay is the [PlayerOverlayRoute.nowPlaying] entry: navigation,
+  /// Escape, back and playback teardown all close it through the stack.
   void _toggleDesktopLyricsOverlay() {
+    final overlay = ref.read(playerOverlayStackProvider.notifier);
     final diagnosticsOverride = ref.read(desktopNowPlayingDiagnosticsProvider);
     if (diagnosticsOverride != null) {
       ref.read(desktopNowPlayingDiagnosticsProvider.notifier).clear();
-      setState(() => _showDesktopLyricsOverlay = false);
+      overlay.collapse();
       return;
     }
-    setState(() => _showDesktopLyricsOverlay = !_showDesktopLyricsOverlay);
+    overlay.toggle();
   }
 
   @override
@@ -867,8 +916,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final desktopNowPlayingDiagnosticsOverride = ref.watch(
       desktopNowPlayingDiagnosticsProvider,
     );
-    final showDesktopLyricsOverlay =
-        desktopNowPlayingDiagnosticsOverride ?? _showDesktopLyricsOverlay;
+    final bool showDesktopLyricsOverlay =
+        desktopNowPlayingDiagnosticsOverride ?? isExpanded;
     final mediaPadding = MediaQuery.paddingOf(context);
     final mediaViewPadding = MediaQuery.viewPaddingOf(context);
     // On AAOS, the car controls bar is reported via viewPadding.bottom.
@@ -1169,26 +1218,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
           return;
         case DesktopCommandAction.toggleNowPlaying:
-          if (_showQuickSearchOverlay) {
-            AppLogger.debug(
-              '[ACP_INPUT] desktopCommand escape dismissed quick-search',
-            );
-            _closeQuickSearchOverlay();
-            return;
-          }
-          final queueOverlayState = _queueOverlayKey.currentState;
-          final queueDismissing = queueOverlayState?.isDismissing ?? false;
-          if (queueVisible && !queueDismissing) {
-            AppLogger.debug(
-              '[ACP_INPUT] desktopCommand escape dismissed queue overlay',
-            );
-            _hideQueueWithAnimation();
-            return;
-          }
-          if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-            AppLogger.debug(
-              '[ACP_INPUT] desktopCommand escape handled by now-playing internal overlay',
-            );
+          // Escape: close the top-most surface without leaving the page.
+          if (_dismissTopShellSurface()) {
             return;
           }
           if (expanded) {
@@ -1196,20 +1227,20 @@ class _AppShellState extends ConsumerState<AppShell> {
               '[ACP_INPUT] desktopCommand escape collapsed now-playing',
             );
             overlay.collapse();
+            return;
+          }
+          // Dismiss any Navigator-pushed modal (dialog, bottom sheet, etc.)
+          // before falling through to no-op.
+          final rootNav = Navigator.maybeOf(context, rootNavigator: true);
+          if (rootNav != null && rootNav.canPop()) {
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape popped navigator modal',
+            );
+            rootNav.pop();
           } else {
-            // Dismiss any Navigator-pushed modal (dialog, bottom sheet, etc.)
-            // before falling through to no-op.
-            final rootNav = Navigator.maybeOf(context, rootNavigator: true);
-            if (rootNav != null && rootNav.canPop()) {
-              AppLogger.debug(
-                '[ACP_INPUT] desktopCommand escape popped navigator modal',
-              );
-              rootNav.pop();
-            } else {
-              AppLogger.debug(
-                '[ACP_INPUT] desktopCommand escape no-op (nothing to dismiss)',
-              );
-            }
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape no-op (nothing to dismiss)',
+            );
           }
           return;
         case DesktopCommandAction.goHome:
@@ -1334,17 +1365,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
               return false;
             }
-            if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-              return true;
-            }
-            // Primary handler: always delegate to the smart back chain
-            // (dismiss overlay → pop sub-route → go home → double-tap exit).
-            NavService.handleSystemBack(
-              ref: ref,
-              context: context,
-              navigationShell: navigationShell,
-              noticeController: _appNoticeController,
-            );
+            _handleShellBack();
             return true;
           },
           child: PopScope(
@@ -1358,15 +1379,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               // without also mutating the shell state underneath.
               if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true))
                 return;
-              if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-                return;
-              }
-              NavService.handleSystemBack(
-                ref: ref,
-                context: context,
-                navigationShell: navigationShell,
-                noticeController: _appNoticeController,
-              );
+              _handleShellBack();
             },
             child: AppNoticeScope(
               notifier: _appNoticeController,
@@ -1443,15 +1456,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         showLyricsOverlay: showDesktopLyricsOverlay,
                         onToggleLyrics: _toggleDesktopLyricsOverlay,
                         onSystemBack: () {
-                          if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-                            return;
-                          }
-                          NavService.handleSystemBack(
-                            ref: ref,
-                            context: context,
-                            navigationShell: navigationShell,
-                            noticeController: _appNoticeController,
-                          );
+                          _handleShellBack();
                         },
                         onToggleAutohide: () async {
                           final db = ref.read(navisDatabaseProvider);
@@ -1614,16 +1619,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         child: NavigatorPopHandler<Object?>(
                                           enabled: true,
                                           onPopWithResult: (result) {
-                                            if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-                                              return;
-                                            }
-                                            NavService.handleSystemBack(
-                                              ref: ref,
-                                              context: context,
-                                              navigationShell: navigationShell,
-                                              noticeController:
-                                                  _appNoticeController,
-                                            );
+                                            _handleShellBack();
                                           },
                                           child:
                                               useCompactWideLandscape &&
@@ -1859,15 +1855,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               child: NavigatorPopHandler<Object?>(
                                 enabled: true,
                                 onPopWithResult: (result) {
-                                  if (_dismissNowPlayingInternalOverlayIfExpanded()) {
-                                    return;
-                                  }
-                                  NavService.handleSystemBack(
-                                    ref: ref,
-                                    context: context,
-                                    navigationShell: navigationShell,
-                                    noticeController: _appNoticeController,
-                                  );
+                                  _handleShellBack();
                                 },
                                 child: navigationShell,
                               ),
