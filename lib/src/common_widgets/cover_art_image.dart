@@ -560,11 +560,34 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   }
 
   Widget _fallback(BuildContext context) {
+    final explicitSize = _finiteSide(widget.width, widget.height);
+    if (explicitSize != null) {
+      return _fallbackTile(context, explicitSize);
+    }
+    // Grid and hero tiles fill their parent without an explicit size, so the
+    // icon has to follow the laid-out tile rather than a fixed minimum.
+    return LayoutBuilder(
+      builder: (context, constraints) => _fallbackTile(
+        context,
+        _finiteSide(constraints.maxWidth, constraints.maxHeight),
+      ),
+    );
+  }
+
+  Widget _fallbackTile(BuildContext context, double? side) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        gradient: LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: <Color>[
+            colors.surfaceContainerHigh,
+            colors.surfaceContainerHighest,
+          ],
+        ),
         borderRadius: widget.circular
             ? null
             : widget.borderRadius ?? BorderRadius.zero,
@@ -573,10 +596,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       alignment: Alignment.center,
       child: Icon(
         widget.placeholderIcon,
-        size: _placeholderIconSize,
-        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(
-          alpha: 0.5,
-        ),
+        size: placeholderIconSizeFor(side),
+        color: colors.onSurfaceVariant.withValues(alpha: 0.5),
       ),
     );
   }
@@ -585,18 +606,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     return SizedBox(width: widget.width, height: widget.height);
   }
 
-  /// Scale the placeholder icon relative to the container but keep a sane min.
-  /// Guards against double.infinity when the widget fills its parent.
-  double get _placeholderIconSize {
-    final w = (widget.width != null && widget.width!.isFinite)
-        ? widget.width!
-        : 48.0;
-    final h = (widget.height != null && widget.height!.isFinite)
-        ? widget.height!
-        : 48.0;
-    final dim = w < h ? w : h;
-    final scaled = dim * 0.4;
-    return scaled < 20 ? 20 : scaled;
+  static double? _finiteSide(double? width, double? height) {
+    final w = width != null && width.isFinite ? width : null;
+    final h = height != null && height.isFinite ? height : null;
+    if (w == null) return h;
+    if (h == null) return w;
+    return w < h ? w : h;
   }
 
   /// Compute a memory-cache dimension to keep decoded images small in RAM.
@@ -673,4 +688,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     }
     return value;
   }
+}
+
+/// Placeholder icon size for a missing-artwork tile whose shorter side is
+/// [side]: proportional, but legible on small rows and unobtrusive on heroes.
+@visibleForTesting
+double placeholderIconSizeFor(double? side) {
+  if (side == null) return 20;
+  return (side * 0.3).clamp(20.0, 72.0);
 }

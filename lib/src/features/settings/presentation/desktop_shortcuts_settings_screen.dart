@@ -583,7 +583,6 @@ class _BuiltInShortcutTile extends StatelessWidget {
             shortcutLabel,
             style: textTheme.labelMedium?.copyWith(
               color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ),

@@ -422,9 +422,7 @@ class _AboutIdentity extends StatelessWidget {
     final theme = Theme.of(context);
     final title = Text(
       'Navis',
-      style: theme.textTheme.headlineMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-      ),
+      style: theme.textTheme.headlineMedium,
     );
     final versionLabel = Text(
       '${AppLocalizations.of(context)!.aboutVersion} $version',

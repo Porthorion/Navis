@@ -69,7 +69,9 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                 color: colorScheme.surfaceContainerHigh,
                 elevation: 14,
                 shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(NavisRadius.xl),
+                  ),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: useHeader

@@ -19,6 +19,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart'
 import 'package:navis/src/features/equalizer/presentation/eq_import_dialogs.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 export 'package:navis/src/features/equalizer/presentation/eq_band_inspector.dart'
     show eqModeLabel;
@@ -626,7 +627,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         foregroundColor: colors.onSurface,
         alignment: AlignmentDirectional.centerStart,
         padding: const EdgeInsetsDirectional.fromSTEB(8, 6, 4, 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
       ),
       child: Row(
         children: [
@@ -745,7 +746,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Material(
             color: error ? colors.errorContainer : colors.secondaryContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: NavisRadius.mdAll,
             child: Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 4, 4),
               child: Row(
@@ -963,7 +964,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
       return ListTile(
         key: ValueKey('eq-preset-${preset.id}'),
         selected: selected,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
         selectedTileColor: theme.colorScheme.surfaceContainerHighest,
         leading: Icon(
           selected
@@ -1039,7 +1040,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           ListTile(
             key: const ValueKey('eq-preset-custom'),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: NavisRadius.mdAll,
             ),
             selectedTileColor: theme.colorScheme.surfaceContainerHighest,
             leading: Icon(

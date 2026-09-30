@@ -6,6 +6,10 @@ remaining work is targeted validation and maintenance
 **Scope:** Desktop (Linux, Windows, macOS) and mobile (Android, iOS) Flutter
 clients. This is an implementation and visual-system audit, not a redesign.
 
+> The 2026-09-30 follow-up audit, which covers typography, component themes,
+> action hierarchy and remaining desktop/mobile defects, is in
+> [audits/ux-ui-audit-2026-09-30.md](audits/ux-ui-audit-2026-09-30.md).
+
 ## Executive summary
 
 Navis has a strong foundation: clear feature ownership, adaptive shells,

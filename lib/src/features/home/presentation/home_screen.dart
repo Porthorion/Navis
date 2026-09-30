@@ -28,6 +28,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -56,6 +57,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -441,7 +443,6 @@ class _ListenBrainzWeeklyDetailContentState
                       child: Text(
                         playlist.displayTitle,
                         style: textTheme.displayMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
                           color: Colors.white,
                           shadows: <Shadow>[
                             Shadow(
@@ -1926,26 +1927,13 @@ class _HomeSection<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final compactDensity = density == _HomeSectionDensity.compact;
-    final titleText = Text(
-      title,
-      style:
-          (template == _HomeSectionTemplate.compactList
-                  ? Theme.of(context).textTheme.titleMedium
-                  : Theme.of(context).textTheme.titleLarge)
-              ?.copyWith(fontWeight: FontWeight.w700),
+    final showSeeAll =
+        onSeeAll != null && data.asData != null && !isEmpty(data.asData!.value);
+    final titleWidget = NavisSectionHeader(
+      title: title,
+      compact: template == _HomeSectionTemplate.compactList,
+      onSeeAll: showSeeAll ? onSeeAll : null,
     );
-    final titleWidget =
-        onSeeAll == null || data.asData == null || isEmpty(data.asData!.value)
-        ? titleText
-        : Row(
-            children: [
-              Expanded(child: titleText),
-              TextButton(
-                onPressed: onSeeAll,
-                child: Text(l10n.libraryLikedAlbumsSeeAll),
-              ),
-            ],
-          );
     final sectionBody = data.when(
       skipLoadingOnRefresh: keepPreviousDataWhileLoading,
       skipLoadingOnReload: keepPreviousDataWhileLoading,
@@ -2210,33 +2198,42 @@ class _LocalAlbumCarousel extends ConsumerWidget {
 
 class _CarouselEdgeArrow extends StatelessWidget {
   const _CarouselEdgeArrow({
+    super.key,
     required this.icon,
     required this.onPressed,
+    this.extent = 48,
+    this.elevation = 3,
+    this.tooltip,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
+  final double extent;
+  final double elevation;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Padding(
+    final arrow = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Material(
         color: colors.surfaceContainerHigh.withValues(alpha: 0.92),
-        elevation: 3,
+        elevation: elevation,
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onPressed,
           child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(icon),
+            width: extent,
+            height: extent,
+            child: Icon(icon, size: extent < 48 ? 20 : null),
           ),
         ),
       ),
     );
+    final label = tooltip;
+    return label == null ? arrow : Tooltip(message: label, child: arrow);
   }
 }
 
@@ -2404,7 +2401,11 @@ class _DesktopRandomAlbumsPagerState
                       },
                     ),
                   ),
-                  if (_displayedAlbums.length > 1 && _currentPage > 0)
+                  // The wide hero keeps its arrows beside the cover strip so
+                  // they never cover the track list's row actions.
+                  if (cardMode &&
+                      _displayedAlbums.length > 1 &&
+                      _currentPage > 0)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: _CarouselEdgeArrow(
@@ -2412,7 +2413,8 @@ class _DesktopRandomAlbumsPagerState
                         onPressed: () => _animateToPage(_currentPage - 1),
                       ),
                     ),
-                  if (_displayedAlbums.length > 1 &&
+                  if (cardMode &&
+                      _displayedAlbums.length > 1 &&
                       _currentPage < _displayedAlbums.length - 1)
                     Align(
                       alignment: Alignment.centerRight,
@@ -2428,10 +2430,19 @@ class _DesktopRandomAlbumsPagerState
         ),
         if (_displayedAlbums.length > 1) ...<Widget>[
           const SizedBox(height: 10),
-          _DesktopRandomMiniCoverStrip(
-            albums: _displayedAlbums,
-            currentPage: _currentPage,
-            onPageSelected: _animateToPage,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardMode = constraints.maxWidth < 640;
+              final l10n = AppLocalizations.of(context)!;
+              return _DesktopRandomMiniCoverStrip(
+                albums: _displayedAlbums,
+                currentPage: _currentPage,
+                onPageSelected: _animateToPage,
+                previousTooltip: l10n.nowPlayingPrevious,
+                nextTooltip: l10n.nowPlayingNext,
+                showArrows: !cardMode,
+              );
+            },
           ),
         ],
       ],
@@ -2482,7 +2493,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
                     color: colors.surfaceContainerLowest.withValues(
                       alpha: 0.28,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: NavisRadius.xlAll,
                     border: Border.all(
                       color: colors.outlineVariant.withValues(alpha: 0.34),
                     ),
@@ -2522,9 +2533,9 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: NavisRadius.lgAll,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: NavisRadius.lgAll,
         onTap: () => NavService.openAlbumDetail(
           context,
           ref,
@@ -2672,7 +2683,7 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surfaceContainerLowest
                         .withValues(alpha: 0.28),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: NavisRadius.xlAll,
                     border: Border.all(
                       color: Theme.of(
                         context,
@@ -2709,7 +2720,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
       child: InkWell(
         onTap: item.isLoading
             ? null
@@ -3028,11 +3039,17 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
     required this.albums,
     required this.currentPage,
     required this.onPageSelected,
+    required this.previousTooltip,
+    required this.nextTooltip,
+    this.showArrows = false,
   });
 
   final List<HomeRandomShowcaseItem> albums;
   final int currentPage;
   final ValueChanged<int> onPageSelected;
+  final String previousTooltip;
+  final String nextTooltip;
+  final bool showArrows;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3040,55 +3057,93 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
     final coverRadius = coverArtShapeToRadius(coverShape);
     final colors = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      height: 42,
-      child: Align(
-        alignment: Alignment.center,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List<Widget>.generate(albums.length, (index) {
-              final item = albums[index];
-              final active = currentPage == index;
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: index == albums.length - 1 ? 0 : 6,
+    final scroller = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List<Widget>.generate(albums.length, (index) {
+          final item = albums[index];
+          final active = currentPage == index;
+          return Padding(
+            padding: EdgeInsets.only(
+              right: index == albums.length - 1 ? 0 : 6,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: coverRadius,
+              child: InkWell(
+                key: ValueKey<String>(
+                  'home-random-desktop-mini-cover-$index',
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: coverRadius,
-                  child: InkWell(
-                    key: ValueKey<String>(
-                      'home-random-desktop-mini-cover-$index',
-                    ),
+                borderRadius: coverRadius,
+                onTap: () => onPageSelected(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: active ? 34 : 32,
+                  height: active ? 34 : 32,
+                  padding: const EdgeInsets.all(1.2),
+                  decoration: BoxDecoration(
                     borderRadius: coverRadius,
-                    onTap: () => onPageSelected(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      width: active ? 34 : 32,
-                      height: active ? 34 : 32,
-                      padding: const EdgeInsets.all(1.2),
-                      decoration: BoxDecoration(
-                        borderRadius: coverRadius,
-                        border: Border.all(
-                          color: active
-                              ? colors.primary
-                              : colors.outlineVariant.withValues(alpha: 0.42),
-                          width: active ? 1.6 : 1.0,
-                        ),
-                      ),
-                      child: _RandomMiniCover(
-                        item: item,
-                        borderRadius: coverRadius,
-                      ),
+                    border: Border.all(
+                      color: active
+                          ? colors.primary
+                          : colors.outlineVariant.withValues(alpha: 0.42),
+                      width: active ? 1.6 : 1.0,
                     ),
                   ),
+                  child: _RandomMiniCover(
+                    item: item,
+                    borderRadius: coverRadius,
+                  ),
                 ),
-              );
-            }),
-          ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+    if (!showArrows) {
+      return SizedBox(
+        height: 42,
+        child: Align(alignment: Alignment.center, child: scroller),
+      );
+    }
+    const arrowExtent = 36.0;
+    const arrowSlot = SizedBox.square(dimension: arrowExtent + 4);
+    return SizedBox(
+      height: 42,
+      child: Center(
+        child: Row(
+          key: const ValueKey<String>('home-random-desktop-strip-controls'),
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (currentPage > 0)
+              _CarouselEdgeArrow(
+                key: const ValueKey<String>('home-random-desktop-previous'),
+                icon: Icons.chevron_left_rounded,
+                extent: arrowExtent,
+                elevation: 0,
+                tooltip: previousTooltip,
+                onPressed: () => onPageSelected(currentPage - 1),
+              )
+            else
+              arrowSlot,
+            const SizedBox(width: 8),
+            Flexible(child: scroller),
+            const SizedBox(width: 8),
+            if (currentPage < albums.length - 1)
+              _CarouselEdgeArrow(
+                key: const ValueKey<String>('home-random-desktop-next'),
+                icon: Icons.chevron_right_rounded,
+                extent: arrowExtent,
+                elevation: 0,
+                tooltip: nextTooltip,
+                onPressed: () => onPageSelected(currentPage + 1),
+              )
+            else
+              arrowSlot,
+          ],
         ),
       ),
     );
@@ -3644,7 +3699,7 @@ class _RandomAlbumsHeroCarouselState
                       : Theme.of(
                           context,
                         ).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: NavisRadius.pillAll,
                 ),
               ),
             ),
@@ -3685,7 +3740,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: NavisRadius.xlAll,
       ),
       child: InkWell(
         onTap: () => NavService.openAlbumDetail(
@@ -3710,7 +3765,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.album_outlined,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: NavisRadius.xlAll,
               isExternalSource: album.isExternal,
             ),
             HeroRouteChrome(
@@ -3805,7 +3860,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: NavisRadius.xlAll,
       ),
       child: InkWell(
         onTap: item.isLoading
@@ -4019,10 +4074,13 @@ class _ServerAlbumCard extends StatelessWidget {
                                 artist!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.75),
-                                  fontSize: 11,
-                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.75,
+                                      ),
+                                      fontWeight: FontWeight.w400,
+                                    ),
                               ),
                             ],
                           ],

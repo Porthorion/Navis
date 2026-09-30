@@ -511,7 +511,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsCacheTitle.
   ///
   /// In en, this message translates to:
-  /// **'Device storage & cache'**
+  /// **'Device Storage & Cache'**
   String get settingsCacheTitle;
 
   /// No description provided for @settingsCacheSubtitle.
@@ -1431,7 +1431,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsResetLibraryCache.
   ///
   /// In en, this message translates to:
-  /// **'Reset caches & rebuild library'**
+  /// **'Reset Caches & Rebuild Library'**
   String get cacheSettingsResetLibraryCache;
 
   /// No description provided for @cacheSettingsResetLibraryCacheDescription.
@@ -1443,7 +1443,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Reset caches & rebuild library?'**
+  /// **'Reset Caches & Rebuild Library?'**
   String get cacheSettingsResetLibraryCacheConfirmTitle;
 
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmBody.
@@ -1455,7 +1455,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmAction.
   ///
   /// In en, this message translates to:
-  /// **'Reset caches & rebuild'**
+  /// **'Reset Caches & Rebuild'**
   String get cacheSettingsResetLibraryCacheConfirmAction;
 
   /// No description provided for @cacheSettingsResetLibraryCacheMeteredConfirmTitle.
@@ -1581,7 +1581,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsLegacyInstantMixTitle.
   ///
   /// In en, this message translates to:
-  /// **'Server mix'**
+  /// **'Server Mix'**
   String get playbackSettingsLegacyInstantMixTitle;
 
   /// No description provided for @playbackSettingsLegacyInstantMixSubtitle.
@@ -1599,13 +1599,13 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsLastFmSameVibesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Match Last.fm recommendations to your library. Turn on for Server mix.'**
+  /// **'Match Last.fm recommendations to your library. Turn on for Server Mix.'**
   String get playbackSettingsLastFmSameVibesSubtitle;
 
   /// No description provided for @playbackSettingsLegacyInstantMixLocked.
   ///
   /// In en, this message translates to:
-  /// **'This build has no Last.fm API key, so Server mix is required.'**
+  /// **'This build has no Last.fm API key, so Server Mix is required.'**
   String get playbackSettingsLegacyInstantMixLocked;
 
   /// No description provided for @playbackSettingsShowRadioPageTitle.
@@ -2861,6 +2861,12 @@ abstract class AppLocalizations {
   /// **'Could Not Load Artists'**
   String get libraryArtistsErrorTitle;
 
+  /// No description provided for @libraryLikedArtistsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked Artists'**
+  String get libraryLikedArtistsSectionTitle;
+
   /// No description provided for @libraryLikedAlbumsSectionTitle.
   ///
   /// In en, this message translates to:
@@ -3194,7 +3200,7 @@ abstract class AppLocalizations {
   /// No description provided for @artistCardAlbumCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} albums'**
+  /// **'{count, plural, =1{1 album} other{{count} albums}}'**
   String artistCardAlbumCount(int count);
 
   /// No description provided for @artistDetailTitle.
@@ -3785,6 +3791,12 @@ abstract class AppLocalizations {
   /// **'Shuffle off'**
   String get nowPlayingShuffleOff;
 
+  /// No description provided for @queueShuffleOnStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'{queue}, shuffle on'**
+  String queueShuffleOnStatus(String queue);
+
   /// No description provided for @nowPlayingPrevious.
   ///
   /// In en, this message translates to:
@@ -4073,6 +4085,12 @@ abstract class AppLocalizations {
   /// **'Not liked'**
   String get ratingNotLiked;
 
+  /// No description provided for @ratingActionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate'**
+  String get ratingActionLabel;
+
   /// No description provided for @ratingValueShort.
   ///
   /// In en, this message translates to:
@@ -4193,6 +4211,12 @@ abstract class AppLocalizations {
   /// **'Clear'**
   String get searchClearRecent;
 
+  /// No description provided for @searchClearQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get searchClearQuery;
+
   /// No description provided for @searchNoResults.
   ///
   /// In en, this message translates to:
@@ -4300,6 +4324,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load playlists'**
   String get playlistsLoadError;
+
+  /// No description provided for @entityTotalDurationMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String entityTotalDurationMinutes(int minutes);
+
+  /// No description provided for @entityTotalDurationHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} hr {minutes} min'**
+  String entityTotalDurationHours(int hours, int minutes);
 
   /// No description provided for @playlistsSongCount.
   ///
@@ -6740,7 +6776,7 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewUnknownTitle.
   ///
   /// In en, this message translates to:
-  /// **'Unknown item'**
+  /// **'Unknown Item'**
   String get unavailableReviewUnknownTitle;
 
   /// No description provided for @unavailableReviewReasonMissing.
@@ -6806,7 +6842,7 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewRelinkTitle.
   ///
   /// In en, this message translates to:
-  /// **'Relink item'**
+  /// **'Relink Item'**
   String get unavailableReviewRelinkTitle;
 
   /// No description provided for @unavailableReviewRelinkOld.
@@ -6914,7 +6950,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceArtworkSizeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Artwork size'**
+  /// **'Artwork Size'**
   String get appearanceArtworkSizeLabel;
 
   /// No description provided for @appearanceArtworkSizeSub.
@@ -7034,7 +7070,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackPresetSaveNew.
   ///
   /// In en, this message translates to:
-  /// **'Save as new'**
+  /// **'Save as New'**
   String get playbackPresetSaveNew;
 
   /// No description provided for @playbackPresetName.
@@ -7100,7 +7136,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackAdjustmentResetBoth.
   ///
   /// In en, this message translates to:
-  /// **'Reset speed & pitch'**
+  /// **'Reset Speed & Pitch'**
   String get playbackAdjustmentResetBoth;
 
   /// No description provided for @playbackAdjustmentCancel.
@@ -7148,13 +7184,13 @@ abstract class AppLocalizations {
   /// No description provided for @playbackPitchLock.
   ///
   /// In en, this message translates to:
-  /// **'Pitch follows speed'**
+  /// **'Pitch Lock'**
   String get playbackPitchLock;
 
   /// No description provided for @playbackPitchLockSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Faster sounds higher, like a record player.'**
+  /// **'Match pitch to speed.'**
   String get playbackPitchLockSubtitle;
 
   /// No description provided for @playbackPitchFollowsSpeed.
@@ -7394,7 +7430,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqSaveAs.
   ///
   /// In en, this message translates to:
-  /// **'Save as new'**
+  /// **'Save as New'**
   String get eqSaveAs;
 
   /// No description provided for @eqUpdate.
@@ -7664,7 +7700,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqModeChangeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Start a new flat curve?'**
+  /// **'Start a New Flat Curve?'**
   String get eqModeChangeTitle;
 
   /// No description provided for @eqModeChangeDescription.
@@ -7868,7 +7904,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqDiscardDelete.
   ///
   /// In en, this message translates to:
-  /// **'Discard and delete'**
+  /// **'Discard and Delete'**
   String get eqDiscardDelete;
 
   /// No description provided for @eqDeleteDraftDescription.
@@ -8206,6 +8242,354 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close presets'**
   String get eqCloseLibrary;
+
+  /// No description provided for @onboardingSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save setup. Try again.'**
+  String get onboardingSaveFailed;
+
+  /// No description provided for @onboardingSkipDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Customization?'**
+  String get onboardingSkipDialogTitle;
+
+  /// No description provided for @onboardingSkipDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current settings will be kept. You can reopen this from Settings at any time.'**
+  String get onboardingSkipDialogMessage;
+
+  /// No description provided for @onboardingKeepCustomizing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep customizing'**
+  String get onboardingKeepCustomizing;
+
+  /// No description provided for @onboardingSkipSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip setup'**
+  String get onboardingSkipSetup;
+
+  /// No description provided for @onboardingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Navis Yours'**
+  String get onboardingTitle;
+
+  /// No description provided for @onboardingReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize Navis'**
+  String get onboardingReviewTitle;
+
+  /// No description provided for @onboardingStepProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String onboardingStepProgress(int current, int total);
+
+  /// No description provided for @onboardingStepProgressSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Customization step {current} of {total}'**
+  String onboardingStepProgressSemantics(int current, int total);
+
+  /// No description provided for @onboardingBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get onboardingBack;
+
+  /// No description provided for @onboardingContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get onboardingContinue;
+
+  /// No description provided for @onboardingFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get onboardingFinish;
+
+  /// No description provided for @onboardingScrollForMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll for more options'**
+  String get onboardingScrollForMore;
+
+  /// No description provided for @onboardingAppearanceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Your Look'**
+  String get onboardingAppearanceTitle;
+
+  /// No description provided for @onboardingAppearanceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a theme and accent. You can change both later in Appearance settings.'**
+  String get onboardingAppearanceDescription;
+
+  /// No description provided for @onboardingAccentColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent color'**
+  String get onboardingAccentColor;
+
+  /// No description provided for @onboardingAppearanceColorPickerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the full color picker from Appearance settings. You can revisit it there at any time.'**
+  String get onboardingAppearanceColorPickerHint;
+
+  /// No description provided for @onboardingListeningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tune Your Listening'**
+  String get onboardingListeningTitle;
+
+  /// No description provided for @onboardingListeningDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose stream quality, formats, local playback priority, and track transitions.'**
+  String get onboardingListeningDescription;
+
+  /// No description provided for @onboardingWifiQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi quality'**
+  String get onboardingWifiQuality;
+
+  /// No description provided for @onboardingWifiFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi format'**
+  String get onboardingWifiFormat;
+
+  /// No description provided for @onboardingMobileQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile quality'**
+  String get onboardingMobileQuality;
+
+  /// No description provided for @onboardingMobileFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile format'**
+  String get onboardingMobileFormat;
+
+  /// No description provided for @onboardingPreferLocalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefer Downloaded or Cached Audio'**
+  String get onboardingPreferLocalTitle;
+
+  /// No description provided for @onboardingPreferLocalSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a complete local copy before streaming when one is available.'**
+  String get onboardingPreferLocalSubtitle;
+
+  /// No description provided for @onboardingScrobbleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrobble to Your Music Server'**
+  String get onboardingScrobbleTitle;
+
+  /// No description provided for @onboardingScrobbleSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report now-playing and completed plays to your Subsonic server.'**
+  String get onboardingScrobbleSubtitle;
+
+  /// No description provided for @onboardingGaplessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Gapless Playback'**
+  String get onboardingGaplessTitle;
+
+  /// No description provided for @onboardingGaplessSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move between tracks without an added pause.'**
+  String get onboardingGaplessSubtitle;
+
+  /// No description provided for @onboardingCrossfadeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Crossfade'**
+  String get onboardingCrossfadeTitle;
+
+  /// No description provided for @onboardingCrossfadeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Blend the end of a track into the next one.'**
+  String get onboardingCrossfadeSubtitle;
+
+  /// No description provided for @onboardingCrossfadeDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds, plural, =1{Crossfade duration: 1 second} other{Crossfade duration: {seconds} seconds}}'**
+  String onboardingCrossfadeDuration(int seconds);
+
+  /// No description provided for @onboardingCrossfadeSecondsShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds}s'**
+  String onboardingCrossfadeSecondsShort(int seconds);
+
+  /// No description provided for @onboardingCrossfadeType.
+  ///
+  /// In en, this message translates to:
+  /// **'Crossfade type'**
+  String get onboardingCrossfadeType;
+
+  /// No description provided for @onboardingCrossfadeTypeSmart.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart — only between different albums'**
+  String get onboardingCrossfadeTypeSmart;
+
+  /// No description provided for @onboardingCrossfadeSmartDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart avoids blending tracks from the same album.'**
+  String get onboardingCrossfadeSmartDescription;
+
+  /// No description provided for @onboardingCrossfadeNormalDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal blends every eligible track transition.'**
+  String get onboardingCrossfadeNormalDescription;
+
+  /// No description provided for @onboardingQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue and Downloads'**
+  String get onboardingQueueTitle;
+
+  /// No description provided for @onboardingQueueDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Control what happens when you play a track and when downloads can run.'**
+  String get onboardingQueueDescription;
+
+  /// No description provided for @onboardingAlbumQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue Whole Albums'**
+  String get onboardingAlbumQueueTitle;
+
+  /// No description provided for @onboardingAlbumQueueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing a track from an album queues the album from that track.'**
+  String get onboardingAlbumQueueSubtitle;
+
+  /// No description provided for @onboardingLikedQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue All Liked Songs'**
+  String get onboardingLikedQueueTitle;
+
+  /// No description provided for @onboardingLikedQueueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'On the Liked page, start from the selected song.'**
+  String get onboardingLikedQueueSubtitle;
+
+  /// No description provided for @onboardingLikedQueueDisabledSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable album queueing to use this option.'**
+  String get onboardingLikedQueueDisabledSubtitle;
+
+  /// No description provided for @onboardingWifiOnlyDownloadsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Only on Wi-Fi'**
+  String get onboardingWifiOnlyDownloadsTitle;
+
+  /// No description provided for @onboardingWifiOnlyDownloadsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Avoid downloading music over a metered connection.'**
+  String get onboardingWifiOnlyDownloadsSubtitle;
+
+  /// No description provided for @onboardingServicesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional Music Services'**
+  String get onboardingServicesTitle;
+
+  /// No description provided for @onboardingServicesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'These services are optional. You can configure or remove them later in Settings.'**
+  String get onboardingServicesDescription;
+
+  /// No description provided for @onboardingListenBrainzDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.'**
+  String get onboardingListenBrainzDisclosure;
+
+  /// No description provided for @onboardingListenBrainzTokenLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz User Token'**
+  String get onboardingListenBrainzTokenLabel;
+
+  /// No description provided for @onboardingListenBrainzGetToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Get a ListenBrainz user token'**
+  String get onboardingListenBrainzGetToken;
+
+  /// No description provided for @onboardingValidating.
+  ///
+  /// In en, this message translates to:
+  /// **'Validating…'**
+  String get onboardingValidating;
+
+  /// No description provided for @onboardingListenBrainzValidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate and connect'**
+  String get onboardingListenBrainzValidate;
+
+  /// No description provided for @onboardingLastFmBundledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.'**
+  String get onboardingLastFmBundledDescription;
+
+  /// No description provided for @onboardingLastFmDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.'**
+  String get onboardingLastFmDescription;
+
+  /// No description provided for @onboardingLastFmApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm API Key'**
+  String get onboardingLastFmApiKeyLabel;
+
+  /// No description provided for @onboardingLastFmValidateKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate key'**
+  String get onboardingLastFmValidateKey;
+
+  /// No description provided for @onboardingLastFmGetApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Get API key'**
+  String get onboardingLastFmGetApiKey;
 }
 
 class _AppLocalizationsDelegate

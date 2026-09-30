@@ -50,7 +50,7 @@ class _TypeFilterBadge extends StatelessWidget {
   }
 }
 
-class _SyncStatusBanner extends StatelessWidget {
+class _SyncStatusBanner extends StatefulWidget {
   const _SyncStatusBanner({
     required this.syncState,
     required this.onRetry,
@@ -67,47 +67,93 @@ class _SyncStatusBanner extends StatelessWidget {
   );
   static const Key cancelKey = ValueKey<String>('library-sync-status-cancel');
   static const Key retryKey = ValueKey<String>('library-sync-status-retry');
+  static const Key dismissKey = ValueKey<String>(
+    'library-sync-status-dismiss',
+  );
   static const Key backlogKey = ValueKey<String>('library-sync-status-backlog');
 
   @override
+  State<_SyncStatusBanner> createState() => _SyncStatusBannerState();
+}
+
+class _SyncStatusBannerState extends State<_SyncStatusBanner> {
+  bool _failureDismissed = false;
+
+  @override
+  void didUpdateWidget(covariant _SyncStatusBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A dismissed failure stays hidden only until the sync state moves on,
+    // so a later failure is always shown.
+    if (oldWidget.syncState.status != widget.syncState.status ||
+        oldWidget.syncState.errorMessage != widget.syncState.errorMessage) {
+      _failureDismissed = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final syncState = widget.syncState;
     final l10n = AppLocalizations.of(context)!;
     if (syncState.status == LibrarySyncStatus.failed) {
+      if (_failureDismissed) {
+        return const SizedBox.shrink();
+      }
       final theme = Theme.of(context);
-      final colors = theme.colorScheme;
-      final message = syncState.errorMessage ?? l10n.librarySyncFailureFallback;
+      final tokens = NavisTokens.of(context);
+      final detail = syncState.errorMessage ?? l10n.librarySyncFailureFallback;
+      // A failed background sync leaves the library usable, so it is shown
+      // as a quiet, dismissible warning rather than a blocking error.
       return Semantics(
         container: true,
         liveRegion: true,
         label: l10n.syncSettingsStatusFailed,
         child: Material(
-          key: bannerKey,
-          color: colors.errorContainer,
+          key: _SyncStatusBanner.bannerKey,
+          color: tokens.quietWarningContainer,
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 12, 10),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
             child: Row(
               children: <Widget>[
                 Icon(
                   Icons.error_outline_rounded,
-                  color: colors.onErrorContainer,
+                  size: 20,
+                  color: tokens.quietWarningAccent,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: NavisSpace.sm),
                 Expanded(
-                  child: Text(
-                    message,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onErrorContainer,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        l10n.syncSettingsStatusFailed,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: tokens.onQuietWarningContainer,
+                        ),
+                      ),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: NavisSpace.xs),
                 TextButton.icon(
-                  key: retryKey,
-                  onPressed: onRetry,
+                  key: _SyncStatusBanner.retryKey,
+                  onPressed: widget.onRetry,
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: Text(l10n.commonRetry),
+                ),
+                IconButton(
+                  key: _SyncStatusBanner.dismissKey,
+                  tooltip: l10n.updateDismiss,
+                  onPressed: () => setState(() => _failureDismissed = true),
+                  icon: const Icon(Icons.close_rounded, size: 20),
                 ),
               ],
             ),
@@ -145,7 +191,7 @@ class _SyncStatusBanner extends StatelessWidget {
         liveRegion: true,
         label: label,
         child: Material(
-          key: bannerKey,
+          key: _SyncStatusBanner.bannerKey,
           color: colors.surfaceContainerHigh,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,10 +224,10 @@ class _SyncStatusBanner extends StatelessWidget {
                     Expanded(
                       child: Text(label, style: theme.textTheme.bodySmall),
                     ),
-                    if (onCancel != null)
+                    if (widget.onCancel != null)
                       TextButton.icon(
-                        key: cancelKey,
-                        onPressed: onCancel,
+                        key: _SyncStatusBanner.cancelKey,
+                        onPressed: widget.onCancel,
                         icon: const Icon(Icons.close_rounded, size: 18),
                         label: Text(l10n.commonCancel),
                       ),
@@ -190,7 +236,7 @@ class _SyncStatusBanner extends StatelessWidget {
               ),
               if (!scanningSongIndex)
                 LinearProgressIndicator(
-                  key: progressKey,
+                  key: _SyncStatusBanner.progressKey,
                   value: progress,
                   minHeight: 3,
                   color: colors.primary,
@@ -213,7 +259,7 @@ class _SyncStatusBanner extends StatelessWidget {
         container: true,
         label: l10n.librarySyncBacklogBanner(hydrationBacklog),
         child: Material(
-          key: backlogKey,
+          key: _SyncStatusBanner.backlogKey,
           color: colors.surfaceContainerHigh,
           child: Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
@@ -248,6 +294,7 @@ class _SyncStatusBanner extends StatelessWidget {
     int? total,
     int processed,
   ) {
+    final syncState = widget.syncState;
     final pending = syncState.pendingHydrationCount ?? 0;
     if (syncState.metadataReady &&
         syncState.stage == LibrarySyncStage.fetchingSongs) {
@@ -356,7 +403,7 @@ class _SectionRail extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: NavisRadius.mdAll,
               ),
               child: Column(
                 children: labels
@@ -411,18 +458,15 @@ class _RailOverlay extends StatelessWidget {
               color: Theme.of(
                 context,
               ).colorScheme.surfaceContainerHigh.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: NavisRadius.mdAll,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               child: Text(
                 label,
-                style:
-                    Theme.of(
-                      context,
-                    ).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineMedium,
               ),
             ),
           ),

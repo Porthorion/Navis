@@ -39,7 +39,8 @@ class PlaybackAdjustmentSummary extends ConsumerWidget {
 }
 
 /// Common speeds offered as one-tap choices, filtered by backend limits.
-const playbackSpeedQuickPicks = <double>[0.5, 0.75, 1, 1.25, 1.5, 2];
+/// Symmetric around 1× so the normal speed sits in the middle of the row.
+const playbackSpeedQuickPicks = <double>[0.5, 0.75, 1, 1.25, 1.5];
 
 /// Formats a quick-pick speed without trailing zeros (for example `1.5`).
 String formatCompactAdjustmentNumber(double value) {
@@ -490,32 +491,55 @@ class _PlaybackAdjustmentPanelState
           ],
         ),
         if (quickPicks.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final pick in quickPicks)
-                ChoiceChip(
-                  key: ValueKey(
-                    'adjustment-$keyName-chip-${formatCompactAdjustmentNumber(pick)}',
-                  ),
-                  label: Text(
-                    l10n.playbackSpeedMultiplierValue(
-                      formatCompactAdjustmentNumber(pick),
-                    ),
-                  ),
-                  showCheckmark: false,
-                  selected: (value - pick).abs() < 1e-10,
-                  onSelected: enabled
-                      ? (_) {
-                          if ((value - pick).abs() < 1e-10) return;
-                          _cancelRulers();
-                          onChanged(pick);
-                          _flush();
-                        }
-                      : null,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              Widget chip(double pick) => ChoiceChip(
+                key: ValueKey(
+                  'adjustment-$keyName-chip-${formatCompactAdjustmentNumber(pick)}',
                 ),
-            ],
+                label: Text(
+                  l10n.playbackSpeedMultiplierValue(
+                    formatCompactAdjustmentNumber(pick),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                showCheckmark: false,
+                selected: (value - pick).abs() < 1e-10,
+                onSelected: enabled
+                    ? (_) {
+                        if ((value - pick).abs() < 1e-10) return;
+                        _cancelRulers();
+                        onChanged(pick);
+                        _flush();
+                      }
+                    : null,
+              );
+              // Equal-width slots keep 1× exactly centred and the row
+              // centred in its panel. Large text falls back to a centred
+              // wrap rather than squeezing labels.
+              final slotWidth = (constraints.maxWidth / quickPicks.length)
+                  .clamp(0.0, 88.0);
+              final minimumSlot = MediaQuery.textScalerOf(context).scale(60);
+              if (slotWidth < minimumSlot) {
+                return Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  runSpacing: 8,
+                  children: [for (final pick in quickPicks) chip(pick)],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final pick in quickPicks)
+                    SizedBox(
+                      width: slotWidth,
+                      child: Center(child: chip(pick)),
+                    ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
         ],

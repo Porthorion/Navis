@@ -65,68 +65,25 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final instantMix = ref.watch(instantMixProvider);
-    final sameVibes = ref.watch(sameVibesProvider);
-    final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
-        ? instantMix.active
-        : sameVibes.active;
-    final mixLoading = preferredMixMode == PreferredMixMode.legacyInstantMix
-        ? (instantMix.refilling && instantMix.active)
-        : (sameVibes.refilling && sameVibes.active);
     final colorScheme = Theme.of(context).colorScheme;
-
-    final mixIcon = mixLoading
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: mixActive
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-          )
-        : Icon(
-            mixActive ? Icons.explore : Icons.explore_outlined,
-            color: mixActive
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
-          );
 
     final isRemote =
         widget.songId != null && !isServerAddressableSongId(widget.songId!);
-    final legacyMixUnavailable =
-        isRemote && preferredMixMode == PreferredMixMode.legacyInstantMix;
 
     final actionButtons = <Widget>[
       _NowPlayingActionButton(
-        icon: Icon(
-          Icons.queue_music_outlined,
-          color: colorScheme.onSurfaceVariant,
+        icon: QueueShuffleBadge(
+          child: Icon(
+            Icons.queue_music_outlined,
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
-        label: l10n.nowPlayingQueue,
+        label: ref.watch(queueShuffleEnabledProvider)
+            ? l10n.queueShuffleOnStatus(l10n.nowPlayingQueue)
+            : l10n.nowPlayingQueue,
         onTap: (widget.wideEmbeddedMode && widget.onOpenQueuePanel != null)
             ? widget.onOpenQueuePanel
             : () => NavService.showQueue(context, ref),
-      ),
-      _NowPlayingActionButton(
-        icon: mixIcon,
-        label: preferredMixMode == PreferredMixMode.legacyInstantMix
-            ? l10n.nowPlayingInstantMixLabel
-            : l10n.nowPlayingSameVibesLabel,
-        isDisabled: legacyMixUnavailable,
-        onTap: widget.songId == null
-            ? null
-            : legacyMixUnavailable
-            ? () => showAppNotice(
-                context,
-                message: l10n.remoteSourceInstantMixUnavailable,
-                level: AppNoticeLevel.error,
-              )
-            : () => unawaited(
-                togglePreferredMixMode(ref, seedSongId: widget.songId!),
-              ),
       ),
       _NowPlayingActionButton(
         icon: MotionPolicy.of(context).reduceMotion
@@ -196,6 +153,76 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: actionButtons,
+    );
+  }
+}
+
+/// Instant Mix / Same Vibes toggle for the transport row.
+///
+/// It sits where Shuffle used to be; Shuffle now lives in the queue header
+/// because it reorders the queue rather than controlling the current track.
+class _NowPlayingMixButton extends ConsumerWidget {
+  const _NowPlayingMixButton({required this.songId, this.compact = false});
+
+  static const Key buttonKey = ValueKey<String>('nowPlayingMixButton');
+
+  final String? songId;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final instantMix = ref.watch(instantMixProvider);
+    final sameVibes = ref.watch(sameVibesProvider);
+    final preferredMixMode = ref.watch(preferredMixModeProvider);
+    final legacyMode = preferredMixMode == PreferredMixMode.legacyInstantMix;
+    final mixActive = legacyMode ? instantMix.active : sameVibes.active;
+    final mixLoading = legacyMode
+        ? (instantMix.refilling && instantMix.active)
+        : (sameVibes.refilling && sameVibes.active);
+    final seedSongId = songId;
+    final isRemote =
+        seedSongId != null && !isServerAddressableSongId(seedSongId);
+    final legacyMixUnavailable = isRemote && legacyMode;
+    final label = legacyMode
+        ? l10n.nowPlayingInstantMixLabel
+        : l10n.nowPlayingSameVibesLabel;
+
+    return IconButton(
+      key: buttonKey,
+      visualDensity: compact ? VisualDensity.compact : null,
+      tooltip: label,
+      isSelected: mixActive,
+      onPressed: seedSongId == null
+          ? null
+          : legacyMixUnavailable
+          ? () => showAppNotice(
+              context,
+              message: l10n.remoteSourceInstantMixUnavailable,
+              level: AppNoticeLevel.error,
+            )
+          : () =>
+                unawaited(togglePreferredMixMode(ref, seedSongId: seedSongId)),
+      icon: mixLoading
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: mixActive
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+            )
+          : Icon(
+              mixActive ? Icons.explore : Icons.explore_outlined,
+              color: mixActive
+                  ? colorScheme.primary
+                  : legacyMixUnavailable
+                  ? colorScheme.onSurfaceVariant.withValues(alpha: 0.42)
+                  : null,
+            ),
     );
   }
 }

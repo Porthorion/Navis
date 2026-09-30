@@ -22,7 +22,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
     final textStyle = Theme.of(context).textTheme.bodySmall;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: NavisRadius.mdAll,
       onTap: onTap,
       onLongPress: onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
@@ -698,7 +698,7 @@ class LikedArtistsAllScreen extends ConsumerWidget {
         ref.read(librarySyncControllerProvider.notifier).syncNow();
     return Scaffold(
       appBar: AppBar(
-        title: Text('${l10n.libraryLikedOnlyFilter} ${l10n.libraryTabArtists}'),
+        title: Text(l10n.libraryLikedArtistsSectionTitle),
       ),
       body: RefreshIndicator(
         onRefresh: refresh,

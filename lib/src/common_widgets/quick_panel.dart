@@ -126,9 +126,7 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
                       Text(
                         widget.title,
                         key: const ValueKey<String>('quickPanelTitle'),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: theme.textTheme.titleMedium,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -29,9 +29,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Make Navis yours'), findsOneWidget);
+    expect(find.text('Make Navis Yours'), findsOneWidget);
     expect(find.text('Step 1 of 4'), findsOneWidget);
-    expect(find.text('Choose your look'), findsOneWidget);
+    expect(find.text('Choose Your Look'), findsOneWidget);
     expect(find.byType(AppBar), findsNothing);
   });
 
@@ -60,8 +60,8 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Queue all liked songs'), findsOneWidget);
-    expect(find.text('Download only on Wi-Fi'), findsOneWidget);
+    expect(find.text('Queue All Liked Songs'), findsOneWidget);
+    expect(find.text('Download Only on Wi-Fi'), findsOneWidget);
   });
 
   testWidgets('previews appearance changes and exposes detailed crossfade', (

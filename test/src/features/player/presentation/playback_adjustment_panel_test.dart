@@ -181,8 +181,8 @@ void main() {
             .pitchSemitones,
         pitch,
       );
-      await tester.ensureVisible(find.text('Reset speed & pitch'));
-      await tester.tap(find.text('Reset speed & pitch'));
+      await tester.ensureVisible(find.text('Reset Speed & Pitch'));
+      await tester.tap(find.text('Reset Speed & Pitch'));
       await tester.pumpAndSettle();
       expect(
         container.read(playbackAdjustmentsProvider).requireValue.values.isNone,
@@ -261,6 +261,19 @@ void main() {
       find.byKey(ValueKey('adjustment-speed-chip-$label')),
     );
     expect(chip('1').selected, isTrue);
+    // Five picks, symmetric around 1×, which sits in the middle of the row.
+    expect(find.byKey(const ValueKey('adjustment-speed-chip-2')), findsNothing);
+    final slow = tester.getCenter(
+      find.byKey(const ValueKey('adjustment-speed-chip-0.5')),
+    );
+    final normal = tester.getCenter(
+      find.byKey(const ValueKey('adjustment-speed-chip-1')),
+    );
+    final fast = tester.getCenter(
+      find.byKey(const ValueKey('adjustment-speed-chip-1.5')),
+    );
+    expect(normal.dx, closeTo((slow.dx + fast.dx) / 2, 0.5));
+    expect(normal.dy, slow.dy);
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-chip-1.5')));
     await tester.pumpAndSettle();
     expect(
@@ -366,9 +379,9 @@ void main() {
   ) async {
     final container = await mount(tester);
     expect(find.textContaining('Available range'), findsNothing);
-    expect(find.text('Pitch follows speed'), findsOneWidget);
+    expect(find.text('Pitch Lock'), findsOneWidget);
     expect(
-      find.text('Faster sounds higher, like a record player.'),
+      find.text('Match pitch to speed.'),
       findsOneWidget,
     );
     await container

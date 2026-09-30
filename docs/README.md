@@ -52,6 +52,12 @@ platform coverage limits. Automotive integration remains separate.
 follow-up desktop album fade, Liked Albums Next tooltip and numeric column
 headings, with separate acceptance evidence.
 
+[UX/UI audit — 2026-09-30](audits/ux-ui-audit-2026-09-30.md) records the
+1.4.0 desktop/mobile design audit, the product decisions it produced, and the
+status of each finding. The resulting token, typography and component-theme
+foundation is recorded in
+[decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
+
 [Mobile track-layout repair](audits/mobile-track-layout-repair-2026-09-28.md)
 records the compact-row regression, its shared correction, caller audit,
 geometry coverage, and separate Android/Linux runtime evidence.

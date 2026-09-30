@@ -49,6 +49,48 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('album track lists omit the repeated album at every width', (
+    tester,
+  ) async {
+    for (final width in <double>[1000, 800, 390]) {
+      setAdaptiveTestViewport(tester, Size(width, 600));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: Column(
+              children: [
+                AdaptiveTrackHeader(actionExtent: 48, showAlbumColumn: false),
+                AdaptiveTrackRow(
+                  title: 'A long song title',
+                  artist: 'An artist',
+                  album: 'An album',
+                  duration: 223,
+                  actionExtent: 48,
+                  showAlbumColumn: false,
+                  leading: Icon(Icons.music_note),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Album'), findsNothing, reason: 'width $width');
+      expect(find.textContaining('An album'), findsNothing);
+      expect(find.textContaining('An artist'), findsOneWidget);
+      if (width == 1000) {
+        expect(
+          tester.getRect(find.text('An artist')).left,
+          tester.getRect(find.text('Artist')).left,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('local pane selects metadata columns and matching headings', (
     tester,
   ) async {

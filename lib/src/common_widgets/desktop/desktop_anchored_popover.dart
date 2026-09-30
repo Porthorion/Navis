@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// Shows a card anchored to the widget that owns [anchorContext].
@@ -57,7 +57,7 @@ Future<T?> showDesktopAnchoredPopover<T>({
         : const Duration(milliseconds: 200),
     pageBuilder: (context, _, _) {
       final colors = Theme.of(context).colorScheme;
-      final radius = desktopTokensOf(context).panelRadius;
+      final radius = NavisTokens.of(context).panelRadius;
       final border = colors.outlineVariant.withValues(alpha: 0.4);
       return CustomMultiChildLayout(
         delegate: _AnchoredPopoverLayout(

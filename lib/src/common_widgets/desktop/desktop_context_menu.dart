@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Shows a desktop popup menu with a lightweight scrim and root-overlay
 /// anchoring so right-click context menus feel modal and placement stays
@@ -80,9 +81,7 @@ Future<T?> showDesktopContextMenu<T>({
             maxWidth: 320,
             maxHeight: overlaySize.height - 24,
           ),
-      shape:
-          shape ??
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: shape ?? RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
       color: color,
       surfaceTintColor: surfaceTintColor,
       items: items,

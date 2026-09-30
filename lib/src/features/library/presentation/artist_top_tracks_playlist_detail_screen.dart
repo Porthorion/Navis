@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -22,6 +23,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
 class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
@@ -346,24 +348,14 @@ class _PlaylistHeaderText extends StatelessWidget {
               : null,
         ),
         SizedBox(height: desktopMode ? 20 : 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            FilledButton.icon(
-              onPressed: onPlay,
-              icon: const Icon(Icons.play_arrow),
-              label: Text(l10n.playlistDetailPlayAction),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onShuffle,
-              icon: const Icon(Icons.shuffle_outlined),
-              label: Text(l10n.playlistDetailShuffleAction),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onDownload,
+        EntityActionBar(
+          onPlay: onPlay,
+          onShuffle: onShuffle,
+          secondary: <Widget>[
+            EntitySecondaryAction(
               icon: const Icon(Icons.download_outlined),
-              label: Text(l10n.downloadAction),
+              label: l10n.downloadAction,
+              onPressed: onDownload,
             ),
           ],
         ),
@@ -427,7 +419,6 @@ class _RankedTopTrackRow extends ConsumerWidget {
                         color: colorScheme.onSurfaceVariant.withValues(
                           alpha: 0.65,
                         ),
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
             ),
@@ -437,7 +428,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               size: 80,
               width: 44,
               height: 44,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: NavisRadius.xsAll,
               placeholderIcon: Icons.music_note_outlined,
               isExternalSource: isRemote,
               remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,

@@ -8,6 +8,7 @@ import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Parameter identifiers shared by value tiles, exact entry and diagnostics.
 abstract final class EqParameter {
@@ -260,7 +261,7 @@ class EqParameterTile extends StatelessWidget {
         alignment: AlignmentDirectional.centerStart,
         padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 10, 8),
         minimumSize: const Size(0, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
       ),
       child: Semantics(
         hint: hint,
@@ -544,7 +545,6 @@ class EqBandInspector extends StatelessWidget {
                     decoration: InputDecoration(
                       labelText: l10n.eqType,
                       isDense: true,
-                      border: const OutlineInputBorder(),
                     ),
                     items: [
                       for (final type in EqFilterType.values)
@@ -739,7 +739,6 @@ class EqNumberEditor extends StatelessWidget {
                       helperMaxLines: 2,
                       errorText: error,
                       errorMaxLines: 3,
-                      border: const OutlineInputBorder(),
                     ),
                     onChanged: onChanged,
                     onFieldSubmitted: (_) => onSubmitted(),
@@ -965,7 +964,6 @@ class EqModeSelector extends StatelessWidget {
           decoration: InputDecoration(
             labelText: l10n.eqMode,
             isDense: true,
-            border: const OutlineInputBorder(),
           ),
           items: [
             for (final value in modes)

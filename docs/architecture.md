@@ -459,6 +459,33 @@ target-selection rules.
 
 ## UI Component Organization
 
+### Theme and design tokens (`lib/src/theme/`)
+
+- `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
+  `buildOledTheme` each choose a `ColorScheme` from the user's seed (or the
+  dynamic album colour) and delegate to one shared builder. Typography,
+  component themes and theme extensions are defined only in that builder.
+  OLED differences are expressed there as surface overrides.
+- `navis_tokens.dart`:
+  - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
+    scales.
+  - `NavisTokens` is a ThemeExtension for theme-dependent values: frame widths,
+    hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
+    warning container and the `success` foreground for completed or
+    confirmed states. Read it with `NavisTokens.of(context)`.
+  - Artwork radii follow the user's cover-shape preference, not these scales.
+- `motion_policy.dart`: owns every duration, including the reduced-motion
+  zero values.
+- `dynamic_accent_provider.dart`: samples the current artwork to reseed the
+  scheme when dynamic album colour is enabled.
+- Fonts: the bundled Inter variable font (`assets/fonts/`, SIL OFL 1.1,
+  licence registered in `main.dart`). Scripts Inter lacks use the platform's
+  per-glyph fallback.
+- Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
+  font sizes and colours per file outside `lib/src/theme/`.
+- Decision record:
+  [decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
+
 ### Common Widgets (`lib/src/common_widgets/`)
 
 Reusable UI components used across features:
@@ -945,8 +972,8 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 
 ### Recommendation sessions
 
-Song-based **Server mix** and **Last.fm · Same Vibes** remain separate saved
-choices. Server mix calls the standard Subsonic `getSimilarSongs2` endpoint,
+Song-based **Server Mix** and **Last.fm · Same Vibes** remain separate saved
+choices. Server Mix calls the standard Subsonic `getSimilarSongs2` endpoint,
 then the original `getSimilarSongs` when unsupported. The existing Navidrome
 `getInstantMix` endpoint is a final compatibility fallback only when both
 standard endpoints are unsupported. AudioMuse's installed Navidrome plugin
@@ -1071,7 +1098,7 @@ readout is `12 × log₂(speed)` rounded to two decimals. Unlocking captures the
 full-precision derived semitone value, preserving the sound. Speed-only reset
 retains lock; combined reset applies the immutable built-in preset shown as
 Normal (stored id `none`: 1×, zero pitch, lock off); new presets cannot use the
-names None or Normal. The lock is labelled "Pitch follows speed".
+names None or Normal. The lock is labelled "Pitch Lock" ("Match pitch to speed.").
 
 Player quick panels share `showQuickPanel`/`QuickPanelScaffold`
 (`common_widgets/quick_panel.dart`): a pinned title with a live summary, an
@@ -1096,12 +1123,20 @@ centred; backends without EQ keep an invisible same-size slot. Compact rows
 narrower than 360 logical pixels switch to dense slots with no gaps, drop the
 quick buttons only below 296 (440 non-compact), and yield to the desktop volume
 slider; the desktop bar drops EQ first below its compact breakpoint.
+The transport is symmetric around Play on every platform: Equalizer, Instant
+Mix (or Same Vibes, via `togglePreferredMixMode`), Previous | Play | Next,
+Repeat, Speed. Shuffle reorders the queue, so it lives in the queue header
+(`QueueShuffleToggle` in `features/player/presentation/queue_shuffle_controls.dart`).
+While shuffle is on, `QueueShuffleBadge` marks the phone and desktop Queue
+buttons, and their accessible labels read "Queue, shuffle on". The compact
+Mini Player keeps Shuffle in its More menu. The phone Now Playing action row
+is Queue, Like, Lyrics and Settings.
 Configurable desktop shortcuts (default Ctrl/Cmd+`.`, `,` and `0`) step speed by
 0.10 or reset it through `nudgePlaybackSpeed`, preserving pitch settings, and
 confirm with an app notice.
 
-`EqualizerQuickButton` sits beside Shuffle (beside Instant Mix on the desktop
-bar) and is hidden when `eqCapabilitiesProvider` is unsupported. It opens
+`EqualizerQuickButton` sits beside Instant Mix in both the Now Playing
+transport and the desktop bar, and is hidden when `eqCapabilitiesProvider` is unsupported. It opens
 `showEqualizerQuickPanel`, a mini equalizer built from `EqQuickControls`
 (`features/equalizer/presentation/eq_quick_panel.dart`): the on/off switch in the
 header, a read-only `EqGraphEditor` response (176 px in the panel, 136 px
@@ -1132,8 +1167,9 @@ control is edited; approximation markers distinguish them from the hundredth gri
 New input uses integer hundredths: rulers/arrows/accessibility actions step 0.01,
 Shift+Arrow and speed buttons step 0.10, independent pitch buttons step one
 semitone; holding a − or + button repeats every 120 ms and persists once on
-release. Speed quick-pick chips (0.5–2×, filtered by the backend range) select
-values in one tap. Presets use a `DropdownMenu` (Custom while edited, Normal,
+release. Speed quick-pick chips (0.5×, 0.75×, 1×, 1.25× and 1.5×, filtered by the
+backend range) select values in one tap. The chips sit in equal-width slots, so
+1× stays centred. Large text falls back to a centred wrap. Presets use a `DropdownMenu` (Custom while edited, Normal,
 then saved presets; unsupported ones disabled) with a ⋮ menu to save, update,
 rename or delete (with confirmation) the current or originating preset. Exact entry allows two decimals and decimal
 commas, validated inline.
@@ -1142,13 +1178,16 @@ Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
 0.10 (eight logical pixels per minor tick). A recessed themed surface, center
 highlight and outer 15% fades keep the center readable. Release settles onto the
 nearest supported tick over 140 ms with ease-out motion; the animation never
-writes to the engine. Reduced motion and discrete actions settle immediately.
-Preset/reset changes cancel gestures and settling. Drag accumulators clamp at
+writes to the engine. Values chosen elsewhere (chips, presets, reset, the − and +
+buttons, or pitch following speed) cancel any gesture and glide to the new value.
+The glide eases in and out over 160–480 ms, scaled to distance, and ticks for each
+line it crosses as a drag would. A read-only (locked) ruler glides silently.
+Reduced motion jumps immediately. Drag accumulators clamp at
 finite bounds so reversing at an endpoint responds immediately. While dragging,
 `rulerTickFeedback` reports the strongest ruler line crossed per update: every
 0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
-0.10 lines a light impact and the neutral value a medium impact; settling,
-keyboard and buttons stay silent, and the platform touch-feedback setting
+0.10 lines a light impact and the neutral value a medium impact; release
+settling and keyboard steps stay silent, and the platform touch-feedback setting
 applies. Endpoint feedback and the
 available bounds appear only once a limit is reached, explaining the disabled
 button. Locked pitch remains visible with read-only controls; unsupported
@@ -1708,11 +1747,11 @@ contract.
    successful reset and committed full catalog scan. **Repair Library** is the
    non-destructive server-catalog reconciliation: its candidate remains hidden
    until atomic promotion, and it preserves downloads, rolling cache, artwork,
-   and the visible catalog until then. **Reset caches & rebuild library** is
+   and the visible catalog until then. **Reset Caches & Rebuild Library** is
    the distinct device-storage recovery action: it deletes rolling cache,
    cover-art cache, and local library metadata, preserves permanent downloads,
    then starts a fresh catalog build. Settings keeps these actions in the
-   separate **Library synchronization** and **Device storage & cache** groups;
+   separate **Library synchronization** and **Device Storage & Cache** groups;
    their metered confirmations, history origins, and full-screen progress
    states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a

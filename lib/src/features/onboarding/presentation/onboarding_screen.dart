@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -116,6 +117,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _finish({required bool discardDraft}) async {
     final draft = _draft;
     if (draft == null || _saving) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _saving = true);
     try {
       if (!discardDraft) {
@@ -139,7 +141,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       context.go(widget.reviewMode ? '/settings' : '/');
     } on Object {
       if (mounted) {
-        setState(() => _serviceError = 'Could not save setup. Try again.');
+        setState(() => _serviceError = l10n.onboardingSaveFailed);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -149,22 +151,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _skip() async {
     final discard = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Skip customization?'),
-        content: const Text(
-          'Your current settings will be kept. You can reopen this from Settings at any time.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep customizing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Skip setup'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return AlertDialog(
+          title: Text(l10n.onboardingSkipDialogTitle),
+          content: Text(l10n.onboardingSkipDialogMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.onboardingKeepCustomizing),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l10n.onboardingSkipSetup),
+            ),
+          ],
+        );
+      },
     );
     if (discard == true) {
       await _finish(discardDraft: true);
@@ -175,6 +178,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final current = _draft;
     final key = _lastFmKey.text.trim();
     if (current == null || _lastFmBusy) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _lastFmBusy = true;
       _serviceError = null;
@@ -185,7 +189,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             .read(lastFmApiClientFactoryProvider)(key)
             .validateApiKey();
         if (!result.valid) {
-          throw StateError(result.message ?? 'Invalid Last.fm API key.');
+          throw StateError(
+            result.message ?? l10n.configurationLastFmApiKeyInvalid,
+          );
         }
       }
       setState(
@@ -207,8 +213,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final current = _draft;
     final token = _listenBrainzToken.text.trim();
     if (current == null || _listenBrainzBusy) return;
+    final l10n = AppLocalizations.of(context)!;
     if (token.isEmpty) {
-      setState(() => _serviceError = 'Enter a ListenBrainz user token.');
+      setState(
+        () => _serviceError = l10n.configurationListenBrainzTokenRequired,
+      );
       return;
     }
     setState(() {
@@ -219,7 +228,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final details = await ref
           .read(listenBrainzApiClientProvider)
           .validateTokenDetails(token);
-      if (!details.valid) throw StateError('Invalid ListenBrainz token.');
+      if (!details.valid) {
+        throw StateError(l10n.configurationListenBrainzTokenInvalid);
+      }
       await ref
           .read(externalScrobbleCredentialStoreProvider)
           .saveListenBrainzToken(token);
@@ -247,6 +258,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (draft == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final l10n = AppLocalizations.of(context)!;
     final motion = MotionPolicy.of(context);
     final previewTheme = _previewTheme(context, draft);
     final viewport = MediaQuery.sizeOf(context);
@@ -289,17 +301,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             const SizedBox(height: 12),
                             Text(
                               widget.reviewMode
-                                  ? 'Customize Navis'
-                                  : 'Make Navis yours',
+                                  ? l10n.onboardingReviewTitle
+                                  : l10n.onboardingTitle,
                               textAlign: TextAlign.center,
                               style: previewTheme.textTheme.headlineSmall,
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Step ${_step + 1} of $_steps',
+                              l10n.onboardingStepProgress(_step + 1, _steps),
                               textAlign: TextAlign.center,
-                              semanticsLabel:
-                                  'Customization step ${_step + 1} of $_steps',
+                              semanticsLabel: l10n
+                                  .onboardingStepProgressSemantics(
+                                    _step + 1,
+                                    _steps,
+                                  ),
                             ),
                           ] else ...[
                             Row(
@@ -313,17 +328,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                     children: [
                                       Text(
                                         widget.reviewMode
-                                            ? 'Customize Navis'
-                                            : 'Make Navis yours',
+                                            ? l10n.onboardingReviewTitle
+                                            : l10n.onboardingTitle,
                                         style: previewTheme
                                             .textTheme
                                             .headlineSmall,
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Step ${_step + 1} of $_steps',
-                                        semanticsLabel:
-                                            'Customization step ${_step + 1} of $_steps',
+                                        l10n.onboardingStepProgress(
+                                          _step + 1,
+                                          _steps,
+                                        ),
+                                        semanticsLabel: l10n
+                                            .onboardingStepProgressSemantics(
+                                              _step + 1,
+                                              _steps,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -391,14 +412,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _actions(bool compact) {
+    final l10n = AppLocalizations.of(context)!;
     final skip = TextButton(
       onPressed: _saving ? null : _skip,
-      child: const Text('Skip setup'),
+      child: Text(l10n.onboardingSkipSetup),
     );
     final back = _step > 0
         ? TextButton(
             onPressed: _saving ? null : () => setState(() => _step--),
-            child: const Text('Back'),
+            child: Text(l10n.onboardingBack),
           )
         : null;
     final next = FilledButton(
@@ -413,7 +435,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Text(_step == _steps - 1 ? 'Finish' : 'Continue'),
+          : Text(
+              _step == _steps - 1
+                  ? l10n.onboardingFinish
+                  : l10n.onboardingContinue,
+            ),
     );
     if (compact) {
       return Wrap(
@@ -460,14 +486,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   };
 
   Widget _appearanceStep(AppSettingsModel draft) {
+    final l10n = AppLocalizations.of(context)!;
     final customPresets = _draftCustomPresets ?? const <int>[];
     return _scrollStep(
       children: [
-        Text('Choose your look', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        const Text(
-          'Pick a theme and accent. You can change both later in Appearance settings.',
+        Text(
+          l10n.onboardingAppearanceTitle,
+          style: Theme.of(context).textTheme.titleLarge,
         ),
+        const SizedBox(height: 8),
+        Text(l10n.onboardingAppearanceDescription),
         const SizedBox(height: 16),
         ThemeModeSelector(
           currentMode: draft.themeMode,
@@ -475,7 +503,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               setState(() => _draft = draft.copyWith(themeMode: value)),
         ),
         const SizedBox(height: 24),
-        Text('Accent color', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          l10n.onboardingAccentColor,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         ColorSchemeGrid(
           currentSeed: draft.colorSchemeSeed,
           dynamicAlbumColorEnabled: false,
@@ -508,7 +539,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          'This is the full color picker from Appearance settings. You can revisit it there at any time.',
+          l10n.onboardingAppearanceColorPickerHint,
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -555,7 +586,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Scroll for more options',
+                          AppLocalizations.of(context)!.onboardingScrollForMore,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -568,167 +599,178 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
       );
 
-  Widget _listeningStep(AppSettingsModel draft) => _scrollStep(
-    children: [
-      Text(
-        'Tune your listening',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'Choose stream quality, formats, local playback priority, and track transitions.',
-      ),
-      const SizedBox(height: 16),
-      _qualityField(
-        'Wi-Fi quality',
-        draft.wifiMaxBitRate,
-        (value) => setState(
-          () => _draft = draft.copyWith(
-            wifiMaxBitRate: value,
-            clearWifiBitRate: value == null,
+  Widget _listeningStep(AppSettingsModel draft) {
+    final l10n = AppLocalizations.of(context)!;
+    return _scrollStep(
+      children: [
+        Text(
+          l10n.onboardingListeningTitle,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(l10n.onboardingListeningDescription),
+        const SizedBox(height: 16),
+        _qualityField(
+          l10n.onboardingWifiQuality,
+          draft.wifiMaxBitRate,
+          (value) => setState(
+            () => _draft = draft.copyWith(
+              wifiMaxBitRate: value,
+              clearWifiBitRate: value == null,
+            ),
           ),
         ),
-      ),
-      _formatField(
-        'Wi-Fi format',
-        draft.wifiFormat,
-        (value) => setState(
-          () => _draft = draft.copyWith(
-            wifiFormat: value,
-            clearWifiFormat: value == null,
+        _formatField(
+          l10n.onboardingWifiFormat,
+          draft.wifiFormat,
+          (value) => setState(
+            () => _draft = draft.copyWith(
+              wifiFormat: value,
+              clearWifiFormat: value == null,
+            ),
           ),
         ),
-      ),
-      _qualityField(
-        'Mobile quality',
-        draft.cellularMaxBitRate,
-        (value) => setState(
-          () => _draft = draft.copyWith(
-            cellularMaxBitRate: value,
-            clearCellularBitRate: value == null,
+        _qualityField(
+          l10n.onboardingMobileQuality,
+          draft.cellularMaxBitRate,
+          (value) => setState(
+            () => _draft = draft.copyWith(
+              cellularMaxBitRate: value,
+              clearCellularBitRate: value == null,
+            ),
           ),
         ),
-      ),
-      _formatField(
-        'Mobile format',
-        draft.cellularFormat,
-        (value) => setState(
-          () => _draft = draft.copyWith(
-            cellularFormat: value,
-            clearCellularFormat: value == null,
+        _formatField(
+          l10n.onboardingMobileFormat,
+          draft.cellularFormat,
+          (value) => setState(
+            () => _draft = draft.copyWith(
+              cellularFormat: value,
+              clearCellularFormat: value == null,
+            ),
           ),
         ),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Prefer downloaded or cached audio'),
-        subtitle: const Text(
-          'Use a complete local copy before streaming when one is available.',
-        ),
-        value: draft.cachedPlaybackFirst,
-        onChanged: (value) =>
-            setState(() => _draft = draft.copyWith(cachedPlaybackFirst: value)),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Scrobble to your music server'),
-        subtitle: const Text(
-          'Report now-playing and completed plays to your Subsonic server.',
-        ),
-        value: draft.scrobbleEnabled,
-        onChanged: (value) =>
-            setState(() => _draft = draft.copyWith(scrobbleEnabled: value)),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Gapless playback'),
-        subtitle: const Text('Move between tracks without an added pause.'),
-        value: draft.gaplessEnabled,
-        onChanged: (value) => setState(
-          () => _draft = draft.copyWith(
-            gaplessEnabled: value,
-            crossfadeEnabled: value && draft.crossfadeEnabled,
-          ),
-        ),
-      ),
-      if (draft.gaplessEnabled) ...[
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Crossfade'),
-          subtitle: const Text('Blend the end of a track into the next one.'),
-          value: draft.crossfadeEnabled,
+          title: Text(l10n.onboardingPreferLocalTitle),
+          subtitle: Text(l10n.onboardingPreferLocalSubtitle),
+          value: draft.cachedPlaybackFirst,
+          onChanged: (value) => setState(
+            () => _draft = draft.copyWith(cachedPlaybackFirst: value),
+          ),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingScrobbleTitle),
+          subtitle: Text(l10n.onboardingScrobbleSubtitle),
+          value: draft.scrobbleEnabled,
+          onChanged: (value) =>
+              setState(() => _draft = draft.copyWith(scrobbleEnabled: value)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingGaplessTitle),
+          subtitle: Text(l10n.onboardingGaplessSubtitle),
+          value: draft.gaplessEnabled,
           onChanged: (value) => setState(
             () => _draft = draft.copyWith(
-              crossfadeEnabled: value,
-              gaplessEnabled: value || draft.gaplessEnabled,
+              gaplessEnabled: value,
+              crossfadeEnabled: value && draft.crossfadeEnabled,
             ),
           ),
         ),
-        if (draft.crossfadeEnabled) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Crossfade duration: ${draft.crossfadeDurationSeconds} seconds',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          Slider(
-            value: draft.crossfadeDurationSeconds.toDouble(),
-            min: 1,
-            max: 12,
-            divisions: 11,
-            label: '${draft.crossfadeDurationSeconds}s',
+        if (draft.gaplessEnabled) ...[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.onboardingCrossfadeTitle),
+            subtitle: Text(l10n.onboardingCrossfadeSubtitle),
+            value: draft.crossfadeEnabled,
             onChanged: (value) => setState(
               () => _draft = draft.copyWith(
-                crossfadeDurationSeconds: value.round(),
+                crossfadeEnabled: value,
+                gaplessEnabled: value || draft.gaplessEnabled,
               ),
             ),
           ),
-          DropdownButtonFormField<String>(
-            initialValue: draft.crossfadeType,
-            decoration: const InputDecoration(labelText: 'Crossfade type'),
-            items: const [
-              DropdownMenuItem(value: 'normal', child: Text('Normal')),
-              DropdownMenuItem(
-                value: 'smart',
-                child: Text('Smart — only between different albums'),
+          if (draft.crossfadeEnabled) ...[
+            const SizedBox(height: 8),
+            Text(
+              l10n.onboardingCrossfadeDuration(draft.crossfadeDurationSeconds),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Slider(
+              value: draft.crossfadeDurationSeconds.toDouble(),
+              min: 1,
+              max: 12,
+              divisions: 11,
+              label: l10n.onboardingCrossfadeSecondsShort(
+                draft.crossfadeDurationSeconds,
               ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _draft = draft.copyWith(crossfadeType: value));
-              }
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            draft.crossfadeType == 'smart'
-                ? 'Smart avoids blending tracks from the same album.'
-                : 'Normal blends every eligible track transition.',
-          ),
+              onChanged: (value) => setState(
+                () => _draft = draft.copyWith(
+                  crossfadeDurationSeconds: value.round(),
+                ),
+              ),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: draft.crossfadeType,
+              decoration: InputDecoration(
+                labelText: l10n.onboardingCrossfadeType,
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'normal',
+                  child: Text(l10n.playbackSettingsCrossfadeTypeNormal),
+                ),
+                DropdownMenuItem(
+                  value: 'smart',
+                  child: Text(l10n.onboardingCrossfadeTypeSmart),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _draft = draft.copyWith(crossfadeType: value));
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              draft.crossfadeType == 'smart'
+                  ? l10n.onboardingCrossfadeSmartDescription
+                  : l10n.onboardingCrossfadeNormalDescription,
+            ),
+          ],
         ],
       ],
-    ],
-  );
+    );
+  }
 
   Widget _qualityField(
     String label,
     int? value,
     ValueChanged<int?> onChanged,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: DropdownButtonFormField<int?>(
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
-      items: const [
-        DropdownMenuItem(value: null, child: Text('Server default')),
-        DropdownMenuItem(value: 320, child: Text('320 kbps')),
-        DropdownMenuItem(value: 256, child: Text('256 kbps')),
-        DropdownMenuItem(value: 192, child: Text('192 kbps')),
-        DropdownMenuItem(value: 128, child: Text('128 kbps')),
-        DropdownMenuItem(value: 96, child: Text('96 kbps')),
-      ],
-      onChanged: (v) => onChanged(v),
-    ),
-  );
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<int?>(
+        initialValue: value,
+        decoration: InputDecoration(labelText: label),
+        items: [
+          DropdownMenuItem(
+            value: null,
+            child: Text(l10n.playbackSettingsFormatOriginal),
+          ),
+          for (final kbps in const [320, 256, 192, 128, 96])
+            DropdownMenuItem(
+              value: kbps,
+              child: Text(l10n.playbackSettingsQualityKbps(kbps)),
+            ),
+        ],
+        onChanged: (v) => onChanged(v),
+      ),
+    );
+  }
 
   Widget _formatField(
     String label,
@@ -739,89 +781,89 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     child: DropdownButtonFormField<String?>(
       initialValue: value,
       decoration: InputDecoration(labelText: label),
-      items: const [
-        DropdownMenuItem(value: null, child: Text('Server default')),
-        DropdownMenuItem(value: 'mp3', child: Text('MP3')),
-        DropdownMenuItem(value: 'aac', child: Text('AAC')),
-        DropdownMenuItem(value: 'opus', child: Text('Opus')),
+      items: [
+        DropdownMenuItem(
+          value: null,
+          child: Text(
+            AppLocalizations.of(context)!.playbackSettingsFormatOriginal,
+          ),
+        ),
+        const DropdownMenuItem(value: 'mp3', child: Text('MP3')),
+        const DropdownMenuItem(value: 'aac', child: Text('AAC')),
+        const DropdownMenuItem(value: 'opus', child: Text('Opus')),
       ],
       onChanged: onChanged,
     ),
   );
 
-  Widget _queueStep(AppSettingsModel draft) => _scrollStep(
-    children: [
-      Text(
-        'Queue and downloads',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'Control what happens when you play a track and when downloads can run.',
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Queue whole albums'),
-        subtitle: const Text(
-          'Playing a track from an album queues the album from that track.',
+  Widget _queueStep(AppSettingsModel draft) {
+    final l10n = AppLocalizations.of(context)!;
+    return _scrollStep(
+      children: [
+        Text(
+          l10n.onboardingQueueTitle,
+          style: Theme.of(context).textTheme.titleLarge,
         ),
-        value: draft.albumQueueEnabled,
-        onChanged: (v) => setState(
-          () => _draft = draft.copyWith(
-            albumQueueEnabled: v,
-            likedQueueEnabled: v && draft.likedQueueEnabled,
+        const SizedBox(height: 8),
+        Text(l10n.onboardingQueueDescription),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingAlbumQueueTitle),
+          subtitle: Text(l10n.onboardingAlbumQueueSubtitle),
+          value: draft.albumQueueEnabled,
+          onChanged: (v) => setState(
+            () => _draft = draft.copyWith(
+              albumQueueEnabled: v,
+              likedQueueEnabled: v && draft.likedQueueEnabled,
+            ),
           ),
         ),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Queue all liked songs'),
-        subtitle: Text(
-          draft.albumQueueEnabled
-              ? 'On the Liked page, start from the selected song.'
-              : 'Enable album queueing to use this option.',
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingLikedQueueTitle),
+          subtitle: Text(
+            draft.albumQueueEnabled
+                ? l10n.onboardingLikedQueueSubtitle
+                : l10n.onboardingLikedQueueDisabledSubtitle,
+          ),
+          value: draft.likedQueueEnabled,
+          onChanged: draft.albumQueueEnabled
+              ? (v) => setState(
+                  () => _draft = draft.copyWith(likedQueueEnabled: v),
+                )
+              : null,
         ),
-        value: draft.likedQueueEnabled,
-        onChanged: draft.albumQueueEnabled
-            ? (v) =>
-                  setState(() => _draft = draft.copyWith(likedQueueEnabled: v))
-            : null,
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Download only on Wi-Fi'),
-        subtitle: const Text(
-          'Avoid downloading music over a metered connection.',
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingWifiOnlyDownloadsTitle),
+          subtitle: Text(l10n.onboardingWifiOnlyDownloadsSubtitle),
+          value: draft.wifiOnlyDownloads,
+          onChanged: (v) =>
+              setState(() => _draft = draft.copyWith(wifiOnlyDownloads: v)),
         ),
-        value: draft.wifiOnlyDownloads,
-        onChanged: (v) =>
-            setState(() => _draft = draft.copyWith(wifiOnlyDownloads: v)),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _servicesStep(AppSettingsModel draft) {
+    final l10n = AppLocalizations.of(context)!;
     final bundled = ref.watch(lastFmBundledKeyProvider);
     return _scrollStep(
       children: [
         Text(
-          'Optional music services',
+          l10n.onboardingServicesTitle,
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
-        const Text(
-          'These services are optional. You can configure or remove them later in Settings.',
-        ),
+        Text(l10n.onboardingServicesDescription),
         const SizedBox(height: 16),
         Text('ListenBrainz', style: Theme.of(context).textTheme.titleMedium),
-        const Text(
-          'When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.',
-        ),
+        Text(l10n.onboardingListenBrainzDisclosure),
         TextField(
           controller: _listenBrainzToken,
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'ListenBrainz user token',
+          decoration: InputDecoration(
+            labelText: l10n.onboardingListenBrainzTokenLabel,
           ),
         ),
         const SizedBox(height: 8),
@@ -831,7 +873,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             mode: LaunchMode.externalApplication,
           ),
           icon: const Icon(Icons.open_in_new, size: 18),
-          label: const Text('Get a ListenBrainz user token'),
+          label: Text(l10n.onboardingListenBrainzGetToken),
         ),
         if (draft.listenBrainzTokenValid)
           ListenBrainzConnectionStatus(
@@ -845,7 +887,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             child: FilledButton.tonal(
               onPressed: _listenBrainzBusy ? null : _validateListenBrainz,
               child: Text(
-                _listenBrainzBusy ? 'Validating…' : 'Validate and connect',
+                _listenBrainzBusy
+                    ? l10n.onboardingValidating
+                    : l10n.onboardingListenBrainzValidate,
               ),
             ),
           ),
@@ -853,28 +897,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         Text('Last.fm', style: Theme.of(context).textTheme.titleMedium),
         Text(
           bundled
-              ? 'This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.'
-              : 'A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.',
+              ? l10n.onboardingLastFmBundledDescription
+              : l10n.onboardingLastFmDescription,
         ),
         if (!bundled) ...[
           TextField(
             controller: _lastFmKey,
             obscureText: true,
-            decoration: const InputDecoration(labelText: 'Last.fm API key'),
+            decoration: InputDecoration(
+              labelText: l10n.onboardingLastFmApiKeyLabel,
+            ),
           ),
           Wrap(
             spacing: 8,
             children: [
               FilledButton.tonal(
                 onPressed: _lastFmBusy ? null : _saveLastFm,
-                child: Text(_lastFmBusy ? 'Validating…' : 'Validate key'),
+                child: Text(
+                  _lastFmBusy
+                      ? l10n.onboardingValidating
+                      : l10n.onboardingLastFmValidateKey,
+                ),
               ),
               TextButton(
                 onPressed: () => launchUrl(
                   Uri.parse('https://www.last.fm/api/accounts'),
                   mode: LaunchMode.externalApplication,
                 ),
-                child: const Text('Get API key'),
+                child: Text(l10n.onboardingLastFmGetApiKey),
               ),
             ],
           ),

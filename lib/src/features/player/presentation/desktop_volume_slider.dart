@@ -192,12 +192,12 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
                               ),
                               child: Text(
                                 '$percent%',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.onInverseSurface,
-                                  height: 1.2,
-                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: colors.onInverseSurface,
+                                      height: 1.2,
+                                    ),
                               ),
                             ),
                           ),

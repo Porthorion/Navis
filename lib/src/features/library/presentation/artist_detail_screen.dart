@@ -24,10 +24,13 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_sectio
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/common_widgets/artist_playback_action.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
   const ArtistDetailScreen({required this.artistId, super.key});
@@ -192,50 +195,32 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   // ── Play / Shuffle buttons ────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        FilledButton.icon(
-                          key: const ValueKey('artist-play'),
-                          onPressed: () => unawaited(
-                            startArtistPlayback(
-                              ProviderScope.containerOf(
-                                context,
-                                listen: false,
-                              ),
-                              widget.artistId,
-                              ArtistPlaybackAction.play,
-                            ),
-                          ),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: Text(l10n.albumDetailPlayAction),
+                    child: EntityActionBar(
+                      playKey: const ValueKey('artist-play'),
+                      shuffleKey: const ValueKey('artist-shuffle'),
+                      onPlay: () => unawaited(
+                        startArtistPlayback(
+                          ProviderScope.containerOf(context, listen: false),
+                          widget.artistId,
+                          ArtistPlaybackAction.play,
                         ),
-                        FilledButton.tonalIcon(
-                          key: const ValueKey('artist-shuffle'),
-                          onPressed: () => unawaited(
-                            startArtistPlayback(
-                              ProviderScope.containerOf(
-                                context,
-                                listen: false,
-                              ),
-                              widget.artistId,
-                              ArtistPlaybackAction.shuffle,
-                            ),
-                          ),
-                          icon: const Icon(Icons.shuffle, size: 18),
-                          label: Text(l10n.albumDetailShuffleAction),
+                      ),
+                      onShuffle: () => unawaited(
+                        startArtistPlayback(
+                          ProviderScope.containerOf(context, listen: false),
+                          widget.artistId,
+                          ArtistPlaybackAction.shuffle,
                         ),
-                        FilledButton.tonalIcon(
+                      ),
+                      secondary: <Widget>[
+                        // Repeats the app-bar menu within thumb reach on
+                        // phones.
+                        EntitySecondaryAction(
+                          icon: const Icon(Icons.more_horiz),
+                          label: l10n.actionMore,
                           onPressed: () => unawaited(
-                            showArtistContextMenu(
-                              context,
-                              ref,
-                              artistData.id,
-                            ),
+                            showArtistContextMenu(context, ref, artistData.id),
                           ),
-                          icon: const Icon(Icons.more_horiz, size: 18),
-                          label: Text(l10n.actionMore),
                         ),
                       ],
                     ),
@@ -529,7 +514,7 @@ class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NavisRadius.smAll,
       ),
       child: SizedBox(height: height, width: width),
     );
@@ -680,8 +665,10 @@ class _ArtistImageHeader extends StatelessWidget {
                     IconButton(
                       icon: Icon(
                         isStarred ? Icons.favorite : Icons.favorite_border,
+                        // The heart sits on the darkened artist image in
+                        // every theme; fill, not colour, shows the state.
                         color: isStarred
-                            ? Colors.red[300]
+                            ? Colors.white
                             : Colors.white.withValues(alpha: 0.8),
                         size: 26,
                       ),
@@ -817,12 +804,7 @@ class _ArtistInfoSection extends StatelessWidget {
         children: <Widget>[
           if (info.biography != null &&
               info.biography!.trim().isNotEmpty) ...<Widget>[
-            Text(
-              bioTitle,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            NavisSectionHeader(title: bioTitle),
             const SizedBox(height: 10),
             Text(
               info.biography!,
@@ -869,9 +851,9 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
           child: Material(
             color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NavisRadius.smAll,
             child: InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NavisRadius.smAll,
               onTap: () => NavService.openArtistTopTracksPlaylist(
                 context,
                 ref,
@@ -927,11 +909,7 @@ class _ArtistAlbumSection extends ConsumerWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            child: NavisSectionHeader(title: title),
           ),
         ),
         ResponsiveContentSliverGrid(
@@ -998,12 +976,7 @@ class _SimilarArtistsSection extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: NavisSectionHeader(title: title),
           ),
           const SizedBox(height: 8),
           LayoutBuilder(
@@ -1053,7 +1026,7 @@ class _SimilarArtistCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: NavisRadius.mdAll,
       onTap: () => NavService.openArtistDetail(context, ref, artist.id),
       onLongPress: () => unawaited(
         showArtistContextMenu(context, ref, artist.id),

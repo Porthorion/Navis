@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 enum RemoteSourceIndicatorVariant { artwork, compactArtwork, inline, chip }
 
@@ -163,7 +164,7 @@ class _ArtworkIndicator extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.90),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: NavisRadius.pillAll,
         border: Border.all(
           color: colors.outlineVariant.withValues(alpha: 0.72),
         ),
@@ -265,7 +266,7 @@ class _ChipIndicator extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: NavisRadius.pillAll,
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Padding(

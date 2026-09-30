@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Default seed used when no explicit color has been saved.
 const Color defaultColorSchemeSeedColor = Colors.white;
@@ -119,17 +119,7 @@ ThemeData buildLightTheme(Color seedColor) {
     // and interactive roles sufficiently dark against light surfaces.
     dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
   );
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: colorScheme,
-    extensions: <ThemeExtension<dynamic>>[
-      DesktopTokens.defaults,
-      NavisAccentColors.fromScheme(
-        source: seedColor,
-        colorScheme: colorScheme,
-      ),
-    ],
-  );
+  return _buildNavisTheme(colorScheme, seedColor);
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
@@ -139,18 +129,7 @@ ThemeData buildDarkTheme(Color seedColor) {
     brightness: Brightness.dark,
     dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
   );
-  return ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: colorScheme,
-    extensions: <ThemeExtension<dynamic>>[
-      DesktopTokens.defaults,
-      NavisAccentColors.fromScheme(
-        source: seedColor,
-        colorScheme: colorScheme,
-      ),
-    ],
-  );
+  return _buildNavisTheme(colorScheme, seedColor);
 }
 
 // OLED surface constants – extracted for consistency.
@@ -178,29 +157,131 @@ ThemeData buildOledTheme(Color seedColor) {
     // Ensure "on" colors for container variants stay readable
     onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
   );
+  return _buildNavisTheme(colorScheme, seedColor, oled: true);
+}
+
+/// Bundled UI typeface (see `assets/fonts/`).
+const String navisFontFamily = 'Inter';
+
+const List<FontFeature> _tabularFigures = <FontFeature>[
+  FontFeature.tabularFigures(),
+];
+
+/// Weight and tracking adjustments applied on top of the Material 3 type
+/// scale.
+///
+/// Sizes and line heights stay at the Material values so layouts and
+/// mixed-script lines keep their metrics. Material's positive tracking was
+/// tuned for Roboto and reads loose in Inter, so it is tightened here. Large
+/// sizes use negative tracking and heavier weights for display headings.
+/// Small styles, which carry durations and counts, use tabular figures so
+/// numbers do not jitter as they change.
+const TextTheme _navisTextTheme = TextTheme(
+  displayLarge: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -1.2),
+  displayMedium: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.9),
+  displaySmall: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.6),
+  headlineLarge: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+  headlineMedium: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+  headlineSmall: TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.3),
+  titleLarge: TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.2),
+  titleMedium: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0),
+  titleSmall: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0),
+  bodyLarge: TextStyle(letterSpacing: 0),
+  bodyMedium: TextStyle(letterSpacing: 0),
+  bodySmall: TextStyle(letterSpacing: 0.1, fontFeatures: _tabularFigures),
+  labelLarge: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.1),
+  labelMedium: TextStyle(
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.2,
+    fontFeatures: _tabularFigures,
+  ),
+  labelSmall: TextStyle(
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.3,
+    fontFeatures: _tabularFigures,
+  ),
+);
+
+/// Shared theme construction for every scheme.
+///
+/// The public builders only choose a [ColorScheme]; typography, component
+/// themes and extensions are defined once here so light, dark and OLED
+/// cannot drift apart.
+ThemeData _buildNavisTheme(
+  ColorScheme colorScheme,
+  Color seedColor, {
+  bool oled = false,
+}) {
+  // Outlines on secondary controls use the softer variant role so they
+  // separate controls without competing with filled primary actions.
+  final softOutline = BorderSide(color: colorScheme.outlineVariant);
+  final disabledOutline = BorderSide(
+    color: colorScheme.onSurface.withValues(alpha: 0.12),
+  );
   return ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: colorScheme.brightness,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: Colors.black,
-    cardColor: _oledContainer,
-    dialogTheme: const DialogThemeData(backgroundColor: _oledContainer),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.black,
-      surfaceTintColor: Colors.transparent,
+    fontFamily: navisFontFamily,
+    textTheme: _navisTextTheme,
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: ButtonStyle(
+        side: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? disabledOutline
+              : softOutline,
+        ),
+      ),
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.black,
+    chipTheme: ChipThemeData(
+      shape: const StadiumBorder(),
+      side: WidgetStateBorderSide.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const BorderSide(color: Colors.transparent);
+        }
+        return states.contains(WidgetState.disabled)
+            ? disabledOutline
+            : softOutline;
+      }),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
-      backgroundColor: Colors.black,
-      surfaceTintColor: Colors.transparent,
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: oled ? _oledContainer : colorScheme.surfaceContainerLow,
+      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: _oledContainer,
+    popupMenuTheme: const PopupMenuThemeData(
+      shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
     ),
+    inputDecorationTheme: const InputDecorationTheme(
+      // Only the base border is themed: a themed enabled/focused border
+      // would override fields that deliberately pass InputBorder.none.
+      border: OutlineInputBorder(borderRadius: NavisRadius.mdAll),
+    ),
+    scaffoldBackgroundColor: oled ? Colors.black : null,
+    cardColor: oled ? _oledContainer : null,
+    dialogTheme: oled
+        ? const DialogThemeData(backgroundColor: _oledContainer)
+        : null,
+    appBarTheme: oled
+        ? const AppBarTheme(
+            backgroundColor: Colors.black,
+            surfaceTintColor: Colors.transparent,
+          )
+        : null,
+    bottomNavigationBarTheme: oled
+        ? const BottomNavigationBarThemeData(backgroundColor: Colors.black)
+        : null,
+    navigationBarTheme: oled
+        ? const NavigationBarThemeData(
+            backgroundColor: Colors.black,
+            surfaceTintColor: Colors.transparent,
+          )
+        : null,
+    bottomSheetTheme: oled
+        ? const BottomSheetThemeData(backgroundColor: _oledContainer)
+        : null,
     extensions: <ThemeExtension<dynamic>>[
-      DesktopTokens.defaults,
+      NavisTokens.forScheme(colorScheme, oled: oled),
       NavisAccentColors.fromScheme(
         source: seedColor,
         colorScheme: colorScheme,

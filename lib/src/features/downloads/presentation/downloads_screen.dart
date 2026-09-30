@@ -25,6 +25,7 @@ import 'package:navis/src/features/downloads/data/permanent_download_import_serv
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -1336,7 +1337,7 @@ class _ManualMatchingCount extends StatelessWidget {
         color: enabled
             ? colors.secondaryContainer
             : colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: NavisRadius.pillAll,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1397,15 +1398,15 @@ class _DownloadsSearchBar extends StatelessWidget {
           filled: true,
           fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: NavisRadius.mdAll,
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: NavisRadius.mdAll,
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: NavisRadius.mdAll,
             borderSide: BorderSide.none,
           ),
           contentPadding: EdgeInsets.symmetric(

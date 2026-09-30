@@ -65,7 +65,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Added Pitch follows speed for natural, record-player-style pitch changes as speed changes; turning it off keeps the exact current pitch, and existing precise settings and presets retain their sound until edited',
+        'Added Pitch Lock for natural, record-player-style pitch changes as speed changes; turning it off keeps the exact current pitch, and existing precise settings and presets retain their sound until edited',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -76,7 +76,7 @@ const List<ChangelogVersion> changelogs = [
         'Speed and pitch adjustments stay active across queue changes, playback recovery, crossfades and app restarts, with limits and feedback based on what the active audio backend supports',
       ),
       ChangelogEntry(
-        'Speed & Pitch and the Equalizer are one tap away in the player: Equalizer sits beside Shuffle (beside Instant Mix on the desktop bar) and a Speed button beside Repeat shows the current speed, such as 1.25×. Each opens a compact panel with its title, summary and main action always in view, as a sheet on phones or a popover pointing at the button on desktop; press the button again to close it',
+        'Speed & Pitch and the Equalizer are one tap away in the player: Equalizer sits beside Instant Mix and a Speed button beside Repeat shows the current speed, such as 1.25×. Each opens a compact panel with its title, summary and main action always in view, as a sheet on phones or a popover pointing at the button on desktop; press the button again to close it',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -281,6 +281,50 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Android Auto Instant Radio now uses the same personal radio as Home',
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Navis now ships its own typeface, Inter, so text looks the same on Android, iOS, Linux, Windows and macOS, with a consistent type scale for headings and steady, evenly spaced numbers in durations and counts',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Buttons, chips, cards, menus and text fields share one visual language: secondary buttons and filter chips use softer rounded outlines, cards sit flat on tinted surfaces, and text fields and dropdowns use the same rounded outline everywhere, including first-run setup. The phone search field is now a filled search bar with a search icon',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Album, playlist, artist and Liked Songs actions follow one hierarchy on every screen: a filled Play, a tonal Shuffle and outlined secondary actions, with icon-sized versions on phones. Album headers now read like "2026 • 16 songs • 52 min", keep Like, Download, Rating and a single Filter button together, and show a badge when the track list is filtered. Section headings share one style across Home, Library, Search and artist pages',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'On desktop, album cards show a Play button on hover, song-row actions stay quiet until you point at or focus a row (liked and downloaded songs keep their icons), content stays centred on very wide windows, and album track lists no longer repeat the album name in every row. A failed library sync now shows a calm, dismissible notice instead of a bright red bar. Now Playing on phones shows dots under the details line so it is clear that tapping it reveals more, and the artist and album links are quieter',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Instant Mix now sits in the transport on phones as well as desktop, so Play stays centred between matching controls. Shuffle moved to the queue header because it reorders the queue, and the Queue button shows a small shuffle badge while shuffle is on',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Corner rounding, success colours and small text now come from shared design tokens, so panels, cards and confirmations look the same everywhere. Artist lists use flat, denser rows that match song lists',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Speed & Pitch rulers now glide to values picked with chips, presets, Reset or the − and + buttons, ticking as they pass each line like a swipe. The speed chips are 0.5× to 1.5× with 1× centred, the pitch toggle is now Pitch Lock ("Match pitch to speed."), and setting titles and buttons use consistent Title Case. Album headers show the artist on its own line with the year, song count and length beneath',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Missing album artwork now shows a softly shaded tile with an icon sized to the cover, so grids, headers and the Mini Player no longer look broken where art is absent',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'On wide Home layouts the You Might Like arrows sit beside the cover strip instead of covering the track list\'s menus',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Common playback speeds stay on one row in the Speed & Pitch popover and phone sheet',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist album counts read "1 album", the Liked Artists heading and album Rate label are fully localizable, the search clear button is labelled Clear search, and first-run setup text can now be translated',
+        type: ChangelogEntryType.fix,
       ),
     ],
   ),

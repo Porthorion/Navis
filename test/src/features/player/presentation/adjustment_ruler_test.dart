@@ -205,4 +205,95 @@ void main() {
       expect(value, 1);
     },
   );
+
+  group('external value changes glide like a swipe', () {
+    Future<(List<Object?>, double Function(), void Function(double))> pumpRuler(
+      WidgetTester tester, {
+      bool reduceMotion = false,
+    }) async {
+      final haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      var value = 1.0;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: reduceMotion),
+            child: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  update = setState;
+                  return AdjustmentRuler(
+                    value: value,
+                    label: 'Speed',
+                    valueLabel: value.toStringAsFixed(2),
+                    resetValue: 1,
+                    onChanged: (next) => setState(() => value = next),
+                    onChangeEnd: () {},
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      double visualValue() {
+        final paint = tester.widget<CustomPaint>(
+          find.descendant(
+            of: find.byType(AdjustmentRuler),
+            matching: find.byType(CustomPaint),
+          ),
+        );
+        return (paint.painter! as dynamic).value as double;
+      }
+
+      return (haptics, visualValue, (double v) => update(() => value = v));
+    }
+
+    testWidgets('a chip jump sweeps across the scale and ticks', (
+      tester,
+    ) async {
+      final (haptics, visualValue, setValue) = await pumpRuler(tester);
+      setValue(1.5);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(visualValue(), greaterThan(1));
+      expect(visualValue(), lessThan(1.5));
+      // Real frames arrive about every 16 ms; each reports the lines it
+      // crossed, just like successive drag updates.
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+      expect(visualValue(), 1.5);
+      expect(haptics, contains('HapticFeedbackType.lightImpact'));
+      expect(haptics, contains('HapticFeedbackType.selectionClick'));
+    });
+
+    testWidgets('reduced motion jumps without haptics', (tester) async {
+      final (haptics, visualValue, setValue) = await pumpRuler(
+        tester,
+        reduceMotion: true,
+      );
+      setValue(1.5);
+      await tester.pump();
+      expect(visualValue(), 1.5);
+      expect(haptics, isEmpty);
+    });
+  });
 }

@@ -527,9 +527,7 @@ class _LoginHeroSection extends StatelessWidget {
         SizedBox(height: compact ? 8 : 12),
         Text(
           'Navis',
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineMedium,
           textAlign: TextAlign.center,
         ),
         if (!compact && subtitle != null) ...<Widget>[

@@ -339,7 +339,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
             ? Material(
                 color: Theme.of(context).colorScheme.surface,
                 elevation: 14,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: NavisRadius.xlAll,
                 clipBehavior: Clip.antiAlias,
                 child: queueContent,
               )

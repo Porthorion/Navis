@@ -14,6 +14,7 @@ import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwo
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class PlaylistsScreen extends ConsumerStatefulWidget {
   const PlaylistsScreen({super.key});
@@ -377,7 +378,7 @@ class _PlaylistTile extends StatelessWidget {
         size: kCoverArtStandardSize,
         width: 48,
         height: 48,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NavisRadius.xsAll,
         placeholderIcon: Icons.queue_music,
       ),
       title: Text(

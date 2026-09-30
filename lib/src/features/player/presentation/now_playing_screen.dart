@@ -26,6 +26,7 @@ import 'package:navis/src/features/player/presentation/normal_playback_metadata_
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
+import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
@@ -45,6 +46,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
@@ -2746,7 +2748,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             .clamp(170.0, 340.0);
         final lyricsPane = DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: NavisRadius.xlAll,
             border: Border.all(
               color: colorScheme.outlineVariant.withValues(alpha: 0.4),
             ),
@@ -3064,7 +3066,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: NavisRadius.xlAll,
                           border: Border.all(
                             color: colorScheme.outlineVariant.withValues(
                               alpha: 0.5,

@@ -17,6 +17,7 @@ import 'package:navis/src/features/settings/presentation/listenbrainz_connection
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
@@ -790,7 +791,10 @@ class _LastFmCard extends StatelessWidget {
                   ),
                 ),
                 if (apiKeyValid)
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
+                  Icon(
+                    Icons.check_circle,
+                    color: NavisTokens.of(context).success,
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -799,7 +803,7 @@ class _LastFmCard extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: cs.secondaryContainer,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NavisRadius.smAll,
                 ),
                 padding: const EdgeInsets.all(12),
                 child: Row(
@@ -842,17 +846,19 @@ class _LastFmCard extends StatelessWidget {
                 decoration: InputDecoration(
                   labelText: l10n.configurationLastFmApiKeyLabel,
                   hintText: l10n.configurationLastFmApiKeyHint,
-                  border: const OutlineInputBorder(),
                   enabledBorder: apiKeySuccess != null && apiKeyError == null
                       ? OutlineInputBorder(
+                          borderRadius: NavisRadius.mdAll,
                           borderSide: BorderSide(
-                            color: Colors.green.shade700,
+                            color: NavisTokens.of(context).success,
                           ),
                         )
                       : null,
                   errorText: apiKeyError,
                   helperText: apiKeyError == null ? apiKeySuccess : null,
-                  helperStyle: TextStyle(color: Colors.green.shade700),
+                  helperStyle: TextStyle(
+                    color: NavisTokens.of(context).success,
+                  ),
                   prefixIcon: const Icon(Icons.key_outlined),
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -971,15 +977,17 @@ class _ListenBrainzCard extends StatelessWidget {
               obscureText: obscureToken,
               decoration: InputDecoration(
                 labelText: l10n.configurationListenBrainzTokenLabel,
-                border: const OutlineInputBorder(),
                 enabledBorder: successText != null && errorText == null
                     ? OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.green.shade700),
+                        borderRadius: NavisRadius.mdAll,
+                        borderSide: BorderSide(
+                          color: NavisTokens.of(context).success,
+                        ),
                       )
                     : null,
                 errorText: errorText,
                 helperText: errorText == null ? successText : null,
-                helperStyle: TextStyle(color: Colors.green.shade700),
+                helperStyle: TextStyle(color: NavisTokens.of(context).success),
                 prefixIcon: const Icon(Icons.token_outlined),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,

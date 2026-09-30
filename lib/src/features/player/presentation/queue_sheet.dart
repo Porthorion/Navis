@@ -9,10 +9,12 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
 /// by the shell overlay in `app_shell.dart`; this widget has no animation
@@ -145,7 +147,9 @@ class QueueSheet extends ConsumerWidget {
         color: Theme.of(context).colorScheme.surface,
         elevation: 12,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(NavisRadius.lg),
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: body,
@@ -215,6 +219,7 @@ class _QueueSheetHeader extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
+              if (queueIds.isNotEmpty) const QueueShuffleToggle(),
               if (queueIds.isNotEmpty)
                 IconButton(
                   icon: const Icon(Icons.playlist_add),
@@ -438,7 +443,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                   size: kCoverArtStandardSize,
                   width: 48,
                   height: 48,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: NavisRadius.xsAll,
                   isExternalSource: song.isExternal,
                   remoteSourceIndicatorPolicy:
                       RemoteSourceIndicatorPolicy.hidden,

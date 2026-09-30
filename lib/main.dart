@@ -32,8 +32,16 @@ import 'package:path/path.dart' as path;
 Future<void> navisBackgroundSyncEntrypoint() =>
     android_background_sync.navisBackgroundSyncEntrypoint();
 
+/// Bundled fonts are not Dart packages, so their licences must be registered
+/// explicitly to appear on the licence page.
+Stream<LicenseEntry> _bundledFontLicenses() async* {
+  final text = await rootBundle.loadString('assets/fonts/OFL.txt');
+  yield LicenseEntryWithLineBreaks(const <String>['Inter font'], text);
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(_bundledFontLicenses);
 
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {

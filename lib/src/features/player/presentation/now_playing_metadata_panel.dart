@@ -192,9 +192,7 @@ class _TrackInfo extends StatelessWidget {
                     link.name,
                     style: textTheme.bodyLarge?.copyWith(
                       fontSize: compact ? 15 : null,
-                      color: link.onTap != null
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -209,9 +207,7 @@ class _TrackInfo extends StatelessWidget {
               artist,
               style: textTheme.bodyLarge?.copyWith(
                 fontSize: compact ? 15 : null,
-                color: onArtistTap != null
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
+                color: colorScheme.onSurfaceVariant,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -226,9 +222,7 @@ class _TrackInfo extends StatelessWidget {
             album,
             style: textTheme.bodyMedium?.copyWith(
               fontSize: compact ? 13 : null,
-              color: onAlbumTap != null
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
+              color: colorScheme.onSurfaceVariant,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -292,7 +286,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: NavisRadius.xlAll,
         onTap: () => setState(() {
           _pageIndex = (_pageIndex + 1) % pages.length;
           _showInlineRatingEditor = false;
@@ -381,6 +375,33 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                   ],
                 ),
               ),
+              if (pages.length > 1) ...<Widget>[
+                const SizedBox(height: 6),
+                // Shows that tapping cycles through more details.
+                ExcludeSemantics(
+                  child: Row(
+                    key: const ValueKey<String>('nowPlayingInfoPageDots'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      for (var i = 0; i < pages.length; i++)
+                        AnimatedContainer(
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          width: i == activeIndex ? 12 : 4,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            borderRadius: NavisRadius.pillAll,
+                            color: colors.onSurfaceVariant.withValues(
+                              alpha: i == activeIndex ? 0.8 : 0.3,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

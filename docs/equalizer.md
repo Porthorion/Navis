@@ -2,8 +2,8 @@
 
 Navis has a dedicated Equalizer page at `/settings/equalizer`, reachable from
 Settings, Playback, and the player's compact equalizer surfaces. The Equalizer
-button beside Shuffle in the Now Playing transport (beside Instant Mix on the
-desktop player bar) and the compact desktop Mini Player menu open a mini
+button beside Instant Mix in the Now Playing transport and desktop player bar,
+and the compact desktop Mini Player menu open a mini
 equalizer: on/off, a read-only response graph and a preset dropdown (your
 presets, imported headphone profiles and built-ins), with **Open Equalizer** (or
 a tap on the graph) for editing. The Now Playing
@@ -50,13 +50,13 @@ inactive control in this release.
   starts flat. Returning to a mode or preset resumes its retained work, including
   after restart. Master enablement is independent of draft comparisons.
 - Modified presets retain their name with `*`. **Save changes** commits the active
-  mode to a user preset; built-ins and unnamed work use **Save as new**. Other mode
+  mode to a user preset; built-ins and unnamed work use **Save as New**. Other mode
   drafts remain available. **Discard changes** explicitly clears all mode drafts
   for that identity and restores the saved preset. An unnamed discard returns to
   Flat. Custom is listed only while an unnamed workspace exists and is selectable.
 - Flat, Bass boost, and Vocal clarity are immutable built-ins. Names are unique
   ignoring case. Rename preserves drafts. Deletion with drafts requires saving
-  all variants under a new identity or explicitly choosing **Discard and delete**.
+  all variants under a new identity or explicitly choosing **Discard and Delete**.
   Deletion otherwise retains the current sound as Custom and offers library Undo.
 - Selecting a preset keeps master enable/bypass unchanged. An import preview
   offers **Save** without affecting playback, or **Save and enable** explicitly.
@@ -89,7 +89,7 @@ The page has four regions, each with one job:
   Wider/Narrower logarithmic Q slider, filter type, band on/off, and Add/Delete
   band; fixed modes offer *Edit in Advanced*.
 - **Action bar** — always one row: Undo and Redo, then Discard and Save changes
-  (user presets) or Save as new (built-ins and unnamed work). While a number is
+  (user presets) or Save as New (built-ins and unnamed work). While a number is
   being entered it shows only Cancel and Done. Labels shorten to icons with
   tooltips when space is narrow.
 
@@ -191,7 +191,7 @@ mini graph, band dropdown, and duplicated preamp controls have been replaced.
 
 The preset library lists unsaved Custom work, your presets, and built-ins in
 separate groups, with AutoEQ search as its first action and file/paste import
-beside Save as new. Output settings separate the preamp you set, automatic
+beside Save as New. Output settings separate the preamp you set, automatic
 attenuation, and the resulting effective output gain.
 
 ## DSP and gain

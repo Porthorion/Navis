@@ -233,7 +233,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Server connection, account, and external services.';
 
   @override
-  String get settingsCacheTitle => 'Device storage & cache';
+  String get settingsCacheTitle => 'Device Storage & Cache';
 
   @override
   String get settingsCacheSubtitle =>
@@ -787,7 +787,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsRepairMeteredConfirmAction => 'Repair on Mobile Data';
 
   @override
-  String get cacheSettingsResetLibraryCache => 'Reset caches & rebuild library';
+  String get cacheSettingsResetLibraryCache => 'Reset Caches & Rebuild Library';
 
   @override
   String get cacheSettingsResetLibraryCacheDescription =>
@@ -795,7 +795,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSettingsResetLibraryCacheConfirmTitle =>
-      'Reset caches & rebuild library?';
+      'Reset Caches & Rebuild Library?';
 
   @override
   String get cacheSettingsResetLibraryCacheConfirmBody =>
@@ -803,7 +803,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSettingsResetLibraryCacheConfirmAction =>
-      'Reset caches & rebuild';
+      'Reset Caches & Rebuild';
 
   @override
   String get cacheSettingsResetLibraryCacheMeteredConfirmTitle =>
@@ -875,7 +875,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Preload tracks to reduce gaps between songs.';
 
   @override
-  String get playbackSettingsLegacyInstantMixTitle => 'Server mix';
+  String get playbackSettingsLegacyInstantMixTitle => 'Server Mix';
 
   @override
   String get playbackSettingsLegacyInstantMixSubtitle =>
@@ -886,11 +886,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsLastFmSameVibesSubtitle =>
-      'Match Last.fm recommendations to your library. Turn on for Server mix.';
+      'Match Last.fm recommendations to your library. Turn on for Server Mix.';
 
   @override
   String get playbackSettingsLegacyInstantMixLocked =>
-      'This build has no Last.fm API key, so Server mix is required.';
+      'This build has no Last.fm API key, so Server Mix is required.';
 
   @override
   String get playbackSettingsShowRadioPageTitle => 'Show Radio Page';
@@ -1617,6 +1617,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryArtistsErrorTitle => 'Could Not Load Artists';
 
   @override
+  String get libraryLikedArtistsSectionTitle => 'Liked Artists';
+
+  @override
   String get libraryLikedAlbumsSectionTitle => 'Liked Albums';
 
   @override
@@ -1802,7 +1805,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String artistCardAlbumCount(int count) {
-    return '$count albums';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count albums',
+      one: '1 album',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2135,6 +2144,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingShuffleOff => 'Shuffle off';
 
   @override
+  String queueShuffleOnStatus(String queue) {
+    return '$queue, shuffle on';
+  }
+
+  @override
   String get nowPlayingPrevious => 'Previous';
 
   @override
@@ -2302,6 +2316,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ratingNotLiked => 'Not liked';
 
   @override
+  String get ratingActionLabel => 'Rate';
+
+  @override
   String ratingValueShort(int rating) {
     return '$rating/5';
   }
@@ -2367,6 +2384,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchClearRecent => 'Clear';
 
   @override
+  String get searchClearQuery => 'Clear search';
+
+  @override
   String get searchNoResults => 'No Results Found';
 
   @override
@@ -2423,6 +2443,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playlistsLoadError => 'Failed to load playlists';
+
+  @override
+  String entityTotalDurationMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String entityTotalDurationHours(int hours, int minutes) {
+    return '$hours hr $minutes min';
+  }
 
   @override
   String playlistsSongCount(int count) {
@@ -3849,7 +3879,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailableReviewLoadError => 'Could not load the review list.';
 
   @override
-  String get unavailableReviewUnknownTitle => 'Unknown item';
+  String get unavailableReviewUnknownTitle => 'Unknown Item';
 
   @override
   String get unavailableReviewReasonMissing =>
@@ -3886,7 +3916,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No matching item found in the current library.';
 
   @override
-  String get unavailableReviewRelinkTitle => 'Relink item';
+  String get unavailableReviewRelinkTitle => 'Relink Item';
 
   @override
   String get unavailableReviewRelinkOld => 'Unavailable item';
@@ -3956,7 +3986,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get appearanceArtworkSizeLabel => 'Artwork size';
+  String get appearanceArtworkSizeLabel => 'Artwork Size';
 
   @override
   String get appearanceArtworkSizeSub =>
@@ -4019,7 +4049,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackPresetCustom => 'Custom';
 
   @override
-  String get playbackPresetSaveNew => 'Save as new';
+  String get playbackPresetSaveNew => 'Save as New';
 
   @override
   String get playbackPresetName => 'Preset name';
@@ -4058,7 +4088,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackAdjustmentRetry => 'Retry';
 
   @override
-  String get playbackAdjustmentResetBoth => 'Reset speed & pitch';
+  String get playbackAdjustmentResetBoth => 'Reset Speed & Pitch';
 
   @override
   String get playbackAdjustmentCancel => 'Cancel';
@@ -4087,11 +4117,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playbackPitchLock => 'Pitch follows speed';
+  String get playbackPitchLock => 'Pitch Lock';
 
   @override
-  String get playbackPitchLockSubtitle =>
-      'Faster sounds higher, like a record player.';
+  String get playbackPitchLockSubtitle => 'Match pitch to speed.';
 
   @override
   String get playbackPitchFollowsSpeed => 'Follows playback speed';
@@ -4238,7 +4267,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqBuiltIn => 'Built in';
 
   @override
-  String get eqSaveAs => 'Save as new';
+  String get eqSaveAs => 'Save as New';
 
   @override
   String get eqUpdate => 'Update preset';
@@ -4377,7 +4406,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eqNoFilters => 'No filters. Add one to shape the curve.';
 
   @override
-  String get eqModeChangeTitle => 'Start a new flat curve?';
+  String get eqModeChangeTitle => 'Start a New Flat Curve?';
 
   @override
   String get eqModeChangeDescription =>
@@ -4501,7 +4530,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Discard all mode drafts for this preset and restore its saved settings?';
 
   @override
-  String get eqDiscardDelete => 'Discard and delete';
+  String get eqDiscardDelete => 'Discard and Delete';
 
   @override
   String get eqDeleteDraftDescription =>
@@ -4692,4 +4721,212 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eqCloseLibrary => 'Close presets';
+
+  @override
+  String get onboardingSaveFailed => 'Could not save setup. Try again.';
+
+  @override
+  String get onboardingSkipDialogTitle => 'Skip Customization?';
+
+  @override
+  String get onboardingSkipDialogMessage =>
+      'Your current settings will be kept. You can reopen this from Settings at any time.';
+
+  @override
+  String get onboardingKeepCustomizing => 'Keep customizing';
+
+  @override
+  String get onboardingSkipSetup => 'Skip setup';
+
+  @override
+  String get onboardingTitle => 'Make Navis Yours';
+
+  @override
+  String get onboardingReviewTitle => 'Customize Navis';
+
+  @override
+  String onboardingStepProgress(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String onboardingStepProgressSemantics(int current, int total) {
+    return 'Customization step $current of $total';
+  }
+
+  @override
+  String get onboardingBack => 'Back';
+
+  @override
+  String get onboardingContinue => 'Continue';
+
+  @override
+  String get onboardingFinish => 'Finish';
+
+  @override
+  String get onboardingScrollForMore => 'Scroll for more options';
+
+  @override
+  String get onboardingAppearanceTitle => 'Choose Your Look';
+
+  @override
+  String get onboardingAppearanceDescription =>
+      'Pick a theme and accent. You can change both later in Appearance settings.';
+
+  @override
+  String get onboardingAccentColor => 'Accent color';
+
+  @override
+  String get onboardingAppearanceColorPickerHint =>
+      'This is the full color picker from Appearance settings. You can revisit it there at any time.';
+
+  @override
+  String get onboardingListeningTitle => 'Tune Your Listening';
+
+  @override
+  String get onboardingListeningDescription =>
+      'Choose stream quality, formats, local playback priority, and track transitions.';
+
+  @override
+  String get onboardingWifiQuality => 'Wi-Fi quality';
+
+  @override
+  String get onboardingWifiFormat => 'Wi-Fi format';
+
+  @override
+  String get onboardingMobileQuality => 'Mobile quality';
+
+  @override
+  String get onboardingMobileFormat => 'Mobile format';
+
+  @override
+  String get onboardingPreferLocalTitle => 'Prefer Downloaded or Cached Audio';
+
+  @override
+  String get onboardingPreferLocalSubtitle =>
+      'Use a complete local copy before streaming when one is available.';
+
+  @override
+  String get onboardingScrobbleTitle => 'Scrobble to Your Music Server';
+
+  @override
+  String get onboardingScrobbleSubtitle =>
+      'Report now-playing and completed plays to your Subsonic server.';
+
+  @override
+  String get onboardingGaplessTitle => 'Gapless Playback';
+
+  @override
+  String get onboardingGaplessSubtitle =>
+      'Move between tracks without an added pause.';
+
+  @override
+  String get onboardingCrossfadeTitle => 'Crossfade';
+
+  @override
+  String get onboardingCrossfadeSubtitle =>
+      'Blend the end of a track into the next one.';
+
+  @override
+  String onboardingCrossfadeDuration(int seconds) {
+    String _temp0 = intl.Intl.pluralLogic(
+      seconds,
+      locale: localeName,
+      other: 'Crossfade duration: $seconds seconds',
+      one: 'Crossfade duration: 1 second',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String onboardingCrossfadeSecondsShort(int seconds) {
+    return '${seconds}s';
+  }
+
+  @override
+  String get onboardingCrossfadeType => 'Crossfade type';
+
+  @override
+  String get onboardingCrossfadeTypeSmart =>
+      'Smart — only between different albums';
+
+  @override
+  String get onboardingCrossfadeSmartDescription =>
+      'Smart avoids blending tracks from the same album.';
+
+  @override
+  String get onboardingCrossfadeNormalDescription =>
+      'Normal blends every eligible track transition.';
+
+  @override
+  String get onboardingQueueTitle => 'Queue and Downloads';
+
+  @override
+  String get onboardingQueueDescription =>
+      'Control what happens when you play a track and when downloads can run.';
+
+  @override
+  String get onboardingAlbumQueueTitle => 'Queue Whole Albums';
+
+  @override
+  String get onboardingAlbumQueueSubtitle =>
+      'Playing a track from an album queues the album from that track.';
+
+  @override
+  String get onboardingLikedQueueTitle => 'Queue All Liked Songs';
+
+  @override
+  String get onboardingLikedQueueSubtitle =>
+      'On the Liked page, start from the selected song.';
+
+  @override
+  String get onboardingLikedQueueDisabledSubtitle =>
+      'Enable album queueing to use this option.';
+
+  @override
+  String get onboardingWifiOnlyDownloadsTitle => 'Download Only on Wi-Fi';
+
+  @override
+  String get onboardingWifiOnlyDownloadsSubtitle =>
+      'Avoid downloading music over a metered connection.';
+
+  @override
+  String get onboardingServicesTitle => 'Optional Music Services';
+
+  @override
+  String get onboardingServicesDescription =>
+      'These services are optional. You can configure or remove them later in Settings.';
+
+  @override
+  String get onboardingListenBrainzDisclosure =>
+      'When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.';
+
+  @override
+  String get onboardingListenBrainzTokenLabel => 'ListenBrainz User Token';
+
+  @override
+  String get onboardingListenBrainzGetToken => 'Get a ListenBrainz user token';
+
+  @override
+  String get onboardingValidating => 'Validating…';
+
+  @override
+  String get onboardingListenBrainzValidate => 'Validate and connect';
+
+  @override
+  String get onboardingLastFmBundledDescription =>
+      'This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.';
+
+  @override
+  String get onboardingLastFmDescription =>
+      'A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.';
+
+  @override
+  String get onboardingLastFmApiKeyLabel => 'Last.fm API Key';
+
+  @override
+  String get onboardingLastFmValidateKey => 'Validate key';
+
+  @override
+  String get onboardingLastFmGetApiKey => 'Get API key';
 }

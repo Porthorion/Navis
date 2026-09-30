@@ -36,6 +36,8 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
+import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
@@ -112,7 +114,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       // The mobile data state uses a custom SliverAppBar with overlay nav buttons.
       appBar: (desktopMode || album.asData?.value == null)
           ? AppBar(
-              title: Text(l10n.albumDetailTitle),
+              // Once loaded, the header's large album title names the page.
+              title: album.asData?.value == null
+                  ? Text(l10n.albumDetailTitle)
+                  : null,
               backgroundColor: desktopMode
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
@@ -240,6 +245,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       delegate: SliverChildBuilderDelegate((context, index) {
                         if (index == 0) {
                           return AdaptiveTrackHeader(
+                            showAlbumColumn: false,
                             numberColumnExtent: 32,
                             leadingExtent: 32,
                             leadingGap: 6,
@@ -266,6 +272,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             ),
                           _SongItem(:final song) => TrackListTile(
                             song: song,
+                            showAlbumColumn: false,
                             actionExtent: desktopMode ? null : 96,
                             contentPadding: compactWideMode
                                 ? const EdgeInsetsDirectional.only(
@@ -486,7 +493,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       SizedBox(
                                         height: compactDesktop ? 8 : 10,
                                       ),
-                                      // Artist · Year · Count
+                                      // Artist, then Year · Count · Duration
                                       Wrap(
                                         crossAxisAlignment:
                                             WrapCrossAlignment.center,
@@ -507,14 +514,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                           ),
-                                          Text(
-                                            ' • ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
-                                            style: textTheme.bodyMedium
-                                                ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                ),
-                                          ),
                                           if (details.isExternal) ...<Widget>[
                                             const SizedBox(width: 8),
                                             const RemoteSourceIndicator(
@@ -525,44 +524,40 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           ],
                                         ],
                                       ),
+                                      // The summary gets its own line so a
+                                      // wrapped artist list never leaves a
+                                      // line starting with a separator.
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        entityCollectionSummary(
+                                          l10n,
+                                          year: details.year,
+                                          songCount: songs.length,
+                                          totalSeconds: _totalDurationSeconds(
+                                            songs,
+                                          ),
+                                        ),
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
                                       SizedBox(
                                         height: compactDesktop ? 16 : 20,
                                       ),
-                                      // Primary action buttons
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: <Widget>[
-                                          FilledButton.icon(
-                                            onPressed: filteredSongs.isEmpty
-                                                ? null
-                                                : () => _queueAlbum(
-                                                    filteredSongs,
-                                                    shuffle: false,
-                                                  ),
-                                            icon: const Icon(
-                                              Icons.play_arrow,
-                                              size: 20,
-                                            ),
-                                            label: Text(
-                                              l10n.albumDetailPlayAction,
-                                            ),
-                                          ),
-                                          FilledButton.tonalIcon(
-                                            onPressed: filteredSongs.isEmpty
-                                                ? null
-                                                : () => _queueAlbum(
-                                                    filteredSongs,
-                                                    shuffle: true,
-                                                  ),
-                                            icon: const Icon(
-                                              Icons.shuffle,
-                                              size: 18,
-                                            ),
-                                            label: Text(
-                                              l10n.albumDetailShuffleAction,
-                                            ),
-                                          ),
+                                      EntityActionBar(
+                                        onPlay: filteredSongs.isEmpty
+                                            ? null
+                                            : () => _queueAlbum(
+                                                filteredSongs,
+                                                shuffle: false,
+                                              ),
+                                        onShuffle: filteredSongs.isEmpty
+                                            ? null
+                                            : () => _queueAlbum(
+                                                filteredSongs,
+                                                shuffle: true,
+                                              ),
+                                        secondary: <Widget>[
                                           if (!details.isExternal)
                                             StarButton(
                                               isStarred: isStarred,
@@ -574,166 +569,28 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                               label: l10n.actionLike,
                                               starredLabel: l10n.actionLiked,
                                             ),
-                                          if (!details.isExternal &&
-                                              compactDesktop)
-                                            IconButton.outlined(
-                                              tooltip: l10n
+                                          if (!details.isExternal)
+                                            EntitySecondaryAction(
+                                              compact: compactDesktop,
+                                              icon: const Icon(
+                                                Icons.download_outlined,
+                                              ),
+                                              label: l10n
                                                   .albumDetailDownloadAction,
                                               onPressed: () => unawaited(
                                                 _downloadAlbumSongs(context),
                                               ),
-                                              icon: const Icon(
-                                                Icons.download_outlined,
-                                                size: 18,
-                                              ),
-                                            )
-                                          else if (!details.isExternal)
-                                            OutlinedButton.icon(
-                                              onPressed: () => unawaited(
-                                                _downloadAlbumSongs(context),
-                                              ),
-                                              icon: const Icon(
-                                                Icons.download_outlined,
-                                                size: 18,
-                                              ),
-                                              label: Text(
-                                                l10n.albumDetailDownloadAction,
-                                              ),
                                             ),
+                                          _RatingButton(
+                                            rating: albumRating,
+                                            loading: _isUpdatingRating,
+                                            onChanged: (next) => unawaited(
+                                              _updateAlbumRating(next),
+                                            ),
+                                          ),
+                                          _albumFilterButton(),
                                         ],
                                       ),
-                                      if (compactDesktop) ...<Widget>[
-                                        const SizedBox(height: 8),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 6,
-                                          crossAxisAlignment:
-                                              WrapCrossAlignment.center,
-                                          children: <Widget>[
-                                            _RatingButton(
-                                              rating: albumRating,
-                                              loading: _isUpdatingRating,
-                                              onChanged: (next) => unawaited(
-                                                _updateAlbumRating(next),
-                                              ),
-                                            ),
-                                            Icon(
-                                              Icons.filter_list,
-                                              size: 14,
-                                              color: colors.onSurfaceVariant,
-                                            ),
-                                            Text(
-                                              l10n.albumDetailFilterLabel,
-                                              style: textTheme.labelSmall
-                                                  ?.copyWith(
-                                                    color:
-                                                        colors.onSurfaceVariant,
-                                                  ),
-                                            ),
-                                            FilterChip(
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              label: Text(
-                                                l10n.libraryLikedOnlyFilter,
-                                              ),
-                                              avatar: Icon(
-                                                _showLikedOnly
-                                                    ? Icons.favorite
-                                                    : Icons.favorite_border,
-                                                size: 16,
-                                              ),
-                                              selected: _showLikedOnly,
-                                              onSelected: (value) => setState(
-                                                () => _showLikedOnly = value,
-                                              ),
-                                            ),
-                                            FilterChip(
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              label: Text(
-                                                l10n.libraryDownloadedOnlyFilter,
-                                              ),
-                                              avatar: Icon(
-                                                _showDownloadedOnly
-                                                    ? Icons.download_done
-                                                    : Icons.download_outlined,
-                                                size: 16,
-                                              ),
-                                              selected: _showDownloadedOnly,
-                                              onSelected: (value) => setState(
-                                                () =>
-                                                    _showDownloadedOnly = value,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ] else ...<Widget>[
-                                        const SizedBox(height: 10),
-                                        _RatingButton(
-                                          rating: albumRating,
-                                          loading: _isUpdatingRating,
-                                          onChanged: (next) => unawaited(
-                                            _updateAlbumRating(next),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          children: <Widget>[
-                                            Icon(
-                                              Icons.filter_list,
-                                              size: 14,
-                                              color: colors.onSurfaceVariant,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              l10n.albumDetailFilterLabel,
-                                              style: textTheme.labelSmall
-                                                  ?.copyWith(
-                                                    color:
-                                                        colors.onSurfaceVariant,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: <Widget>[
-                                            FilterChip(
-                                              label: Text(
-                                                l10n.libraryLikedOnlyFilter,
-                                              ),
-                                              avatar: Icon(
-                                                _showLikedOnly
-                                                    ? Icons.favorite
-                                                    : Icons.favorite_border,
-                                                size: 18,
-                                              ),
-                                              selected: _showLikedOnly,
-                                              onSelected: (value) => setState(
-                                                () => _showLikedOnly = value,
-                                              ),
-                                            ),
-                                            FilterChip(
-                                              label: Text(
-                                                l10n.libraryDownloadedOnlyFilter,
-                                              ),
-                                              avatar: Icon(
-                                                _showDownloadedOnly
-                                                    ? Icons.download_done
-                                                    : Icons.download_outlined,
-                                                size: 18,
-                                              ),
-                                              selected: _showDownloadedOnly,
-                                              onSelected: (value) => setState(
-                                                () =>
-                                                    _showDownloadedOnly = value,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ),
@@ -876,20 +733,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: <Widget>[
-                          IconButton(
-                            tooltip: l10n.albumDetailPlayAction,
-                            icon: const Icon(Icons.play_arrow),
-                            onPressed: filteredSongs.isEmpty
+                          EntityActionBar(
+                            compact: true,
+                            onPlay: filteredSongs.isEmpty
                                 ? null
                                 : () => _queueAlbum(
                                     filteredSongs,
                                     shuffle: false,
                                   ),
-                          ),
-                          IconButton(
-                            tooltip: l10n.albumDetailShuffleAction,
-                            icon: const Icon(Icons.shuffle),
-                            onPressed: filteredSongs.isEmpty
+                            onShuffle: filteredSongs.isEmpty
                                 ? null
                                 : () => _queueAlbum(
                                     filteredSongs,
@@ -911,11 +763,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ? Icons.favorite
                                   : Icons.favorite_border,
                             ),
-                            color: isStarred ? colors.error : null,
+                            color: isStarred ? colors.primary : null,
                             onPressed: _isStarring
                                 ? null
                                 : () => _toggleStar(isStarred: isStarred),
                           ),
+                          _albumFilterButton(outlined: false),
                           IconButton(
                             tooltip: MaterialLocalizations.of(
                               context,
@@ -935,69 +788,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     ),
                   ),
                 );
-                final filterSliver = SliverToBoxAdapter(
-                  child: Material(
-                    key: const ValueKey<String>(
-                      'albumDetailCompactWideFilterRow',
-                    ),
-                    color: colors.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: <Widget>[
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(
-                                Icons.filter_list,
-                                size: 16,
-                                color: colors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                l10n.albumDetailFilterLabel,
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: colors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          FilterChip(
-                            visualDensity: VisualDensity.compact,
-                            label: Text(l10n.libraryLikedOnlyFilter),
-                            avatar: Icon(
-                              _showLikedOnly
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 16,
-                            ),
-                            selected: _showLikedOnly,
-                            onSelected: (value) =>
-                                setState(() => _showLikedOnly = value),
-                          ),
-                          FilterChip(
-                            visualDensity: VisualDensity.compact,
-                            label: Text(l10n.libraryDownloadedOnlyFilter),
-                            avatar: Icon(
-                              _showDownloadedOnly
-                                  ? Icons.download_done
-                                  : Icons.download_outlined,
-                              size: 16,
-                            ),
-                            selected: _showDownloadedOnly,
-                            onSelected: (value) =>
-                                setState(() => _showDownloadedOnly = value),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-
                 return SafeArea(
                   left: false,
                   right: false,
@@ -1136,15 +926,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                 color: colors.onSurfaceVariant,
                                               ),
                                         ),
-                                        if (details.year != null)
-                                          Text(
-                                            ' • ${details.year}',
-                                            style: textTheme.bodySmall
-                                                ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                ),
-                                          ),
                                         if (details.isExternal) ...<Widget>[
                                           const SizedBox(width: 8),
                                           const RemoteSourceIndicator(
@@ -1155,10 +936,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         ],
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      l10n.playlistsSongCount(songs.length),
-                                      style: textTheme.labelSmall?.copyWith(
+                                      entityCollectionSummary(
+                                        l10n,
+                                        year: details.year,
+                                        songCount: songs.length,
+                                        totalSeconds: _totalDurationSeconds(
+                                          songs,
+                                        ),
+                                      ),
+                                      style: textTheme.bodySmall?.copyWith(
                                         color: colors.onSurfaceVariant,
                                       ),
                                     ),
@@ -1176,7 +964,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             child: CustomScrollView(
                               slivers: <Widget>[
                                 toolbarSliver,
-                                filterSliver,
                                 tracksSliver,
                                 albumInfoSliver,
                                 if (ref.watch(audioMuseAvailableProvider))
@@ -1340,9 +1127,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        // Artist names (each individually clickable) + year inline
+                        // Artist names (each individually clickable)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
                           child: Wrap(
                             crossAxisAlignment: WrapCrossAlignment.center,
                             runSpacing: 2,
@@ -1358,13 +1145,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   color: mobileColors.onSurfaceVariant,
                                 ),
                               ),
-                              if (details.year != null)
-                                Text(
-                                  ' • ${details.year}',
-                                  style: mobileTextTheme.bodyMedium?.copyWith(
-                                    color: mobileColors.onSurfaceVariant,
-                                  ),
-                                ),
                               if (details.isExternal) ...<Widget>[
                                 const SizedBox(width: 8),
                                 const RemoteSourceIndicator(
@@ -1372,6 +1152,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 ),
                               ],
                             ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Text(
+                            entityCollectionSummary(
+                              l10n,
+                              year: details.year,
+                              songCount: songs.length,
+                              totalSeconds: _totalDurationSeconds(songs),
+                            ),
+                            style: mobileTextTheme.bodyMedium?.copyWith(
+                              color: mobileColors.onSurfaceVariant,
+                            ),
                           ),
                         ),
                         // Action buttons:
@@ -1382,26 +1176,22 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: <Widget>[
-                              IconButton(
-                                tooltip: l10n.albumDetailPlayAction,
-                                icon: const Icon(Icons.play_arrow),
-                                onPressed: filteredSongs.isEmpty
+                              EntityActionBar(
+                                compact: true,
+                                onPlay: filteredSongs.isEmpty
                                     ? null
                                     : () => _queueAlbum(
                                         filteredSongs,
                                         shuffle: false,
                                       ),
-                              ),
-                              IconButton(
-                                tooltip: l10n.albumDetailShuffleAction,
-                                icon: const Icon(Icons.shuffle),
-                                onPressed: filteredSongs.isEmpty
+                                onShuffle: filteredSongs.isEmpty
                                     ? null
                                     : () => _queueAlbum(
                                         filteredSongs,
                                         shuffle: true,
                                       ),
                               ),
+                              const SizedBox(width: 4),
                               _RatingButton(
                                 rating: albumRating,
                                 loading: _isUpdatingRating,
@@ -1418,11 +1208,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       ? Icons.favorite
                                       : Icons.favorite_border,
                                 ),
-                                color: isStarred ? mobileColors.error : null,
+                                color: isStarred ? mobileColors.primary : null,
                                 onPressed: _isStarring
                                     ? null
                                     : () => _toggleStar(isStarred: isStarred),
                               ),
+                              _albumFilterButton(outlined: false),
                               IconButton(
                                 tooltip: MaterialLocalizations.of(
                                   context,
@@ -1435,64 +1226,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     albumRating,
                                     coverArtHeroTag,
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Filter label
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                          child: Row(
-                            children: <Widget>[
-                              Icon(
-                                Icons.filter_list,
-                                size: 16,
-                                color: mobileColors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                l10n.albumDetailFilterLabel,
-                                style: mobileTextTheme.labelSmall?.copyWith(
-                                  color: mobileColors.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Filter chips (compact)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                          child: Wrap(
-                            spacing: 6,
-                            children: <Widget>[
-                              FilterChip(
-                                visualDensity: VisualDensity.compact,
-                                label: Text(l10n.libraryLikedOnlyFilter),
-                                avatar: Icon(
-                                  _showLikedOnly
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  size: 16,
-                                ),
-                                selected: _showLikedOnly,
-                                onSelected: (value) =>
-                                    setState(() => _showLikedOnly = value),
-                              ),
-                              FilterChip(
-                                visualDensity: VisualDensity.compact,
-                                label: Text(
-                                  l10n.libraryDownloadedOnlyFilter,
-                                ),
-                                avatar: Icon(
-                                  _showDownloadedOnly
-                                      ? Icons.download_done
-                                      : Icons.download_outlined,
-                                  size: 16,
-                                ),
-                                selected: _showDownloadedOnly,
-                                onSelected: (value) => setState(
-                                  () => _showDownloadedOnly = value,
                                 ),
                               ),
                             ],
@@ -1654,6 +1387,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         setState(() => _isRefreshingAlbum = false);
       }
     }
+  }
+
+  static int _totalDurationSeconds(List<SongsTableData> songs) =>
+      songs.fold<int>(0, (total, song) => total + (song.duration ?? 0));
+
+  Widget _albumFilterButton({bool outlined = true}) {
+    return _AlbumFilterButton(
+      outlined: outlined,
+      likedOnly: _showLikedOnly,
+      downloadedOnly: _showDownloadedOnly,
+      onLikedOnlyChanged: (value) => setState(() => _showLikedOnly = value),
+      onDownloadedOnlyChanged: (value) =>
+          setState(() => _showDownloadedOnly = value),
+    );
   }
 
   void _queueAlbum(
@@ -2741,6 +2488,82 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
 
 /// Collapsed: an outlined button showing "[star] Rate" or "[star] n/5".
 /// Expanded: an inline row of 5 tappable stars with hover-fill on desktop.
+/// Filters the album's track list to liked and/or downloaded songs.
+///
+/// A single button replaces an always-visible filter row; a badge shows how
+/// many filters are active so a shortened track list is never unexplained.
+class _AlbumFilterButton extends StatelessWidget {
+  const _AlbumFilterButton({
+    required this.likedOnly,
+    required this.downloadedOnly,
+    required this.onLikedOnlyChanged,
+    required this.onDownloadedOnlyChanged,
+    this.outlined = true,
+  });
+
+  static const Key buttonKey = ValueKey<String>('album-filter-button');
+  static const Key likedKey = ValueKey<String>('album-filter-liked');
+  static const Key downloadedKey = ValueKey<String>('album-filter-downloaded');
+
+  final bool likedOnly;
+  final bool downloadedOnly;
+  final ValueChanged<bool> onLikedOnlyChanged;
+  final ValueChanged<bool> onDownloadedOnlyChanged;
+  final bool outlined;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final activeCount = (likedOnly ? 1 : 0) + (downloadedOnly ? 1 : 0);
+    return MenuAnchor(
+      menuChildren: <Widget>[
+        CheckboxMenuButton(
+          key: likedKey,
+          value: likedOnly,
+          closeOnActivate: false,
+          onChanged: (value) => onLikedOnlyChanged(value ?? false),
+          child: Text(l10n.libraryLikedOnlyFilter),
+        ),
+        CheckboxMenuButton(
+          key: downloadedKey,
+          value: downloadedOnly,
+          closeOnActivate: false,
+          onChanged: (value) => onDownloadedOnlyChanged(value ?? false),
+          child: Text(l10n.libraryDownloadedOnlyFilter),
+        ),
+      ],
+      builder: (context, controller, _) {
+        void toggle() =>
+            controller.isOpen ? controller.close() : controller.open();
+        final icon = Badge(
+          isLabelVisible: activeCount > 0,
+          label: Text('$activeCount'),
+          child: const Icon(Icons.filter_list),
+        );
+        final tooltip = l10n.albumDetailFilterLabel;
+        return outlined
+            ? IconButton.outlined(
+                key: buttonKey,
+                tooltip: tooltip,
+                isSelected: activeCount > 0,
+                onPressed: toggle,
+                icon: icon,
+              )
+            : IconButton(
+                key: buttonKey,
+                tooltip: tooltip,
+                isSelected: activeCount > 0,
+                onPressed: toggle,
+                icon: icon,
+              );
+      },
+    );
+  }
+}
+
+/// Matches the Material button height used by the surrounding actions.
+const double _kRatingHeight = 40;
+
 class _RatingButton extends StatefulWidget {
   const _RatingButton({
     required this.rating,
@@ -2833,18 +2656,22 @@ class _RatingButtonState extends State<_RatingButton>
 
         final borderColor = hasRating
             ? cs.secondary.withValues(alpha: 0.45)
-            : cs.outline.withValues(alpha: 0.5);
+            : cs.outlineVariant;
 
         return SizedBox(
           width: w,
-          height: 36,
+          height: _kRatingHeight,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: const BorderRadius.all(
+                Radius.circular(_kRatingHeight / 2),
+              ),
               border: Border.all(color: borderColor),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: const BorderRadius.all(
+                Radius.circular(_kRatingHeight / 2 - 1),
+              ),
               child: Material(
                 color: Colors.transparent,
                 child: Stack(
@@ -2872,7 +2699,7 @@ class _RatingButtonState extends State<_RatingButton>
                                         : () => _confirm(i),
                                     child: SizedBox(
                                       width: 30,
-                                      height: 36,
+                                      height: _kRatingHeight,
                                       child: Center(
                                         child: AnimatedSwitcher(
                                           duration: const Duration(
@@ -2945,10 +2772,12 @@ class _RatingButtonState extends State<_RatingButton>
                             message: l10n.ratingTitle,
                             child: InkWell(
                               onTap: widget.loading ? null : _expand,
-                              borderRadius: BorderRadius.circular(17),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(_kRatingHeight / 2 - 1),
+                              ),
                               child: SizedBox(
                                 width: collapsedWidth,
-                                height: 36,
+                                height: _kRatingHeight,
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
@@ -2966,8 +2795,10 @@ class _RatingButtonState extends State<_RatingButton>
                                       const SizedBox(width: 6),
                                       Text(
                                         hasRating
-                                            ? '${widget.rating}/5'
-                                            : 'Rate',
+                                            ? l10n.ratingValueShort(
+                                                widget.rating!,
+                                              )
+                                            : l10n.ratingActionLabel,
                                         style: TextStyle(
                                           fontSize: 13,
                                           color: hasRating

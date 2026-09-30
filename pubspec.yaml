@@ -88,3 +88,11 @@ flutter:
     - assets/autoeq/
     - lib/src/icon/Navis_App_Icon.png
     - lib/src/icon/Navis_Logo.svg
+    - assets/fonts/OFL.txt
+
+  # Inter variable font (SIL OFL 1.1): FontWeight maps onto its wght axis,
+  # so one file covers every weight the type scale uses.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
