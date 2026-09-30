@@ -205,7 +205,11 @@ Located in `lib/src/providers/app_providers.dart`:
   adaptive keyset pages. The atomic visibility transaction then writes only
   inserted or changed rows once, streams unseen-song anti-joins, applies an
   indexed provisional-song identity plan, and defers cache-file unlinking
-  until after commit. Unchanged catalogs therefore avoid metadata rewrites and
+  until after commit, including files that lose a song identity remap inside
+  the transaction (`SongIdentityReconciler.deferredFileDeletions`), so a
+  rolled-back promotion never leaves restored rows pointing at deleted files.
+  Explicit relinks from recovery review run outside a promotion and delete
+  immediately. Unchanged catalogs therefore avoid metadata rewrites and
   large in-memory ID collections.
 - Native Drift access uses WAL plus two pooled readers. Candidate collection
   and classification stay on the writer while an interactive read can proceed

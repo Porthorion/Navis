@@ -3912,6 +3912,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         'completed snapshot wins.',
       );
     }
+    // Cache files the promotion releases are deleted only after it commits,
+    // including files that lose an identity remap inside it.
+    final deferredCacheFiles = <String>[];
     final provisionalSongs = await _database.songIdentityDao
         .getProvisionalSongs();
     final identitySession = provisionalSongs.isEmpty
@@ -3920,6 +3923,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             _database.songIdentityDao,
             onBeforeRemap: onBeforeSongIdentityRemap,
             readActiveSongId: readActiveSongId,
+            deferredFileDeletions: deferredCacheFiles,
           ).startSession(provisionalSongs: provisionalSongs);
     final analysis = await LibraryCatalogDiffAnalyzer(
       _database,
@@ -3936,7 +3940,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       'rssGrowth=${analysis.rssGrowthBytes}.',
     );
     final stopwatch = Stopwatch()..start();
-    final deferredCacheFiles = <String>[];
     var removedSongCount = 0;
     var retainedUnavailableCount = 0;
     await _database.librarySyncDao.writeState(
