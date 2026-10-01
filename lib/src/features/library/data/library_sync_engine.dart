@@ -3823,6 +3823,66 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return collectionToken != promotionToken;
   }
 
+  /// Streams the candidate's canonical songs through [session], applies its
+  /// claims, and records ambiguous matches for review.
+  Future<void> _reconcileSongIdentitySession(
+    SongIdentityReconciliationSession session, {
+    required int serverId,
+    required int generation,
+    required _SyncRunMetrics metrics,
+  }) async {
+    var afterCanonicalId = '';
+    while (true) {
+      final page = await _database.librarySyncCandidateDao.getSongsPage(
+        serverId: serverId,
+        generation: generation,
+        afterId: afterCanonicalId,
+        limit: writeChunkSize,
+      );
+      if (page.isEmpty) break;
+      final canonicalSongs = await _database.libraryDao.getSongsByIds(
+        page.map((song) => song.id),
+      );
+      await session.reconcile(canonicalSongs);
+      afterCanonicalId = page.last.id;
+    }
+    // Claims apply only after the complete replacement set has been
+    // observed, so candidates contended for by several canonical rows
+    // resolve as review cases instead of honoring page order.
+    await session.finalize();
+    final identitySummary = session.summary;
+    metrics.canonicalizedSongCount += identitySummary.canonicalizedSongCount;
+    metrics.ambiguousMatchCount += identitySummary.ambiguousMatchCount;
+    for (final ambiguous in identitySummary.ambiguousCases) {
+      final canonicalId = ambiguous.canonicalSongId;
+      if (canonicalId == null) {
+        continue;
+      }
+      await _database.librarySyncDao.recordRecoveryReview(
+        serverId: serverId,
+        entityType: 'song',
+        oldId: canonicalId,
+        reason: 'ambiguousMatch',
+        evidenceGeneration: generation,
+        candidateJson: jsonEncode(<String, Object?>{
+          'candidateIds': ambiguous.candidateIds,
+          'matchReason': ambiguous.reason.name,
+        }),
+      );
+    }
+    if (identitySummary.aliases.isNotEmpty ||
+        identitySummary.ambiguousMatchCount > 0 ||
+        identitySummary.retainedProvisionalCount > 0) {
+      AppLogger.info(
+        'Song identity reconciliation: '
+        'canonicalized=${identitySummary.canonicalizedSongCount} '
+        'ambiguous=${identitySummary.ambiguousMatchCount} '
+        'retainedProvisional='
+        '${identitySummary.retainedProvisionalCount}.',
+      );
+    }
+  }
+
   /// Returns true when the candidate was promoted; false when a scan landed
   /// during collection and the candidate's completeness evidence was withheld
   /// for a safe recollect.
@@ -4133,57 +4193,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
 
       if (identitySession != null) {
-        var afterCanonicalId = '';
-        while (true) {
-          final page = await _database.librarySyncCandidateDao.getSongsPage(
-            serverId: serverId,
-            generation: generation,
-            afterId: afterCanonicalId,
-            limit: writeChunkSize,
-          );
-          if (page.isEmpty) break;
-          final canonicalSongs = await _database.libraryDao.getSongsByIds(
-            page.map((song) => song.id),
-          );
-          await identitySession.reconcile(canonicalSongs);
-          afterCanonicalId = page.last.id;
-        }
-        // Claims apply only after the complete replacement set has been
-        // observed, so candidates contended for by several canonical rows
-        // resolve as review cases instead of honoring page order.
-        await identitySession.finalize();
-        final identitySummary = identitySession.summary;
-        metrics.canonicalizedSongCount +=
-            identitySummary.canonicalizedSongCount;
-        metrics.ambiguousMatchCount += identitySummary.ambiguousMatchCount;
-        for (final ambiguous in identitySummary.ambiguousCases) {
-          final canonicalId = ambiguous.canonicalSongId;
-          if (canonicalId == null) {
-            continue;
-          }
-          await _database.librarySyncDao.recordRecoveryReview(
-            serverId: serverId,
-            entityType: 'song',
-            oldId: canonicalId,
-            reason: 'ambiguousMatch',
-            evidenceGeneration: generation,
-            candidateJson: jsonEncode(<String, Object?>{
-              'candidateIds': ambiguous.candidateIds,
-              'matchReason': ambiguous.reason.name,
-            }),
-          );
-        }
-        if (identitySummary.aliases.isNotEmpty ||
-            identitySummary.ambiguousMatchCount > 0 ||
-            identitySummary.retainedProvisionalCount > 0) {
-          AppLogger.info(
-            'Song identity reconciliation: '
-            'canonicalized=${identitySummary.canonicalizedSongCount} '
-            'ambiguous=${identitySummary.ambiguousMatchCount} '
-            'retainedProvisional='
-            '${identitySummary.retainedProvisionalCount}.',
-          );
-        }
+        await _reconcileSongIdentitySession(
+          identitySession,
+          serverId: serverId,
+          generation: generation,
+          metrics: metrics,
+        );
       }
 
       final preserved = await _database.libraryDao
@@ -4225,6 +4240,36 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
       }
 
+      // Rows this promotion just kept as provisional (downloads of rebuilt
+      // albums, songs retained as unavailable) are matched to their new ids
+      // now, as the next full sync would, instead of staying split until
+      // then. Only promotions that kept rows pay for this pass.
+      SongIdentityReconciliationSession? lateIdentitySession;
+      var lateProvisionalSongs = const <SongsTableData>[];
+      if (preserved.songIds.isNotEmpty || retainedUnavailableCount > 0) {
+        final knownProvisionalIds = <String>{
+          for (final song in provisionalSongs) song.id,
+        };
+        lateProvisionalSongs =
+            (await _database.songIdentityDao.getProvisionalSongs())
+                .where((song) => !knownProvisionalIds.contains(song.id))
+                .toList(growable: false);
+        if (lateProvisionalSongs.isNotEmpty) {
+          lateIdentitySession = await SongIdentityReconciler(
+            _database.songIdentityDao,
+            onBeforeRemap: onBeforeSongIdentityRemap,
+            readActiveSongId: readActiveSongId,
+            deferredFileDeletions: deferredCacheFiles,
+          ).startSession(provisionalSongs: lateProvisionalSongs);
+          await _reconcileSongIdentitySession(
+            lateIdentitySession,
+            serverId: serverId,
+            generation: generation,
+            metrics: metrics,
+          );
+        }
+      }
+
       // Album/artist relinking runs after rows are preserved as provisional
       // and the retained song set is final, but before removable stale rows
       // are deleted: unresolved entities must still be reviewable from their
@@ -4233,9 +4278,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           .reconcile(
             serverId: serverId,
             generation: generation,
-            songAliases:
-                identitySession?.summary.aliases ?? const <SongIdentityAlias>[],
-            provisionalSongs: provisionalSongs,
+            songAliases: <SongIdentityAlias>[
+              ...?identitySession?.summary.aliases,
+              ...?lateIdentitySession?.summary.aliases,
+            ],
+            provisionalSongs: <SongsTableData>[
+              ...provisionalSongs,
+              ...lateProvisionalSongs,
+            ],
           );
       if (entityIdentitySummary.aliases > 0 ||
           entityIdentitySummary.reviewCount > 0) {

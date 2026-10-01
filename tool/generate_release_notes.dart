@@ -65,6 +65,10 @@ const List<_Version> _changelogs = [
         type: _EntryType.improvement,
       ),
       _Entry(
+        'After a server rebuilds its library, downloads from the rebuilt albums are linked to the new songs in the same sync, instead of only on the next full sync',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
         type: _EntryType.fix,
       ),

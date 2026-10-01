@@ -1839,7 +1839,10 @@ contract.
   claimant, and a same-identity claim keeps precedence over contested weaker
   claims (targeted hydration finalizes per album batch; promotion finalizes
   across the full candidate set). Candidate sets include retained confirmed-missing
-  rows so a later scan can relink them. `remapSongIdentity` merges user state
+  rows so a later scan can relink them. Rows a promotion itself preserves or
+  retains (downloads of a rebuilt album) get a second pass in the same
+  promotion, after the stale-song loop and before album/artist relinking, so
+  they are relinked by the promoting sync rather than the next one. `remapSongIdentity` merges user state
   with local precedence (a carried like keeps its original timestamp and is
   re-queued to the server through `star_sync_queue`), transfers absence
   evidence, local mutation journals, and writes both the legacy and the typed
