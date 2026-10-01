@@ -12,11 +12,9 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 /// Only a hash of the retained profile identity crosses this channel. Passwords,
 /// server URLs, usernames, and work payload details stay in Dart storage.
 class AndroidBackgroundSyncScheduler {
-  AndroidBackgroundSyncScheduler({
-    MethodChannel? channel,
-    bool? supported,
-  }) : _channel = channel ?? const MethodChannel(_channelName),
-       _supported = supported ?? isSupported;
+  new({MethodChannel? channel, bool? supported})
+    : _channel = channel ?? const MethodChannel(_channelName),
+      _supported = supported ?? isSupported;
 
   static const String _channelName = 'com.navis.app/background_sync';
   final MethodChannel _channel;
@@ -37,7 +35,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('configurePeriodic', <String, Object>{
+    return await _invoke('configurePeriodic', <String, Object>{
       'profileKey': profileKey,
       'intervalMinutes': intervalMinutes,
       'unmeteredOnly': unmeteredOnly,
@@ -51,7 +49,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('enqueueCatchup', <String, Object>{
+    return await _invoke('enqueueCatchup', <String, Object>{
       'profileKey': profileKey,
       'unmeteredOnly': unmeteredOnly,
     });
@@ -63,7 +61,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('cancel', <String, Object>{'profileKey': profileKey});
+    return await _invoke('cancel', <String, Object>{'profileKey': profileKey});
   }
 
   Future<AndroidBackgroundScheduleObservation> status({
@@ -72,7 +70,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('status', <String, Object>{'profileKey': profileKey});
+    return await _invoke('status', <String, Object>{'profileKey': profileKey});
   }
 
   Future<AndroidBackgroundScheduleObservation> _invoke(
@@ -110,7 +108,7 @@ class AndroidBackgroundSyncScheduler {
 
 /// Bounded, redacted observation returned by the native channel.
 class AndroidBackgroundScheduleObservation {
-  const AndroidBackgroundScheduleObservation({
+  const new({
     required this.available,
     required this.state,
     this.workId,
@@ -119,42 +117,7 @@ class AndroidBackgroundScheduleObservation {
     this.workerStopReason,
   });
 
-  const AndroidBackgroundScheduleObservation.unsupported()
-    : available = false,
-      state = 'unsupported',
-      workId = null,
-      attemptCount = 0,
-      workerResult = null,
-      workerStopReason = null;
-
-  const AndroidBackgroundScheduleObservation.platformFailure()
-    : available = true,
-      state = 'platformFailure',
-      workId = null,
-      attemptCount = 0,
-      workerResult = null,
-      workerStopReason = null;
-
-  final bool available;
-  final String state;
-  final String? workId;
-  final int attemptCount;
-  final String? workerResult;
-  final String? workerStopReason;
-
-  static const _allowedStates = <String>{
-    'scheduled',
-    'running',
-    'enqueued',
-    'blocked',
-    'cancelled',
-    'none',
-    'unsupported',
-    'platformFailure',
-    'statusUnavailable',
-  };
-
-  factory AndroidBackgroundScheduleObservation.fromPlatform(Object? value) {
+  factory fromPlatform(Object? value) {
     if (value is! Map) {
       return const AndroidBackgroundScheduleObservation.platformFailure();
     }
@@ -183,6 +146,41 @@ class AndroidBackgroundScheduleObservation {
     );
   }
 
+  const new unsupported()
+    : available = false,
+      state = 'unsupported',
+      workId = null,
+      attemptCount = 0,
+      workerResult = null,
+      workerStopReason = null;
+
+  const new platformFailure()
+    : available = true,
+      state = 'platformFailure',
+      workId = null,
+      attemptCount = 0,
+      workerResult = null,
+      workerStopReason = null;
+
+  final bool available;
+  final String state;
+  final String? workId;
+  final int attemptCount;
+  final String? workerResult;
+  final String? workerStopReason;
+
+  static const _allowedStates = <String>{
+    'scheduled',
+    'running',
+    'enqueued',
+    'blocked',
+    'cancelled',
+    'none',
+    'unsupported',
+    'platformFailure',
+    'statusUnavailable',
+  };
+
   static String? _boundedWorkerCategory(Object? value) {
     const allowed = <String>{
       'engineTimeout',
@@ -202,11 +200,7 @@ class AndroidBackgroundScheduleObservation {
 /// owns no sync logic; WorkManager invokes Dart only after this contract has
 /// been persisted and constrained natively.
 class AndroidBackgroundSyncReconciler {
-  AndroidBackgroundSyncReconciler({
-    required NavisDatabase database,
-    required AndroidBackgroundSyncScheduler scheduler,
-  }) : _database = database,
-       _scheduler = scheduler;
+  new({required this._database, required this._scheduler});
 
   final NavisDatabase _database;
   final AndroidBackgroundSyncScheduler _scheduler;
@@ -249,10 +243,7 @@ class AndroidBackgroundSyncReconciler {
           : intervalMinutes,
     );
     if (enqueueCatchup) {
-      await this.enqueueCatchup(
-        config: config,
-        unmeteredOnly: unmeteredOnly,
-      );
+      await this.enqueueCatchup(config: config, unmeteredOnly: unmeteredOnly);
     }
   }
 

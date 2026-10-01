@@ -38,17 +38,11 @@ void main() {
 
     test('display version drops the patch only for majors', () {
       expect(
-        const ChangelogVersion(
-          version: '1.4.0',
-          entries: [],
-        ).displayVersion,
+        const ChangelogVersion(version: '1.4.0', entries: []).displayVersion,
         '1.4',
       );
       expect(
-        const ChangelogVersion(
-          version: '1.4.2',
-          entries: [],
-        ).displayVersion,
+        const ChangelogVersion(version: '1.4.2', entries: []).displayVersion,
         '1.4.2',
       );
       expect(

@@ -34,18 +34,9 @@ void main() {
   });
 
   test('resolveDesktopLayoutClass uses expected breakpoints', () {
-    expect(
-      resolveDesktopLayoutClass(1007),
-      DesktopLayoutClass.compactDesktop,
-    );
-    expect(
-      resolveDesktopLayoutClass(1008),
-      DesktopLayoutClass.standardDesktop,
-    );
-    expect(
-      resolveDesktopLayoutClass(1599),
-      DesktopLayoutClass.standardDesktop,
-    );
+    expect(resolveDesktopLayoutClass(1007), DesktopLayoutClass.compactDesktop);
+    expect(resolveDesktopLayoutClass(1008), DesktopLayoutClass.standardDesktop);
+    expect(resolveDesktopLayoutClass(1599), DesktopLayoutClass.standardDesktop);
     expect(
       resolveDesktopLayoutClass(1600),
       DesktopLayoutClass.ultraWideDesktop,
@@ -53,22 +44,10 @@ void main() {
   });
 
   test('resolveAdaptiveLayoutClass uses expected breakpoints', () {
-    expect(
-      resolveAdaptiveLayoutClass(599),
-      AdaptiveLayoutClass.phoneCompact,
-    );
-    expect(
-      resolveAdaptiveLayoutClass(600),
-      AdaptiveLayoutClass.tabletMedium,
-    );
-    expect(
-      resolveAdaptiveLayoutClass(839),
-      AdaptiveLayoutClass.tabletMedium,
-    );
-    expect(
-      resolveAdaptiveLayoutClass(840),
-      AdaptiveLayoutClass.tabletExpanded,
-    );
+    expect(resolveAdaptiveLayoutClass(599), AdaptiveLayoutClass.phoneCompact);
+    expect(resolveAdaptiveLayoutClass(600), AdaptiveLayoutClass.tabletMedium);
+    expect(resolveAdaptiveLayoutClass(839), AdaptiveLayoutClass.tabletMedium);
+    expect(resolveAdaptiveLayoutClass(840), AdaptiveLayoutClass.tabletExpanded);
   });
 
   test(
@@ -115,20 +94,17 @@ void main() {
     },
   );
 
-  test(
-    'resolveAdaptiveShellMode keeps standardRail for tablet-like aspect ratios (≤1.65)',
-    () {
-      // 4:3-ish tablet landscape: aspect ratio ≈ 1.43, should stay on rail.
-      expect(
-        resolveAdaptiveShellMode(
-          desktopRuntime: false,
-          viewportSize: const Size(1366, 955),
-          safePadding: EdgeInsets.zero,
-        ),
-        AdaptiveShellMode.standardRail,
-      );
-    },
-  );
+  test('resolveAdaptiveShellMode keeps standardRail for tablet-like aspect ratios (≤1.65)', () {
+    // 4:3-ish tablet landscape: aspect ratio ≈ 1.43, should stay on rail.
+    expect(
+      resolveAdaptiveShellMode(
+        desktopRuntime: false,
+        viewportSize: const Size(1366, 955),
+        safePadding: EdgeInsets.zero,
+      ),
+      AdaptiveShellMode.standardRail,
+    );
+  });
 
   test('resolveAdaptiveShellMode keeps medium tablet on bottom nav', () {
     expect(
@@ -179,37 +155,34 @@ void main() {
     expect(context.useRailNavigation, isFalse);
   });
 
-  test(
-    'resolveAdaptiveInputPolicy enables traversal and escape parity for tablet/desktop',
-    () {
-      final tabletContext = resolveAdaptiveContext(
-        desktopRuntime: false,
-        viewportSize: const Size(840, 1000),
-        safePadding: EdgeInsets.zero,
-      );
-      final tabletPolicy = resolveAdaptiveInputPolicy(
-        adaptiveContext: tabletContext,
-      );
-      expect(tabletPolicy.enableDeterministicTraversal, isTrue);
-      expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
-      expect(tabletPolicy.enableDesktopCommandShortcuts, isFalse);
-      expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
+  test('resolveAdaptiveInputPolicy enables traversal and escape parity for tablet/desktop', () {
+    final tabletContext = resolveAdaptiveContext(
+      desktopRuntime: false,
+      viewportSize: const Size(840, 1000),
+      safePadding: EdgeInsets.zero,
+    );
+    final tabletPolicy = resolveAdaptiveInputPolicy(
+      adaptiveContext: tabletContext,
+    );
+    expect(tabletPolicy.enableDeterministicTraversal, isTrue);
+    expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
+    expect(tabletPolicy.enableDesktopCommandShortcuts, isFalse);
+    expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
 
-      final desktopContext = resolveAdaptiveContext(
-        desktopRuntime: true,
-        viewportSize: const Size(1366, 900),
-        safePadding: EdgeInsets.zero,
-      );
-      final desktopPolicy = resolveAdaptiveInputPolicy(
-        adaptiveContext: desktopContext,
-      );
-      expect(desktopPolicy.enableDeterministicTraversal, isTrue);
-      expect(desktopPolicy.enableEscapeOverlayPriority, isTrue);
-      expect(desktopPolicy.enableDesktopCommandShortcuts, isTrue);
-      expect(desktopPolicy.enableDesktopPointerAffordances, isTrue);
-      expect(desktopPolicy.enableSecondaryClickMenus, isTrue);
-    },
-  );
+    final desktopContext = resolveAdaptiveContext(
+      desktopRuntime: true,
+      viewportSize: const Size(1366, 900),
+      safePadding: EdgeInsets.zero,
+    );
+    final desktopPolicy = resolveAdaptiveInputPolicy(
+      adaptiveContext: desktopContext,
+    );
+    expect(desktopPolicy.enableDeterministicTraversal, isTrue);
+    expect(desktopPolicy.enableEscapeOverlayPriority, isTrue);
+    expect(desktopPolicy.enableDesktopCommandShortcuts, isTrue);
+    expect(desktopPolicy.enableDesktopPointerAffordances, isTrue);
+    expect(desktopPolicy.enableSecondaryClickMenus, isTrue);
+  });
 
   test('desktop runtime never uses compact-wide phone fallback behavior', () {
     final context = resolveAdaptiveContext(
@@ -233,19 +206,16 @@ void main() {
     expect(context.useCompactWideLandscape, isFalse);
   });
 
-  test(
-    'desktop OS minimum remains desktop-only at narrow width',
-    () {
-      final context = resolveAdaptiveContext(
-        desktopRuntime: true,
-        viewportSize: DesktopWindowController.normalMinSize,
-        safePadding: EdgeInsets.zero,
-      );
+  test('desktop OS minimum remains desktop-only at narrow width', () {
+    final context = resolveAdaptiveContext(
+      desktopRuntime: true,
+      viewportSize: DesktopWindowController.normalMinSize,
+      safePadding: EdgeInsets.zero,
+    );
 
-      expect(context.useDesktopShell, isTrue);
-      expect(context.useRailNavigation, isFalse);
-    },
-  );
+    expect(context.useDesktopShell, isTrue);
+    expect(context.useRailNavigation, isFalse);
+  });
 
   testWidgets('resolveAdaptiveContextFor prefers scoped context', (
     tester,

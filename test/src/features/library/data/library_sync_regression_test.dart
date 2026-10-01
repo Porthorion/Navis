@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -27,9 +27,9 @@ class _AuditApi extends FakeLibrarySyncApi {
   Completer<StarredContent>? starredGate;
   @override
   Future<StarredContent> getStarredContent() async {
-    if (starredGate == null) return super.getStarredContent();
+    if (starredGate == null) return await super.getStarredContent();
     calls.add('getStarredContent');
-    return starredGate!.future;
+    return await starredGate!.future;
   }
 
   final Map<int, List<Album>> newestPages = {};
@@ -39,7 +39,9 @@ class _AuditApi extends FakeLibrarySyncApi {
     required int offset,
   }) async {
     calls.add('newest:$offset:$size');
-    if (newestError != null) throw newestError!;
+    if (newestError != null) {
+      Error.throwWithStackTrace(newestError!, StackTrace.current);
+    }
     return newestPages[offset] ?? const [];
   }
 }
@@ -356,7 +358,7 @@ void main() {
         (await engine.hydrateAlbum('a')).status,
         LibrarySyncStatus.partial,
       );
-      expect((await db.libraryDao.watchSongsByAlbum('a').first), hasLength(2));
+      expect(await db.libraryDao.watchSongsByAlbum('a').first, hasLength(2));
       expect(await db.libraryDao.getSongById('remote-track'), isNull);
     },
   );
@@ -583,11 +585,7 @@ void main() {
       }
       api.starredContent = const StarredContent(
         songs: [
-          Song(
-            id: 'remote-favorite',
-            title: 'Favorite',
-            isExternal: true,
-          ),
+          Song(id: 'remote-favorite', title: 'Favorite', isExternal: true),
         ],
       );
       api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
@@ -647,11 +645,7 @@ void main() {
       }
       api.starredContent = const StarredContent(
         songs: [
-          Song(
-            id: 'remote-favorite',
-            title: 'Favorite',
-            isExternal: true,
-          ),
+          Song(id: 'remote-favorite', title: 'Favorite', isExternal: true),
         ],
       );
       api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
@@ -1320,10 +1314,7 @@ void main() {
       ),
     ]);
     expect((await engine.syncNow()).status, LibrarySyncStatus.succeeded);
-    expect(
-      (await db.libraryDao.getAlbumById('tail'))!.recentlyAddedRank,
-      1,
-    );
+    expect((await db.libraryDao.getAlbumById('tail'))!.recentlyAddedRank, 1);
   });
   test(
     'F10 incremental external album never enters canonical catalog',
@@ -1366,10 +1357,7 @@ void main() {
       final result = await engine.syncNow();
       expect(result.status, LibrarySyncStatus.succeeded);
       expect(await db.libraryDao.getAlbumById('remote'), isNull);
-      expect(
-        await db.libraryDao.getSongById('remote-song'),
-        isNull,
-      );
+      expect(await db.libraryDao.getSongById('remote-song'), isNull);
     },
   );
   test('F12 newest discovery advances through server capped pages', () async {
@@ -1422,10 +1410,7 @@ void main() {
         database: db,
         serverConfigRepository: repo,
       );
-      expect(
-        (await e.syncPlaylistHeaders()).status,
-        LibrarySyncStatus.failed,
-      );
+      expect((await e.syncPlaylistHeaders()).status, LibrarySyncStatus.failed);
       expect(await db.playlistDao.getAllPlaylists(), hasLength(1));
       client.close();
     },
@@ -1528,35 +1513,32 @@ void main() {
       expect(api.calls, isNotEmpty);
     },
   );
-  test(
-    'F08 later playlist change reactivates completed hydration',
-    () async {
-      final id = await session();
-      api.playlists = [const Playlist(id: 'p', name: 'First', songCount: 1)];
-      await engine.syncPlaylistHeaders();
-      var work = (await db.librarySyncDao.getWork(
+  test('F08 later playlist change reactivates completed hydration', () async {
+    final id = await session();
+    api.playlists = [const Playlist(id: 'p', name: 'First', songCount: 1)];
+    await engine.syncPlaylistHeaders();
+    var work = (await db.librarySyncDao.getWork(
+      serverId: id,
+      kind: 'targetedHydration',
+      entityId: 'playlist:p',
+    ))!;
+    await db.librarySyncDao.markCompleted(work.id);
+    api.playlists = [const Playlist(id: 'p', name: 'Changed', songCount: 2)];
+    await engine.syncPlaylistHeaders();
+    work = (await db.librarySyncDao.getWork(
+      serverId: id,
+      kind: 'targetedHydration',
+      entityId: 'playlist:p',
+    ))!;
+    expect(work.status, 'queued');
+    expect(
+      await db.librarySyncDao.getRunnableWork(
         serverId: id,
-        kind: 'targetedHydration',
-        entityId: 'playlist:p',
-      ))!;
-      await db.librarySyncDao.markCompleted(work.id);
-      api.playlists = [const Playlist(id: 'p', name: 'Changed', songCount: 2)];
-      await engine.syncPlaylistHeaders();
-      work = (await db.librarySyncDao.getWork(
-        serverId: id,
-        kind: 'targetedHydration',
-        entityId: 'playlist:p',
-      ))!;
-      expect(work.status, 'queued');
-      expect(
-        await db.librarySyncDao.getRunnableWork(
-          serverId: id,
-          now: DateTime.now(),
-        ),
-        isNotEmpty,
-      );
-    },
-  );
+        now: DateTime.now(),
+      ),
+      isNotEmpty,
+    );
+  });
   test('F11 new index evidence reopens completed delta work', () async {
     final id = await session();
     await seed();

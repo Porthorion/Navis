@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopPlayerBar extends ConsumerStatefulWidget {
-  const _DesktopPlayerBar({
+  const new({
     required this.playback,
     required this.songTitle,
     required this.songArtist,
@@ -140,9 +140,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 final controlRailMaxWidth = math
                     .min(760, math.max(280, maxWidth * 0.58))
                     .toDouble();
-                final actionRegionWidth = (maxWidth * 0.20)
-                    .clamp(184.0, 240.0)
-                    .toDouble();
+                final actionRegionWidth = (maxWidth * 0.20).clamp(184.0, 240.0);
                 final useCompactVolume = maxWidth < 1008;
                 // Keep transport sizes stable when text increases bar height.
                 const controlButtonExtent = 36.0;
@@ -1022,9 +1020,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                     tooltip: l10n.desktopMiniPlayerOpen,
                                     onPressed: () => unawaited(
                                       ref
-                                          .read(
-                                            desktopWindowControllerProvider,
-                                          )
+                                          .read(desktopWindowControllerProvider)
                                           .setMiniPlayerMode(true),
                                     ),
                                     icon: Icons.picture_in_picture_alt_rounded,

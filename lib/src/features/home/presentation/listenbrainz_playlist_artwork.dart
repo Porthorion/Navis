@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 
 class ListenBrainzPlaylistArtwork extends StatelessWidget {
-  const ListenBrainzPlaylistArtwork({
+  const new({
     required this.playlist,
     required this.size,
     this.borderRadius = 8,
@@ -42,7 +42,7 @@ class ListenBrainzPlaylistArtwork extends StatelessWidget {
 }
 
 class _ListenBrainzArtworkMosaic extends StatelessWidget {
-  const _ListenBrainzArtworkMosaic({
+  const new({
     required this.playlist,
     required this.size,
     required this.borderRadius,

@@ -22,15 +22,12 @@ void main() {
     expect(result['external'], isTrue);
     expect(result['sourceKind'], 'directStream');
     expect(trace.sourceApplied, isTrue);
-    expect(
-      events.map((event) => event['stage']),
-      <String>[
-        'selection',
-        'provisionalPersistenceComplete',
-        'selectedSourceApplyComplete',
-        'firstAdvancingPosition',
-      ],
-    );
+    expect(events.map((event) => event['stage']), <String>[
+      'selection',
+      'provisionalPersistenceComplete',
+      'selectedSourceApplyComplete',
+      'firstAdvancingPosition',
+    ]);
     expect(events.map((event) => event['elapsedMs']), everyElement(isA<int>()));
     expect(result.toString(), isNot(contains('ext-deezer-private-id')));
   });

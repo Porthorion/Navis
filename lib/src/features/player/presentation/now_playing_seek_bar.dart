@@ -3,7 +3,7 @@ part of 'now_playing_screen.dart';
 const _kSeekSemanticsStepMs = 10000;
 
 class _SeekBar extends ConsumerStatefulWidget {
-  const _SeekBar({required this.playback});
+  const new({required this.playback});
 
   final PlaybackSnapshot playback;
 

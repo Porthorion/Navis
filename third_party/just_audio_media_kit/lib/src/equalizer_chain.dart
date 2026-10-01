@@ -3,8 +3,6 @@ import 'package:just_audio_platform_interface/just_audio_platform_interface.dart
 /// Builds commands exclusively from validated numbers, never imported text.
 class EqualizerChain {
   EqualizerChain({required this.filters, required this.state});
-  final String filters;
-  final EqualizerStateMessage state;
 
   factory EqualizerChain.compile(EqualizerConfigurationMessage configuration,
       {required double speed, required double pitch, double? sampleRate}) {
@@ -53,6 +51,8 @@ class EqualizerChain {
             responseSampleRate: effectiveRate,
             headroomDb: response.headroomDb));
   }
+  final String filters;
+  final EqualizerStateMessage state;
 
   static String _biquad(EqualizerBiquad c) =>
       'biquad=b0=${c.b0}:b1=${c.b1}:b2=${c.b2}:a0=1:a1=${c.a1}:a2=${c.a2}:precision=f64:transform=tdii';

@@ -6,7 +6,7 @@ import 'dart:async';
 /// the interval has passed; otherwise the latest one is held and published
 /// when it does. [close] drops any held value.
 class LatestValueThrottle<T> {
-  LatestValueThrottle({
+  new({
     required this.interval,
     required this.onPublish,
     DateTime Function()? now,

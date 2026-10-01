@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Shows the explanatory hover label without Material [Tooltip]'s
@@ -11,7 +11,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// repeatedly shown and hidden. The description stays on the target;
 /// the overlay is deliberately visual-only, including below ExcludeSemantics.
 class NavisTooltip extends StatefulWidget {
-  const NavisTooltip({
+  const new({
     required this.message,
     required this.child,
     super.key,
@@ -162,20 +162,14 @@ class _NavisTooltipState extends State<NavisTooltip> {
       child: MouseRegion(
         onEnter: _handleEnter,
         onExit: _handleExit,
-        child: Listener(
-          onPointerDown: (_) => _hide(),
-          child: child,
-        ),
+        child: Listener(onPointerDown: (_) => _hide(), child: child),
       ),
     );
   }
 }
 
 class _NavisTooltipPositionDelegate extends SingleChildLayoutDelegate {
-  const _NavisTooltipPositionDelegate({
-    required this.target,
-    required this.verticalOffset,
-  });
+  const new({required this.target, required this.verticalOffset});
 
   final Offset target;
   final double verticalOffset;
@@ -204,7 +198,7 @@ class _NavisTooltipPositionDelegate extends SingleChildLayoutDelegate {
 }
 
 class _NavisTooltipBubble extends StatelessWidget {
-  const _NavisTooltipBubble({required this.message, this.bubbleKey});
+  const new({required this.message, this.bubbleKey});
 
   final String message;
   final Key? bubbleKey;
@@ -234,9 +228,8 @@ class _NavisTooltipBubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onInverseSurface,
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: colors.onInverseSurface),
             ),
           ),
         ),

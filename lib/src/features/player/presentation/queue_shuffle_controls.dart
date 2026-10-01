@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -20,7 +20,7 @@ final queueShuffleEnabledProvider = Provider<bool>(
 /// Shuffle reorders the queue, so it lives in the queue header rather than
 /// the transport; the transport keeps Instant Mix in that slot.
 class QueueShuffleToggle extends ConsumerWidget {
-  const QueueShuffleToggle({super.key});
+  const new({super.key});
 
   static const Key toggleKey = ValueKey<String>('queueShuffleToggle');
 
@@ -53,7 +53,7 @@ class QueueShuffleToggle extends ConsumerWidget {
 /// Marks a Queue button with a small shuffle badge while shuffle is on, so
 /// the state stays visible after Shuffle moved into the queue.
 class QueueShuffleBadge extends ConsumerWidget {
-  const QueueShuffleBadge({required this.child, super.key});
+  const new({required this.child, super.key});
 
   static const Key badgeKey = ValueKey<String>('queueShuffleBadge');
 

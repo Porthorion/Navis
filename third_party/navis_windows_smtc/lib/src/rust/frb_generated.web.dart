@@ -7,13 +7,16 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/api.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'frb_generated.dart';
 import 'internal/config.dart';
 import 'internal/metadata.dart';
 import 'internal/playback_status.dart';
 import 'internal/timeline.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -25,8 +28,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
-      get rust_arc_decrement_strong_count_SmtcInternalPtr =>
-          wire.rust_arc_decrement_strong_count_RustOpaque_SMTCInternal;
+  get rust_arc_decrement_strong_count_SmtcInternalPtr =>
+      wire.rust_arc_decrement_strong_count_RustOpaque_SMTCInternal;
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
@@ -111,15 +114,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<String> sse_decode_StreamSink_String_Sse(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   RustStreamSink<bool> sse_decode_StreamSink_bool_Sse(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   RustStreamSink<PlatformInt64> sse_decode_StreamSink_i_64_Sse(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -135,11 +141,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MusicMetadata sse_decode_box_autoadd_music_metadata(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   PlaybackTimeline sse_decode_box_autoadd_playback_timeline(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   SMTCConfig sse_decode_box_autoadd_smtc_config(SseDeserializer deserializer);
@@ -185,23 +193,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_AnyhowException(
-      AnyhowException self, SseSerializer serializer);
+    AnyhowException self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_RustOpaque_SMTCInternal(
-      SmtcInternal self, SseSerializer serializer);
+    SmtcInternal self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_StreamSink_String_Sse(
-      RustStreamSink<String> self, SseSerializer serializer);
+    RustStreamSink<String> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_StreamSink_bool_Sse(
-      RustStreamSink<bool> self, SseSerializer serializer);
+    RustStreamSink<bool> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_StreamSink_i_64_Sse(
-      RustStreamSink<PlatformInt64> self, SseSerializer serializer);
+    RustStreamSink<PlatformInt64> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
@@ -214,19 +232,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_i_64(
-      PlatformInt64 self, SseSerializer serializer);
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_music_metadata(
-      MusicMetadata self, SseSerializer serializer);
+    MusicMetadata self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_playback_timeline(
-      PlaybackTimeline self, SseSerializer serializer);
+    PlaybackTimeline self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_smtc_config(
-      SMTCConfig self, SseSerializer serializer);
+    SMTCConfig self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
@@ -236,7 +262,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-      Uint8List self, SseSerializer serializer);
+    Uint8List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_music_metadata(MusicMetadata self, SseSerializer serializer);
@@ -249,15 +277,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
-      PlatformInt64? self, SseSerializer serializer);
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_playback_status(
-      PlaybackStatus self, SseSerializer serializer);
+    PlaybackStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_playback_timeline(
-      PlaybackTimeline self, SseSerializer serializer);
+    PlaybackTimeline self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_smtc_config(SMTCConfig self, SseSerializer serializer);
@@ -291,8 +325,10 @@ external RustLibWasmModule get wasmModule;
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
   external void rust_arc_increment_strong_count_RustOpaque_SMTCInternal(
-      int ptr);
+    int ptr,
+  );
 
   external void rust_arc_decrement_strong_count_RustOpaque_SMTCInternal(
-      int ptr);
+    int ptr,
+  );
 }

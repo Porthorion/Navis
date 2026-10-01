@@ -30,9 +30,7 @@ class CloneDiagnosticsExternalScrobbleCredentialStore
 
 class FlutterExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
-  const FlutterExternalScrobbleCredentialStore({
-    FlutterSecureStorage storage = const FlutterSecureStorage(),
-  }) : _storage = storage;
+  const new({this._storage = const FlutterSecureStorage()});
 
   static const _listenBrainzTokenKey =
       'navis.external_scrobble.listenbrainz.token';

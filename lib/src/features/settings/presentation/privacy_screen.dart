@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 class PrivacyScreen extends StatelessWidget {
-  const PrivacyScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +79,14 @@ class PrivacyScreen extends StatelessWidget {
 }
 
 class _PrivacySectionData {
-  const _PrivacySectionData({required this.title, required this.body});
+  const new({required this.title, required this.body});
 
   final String title;
   final String body;
 }
 
 class _PrivacySection extends StatelessWidget {
-  const _PrivacySection({required this.title, required this.body});
+  const new({required this.title, required this.body});
 
   final String title;
   final String body;

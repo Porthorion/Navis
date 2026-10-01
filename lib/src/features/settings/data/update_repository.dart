@@ -15,7 +15,7 @@ import 'package:navis/src/utils/constants.dart';
 /// it with the installed app version to determine whether an update is
 /// available.
 class UpdateRepository {
-  UpdateRepository({
+  new({
     Dio? dio,
     InstallSourceService? installSourceService,
     UpdateCheckStore? updateCheckStore,
@@ -241,7 +241,7 @@ String _linuxDebArch() {
       if (machine == 'aarch64' || machine == 'arm64') return 'arm64';
       return machine;
     }
-  } catch (_) {}
+  } on Object catch (_) {}
   return 'amd64'; // safe default
 }
 

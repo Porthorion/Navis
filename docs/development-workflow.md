@@ -12,8 +12,8 @@ Run once after clone:
 
 What it does:
 - validates `flutter` and `dart` are installed
-- checks Flutter minimum and active baseline expectations
-- runs `flutter pub get`
+- checks the Flutter 3.47.5 minimum and active 3.47.x baseline
+- resolves root and owned Flutter packages plus CargoKit development dependencies
 
 ## Branding Assets
 
@@ -61,6 +61,11 @@ circular badge.
 
 ## Multi-OS Host Preflight
 
+Android's pinned AGP 9.3.1 / Gradle 9.5.0 toolchain uses built-in Kotlin.
+Retain `android.newDsl=false` for Flutter 3.47.5's remaining legacy variant API
+calls. Revisit this setting with a future stable Flutter upgrade; do not enable
+the new DSL or move to AGP 10 without a successful app/plugin build migration.
+
 Before preparing artifacts for desktop + mobile targets, run:
 
 ```bash
@@ -76,6 +81,21 @@ What it does:
 
 ## Quality Gate
 
+Run bootstrap before checking a fresh checkout. It also resolves development
+dependencies in `third_party/navis_windows_smtc`,
+`third_party/just_audio_media_kit`, and the nested CargoKit build tool. The root
+dependency graph does not include these packages' development tools. For an
+isolated package update, run `flutter pub get` in the corresponding Flutter
+package or `dart pub get` in CargoKit before checking it.
+
+For Rust changes, use the SMTC workspace manifest and its tracked `Cargo.lock`.
+CargoKit passes `--locked` so a missing or stale workspace lock fails the build
+rather than resolving new versions implicitly. Regenerate that lock explicitly
+when upgrading Rust dependencies.
+For CargoKit changes, run `dart test` and `dart analyze` in its build-tool
+directory. Workspace-hash regression tests cover dependency-only artifact
+invalidation and reject stale member locks as the hash source.
+
 Run before each commit/PR:
 
 ```bash
@@ -86,6 +106,7 @@ Checks performed:
 - Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 - Native EQ response/PCM fixtures (`tool/equalizer_native_test.sh`), using an
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
+- Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
 - Dart formatting (`dart format --set-exit-if-changed .`)
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)
@@ -266,7 +287,7 @@ behavior under test:
 | Linux media-session integration | Linux app API plus MPRIS |
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
 | Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
-| macOS or iOS integration | Linux startup smoke plus the affected Apple target and its supported platform interface |
+| macOS or iOS integration | Deferred by the project owner while Apple development is unavailable; record unverified Apple status |
 
 ### Temporary Android emulators
 
@@ -294,6 +315,9 @@ MPRIS, SMTC, MediaBrowser, and corresponding Apple interfaces are authoritative
 only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
+The owner has accepted ongoing deferral of Apple checks in this development
+environment. Do not request an Apple host as a prerequisite for completing
+non-Apple development; do not record an Apple native build/runtime as passed.
 
 ### Shuffle parity diagnostics
 
@@ -431,7 +455,15 @@ an explicit diagnostics credential file, and two playable local song IDs. The
 script starts a profile build with the authenticated diagnostics API, then uses
 Windows Global Media Transport Controls (GMTC)—not desktop automation—to verify
 Navis’s AppUserModelID, metadata, capabilities, transport commands, seek,
-shuffle/repeat, timeline progress, and clean restart. It writes only under its
+shuffle/repeat, timeline progress, and clean restart. Seek uses WinRT ticks
+from `TimeSpan`, pauses playback first, and requires the app position to remain
+within 500 ms of the five-second target; elapsed playback cannot satisfy this
+check. Launch arguments are quoted individually to preserve the diagnostics
+app name and paths containing spaces. WinRT types use explicit metadata
+qualification and async result types so Windows PowerShell 5.1 COM wrappers
+work correctly. After a clean restart it requires the
+restored current song and actual GMTC play/pause delivery again. It captures
+app-owned screenshots before and after restart. It writes only under its
 specified output root and never prints the bearer token, server URL, or media
 metadata.
 
@@ -1408,3 +1440,9 @@ preview-command/workspace-write counters. `POST /v1/equalizer` additionally supp
 `mode`, `custom`, `discard`, `retry`, `preview`, and `cancelPreview`; draft deletion
 requires explicit `discardDrafts: true`. All retain normal authentication and
 primary-certification mutation restrictions.
+
+Windows SMTC diagnostics use `--no-pub` with a prepared dependency graph,
+allow up to five minutes for native build/startup, and wait for restored app
+presentation before capturing screenshots. On failure they retain only selected
+playback-state fields for diagnosis. Windows PowerShell 5.1 cleanup terminates
+the task-owned process tree if authenticated shutdown does not finish.

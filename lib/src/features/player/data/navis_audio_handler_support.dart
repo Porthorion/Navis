@@ -13,7 +13,7 @@ bool get _supportsAudioSessionRuntime =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
 class _PreparedQueueItem {
-  const _PreparedQueueItem({
+  const new({
     required this.song,
     required this.source,
     required this.mediaItem,
@@ -27,7 +27,7 @@ class _PreparedQueueItem {
 }
 
 class CrossfadeTransitionMetric {
-  const CrossfadeTransitionMetric({
+  const new({
     required this.transitionId,
     required this.targetIndex,
     required this.phase,
@@ -86,7 +86,7 @@ class CrossfadeTransitionMetric {
 /// recovery without waiting for production timeouts.
 @immutable
 class NavisPlaybackTimeouts {
-  const NavisPlaybackTimeouts({
+  const new({
     this.load = const Duration(seconds: 12),
     this.remoteStall = const Duration(seconds: 12),
     this.seekBufferingRecovery = const Duration(seconds: 3),

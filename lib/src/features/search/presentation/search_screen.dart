@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
@@ -30,7 +30,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -169,15 +169,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     // EditableText may collapse selection as focus is acquired, so apply
     // select-all after focus settles.
-    Future<void>.microtask(() {
-      if (!mounted) {
-        return;
-      }
-      _selectAllSearchTextIfPresent();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) {
+          return;
+        }
         _selectAllSearchTextIfPresent();
-      });
-    });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _selectAllSearchTextIfPresent();
+        });
+      }),
+    );
   }
 
   void _selectAllSearchTextIfPresent() {
@@ -381,9 +383,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: <Widget>[
           if (hasQuery) _SearchFilterChips(),
           if (hasQuery) _OfflineSearchBanner(),
-          Expanded(
-            child: hasQuery ? _buildResults() : _buildRecentSearches(),
-          ),
+          Expanded(child: hasQuery ? _buildResults() : _buildRecentSearches()),
         ],
       ),
     );
@@ -504,10 +504,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return recentAsync.when(
       data: (searches) {
         if (searches.isEmpty) {
-          return EmptyState(
-            title: l10n.searchHint,
-            icon: Icons.search,
-          );
+          return EmptyState(title: l10n.searchHint, icon: Icons.search);
         }
         return ListView(
           controller: _listScrollController,
@@ -554,7 +551,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 }
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar({
+  const new({
     required this.controller,
     required this.focusNode,
     required this.hint,
@@ -612,7 +609,7 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _SearchFilterChips extends ConsumerWidget {
-  const _SearchFilterChips({this.desktopMode = false});
+  const new({this.desktopMode = false});
 
   final bool desktopMode;
 
@@ -686,7 +683,7 @@ class _SearchFilterChips extends ConsumerWidget {
 }
 
 class _OfflineSearchBanner extends ConsumerWidget {
-  const _OfflineSearchBanner({this.desktopMode = false});
+  const new({this.desktopMode = false});
 
   final bool desktopMode;
 
@@ -724,7 +721,7 @@ class _OfflineSearchBanner extends ConsumerWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
+  const new({
     required this.title,
     required this.expanded,
     required this.onToggle,
@@ -750,7 +747,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ArtistResultsSection extends ConsumerWidget {
-  const _ArtistResultsSection({
+  const new({
     required this.artists,
     required this.expanded,
     required this.onToggleExpanded,
@@ -813,9 +810,8 @@ class _ArtistResultsSection extends ConsumerWidget {
               trailing: Builder(
                 builder: (buttonContext) => IconButton(
                   icon: const Icon(Icons.more_horiz),
-                  tooltip: MaterialLocalizations.of(
-                    buttonContext,
-                  ).showMenuTooltip,
+                  tooltip: MaterialLocalizations.of(buttonContext)
+                      .showMenuTooltip,
                   onPressed: () {
                     final renderObject = buttonContext.findRenderObject();
                     if (renderObject is! RenderBox) return;
@@ -858,9 +854,8 @@ class _ArtistResultsSection extends ConsumerWidget {
             trailing: Builder(
               builder: (buttonContext) => IconButton(
                 icon: const Icon(Icons.more_horiz),
-                tooltip: MaterialLocalizations.of(
-                  buttonContext,
-                ).showMenuTooltip,
+                tooltip: MaterialLocalizations.of(buttonContext)
+                    .showMenuTooltip,
                 onPressed: () {
                   final renderObject = buttonContext.findRenderObject();
                   if (renderObject is! RenderBox) return;
@@ -885,7 +880,7 @@ class _ArtistResultsSection extends ConsumerWidget {
 }
 
 class _AlbumResultsSection extends ConsumerWidget {
-  const _AlbumResultsSection({
+  const new({
     required this.albums,
     required this.expanded,
     required this.onToggleExpanded,
@@ -971,7 +966,7 @@ class _AlbumResultsSection extends ConsumerWidget {
 }
 
 class _SongResultsSection extends ConsumerWidget {
-  const _SongResultsSection({
+  const new({
     required this.songs,
     required this.expanded,
     required this.onToggleExpanded,
@@ -1001,68 +996,62 @@ class _SongResultsSection extends ConsumerWidget {
         ),
         if (expanded && visible.isNotEmpty)
           AdaptiveTrackHeader(actionExtent: desktopMode ? null : 0),
-        ...visible.asMap().entries.map(
-          (entry) {
-            final song = entry.value;
-            final playbackState = ref.watch(
-              songPlaybackIndicatorStateProvider(song.id),
-            );
-            final isSelected = playbackState.isSelected;
-            final isRemote = isExternalCatalogSource(
-              id: song.id,
-              apiIsExternal: song.isExternal,
-            );
-            final tile = AdaptiveTrackRow(
-              title: song.title,
-              artist: song.artist,
-              album: song.album,
-              duration: song.duration,
-              selected: isSelected,
-              isRemote: isRemote,
-              actionExtent: desktopMode ? null : 0,
-              leading: ArtworkPlaybackMarker(
-                state: playbackState,
-                child: CoverArtImage(
-                  coverArtId: song.coverArt,
-                  size: 80,
-                  width: 48,
-                  height: 48,
-                  borderRadius: coverRadius,
-                  isExternalSource: isRemote,
-                  remoteSourceIndicatorPolicy:
-                      RemoteSourceIndicatorPolicy.hidden,
-                ),
-              ),
-              actions: desktopMode
-                  ? DesktopSongActions.forSongId(
-                      songId: song.id,
-                      isExternal: isRemote,
-                      keyPrefix: 'search-song',
-                      onMore: (anchor) => _showSongContextMenu(
-                        context,
-                        ref,
-                        song,
-                        anchor: anchor,
-                      ),
-                    )
-                  : null,
-              onTap: () => unawaited(
-                ref.read(queueProvider.notifier).replaceWithSongs(<Song>[song]),
-              ),
-              onLongPress: () => _showSongContextMenu(context, ref, song),
-              onSecondaryTapDown: (details) => _showSongContextMenu(
-                context,
-                ref,
-                song,
-                anchor: details.globalPosition,
-              ),
-            );
-            return SongPlaybackSemantics(
+        ...visible.asMap().entries.map((entry) {
+          final song = entry.value;
+          final playbackState = ref.watch(
+            songPlaybackIndicatorStateProvider(song.id),
+          );
+          final isSelected = playbackState.isSelected;
+          final isRemote = isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          );
+          final tile = AdaptiveTrackRow(
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            duration: song.duration,
+            selected: isSelected,
+            isRemote: isRemote,
+            actionExtent: desktopMode ? null : 0,
+            leading: ArtworkPlaybackMarker(
               state: playbackState,
-              child: tile,
-            );
-          },
-        ),
+              child: CoverArtImage(
+                coverArtId: song.coverArt,
+                size: 80,
+                width: 48,
+                height: 48,
+                borderRadius: coverRadius,
+                isExternalSource: isRemote,
+                remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+              ),
+            ),
+            actions: desktopMode
+                ? DesktopSongActions.forSongId(
+                    songId: song.id,
+                    isExternal: isRemote,
+                    keyPrefix: 'search-song',
+                    onMore: (anchor) => _showSongContextMenu(
+                      context,
+                      ref,
+                      song,
+                      anchor: anchor,
+                    ),
+                  )
+                : null,
+            onTap: () => unawaited(
+              ref.read(queueProvider.notifier).replaceWithSongs(<Song>[song]),
+            ),
+            onLongPress: () => _showSongContextMenu(context, ref, song),
+            onSecondaryTapDown: (details) => _showSongContextMenu(
+              context,
+              ref,
+              song,
+              anchor: details.globalPosition,
+            ),
+          );
+          return SongPlaybackSemantics(state: playbackState, child: tile);
+        }),
       ],
     );
   }
@@ -1099,6 +1088,7 @@ class _SongResultsSection extends ConsumerWidget {
       );
       unawaited(
         result.then((value) {
+          if (!context.mounted) return;
           switch (value) {
             case 'play-next':
               ref
@@ -1132,15 +1122,10 @@ class _SongResultsSection extends ConsumerWidget {
               }
               return;
             case 'add-playlist':
-              showAddToPlaylistSheet(context, ref, [song.id]);
+              unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
               return;
             case 'instant-mix':
-              unawaited(
-                activatePreferredMixMode(
-                  ref,
-                  seedSongId: song.id,
-                ),
-              );
+              unawaited(activatePreferredMixMode(ref, seedSongId: song.id));
               return;
             default:
               return;
@@ -1220,11 +1205,7 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.librarySongMenuAddToPlaylist),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                showAddToPlaylistSheet(
-                  context,
-                  ref,
-                  [song.id],
-                );
+                unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
               },
             ),
             ListTile(
@@ -1232,12 +1213,7 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.nowPlayingInstantMix),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(
-                  activatePreferredMixMode(
-                    ref,
-                    seedSongId: song.id,
-                  ),
-                );
+                unawaited(activatePreferredMixMode(ref, seedSongId: song.id));
               },
             ),
           ],
@@ -1248,16 +1224,15 @@ class _SongResultsSection extends ConsumerWidget {
 }
 
 class _SearchResultMetadata extends StatelessWidget {
-  const _SearchResultMetadata({required this.text, required this.isRemote});
+  const new({required this.text, required this.isRemote});
 
   final String text;
   final bool isRemote;
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-    );
+    final style = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
     return RemoteSourceMetadataLine(
       metadata: Text(
         text,

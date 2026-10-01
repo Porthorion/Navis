@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -13,7 +13,7 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_provider.d
 import 'package:navis/src/routing/app_routes.dart';
 
 class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
-  const RequiredLibraryRebuildScreen({
+  const new({
     required this.reason,
     this.allowMeteredBroadOverride = false,
     this.homeWarmupEligible = false,
@@ -42,9 +42,8 @@ class _RequiredLibraryRebuildScreenState
         unawaited(
           ref
               .read(
-                requiredLibraryRebuildControllerProvider(
-                  widget.reason,
-                ).notifier,
+                requiredLibraryRebuildControllerProvider(widget.reason)
+                    .notifier,
               )
               .startUsingMobileData(),
         );

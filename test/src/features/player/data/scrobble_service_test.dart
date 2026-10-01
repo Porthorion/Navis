@@ -9,7 +9,7 @@ import 'package:navis/src/features/player/data/scrobble_service.dart';
 import '../../../../helpers/test_database.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
-  _FakeSubsonicApiClient()
+  new()
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -53,12 +53,10 @@ void main() {
       now = DateTime.utc(2026, 1, 1, 0, 0, 0);
       scrobbleEnabled = true;
       reachable = true;
-      await database.libraryDao.upsertSongs(
-        <SongsTableCompanion>[
-          SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
-          SongsTableCompanion.insert(id: 'song-2', title: 'Song 2'),
-        ],
-      );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
+        SongsTableCompanion.insert(id: 'song-2', title: 'Song 2'),
+      ]);
     });
 
     tearDown(() async {
@@ -158,47 +156,43 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'enqueueSubmission records Subsonic and ListenBrainz providers independently',
-      () async {
-        final service = DriftScrobbleService(
-          dao: database.scrobbleDao,
-          readApiClient: () => apiClient,
-          readScrobbleEnabled: () => scrobbleEnabled,
-          readListenBrainzCredentials: () async =>
-              const ListenBrainzScrobbleCredentials(
-                userToken: 'listenbrainz-token',
-              ),
-          readReachable: () => reachable,
-          now: () => now,
-        );
+    test('enqueueSubmission records Subsonic and ListenBrainz providers independently', () async {
+      final service = DriftScrobbleService(
+        dao: database.scrobbleDao,
+        readApiClient: () => apiClient,
+        readScrobbleEnabled: () => scrobbleEnabled,
+        readListenBrainzCredentials: () async =>
+            const ListenBrainzScrobbleCredentials(
+              userToken: 'listenbrainz-token',
+            ),
+        readReachable: () => reachable,
+        now: () => now,
+      );
 
-        await service.enqueueSubmission(
+      await service.enqueueSubmission(
+        songId: 'song-1',
+        sessionKey: 's5',
+        track: const ScrobbleTrackPayload(
           songId: 'song-1',
-          sessionKey: 's5',
-          track: const ScrobbleTrackPayload(
-            songId: 'song-1',
-            title: 'Song 1',
-            artist: 'Artist',
-          ),
-        );
+          title: 'Song 1',
+          artist: 'Artist',
+        ),
+      );
 
-        final queued = await database.select(database.scrobbleQueueTable).get();
-        expect(queued.map((row) => row.provider).toSet(), {
-          ScrobbleProvider.subsonic.id,
-          ScrobbleProvider.listenBrainz.id,
-        });
-        expect(
-          queued.where((row) => row.provider != ScrobbleProvider.subsonic.id),
-          everyElement(
-            isA<ScrobbleQueueTableData>()
-                .having((row) => row.trackTitle, 'trackTitle', 'Song 1')
-                .having((row) => row.artistName, 'artistName', 'Artist'),
-          ),
-        );
-      },
-      skip: !sqliteAvailable,
-    );
+      final queued = await database.select(database.scrobbleQueueTable).get();
+      expect(queued.map((row) => row.provider).toSet(), {
+        ScrobbleProvider.subsonic.id,
+        ScrobbleProvider.listenBrainz.id,
+      });
+      expect(
+        queued.where((row) => row.provider != ScrobbleProvider.subsonic.id),
+        everyElement(
+          isA<ScrobbleQueueTableData>()
+              .having((row) => row.trackTitle, 'trackTitle', 'Song 1')
+              .having((row) => row.artistName, 'artistName', 'Artist'),
+        ),
+      );
+    }, skip: !sqliteAvailable);
 
     test(
       'flushDue drops queued Last.fm events from older app versions',

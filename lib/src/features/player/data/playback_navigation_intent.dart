@@ -10,7 +10,7 @@ enum PlaybackNavigationOutcome {
 
 @immutable
 class PlaybackNavigationDecision {
-  const PlaybackNavigationDecision({
+  const new({
     required this.revision,
     required this.index,
     required this.outcome,

@@ -110,7 +110,7 @@ void main() {
               firstAReceived.complete();
               await releaseFirstA.future;
             }
-            request.response.add(<int>[aRequests == 1 ? 1 : 3]);
+            request.response.add(<int>[if (aRequests == 1) 1 else 3]);
           } else {
             request.response.add(<int>[2]);
           }

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_song_search_screen.dart';
 
@@ -72,7 +73,7 @@ Widget _buildTestApp(NavisDatabase database) {
   return ProviderScope(
     overrides: withTestDatabase(database),
     child: MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const MatchFlowSongSearchScreen(flowId: 'flow-id'),
     ),

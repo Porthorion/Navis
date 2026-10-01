@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -38,7 +38,7 @@ void main() {
 }
 
 class _PlaybackSettingsPreview extends StatelessWidget {
-  const _PlaybackSettingsPreview({required this.bounded});
+  const new({required this.bounded});
 
   final bool bounded;
 
@@ -97,7 +97,7 @@ class _PlaybackSettingsPreview extends StatelessWidget {
 }
 
 class _Field extends StatelessWidget {
-  const _Field({required this.label, required this.value});
+  const new({required this.label, required this.value});
 
   final String label;
   final String value;

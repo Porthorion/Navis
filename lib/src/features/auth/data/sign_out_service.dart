@@ -29,6 +29,8 @@ class SessionTransitionController extends Notifier<SessionTransition> {
   @override
   SessionTransition build() => SessionTransition.idle;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void setTransition(SessionTransition value) => state = value;
 }
 
@@ -91,31 +93,22 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
 });
 
 class SessionLifecycleService implements SignOutService {
-  SessionLifecycleService({
-    required ServerConfigRepository serverConfigRepository,
+  new({
+    required this._serverConfigRepository,
     required NavisDatabase database,
-    Future<void> Function()? cancelApiRequests,
-    Future<void> Function()? cancelSync,
-    Future<void> Function()? cancelAndroidBackgroundSync,
-    Future<void> Function()? stopDownloads,
-    Future<void> Function()? resetPlayback,
-    Future<void> Function()? resetTransientUi,
+    this._cancelApiRequests,
+    this._cancelSync,
+    this._cancelAndroidBackgroundSync,
+    this._stopDownloads,
+    this._resetPlayback,
+    this._resetTransientUi,
     Future<void> Function()? wipeServerData,
-    void Function(SessionTransition transition)? onTransition,
-    void Function()? invalidateSessionProviders,
-  }) : _serverConfigRepository = serverConfigRepository,
-       _database = database,
-       _cancelApiRequests = cancelApiRequests,
-       _cancelSync = cancelSync,
-       _cancelAndroidBackgroundSync = cancelAndroidBackgroundSync,
-       _stopDownloads = stopDownloads,
-       _resetPlayback = resetPlayback,
-       _resetTransientUi = resetTransientUi,
+    this._onTransition,
+    this._invalidateSessionProviders,
+  }) : _database = database,
        _wipeServerData =
            wipeServerData ??
-           (() => ServerDataResetService(database: database).reset()),
-       _onTransition = onTransition,
-       _invalidateSessionProviders = invalidateSessionProviders;
+           (() => ServerDataResetService(database: database).reset());
 
   final ServerConfigRepository _serverConfigRepository;
   final NavisDatabase _database;
@@ -133,11 +126,10 @@ class SessionLifecycleService implements SignOutService {
 
   @override
   Future<void> signOut({required bool wipeLocalData}) {
-    return _inFlight ??= _signOut(wipeLocalData: wipeLocalData).whenComplete(
-      () {
-        _inFlight = null;
-      },
-    );
+    return _inFlight ??= _signOut(wipeLocalData: wipeLocalData)
+        .whenComplete(() {
+          _inFlight = null;
+        });
   }
 
   Future<void> _signOut({required bool wipeLocalData}) async {
@@ -180,14 +172,14 @@ class SessionLifecycleService implements SignOutService {
       await attempt('clear pending download queue', () {
         return _database.downloadQueueDao.clearQueue();
       });
-      await attempt('clear pending star actions', () {
-        return _database.starSyncDao.clearAll();
+      await attempt('clear pending star actions', () async {
+        await _database.starSyncDao.clearAll();
       });
       await attempt('clear pending scrobbles', () {
         return _database.scrobbleDao.clearAll();
       });
-      await attempt('clear pending ListenBrainz feedback', () {
-        return _database.listenBrainzFeedbackDao.clearAll();
+      await attempt('clear pending ListenBrainz feedback', () async {
+        await _database.listenBrainzFeedbackDao.clearAll();
       });
       await attempt('clear sync candidates', () {
         return _database.librarySyncCandidateDao.clearAll();
@@ -198,9 +190,10 @@ class SessionLifecycleService implements SignOutService {
       await attempt('clear durable sync work', () {
         return _database.librarySyncDao.discardAllPendingSessionWork();
       });
-      await attempt('dismiss download notification', () {
-        return DownloadNotifier.dismissProgress();
-      });
+      await attempt(
+        'dismiss download notification',
+        DownloadNotifier.dismissProgress,
+      );
 
       if (wipeLocalData) {
         await attempt('clear server-scoped data', _wipeServerData);
@@ -229,11 +222,7 @@ class SessionLifecycleService implements SignOutService {
 }
 
 class ServerDataResetService {
-  ServerDataResetService({
-    required NavisDatabase database,
-    Future<void> Function()? clearCoverArt,
-  }) : _database = database,
-       _clearCoverArt = clearCoverArt;
+  new({required this._database, this._clearCoverArt});
 
   final NavisDatabase _database;
   final Future<void> Function()? _clearCoverArt;
@@ -295,9 +284,7 @@ class ServerDataResetService {
     try {
       await _clearCoverArt?.call();
     } on Object catch (error) {
-      AppLogger.warning(
-        'Server cover-art reset failed: ${error.runtimeType}.',
-      );
+      AppLogger.warning('Server cover-art reset failed: ${error.runtimeType}.');
     }
   }
 
@@ -322,7 +309,7 @@ class ServerDataResetService {
 
 /// A user-chosen download folder, as configured and link-resolved.
 class _UserFolder {
-  const _UserFolder(this._roots);
+  const new(this._roots);
 
   final Set<String> _roots;
 

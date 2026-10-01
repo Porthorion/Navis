@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 
@@ -98,15 +98,13 @@ void main() {
     final same = CoverColourField(cells);
     final other = CoverColourField.uniform(const Color(0xFF000000));
     expect(
-      CoverColourFieldPainter(field).shouldRepaint(
-        CoverColourFieldPainter(same),
-      ),
+      CoverColourFieldPainter(field)
+          .shouldRepaint(CoverColourFieldPainter(same)),
       isFalse,
     );
     expect(
-      CoverColourFieldPainter(field).shouldRepaint(
-        CoverColourFieldPainter(other),
-      ),
+      CoverColourFieldPainter(field)
+          .shouldRepaint(CoverColourFieldPainter(other)),
       isTrue,
     );
   });

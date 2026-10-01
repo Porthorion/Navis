@@ -48,7 +48,7 @@ String _showcaseMetaLine(AppLocalizations l10n, HomeRandomShowcaseItem item) {
 /// Titles live in [_ShowcaseInfoPanel] below the carousel so the artwork is
 /// never darkened or covered; only the focused cover shows a Play button.
 class _ShowcaseCoverCard extends ConsumerWidget {
-  const _ShowcaseCoverCard({
+  const new({
     required this.item,
     required this.heroContext,
     required this.focused,
@@ -184,7 +184,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
 
 /// Title, artist and "year • songs · reason" for the focused carousel item.
 class _ShowcaseInfoPanel extends ConsumerWidget {
-  const _ShowcaseInfoPanel({required this.item, required this.heroContext});
+  const new({required this.item, required this.heroContext});
 
   static const Key panelKey = ValueKey<String>('home-showcase-info');
 
@@ -291,7 +291,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
 /// glides the colours instead of crossfading images, and a page-coloured
 /// veil keeps contrast.
 class _ShowcaseColourWash extends ConsumerWidget {
-  const _ShowcaseColourWash({required this.coverArtId, this.subtle = false});
+  const new({required this.coverArtId, this.subtle = false});
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
 
@@ -328,9 +328,8 @@ class _ShowcaseColourWash extends ConsumerWidget {
                     ? Duration.zero
                     : const Duration(milliseconds: 400),
                 curve: Curves.easeOut,
-                builder: (context, value, _) => CustomPaint(
-                  painter: CoverColourFieldPainter(value),
-                ),
+                builder: (context, value, _) =>
+                    CustomPaint(painter: CoverColourFieldPainter(value)),
               ),
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -356,7 +355,7 @@ class _ShowcaseColourWash extends ConsumerWidget {
 }
 
 class _CoverColourFieldTween extends Tween<CoverColourField> {
-  _CoverColourFieldTween({super.end});
+  new({super.end});
 
   @override
   CoverColourField lerp(double t) {

@@ -17,8 +17,9 @@ class PermanentDownloadMediaIdentity {
   static const int _maxCommentBytes = 1024 * 1024;
 
   Future<Map<String, String>> read(File file) async {
-    if (file.path.toLowerCase().endsWith('.flac'))
-      return _readFlacMetadata(file);
+    if (file.path.toLowerCase().endsWith('.flac')) {
+      return await _readFlacMetadata(file);
+    }
     return const <String, String>{};
   }
 

@@ -5,14 +5,11 @@ import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
 /// Auth strategy used for Subsonic requests.
-enum SubsonicAuthType {
-  token,
-  legacyPassword,
-}
+enum SubsonicAuthType { token, legacyPassword }
 
 /// Credentials and protocol fields injected into every request.
 class SubsonicAuthConfig {
-  const SubsonicAuthConfig({
+  const new({
     required this.username,
     required this.password,
     required this.apiVersion,
@@ -29,17 +26,13 @@ class SubsonicAuthConfig {
 
 /// Appends required Subsonic auth and protocol query parameters.
 class SubsonicAuthInterceptor extends Interceptor {
-  SubsonicAuthInterceptor({required this.config, Uuid? uuid})
-    : _uuid = uuid ?? const Uuid();
+  new({required this.config, Uuid? uuid}) : _uuid = uuid ?? const Uuid();
 
   final SubsonicAuthConfig config;
   final Uuid _uuid;
 
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final query = <String, dynamic>{
       ...options.queryParameters,
       'u': config.username,

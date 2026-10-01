@@ -17,15 +17,12 @@ class OperationCancelledException implements Exception {
 }
 
 class PlaybackLoadTimeoutException extends TimeoutException {
-  PlaybackLoadTimeoutException({
-    required this.operation,
-    this.songId,
-    this.timeoutDuration,
-  }) : super(
-         'Playback operation timed out: $operation'
-         '${songId == null ? '' : ' (song=$songId)'}',
-         timeoutDuration,
-       );
+  new({required this.operation, this.songId, this.timeoutDuration})
+    : super(
+        'Playback operation timed out: $operation'
+        '${songId == null ? '' : ' (song=$songId)'}',
+        timeoutDuration,
+      );
 
   final String operation;
   final String? songId;
@@ -136,9 +133,7 @@ class NavisSupersedingLane {
   }
 
   /// Runs [operation] as [NavisLaneWorkKind.navigate] work.
-  Future<void> navigate(
-    Future<void> Function(OperationToken token) operation,
-  ) {
+  Future<void> navigate(Future<void> Function(OperationToken token) operation) {
     cancelForNavigation();
     return _submit(_SupersedingWork(operation, NavisLaneWorkKind.navigate));
   }
@@ -208,7 +203,7 @@ class NavisSupersedingLane {
 }
 
 class _SupersedingWork {
-  _SupersedingWork(this._operation, this.kind);
+  new(this._operation, this.kind);
 
   final Future<void> Function(OperationToken token) _operation;
   final NavisLaneWorkKind kind;

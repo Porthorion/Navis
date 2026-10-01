@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/common_widgets/expandable_player_sheet.dart';
+library;
+
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -6,7 +9,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
@@ -305,7 +308,7 @@ Future<void> prewarmNowPlayingVisuals({
 }
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
-  const NowPlayingScreen({
+  const new({
     super.key,
     this.onCollapse,
     this.onShowQueue,
@@ -431,7 +434,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final transportPresentationFixture = ref.watch(
       transportMotionPresentationFixtureProvider,
     );
-    final PlaybackSnapshot playback =
+    final playback =
         transportPresentationFixture?.playback ??
         ref.watch<PlaybackSnapshot>(playerStateProvider);
     final currentSongId = playback.currentSongId;
@@ -445,12 +448,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final activeArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : currentMediaItem?.artUri?.toString();
-    // ignore: unused_local_variable
-    final visualCacheKey = nowPlayingVisualCacheKeyFor(
-      brightness: brightness,
-      coverArtId: playback.isRadioMode ? null : song?.coverArt,
-      artUrl: activeArtUrl,
-    );
     final cachedTintColor = artTinted
         ? nowPlayingCachedTintColor(
             brightness: brightness,
@@ -477,16 +474,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           if (playback.isRadioMode) {
             final radioArtUrl = playback.radioStation?.nowPlayingArtUrl;
             if (radioArtUrl != null && radioArtUrl.trim().isNotEmpty) {
-              _extractArtColorFromUrl(radioArtUrl);
+              unawaited(_extractArtColorFromUrl(radioArtUrl));
             }
           } else {
             final coverArtId = song?.coverArt;
             if (coverArtId != null && coverArtId.trim().isNotEmpty) {
-              _extractArtColor(coverArtId);
+              unawaited(_extractArtColor(coverArtId));
             } else {
               final mediaArtUrl = currentMediaItem?.artUri?.toString();
               if (mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty) {
-                _extractArtColorFromUrl(mediaArtUrl);
+                unawaited(_extractArtColorFromUrl(mediaArtUrl));
               }
             }
           }
@@ -576,9 +573,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               playback: playback,
               song: playback.isRadioMode ? null : song,
               diagnosticsTransportCue: transportPresentationFixture?.cue,
-              wideEmbeddedMode: widget.compactWideLandscapeMode
-                  ? true
-                  : effectiveWideMode,
+              wideEmbeddedMode:
+                  widget.compactWideLandscapeMode || effectiveWideMode,
               compactWideLandscapeMode: widget.compactWideLandscapeMode,
               showEmbeddedVolumeBelowActions:
                   widget.showEmbeddedVolumeBelowActions,
@@ -668,7 +664,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 }
 
 class _NowPlayingHandle extends StatelessWidget {
-  const _NowPlayingHandle();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -679,9 +675,8 @@ class _NowPlayingHandle extends StatelessWidget {
           width: 36,
           height: 4,
           decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            color: Theme.of(context).colorScheme.onSurfaceVariant
+                .withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -691,7 +686,7 @@ class _NowPlayingHandle extends StatelessWidget {
 }
 
 class _NowPlayingCollapseButton extends StatelessWidget {
-  const _NowPlayingCollapseButton({required this.onPressed});
+  const new({required this.onPressed});
 
   final VoidCallback onPressed;
 
@@ -727,7 +722,7 @@ void _showNowPlayingSettingsSheet(
       maxChildSize: 0.92,
       snap: true,
       builder: (_, scrollController) => Consumer(
-        builder: (_, sheetRef, __) {
+        builder: (_, sheetRef, _) {
           final currentSongRating = song == null
               ? null
               : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
@@ -736,9 +731,8 @@ void _showNowPlayingSettingsSheet(
           final songDownloadState = song == null
               ? SongDownloadState.none
               : sheetRef.watch(songDownloadStateProvider(song.id));
-          final disabledColor = Theme.of(
-            context,
-          ).colorScheme.onSurface.withValues(alpha: 0.38);
+          final disabledColor = Theme.of(context).colorScheme.onSurface
+              .withValues(alpha: 0.38);
           final eqSupported = sheetRef.watch(eqCapabilitiesProvider).supported;
           return SafeArea(
             top: false,
@@ -803,17 +797,17 @@ void _showNowPlayingSettingsSheet(
                   trailing: const Icon(Icons.chevron_right),
                   // The Speed & Pitch sheet opens once this one has closed,
                   // so two sheets never animate at the same time.
-                  onTap: () => Navigator.of(
-                    sheetContext,
-                  ).pop(_SettingsSheetAction.speedPitch),
+                  onTap: () =>
+                      Navigator.of(sheetContext)
+                          .pop(_SettingsSheetAction.speedPitch),
                 ),
                 if (eqSupported)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: EqQuickCard(
-                      onOpenFullPage: () => Navigator.of(
-                        sheetContext,
-                      ).pop(_SettingsSheetAction.openEqualizer),
+                      onOpenFullPage: () =>
+                          Navigator.of(sheetContext)
+                              .pop(_SettingsSheetAction.openEqualizer),
                     ),
                   )
                 else
@@ -873,10 +867,12 @@ void _showNowPlayingSettingsSheet(
                     title: Text(l10n.nowPlayingLyrics),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      _openFullscreenLyricsRoute(
-                        context,
-                        fullscreenLyricsSongId,
-                        fullscreenLyricsTitle,
+                      unawaited(
+                        _openFullscreenLyricsRoute(
+                          context,
+                          fullscreenLyricsSongId,
+                          fullscreenLyricsTitle,
+                        ),
                       );
                     },
                   ),
@@ -920,7 +916,9 @@ void _showNowPlayingSettingsSheet(
                     title: Text(l10n.librarySongMenuAddToPlaylist),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      showAddToPlaylistSheet(context, ref, [song.id]);
+                      unawaited(
+                        showAddToPlaylistSheet(context, ref, [song.id]),
+                      );
                     },
                   ),
                 if (song != null &&
@@ -939,11 +937,7 @@ void _showNowPlayingSettingsSheet(
                     onTap: () {
                       Navigator.of(sheetContext).pop();
                       unawaited(
-                        confirmAndDeleteDownload(
-                          context,
-                          sheetRef,
-                          song.id,
-                        ),
+                        confirmAndDeleteDownload(context, sheetRef, song.id),
                       );
                     },
                   )
@@ -1008,7 +1002,7 @@ void _showNowPlayingSettingsSheet(
 enum _SettingsSheetAction { speedPitch, openEqualizer }
 
 class _NowPlayingSoundSectionLabel extends StatelessWidget {
-  const _NowPlayingSoundSectionLabel({required this.label});
+  const new({required this.label});
 
   final String label;
 
@@ -1043,7 +1037,7 @@ Future<void> _openFullscreenLyricsRoute(
 }
 
 class _NowPlayingEmbeddedVolumeControl extends ConsumerWidget {
-  const _NowPlayingEmbeddedVolumeControl();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1059,9 +1053,8 @@ class _NowPlayingEmbeddedVolumeControl extends ConsumerWidget {
         semanticLabel: l10n.playbackVolumeSemanticLabel,
         muteTooltip: l10n.playbackMuteTooltip,
         unmuteTooltip: l10n.playbackUnmuteTooltip,
-        onMuteToggle: () => unawaited(
-          ref.read(playbackVolumeProvider.notifier).toggleMute(),
-        ),
+        onMuteToggle: () =>
+            unawaited(ref.read(playbackVolumeProvider.notifier).toggleMute()),
         onChanged: (value) => unawaited(
           ref.read(playbackVolumeProvider.notifier).setVolume(value),
         ),
@@ -1076,7 +1069,7 @@ class _NowPlayingEmbeddedVolumeControl extends ConsumerWidget {
 }
 
 class _NowPlayingBody extends ConsumerStatefulWidget {
-  const _NowPlayingBody({
+  const new({
     required this.playback,
     this.song,
     this.diagnosticsTransportCue,
@@ -1329,7 +1322,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     }
 
     final gap = (contentWidth * 0.014).clamp(14.0, 20.0);
-    final paneInnerPadding = 18.0;
+    const paneInnerPadding = 18.0;
     final usableArtHeight =
         contentHeight - (widget.wideEmbeddedMode ? 40.0 : 52.0);
 
@@ -1375,7 +1368,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         currentIndex >= ids.length) {
       return null;
     }
-    var nextIndex = currentIndex + 1;
+    final nextIndex = currentIndex + 1;
     if (nextIndex >= ids.length) {
       return null;
     }
@@ -1828,27 +1821,31 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       }
     });
     _latchedArtworkMotion = _resolveArtworkMotion(playback);
+    Widget buildSongSwapTransition(Widget child, Animation<double> animation) =>
+        _songSwapMetadataTransitionBuilder(
+          child,
+          animation,
+          motion: _latchedArtworkMotion,
+        );
     final songSwapTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : (Widget child, Animation<double> animation) =>
-              _songSwapMetadataTransitionBuilder(
-                child,
-                animation,
-                motion: _latchedArtworkMotion,
-              );
+        : buildSongSwapTransition;
     final effectiveSongSwapArtDuration = motion.reduceMotion
         ? Duration.zero
         : _latchedArtworkMotion == _TrackArtworkMotion.automatic
         ? const Duration(milliseconds: 160)
         : const Duration(milliseconds: 220);
+    Widget buildSongSwapArtTransition(
+      Widget child,
+      Animation<double> animation,
+    ) => _songSwapArtTransitionBuilder(
+      child,
+      animation,
+      motion: _latchedArtworkMotion,
+    );
     final effectiveSongSwapArtTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : (Widget child, Animation<double> animation) =>
-              _songSwapArtTransitionBuilder(
-                child,
-                animation,
-                motion: _latchedArtworkMotion,
-              );
+        : buildSongSwapArtTransition;
     final artLyricsSwapDuration = motion.reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 220);
@@ -2004,7 +2001,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             12 + mediaPadding.right,
             10 + mediaPadding.bottom,
           );
-          final gap = 10.0;
+          const gap = 10.0;
           final artPaneWidth = (constraints.maxWidth * 0.44).clamp(
             220.0,
             440.0,
@@ -2168,9 +2165,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     SizedBox(height: vSpacing),
                     _SeekBar(playback: playback),
                     SizedBox(height: vSpacing * 0.6),
-                  ] else ...<Widget>[
-                    SizedBox(height: vSpacing),
-                  ],
+                  ] else ...<Widget>[SizedBox(height: vSpacing)],
                   _TransportControls(
                     playback: playback,
                     isExternalSource: !isRadio && (song?.isExternal ?? false),
@@ -2318,10 +2313,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
                         fit: StackFit.expand,
-                        children: <Widget>[
-                          ...previousChildren,
-                          if (currentChild != null) currentChild,
-                        ],
+                        children: <Widget>[...previousChildren, ?currentChild],
                       );
                     },
                     child: compactOverlayPage == null
@@ -2422,7 +2414,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
                   ));
         final availableContentHeight = math.max(
-          0.0,
+          0,
           constraints.maxHeight - topInset - artToMetaGap - metadataBottomGap,
         );
         double artRegionHeight;
@@ -2448,8 +2440,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ? maxArtHeight
               : preferredArtHeight.clamp(minArtHeight, maxArtHeight);
         }
-        final metadataRegionHeight = math.max(
-          0.0,
+        final metadataRegionHeight = math.max<double>(
+          0,
           availableContentHeight - artRegionHeight,
         );
 
@@ -2774,9 +2766,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     child: Text(
                       l10n.lyricsNoneAvailable,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                   )
                 : _InlineLyrics(songId: playback.currentSongId!),
@@ -3099,11 +3090,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
                         layoutBuilder: (currentChild, previousChildren) {
-                          return Stack(
-                            children: <Widget>[
-                              if (currentChild != null) currentChild,
-                            ],
-                          );
+                          return Stack(children: <Widget>[?currentChild]);
                         },
                         transitionBuilder: (child, animation) {
                           final curved = CurvedAnimation(

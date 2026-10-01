@@ -29,16 +29,21 @@ $SongCopyWith<Song> get copyWith => _$SongCopyWithImpl<Song>(this as Song, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
+  final _this = this as Song;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.album, _this.album) || other.album == _this.album)&&(identical(other.albumId, _this.albumId) || other.albumId == _this.albumId)&&(identical(other.artist, _this.artist) || other.artist == _this.artist)&&(identical(other.artistId, _this.artistId) || other.artistId == _this.artistId)&&(identical(other.track, _this.track) || other.track == _this.track)&&(identical(other.discNumber, _this.discNumber) || other.discNumber == _this.discNumber)&&(identical(other.year, _this.year) || other.year == _this.year)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.bitRate, _this.bitRate) || other.bitRate == _this.bitRate)&&(identical(other.sampleRate, _this.sampleRate) || other.sampleRate == _this.sampleRate)&&(identical(other.contentType, _this.contentType) || other.contentType == _this.contentType)&&(identical(other.suffix, _this.suffix) || other.suffix == _this.suffix)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.coverArt, _this.coverArt) || other.coverArt == _this.coverArt)&&(identical(other.starred, _this.starred) || other.starred == _this.starred)&&(identical(other.musicBrainzId, _this.musicBrainzId) || other.musicBrainzId == _this.musicBrainzId)&&(identical(other.userRating, _this.userRating) || other.userRating == _this.userRating)&&(identical(other.playCount, _this.playCount) || other.playCount == _this.playCount)&&(identical(other.created, _this.created) || other.created == _this.created)&&(identical(other.isExternal, _this.isExternal) || other.isExternal == _this.isExternal)&&(identical(other.replayGain, _this.replayGain) || other.replayGain == _this.replayGain));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,sampleRate,contentType,suffix,size,coverArt,starred,musicBrainzId,userRating,playCount,created,isExternal,replayGain]);
+int get hashCode {
+  final _this = this as Song;
+  return Object.hashAll([runtimeType,_this.id,_this.title,_this.album,_this.albumId,_this.artist,_this.artistId,_this.track,_this.discNumber,_this.year,_this.duration,_this.bitRate,_this.sampleRate,_this.contentType,_this.suffix,_this.size,_this.coverArt,_this.starred,_this.musicBrainzId,_this.userRating,_this.playCount,_this.created,_this.isExternal,_this.replayGain]);
+}
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, sampleRate: $sampleRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, musicBrainzId: $musicBrainzId, userRating: $userRating, playCount: $playCount, created: $created, isExternal: $isExternal, replayGain: $replayGain)';
+  final _this = this as Song;
+  return 'Song(id: ${_this.id}, title: ${_this.title}, album: ${_this.album}, albumId: ${_this.albumId}, artist: ${_this.artist}, artistId: ${_this.artistId}, track: ${_this.track}, discNumber: ${_this.discNumber}, year: ${_this.year}, duration: ${_this.duration}, bitRate: ${_this.bitRate}, sampleRate: ${_this.sampleRate}, contentType: ${_this.contentType}, suffix: ${_this.suffix}, size: ${_this.size}, coverArt: ${_this.coverArt}, starred: ${_this.starred}, musicBrainzId: ${_this.musicBrainzId}, userRating: ${_this.userRating}, playCount: ${_this.playCount}, created: ${_this.created}, isExternal: ${_this.isExternal}, replayGain: ${_this.replayGain})';
 }
 
 
@@ -284,16 +289,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,sampleRate,contentType,suffix,size,coverArt,starred,musicBrainzId,userRating,playCount,created,isExternal,replayGain]);
+int get hashCode {
+    return Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,sampleRate,contentType,suffix,size,coverArt,starred,musicBrainzId,userRating,playCount,created,isExternal,replayGain]);
+}
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, sampleRate: $sampleRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, musicBrainzId: $musicBrainzId, userRating: $userRating, playCount: $playCount, created: $created, isExternal: $isExternal, replayGain: $replayGain)';
+    return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, sampleRate: $sampleRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, musicBrainzId: $musicBrainzId, userRating: $userRating, playCount: $playCount, created: $created, isExternal: $isExternal, replayGain: $replayGain)';
 }
 
 
@@ -382,16 +389,21 @@ $ReplayGainCopyWith<ReplayGain> get copyWith => _$ReplayGainCopyWithImpl<ReplayG
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ReplayGain&&(identical(other.trackGain, trackGain) || other.trackGain == trackGain)&&(identical(other.albumGain, albumGain) || other.albumGain == albumGain)&&(identical(other.trackPeak, trackPeak) || other.trackPeak == trackPeak)&&(identical(other.albumPeak, albumPeak) || other.albumPeak == albumPeak));
+  final _this = this as ReplayGain;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ReplayGain&&(identical(other.trackGain, _this.trackGain) || other.trackGain == _this.trackGain)&&(identical(other.albumGain, _this.albumGain) || other.albumGain == _this.albumGain)&&(identical(other.trackPeak, _this.trackPeak) || other.trackPeak == _this.trackPeak)&&(identical(other.albumPeak, _this.albumPeak) || other.albumPeak == _this.albumPeak));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,trackGain,albumGain,trackPeak,albumPeak);
+int get hashCode {
+  final _this = this as ReplayGain;
+  return Object.hash(runtimeType,_this.trackGain,_this.albumGain,_this.trackPeak,_this.albumPeak);
+}
 
 @override
 String toString() {
-  return 'ReplayGain(trackGain: $trackGain, albumGain: $albumGain, trackPeak: $trackPeak, albumPeak: $albumPeak)';
+  final _this = this as ReplayGain;
+  return 'ReplayGain(trackGain: ${_this.trackGain}, albumGain: ${_this.albumGain}, trackPeak: ${_this.trackPeak}, albumPeak: ${_this.albumPeak})';
 }
 
 
@@ -587,16 +599,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ReplayGain&&(identical(other.trackGain, trackGain) || other.trackGain == trackGain)&&(identical(other.albumGain, albumGain) || other.albumGain == albumGain)&&(identical(other.trackPeak, trackPeak) || other.trackPeak == trackPeak)&&(identical(other.albumPeak, albumPeak) || other.albumPeak == albumPeak));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ReplayGain&&(identical(other.trackGain, trackGain) || other.trackGain == trackGain)&&(identical(other.albumGain, albumGain) || other.albumGain == albumGain)&&(identical(other.trackPeak, trackPeak) || other.trackPeak == trackPeak)&&(identical(other.albumPeak, albumPeak) || other.albumPeak == albumPeak));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,trackGain,albumGain,trackPeak,albumPeak);
+int get hashCode {
+    return Object.hash(runtimeType,trackGain,albumGain,trackPeak,albumPeak);
+}
 
 @override
 String toString() {
-  return 'ReplayGain(trackGain: $trackGain, albumGain: $albumGain, trackPeak: $trackPeak, albumPeak: $albumPeak)';
+    return 'ReplayGain(trackGain: $trackGain, albumGain: $albumGain, trackPeak: $trackPeak, albumPeak: $albumPeak)';
 }
 
 

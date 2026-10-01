@@ -7,7 +7,7 @@ import 'package:navis/src/providers/app_providers.dart';
 enum RecommendationMode { serverMix, sameVibes, personalRadio }
 
 class RecommendationSession {
-  const RecommendationSession({
+  const new({
     required this.generation,
     required this.mode,
     required this.cancelToken,
@@ -19,7 +19,7 @@ class RecommendationSession {
 }
 
 class RecommendationSessionStatus {
-  const RecommendationSessionStatus({
+  const new({
     this.generation = 0,
     this.mode,
     this.seedId,

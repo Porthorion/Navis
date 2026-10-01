@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,20 +27,14 @@ const _kMaxArtistSetSize = 200;
 class SmartQueueNotifier extends Notifier<SmartQueueState> {
   @override
   SmartQueueState build() {
-    ref.listen<PlaybackSnapshot>(
-      playerStateProvider,
-      _onSnapshotChanged,
-    );
+    ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
     return const SmartQueueState.inactive();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
 
   /// Start a Smart Queue session with [profile] seeded from [seedSongId].
-  Future<void> activate(
-    SmartQueueProfile profile,
-    String seedSongId,
-  ) async {
+  Future<void> activate(SmartQueueProfile profile, String seedSongId) async {
     state = SmartQueueState(
       active: true,
       profile: profile,
@@ -88,7 +84,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
       // Determine the seed for this refill based on profile strategy.
       final seed = _chooseSeed(profile, next);
       if (seed != null) {
-        _refill(seed);
+        unawaited(_refill(seed));
       }
     }
   }
@@ -135,10 +131,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
     }
   }
 
-  Future<void> _enqueue(
-    List<Song> songs, {
-    bool isInitial = false,
-  }) async {
+  Future<void> _enqueue(List<Song> songs, {bool isInitial = false}) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     final handler = ref.read(audioHandlerProvider);
     await handler?.addToQueue(ids, expandMatchFlows: false);

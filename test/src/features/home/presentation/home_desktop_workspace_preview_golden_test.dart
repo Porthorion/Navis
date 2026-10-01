@@ -1,19 +1,20 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, bool panels) => tester.pumpWidget(
-    MaterialApp(
-      theme: buildDarkTheme(Colors.deepPurple),
-      home: Scaffold(body: _Preview(panels: panels)),
-    ),
-  );
+  Future<void> pump(WidgetTester tester, {required bool panels}) =>
+      tester.pumpWidget(
+        MaterialApp(
+          theme: buildDarkTheme(Colors.deepPurple),
+          home: Scaffold(body: _Preview(panels: panels)),
+        ),
+      );
 
   testWidgets('home desktop before uses page panels', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, panels: true);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/home_desktop_workspace_before.png'),
@@ -23,7 +24,7 @@ void main() {
   testWidgets('home desktop after uses continuous sections', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, panels: false);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/home_desktop_workspace_after.png'),
@@ -32,7 +33,7 @@ void main() {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.panels});
+  const new({required this.panels});
   final bool panels;
   @override
   Widget build(BuildContext context) {
@@ -53,9 +54,8 @@ class _Preview extends StatelessWidget {
         children: <Widget>[
           Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           Row(

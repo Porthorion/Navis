@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -54,12 +54,7 @@ Future<void> showAlbumContextMenu(
   Offset? anchor,
 }) async {
   if (anchor != null && isDesktopRuntime) {
-    await _showDesktopAlbumContextMenu(
-      context,
-      ref,
-      albumId,
-      anchor: anchor,
-    );
+    await _showDesktopAlbumContextMenu(context, ref, albumId, anchor: anchor);
     return;
   }
 
@@ -147,9 +142,7 @@ Future<void> showAlbumContextMenu(
                   leading: Icon(
                     isStarred ? Icons.favorite : Icons.favorite_border,
                   ),
-                  title: Text(
-                    isStarred ? l10n.actionLiked : l10n.actionLike,
-                  ),
+                  title: Text(isStarred ? l10n.actionLiked : l10n.actionLike),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
                     unawaited(_toggleAlbumStar(ref, albumId, isStarred));
@@ -281,10 +274,7 @@ Future<void> _showDesktopAlbumContextMenu(
         await ref.read(queueProvider.notifier).add(song.id);
       }
       if (context.mounted) {
-        _showQueueActionToast(
-          context,
-          localizations.libraryAlbumAddedToQueue,
-        );
+        _showQueueActionToast(context, localizations.libraryAlbumAddedToQueue);
       }
       return;
     case _AlbumContextAction.toggleLike:
@@ -372,8 +362,4 @@ Future<void> _toggleAlbumStar(WidgetRef ref, String albumId, bool isStarred) =>
     ref
         .read(navisDatabaseProvider)
         .starSyncDao
-        .setStarred(
-          itemId: albumId,
-          itemType: 'album',
-          liked: !isStarred,
-        );
+        .setStarred(itemId: albumId, itemType: 'album', liked: !isStarred);

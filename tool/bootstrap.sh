@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_flutter_min="3.47.1"
+required_flutter_min="3.47.5"
 required_flutter_baseline_prefix="3.47"
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_dir"
 
 check_cmd() {
   local cmd="$1"
@@ -48,6 +50,13 @@ fi
 
 echo "[bootstrap] Running flutter pub get..."
 flutter pub get
+
+for package_dir in third_party/navis_windows_smtc third_party/just_audio_media_kit; do
+  echo "[bootstrap] Resolving $package_dir development dependencies..."
+  (cd "$project_dir/$package_dir" && flutter pub get)
+done
+echo "[bootstrap] Resolving CargoKit development dependencies..."
+(cd "$project_dir/third_party/navis_windows_smtc/cargokit/build_tool" && dart pub get)
 
 echo "[bootstrap] Bootstrap complete."
 echo "[bootstrap] Next: ./tool/check.sh"

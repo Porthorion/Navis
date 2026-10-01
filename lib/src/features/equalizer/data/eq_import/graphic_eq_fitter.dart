@@ -5,7 +5,7 @@ import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 
 /// A GraphicEQ curve approximated with peaking filters.
 class GraphicEqFit {
-  const GraphicEqFit({
+  const new({
     required this.filters,
     required this.rmsErrorDb,
     required this.maxErrorDb,
@@ -184,7 +184,7 @@ List<double> _solveSymmetric(List<List<double>> a, List<double> b) {
 /// The curve between its points, interpolated on a log-frequency axis and
 /// held flat beyond its first and last point.
 class _Curve {
-  _Curve(List<(double, double)> points) : _points = _normalize(points);
+  new(List<(double, double)> points) : _points = _normalize(points);
 
   final List<(double, double)> _points;
 

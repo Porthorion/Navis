@@ -29,16 +29,21 @@ $ServerConfigModelCopyWith<ServerConfigModel> get copyWith => _$ServerConfigMode
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced)&&(identical(other.lastFullSyncedAt, lastFullSyncedAt) || other.lastFullSyncedAt == lastFullSyncedAt));
+  final _this = this as ServerConfigModel;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerConfigModel&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.username, _this.username) || other.username == _this.username)&&(identical(other.password, _this.password) || other.password == _this.password)&&(identical(other.apiVersion, _this.apiVersion) || other.apiVersion == _this.apiVersion)&&(identical(other.useLegacyAuth, _this.useLegacyAuth) || other.useLegacyAuth == _this.useLegacyAuth)&&(identical(other.capabilitiesJson, _this.capabilitiesJson) || other.capabilitiesJson == _this.capabilitiesJson)&&(identical(other.lastSynced, _this.lastSynced) || other.lastSynced == _this.lastSynced)&&(identical(other.lastFullSyncedAt, _this.lastFullSyncedAt) || other.lastFullSyncedAt == _this.lastFullSyncedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced,lastFullSyncedAt);
+int get hashCode {
+  final _this = this as ServerConfigModel;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.url,_this.username,_this.password,_this.apiVersion,_this.useLegacyAuth,_this.capabilitiesJson,_this.lastSynced,_this.lastFullSyncedAt);
+}
 
 @override
 String toString() {
-  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced, lastFullSyncedAt: $lastFullSyncedAt)';
+  final _this = this as ServerConfigModel;
+  return 'ServerConfigModel(id: ${_this.id}, name: ${_this.name}, url: ${_this.url}, username: ${_this.username}, password: ${_this.password}, apiVersion: ${_this.apiVersion}, useLegacyAuth: ${_this.useLegacyAuth}, capabilitiesJson: ${_this.capabilitiesJson}, lastSynced: ${_this.lastSynced}, lastFullSyncedAt: ${_this.lastFullSyncedAt})';
 }
 
 
@@ -246,16 +251,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced)&&(identical(other.lastFullSyncedAt, lastFullSyncedAt) || other.lastFullSyncedAt == lastFullSyncedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced)&&(identical(other.lastFullSyncedAt, lastFullSyncedAt) || other.lastFullSyncedAt == lastFullSyncedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced,lastFullSyncedAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced,lastFullSyncedAt);
+}
 
 @override
 String toString() {
-  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced, lastFullSyncedAt: $lastFullSyncedAt)';
+    return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced, lastFullSyncedAt: $lastFullSyncedAt)';
 }
 
 

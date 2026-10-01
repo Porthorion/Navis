@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Value;
@@ -19,9 +17,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../../../helpers/test_database.dart';
 
 class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
-  _BenchmarkListenBrainzApiClient({
-    required this.playlist,
-  });
+  new({required this.playlist});
 
   final ListenBrainzPlaylist playlist;
 
@@ -52,7 +48,7 @@ class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
 
 class _BenchmarkExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
-  const _BenchmarkExternalScrobbleCredentialStore();
+  const new();
 
   @override
   Future<void> clearListenBrainzToken() async {}
@@ -70,9 +66,11 @@ void main() {
     () async {
       final database = createTestDatabase();
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Populating database with 10,000 songs...');
       final songsToInsert = <SongsTableCompanion>[];
-      for (int i = 0; i < 10000; i++) {
+      for (var i = 0; i < 10000; i++) {
         songsToInsert.add(
           SongsTableCompanion.insert(
             id: 'song-$i',
@@ -87,7 +85,7 @@ void main() {
 
       // Create 50 target tracks, most with mismatched names to trigger the fallback
       final targetTracks = <ListenBrainzPlaylistTrack>[];
-      for (int i = 0; i < 50; i++) {
+      for (var i = 0; i < 50; i++) {
         targetTracks.add(
           ListenBrainzPlaylistTrack(
             title: 'Song Title $i slightly mismatched',
@@ -152,11 +150,15 @@ void main() {
         await database.close();
       });
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Starting matching resolution...');
       final stopwatch = Stopwatch()..start();
       final result = await container.read(listenBrainzDiscoverProvider.future);
       stopwatch.stop();
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Matching resolved in: ${stopwatch.elapsedMilliseconds} ms');
       expect(result, isNotEmpty);
     },

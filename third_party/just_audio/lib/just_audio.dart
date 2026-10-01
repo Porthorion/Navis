@@ -26,7 +26,7 @@ const _uuid = Uuid();
 JustAudioPlatform? _pluginPlatformCache;
 
 JustAudioPlatform get _pluginPlatform {
-  var pluginPlatform = JustAudioPlatform.instance;
+  final pluginPlatform = JustAudioPlatform.instance;
   // If this is a new FlutterEngine or if we've just hot restarted an existing
   // FlutterEngine...
   if (_pluginPlatformCache == null) {
@@ -62,140 +62,6 @@ JustAudioPlatform get _pluginPlatform {
 /// You must call [stop] or [dispose] to release the resources used by this
 /// player, including any temporary files created to cache assets.
 class AudioPlayer {
-  static String _generateId() => _uuid.v4();
-  final _lock = Lock(reentrant: true);
-  Future<void>? _playbackEventPipe;
-
-  /// The user agent to set on all HTTP requests.
-  final String? _userAgent;
-
-  /// Whether to use the proxy server to send request headers.
-  final bool _useProxyForRequestHeaders;
-
-  final AudioLoadConfiguration? _audioLoadConfiguration;
-  EqualizerConfigurationMessage? _equalizerConfiguration;
-
-  final bool _androidOffloadSchedulingEnabled;
-
-  final AndroidAudioOffloadPreferences? _androidAudioOffloadPreferences;
-
-  /// This is `true` when the audio player needs to engage the native platform
-  /// side of the plugin to decode or play audio, and is `false` when the native
-  /// resources are not needed (i.e. after initial instantiation and after [stop]).
-  bool _active = false;
-
-  /// This is set to [_nativePlatform] when [_active] is `true` and
-  /// [_idlePlatform] otherwise.
-  late Future<AudioPlayerPlatform> _platform;
-
-  /// Reflects the current platform immediately after it is set.
-  AudioPlayerPlatform? _platformValue;
-
-  /// The interface to the native portion of the plugin. This will be disposed
-  /// and set to `null` when not in use.
-  Future<AudioPlayerPlatform>? _nativePlatform;
-
-  /// A pure Dart implementation of the platform interface for use when the
-  /// native platform is not needed.
-  _IdleAudioPlayer? _idlePlatform;
-
-  /// The subscription to the event channel of the current platform
-  /// implementation. When switching between active and inactive modes, this is
-  /// used to cancel the subscription to the previous platform's events and
-  /// subscribe to the new platform's events.
-  StreamSubscription<PlaybackEventMessage>? _playbackEventSubscription;
-
-  /// The subscription to the data event channel of the current platform
-  /// implementation. When switching between active and inactive modes, this is
-  /// used to cancel the subscription to the previous platform's events and
-  /// subscribe to the new platform's events.
-  StreamSubscription<PlayerDataMessage>? _playerDataSubscription;
-
-  StreamSubscription<AndroidAudioAttributes>?
-      _androidAudioAttributesSubscription;
-  StreamSubscription<void>? _becomingNoisyEventSubscription;
-  StreamSubscription<AudioInterruptionEvent>? _interruptionEventSubscription;
-  StreamSubscription<void>? _positionDiscontinuitySubscription;
-  StreamSubscription<void>? _currentIndexSubscription;
-  StreamSubscription<void>? _errorsSubscription;
-  StreamSubscription<void>? _errorsResetSubscription;
-
-  String? _id;
-  final _proxy = _ProxyHttpServer();
-  // ignore: deprecated_member_use_from_same_package
-  final ConcatenatingAudioSource _playlist;
-  final Map<String, AudioSource> _audioSources = {};
-  bool _disposed = false;
-  _PluginLoadRequest? _pluginLoadRequest;
-  final AudioPipeline _audioPipeline;
-
-  Future<Duration?>? _loadFuture;
-  final _shuffleIndicesInv = <int>[];
-
-  final _playerEventSubject =
-      BehaviorSubject<PlayerEvent>.seeded(PlayerEvent(), sync: true);
-
-  final _playbackEventSubject =
-      BehaviorSubject<PlaybackEvent>.seeded(PlaybackEvent(), sync: true);
-
-  // derived from playbackEventStream
-  final _processingStateSubject =
-      BehaviorSubject<ProcessingState>.seeded(ProcessingState.idle);
-  final _durationSubject = BehaviorSubject<Duration?>.seeded(null);
-  final _bufferedPositionSubject =
-      BehaviorSubject<Duration>.seeded(Duration.zero);
-  final _icyMetadataSubject = BehaviorSubject<IcyMetadata?>.seeded(null);
-  final _androidAudioSessionIdSubject = BehaviorSubject<int?>.seeded(null);
-  final _errorSubject = PublishSubject<PlayerException>();
-
-  // independent streams
-  final _playingSubject = BehaviorSubject.seeded(false);
-  final _volumeSubject = BehaviorSubject.seeded(1.0);
-  final _speedSubject = BehaviorSubject.seeded(1.0);
-  final _pitchSubject = BehaviorSubject.seeded(1.0);
-  final _skipSilenceEnabledSubject = BehaviorSubject.seeded(false);
-
-  final _positionDiscontinuitySubject =
-      PublishSubject<PositionDiscontinuity>(sync: true);
-
-  final _sequenceStateSubject = BehaviorSubject<SequenceState>.seeded(
-      SequenceState(
-        sequence: [],
-        currentIndex: null,
-        shuffleIndices: [],
-        shuffleModeEnabled: false,
-        loopMode: LoopMode.off,
-      ),
-      sync: true);
-
-  // derived from sequenceStateStream
-  final _sequenceSubject = BehaviorSubject.seeded(<IndexedAudioSource>[]);
-  final _shuffleIndicesSubject = BehaviorSubject.seeded(<int>[]);
-  final _currentIndexSubject = BehaviorSubject<int?>.seeded(null);
-  final _loopModeSubject = BehaviorSubject.seeded(LoopMode.off);
-  final _shuffleModeEnabledSubject = BehaviorSubject.seeded(false);
-
-  final _playerStateSubject = BehaviorSubject<PlayerState>.seeded(
-      PlayerState(false, ProcessingState.idle));
-
-  var _seeking = false;
-  // ignore: close_sinks
-  BehaviorSubject<Duration>? _positionSubject;
-  bool _automaticallyWaitsToMinimizeStalling = true;
-  bool _canUseNetworkResourcesForLiveStreamingWhilePaused = false;
-  double _preferredPeakBitRate = 0;
-  bool _allowsExternalPlayback = false;
-  bool _playInterrupted = false;
-  bool _platformLoading = false;
-  AndroidAudioAttributes? _androidAudioAttributes;
-  WebCrossOrigin? _webCrossOrigin;
-  String _webSinkId = '';
-  final bool _androidApplyAudioAttributes;
-  final bool _handleAudioSessionActivation;
-
-  /// Counts how many times [_setPlatformActive] is called.
-  int _activationCount = 0;
-
   /// Creates an [AudioPlayer].
   ///
   /// Apps requesting remote URLs should set the [userAgent] parameter which
@@ -393,7 +259,6 @@ class AudioPlayer {
                   setVolume(volume / 2);
                 }
                 _playInterrupted = false;
-                break;
               case AudioInterruptionType.pause:
               case AudioInterruptionType.unknown:
                 if (playing) {
@@ -402,7 +267,6 @@ class AudioPlayer {
                   // this is done in the sync portion.
                   _playInterrupted = true;
                 }
-                break;
             }
           } else {
             switch (event.type) {
@@ -410,14 +274,11 @@ class AudioPlayer {
                 assert(_isAndroid());
                 setVolume(min(1.0, volume * 2));
                 _playInterrupted = false;
-                break;
               case AudioInterruptionType.pause:
                 if (_playInterrupted) play();
                 _playInterrupted = false;
-                break;
               case AudioInterruptionType.unknown:
                 _playInterrupted = false;
-                break;
             }
           }
         });
@@ -443,6 +304,137 @@ class AudioPlayer {
     }
     _removeOldAssetCacheDir();
   }
+  static String _generateId() => _uuid.v4();
+  final _lock = Lock(reentrant: true);
+  Future<void>? _playbackEventPipe;
+
+  /// The user agent to set on all HTTP requests.
+  final String? _userAgent;
+
+  /// Whether to use the proxy server to send request headers.
+  final bool _useProxyForRequestHeaders;
+
+  final AudioLoadConfiguration? _audioLoadConfiguration;
+  EqualizerConfigurationMessage? _equalizerConfiguration;
+
+  final bool _androidOffloadSchedulingEnabled;
+
+  final AndroidAudioOffloadPreferences? _androidAudioOffloadPreferences;
+
+  /// This is `true` when the audio player needs to engage the native platform
+  /// side of the plugin to decode or play audio, and is `false` when the native
+  /// resources are not needed (i.e. after initial instantiation and after [stop]).
+  bool _active = false;
+
+  /// This is set to [_nativePlatform] when [_active] is `true` and
+  /// [_idlePlatform] otherwise.
+  late Future<AudioPlayerPlatform> _platform;
+
+  /// Reflects the current platform immediately after it is set.
+  AudioPlayerPlatform? _platformValue;
+
+  /// The interface to the native portion of the plugin. This will be disposed
+  /// and set to `null` when not in use.
+  Future<AudioPlayerPlatform>? _nativePlatform;
+
+  /// A pure Dart implementation of the platform interface for use when the
+  /// native platform is not needed.
+  _IdleAudioPlayer? _idlePlatform;
+
+  /// The subscription to the event channel of the current platform
+  /// implementation. When switching between active and inactive modes, this is
+  /// used to cancel the subscription to the previous platform's events and
+  /// subscribe to the new platform's events.
+  StreamSubscription<PlaybackEventMessage>? _playbackEventSubscription;
+
+  /// The subscription to the data event channel of the current platform
+  /// implementation. When switching between active and inactive modes, this is
+  /// used to cancel the subscription to the previous platform's events and
+  /// subscribe to the new platform's events.
+  StreamSubscription<PlayerDataMessage>? _playerDataSubscription;
+
+  StreamSubscription<AndroidAudioAttributes>?
+      _androidAudioAttributesSubscription;
+  StreamSubscription<void>? _becomingNoisyEventSubscription;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionEventSubscription;
+  StreamSubscription<void>? _positionDiscontinuitySubscription;
+  StreamSubscription<void>? _currentIndexSubscription;
+  StreamSubscription<void>? _errorsSubscription;
+  StreamSubscription<void>? _errorsResetSubscription;
+
+  String? _id;
+  final _proxy = _ProxyHttpServer();
+  final ConcatenatingAudioSource _playlist;
+  final Map<String, AudioSource> _audioSources = {};
+  bool _disposed = false;
+  _PluginLoadRequest? _pluginLoadRequest;
+  final AudioPipeline _audioPipeline;
+
+  Future<Duration?>? _loadFuture;
+  final _shuffleIndicesInv = <int>[];
+
+  final _playerEventSubject =
+      BehaviorSubject<PlayerEvent>.seeded(PlayerEvent(), sync: true);
+
+  final _playbackEventSubject =
+      BehaviorSubject<PlaybackEvent>.seeded(PlaybackEvent(), sync: true);
+
+  // derived from playbackEventStream
+  final _processingStateSubject =
+      BehaviorSubject<ProcessingState>.seeded(ProcessingState.idle);
+  final _durationSubject = BehaviorSubject<Duration?>.seeded(null);
+  final _bufferedPositionSubject =
+      BehaviorSubject<Duration>.seeded(Duration.zero);
+  final _icyMetadataSubject = BehaviorSubject<IcyMetadata?>.seeded(null);
+  final _androidAudioSessionIdSubject = BehaviorSubject<int?>.seeded(null);
+  final _errorSubject = PublishSubject<PlayerException>();
+
+  // independent streams
+  final _playingSubject = BehaviorSubject.seeded(false);
+  final _volumeSubject = BehaviorSubject.seeded(1.0);
+  final _speedSubject = BehaviorSubject.seeded(1.0);
+  final _pitchSubject = BehaviorSubject.seeded(1.0);
+  final _skipSilenceEnabledSubject = BehaviorSubject.seeded(false);
+
+  final _positionDiscontinuitySubject =
+      PublishSubject<PositionDiscontinuity>(sync: true);
+
+  final _sequenceStateSubject = BehaviorSubject<SequenceState>.seeded(
+      SequenceState(
+        sequence: [],
+        currentIndex: null,
+        shuffleIndices: [],
+        shuffleModeEnabled: false,
+        loopMode: LoopMode.off,
+      ),
+      sync: true);
+
+  // derived from sequenceStateStream
+  final _sequenceSubject = BehaviorSubject.seeded(<IndexedAudioSource>[]);
+  final _shuffleIndicesSubject = BehaviorSubject.seeded(<int>[]);
+  final _currentIndexSubject = BehaviorSubject<int?>.seeded(null);
+  final _loopModeSubject = BehaviorSubject.seeded(LoopMode.off);
+  final _shuffleModeEnabledSubject = BehaviorSubject.seeded(false);
+
+  final _playerStateSubject = BehaviorSubject<PlayerState>.seeded(
+      PlayerState(false, ProcessingState.idle));
+
+  var _seeking = false;
+  BehaviorSubject<Duration>? _positionSubject;
+  bool _automaticallyWaitsToMinimizeStalling = true;
+  bool _canUseNetworkResourcesForLiveStreamingWhilePaused = false;
+  double _preferredPeakBitRate = 0;
+  bool _allowsExternalPlayback = false;
+  bool _playInterrupted = false;
+  bool _platformLoading = false;
+  AndroidAudioAttributes? _androidAudioAttributes;
+  WebCrossOrigin? _webCrossOrigin;
+  String _webSinkId = '';
+  final bool _androidApplyAudioAttributes;
+  final bool _handleAudioSessionActivation;
+
+  /// Counts how many times [_setPlatformActive] is called.
+  int _activationCount = 0;
 
   /// Old versions of just_audio used an asset caching system that created a
   /// separate cache file per asset per player instance, and was highly
@@ -459,7 +451,7 @@ class AudioPlayer {
           oldAssetCacheDir.deleteSync(recursive: true);
         } catch (e) {
           // ignore: avoid_print
-          print("Failed to delete old asset cache dir: $e");
+          print('Failed to delete old asset cache dir: $e');
         }
       }
     } catch (e) {
@@ -995,7 +987,6 @@ class AudioPlayer {
 
   Future<Duration?> _load(
     AudioPlayerPlatform platform,
-    // ignore: deprecated_member_use_from_same_package
     ConcatenatingAudioSource source, {
     _InitialSeekValues? initialSeekValues,
   }) async {
@@ -1059,7 +1050,6 @@ class AudioPlayer {
         await _platform,
         start == null && end == null
             ? _playlist
-            // ignore: deprecated_member_use_from_same_package
             : ConcatenatingAudioSource._playlist(children: [
                 ClippingAudioSource(
                   child: audioSource,
@@ -1556,7 +1546,7 @@ class AudioPlayer {
           platform.playerDataMessageStream.listen((message) {
         if (message.playing != null && message.playing != playing) {
           _playerEventSubject
-              .add(playerEvent.copyWith(playing: message.playing!));
+              .add(playerEvent.copyWith(playing: message.playing));
         }
         if (message.volume != null) {
           _volumeSubject.add(message.volume!);
@@ -1582,7 +1572,7 @@ class AudioPlayer {
       _playbackEventSubscription =
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
-        var index = message.currentIndex ?? currentIndex;
+        final index = message.currentIndex ?? currentIndex;
         if (index != null && index < sequence.length) {
           if (duration == null) {
             duration = sequence[index].duration;
@@ -1851,6 +1841,8 @@ class AudioPlayer {
 /// source, including an invalid or inaccessible URL, or an audio encoding that
 /// could not be understood.
 class PlayerException implements Exception {
+  PlayerException(this.code, this.message, this.index);
+
   /// On iOS and macOS, maps to `NSError.code`. On Android, maps to
   /// `ExoPlaybackException.type`. On Web, maps to `MediaError.code`.
   final int code;
@@ -1863,33 +1855,30 @@ class PlayerException implements Exception {
   /// The index of the audio source associated with this error.
   final int? index;
 
-  PlayerException(this.code, this.message, this.index);
-
   @override
-  String toString() => "($code) $message";
+  String toString() => '($code) $message';
 }
 
 /// An error that occurs when one operation on the player has been interrupted
 /// (e.g. by another simultaneous operation).
 class PlayerInterruptedException implements Exception {
+  PlayerInterruptedException(this.message);
   final String? message;
 
-  PlayerInterruptedException(this.message);
-
   @override
-  String toString() => "$message";
+  String toString() => '$message';
 }
 
 /// Encapsulates the playback event and the playing state of the player.
 class PlayerEvent {
+  PlayerEvent({PlaybackEvent? playbackEvent, this.playing = false})
+      : playbackEvent = playbackEvent ?? PlaybackEvent();
+
   /// The current [PlaybackEvent]
   final PlaybackEvent playbackEvent;
 
   /// Whether the player is currently playing.
   final bool playing;
-
-  PlayerEvent({PlaybackEvent? playbackEvent, this.playing = false})
-      : playbackEvent = playbackEvent ?? PlaybackEvent();
 
   PlayerEvent copyWith({
     PlaybackEvent? playbackEvent,
@@ -1914,11 +1903,24 @@ class PlayerEvent {
       playing == other.playing;
 
   @override
-  String toString() => "{playbackEvent=$playbackEvent, playing=$playing}";
+  String toString() => '{playbackEvent=$playbackEvent, playing=$playing}';
 }
 
 /// Encapsulates the playback state and current position of the player.
 class PlaybackEvent {
+  PlaybackEvent({
+    this.processingState = ProcessingState.idle,
+    DateTime? updateTime,
+    this.updatePosition = Duration.zero,
+    this.bufferedPosition = Duration.zero,
+    this.duration,
+    this.icyMetadata,
+    this.currentIndex,
+    this.androidAudioSessionId,
+    this.errorCode,
+    this.errorMessage,
+  }) : updateTime = updateTime ?? DateTime.now();
+
   /// The current processing state.
   final ProcessingState processingState;
 
@@ -1956,19 +1958,6 @@ class PlaybackEvent {
   /// Supported on Android, iOS and web. For other platforms, check the
   /// documentation of the respective platform implementation.
   final String? errorMessage;
-
-  PlaybackEvent({
-    this.processingState = ProcessingState.idle,
-    DateTime? updateTime,
-    this.updatePosition = Duration.zero,
-    this.bufferedPosition = Duration.zero,
-    this.duration,
-    this.icyMetadata,
-    this.currentIndex,
-    this.androidAudioSessionId,
-    this.errorCode,
-    this.errorMessage,
-  }) : updateTime = updateTime ?? DateTime.now();
 
   /// Returns a copy of this event with given properties replaced.
   PlaybackEvent copyWith({
@@ -2028,7 +2017,7 @@ class PlaybackEvent {
 
   @override
   String toString() =>
-      "{processingState=$processingState, updateTime=$updateTime, updatePosition=$updatePosition, bufferedPosition=$bufferedPosition, duration=$duration, currentIndex=$currentIndex}";
+      '{processingState=$processingState, updateTime=$updateTime, updatePosition=$updatePosition, bufferedPosition=$bufferedPosition, duration=$duration, currentIndex=$currentIndex}';
 }
 
 /// Enumerates the different processing states of a player.
@@ -2054,14 +2043,14 @@ enum ProcessingState {
 /// you can check [playing] to determine whether the buffering occurred while
 /// the player was playing or while the player was paused.
 class PlayerState {
+  PlayerState(this.playing, this.processingState);
+
   /// Whether the player will play when [processingState] is
   /// [ProcessingState.ready].
   final bool playing;
 
   /// The current processing state of the player.
   final ProcessingState processingState;
-
-  PlayerState(this.playing, this.processingState);
 
   @override
   String toString() => 'playing=$playing,processingState=$processingState';
@@ -2078,6 +2067,7 @@ class PlayerState {
 }
 
 class IcyInfo {
+  IcyInfo({required this.title, required this.url});
   final String? title;
   final String? url;
 
@@ -2085,8 +2075,6 @@ class IcyInfo {
         title: message.title,
         url: message.url,
       );
-
-  IcyInfo({required this.title, required this.url});
 
   @override
   String toString() => 'title=$title,url=$url';
@@ -2103,6 +2091,14 @@ class IcyInfo {
 }
 
 class IcyHeaders {
+  IcyHeaders({
+    required this.bitrate,
+    required this.genre,
+    required this.name,
+    required this.metadataInterval,
+    required this.url,
+    required this.isPublic,
+  });
   final int? bitrate;
   final String? genre;
   final String? name;
@@ -2118,15 +2114,6 @@ class IcyHeaders {
         url: message.url,
         isPublic: message.isPublic,
       );
-
-  IcyHeaders({
-    required this.bitrate,
-    required this.genre,
-    required this.name,
-    required this.metadataInterval,
-    required this.url,
-    required this.isPublic,
-  });
 
   @override
   String toString() =>
@@ -2148,6 +2135,7 @@ class IcyHeaders {
 }
 
 class IcyMetadata {
+  IcyMetadata({required this.info, required this.headers});
   final IcyInfo? info;
   final IcyHeaders? headers;
 
@@ -2157,8 +2145,6 @@ class IcyMetadata {
             ? null
             : IcyHeaders._fromMessage(message.headers!),
       );
-
-  IcyMetadata({required this.info, required this.headers});
 
   @override
   int get hashCode => Object.hash(info, headers);
@@ -2176,6 +2162,13 @@ class IcyMetadata {
 /// `sequence.length`. If `sequence.length` is 0, then [currentIndex] is also
 /// 0.
 class SequenceState {
+  SequenceState({
+    required this.sequence,
+    required int? currentIndex,
+    required this.shuffleIndices,
+    required this.shuffleModeEnabled,
+    required this.loopMode,
+  }) : _currentIndex = currentIndex;
   static const _defaultInt = -9999999;
 
   /// The current sequence of [IndexedAudioSource]s.
@@ -2196,14 +2189,6 @@ class SequenceState {
 
   /// The current loop mode.
   final LoopMode loopMode;
-
-  SequenceState({
-    required this.sequence,
-    required int? currentIndex,
-    required this.shuffleIndices,
-    required this.shuffleModeEnabled,
-    required this.loopMode,
-  }) : _currentIndex = currentIndex;
 
   /// The current source in the sequence.
   IndexedAudioSource? get currentSource =>
@@ -2235,6 +2220,12 @@ class SequenceState {
 
 /// Configuration options to use when loading audio from a source.
 class AudioLoadConfiguration {
+  const AudioLoadConfiguration({
+    this.darwinLoadControl,
+    this.androidLoadControl,
+    this.androidLivePlaybackSpeedControl,
+  });
+
   /// Bufferring and loading options for iOS/macOS.
   final DarwinLoadControl? darwinLoadControl;
 
@@ -2243,12 +2234,6 @@ class AudioLoadConfiguration {
 
   /// Speed control for live streams on Android.
   final AndroidLivePlaybackSpeedControl? androidLivePlaybackSpeedControl;
-
-  const AudioLoadConfiguration({
-    this.darwinLoadControl,
-    this.androidLoadControl,
-    this.androidLivePlaybackSpeedControl,
-  });
 
   AudioLoadConfigurationMessage _toMessage() => AudioLoadConfigurationMessage(
         darwinLoadControl: darwinLoadControl?._toMessage(),
@@ -2260,6 +2245,13 @@ class AudioLoadConfiguration {
 
 /// Buffering and loading options for iOS/macOS.
 class DarwinLoadControl {
+  const DarwinLoadControl({
+    this.automaticallyWaitsToMinimizeStalling = true,
+    this.preferredForwardBufferDuration,
+    this.canUseNetworkResourcesForLiveStreamingWhilePaused = false,
+    this.preferredPeakBitRate,
+  });
+
   /// (iOS/macOS) Whether the player will wait for sufficient data to be
   /// buffered before starting playback to avoid the likelihood of stalling.
   final bool automaticallyWaitsToMinimizeStalling;
@@ -2277,13 +2269,6 @@ class DarwinLoadControl {
   /// second.
   final double? preferredPeakBitRate;
 
-  const DarwinLoadControl({
-    this.automaticallyWaitsToMinimizeStalling = true,
-    this.preferredForwardBufferDuration,
-    this.canUseNetworkResourcesForLiveStreamingWhilePaused = false,
-    this.preferredPeakBitRate,
-  });
-
   DarwinLoadControlMessage _toMessage() => DarwinLoadControlMessage(
         automaticallyWaitsToMinimizeStalling:
             automaticallyWaitsToMinimizeStalling,
@@ -2296,6 +2281,16 @@ class DarwinLoadControl {
 
 /// Buffering and loading options for Android.
 class AndroidLoadControl {
+  const AndroidLoadControl({
+    this.minBufferDuration = const Duration(seconds: 50),
+    this.maxBufferDuration = const Duration(seconds: 50),
+    this.bufferForPlaybackDuration = const Duration(milliseconds: 2500),
+    this.bufferForPlaybackAfterRebufferDuration = const Duration(seconds: 5),
+    this.targetBufferBytes,
+    this.prioritizeTimeOverSizeThresholds = false,
+    this.backBufferDuration = Duration.zero,
+  });
+
   /// (Android) The minimum duration of audio that should be buffered ahead of
   /// the current position.
   final Duration minBufferDuration;
@@ -2322,16 +2317,6 @@ class AndroidLoadControl {
   /// (Android) The back buffer duration.
   final Duration backBufferDuration;
 
-  const AndroidLoadControl({
-    this.minBufferDuration = const Duration(seconds: 50),
-    this.maxBufferDuration = const Duration(seconds: 50),
-    this.bufferForPlaybackDuration = const Duration(milliseconds: 2500),
-    this.bufferForPlaybackAfterRebufferDuration = const Duration(seconds: 5),
-    this.targetBufferBytes,
-    this.prioritizeTimeOverSizeThresholds = false,
-    this.backBufferDuration = Duration.zero,
-  });
-
   AndroidLoadControlMessage _toMessage() => AndroidLoadControlMessage(
         minBufferDuration: minBufferDuration,
         maxBufferDuration: maxBufferDuration,
@@ -2346,6 +2331,17 @@ class AndroidLoadControl {
 
 /// Speed control for live streams on Android.
 class AndroidLivePlaybackSpeedControl {
+  const AndroidLivePlaybackSpeedControl({
+    this.fallbackMinPlaybackSpeed = 0.97,
+    this.fallbackMaxPlaybackSpeed = 1.03,
+    this.minUpdateInterval = const Duration(seconds: 1),
+    this.proportionalControlFactor = 1.0,
+    this.maxLiveOffsetErrorForUnitSpeed = const Duration(milliseconds: 20),
+    this.targetLiveOffsetIncrementOnRebuffer =
+        const Duration(milliseconds: 500),
+    this.minPossibleLiveOffsetSmoothingFactor = 0.999,
+  });
+
   /// (Android) The minimum playback speed to use when adjusting playback speed
   /// to approach the target live offset, if none is defined by the media.
   final double fallbackMinPlaybackSpeed;
@@ -2375,17 +2371,6 @@ class AndroidLivePlaybackSpeedControl {
   /// achievable during playback.
   final double minPossibleLiveOffsetSmoothingFactor;
 
-  const AndroidLivePlaybackSpeedControl({
-    this.fallbackMinPlaybackSpeed = 0.97,
-    this.fallbackMaxPlaybackSpeed = 1.03,
-    this.minUpdateInterval = const Duration(seconds: 1),
-    this.proportionalControlFactor = 1.0,
-    this.maxLiveOffsetErrorForUnitSpeed = const Duration(milliseconds: 20),
-    this.targetLiveOffsetIncrementOnRebuffer =
-        const Duration(milliseconds: 500),
-    this.minPossibleLiveOffsetSmoothingFactor = 0.999,
-  });
-
   AndroidLivePlaybackSpeedControlMessage _toMessage() =>
       AndroidLivePlaybackSpeedControlMessage(
         fallbackMinPlaybackSpeed: fallbackMinPlaybackSpeed,
@@ -2414,6 +2399,12 @@ enum AndroidAudioOffloadMode { disabled, enabled }
 /// audio offload only on device/OS combinations that you have tested and
 /// verified to work.
 class AndroidAudioOffloadPreferences {
+  const AndroidAudioOffloadPreferences({
+    this.audioOffloadMode = AndroidAudioOffloadMode.disabled,
+    this.isGaplessSupportRequired = false,
+    this.isSpeedChangeSupportRequired = false,
+  });
+
   /// The preferred audio offload mode.
   final AndroidAudioOffloadMode audioOffloadMode;
 
@@ -2426,12 +2417,6 @@ class AndroidAudioOffloadPreferences {
   /// can fulfill any speed change request during offload.
   final bool isSpeedChangeSupportRequired;
 
-  const AndroidAudioOffloadPreferences({
-    this.audioOffloadMode = AndroidAudioOffloadMode.disabled,
-    this.isGaplessSupportRequired = false,
-    this.isSpeedChangeSupportRequired = false,
-  });
-
   AndroidAudioOffloadPreferencesMessage _toMessage() =>
       AndroidAudioOffloadPreferencesMessage(
         audioOffloadMode:
@@ -2442,13 +2427,12 @@ class AndroidAudioOffloadPreferences {
 }
 
 class ProgressiveAudioSourceOptions {
-  final AndroidExtractorOptions? androidExtractorOptions;
-  final DarwinAssetOptions? darwinAssetOptions;
-
   const ProgressiveAudioSourceOptions({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
   });
+  final AndroidExtractorOptions? androidExtractorOptions;
+  final DarwinAssetOptions? darwinAssetOptions;
 
   ProgressiveAudioSourceOptionsMessage _toMessage() =>
       ProgressiveAudioSourceOptionsMessage(
@@ -2458,9 +2442,8 @@ class ProgressiveAudioSourceOptions {
 }
 
 class DarwinAssetOptions {
-  final bool preferPreciseDurationAndTiming;
-
   const DarwinAssetOptions({this.preferPreciseDurationAndTiming = false});
+  final bool preferPreciseDurationAndTiming;
 
   DarwinAssetOptionsMessage _toMessage() => DarwinAssetOptionsMessage(
         preferPreciseDurationAndTiming: preferPreciseDurationAndTiming,
@@ -2468,18 +2451,17 @@ class DarwinAssetOptions {
 }
 
 class AndroidExtractorOptions {
+  const AndroidExtractorOptions({
+    this.constantBitrateSeekingEnabled = true,
+    this.constantBitrateSeekingAlwaysEnabled = false,
+    this.mp3Flags = 0,
+  });
   static const flagMp3EnableIndexSeeking = 1 << 2;
   static const flagMp3DisableId3Metadata = 1 << 3;
 
   final bool constantBitrateSeekingEnabled;
   final bool constantBitrateSeekingAlwaysEnabled;
   final int mp3Flags;
-
-  const AndroidExtractorOptions({
-    this.constantBitrateSeekingEnabled = true,
-    this.constantBitrateSeekingAlwaysEnabled = false,
-    this.mp3Flags = 0,
-  });
 
   AndroidExtractorOptionsMessage _toMessage() => AndroidExtractorOptionsMessage(
         constantBitrateSeekingEnabled: constantBitrateSeekingEnabled,
@@ -2573,6 +2555,8 @@ class _ProxyHttpServer {
 
 /// Encapsulates the start and end of an HTTP range request.
 class _HttpRangeRequest {
+  _HttpRangeRequest(this.start, this.end);
+
   /// The starting byte position of the range request.
   final int start;
 
@@ -2582,8 +2566,6 @@ class _HttpRangeRequest {
 
   /// The end byte position (exclusive), defaulting to `null`.
   int? get endEx => end == null ? null : end! + 1;
-
-  _HttpRangeRequest(this.start, this.end);
 
   /// Format a range header for this request.
   String get header =>
@@ -2601,6 +2583,8 @@ class _HttpRangeRequest {
 
 /// Encapsulates the range information in an HTTP range response.
 class _HttpRangeResponse {
+  _HttpRangeResponse(this.start, this.end, this.fullLength);
+
   /// The starting byte position of the range.
   final int start;
 
@@ -2609,8 +2593,6 @@ class _HttpRangeResponse {
 
   /// The total number of bytes in the entire media.
   final int? fullLength;
-
-  _HttpRangeResponse(this.start, this.end, this.fullLength);
 
   /// The end byte position (exclusive).
   int? get endEx => end + 1;
@@ -2626,6 +2608,7 @@ class _HttpRangeResponse {
 /// using the subclasses of this class. The same [AudioSource] instance should
 /// not be used simultaneously by more than one [AudioPlayer].
 abstract class AudioSource {
+  AudioSource({String? id}) : _id = id ?? _uuid.v4();
   final String _id;
   AudioPlayer? _player;
 
@@ -2693,8 +2676,6 @@ abstract class AudioSource {
     return AudioSource.uri(Uri.parse('asset:///$keyName'), tag: tag);
   }
 
-  AudioSource({String? id}) : _id = id ?? _uuid.v4();
-
   @mustCallSuper
   void _onAttach(AudioPlayer player) {
     _player = player;
@@ -2732,10 +2713,9 @@ abstract class AudioSource {
 
 /// An [AudioSource] that can appear in a sequence.
 abstract class IndexedAudioSource extends AudioSource {
+  IndexedAudioSource({this.tag, this.duration});
   final dynamic tag;
   Duration? duration;
-
-  IndexedAudioSource({this.tag, this.duration});
 
   @override
   void _shuffle({int? initialIndex}) {}
@@ -2749,12 +2729,11 @@ abstract class IndexedAudioSource extends AudioSource {
 
 /// An abstract class representing audio sources that are loaded from a URI.
 abstract class UriAudioSource extends IndexedAudioSource {
+  UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
+      : super(tag: tag, duration: duration);
   final Uri uri;
   final Map<String, String>? headers;
   Uri? _overrideUri;
-
-  UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
-      : super(tag: tag, duration: duration);
 
   /// If [uri] points to an asset, this gives us [_overrideUri] which is the URI
   /// of the copied asset on the filesystem, otherwise it gives us the original
@@ -2846,8 +2825,6 @@ abstract class UriAudioSource extends IndexedAudioSource {
 /// If headers are set, just_audio will create a cleartext local HTTP proxy on
 /// your device to forward HTTP requests with headers included.
 class ProgressiveAudioSource extends UriAudioSource {
-  final ProgressiveAudioSourceOptions? options;
-
   ProgressiveAudioSource(
     super.uri, {
     super.headers,
@@ -2855,6 +2832,7 @@ class ProgressiveAudioSource extends UriAudioSource {
     super.duration,
     this.options,
   });
+  final ProgressiveAudioSourceOptions? options;
 
   @override
   AudioSourceMessage _toMessage() => ProgressiveAudioSourceMessage(
@@ -2925,16 +2903,15 @@ class HlsAudioSource extends UriAudioSource {
 ///
 /// NOTE: This is currently supported on Android only.
 class SilenceAudioSource extends IndexedAudioSource {
+  SilenceAudioSource({
+    dynamic tag,
+    required Duration duration,
+  }) : super(tag: tag, duration: duration);
   @override
   Duration get duration => super.duration!;
 
   @override
   set duration(covariant Duration duration) => super.duration = duration;
-
-  SilenceAudioSource({
-    dynamic tag,
-    required Duration duration,
-  }) : super(tag: tag, duration: duration);
 
   @override
   AudioSourceMessage _toMessage() =>
@@ -2950,11 +2927,6 @@ class SilenceAudioSource extends IndexedAudioSource {
 /// audio is playing.
 @Deprecated('Use AudioPlayer.setAudioSources instead')
 class ConcatenatingAudioSource extends AudioSource {
-  final _lock = Lock();
-  final List<AudioSource> children;
-  final bool useLazyPreparation;
-  ShuffleOrder _shuffleOrder;
-
   /// Creates a [ConcatenatingAudioSorce] with the specified [children]. If
   /// [useLazyPreparation] is `true`, children will be loaded/buffered as late
   /// as possible before needed for playback (currently supported on Android,
@@ -2976,6 +2948,10 @@ class ConcatenatingAudioSource extends AudioSource {
   })  : _shuffleOrder = shuffleOrder ?? DefaultShuffleOrder()
           ..insert(0, children.length),
         super(id: '');
+  final _lock = Lock();
+  final List<AudioSource> children;
+  final bool useLazyPreparation;
+  ShuffleOrder _shuffleOrder;
 
   @override
   void _onAttach(AudioPlayer player) {
@@ -3247,10 +3223,6 @@ class ConcatenatingAudioSource extends AudioSource {
 /// An [AudioSource] that clips the audio of a [UriAudioSource] between a
 /// certain start and end time.
 class ClippingAudioSource extends IndexedAudioSource {
-  final UriAudioSource child;
-  final Duration? start;
-  final Duration? end;
-
   /// Creates an audio source that clips [child] to the range [start]..[end],
   /// where [start] and [end] default to the beginning and end of the original
   /// [child] source.
@@ -3261,6 +3233,9 @@ class ClippingAudioSource extends IndexedAudioSource {
     dynamic tag,
     Duration? duration,
   }) : super(tag: tag, duration: duration);
+  final UriAudioSource child;
+  final Duration? start;
+  final Duration? end;
 
   @override
   void _onAttach(AudioPlayer player) {
@@ -3288,13 +3263,12 @@ class ClippingAudioSource extends IndexedAudioSource {
 // loop an infinite number of times, use [AudioPlayer.setLoopMode].
 @Deprecated('Use List.filled(N, audioSource) instead')
 class LoopingAudioSource extends AudioSource {
-  AudioSource child;
-  final int count;
-
   LoopingAudioSource({
     required this.child,
     required this.count,
   }) : super();
+  AudioSource child;
+  final int count;
 
   @override
   void _onAttach(AudioPlayer player) {
@@ -3330,8 +3304,8 @@ Uri _encodeDataUrl(String base64Data, String mimeType) =>
 /// [request] to provide the encoded audio data. This API is experimental.
 @experimental
 abstract class StreamAudioSource extends IndexedAudioSource {
-  Uri? _uri;
   StreamAudioSource({dynamic tag}) : super(tag: tag);
+  Uri? _uri;
 
   @override
   Future<void> _onLoad() async {
@@ -3361,6 +3335,15 @@ abstract class StreamAudioSource extends IndexedAudioSource {
 /// The response for a [StreamAudioSource]. This API is experimental.
 @experimental
 class StreamAudioResponse {
+  StreamAudioResponse({
+    this.rangeRequestsSupported = true,
+    required this.sourceLength,
+    required this.contentLength,
+    required this.offset,
+    required this.stream,
+    required this.contentType,
+  });
+
   /// Indicates to the client whether or not range requests are supported for
   /// the requested media. If `true`, the client may make further requests
   /// specifying the `start` and possibly also the `end` parameters of the range
@@ -3385,15 +3368,6 @@ class StreamAudioResponse {
 
   /// The audio content returned by this response.
   final Stream<List<int>> stream;
-
-  StreamAudioResponse({
-    this.rangeRequestsSupported = true,
-    required this.sourceLength,
-    required this.contentLength,
-    required this.offset,
-    required this.stream,
-    required this.contentType,
-  });
 }
 
 /// This is an experimental audio source that caches the audio while it is being
@@ -3401,15 +3375,6 @@ class StreamAudioResponse {
 /// access to the file system (e.g. web).
 @experimental
 class LockCachingAudioSource extends StreamAudioSource {
-  Future<HttpClientResponse>? _response;
-  final Uri uri;
-  final Map<String, String>? headers;
-  final Future<File> cacheFile;
-  int _progress = 0;
-  final _requests = <_StreamingByteRangeRequest>[];
-  final _downloadProgressSubject = BehaviorSubject<double>();
-  bool _downloading = false;
-
   /// Creates a [LockCachingAudioSource] to that provides [uri] to the player
   /// while simultaneously caching it to [cacheFile]. If no cache file is
   /// supplied, just_audio will allocate a cache file internally.
@@ -3426,6 +3391,14 @@ class LockCachingAudioSource extends StreamAudioSource {
         super(tag: tag) {
     _init();
   }
+  Future<HttpClientResponse>? _response;
+  final Uri uri;
+  final Map<String, String>? headers;
+  final Future<File> cacheFile;
+  int _progress = 0;
+  final _requests = <_StreamingByteRangeRequest>[];
+  final _downloadProgressSubject = BehaviorSubject<double>();
+  bool _downloading = false;
 
   Future<void> _init() async {
     final cacheFile = await this.cacheFile;
@@ -3447,7 +3420,7 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// while a download is in progress.
   Future<void> clearCache() async {
     if (_downloading) {
-      throw Exception("Cannot clear cache while download is in progress");
+      throw Exception('Cannot clear cache while download is in progress');
     }
     _response = null;
     final cacheFile = await this.cacheFile;
@@ -3516,7 +3489,6 @@ class LockCachingAudioSource extends StreamAudioSource {
     }
     (await _partialCacheFile).createSync(recursive: true);
     // TODO: Should close sink after done, but it throws an error.
-    // ignore: close_sinks
     final sink = (await _partialCacheFile).openWrite();
     final sourceLength =
         response.contentLength == -1 ? null : response.contentLength;
@@ -3580,7 +3552,8 @@ class LockCachingAudioSource extends StreamAudioSource {
       // Process any requests that start within the cache.
       for (var request in readyRequests) {
         _requests.remove(request);
-        int? start, end;
+        int? start;
+        int? end;
         if (originSupportsRangeRequests) {
           start = request.start;
           end = request.end;
@@ -3726,21 +3699,22 @@ class LockCachingAudioSource extends StreamAudioSource {
 /// also keeps track of the [end] of the byte range so that the producer knows
 /// when to stop adding data.
 class _InProgressCacheResponse {
+  _InProgressCacheResponse({
+    required this.end,
+  });
   // NOTE: This isn't necessarily memory efficient. Since the entire audio file
   // will likely be downloaded at a faster rate than the rate at which the
   // player is consuming audio data, it is also likely that this buffered data
   // will never be used.
   // TODO: Improve this code.
-  // ignore: close_sinks
   final controller = ReplaySubject<List<int>>();
   final int? end;
-  _InProgressCacheResponse({
-    required this.end,
-  });
 }
 
 /// Request parameters for a [StreamAudioSource].
 class _StreamingByteRangeRequest {
+  _StreamingByteRangeRequest(this.start, this.end);
+
   /// The start of the range request.
   final int? start;
 
@@ -3749,8 +3723,6 @@ class _StreamingByteRangeRequest {
 
   /// Completes when the response is available.
   final _completer = Completer<StreamAudioResponse>();
-
-  _StreamingByteRangeRequest(this.start, this.end);
 
   /// The response for this request.
   Future<StreamAudioResponse> get future => _completer.future;
@@ -3792,7 +3764,7 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       stream = sourceResponse.stream;
     } catch (e, st) {
       // ignore: avoid_print
-      print("Proxy request failed: $e\n$st");
+      print('Proxy request failed: $e\n$st');
 
       request.response.headers.clear();
       request.response.statusCode = HttpStatus.internalServerError;
@@ -3881,7 +3853,7 @@ _ProxyHandler _proxyHandlerForUri(
         final m3u8 = await originResponse.transform(utf8.decoder).join();
         for (var line in const LineSplitter().convert(m3u8)) {
           line = line.replaceAllMapped(
-              RegExp(r'#EXT-X-MEDIA:.*?URI="(.*?)".*'), (m) => m[1]!);
+              RegExp('#EXT-X-MEDIA:.*?URI="(.*?)".*'), (m) => m[1]!);
           line = line.replaceAll(RegExp(r'#.*$'), '').trim();
           if (line.isEmpty) continue;
           try {
@@ -3938,20 +3910,20 @@ _ProxyHandler _proxyHandlerForUri(
         final headers = <String, String?>{};
         request.headers.forEach((name, value) {
           if (name.toLowerCase() != HttpHeaders.hostHeader) {
-            headers[name] = value.join(",");
+            headers[name] = value.join(',');
           }
         });
         for (var name in headers.keys) {
           headers[name] = headers[name];
         }
-        socket.write("GET ${uri.path} HTTP/1.1\n");
+        socket.write('GET ${uri.path} HTTP/1.1\n');
         if (host != null) {
-          socket.write("Host: $host\n");
+          socket.write('Host: $host\n');
         }
         for (var name in headers.keys) {
-          socket.write("$name: ${headers[name]}\n");
+          socket.write('$name: ${headers[name]}\n');
         }
-        socket.write("\n");
+        socket.write('\n');
         await socket.flush();
         await done.future;
       }
@@ -3989,11 +3961,10 @@ abstract class ShuffleOrder {
 /// The default implementation of [ShuffleOrder] which shuffles items with the
 /// currently playing item at the head of the order.
 class DefaultShuffleOrder extends ShuffleOrder {
+  DefaultShuffleOrder({Random? random}) : _random = random ?? Random();
   final Random _random;
   @override
   final indices = <int>[];
-
-  DefaultShuffleOrder({Random? random}) : _random = random ?? Random();
 
   @override
   void shuffle({int? initialIndex}) {
@@ -4055,6 +4026,15 @@ enum WebCrossOrigin { anonymous, useCredentials }
 /// The stand-in platform implementation to use when the player is in the idle
 /// state and the native platform is deallocated.
 class _IdleAudioPlayer extends AudioPlayerPlatform {
+  _IdleAudioPlayer({
+    required String id,
+    required Stream<List<IndexedAudioSource>> sequenceStream,
+    required this.errorCode,
+    required this.errorMessage,
+  }) : super(id) {
+    _sequenceSubscription =
+        sequenceStream.listen((sequence) => _sequence = sequence);
+  }
   final _eventSubject = BehaviorSubject<PlaybackEventMessage>();
   Duration _position = Duration.zero;
   int? _index;
@@ -4066,18 +4046,8 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
   /// Holds a pending request.
   SetAndroidAudioAttributesRequest? setAndroidAudioAttributesRequest;
 
-  _IdleAudioPlayer({
-    required String id,
-    required Stream<List<IndexedAudioSource>> sequenceStream,
-    required this.errorCode,
-    required this.errorMessage,
-  }) : super(id) {
-    _sequenceSubscription =
-        sequenceStream.listen((sequence) => _sequence = sequence);
-  }
-
   void _broadcastPlaybackEvent() {
-    var updateTime = DateTime.now();
+    final updateTime = DateTime.now();
     _eventSubject.add(PlaybackEventMessage(
       processingState: ProcessingStateMessage.idle,
       updatePosition: _position,
@@ -4310,13 +4280,6 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
 /// Encapsulates the arguments passed to the current invocation of
 /// `AudioSource.setAudioSources`.
 class _PluginLoadRequest {
-  List<AudioSource> audioSources;
-  bool preload;
-  int? initialIndex;
-  Duration? initialPosition;
-  ShuffleOrder shuffleOrder;
-  bool interrupted = false;
-
   _PluginLoadRequest({
     required this.audioSources,
     this.preload = true,
@@ -4324,6 +4287,12 @@ class _PluginLoadRequest {
     this.initialPosition,
     required this.shuffleOrder,
   });
+  List<AudioSource> audioSources;
+  bool preload;
+  int? initialIndex;
+  Duration? initialPosition;
+  ShuffleOrder shuffleOrder;
+  bool interrupted = false;
 
   _InitialSeekValues get initialSeekValues =>
       (index: initialIndex, position: initialPosition);
@@ -4345,9 +4314,6 @@ typedef _InitialSeekValues = ({int? index, Duration? position});
 
 /// THe pipeline of audio effects to be appliet to an [AudioPlayer].
 class AudioPipeline {
-  final List<AndroidAudioEffect> androidAudioEffects;
-  final List<DarwinAudioEffect> darwinAudioEffects;
-
   AudioPipeline({
     List<AndroidAudioEffect>? androidAudioEffects,
     List<DarwinAudioEffect>? darwinAudioEffects,
@@ -4357,6 +4323,8 @@ class AudioPipeline {
             darwinAudioEffects.toSet().length == darwinAudioEffects.length),
         androidAudioEffects = androidAudioEffects ?? const [],
         darwinAudioEffects = darwinAudioEffects ?? const [];
+  final List<AndroidAudioEffect> androidAudioEffects;
+  final List<DarwinAudioEffect> darwinAudioEffects;
 
   List<AudioEffect> get _audioEffects =>
       <AudioEffect>[...androidAudioEffects, ...darwinAudioEffects];
@@ -4376,10 +4344,9 @@ class AudioPipeline {
 /// effect, in addition to being part of an [AudioPipeline] attached to an
 /// [AudioPlayer] you must also enable the effect via [setEnabled].
 abstract class AudioEffect {
+  AudioEffect();
   AudioPlayer? _player;
   final _enabledSubject = BehaviorSubject.seeded(false);
-
-  AudioEffect();
 
   /// Called when an [AudioEffect] is attached to an [AudioPlayer].
   void _setup(AudioPlayer player) {
@@ -4453,6 +4420,16 @@ class AndroidLoudnessEnhancer extends AudioEffect with AndroidAudioEffect {
 
 /// A frequency band within an [AndroidEqualizer].
 class AndroidEqualizerBand {
+  AndroidEqualizerBand._({
+    required AudioPlayer player,
+    required this.index,
+    required this.lowerFrequency,
+    required this.upperFrequency,
+    required this.centerFrequency,
+    required double gain,
+  }) : _player = player {
+    _gainSubject.add(gain);
+  }
   final AudioPlayer _player;
 
   /// A zero-based index of the position of this band within its [AndroidEqualizer].
@@ -4467,17 +4444,6 @@ class AndroidEqualizerBand {
   /// The center frequency of this band in hertz.
   final double centerFrequency;
   final _gainSubject = BehaviorSubject<double>();
-
-  AndroidEqualizerBand._({
-    required AudioPlayer player,
-    required this.index,
-    required this.lowerFrequency,
-    required this.upperFrequency,
-    required this.centerFrequency,
-    required double gain,
-  }) : _player = player {
-    _gainSubject.add(gain);
-  }
 
   /// The gain for this band in decibels.
   double get gain => _gainSubject.nvalue!;
@@ -4496,7 +4462,7 @@ class AndroidEqualizerBand {
 
   /// Restores the gain after reactivating.
   Future<void> _restore(AudioPlayerPlatform platform) async {
-    await (platform).androidEqualizerBandSetGain(
+    await platform.androidEqualizerBandSetGain(
         AndroidEqualizerBandSetGainRequest(bandIndex: index, gain: gain));
   }
 
@@ -4514,6 +4480,12 @@ class AndroidEqualizerBand {
 
 /// The parameter values of an [AndroidEqualizer].
 class AndroidEqualizerParameters {
+  AndroidEqualizerParameters({
+    required this.minDecibels,
+    required this.maxDecibels,
+    required this.bands,
+  });
+
   /// The minimum gain value supported by the equalizer.
   final double minDecibels;
 
@@ -4522,12 +4494,6 @@ class AndroidEqualizerParameters {
 
   /// The frequency bands of the equalizer.
   final List<AndroidEqualizerBand> bands;
-
-  AndroidEqualizerParameters({
-    required this.minDecibels,
-    required this.maxDecibels,
-    required this.bands,
-  });
 
   /// Restores platform state after reactivating.
   Future<void> _restore(AudioPlayerPlatform platform) async {
@@ -4595,6 +4561,8 @@ extension _ValueStreamExtension<T> on ValueStream<T> {
 
 /// Information collected when a position discontinuity occurs.
 class PositionDiscontinuity {
+  const PositionDiscontinuity(this.reason, this.previousEvent, this.event);
+
   /// The reason for the position discontinuity.
   final PositionDiscontinuityReason reason;
 
@@ -4603,8 +4571,6 @@ class PositionDiscontinuity {
 
   /// The event that caused the position discontinuity.
   final PlaybackEvent event;
-
-  const PositionDiscontinuity(this.reason, this.previousEvent, this.event);
 }
 
 /// The reasons for position discontinuities.

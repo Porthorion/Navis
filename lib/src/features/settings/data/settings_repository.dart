@@ -8,7 +8,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
 class SettingsRepository {
-  SettingsRepository(this._dao);
+  new(this._dao);
 
   final AppSettingsDao _dao;
 

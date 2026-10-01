@@ -8,7 +8,7 @@ part 'cache_dao.g.dart';
 
 @DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
 class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
-  CacheDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   Stream<List<CachedTracksTableData>> watchCachedTracks() {
     final query = select(cachedTracksTable)
@@ -82,7 +82,8 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
       ..where(cachedTracksTable.cacheType.equals(CacheType.rolling.name))
       ..addColumns(<Expression<Object>>[aggregate]);
     final row = await query.getSingleOrNull();
-    return row?.read(aggregate) ?? 0;
+    final resolvedCount = row?.read(aggregate) ?? 0;
+    return resolvedCount;
   }
 
   Future<List<CachedTracksTableData>> getRollingEntriesOrderedByLastAccessed({
@@ -192,9 +193,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
       ..addColumns(<Expression<Object>>[
         listenBrainzWeeklyCacheTable.listenBrainzUserName,
       ])
-      ..orderBy([
-        OrderingTerm.desc(listenBrainzWeeklyCacheTable.fetchedAt),
-      ])
+      ..orderBy([OrderingTerm.desc(listenBrainzWeeklyCacheTable.fetchedAt)])
       ..limit(1);
     final row = await query.getSingleOrNull();
     return row?.read(listenBrainzWeeklyCacheTable.listenBrainzUserName);
@@ -203,9 +202,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
   Future<void> upsertListenBrainzWeeklyCache(
     ListenBrainzWeeklyCacheTableCompanion companion,
   ) {
-    return into(
-      listenBrainzWeeklyCacheTable,
-    ).insertOnConflictUpdate(companion);
+    return into(listenBrainzWeeklyCacheTable).insertOnConflictUpdate(companion);
   }
 
   Future<void> deleteListenBrainzWeeklyCacheForUserSources(

@@ -92,48 +92,35 @@ void main() {
       expect(cacheFile.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
-    test(
-      'full wipe clears local data and deletes cached files',
-      () async {
-        final cacheFile = File('${tmpDir.path}/track.mp3');
-        cacheFile.writeAsStringSync('audio');
-        await _seedAuthenticatedData(database, repository, cacheFile.path);
+    test('full wipe clears local data and deletes cached files', () async {
+      final cacheFile = File('${tmpDir.path}/track.mp3');
+      cacheFile.writeAsStringSync('audio');
+      await _seedAuthenticatedData(database, repository, cacheFile.path);
 
-        await service.signOut(wipeLocalData: true);
+      await service.signOut(wipeLocalData: true);
 
-        expect(await database.serverDao.getActiveServer(), isNull);
-        expect(credentials.password, isNull);
-        expect(await database.select(database.artistsTable).get(), isEmpty);
-        expect(await database.select(database.albumsTable).get(), isEmpty);
-        expect(await database.select(database.songsTable).get(), isEmpty);
-        expect(await database.select(database.playlistsTable).get(), isEmpty);
-        expect(
-          await database.select(database.playlistSongsTable).get(),
-          isEmpty,
-        );
-        expect(await database.select(database.playHistoryTable).get(), isEmpty);
-        expect(
-          await database.select(database.recentSearchesTable).get(),
-          isEmpty,
-        );
-        expect(
-          await database.select(database.downloadQueueTable).get(),
-          isEmpty,
-        );
-        expect(
-          await database.select(database.cachedTracksTable).get(),
-          isEmpty,
-        );
-        expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
-        expect(await database.starSyncDao.getPendingActions(), isEmpty);
-        expect(
-          await database.select(database.appSettingsTable).get(),
-          hasLength(1),
-        );
-        expect(cacheFile.existsSync(), isFalse);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(await database.serverDao.getActiveServer(), isNull);
+      expect(credentials.password, isNull);
+      expect(await database.select(database.artistsTable).get(), isEmpty);
+      expect(await database.select(database.albumsTable).get(), isEmpty);
+      expect(await database.select(database.songsTable).get(), isEmpty);
+      expect(await database.select(database.playlistsTable).get(), isEmpty);
+      expect(await database.select(database.playlistSongsTable).get(), isEmpty);
+      expect(await database.select(database.playHistoryTable).get(), isEmpty);
+      expect(
+        await database.select(database.recentSearchesTable).get(),
+        isEmpty,
+      );
+      expect(await database.select(database.downloadQueueTable).get(), isEmpty);
+      expect(await database.select(database.cachedTracksTable).get(), isEmpty);
+      expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
+      expect(await database.starSyncDao.getPendingActions(), isEmpty);
+      expect(
+        await database.select(database.appSettingsTable).get(),
+        hasLength(1),
+      );
+      expect(cacheFile.existsSync(), isFalse);
+    }, skip: !sqliteAvailable);
 
     test(
       'full wipe keeps files in the user download folder and Android folders',
@@ -234,13 +221,10 @@ void main() {
         expect(downloadCalls, 1);
         expect(playbackCalls, 1);
         expect(invalidationCalls, 1);
-        expect(
-          transitions,
-          <SessionTransition>[
-            SessionTransition.signingOut,
-            SessionTransition.idle,
-          ],
-        );
+        expect(transitions, <SessionTransition>[
+          SessionTransition.signingOut,
+          SessionTransition.idle,
+        ]);
         expect(await database.serverDao.getActiveServer(), isNull);
         expect(credentials.password, isNull);
         expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
@@ -282,9 +266,7 @@ Future<void> _seedAuthenticatedData(
 
   await database
       .into(database.artistsTable)
-      .insert(
-        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
-      );
+      .insert(ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'));
   await database
       .into(database.albumsTable)
       .insert(

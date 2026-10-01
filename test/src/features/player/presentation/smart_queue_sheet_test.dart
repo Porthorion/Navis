@@ -14,7 +14,7 @@ import 'package:navis/src/providers/app_providers.dart';
 
 class _SpyInstantMixNotifier extends InstantMixNotifier {
   final List<String> activateCalls = <String>[];
-  var deactivateCalled = false;
+  bool deactivateCalled = false;
 
   @override
   InstantMixState build() => const InstantMixState.inactive();
@@ -34,7 +34,7 @@ class _SpyInstantMixNotifier extends InstantMixNotifier {
 
 class _SpySameVibesNotifier extends SameVibesNotifier {
   final List<String> activateCalls = <String>[];
-  var deactivateCalled = false;
+  bool deactivateCalled = false;
 
   @override
   SameVibesState build() => const SameVibesState.inactive();
@@ -59,7 +59,7 @@ AppSettingsModel _settings({required bool legacyInstantMixEnabled}) {
   );
 }
 
-class _MockSettingsRepository extends Mock implements SettingsRepository {}
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
   setUpAll(() {
@@ -71,12 +71,10 @@ void main() {
       final instantMixSpy = _SpyInstantMixNotifier();
       final sameVibesSpy = _SpySameVibesNotifier();
       final repository = _MockSettingsRepository();
-      when(() => repository.watchSettings()).thenAnswer(
-        (_) => const Stream<AppSettingsModel>.empty(),
-      );
-      when(() => repository.getSettings()).thenAnswer(
-        (_) async => _settings(legacyInstantMixEnabled: true),
-      );
+      when(repository.watchSettings)
+          .thenAnswer((_) => const Stream<AppSettingsModel>.empty());
+      when(repository.getSettings)
+          .thenAnswer((_) async => _settings(legacyInstantMixEnabled: true));
       final container = ProviderContainer(
         overrides: [
           settingsRepositoryProvider.overrideWithValue(repository),
@@ -101,12 +99,10 @@ void main() {
       final instantMixSpy = _SpyInstantMixNotifier();
       final sameVibesSpy = _SpySameVibesNotifier();
       final repository = _MockSettingsRepository();
-      when(() => repository.watchSettings()).thenAnswer(
-        (_) => const Stream<AppSettingsModel>.empty(),
-      );
-      when(() => repository.getSettings()).thenAnswer(
-        (_) async => _settings(legacyInstantMixEnabled: false),
-      );
+      when(repository.watchSettings)
+          .thenAnswer((_) => const Stream<AppSettingsModel>.empty());
+      when(repository.getSettings)
+          .thenAnswer((_) async => _settings(legacyInstantMixEnabled: false));
       final container = ProviderContainer(
         overrides: [
           settingsRepositoryProvider.overrideWithValue(repository),
@@ -131,15 +127,12 @@ void main() {
       final instantMixSpy = _SpyInstantMixNotifier();
       final sameVibesSpy = _SpySameVibesNotifier();
       final repository = _MockSettingsRepository();
-      when(() => repository.watchSettings()).thenAnswer(
-        (_) => const Stream<AppSettingsModel>.empty(),
-      );
-      when(() => repository.getSettings()).thenAnswer(
-        (_) async {
-          await Future<void>.delayed(const Duration(milliseconds: 50));
-          return _settings(legacyInstantMixEnabled: true);
-        },
-      );
+      when(repository.watchSettings)
+          .thenAnswer((_) => const Stream<AppSettingsModel>.empty());
+      when(repository.getSettings).thenAnswer((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        return _settings(legacyInstantMixEnabled: true);
+      });
 
       final container = ProviderContainer(
         overrides: [

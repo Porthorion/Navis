@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -38,7 +38,7 @@ void main() {
 }
 
 class _SongMenuPreview extends StatelessWidget {
-  const _SongMenuPreview({required this.grouped});
+  const new({required this.grouped});
 
   final bool grouped;
 
@@ -51,10 +51,7 @@ class _SongMenuPreview extends StatelessWidget {
         icon: Icons.queue_music_outlined,
         label: 'Add to Queue',
       ),
-      const _ActionTile(
-        icon: Icons.playlist_add_outlined,
-        label: 'Play next',
-      ),
+      const _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play next'),
       if (grouped) const Divider(height: 1),
       const _ActionTile(icon: Icons.favorite_border, label: 'Like'),
       const _ActionTile(icon: Icons.star_outline, label: 'Rating'),
@@ -86,11 +83,7 @@ class _SongMenuPreview extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
+  const new({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;

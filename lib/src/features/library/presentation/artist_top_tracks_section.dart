@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,7 +31,7 @@ import 'package:navis/src/utils/catalog_source.dart';
 /// Shows 5 tracks by default with a "Show more" button that expands the list
 /// to 10.  Only rendered when a Last.fm API key is configured at build time.
 class ArtistTopTracksSection extends ConsumerStatefulWidget {
-  const ArtistTopTracksSection({required this.artistName, super.key});
+  const new({required this.artistName, super.key});
 
   final String artistName;
 
@@ -201,9 +201,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context)!;
-    final asyncTracks = ref.watch(
-      artistTopTracksProvider(widget.artistName),
-    );
+    final asyncTracks = ref.watch(artistTopTracksProvider(widget.artistName));
 
     return asyncTracks.when(
       skipLoadingOnReload: true,
@@ -232,7 +230,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
 // ---------------------------------------------------------------------------
 
 class _TrackList extends StatelessWidget {
-  const _TrackList({
+  const new({
     required this.tracks,
     required this.expanded,
     required this.playing,
@@ -252,10 +250,7 @@ class _TrackList extends StatelessWidget {
   Widget build(BuildContext context) {
     final visibleCount =
         (expanded ? kArtistTopTracksSectionMax : kArtistTopTracksCollapsed)
-            .clamp(
-              0,
-              tracks.length,
-            );
+            .clamp(0, tracks.length);
     final visible = tracks.take(visibleCount).toList(growable: false);
     final canExpand = tracks.length > kArtistTopTracksCollapsed;
 
@@ -266,9 +261,8 @@ class _TrackList extends StatelessWidget {
         children: <Widget>[
           Text(
             l10n.artistTopTracksSection,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           AnimatedSize(
@@ -325,11 +319,7 @@ class _TrackList extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _TopTrackTile extends ConsumerWidget {
-  const _TopTrackTile({
-    required this.track,
-    required this.enabled,
-    required this.onTap,
-  });
+  const new({required this.track, required this.enabled, required this.onTap});
 
   final ResolvedArtistTopTrack track;
   final bool enabled;
@@ -409,10 +399,7 @@ class _TopTrackTile extends ConsumerWidget {
     Widget? trailing;
     if (resolvedId != null) {
       trailing = desktopRuntime && dbSong != null
-          ? DesktopSongActions(
-              song: dbSong,
-              keyPrefix: 'artist-top-track',
-            )
+          ? DesktopSongActions(song: dbSong, keyPrefix: 'artist-top-track')
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -427,9 +414,8 @@ class _TopTrackTile extends ConsumerWidget {
                 ),
                 Builder(
                   builder: (buttonContext) => IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      buttonContext,
-                    ).showMenuTooltip,
+                    tooltip: MaterialLocalizations.of(buttonContext)
+                        .showMenuTooltip,
                     icon: const Icon(Icons.more_vert),
                     iconSize: 20,
                     constraints: const BoxConstraints(
@@ -489,7 +475,7 @@ class _TopTrackTile extends ConsumerWidget {
       onTap: enabled ? onTap : null,
       onLongPress: enabled && dbSong != null
           ? () {
-              HapticFeedback.mediumImpact();
+              unawaited(HapticFeedback.mediumImpact());
               unawaited(showSongContextMenu(context, ref, dbSong));
             }
           : null,
@@ -512,34 +498,29 @@ class _TopTrackTile extends ConsumerWidget {
             ),
             child: tile,
           );
-    return SongPlaybackSemantics(
-      state: playbackState,
-      child: interactiveTile,
-    );
+    return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
   }
 
   void _downloadSong(BuildContext context, WidgetRef ref, String songId) {
-    unawaited(
-      () async {
-        final choice = await showDownloadQualitySheet(context);
-        if (choice == null || !context.mounted) return;
-        unawaited(
-          ref
-              .read(downloadServiceProvider)
-              .enqueueSong(
-                songId,
-                quality: choice.quality,
-                format: choice.format,
-              ),
-        );
-        if (!context.mounted) return;
-        showAppNotice(
-          context,
-          message: AppLocalizations.of(context)!.downloadSongQueued,
-          level: AppNoticeLevel.success,
-        );
-      }(),
-    );
+    unawaited(() async {
+      final choice = await showDownloadQualitySheet(context);
+      if (choice == null || !context.mounted) return;
+      unawaited(
+        ref
+            .read(downloadServiceProvider)
+            .enqueueSong(
+              songId,
+              quality: choice.quality,
+              format: choice.format,
+            ),
+      );
+      if (!context.mounted) return;
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(context)!.downloadSongQueued,
+        level: AppNoticeLevel.success,
+      );
+    }());
   }
 
   String _formatListeners(int count, BuildContext context) {
@@ -558,7 +539,7 @@ class _TopTrackTile extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _TopTracksShimmer extends StatelessWidget {
-  const _TopTracksShimmer();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -573,21 +554,18 @@ class _TopTracksShimmer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
-                children: <Widget>[
-                  const ShimmerPlaceholder(height: 16, width: 24),
-                  const SizedBox(width: 8),
-                  const ShimmerPlaceholder(height: 40, width: 40),
-                  const SizedBox(width: 12),
+                children: const <Widget>[
+                  ShimmerPlaceholder(height: 16, width: 24),
+                  SizedBox(width: 8),
+                  ShimmerPlaceholder(height: 40, width: 40),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        ShimmerPlaceholder(
-                          height: 14,
-                          width: double.infinity,
-                        ),
-                        const SizedBox(height: 6),
-                        const ShimmerPlaceholder(height: 11, width: 80),
+                        ShimmerPlaceholder(height: 14, width: double.infinity),
+                        SizedBox(height: 6),
+                        ShimmerPlaceholder(height: 11, width: 80),
                       ],
                     ),
                   ),

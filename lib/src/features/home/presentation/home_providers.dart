@@ -30,13 +30,13 @@ import 'package:navis/src/utils/song_id_utils.dart';
 enum HomeRandomShowcaseSource { likedDiscovery, serverRandom, localFallback }
 
 abstract class HomeRandomShowcaseItem {
-  const HomeRandomShowcaseItem();
+  const new();
 
   String get stableId;
 }
 
 class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
-  const HomeRandomShowcaseAlbum({
+  const new({
     required this.id,
     required this.name,
     required this.source,
@@ -47,7 +47,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     this.isExternal = false,
   });
 
-  factory HomeRandomShowcaseAlbum.fromServer(Album album) {
+  factory fromServer(Album album) {
     return HomeRandomShowcaseAlbum(
       id: album.id,
       name: album.name,
@@ -63,7 +63,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     );
   }
 
-  factory HomeRandomShowcaseAlbum.fromLocal(AlbumsTableData album) {
+  factory fromLocal(AlbumsTableData album) {
     return HomeRandomShowcaseAlbum(
       id: album.id,
       name: album.name,
@@ -76,7 +76,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     );
   }
 
-  factory HomeRandomShowcaseAlbum.fromLocalDiscovery(AlbumsTableData album) {
+  factory fromLocalDiscovery(AlbumsTableData album) {
     return HomeRandomShowcaseAlbum(
       id: album.id,
       name: album.name,
@@ -89,7 +89,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     );
   }
 
-  factory HomeRandomShowcaseAlbum.fromSimilarSong(Song song) {
+  factory fromSimilarSong(Song song) {
     final albumId = song.albumId?.trim();
     final albumName = song.album?.trim();
     return HomeRandomShowcaseAlbum(
@@ -122,9 +122,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
 }
 
 class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
-  factory HomeRandomShowcaseListenBrainz({
-    required ListenBrainzDiscoverPlaylist playlist,
-  }) {
+  factory({required ListenBrainzDiscoverPlaylist playlist}) {
     return HomeRandomShowcaseListenBrainz._(
       playlist: playlist,
       sourcePatch: playlist.playlist.sourcePatch,
@@ -133,13 +131,11 @@ class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
     );
   }
 
-  const HomeRandomShowcaseListenBrainz.loading({
-    required this.sourcePatch,
-    required this.displayTitle,
-  }) : playlist = null,
-       isLoading = true;
+  const new loading({required this.sourcePatch, required this.displayTitle})
+    : playlist = null,
+      isLoading = true;
 
-  const HomeRandomShowcaseListenBrainz._({
+  const new _({
     required this.playlist,
     required this.sourcePatch,
     required this.displayTitle,
@@ -207,7 +203,7 @@ String? _listenBrainzLocalCandidateCacheFingerprint;
 int? _listenBrainzMatchCacheIdentityEpoch;
 
 class _BoundedAsyncQueue {
-  _BoundedAsyncQueue(this.maxConcurrent)
+  new(this.maxConcurrent)
     : assert(maxConcurrent > 0, 'maxConcurrent must be positive');
 
   final int maxConcurrent;
@@ -299,7 +295,7 @@ enum ListenBrainzRecommendationMatchStatus {
 }
 
 class ListenBrainzResolvedRecommendation {
-  const ListenBrainzResolvedRecommendation({
+  const new({
     required this.track,
     required this.status,
     this.song,
@@ -336,7 +332,7 @@ class ListenBrainzResolvedRecommendation {
 }
 
 class ListenBrainzDiscoverPlaylist {
-  const ListenBrainzDiscoverPlaylist({
+  const new({
     required this.playlist,
     required this.recommendations,
     this.matchingComplete = false,
@@ -459,10 +455,7 @@ final listenBrainzPlaylistRematchControllerProvider =
     );
 
 final listenBrainzLibrarySyncRefreshBridgeProvider = Provider<void>((ref) {
-  ref.listen<LibrarySyncState>(librarySyncControllerProvider, (
-    previous,
-    next,
-  ) {
+  ref.listen<LibrarySyncState>(librarySyncControllerProvider, (previous, next) {
     if (next.status == LibrarySyncStatus.succeeded &&
         previous?.status != LibrarySyncStatus.succeeded) {
       final settings = ref.read(appSettingsProvider).asData?.value;
@@ -824,9 +817,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
   if (!ref.mounted) {
     return;
   }
-  final targetMetadata = _selectListenBrainzShowcaseMetadata(
-    playlistMetadata,
-  );
+  final targetMetadata = _selectListenBrainzShowcaseMetadata(playlistMetadata);
   AppLogger.debug(
     'ListenBrainz discover metadata fetched count='
     '${playlistMetadata.length} selectedTargets=${targetMetadata.length}.',
@@ -1077,9 +1068,7 @@ Future<ListenBrainzDiscoverPlaylist> _rematchListenBrainzPlaylist(
     userName: userName.toLowerCase(),
     playlists: _replaceListenBrainzPlaylist(
       _listenBrainzDiscoverSessionCache ??
-          <ListenBrainzDiscoverPlaylist>[
-            resolved,
-          ],
+          <ListenBrainzDiscoverPlaylist>[resolved],
       resolved,
     )!,
   );
@@ -1249,9 +1238,7 @@ _resolveListenBrainzTrackSearchMisses({
             recommendations: playlist.recommendations
                 .map(
                   (recommendation) =>
-                      _listenBrainzRecommendationNeedsResolution(
-                        recommendation,
-                      )
+                      _listenBrainzRecommendationNeedsResolution(recommendation)
                       ? ListenBrainzResolvedRecommendation(
                           track: recommendation.track,
                           status:
@@ -1509,10 +1496,7 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
             : artistId,
         coverArt: Value(song.coverArt),
         isExternal: Value(
-          isExternalCatalogSource(
-            id: song.id,
-            apiIsExternal: song.isExternal,
-          ),
+          isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal),
         ),
       );
     }
@@ -1524,18 +1508,13 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
         name: (song.album?.trim().isNotEmpty ?? false)
             ? song.album!.trim()
             : albumId,
-        artistId: Value(
-          artistId == null || artistId.isEmpty ? null : artistId,
-        ),
+        artistId: Value(artistId == null || artistId.isEmpty ? null : artistId),
         artistName: Value(song.artist),
         songCount: const Value(1),
         duration: Value(song.duration),
         coverArt: Value(song.coverArt),
         isExternal: Value(
-          isExternalCatalogSource(
-            id: song.id,
-            apiIsExternal: song.isExternal,
-          ),
+          isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal),
         ),
       );
     }
@@ -1551,9 +1530,7 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
   await dao.upsertProvisionalArtists(
     artistsById.values.toList(growable: false),
   );
-  await dao.upsertProvisionalAlbums(
-    albumsById.values.toList(growable: false),
-  );
+  await dao.upsertProvisionalAlbums(albumsById.values.toList(growable: false));
   await dao.upsertProvisionalSongs(songRows);
 
   return playlists
@@ -1646,10 +1623,7 @@ SongsTableCompanion _listenBrainzSongCompanion(
     replayGainTrackPeak: Value(song.replayGain?.trackPeak),
     replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
     isExternal: Value(
-      isExternalCatalogSource(
-        id: song.id,
-        apiIsExternal: song.isExternal,
-      ),
+      isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal),
     ),
   );
 }
@@ -1709,9 +1683,7 @@ String listenBrainzLocalCandidateFingerprint(List<SongsTableData> songs) {
 }
 
 Future<_ListenBrainzLocalCandidateSnapshot>
-_loadListenBrainzLocalCandidateSnapshot(
-  List<SongsTableData> songs,
-) async {
+_loadListenBrainzLocalCandidateSnapshot(List<SongsTableData> songs) async {
   _ensureListenBrainzIdentityCacheEpoch();
   final joinedFingerprint = listenBrainzLocalCandidateFingerprint(songs);
   if (_listenBrainzLocalCandidateCache != null &&
@@ -1742,7 +1714,7 @@ final homeRecentlyAddedProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(
+  return await api.getAlbumList2(
     type: 'newest',
     size: 20,
     cancelToken: cancelToken,
@@ -1767,7 +1739,7 @@ final homeRandomAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(
+  return await api.getAlbumList2(
     type: 'random',
     size: 20,
     cancelToken: cancelToken,
@@ -1827,9 +1799,7 @@ final homeDownloadedRecentlyPlayedAlbumsProvider =
     });
 
 final homeDownloadedRandomAlbumsProvider =
-    StreamProvider<List<AlbumsTableData>>((
-      ref,
-    ) {
+    StreamProvider<List<AlbumsTableData>>((ref) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       final downloadedAlbumIds =
           ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
@@ -1987,7 +1957,7 @@ final homeRandomShowcaseProvider =
           }
           return const AsyncLoading();
         },
-        error: (error, stackTrace) => AsyncError(error, stackTrace),
+        error: AsyncError.new,
         data: (albums) {
           final showcase = _prependListenBrainzShowcase(
             ref,
@@ -2457,10 +2427,8 @@ Future<List<HomeRandomShowcaseAlbum>> _buildLikedDiscoveryAlbums({
   final knownCandidates = <String, HomeRandomShowcaseAlbum>{};
   final similarSongResults = await Future.wait(
     seedSongs.map(
-      (seed) => _fetchHomeRandomDiscoverySimilarSongs(
-        api: api,
-        seedSongId: seed.id,
-      ),
+      (seed) =>
+          _fetchHomeRandomDiscoverySimilarSongs(api: api, seedSongId: seed.id),
     ),
   );
 
@@ -2539,9 +2507,7 @@ Future<List<Song>> _fetchHomeRandomDiscoverySimilarSongs({
 }
 
 final homeDownloadedMostPlayedSongsProvider =
-    StreamProvider<List<SongsTableData>>((
-      ref,
-    ) {
+    StreamProvider<List<SongsTableData>>((ref) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       final downloadedSongIds =
           ref.watch(downloadedSongIdsProvider).asData?.value ??
@@ -2574,7 +2540,7 @@ final homeFrequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(
+  return await api.getAlbumList2(
     type: 'frequent',
     size: 20,
     cancelToken: cancelToken,

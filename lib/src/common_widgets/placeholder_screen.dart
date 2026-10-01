@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PlaceholderScreen extends StatelessWidget {
-  const PlaceholderScreen({required this.title, super.key, this.subtitle});
+  const new({required this.title, super.key, this.subtitle});
 
   final String title;
   final String? subtitle;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -8,7 +8,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class DesktopShortcutsSettingsScreen extends ConsumerStatefulWidget {
-  const DesktopShortcutsSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<DesktopShortcutsSettingsScreen> createState() =>
@@ -424,7 +424,7 @@ class _DesktopShortcutsSettingsScreenState
 // ---------------------------------------------------------------------------
 
 class _ShortcutCaptureTile extends StatelessWidget {
-  const _ShortcutCaptureTile({
+  const new({
     required this.action,
     required this.title,
     required this.description,
@@ -547,7 +547,7 @@ class _ShortcutCaptureTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _BuiltInShortcutTile extends StatelessWidget {
-  const _BuiltInShortcutTile({
+  const new({
     required this.icon,
     required this.title,
     required this.description,
@@ -575,9 +575,7 @@ class _BuiltInShortcutTile extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: textTheme.bodyLarge?.copyWith(
-            color: colors.onSurfaceVariant,
-          ),
+          style: textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
         ),
         subtitle: Text(
           description,

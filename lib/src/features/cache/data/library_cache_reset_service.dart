@@ -6,11 +6,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 /// Clears the recoverable, server-derived local library state while retaining
 /// permanent downloads, account credentials, and device settings.
 class LibraryCacheResetService {
-  LibraryCacheResetService({
-    required NavisDatabase database,
-    Future<void> Function()? clearCoverArt,
-  }) : _database = database,
-       _clearCoverArt = clearCoverArt;
+  new({required this._database, this._clearCoverArt});
 
   final NavisDatabase _database;
   final Future<void> Function()? _clearCoverArt;

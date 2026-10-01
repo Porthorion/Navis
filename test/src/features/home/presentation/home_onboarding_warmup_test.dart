@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
@@ -58,17 +59,14 @@ void main() {
         },
       );
 
-      expect(
-        selected.map((candidate) => candidate.coverArtId),
-        <String>[
-          'newest',
-          'shared',
-          'liked-one',
-          'liked-two',
-          'liked-three',
-          'liked-four',
-        ],
-      );
+      expect(selected.map((candidate) => candidate.coverArtId), <String>[
+        'newest',
+        'shared',
+        'liked-one',
+        'liked-two',
+        'liked-three',
+        'liked-four',
+      ]);
       expect(selected[0].size, 600);
       expect(
         selected.skip(2).every((candidate) => candidate.size == 160),
@@ -99,9 +97,9 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
-            homeSectionOrderProvider.overrideWithValue(
-              const <String>[HomeSectionIds.randomAlbums],
-            ),
+            homeSectionOrderProvider.overrideWithValue(const <String>[
+              HomeSectionIds.randomAlbums,
+            ]),
             homeSectionsHiddenProvider.overrideWithValue(const <String>[]),
             homeLikedOnlyFilterProvider.overrideWith(
               _LikedOnlyHomeFilterController.new,
@@ -255,7 +253,7 @@ void main() {
               homeOnboardingWarmupProvider.overrideWithValue(warmup),
             ],
             child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: OnboardingScreen(homeWarmupAfterRebuild: true),
             ),

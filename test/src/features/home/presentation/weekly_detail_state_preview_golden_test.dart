@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -9,7 +10,7 @@ void main() {
     return tester.pumpWidget(
       MaterialApp(
         theme: buildDarkTheme(Colors.deepPurple),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           appBar: AppBar(title: const Text('Weekly Jams')),

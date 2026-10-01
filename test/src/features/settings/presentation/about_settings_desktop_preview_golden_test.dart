@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -36,7 +36,7 @@ void main() {
 }
 
 class _AboutPreview extends StatelessWidget {
-  const _AboutPreview({required this.hasReturnPath});
+  const new({required this.hasReturnPath});
 
   final bool hasReturnPath;
 
@@ -86,7 +86,7 @@ class _AboutPreview extends StatelessWidget {
 }
 
 class _UsageRow extends StatelessWidget {
-  const _UsageRow({required this.label, required this.value});
+  const new({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -95,9 +95,7 @@ class _UsageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: <Widget>[Text(label), const Spacer(), Text(value)],
-      ),
+      child: Row(children: <Widget>[Text(label), const Spacer(), Text(value)]),
     );
   }
 }

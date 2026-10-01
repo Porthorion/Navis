@@ -29,7 +29,7 @@ const failed = LibrarySyncState(
   stage: LibrarySyncStage.completed,
 );
 
-class _Api extends Mock implements SubsonicApiClient {}
+class _Api extends Mock implements SubsonicApiClient;
 
 class QueueSpy extends QueueController {
   List<String> ids = ['previous'];
@@ -373,9 +373,7 @@ void main() {
       await database.delete(database.songsTable).go();
       await database
           .update(database.albumsTable)
-          .write(
-            const AlbumsTableCompanion(songsHydrated: Value(false)),
-          );
+          .write(const AlbumsTableCompanion(songsHydrated: Value(false)));
       final queue = QueueSpy();
       final changed = ArtistPlaybackResolver(
         readSnapshot: resolver.readSnapshot,
@@ -406,9 +404,7 @@ void main() {
     await database.delete(database.songsTable).go();
     await database
         .update(database.albumsTable)
-        .write(
-          const AlbumsTableCompanion(songsHydrated: Value(false)),
-        );
+        .write(const AlbumsTableCompanion(songsHydrated: Value(false)));
     await addTrack('album-3');
     await database.libraryDao.markAlbumSongsHydrated('album-3');
     final queue = QueueSpy();
@@ -982,7 +978,7 @@ void main() {
     }
 
     test(
-      'are retained as unavailable while the queue is the artist\'s',
+      "are retained as unavailable while the queue is the artist's",
       () async {
         final (container, drops) = await prepared();
         expect(container.read(retainedArtistQueueProvider), isEmpty);

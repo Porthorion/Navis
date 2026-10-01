@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _ShellDestination {
-  const _ShellDestination({
+  const new({
     required this.icon,
     required this.selectedIcon,
     required this.label,
@@ -15,7 +15,7 @@ class _ShellDestination {
 }
 
 class _CompactIconRail extends StatelessWidget {
-  const _CompactIconRail({
+  const new({
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
@@ -82,7 +82,7 @@ class _CompactIconRail extends StatelessWidget {
 }
 
 class _RailSidebar extends ConsumerWidget {
-  const _RailSidebar({
+  const new({
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
@@ -152,9 +152,7 @@ class _RailSidebar extends ConsumerWidget {
         ),
         tooltip: navbarAutohide
             ? AppLocalizations.of(context)!.desktopNavbarLockTooltip
-            : AppLocalizations.of(
-                context,
-              )!.desktopNavbarUnlockTooltip,
+            : AppLocalizations.of(context)!.desktopNavbarUnlockTooltip,
         onPressed: onToggleAutohide,
         padding: EdgeInsets.zero,
         style: IconButton.styleFrom(
@@ -316,10 +314,7 @@ class _RailSidebar extends ConsumerWidget {
   }
 }
 
-String _librarySectionShellLabel(
-  BuildContext context,
-  LibrarySection section,
-) {
+String _librarySectionShellLabel(BuildContext context, LibrarySection section) {
   final l10n = AppLocalizations.of(context)!;
   return switch (section) {
     LibrarySection.albums => l10n.libraryTabAlbums,
@@ -331,7 +326,7 @@ String _librarySectionShellLabel(
 }
 
 class _RailNavTile extends StatelessWidget {
-  const _RailNavTile({
+  const new({
     super.key,
     required this.destination,
     required this.selected,
@@ -408,7 +403,7 @@ class _RailNavTile extends StatelessWidget {
 }
 
 class _RailSubNavTile extends StatelessWidget {
-  const _RailSubNavTile({
+  const new({
     super.key,
     required this.label,
     required this.selected,
@@ -454,7 +449,7 @@ class _RailSubNavTile extends StatelessWidget {
 
 /// Desktop Back/Forward history buttons, enabled from history state.
 class _HistoryButtons extends ConsumerWidget {
-  const _HistoryButtons({this.vertical = false});
+  const new({this.vertical = false});
 
   final bool vertical;
 
@@ -481,9 +476,8 @@ class _HistoryButtons extends ConsumerWidget {
           icon: Icon(icon, size: 18),
           tooltip: tooltip,
           onPressed: enabled
-              ? () => unawaited(
-                  NavService.navigateHistory(ref, forward: forward),
-                )
+              ? () =>
+                    unawaited(NavService.navigateHistory(ref, forward: forward))
               : null,
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(

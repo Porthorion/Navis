@@ -6,7 +6,7 @@ part 'eq_dao.g.dart';
 
 @DriftAccessor(tables: [EqPresetsTable, EqStateTable])
 class EqDao extends DatabaseAccessor<NavisDatabase> with _$EqDaoMixin {
-  EqDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   Future<List<EqPresetsTableData>> getPresets() => (select(
     eqPresetsTable,

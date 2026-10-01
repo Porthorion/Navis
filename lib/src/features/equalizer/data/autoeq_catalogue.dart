@@ -9,14 +9,14 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class AutoEqEntry {
-  const AutoEqEntry({
+  const new({
     required this.name,
     required this.path,
     required this.measurementSource,
     required this.recommended,
   });
 
-  factory AutoEqEntry.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final path = json['path'] as String;
     final name = json['name'] as String;
     if (name.isEmpty ||
@@ -51,10 +51,10 @@ class AutoEqEntry {
 }
 
 class AutoEqIndex {
-  AutoEqIndex({required this.revision, required List<AutoEqEntry> entries})
+  new({required this.revision, required List<AutoEqEntry> entries})
     : entries = List.unmodifiable(entries);
 
-  factory AutoEqIndex.decode(String source) {
+  factory decode(String source) {
     if (utf8.encode(source).length > 5 * 1024 * 1024) {
       throw const FormatException('AutoEQ catalogue is too large');
     }
@@ -77,7 +77,7 @@ class AutoEqIndex {
     );
   }
 
-  factory AutoEqIndex.fromMarkdown({
+  factory fromMarkdown({
     required String revision,
     required String recommended,
     required String full,
@@ -138,7 +138,7 @@ class AutoEqIndex {
 
 /// Network is used only for an explicit refresh or profile download.
 class AutoEqCatalogue {
-  AutoEqCatalogue({Dio? client})
+  new({Dio? client})
     : _client =
           client ??
           Dio(

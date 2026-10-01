@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 class BatteryOptimizationService {
-  const BatteryOptimizationService();
+  const new();
 
   static const _channel = MethodChannel('com.navis.app/power');
 
@@ -18,9 +18,7 @@ class BatteryOptimizationService {
           true;
       return !ignoring;
     } on PlatformException catch (error, stackTrace) {
-      AppLogger.debug(
-        'Battery optimization check failed: $error\n$stackTrace',
-      );
+      AppLogger.debug('Battery optimization check failed: $error\n$stackTrace');
       return false;
     }
   }
@@ -30,9 +28,7 @@ class BatteryOptimizationService {
       return;
     }
     try {
-      await _channel.invokeMethod<void>(
-        'requestIgnoreBatteryOptimizations',
-      );
+      await _channel.invokeMethod<void>('requestIgnoreBatteryOptimizations');
     } on PlatformException catch (error, stackTrace) {
       AppLogger.debug(
         'Battery optimization settings launch failed: $error\n$stackTrace',

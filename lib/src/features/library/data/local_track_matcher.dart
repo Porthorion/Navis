@@ -10,7 +10,7 @@ const double kLocalTrackMatcherMinimumFieldScore = 0.75;
 const double kLocalTrackMatcherAmbiguousDelta = 0.03;
 
 class TrackMatchQuery {
-  const TrackMatchQuery({
+  const new({
     required this.title,
     required this.artist,
     this.album,
@@ -26,7 +26,7 @@ class TrackMatchQuery {
 }
 
 class TrackMatchCandidate {
-  const TrackMatchCandidate({
+  const new({
     required this.song,
     required this.normalizedTitle,
     required this.normalizedArtist,
@@ -35,7 +35,7 @@ class TrackMatchCandidate {
     this.tableSong,
   });
 
-  factory TrackMatchCandidate.fromTableSong(SongsTableData song) {
+  factory fromTableSong(SongsTableData song) {
     final songObj = Song(
       id: song.id,
       title: song.title,
@@ -79,7 +79,7 @@ class TrackMatchCandidate {
     );
   }
 
-  factory TrackMatchCandidate.fromSong(Song song) {
+  factory fromSong(Song song) {
     return TrackMatchCandidate(
       song: song,
       normalizedTitle: normalizeMetadata(song.title),
@@ -97,17 +97,15 @@ class TrackMatchCandidate {
 }
 
 class TrackMatchResult {
-  const TrackMatchResult.matched({
-    required Song this.song,
-    this.tableSong,
-  }) : status = TrackMatchStatus.matched;
+  const new matched({required Song this.song, this.tableSong})
+    : status = TrackMatchStatus.matched;
 
-  const TrackMatchResult.unmatched()
+  const new unmatched()
     : status = TrackMatchStatus.unmatched,
       song = null,
       tableSong = null;
 
-  const TrackMatchResult.ambiguous()
+  const new ambiguous()
     : status = TrackMatchStatus.ambiguous,
       song = null,
       tableSong = null;
@@ -122,10 +120,7 @@ class TrackMatchResult {
 enum TrackMatchStatus { matched, unmatched, ambiguous }
 
 class LocalTrackMatchSnapshot {
-  const LocalTrackMatchSnapshot._({
-    required this.all,
-    required this.byNormalizedTitle,
-  });
+  const new _({required this.all, required this.byNormalizedTitle});
 
   static Future<LocalTrackMatchSnapshot> fromSongsAsync(
     List<SongsTableData> songs,
@@ -294,14 +289,14 @@ TrackMatchResult pickBestTrackMatch({
 }
 
 double trackMatchFieldScore(String expected, String actual) {
-  if (expected == actual) return 1.0;
+  if (expected == actual) return 1;
   if (expected.replaceAll(' ', '') == actual.replaceAll(' ', '')) {
     return 0.98;
   }
   if (expected.contains(actual) || actual.contains(expected)) return 0.88;
   final expectedTokens = expected.split(' ').where((t) => t.isNotEmpty).toSet();
   final actualTokens = actual.split(' ').where((t) => t.isNotEmpty).toSet();
-  if (expectedTokens.isEmpty || actualTokens.isEmpty) return 0.0;
+  if (expectedTokens.isEmpty || actualTokens.isEmpty) return 0;
   final overlap = expectedTokens.intersection(actualTokens).length;
   return overlap / math.max(expectedTokens.length, actualTokens.length);
 }

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -172,11 +172,7 @@ Future<void> _showDesktopArtistContextMenu(
       _openArtist(context, ref, artistId);
       return;
     case _ArtistContextAction.play:
-      await startArtistPlayback(
-        container,
-        artistId,
-        ArtistPlaybackAction.play,
-      );
+      await startArtistPlayback(container, artistId, ArtistPlaybackAction.play);
       return;
     case _ArtistContextAction.shuffle:
       await startArtistPlayback(
@@ -186,11 +182,7 @@ Future<void> _showDesktopArtistContextMenu(
       );
       return;
     case _ArtistContextAction.addToQueue:
-      await startArtistPlayback(
-        container,
-        artistId,
-        ArtistPlaybackAction.add,
-      );
+      await startArtistPlayback(container, artistId, ArtistPlaybackAction.add);
       return;
     case _ArtistContextAction.toggleLike:
       await _toggleArtistStar(context, ref, artistId, isStarred);
@@ -215,11 +207,7 @@ Future<void> _toggleArtistStar(
     await ref
         .read(navisDatabaseProvider)
         .starSyncDao
-        .setStarred(
-          itemId: artistId,
-          itemType: 'artist',
-          liked: !isStarred,
-        );
+        .setStarred(itemId: artistId, itemType: 'artist', liked: !isStarred);
   } on Object {
     if (!context.mounted) return;
     showAppNotice(

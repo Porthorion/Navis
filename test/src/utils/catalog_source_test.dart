@@ -21,10 +21,8 @@ void main() {
       isFalse,
     );
     expect(
-      Song.fromJson(const <String, dynamic>{
-        'id': 'song-1',
-        'title': 'Song',
-      }).isExternal,
+      Song.fromJson(const <String, dynamic>{'id': 'song-1', 'title': 'Song'})
+          .isExternal,
       isNull,
     );
   });

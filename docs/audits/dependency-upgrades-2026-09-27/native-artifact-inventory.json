@@ -1,0 +1,1567 @@
+{
+  "date": "2026-09-27",
+  "linuxProfile": [
+    {
+      "artifact": "data/flutter_assets/NOTICES.Z",
+      "bytes": 147428,
+      "sha256": "920527d611615e6d07bf241efcd30e99b4dc8232ceac71fe58dd058646b2cde4"
+    },
+    {
+      "artifact": "lib/libapp.so",
+      "bytes": 23937928,
+      "sha256": "fadfd663d73abfa13742c85b7792beb56f4498bcb8490fdc20e60c5fd149666e"
+    },
+    {
+      "artifact": "lib/libflutter_linux_gtk.so",
+      "bytes": 18100184,
+      "sha256": "c3820f8b16ba0f69f5e628468be981bce498adf34e8d83d54b334e5bfbd24aff"
+    },
+    {
+      "artifact": "lib/libflutter_secure_storage_linux_plugin.so",
+      "bytes": 190664,
+      "sha256": "be9ee4b1888896e7d0d04d9da66d33103528b5fad42d0401f802c99a4c4ac5a7"
+    },
+    {
+      "artifact": "lib/libmedia_kit_libs_linux_plugin.so",
+      "bytes": 15648,
+      "sha256": "809a8ac6d7bd79e5ed52003ebedcf3d7c68188b9fb06b497ff42f759c1620e5b"
+    },
+    {
+      "artifact": "lib/libscreen_retriever_linux_plugin.so",
+      "bytes": 23912,
+      "sha256": "454172991f2a221aff14d92af79a84b502d1c9781afa8f6cd15a1a558a40c526"
+    },
+    {
+      "artifact": "lib/libsqlite3.so",
+      "bytes": 1788664,
+      "sha256": "4b98690121dbd05d5a4df3375d0e9ed7a339d8b26ca2e573bd663976b9b0f9af"
+    },
+    {
+      "artifact": "lib/liburl_launcher_linux_plugin.so",
+      "bytes": 30800,
+      "sha256": "00b741c21cb234b96ae5476d4a9a320259f5ad4595f688996a4fa58adb928e1f"
+    },
+    {
+      "artifact": "lib/libwindow_manager_plugin.so",
+      "bytes": 63168,
+      "sha256": "c0756c1a4c07b66ceac3fe4cad44141877ea58afa9bd1983498902ccc35718a6"
+    }
+  ],
+  "androidDevDebug": [
+    {
+      "artifact": "lib/arm64-v8a/libVkLayer_khronos_validation.so",
+      "bytes": 15240080,
+      "sha256": "ae445f7e74d402e3a367adb230b1edd9841899fcb3310166e5cc96a09ad37a3f"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libdartjni.so",
+      "bytes": 97768,
+      "sha256": "09ba32e90e4ea1ce55385d26fcbee46dcfa6c22cc6abfe39f08503f3b42fb702"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libflutter.so",
+      "bytes": 38828704,
+      "sha256": "047acc6348bb5094466b42c3b060d9c9ae18c5a55c7191567f5ed6d4599ef0c5"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libsqlite3.so",
+      "bytes": 1732360,
+      "sha256": "081df67ee9ab852daea6a0679427e90fc89a0245d06f93dafe2309875c609c5c"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libdartjni.so",
+      "bytes": 57416,
+      "sha256": "ba75e71d2fbb350b8cfe330a921911c7ba4c399fae833330a0b0ac0189dd080d"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libflutter.so",
+      "bytes": 33150308,
+      "sha256": "572df43976e7a3a012ee861881aa1406d82db8c0ff1eb74ef5f0a7d0da0a9928"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libsqlite3.so",
+      "bytes": 1713736,
+      "sha256": "5f331b44ef2549f1e3fa2153ad22d60d85c5a43766e4690a29cc49a0652db772"
+    },
+    {
+      "artifact": "lib/x86_64/libdartjni.so",
+      "bytes": 99784,
+      "sha256": "d55a777e636a0d8f1d7c60ca86d56a4275a4d1ec2a001153f57ec37496b0480f"
+    },
+    {
+      "artifact": "lib/x86_64/libflutter.so",
+      "bytes": 40083280,
+      "sha256": "a690ac9970296a0004baa0e87717fb57e0af69a4e53ededea02f02679bbf0cd5"
+    },
+    {
+      "artifact": "lib/x86_64/libsqlite3.so",
+      "bytes": 1709544,
+      "sha256": "c773c3a25e4c11a450cc700ac95d665c3a1ae75ad426a204fc9b7a7a69b0e191"
+    },
+    {
+      "artifact": "assets/flutter_assets/NOTICES.Z",
+      "bytes": 147428,
+      "sha256": "920527d611615e6d07bf241efcd30e99b4dc8232ceac71fe58dd058646b2cde4"
+    }
+  ],
+  "noticeChecks": {
+    "decodedBytes": 1554937,
+    "packageNamesPresent": {
+      "sqlite3": true,
+      "material_ui": true,
+      "cupertino_ui": true,
+      "flutter_secure_storage": true,
+      "go_router": true,
+      "cached_network_image": true,
+      "jni": true,
+      "Flutter": true,
+      "Skia": true,
+      "Vulkan": true
+    },
+    "identicalAcrossLinuxAndAndroid": true,
+    "nameMatching": "Case-insensitive presence only; not a complete license-obligation assessment",
+    "sourceNoticeTextComparison": [
+      {
+        "package": "_fe_analyzer_shared",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "analyzer",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "analyzer_buffer",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "android_file_picker",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "archive",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "args",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "async",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "audio_service",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "audio_service_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "audio_service_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "audio_session",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "boolean_selector",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "build",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "build_cli_annotations",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "build_config",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "build_daemon",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "build_runner",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "built_collection",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "built_value",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cached_network_image",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cached_network_image_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cached_network_image_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "characters",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "charcode",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "checked_yaml",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cli_util",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "clock",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "code_assets",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "collection",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "colornames",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "connectivity_plus",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "connectivity_plus_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "convert",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cross_file",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "crypto",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cupertino_icons",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "cupertino_ui",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "dart_style",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "dbus",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "dio",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "dio_web_adapter",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "drift",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "drift_dev",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "drift_flutter",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "fake_async",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "ffi",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "ffi_leak_tracker",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file_picker",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file_picker_darwin",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file_picker_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file_picker_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "file_picker_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "fixnum",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_cache_manager",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_launcher_icons",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_local_notifications",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_local_notifications_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_local_notifications_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_local_notifications_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_local_notifications_windows",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_markdown_plus",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_riverpod",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_rust_bridge",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage_darwin",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_secure_storage_windows",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "flutter_svg",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "freezed",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "freezed_annotation",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "glob",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "go_router",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "graphs",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "hooks",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "http",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "http_multi_server",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "http_parser",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "image",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "intl",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "io",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "jni",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "jni_flutter",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "jni_util",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "js",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "json_annotation",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "json_serializable",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "just_audio",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "just_audio_media_kit",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "just_audio_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "just_audio_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "leak_tracker",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "leak_tracker_flutter_testing",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "leak_tracker_testing",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "listen",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "logger",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "logging",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "markdown",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "matcher",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "material_color_utilities",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "material_ui",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "media_kit",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "media_kit_libs_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "media_kit_libs_macos_audio",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "media_kit_libs_windows_audio",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "meta",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "mime",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "mocktail",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "native_toolchain_c",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "navis_windows_smtc",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "nm",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "objective_c",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "octo_image",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "package_config",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "package_info_plus",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "package_info_plus_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_parsing",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider_android",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider_foundation",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "path_provider_windows",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "petitparser",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "platform",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "plugin_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "pool",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "posix",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "process",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "pub_semver",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "pubspec_parse",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "recase",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "record_use",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "riverpod",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "rxdart",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "safe_local_storage",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "screen_retriever",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "screen_retriever_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "screen_retriever_macos",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "screen_retriever_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "screen_retriever_windows",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "scrollable_positioned_list",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "shelf",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "shelf_web_socket",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sky_engine",
+        "sourceNotice": "LICENSE",
+        "blocks": 1593,
+        "matchedBlocks": 1593
+      },
+      {
+        "package": "source_gen",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "source_helper",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "source_span",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqflite",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqflite_android",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqflite_common",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqflite_darwin",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqflite_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqlcipher_flutter_libs",
+        "sourceNotice": "LICENSE",
+        "blocks": 3,
+        "matchedBlocks": 3
+      },
+      {
+        "package": "sqlite3",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqlite3_flutter_libs",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "sqlparser",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "stack_trace",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "state_notifier",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "stream_channel",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "stream_transform",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "string_scanner",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "synchronized",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "term_glyph",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "test_api",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "timezone",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "typed_data",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "universal_platform",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "uri_parser",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_android",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_ios",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_linux",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_macos",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_platform_interface",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "url_launcher_windows",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "uuid",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "vector_graphics",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "vector_graphics_codec",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "vector_graphics_compiler",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "vector_math",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "very_good_analysis",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "visibility_detector",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "vm_service",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "watcher",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "web",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "web_socket",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "web_socket_channel",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "win32",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "window_manager",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "windows_file_picker",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "xdg_directories",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "xml",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "yaml",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "yaml_edit",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      },
+      {
+        "package": "navis",
+        "sourceNotice": "LICENSE",
+        "blocks": 1,
+        "matchedBlocks": 1
+      }
+    ],
+    "fullyMatchingPackages": 201,
+    "comparedPackages": 201,
+    "textMatching": "License bodies compared with whitespace normalized and component header grouping handled as in Flutter LicenseCollector. This proves text retention for these source notices, not full Maven/system/binary license coverage.",
+    "identicalAcrossCurrentReleaseAndDebugArtifacts": true
+  },
+  "upstreamLicenseSources": {
+    "sqlite3Engine": "https://www.sqlite.org/copyright.html",
+    "jni": "https://github.com/dart-lang/native/blob/main/pkgs/jni/LICENSE"
+  },
+  "pending": [
+    "Windows artifact notices and native binary inventory",
+    "Final release artifact inventory; debug/profile evidence alone does not cover release bundles"
+  ],
+  "sqliteEngine": {
+    "version": "3.53.4",
+    "sourceId": "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc",
+    "verifiedBy": "sqlite3_libversion and sqlite3_sourceid from the bundled Linux profile libsqlite3.so",
+    "releaseSource": "https://www.sqlite.org/releaselog/3_53_4.html",
+    "latestReleaseChronologyChecked": "https://www.sqlite.org/chronology.html"
+  },
+  "artifactStatus": "Final Dev Windows/Linux/Android release builds passed after desktop seek/shuffle fixes",
+  "linuxRelease": [
+    {
+      "artifact": "data/flutter_assets/NOTICES.Z",
+      "bytes": 147428,
+      "sha256": "920527d611615e6d07bf241efcd30e99b4dc8232ceac71fe58dd058646b2cde4"
+    },
+    {
+      "artifact": "lib/libapp.so",
+      "bytes": 17875848,
+      "sha256": "4cc596d8b66ef9a0bf0f0c24272a788808265ee408cabf7ae289b0295cad97d8"
+    },
+    {
+      "artifact": "lib/libflutter_linux_gtk.so",
+      "bytes": 17218152,
+      "sha256": "d57449a5c2ee39e77b9e3488f0703b165c67e0b3c554089f388db96484ae62f1"
+    },
+    {
+      "artifact": "lib/libflutter_secure_storage_linux_plugin.so",
+      "bytes": 190664,
+      "sha256": "be9ee4b1888896e7d0d04d9da66d33103528b5fad42d0401f802c99a4c4ac5a7"
+    },
+    {
+      "artifact": "lib/libmedia_kit_libs_linux_plugin.so",
+      "bytes": 15648,
+      "sha256": "809a8ac6d7bd79e5ed52003ebedcf3d7c68188b9fb06b497ff42f759c1620e5b"
+    },
+    {
+      "artifact": "lib/libscreen_retriever_linux_plugin.so",
+      "bytes": 23912,
+      "sha256": "454172991f2a221aff14d92af79a84b502d1c9781afa8f6cd15a1a558a40c526"
+    },
+    {
+      "artifact": "lib/libsqlite3.so",
+      "bytes": 1788664,
+      "sha256": "4b98690121dbd05d5a4df3375d0e9ed7a339d8b26ca2e573bd663976b9b0f9af"
+    },
+    {
+      "artifact": "lib/liburl_launcher_linux_plugin.so",
+      "bytes": 30800,
+      "sha256": "00b741c21cb234b96ae5476d4a9a320259f5ad4595f688996a4fa58adb928e1f"
+    },
+    {
+      "artifact": "lib/libwindow_manager_plugin.so",
+      "bytes": 63168,
+      "sha256": "c0756c1a4c07b66ceac3fe4cad44141877ea58afa9bd1983498902ccc35718a6"
+    }
+  ],
+  "androidDevDebugFontAssets": {
+    "family": "packages/cupertino_icons/CupertinoIcons",
+    "fonts": [
+      {
+        "asset": "packages/cupertino_icons/assets/CupertinoIcons.ttf"
+      }
+    ]
+  },
+  "androidDevDebugIdentity": "package: name='com.navis.app.navis.dev' versionCode='10400' versionName='1.4.0-sidecar' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'\napplication-label:'Navis Dev'",
+  "androidDevRelease": [
+    {
+      "artifact": "assets/flutter_assets/NOTICES.Z",
+      "bytes": 147428,
+      "sha256": "920527d611615e6d07bf241efcd30e99b4dc8232ceac71fe58dd058646b2cde4"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libapp.so",
+      "bytes": 15729544,
+      "sha256": "708a75f1ef8ac6ad50ad82962932fbcaf51d98ad977a0e0c724b5c30a234fc9c"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libdartjni.so",
+      "bytes": 131248,
+      "sha256": "2513b182e8751cb7ed7dc7232ff7ce3ff68285fceb44d792735835275969b0fd"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libflutter.so",
+      "bytes": 11747864,
+      "sha256": "1617e3b3bf10f4569c30db20b37fccfcc0b9a179b827543c01e5f18e91966b6c"
+    },
+    {
+      "artifact": "lib/arm64-v8a/libsqlite3.so",
+      "bytes": 1732360,
+      "sha256": "081df67ee9ab852daea6a0679427e90fc89a0245d06f93dafe2309875c609c5c"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libapp.so",
+      "bytes": 17252936,
+      "sha256": "6f70eb6e7790a24f69cc201396eb817c1dc53d481296356893a81680fb1fcdc3"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libdartjni.so",
+      "bytes": 81444,
+      "sha256": "f8a95c238087e208a66306c6449f7c7fdf528c3e02ab4040c6611e06c9217293"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libflutter.so",
+      "bytes": 8615900,
+      "sha256": "5ef72b4565efac255eb08ffdbd6cb9b7ed027215ffa47ca6b7745f0e2074eee1"
+    },
+    {
+      "artifact": "lib/armeabi-v7a/libsqlite3.so",
+      "bytes": 1713736,
+      "sha256": "5f331b44ef2549f1e3fa2153ad22d60d85c5a43766e4690a29cc49a0652db772"
+    },
+    {
+      "artifact": "lib/x86_64/libapp.so",
+      "bytes": 16188296,
+      "sha256": "fa4bab5ba5021da8dd78a7a9fb8536a87dcc8be3b2699c868f7fe020dca6b7ee"
+    },
+    {
+      "artifact": "lib/x86_64/libdartjni.so",
+      "bytes": 116640,
+      "sha256": "0acd98d59a88a480060dab33bd28710dec293a8a8aec6c88cf1c5775874966f5"
+    },
+    {
+      "artifact": "lib/x86_64/libflutter.so",
+      "bytes": 13051424,
+      "sha256": "b1ec05dba7ee856f093c189ee46fb5893ba1096fcd4ac955f3662a9d4c5e1ea2"
+    },
+    {
+      "artifact": "lib/x86_64/libsqlite3.so",
+      "bytes": 1709544,
+      "sha256": "c773c3a25e4c11a450cc700ac95d665c3a1ae75ad426a204fc9b7a7a69b0e191"
+    }
+  ],
+  "androidDevReleaseFontAssets": {
+    "family": "packages/cupertino_icons/CupertinoIcons",
+    "fonts": [
+      {
+        "asset": "packages/cupertino_icons/assets/CupertinoIcons.ttf"
+      }
+    ]
+  },
+  "androidDevReleaseIdentity": "package: name='com.navis.app.navis.dev' versionCode='10400' versionName='1.4.0-sidecar' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'\napplication-label:'Navis Dev'",
+  "androidReleaseMissingFontWarning": "absent",
+  "androidDevReleaseApk": {
+    "bytes": 90860473,
+    "sha256": "7bdd2c41a86350bc4331f4a5404a1d9d0559bfcbc1e7e22f758c687cabe55ad2"
+  },
+  "windowsNativeArtifacts": "windows-native-artifacts.json",
+  "coldAndroidSafFollowUpRelease": {
+    "apk": "build/app/outputs/flutter-apk/app-sideload-release.apk",
+    "bytes": 90860449,
+    "sha256": "6c7a8b171f8498400ac01ff2880d39872e6bc88f4f212cc9b41296ec82a23557",
+    "nativeArtifacts": [
+      {
+        "artifact": "assets/flutter_assets/NOTICES.Z",
+        "bytes": 147442,
+        "sha256": "ff32ffaa6f0745a0ede2cd7825b38d01db33748f880f5dc73a95669a07a0bf9c"
+      },
+      {
+        "artifact": "lib/arm64-v8a/libapp.so",
+        "bytes": 15729544,
+        "sha256": "49621d76dbb1dc408702fedfd87cc28faa92f7b32a0262bbc88ee58c67c5e92a"
+      },
+      {
+        "artifact": "lib/arm64-v8a/libdartjni.so",
+        "bytes": 131248,
+        "sha256": "2513b182e8751cb7ed7dc7232ff7ce3ff68285fceb44d792735835275969b0fd"
+      },
+      {
+        "artifact": "lib/arm64-v8a/libflutter.so",
+        "bytes": 11747864,
+        "sha256": "1617e3b3bf10f4569c30db20b37fccfcc0b9a179b827543c01e5f18e91966b6c"
+      },
+      {
+        "artifact": "lib/arm64-v8a/libsqlite3.so",
+        "bytes": 1732360,
+        "sha256": "081df67ee9ab852daea6a0679427e90fc89a0245d06f93dafe2309875c609c5c"
+      },
+      {
+        "artifact": "lib/armeabi-v7a/libapp.so",
+        "bytes": 17252936,
+        "sha256": "a99eb6b62350135111c8778435b5e1ea925df269c28dd393bafddcaf576338ae"
+      },
+      {
+        "artifact": "lib/armeabi-v7a/libdartjni.so",
+        "bytes": 81444,
+        "sha256": "f8a95c238087e208a66306c6449f7c7fdf528c3e02ab4040c6611e06c9217293"
+      },
+      {
+        "artifact": "lib/armeabi-v7a/libflutter.so",
+        "bytes": 8615900,
+        "sha256": "5ef72b4565efac255eb08ffdbd6cb9b7ed027215ffa47ca6b7745f0e2074eee1"
+      },
+      {
+        "artifact": "lib/armeabi-v7a/libsqlite3.so",
+        "bytes": 1713736,
+        "sha256": "5f331b44ef2549f1e3fa2153ad22d60d85c5a43766e4690a29cc49a0652db772"
+      },
+      {
+        "artifact": "lib/x86_64/libapp.so",
+        "bytes": 16188296,
+        "sha256": "f6fbb861853c10a09be09d590547cfcb43ae0ead1b275a5ec7a4ebbb633d44a6"
+      },
+      {
+        "artifact": "lib/x86_64/libdartjni.so",
+        "bytes": 116640,
+        "sha256": "0acd98d59a88a480060dab33bd28710dec293a8a8aec6c88cf1c5775874966f5"
+      },
+      {
+        "artifact": "lib/x86_64/libflutter.so",
+        "bytes": 13051424,
+        "sha256": "b1ec05dba7ee856f093c189ee46fb5893ba1096fcd4ac955f3662a9d4c5e1ea2"
+      },
+      {
+        "artifact": "lib/x86_64/libsqlite3.so",
+        "bytes": 1709544,
+        "sha256": "c773c3a25e4c11a450cc700ac95d665c3a1ae75ad426a204fc9b7a7a69b0e191"
+      }
+    ],
+    "ownedStorageBridgeLicenseRetained": true,
+    "cupertinoFontPackaged": true,
+    "build": "passed, 58.2 seconds",
+    "graphSha256": "b440e4267b8d038b93fce1eaf7c3bef82e828b7b1c9a0374fbe0e7e26b6354c3",
+    "scope": "New Android-only owned storage bridge; previous platform inventories remain historical"
+  }
+}

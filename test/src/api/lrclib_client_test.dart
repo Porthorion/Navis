@@ -53,10 +53,7 @@ void main() {
       final client = LrclibClient(dio: dio);
 
       await expectLater(
-        client.getLyrics(
-          artist: 'Evanescence',
-          title: 'Bring Me To Life',
-        ),
+        client.getLyrics(artist: 'Evanescence', title: 'Bring Me To Life'),
         throwsA(isA<DioException>()),
       );
     });

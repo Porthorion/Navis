@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 
 class ErrorState extends StatelessWidget {
-  const ErrorState({
+  const new({
     required this.title,
     super.key,
     this.message,
@@ -48,9 +48,7 @@ class ErrorState extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.tonal(
                 onPressed: onRetry,
-                child: Text(
-                  retryLabel ?? l10n.commonRetry,
-                ),
+                child: Text(retryLabel ?? l10n.commonRetry),
               ),
             ],
           ],

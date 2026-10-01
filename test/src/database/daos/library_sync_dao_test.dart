@@ -278,9 +278,7 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test('preserves separate durable origins for repair and cache reset', () {
-    final repair = syncRunRequestFromLegacy(
-      const LibrarySyncRequest.repair(),
-    );
+    final repair = syncRunRequestFromLegacy(const LibrarySyncRequest.repair());
     final reset = syncRunRequestFromLegacy(
       const LibrarySyncRequest.cacheReset(),
     );
@@ -737,10 +735,7 @@ void main() {
       expect(state.candidateGeneration, isNull);
       expect(state.deletionCandidateCount, 0);
       expect(
-        await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: 'fullRepair',
-        ),
+        await database.librarySyncDao.getWork(serverId: 1, kind: 'fullRepair'),
         isNull,
       );
     },
@@ -787,25 +782,21 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'provider profile persists independently for each server',
-    () async {
-      await database.librarySyncDao.writeState(
-        const LibrarySyncStateTableCompanion(
-          serverId: Value(1),
-          providerFingerprint: Value('server|1.16.1'),
-          conditionalIndexesMode: Value('reliable'),
-          bulkSearchMode: Value('supported'),
-          bulkSearchQuery: Value('*'),
-        ),
-      );
-      final state = await database.librarySyncDao.getOrCreateState(1);
-      expect(state.providerFingerprint, 'server|1.16.1');
-      expect(state.conditionalIndexesMode, 'reliable');
-      expect(state.bulkSearchQuery, '*');
-    },
-    skip: !sqliteAvailable,
-  );
+  test('provider profile persists independently for each server', () async {
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        providerFingerprint: Value('server|1.16.1'),
+        conditionalIndexesMode: Value('reliable'),
+        bulkSearchMode: Value('supported'),
+        bulkSearchQuery: Value('*'),
+      ),
+    );
+    final state = await database.librarySyncDao.getOrCreateState(1);
+    expect(state.providerFingerprint, 'server|1.16.1');
+    expect(state.conditionalIndexesMode, 'reliable');
+    expect(state.bulkSearchQuery, '*');
+  }, skip: !sqliteAvailable);
 
   test('candidate rows remain isolated from the live catalog', () async {
     await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[

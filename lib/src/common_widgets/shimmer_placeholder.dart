@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class ShimmerPlaceholder extends StatefulWidget {
-  const ShimmerPlaceholder({
+  const new({
     super.key,
     this.height = 16,
     this.width = double.infinity,
@@ -70,7 +70,7 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
 /// a title bar, and a subtitle bar — suitable for track, album, or playlist
 /// loading states.
 class ShimmerListTile extends StatelessWidget {
-  const ShimmerListTile({super.key, this.leadingSize = 48});
+  const new({super.key, this.leadingSize = 48});
 
   final double leadingSize;
 
@@ -105,7 +105,7 @@ class ShimmerListTile extends StatelessWidget {
 /// A full-screen shimmer list page with [count] [ShimmerListTile] items.
 /// Use this as the `loading:` fallback in `AsyncValue.when(...)`.
 class ShimmerListPage extends StatelessWidget {
-  const ShimmerListPage({super.key, this.count = 10, this.leadingSize = 48});
+  const new({super.key, this.count = 10, this.leadingSize = 48});
 
   final int count;
   final double leadingSize;

@@ -25,7 +25,7 @@ enum RecommendationIssue {
 }
 
 class RecommendationBatch {
-  const RecommendationBatch({
+  const new({
     required this.songs,
     required this.source,
     this.issue = RecommendationIssue.none,
@@ -37,15 +37,14 @@ class RecommendationBatch {
 }
 
 class RadioFilters {
-  const RadioFilters({this.likedOnly = false, this.downloadedOnly = false});
+  const new({this.likedOnly = false, this.downloadedOnly = false});
 
   final bool likedOnly;
   final bool downloadedOnly;
 }
 
 class RecommendationService {
-  RecommendationService(this._ref, {Random? random})
-    : _random = random ?? Random();
+  new(this._ref, {Random? random}) : _random = random ?? Random();
 
   final Ref _ref;
   final Random _random;
@@ -91,7 +90,7 @@ class RecommendationService {
       for (final song in catalog) song.id: song,
       for (final song in localOnly) song.id: song,
     }.values;
-    final saf = const AndroidSafStorage();
+    const saf = AndroidSafStorage();
     final eligible = <SongsTableData>[];
     for (final song in all) {
       if (song.isExternal || song.isProvisional) continue;
@@ -114,6 +113,8 @@ class RecommendationService {
             local.storageKind == 'androidSaf' ||
                 local.filePath.startsWith('content://')
             ? await saf.exists(local.filePath)
+            // Keep metadata access asynchronous so storage latency cannot stall UI.
+            // ignore: avoid_slow_async_io
             : await File(local.filePath).exists();
         if (!exists) continue;
       }
@@ -153,8 +154,9 @@ class RecommendationService {
         );
         final before = collected.length;
         _addEligible(collected, generic, null, seedId, count);
-        if (before == 0 && collected.isNotEmpty)
+        if (before == 0 && collected.isNotEmpty) {
           source = RecommendationSource.server;
+        }
         if (collected.isNotEmpty) issue = RecommendationIssue.none;
       } on SubsonicNotFoundException {
         try {
@@ -237,6 +239,8 @@ class RecommendationService {
     int count = 10,
     CancelToken? cancelToken,
   }) async {
+    var resolvedExcludedIds = excludedIds;
+
     final eligible = await eligibleLibrary(filters);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
@@ -248,18 +252,18 @@ class RecommendationService {
         .historyDao
         .watchPlayHistory(limit: 200)
         .first;
-    excludedIds = <String>{
+    resolvedExcludedIds = <String>{
       ...excludedIds,
       ...history.map((play) => play.songId),
     };
     final excludedRecordings = eligible
-        .where((song) => excludedIds.contains(song.id))
+        .where((song) => resolvedExcludedIds.contains(song.id))
         .map(_recordingRow)
         .toSet();
     var pool = eligible
         .where(
           (song) =>
-              !excludedIds.contains(song.id) &&
+              !resolvedExcludedIds.contains(song.id) &&
               !excludedRecordings.contains(_recordingRow(song)),
         )
         .toList();
@@ -273,7 +277,7 @@ class RecommendationService {
                 !hardRecordings.contains(_recordingRow(song)),
           )
           .toList();
-      excludedIds = hardExcluded;
+      resolvedExcludedIds = hardExcluded;
     }
     if (pool.isEmpty) {
       return const RecommendationBatch(
@@ -342,7 +346,7 @@ class RecommendationService {
       related: related,
       familiar: anchors.map(_toSong).toList(),
       shuffle: pool.map(_toSong).toList()..shuffle(_random),
-      excludedIds: excludedIds,
+      excludedIds: resolvedExcludedIds,
       count: count,
     );
     return RecommendationBatch(
@@ -397,10 +401,7 @@ class RecommendationService {
     final matches = <Song>[];
     for (final recommendation in result.tracks.take(10)) {
       final editions =
-          byIdentity[_identity(
-            recommendation.artist,
-            recommendation.title,
-          )];
+          byIdentity[_identity(recommendation.artist, recommendation.title)];
       if (editions == null) continue;
       final chosen = editions.firstWhere(
         (song) => song.starred != null,
@@ -437,8 +438,8 @@ class RecommendationService {
   }
 
   static String _identity(String artist, String title) =>
-      '${artist.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}:'
-      '${title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
+      '${artist.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '')}:'
+      '${title.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '')}';
 
   static String _recordingRow(SongsTableData song) {
     final mbid = song.recordingMbid?.trim().toLowerCase();
@@ -522,5 +523,5 @@ List<Song> composeRadioBatch({
 }
 
 final recommendationServiceProvider = Provider<RecommendationService>(
-  (ref) => RecommendationService(ref),
+  RecommendationService.new,
 );

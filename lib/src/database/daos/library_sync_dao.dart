@@ -23,7 +23,7 @@ part 'library_sync_dao.g.dart';
 
 /// The redacted record exposed by settings and the diagnostics API.
 class LibrarySyncRunHistoryEntry {
-  const LibrarySyncRunHistoryEntry({
+  const new({
     required this.requestId,
     required this.attemptId,
     required this.startedAt,
@@ -72,7 +72,7 @@ class LibrarySyncRunHistoryEntry {
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncDaoMixin {
-  LibrarySyncDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const int _runQueued = 0;
   static const int _runRunning = 1;
@@ -125,7 +125,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: timestamp,
       ),
     );
-    return (select(
+    return await (select(
       librarySyncRunRequestTable,
     )..where((table) => table.id.equals(id))).getSingle();
   }
@@ -136,7 +136,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     DateTime? now,
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
-    return transaction(() async {
+    return await transaction(() async {
       await (update(
         librarySyncRunRequestTable,
       )..where((table) => table.id.equals(requestId))).write(
@@ -152,7 +152,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           startedAt: timestamp,
         ),
       );
-      return (select(
+      return await (select(
         librarySyncRunAttemptTable,
       )..where((table) => table.id.equals(id))).getSingle();
     });
@@ -714,7 +714,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final timestamp = now.toUtc();
     final expiry = timestamp.add(ttl);
-    return transaction(() async {
+    return await transaction(() async {
       await customStatement(
         '''
         INSERT INTO library_sync_execution_lease (
@@ -916,10 +916,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<LibrarySyncOperationLedgerTableData>>
-  getRecentOperationLedgerEntries(
-    int serverId, {
-    int limit = 50,
-  }) {
+  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
     final safeLimit = limit.clamp(1, 50);
     return (select(librarySyncOperationLedgerTable)
           ..where((table) => table.serverId.equals(serverId))
@@ -936,10 +933,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   /// The Settings screen uses this rather than controller state so a catalog
   /// change remains explainable after an app restart or a later no-op check.
   Stream<List<LibrarySyncOperationLedgerTableData>>
-  watchRecentOperationLedgerEntries(
-    int serverId, {
-    int limit = 50,
-  }) {
+  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
     final safeLimit = limit.clamp(1, 50);
     return (select(librarySyncOperationLedgerTable)
           ..where((table) => table.serverId.equals(serverId))
@@ -1086,19 +1080,18 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 table.status.equals('awaitingConfirmation'),
           ))
           .go();
-      await (update(librarySyncStateTable)..where(
-            (table) => table.serverId.equals(serverId),
-          ))
-          .write(
-            const LibrarySyncStateTableCompanion(
-              candidateGeneration: Value(null),
-              candidateStatus: Value(null),
-              candidateStartedAt: Value(null),
-              candidateCarriedForwardCount: Value(0),
-              deletionCandidateFingerprint: Value(null),
-              deletionCandidateCount: Value(0),
-            ),
-          );
+      await (update(
+        librarySyncStateTable,
+      )..where((table) => table.serverId.equals(serverId))).write(
+        const LibrarySyncStateTableCompanion(
+          candidateGeneration: Value(null),
+          candidateStatus: Value(null),
+          candidateStartedAt: Value(null),
+          candidateCarriedForwardCount: Value(0),
+          deletionCandidateFingerprint: Value(null),
+          deletionCandidateCount: Value(0),
+        ),
+      );
       return true;
     });
   }
@@ -1137,9 +1130,8 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         .go();
   }
 
-  Future<Map<String, Set<String>>> getLocalStarMutationsSince(
-    DateTime since,
-  ) => getLocalMutationsSince(since, operation: 'star');
+  Future<Map<String, Set<String>>> getLocalStarMutationsSince(DateTime since) =>
+      getLocalMutationsSince(since, operation: 'star');
 
   Future<Map<String, Set<String>>> getLocalMutationsSince(
     DateTime since, {
@@ -1166,11 +1158,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   Future<void> pruneLocalStarMutationsBefore(
     DateTime cutoff, {
     Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) => pruneLocalMutationsBefore(
-    cutoff,
-    operation: 'star',
-    exclude: exclude,
-  );
+  }) => pruneLocalMutationsBefore(cutoff, operation: 'star', exclude: exclude);
 
   Future<void> pruneLocalMutationsBefore(
     DateTime cutoff, {
@@ -1197,7 +1185,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       LibrarySyncStateTableCompanion.insert(serverId: Value(serverId)),
       mode: InsertMode.insertOrIgnore,
     );
-    return (select(
+    return await (select(
       librarySyncStateTable,
     )..where((table) => table.serverId.equals(serverId))).getSingle();
   }
@@ -1255,6 +1243,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String? evidenceVersion,
     DateTime? now,
   }) {
+    var resolvedCheckpointJson = checkpointJson;
+    var shouldReactivateTerminal = reactivateTerminal;
+    var shouldReleaseCooldown = releaseCooldown;
+
     // The upsert below runs through customStatement, which bypasses drift's
     // automatic stream notifications. Report the table explicitly once the
     // transaction commits so watch queries see fresh enqueues.
@@ -1278,12 +1270,12 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         final previousCheckpoint = decode(previous?.checkpointJson);
         if (previous != null &&
             previousCheckpoint['evidenceVersion'] != evidenceVersion) {
-          reactivateTerminal = true;
-          releaseCooldown = true;
+          shouldReactivateTerminal = true;
+          shouldReleaseCooldown = true;
         }
-        checkpointJson = jsonEncode({
+        resolvedCheckpointJson = jsonEncode({
           ...previousCheckpoint,
-          ...decode(checkpointJson),
+          ...decode(resolvedCheckpointJson),
           'evidenceVersion': evidenceVersion,
         });
       }
@@ -1291,8 +1283,8 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       final normalizedClass = workClass == 'interactive'
           ? 'interactive'
           : 'background';
-      final reactivateTerminalValue = reactivateTerminal ? 1 : 0;
-      final releaseCooldownValue = releaseCooldown ? 1 : 0;
+      final reactivateTerminalValue = shouldReactivateTerminal ? 1 : 0;
+      final releaseCooldownValue = shouldReleaseCooldown ? 1 : 0;
       await customStatement(
         '''
         INSERT INTO library_sync_work (
@@ -1336,7 +1328,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           entityId,
           priority,
           normalizedClass,
-          checkpointJson,
+          resolvedCheckpointJson,
           timestamp.millisecondsSinceEpoch ~/ 1000,
           timestamp.millisecondsSinceEpoch ~/ 1000,
           reactivateTerminalValue,
@@ -1429,12 +1421,15 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       ..addColumns([countExpression])
       ..where(
         librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(
-              const <String>['queued', 'running', 'failed'],
-            ),
+            librarySyncWorkTable.status.isIn(const <String>[
+              'queued',
+              'running',
+              'failed',
+            ]),
       );
     final row = await query.getSingle();
-    return row.read(countExpression) ?? 0;
+    final resolvedCount = row.read(countExpression) ?? 0;
+    return resolvedCount;
   }
 
   /// Live variant of [countPendingWork] so the UI can reflect backlog
@@ -1445,9 +1440,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       ..addColumns([countExpression])
       ..where(
         librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(
-              const <String>['queued', 'running', 'failed'],
-            ),
+            librarySyncWorkTable.status.isIn(const <String>[
+              'queued',
+              'running',
+              'failed',
+            ]),
       );
     return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
   }
@@ -1496,10 +1493,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> completeRunningCatalogWork(
-    int serverId, {
-    DateTime? now,
-  }) {
+  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) {
     return (update(librarySyncWorkTable)..where(
           (table) =>
               table.serverId.equals(serverId) &
@@ -1674,17 +1668,16 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     if (!tokenChanged) {
       return;
     }
-    await (update(libraryScanObservationTable)..where(
-          (table) => table.serverId.equals(serverId),
-        ))
-        .write(
-          LibraryScanObservationTableCompanion(
-            scanSupported: const Value(true),
-            observedToken: Value(token),
-            observedAt: Value(now),
-            pendingReconciliation: const Value(true),
-          ),
-        );
+    await (update(
+      libraryScanObservationTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibraryScanObservationTableCompanion(
+        scanSupported: const Value(true),
+        observedToken: Value(token),
+        observedAt: Value(now),
+        pendingReconciliation: const Value(true),
+      ),
+    );
   }
 
   /// Closes the reconciliation window for [token] after a catalog snapshot
@@ -1755,19 +1748,18 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       await into(libraryRecoveryReviewTable).insert(companion);
       return;
     }
-    await (update(libraryRecoveryReviewTable)..where(
-          (table) => table.id.equals(existing.id),
-        ))
-        .write(
-          LibraryRecoveryReviewTableCompanion(
-            savedTitle: Value(savedTitle),
-            savedSubtitle: Value(savedSubtitle),
-            reason: Value(reason),
-            evidenceGeneration: Value(evidenceGeneration),
-            candidateJson: Value(candidateJson),
-            updatedAt: Value(now),
-          ),
-        );
+    await (update(
+      libraryRecoveryReviewTable,
+    )..where((table) => table.id.equals(existing.id))).write(
+      LibraryRecoveryReviewTableCompanion(
+        savedTitle: Value(savedTitle),
+        savedSubtitle: Value(savedSubtitle),
+        reason: Value(reason),
+        evidenceGeneration: Value(evidenceGeneration),
+        candidateJson: Value(candidateJson),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   /// Bulk-creates review entries for retained unavailable rows.
@@ -1853,14 +1845,13 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required int id,
     required String disposition,
   }) async {
-    await (update(libraryRecoveryReviewTable)..where(
-          (table) => table.id.equals(id),
-        ))
-        .write(
-          LibraryRecoveryReviewTableCompanion(
-            disposition: Value(disposition),
-            updatedAt: Value(DateTime.now()),
-          ),
-        );
+    await (update(
+      libraryRecoveryReviewTable,
+    )..where((table) => table.id.equals(id))).write(
+      LibraryRecoveryReviewTableCompanion(
+        disposition: Value(disposition),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 }

@@ -11,14 +11,11 @@ import 'package:navis/src/utils/app_logger.dart';
 /// All endpoints return Subsonic entity IDs that map to the user's local
 /// library, ensuring recommendations are always playable.
 class AudioMuseApiClient {
-  AudioMuseApiClient({
-    required String baseUrl,
-    String? apiKey,
-    Dio? dio,
-  }) : _baseUrl = baseUrl.endsWith('/')
-           ? baseUrl.substring(0, baseUrl.length - 1)
-           : baseUrl,
-       _dio = dio ?? Dio() {
+  new({required String baseUrl, String? apiKey, Dio? dio})
+    : _baseUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl,
+      _dio = dio ?? Dio() {
     _dio.options.connectTimeout = const Duration(seconds: 10);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
     _dio.options.sendTimeout = const Duration(seconds: 10);
@@ -51,10 +48,7 @@ class AudioMuseApiClient {
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_baseUrl/api/v1/similar/artists',
-      queryParameters: <String, dynamic>{
-        'id': artistId,
-        'count': count,
-      },
+      queryParameters: <String, dynamic>{'id': artistId, 'count': count},
     );
     return _parseRecommendations(response.data);
   }
@@ -66,10 +60,7 @@ class AudioMuseApiClient {
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_baseUrl/api/v1/similar/albums',
-      queryParameters: <String, dynamic>{
-        'id': albumId,
-        'count': count,
-      },
+      queryParameters: <String, dynamic>{'id': albumId, 'count': count},
     );
     return _parseRecommendations(response.data);
   }

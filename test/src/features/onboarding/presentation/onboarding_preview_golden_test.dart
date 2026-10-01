@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -10,10 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> pumpOnboarding(
-    WidgetTester tester,
-    Size size,
-  ) async {
+  Future<void> pumpOnboarding(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     await tester.binding.setSurfaceSize(size);
@@ -36,7 +34,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingScreen(),
         ),
@@ -45,10 +43,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> captureSteps(
-    WidgetTester tester,
-    String prefix,
-  ) async {
+  Future<void> captureSteps(WidgetTester tester, String prefix) async {
     for (var step = 1; step <= 4; step++) {
       await expectLater(
         find.byType(Scaffold),

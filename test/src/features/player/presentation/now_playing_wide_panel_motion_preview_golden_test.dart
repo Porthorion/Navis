@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -38,7 +38,7 @@ void main() {
 }
 
 class _PanelPreview extends StatelessWidget {
-  const _PanelPreview({required this.reducedMotion});
+  const new({required this.reducedMotion});
 
   final bool reducedMotion;
 
@@ -58,12 +58,8 @@ class _PanelPreview extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   'Queue',
-                  style:
-                      Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -100,9 +96,8 @@ class _PanelPreview extends StatelessWidget {
           Center(
             child: Text(
               'Now Playing',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(color: colors.onSurfaceVariant),
             ),
           ),
           Positioned.fill(

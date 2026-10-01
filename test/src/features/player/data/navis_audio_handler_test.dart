@@ -425,81 +425,78 @@ void main() {
       );
     });
 
-    test(
-      'seek recovery helper detects lock-cached seek failures',
-      () {
-        // Snap-to-zero: seek to 48s, land at 250ms.
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'lockCachedStream',
-            requestedPosition: const Duration(seconds: 48),
-            actualPosition: const Duration(milliseconds: 250),
-          ),
-          isTrue,
-        );
+    test('seek recovery helper detects lock-cached seek failures', () {
+      // Snap-to-zero: seek to 48s, land at 250ms.
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 48),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isTrue,
+      );
 
-        // Snap-to-buffer-boundary: seek to 60s, land at 8s (buffer boundary).
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'lockCachedStream',
-            requestedPosition: const Duration(seconds: 60),
-            actualPosition: const Duration(seconds: 8),
-          ),
-          isTrue,
-        );
+      // Snap-to-buffer-boundary: seek to 60s, land at 8s (buffer boundary).
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 60),
+          actualPosition: const Duration(seconds: 8),
+        ),
+        isTrue,
+      );
 
-        // Non-remote source: never recover.
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'file',
-            requestedPosition: const Duration(seconds: 48),
-            actualPosition: const Duration(milliseconds: 250),
-          ),
-          isFalse,
-        );
+      // Non-remote source: never recover.
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'file',
+          requestedPosition: const Duration(seconds: 48),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isFalse,
+      );
 
-        // Direct stream undershoot: recover (desktop/media_kit can no-op).
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'directStream',
-            requestedPosition: const Duration(seconds: 48),
-            actualPosition: const Duration(milliseconds: 250),
-          ),
-          isTrue,
-        );
+      // Direct stream undershoot: recover (desktop/media_kit can no-op).
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'directStream',
+          requestedPosition: const Duration(seconds: 48),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isTrue,
+      );
 
-        // Small seek target (≤ 2s): never recover.
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'lockCachedStream',
-            requestedPosition: const Duration(seconds: 1),
-            actualPosition: const Duration(milliseconds: 250),
-          ),
-          isFalse,
-        );
+      // Small seek target (≤ 2s): never recover.
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 1),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isFalse,
+      );
 
-        // Successful seek that landed within 2s of target: no recovery.
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'lockCachedStream',
-            requestedPosition: const Duration(seconds: 30),
-            actualPosition: const Duration(milliseconds: 29500),
-          ),
-          isFalse,
-        );
+      // Successful seek that landed within 2s of target: no recovery.
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 30),
+          actualPosition: const Duration(milliseconds: 29500),
+        ),
+        isFalse,
+      );
 
-        // Overshoot: actual > requested — no recovery (shouldn't happen, but
-        // guard against false positives).
-        expect(
-          navisShouldRecoverSeekToDirectStream(
-            sourceKind: 'lockCachedStream',
-            requestedPosition: const Duration(seconds: 30),
-            actualPosition: const Duration(seconds: 32),
-          ),
-          isFalse,
-        );
-      },
-    );
+      // Overshoot: actual > requested — no recovery (shouldn't happen, but
+      // guard against false positives).
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 30),
+          actualPosition: const Duration(seconds: 32),
+        ),
+        isFalse,
+      );
+    });
 
     test('remote playback stall watcher only tracks remote loading states', () {
       expect(
@@ -627,20 +624,17 @@ void main() {
       );
     });
 
-    test(
-      'crossfade handoff seek helper skips seek when index and delta are stable',
-      () {
-        expect(
-          navisShouldSeekCrossfadeHandoff(
-            handoffTargetIndex: 6,
-            currentIndex: 6,
-            jumpDelta: const Duration(milliseconds: 200),
-            seekCorrectionThreshold: const Duration(milliseconds: 750),
-          ),
-          isFalse,
-        );
-      },
-    );
+    test('crossfade handoff seek helper skips seek when index and delta are stable', () {
+      expect(
+        navisShouldSeekCrossfadeHandoff(
+          handoffTargetIndex: 6,
+          currentIndex: 6,
+          jumpDelta: const Duration(milliseconds: 200),
+          seekCorrectionThreshold: const Duration(milliseconds: 750),
+        ),
+        isFalse,
+      );
+    });
 
     test(
       'android crossfade fallback helper avoids regular CD-quality FLAC',
@@ -724,53 +718,29 @@ void main() {
         isFalse,
       );
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: -1,
-          forward: true,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: -1, forward: true),
         isFalse,
       );
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: 3,
-          forward: false,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: 3, forward: false),
         isFalse,
       );
 
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: 0,
-          forward: false,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: 0, forward: false),
         isFalse,
       );
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: 2,
-          forward: true,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: 2, forward: true),
         isFalse,
       );
 
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: 0,
-          forward: true,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: 0, forward: true),
         isTrue,
       );
       expect(
-        navisCanSkipQueueItem(
-          queueLength: 3,
-          currentIndex: 2,
-          forward: false,
-        ),
+        navisCanSkipQueueItem(queueLength: 3, currentIndex: 2, forward: false),
         isTrue,
       );
     });
@@ -800,24 +770,21 @@ void main() {
         },
       );
 
-      test(
-        'pending logical queue resolves anchored song before transport catches up',
-        () {
-          final resolved = navisResolveQueueMetadata(
-            queueItems: <MediaItem>[queue[1]],
-            logicalQueueSongIds: const <String>['song-1', 'song-2', 'song-3'],
-            backendCurrentIndex: 0,
-            fallbackMediaItem: queue[1],
-            anchor: NavisQueueReplacementMetadataAnchor(
-              expectedIndex: 1,
-              mediaItem: queue[1],
-            ),
-          );
+      test('pending logical queue resolves anchored song before transport catches up', () {
+        final resolved = navisResolveQueueMetadata(
+          queueItems: <MediaItem>[queue[1]],
+          logicalQueueSongIds: const <String>['song-1', 'song-2', 'song-3'],
+          backendCurrentIndex: 0,
+          fallbackMediaItem: queue[1],
+          anchor: NavisQueueReplacementMetadataAnchor(
+            expectedIndex: 1,
+            mediaItem: queue[1],
+          ),
+        );
 
-          expect(resolved.mediaItem?.id, 'song-2');
-          expect(resolved.currentIndex, 1);
-        },
-      );
+        expect(resolved.mediaItem?.id, 'song-2');
+        expect(resolved.currentIndex, 1);
+      });
 
       test(
         'matching backend index confirms anchor and uses normal metadata',
@@ -1001,10 +968,10 @@ void main() {
           title: 'Matched remote song',
         );
 
-        final ids = navisQueueSourceIds(
-          <SongsTableData>[local, remote],
-          canonicalize: (id) => id == 'remote-song' ? 'local-song' : id,
-        );
+        final ids = navisQueueSourceIds(<SongsTableData>[
+          local,
+          remote,
+        ], canonicalize: (id) => id == 'remote-song' ? 'local-song' : id);
 
         expect(ids, <String>['local-song', 'remote-song']);
       },
@@ -1029,47 +996,44 @@ void main() {
       expect(logs.single, contains('write failed'));
     });
 
-    test(
-      'queue preload decision respects autoplay, gapless, and forced restore preloading',
-      () {
-        expect(
-          navisShouldPreloadQueue(
-            autoPlay: true,
-            preloadWhenPaused: false,
-            gaplessEnabled: false,
-          ),
-          isTrue,
-        );
+    test('queue preload decision respects autoplay, gapless, and forced restore preloading', () {
+      expect(
+        navisShouldPreloadQueue(
+          autoPlay: true,
+          preloadWhenPaused: false,
+          gaplessEnabled: false,
+        ),
+        isTrue,
+      );
 
-        expect(
-          navisShouldPreloadQueue(
-            autoPlay: false,
-            preloadWhenPaused: true,
-            gaplessEnabled: true,
-          ),
-          isTrue,
-        );
+      expect(
+        navisShouldPreloadQueue(
+          autoPlay: false,
+          preloadWhenPaused: true,
+          gaplessEnabled: true,
+        ),
+        isTrue,
+      );
 
-        expect(
-          navisShouldPreloadQueue(
-            autoPlay: false,
-            preloadWhenPaused: true,
-            gaplessEnabled: false,
-          ),
-          isFalse,
-        );
+      expect(
+        navisShouldPreloadQueue(
+          autoPlay: false,
+          preloadWhenPaused: true,
+          gaplessEnabled: false,
+        ),
+        isFalse,
+      );
 
-        expect(
-          navisShouldPreloadQueue(
-            autoPlay: false,
-            preloadWhenPaused: false,
-            gaplessEnabled: false,
-            forcePreloadWhenPaused: true,
-          ),
-          isTrue,
-        );
-      },
-    );
+      expect(
+        navisShouldPreloadQueue(
+          autoPlay: false,
+          preloadWhenPaused: false,
+          gaplessEnabled: false,
+          forcePreloadWhenPaused: true,
+        ),
+        isTrue,
+      );
+    });
 
     test('effective gapless is enabled when crossfade is enabled', () {
       expect(

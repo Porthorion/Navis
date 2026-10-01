@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -9,11 +9,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// icon column, then the title and one line. [columns] lays the same rows
 /// out side by side on wide screens.
 class ChangelogHighlightList extends StatelessWidget {
-  const ChangelogHighlightList({
-    required this.version,
-    super.key,
-    this.columns = 1,
-  });
+  const new({required this.version, super.key, this.columns = 1});
 
   final ChangelogVersion version;
   final int columns;
@@ -56,7 +52,7 @@ class ChangelogHighlightList extends StatelessWidget {
 }
 
 class _HighlightRow extends StatelessWidget {
-  const _HighlightRow({required this.highlight});
+  const new({required this.highlight});
 
   final ChangelogHighlight highlight;
 

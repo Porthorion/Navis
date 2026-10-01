@@ -22,29 +22,29 @@ class ScrobbleDispatchController extends Notifier<int> {
         .read(serverReachabilityControllerProvider)
         .status;
 
-    ref.listen<ServerReachabilityState>(
-      serverReachabilityControllerProvider,
-      (_, next) {
-        final previous = _lastReachabilityStatus;
-        _lastReachabilityStatus = next.status;
-        if (next.status == ServerReachabilityStatus.online &&
-            previous != ServerReachabilityStatus.online) {
-          unawaited(service.flushDue());
-        }
-      },
-    );
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      _,
+      next,
+    ) {
+      final previous = _lastReachabilityStatus;
+      _lastReachabilityStatus = next.status;
+      if (next.status == ServerReachabilityStatus.online &&
+          previous != ServerReachabilityStatus.online) {
+        unawaited(service.flushDue());
+      }
+    });
 
-    ref.listen<AsyncValue<ServerConfigModel?>>(
-      serverConfigStateProvider,
-      (_, next) {
-        final hasSession = next.asData?.value != null;
-        if (hasSession) {
-          unawaited(service.flushDue());
-        }
-      },
-    );
+    ref.listen<AsyncValue<ServerConfigModel?>>(serverConfigStateProvider, (
+      _,
+      next,
+    ) {
+      final hasSession = next.asData?.value != null;
+      if (hasSession) {
+        unawaited(service.flushDue());
+      }
+    });
 
-    Future<void>.microtask(service.flushDue);
+    unawaited(Future<void>.microtask(service.flushDue));
     return 0;
   }
 }

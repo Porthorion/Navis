@@ -1,8 +1,9 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -41,12 +42,7 @@ class _QueueSpyController extends QueueController {
 }
 
 Song _song(String id, String title) {
-  return Song(
-    id: id,
-    title: title,
-    artist: 'Test Artist',
-    album: 'Top Tracks',
-  );
+  return Song(id: id, title: title, artist: 'Test Artist', album: 'Top Tracks');
 }
 
 ResolvedArtistTopTrack _track({
@@ -84,7 +80,7 @@ Future<_QueueSpyController> _pumpTopTracksSection(
       ],
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(
           body: ArtistTopTracksSection(artistName: 'Test Artist'),
@@ -95,9 +91,8 @@ Future<_QueueSpyController> _pumpTopTracksSection(
   await tester.pumpAndSettle();
 
   final context = tester.element(find.byType(ArtistTopTracksSection));
-  return ProviderScope.containerOf(
-    context,
-  ).read(queueProvider.notifier) as _QueueSpyController;
+  return ProviderScope.containerOf(context).read(queueProvider.notifier)
+      as _QueueSpyController;
 }
 
 void main() {
@@ -197,7 +192,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AdaptiveContextScope(
             adaptiveContext: resolveAdaptiveContext(
@@ -241,25 +236,22 @@ void main() {
     await tester.tap(find.text('Second Song'));
     await tester.pumpAndSettle();
 
-    expect(
-      queueSpy.lastReplaceIds,
-      const <String>['song-1', 'song-2', 'song-3'],
-    );
+    expect(queueSpy.lastReplaceIds, const <String>[
+      'song-1',
+      'song-2',
+      'song-3',
+    ]);
     expect(queueSpy.lastStartIndex, 1);
     expect(queueSpy.lastAutoPlay, isTrue);
   });
 
   testWidgets(
     'queues only the tapped track when it is the only resolved track',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final queueSpy = await _pumpTopTracksSection(
         tester,
         albumQueueEnabled: true,
-        tracks: [
-          _track(rank: 1, id: 'song-1', title: 'Only Song'),
-        ],
+        tracks: [_track(rank: 1, id: 'song-1', title: 'Only Song')],
       );
 
       await tester.tap(find.text('Only Song'));

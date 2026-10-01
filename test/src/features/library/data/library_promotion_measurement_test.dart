@@ -57,7 +57,7 @@ void main() {
         );
         final serverId = (await serverConfigRepository.getActiveServer())!.id!;
 
-        final songCount = _perfSongCount < _perfAlbumCount
+        const songCount = _perfSongCount < _perfAlbumCount
             ? _perfAlbumCount
             : _perfSongCount;
         final songsPerAlbum = (songCount / _perfAlbumCount).ceil();
@@ -140,6 +140,7 @@ void main() {
         expect(diagnostics['pages'], greaterThan(0));
         // Generous wall-clock bound; the recorded numbers are the evidence.
         expect(watch.elapsed, lessThan(const Duration(minutes: 10)));
+        // This opt-in benchmark reports measured timings to its runner.
         // ignore: avoid_print
         print(
           'promotion measurement: songs=${counts.songs} '
@@ -253,16 +254,14 @@ void main() {
         }
         final aliases = await database
             .customSelect(
-              "SELECT COUNT(*) AS n FROM entity_identity_aliases "
+              'SELECT COUNT(*) AS n FROM entity_identity_aliases '
               "WHERE entity_type IN ('album', 'artist')",
             )
             .getSingle();
         // Every old album and artist is matched by MusicBrainz id.
         expect(aliases.read<int>('n'), 2 * albums);
         // ignore: avoid_print
-        print(
-          'rebuild measurement: albums=$albums runMs=${timings.join(',')}',
-        );
+        print('rebuild measurement: albums=$albums runMs=${timings.join(',')}');
       },
       timeout: const Timeout(Duration(minutes: 20)),
       skip: !sqliteAvailable,

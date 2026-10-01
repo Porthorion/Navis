@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -23,7 +24,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this._state);
+  new(this._state);
 
   final ServerReachabilityState _state;
 
@@ -32,7 +33,7 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _FakeSearchApiClient extends SubsonicApiClient {
-  _FakeSearchApiClient(this._handler)
+  new(this._handler)
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -101,7 +102,7 @@ Future<void> _pumpSearchScreen(
     UncontrolledProviderScope(
       container: container,
       child: const MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: SearchScreen(),
       ),
@@ -262,15 +263,9 @@ void main() {
                 isExternal: false,
               ),
             ],
-            albums: <Album>[
-              Album(id: 'pl-deezer-album', name: 'Remote Album'),
-            ],
+            albums: <Album>[Album(id: 'pl-deezer-album', name: 'Remote Album')],
             songs: <Song>[
-              Song(
-                id: 'remote-song',
-                title: 'Remote Song',
-                isExternal: true,
-              ),
+              Song(id: 'remote-song', title: 'Remote Song', isExternal: true),
             ],
           ),
         ),
@@ -284,10 +279,7 @@ void main() {
       await _enterSearchQuery(tester, 'Remote');
       await _pumpUntilFound(tester, find.text('Remote Song'));
 
-      expect(
-        find.byKey(RemoteSourceIndicator.semanticsKey),
-        findsNWidgets(3),
-      );
+      expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNWidgets(3));
       expect(find.text('Server Artist'), findsOneWidget);
     });
 
@@ -297,11 +289,7 @@ void main() {
       if (!sqliteAvailable) return;
 
       final database = createTestDatabase();
-      await _insertArtist(
-        database,
-        id: 'server-prefix',
-        name: 'Aurora Local',
-      );
+      await _insertArtist(database, id: 'server-prefix', name: 'Aurora Local');
       final container = _createContainerWithDatabase(
         database,
         api: _FakeSearchApiClient(
@@ -312,11 +300,7 @@ void main() {
                 name: 'Aurora Remote',
                 isExternal: true,
               ),
-              Artist(
-                id: 'remote-exact',
-                name: 'Aurora',
-                isExternal: true,
-              ),
+              Artist(id: 'remote-exact', name: 'Aurora', isExternal: true),
             ],
           ),
         ),
@@ -377,9 +361,7 @@ void main() {
 
     testWidgets(
       'pending API indicator only appears while remote is in flight',
-      (
-        tester,
-      ) async {
+      (tester) async {
         if (!sqliteAvailable) return;
 
         final database = createTestDatabase();

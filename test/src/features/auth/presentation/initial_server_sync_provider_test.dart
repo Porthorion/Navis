@@ -18,7 +18,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this.initial);
+  new(this.initial);
 
   final ServerReachabilityState initial;
 
@@ -27,7 +27,7 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _RecordingLibrarySyncController extends LibrarySyncController {
-  _RecordingLibrarySyncController(this.result, {this.gate});
+  new(this.result, {this.gate});
 
   final LibrarySyncState result;
   final Completer<void>? gate;
@@ -55,14 +55,12 @@ class _RecordingLibrarySyncController extends LibrarySyncController {
 
 class _SingleFlightRecordingLibrarySyncController
     extends _RecordingLibrarySyncController {
-  _SingleFlightRecordingLibrarySyncController(super.result, {super.gate});
+  new(super.result, {super.gate});
 
   Future<LibrarySyncState>? _active;
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool allowMeteredBroadOverride = false,
-  }) {
+  Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) {
     return _active ??= super.syncNow(
       allowMeteredBroadOverride: allowMeteredBroadOverride,
     );

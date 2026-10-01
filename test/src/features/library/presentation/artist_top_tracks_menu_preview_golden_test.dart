@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, bool desktop) async {
+  Future<void> pump(WidgetTester tester, {required bool desktop}) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildDarkTheme(Colors.deepPurple),
@@ -14,20 +16,22 @@ void main() {
               child: FilledButton(
                 onPressed: () {
                   if (desktop) {
-                    showDesktopContextMenu<void>(
-                      context: context,
-                      anchor: const Offset(450, 190),
-                      items: const <PopupMenuEntry<void>>[
-                        PopupMenuItem<void>(child: Text('Play now')),
-                        PopupMenuItem<void>(child: Text('Add to Queue')),
-                        PopupMenuItem<void>(child: Text('Play next')),
-                        PopupMenuDivider(),
-                        PopupMenuItem<void>(child: Text('Like')),
-                        PopupMenuItem<void>(child: Text('Open artist')),
-                        PopupMenuItem<void>(child: Text('Open album')),
-                        PopupMenuItem<void>(child: Text('Add to playlist')),
-                        PopupMenuItem<void>(child: Text('Download')),
-                      ],
+                    unawaited(
+                      showDesktopContextMenu<void>(
+                        context: context,
+                        anchor: const Offset(450, 190),
+                        items: const <PopupMenuEntry<void>>[
+                          PopupMenuItem<void>(child: Text('Play now')),
+                          PopupMenuItem<void>(child: Text('Add to Queue')),
+                          PopupMenuItem<void>(child: Text('Play next')),
+                          PopupMenuDivider(),
+                          PopupMenuItem<void>(child: Text('Like')),
+                          PopupMenuItem<void>(child: Text('Open artist')),
+                          PopupMenuItem<void>(child: Text('Open album')),
+                          PopupMenuItem<void>(child: Text('Add to playlist')),
+                          PopupMenuItem<void>(child: Text('Download')),
+                        ],
+                      ),
                     );
                   } else {
                     showModalBottomSheet<void>(
@@ -66,7 +70,7 @@ void main() {
   testWidgets('artist top-track More before uses a sheet', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, desktop: false);
     await expectLater(
       find.byType(Overlay),
       matchesGoldenFile('goldens/artist_top_tracks_menu_before.png'),
@@ -78,7 +82,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, desktop: true);
     await expectLater(
       find.byType(Overlay),
       matchesGoldenFile('goldens/artist_top_tracks_menu_after.png'),

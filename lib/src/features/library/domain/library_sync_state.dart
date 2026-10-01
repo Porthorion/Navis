@@ -14,11 +14,7 @@ enum LibrarySyncStatus {
 
 enum LibrarySyncMode { fullInitial, incremental, forceFull }
 
-enum LibrarySyncFreshness {
-  current,
-  verificationPending,
-  repairRecommended,
-}
+enum LibrarySyncFreshness { current, verificationPending, repairRecommended }
 
 enum LibrarySyncStage {
   idle,
@@ -39,7 +35,7 @@ enum LibrarySyncStage {
 
 @immutable
 class LibrarySyncState {
-  const LibrarySyncState({
+  const new({
     required this.status,
     required this.stage,
     this.mode,
@@ -94,7 +90,7 @@ class LibrarySyncState {
     this.updatesAvailable = false,
   });
 
-  const LibrarySyncState.idle({
+  const new idle({
     DateTime? lastSyncedAt,
     LibrarySyncFreshness freshness = LibrarySyncFreshness.verificationPending,
   }) : this(
@@ -107,7 +103,8 @@ class LibrarySyncState {
   final LibrarySyncStatus status;
   final LibrarySyncStage stage;
   final LibrarySyncMode? mode;
-  final int? runRequestId, runAttemptId;
+  final int? runRequestId;
+  final int? runAttemptId;
   final bool metadataReady;
   final bool isHydrating;
   final bool fastPathActive;

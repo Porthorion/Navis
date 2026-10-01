@@ -148,8 +148,11 @@ part 'navis_database.g.dart';
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
-  NavisDatabase([QueryExecutor? executor])
+  new([QueryExecutor? executor])
     : super(_withSyncWriteFence(executor ?? _openConnection()));
+
+  new atPath(String databasePath)
+    : this(_openFileConnection(File(databasePath)));
 
   /// Fences sync writes. A supplied [DatabaseConnection] keeps its own stream
   /// store, so tests can opt into synchronous stream closing.
@@ -163,9 +166,6 @@ class NavisDatabase extends _$NavisDatabase {
     }
     return executor.interceptWith(SyncWriteFenceInterceptor());
   }
-
-  NavisDatabase.atPath(String databasePath)
-    : this(_openFileConnection(File(databasePath)));
 
   static QueryExecutor _openConnection() => LazyDatabase(() async {
     final directory = await getApplicationDocumentsDirectory();
@@ -680,7 +680,7 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.gridArtworkSize,
       );
       await customStatement(
-        "UPDATE app_settings SET grid_artwork_size = CASE "
+        'UPDATE app_settings SET grid_artwork_size = CASE '
         "WHEN album_grid_density IN (1, 2) THEN 'large' "
         "WHEN album_grid_density = 3 THEN 'medium' "
         "WHEN album_grid_density IN (4, 5) THEN 'small' ELSE 'auto' END;",
@@ -759,19 +759,13 @@ class NavisDatabase extends _$NavisDatabase {
   /// tables so OpenSubsonic stable IDs survive promotion into the committed
   /// catalog rows, enabling album/artist relinking.
   Future<void> from79To80(Migrator migrator) async {
-    if (!await _columnExists(
-      'library_sync_candidate_albums',
-      'release_mbid',
-    )) {
+    if (!await _columnExists('library_sync_candidate_albums', 'release_mbid')) {
       await migrator.addColumn(
         librarySyncCandidateAlbumsTable,
         librarySyncCandidateAlbumsTable.releaseMbid,
       );
     }
-    if (!await _columnExists(
-      'library_sync_candidate_artists',
-      'artist_mbid',
-    )) {
+    if (!await _columnExists('library_sync_candidate_artists', 'artist_mbid')) {
       await migrator.addColumn(
         librarySyncCandidateArtistsTable,
         librarySyncCandidateArtistsTable.artistMbid,
@@ -809,7 +803,7 @@ class NavisDatabase extends _$NavisDatabase {
     // Legacy rows can share a sort index. Preserve every row in a stable order.
     await customStatement(
       'INSERT INTO playlist_songs (playlist_id, song_id, sort_order) '
-      'SELECT playlist_id, song_id, ROW_NUMBER() OVER ('
+      'SELECT playlist_id, song_id, ROW_NUMBER() OVER ( '
       'PARTITION BY playlist_id ORDER BY sort_order, song_id) - 1 FROM playlist_membership_v75',
     );
     await customStatement('DROP TABLE playlist_membership_v75');
@@ -1022,10 +1016,7 @@ class NavisDatabase extends _$NavisDatabase {
         librarySyncStateTable.androidWorkerDurationMs,
       );
     }
-    if (!await _columnExists(
-      'library_sync_state',
-      'android_worker_result',
-    )) {
+    if (!await _columnExists('library_sync_state', 'android_worker_result')) {
       await migrator.addColumn(
         librarySyncStateTable,
         librarySyncStateTable.androidWorkerResult,
@@ -1083,10 +1074,7 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.desktopPlaybackVolume,
       );
     }
-    if (!await _columnExists(
-      'app_settings',
-      'desktop_last_audible_volume',
-    )) {
+    if (!await _columnExists('app_settings', 'desktop_last_audible_volume')) {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.desktopLastAudibleVolume,
@@ -1351,28 +1339,19 @@ class NavisDatabase extends _$NavisDatabase {
         librarySyncStateTable.lastPromotionDiagnosticsJson,
       );
     }
-    if (!await _columnExists(
-      'library_sync_candidate_artists',
-      'apply_state',
-    )) {
+    if (!await _columnExists('library_sync_candidate_artists', 'apply_state')) {
       await migrator.addColumn(
         librarySyncCandidateArtistsTable,
         librarySyncCandidateArtistsTable.applyState,
       );
     }
-    if (!await _columnExists(
-      'library_sync_candidate_albums',
-      'apply_state',
-    )) {
+    if (!await _columnExists('library_sync_candidate_albums', 'apply_state')) {
       await migrator.addColumn(
         librarySyncCandidateAlbumsTable,
         librarySyncCandidateAlbumsTable.applyState,
       );
     }
-    if (!await _columnExists(
-      'library_sync_candidate_songs',
-      'apply_state',
-    )) {
+    if (!await _columnExists('library_sync_candidate_songs', 'apply_state')) {
       await migrator.addColumn(
         librarySyncCandidateSongsTable,
         librarySyncCandidateSongsTable.applyState,
@@ -1423,9 +1402,7 @@ class NavisDatabase extends _$NavisDatabase {
       final unsupportedAt = _parseSyncDate(
         navis['libraryIndexesUnsupportedAt'],
       );
-      final bulkQuery = _legacyString(
-        navis['bulkSongSearchWildcardQuery'],
-      );
+      final bulkQuery = _legacyString(navis['bulkSongSearchWildcardQuery']);
       await into(librarySyncStateTable).insert(
         LibrarySyncStateTableCompanion.insert(
           serverId: Value(serverId),
@@ -1436,9 +1413,7 @@ class NavisDatabase extends _$NavisDatabase {
                 ? 'reliable'
                 : 'unknown',
           ),
-          bulkSearchMode: Value(
-            bulkQuery == null ? 'unknown' : 'supported',
-          ),
+          bulkSearchMode: Value(bulkQuery == null ? 'unknown' : 'supported'),
           bulkSearchQuery: Value(bulkQuery),
           catalogCursor: Value(cursor),
           catalogFingerprint: Value(
@@ -1449,12 +1424,8 @@ class NavisDatabase extends _$NavisDatabase {
           lastAuxiliarySyncedAt: Value(
             _parseSyncDate(navis['auxiliarySyncLastSyncedAt']),
           ),
-          lastAuditAt: Value(
-            _parseSyncDate(navis['libraryHealthCheckedAt']),
-          ),
-          auditOffset: Value(
-            _legacyInt(navis['libraryPendingIndexesOffset']),
-          ),
+          lastAuditAt: Value(_parseSyncDate(navis['libraryHealthCheckedAt'])),
+          auditOffset: Value(_legacyInt(navis['libraryPendingIndexesOffset'])),
         ),
         mode: InsertMode.insertOrIgnore,
       );

@@ -1,15 +1,12 @@
 class ListenBrainzTokenDetails {
-  const ListenBrainzTokenDetails({
-    required this.valid,
-    this.userName,
-  });
+  const new({required this.valid, this.userName});
 
   final bool valid;
   final String? userName;
 }
 
 class ListenBrainzPlaylist {
-  const ListenBrainzPlaylist({
+  const new({
     required this.identifier,
     required this.title,
     required this.tracks,
@@ -23,7 +20,7 @@ class ListenBrainzPlaylist {
     this.raw = const <String, dynamic>{},
   });
 
-  factory ListenBrainzPlaylist.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final playlist = _firstMap(json, const <String>['playlist']) ?? json;
     final extension = _flattenMaps(playlist['extension']);
     final additionalMetadata = _flattenMaps(extension['additional_metadata']);
@@ -38,9 +35,9 @@ class ListenBrainzPlaylist {
         identifiers.firstOrNull ??
         _stringValue(playlist['id']) ??
         '';
-    final tracks = _extractTrackMaps(
-      playlist,
-    ).map(ListenBrainzPlaylistTrack.fromJson).toList(growable: false);
+    final tracks = _extractTrackMaps(playlist)
+        .map(ListenBrainzPlaylistTrack.fromJson)
+        .toList(growable: false);
 
     return ListenBrainzPlaylist(
       identifier: identifier,
@@ -115,7 +112,7 @@ class ListenBrainzPlaylist {
 }
 
 class ListenBrainzPlaylistTrack {
-  const ListenBrainzPlaylistTrack({
+  const new({
     required this.title,
     this.creator,
     this.album,
@@ -127,7 +124,7 @@ class ListenBrainzPlaylistTrack {
     this.raw = const <String, dynamic>{},
   });
 
-  factory ListenBrainzPlaylistTrack.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final identifiers = _stringList(json['identifier']);
     final extension = _flattenMaps(json['extension']);
     final additionalMetadata = _flattenMaps(extension['additional_metadata']);

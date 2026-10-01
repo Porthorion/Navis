@@ -29,16 +29,21 @@ $LyricLineCopyWith<LyricLine> get copyWith => _$LyricLineCopyWithImpl<LyricLine>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LyricLine&&(identical(other.start, start) || other.start == start)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.value, value) || other.value == value));
+  final _this = this as LyricLine;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LyricLine&&(identical(other.start, _this.start) || other.start == _this.start)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.value, _this.value) || other.value == _this.value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,start,duration,value);
+int get hashCode {
+  final _this = this as LyricLine;
+  return Object.hash(runtimeType,_this.start,_this.duration,_this.value);
+}
 
 @override
 String toString() {
-  return 'LyricLine(start: $start, duration: $duration, value: $value)';
+  final _this = this as LyricLine;
+  return 'LyricLine(start: ${_this.start}, duration: ${_this.duration}, value: ${_this.value})';
 }
 
 
@@ -232,16 +237,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LyricLine&&(identical(other.start, start) || other.start == start)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.value, value) || other.value == value));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LyricLine&&(identical(other.start, start) || other.start == start)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.value, value) || other.value == value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,start,duration,value);
+int get hashCode {
+    return Object.hash(runtimeType,start,duration,value);
+}
 
 @override
 String toString() {
-  return 'LyricLine(start: $start, duration: $duration, value: $value)';
+    return 'LyricLine(start: $start, duration: $duration, value: $value)';
 }
 
 
@@ -298,16 +305,21 @@ $StructuredLyricsCopyWith<StructuredLyrics> get copyWith => _$StructuredLyricsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is StructuredLyrics&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.synced, synced) || other.synced == synced)&&const DeepCollectionEquality().equals(other.line, line));
+  final _this = this as StructuredLyrics;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StructuredLyrics&&(identical(other.lang, _this.lang) || other.lang == _this.lang)&&(identical(other.synced, _this.synced) || other.synced == _this.synced)&&const DeepCollectionEquality().equals(other.line, _this.line));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lang,synced,const DeepCollectionEquality().hash(line));
+int get hashCode {
+  final _this = this as StructuredLyrics;
+  return Object.hash(runtimeType,_this.lang,_this.synced,const DeepCollectionEquality().hash(_this.line));
+}
 
 @override
 String toString() {
-  return 'StructuredLyrics(lang: $lang, synced: $synced, line: $line)';
+  final _this = this as StructuredLyrics;
+  return 'StructuredLyrics(lang: ${_this.lang}, synced: ${_this.synced}, line: ${_this.line})';
 }
 
 
@@ -507,16 +519,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _StructuredLyrics&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.synced, synced) || other.synced == synced)&&const DeepCollectionEquality().equals(other._line, _line));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _StructuredLyrics&&(identical(other.lang, lang) || other.lang == lang)&&(identical(other.synced, synced) || other.synced == synced)&&const DeepCollectionEquality().equals(other.line, _line));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lang,synced,const DeepCollectionEquality().hash(_line));
+int get hashCode {
+    return Object.hash(runtimeType,lang,synced,const DeepCollectionEquality().hash(_line));
+}
 
 @override
 String toString() {
-  return 'StructuredLyrics(lang: $lang, synced: $synced, line: $line)';
+    return 'StructuredLyrics(lang: $lang, synced: $synced, line: $line)';
 }
 
 
@@ -573,16 +587,21 @@ $LyricsListCopyWith<LyricsList> get copyWith => _$LyricsListCopyWithImpl<LyricsL
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LyricsList&&const DeepCollectionEquality().equals(other.structuredLyrics, structuredLyrics)&&(identical(other.value, value) || other.value == value));
+  final _this = this as LyricsList;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LyricsList&&const DeepCollectionEquality().equals(other.structuredLyrics, _this.structuredLyrics)&&(identical(other.value, _this.value) || other.value == _this.value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(structuredLyrics),value);
+int get hashCode {
+  final _this = this as LyricsList;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.structuredLyrics),_this.value);
+}
 
 @override
 String toString() {
-  return 'LyricsList(structuredLyrics: $structuredLyrics, value: $value)';
+  final _this = this as LyricsList;
+  return 'LyricsList(structuredLyrics: ${_this.structuredLyrics}, value: ${_this.value})';
 }
 
 
@@ -780,16 +799,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LyricsList&&const DeepCollectionEquality().equals(other._structuredLyrics, _structuredLyrics)&&(identical(other.value, value) || other.value == value));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LyricsList&&const DeepCollectionEquality().equals(other.structuredLyrics, _structuredLyrics)&&(identical(other.value, value) || other.value == value));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_structuredLyrics),value);
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_structuredLyrics),value);
+}
 
 @override
 String toString() {
-  return 'LyricsList(structuredLyrics: $structuredLyrics, value: $value)';
+    return 'LyricsList(structuredLyrics: $structuredLyrics, value: $value)';
 }
 
 

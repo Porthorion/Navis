@@ -5,7 +5,7 @@ import 'package:navis/src/database/tables/network_usage_table.dart';
 part 'network_usage_dao.g.dart';
 
 class NetworkUsageCategoryTotal {
-  const NetworkUsageCategoryTotal({
+  const new({
     required this.category,
     required this.networkType,
     required this.bytes,
@@ -19,10 +19,7 @@ class NetworkUsageCategoryTotal {
 }
 
 class NetworkUsageTotal {
-  const NetworkUsageTotal({
-    required this.bytes,
-    required this.requestCount,
-  });
+  const new({required this.bytes, required this.requestCount});
 
   final int bytes;
   final int requestCount;
@@ -31,7 +28,7 @@ class NetworkUsageTotal {
 @DriftAccessor(tables: [NetworkUsageTable])
 class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
     with _$NetworkUsageDaoMixin {
-  NetworkUsageDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   Future<void> recordUsage({
     required String category,

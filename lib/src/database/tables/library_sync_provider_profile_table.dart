@@ -12,12 +12,10 @@ class LibrarySyncProviderProfileTable extends Table {
     onDelete: KeyAction.cascade,
   )();
   TextColumn get providerFingerprint => text().nullable()();
-  IntColumn get conditionalIndexesMode => integer().withDefault(
-    const Constant(0),
-  )();
-  IntColumn get bulkSongSearchMode => integer().withDefault(
-    const Constant(0),
-  )();
+  IntColumn get conditionalIndexesMode =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get bulkSongSearchMode =>
+      integer().withDefault(const Constant(0))();
   IntColumn get safePageSize => integer().withDefault(const Constant(500))();
   DateTimeColumn get observedAt => dateTime().nullable()();
 

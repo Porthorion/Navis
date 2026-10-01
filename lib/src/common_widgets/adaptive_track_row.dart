@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -7,11 +7,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 class TrackRowModeScope extends InheritedWidget {
-  const TrackRowModeScope({
-    required this.mode,
-    required super.child,
-    super.key,
-  });
+  const new({required this.mode, required super.child, super.key});
   final TrackRowMode mode;
 
   static TrackRowMode? maybeOf(BuildContext context) =>
@@ -27,11 +23,7 @@ class TrackRowModeScope extends InheritedWidget {
 /// Desktop row actions stay quiet until their row is emphasized so dense
 /// tables read as lists of songs rather than columns of icons.
 class TrackRowEmphasisScope extends InheritedWidget {
-  const TrackRowEmphasisScope({
-    required this.emphasized,
-    required super.child,
-    super.key,
-  });
+  const new({required this.emphasized, required super.child, super.key});
 
   final bool emphasized;
 
@@ -46,7 +38,7 @@ class TrackRowEmphasisScope extends InheritedWidget {
 }
 
 class _TrackRowHoverRegion extends StatefulWidget {
-  const _TrackRowHoverRegion({required this.selected, required this.child});
+  const new({required this.selected, required this.child});
 
   final bool selected;
   final Widget child;
@@ -106,7 +98,7 @@ Widget _columns(List<Widget> children) {
 
 /// Presentation-only row; callers retain playback and occurrence ownership.
 class AdaptiveTrackRow extends StatelessWidget {
-  const AdaptiveTrackRow({
+  const new({
     required this.title,
     this.artist,
     this.album,
@@ -386,7 +378,7 @@ class AdaptiveTrackRow extends StatelessWidget {
 
 /// Keeps duration with metadata when mobile controls crowd the title area.
 class _CompactTrackInformation extends StatelessWidget {
-  const _CompactTrackInformation({
+  const new({
     required this.title,
     required this.secondary,
     required this.duration,
@@ -422,9 +414,8 @@ class _CompactTrackInformation extends StatelessWidget {
     final remoteWidth = isRemote
         ? measure(
                 AppLocalizations.of(context)!.remoteSourceLabel,
-                Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ) +
               22 // Globe, icon gap, and metadata gap.
         : 0.0;
@@ -478,7 +469,7 @@ class _CompactTrackInformation extends StatelessWidget {
 
 /// Column labels for full collections; short previews deliberately omit them.
 class AdaptiveTrackHeader extends StatelessWidget {
-  const AdaptiveTrackHeader({
+  const new({
     this.numberColumnExtent,
     this.leadingExtent = 48,
     this.leadingGap = 12,

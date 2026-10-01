@@ -7,7 +7,7 @@ part 'listenbrainz_feedback_dao.g.dart';
 @DriftAccessor(tables: [ListenBrainzFeedbackQueueTable])
 class ListenBrainzFeedbackDao extends DatabaseAccessor<NavisDatabase>
     with _$ListenBrainzFeedbackDaoMixin {
-  ListenBrainzFeedbackDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   Future<void> queueFeedback({
     required String songId,

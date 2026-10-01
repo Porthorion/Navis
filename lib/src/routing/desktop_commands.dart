@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,7 +36,7 @@ enum DesktopCommandAction {
 
 @immutable
 class DesktopShortcutBinding {
-  const DesktopShortcutBinding({
+  const new({
     required this.key,
     this.primaryModifier = true,
     this.alt = false,
@@ -63,8 +63,10 @@ class DesktopShortcutBinding {
   String formatLabel(TargetPlatform platform) {
     final isApple = platform == TargetPlatform.macOS;
     final parts = <String>[
-      if (primaryModifier) isApple ? 'Cmd' : 'Ctrl',
-      if (alt) isApple ? 'Option' : 'Alt',
+      if (primaryModifier)
+        if (isApple) 'Cmd' else 'Ctrl',
+      if (alt)
+        if (isApple) 'Option' else 'Alt',
       if (shift) 'Shift',
       _shortcutKeyLabel(key),
     ];
@@ -276,9 +278,9 @@ DesktopShortcutBinding? _shortcutBindingFromJsonObject(Object? value) {
   final shift = value['shift'];
   return DesktopShortcutBinding(
     key: key,
-    primaryModifier: primaryModifier is bool ? primaryModifier : true,
-    alt: alt is bool ? alt : false,
-    shift: shift is bool ? shift : false,
+    primaryModifier: primaryModifier is! bool || primaryModifier,
+    alt: alt is bool && alt,
+    shift: shift is bool && shift,
   );
 }
 
@@ -301,9 +303,7 @@ String? encodeDesktopShortcutBindings(
 }
 
 Map<DesktopCommandAction, DesktopShortcutBinding?>
-decodeDesktopShortcutBindings(
-  String? raw,
-) {
+decodeDesktopShortcutBindings(String? raw) {
   final resolved =
       LinkedHashMap<DesktopCommandAction, DesktopShortcutBinding?>.from(
         defaultDesktopShortcutBindings(),

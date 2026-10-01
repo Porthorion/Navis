@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -89,11 +89,7 @@ extension SongPlaybackIndicatorStateX on SongPlaybackIndicatorState {
 }
 
 class SongPlaybackMarker extends StatelessWidget {
-  const SongPlaybackMarker({
-    required this.state,
-    super.key,
-    this.size = 18,
-  });
+  const new({required this.state, super.key, this.size = 18});
 
   final SongPlaybackIndicatorState state;
   final double size;
@@ -110,17 +106,14 @@ class SongPlaybackMarker extends StatelessWidget {
       ),
       SongPlaybackIndicatorState.loading => SizedBox.square(
         dimension: size,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: color,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: color),
       ),
     };
   }
 }
 
 class ArtworkPlaybackMarker extends StatelessWidget {
-  const ArtworkPlaybackMarker({
+  const new({
     required this.state,
     required this.child,
     super.key,
@@ -160,11 +153,7 @@ class ArtworkPlaybackMarker extends StatelessWidget {
 }
 
 class SongPlaybackSemantics extends StatelessWidget {
-  const SongPlaybackSemantics({
-    required this.state,
-    required this.child,
-    super.key,
-  });
+  const new({required this.state, required this.child, super.key});
 
   final SongPlaybackIndicatorState state;
   final Widget child;
@@ -173,10 +162,6 @@ class SongPlaybackSemantics extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!state.isSelected) return child;
     final l10n = AppLocalizations.of(context)!;
-    return Semantics(
-      selected: true,
-      value: l10n.nowPlayingTitle,
-      child: child,
-    );
+    return Semantics(selected: true, value: l10n.nowPlayingTitle, child: child);
   }
 }

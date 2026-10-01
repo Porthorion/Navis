@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-27",
+  "flutter": "3.47.5",
+  "dart": "3.13.4",
+  "rust": "1.97.1",
+  "frbGenerator": "2.13.0",
+  "cargoExpand": "1.0.126 (--locked install)",
+  "bindings": "regenerated on Windows; generated Rust identical; generated Dart copied back",
+  "lockedOfflineRustCheck": "passed",
+  "lockedOfflineRustTests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "devReleaseBuild": {
+    "status": "passed",
+    "seconds": 152.8,
+    "includes": "native WinRT seek conversion and desktop shuffle occurrence mapping"
+  },
+  "isolatedDiagnosticsProfileBuild": {
+    "status": "passed; final rebuilt profile used for two successful native acceptance runs",
+    "seconds": 172.2
+  },
+  "sqlite": "checksum verified DLL loaded and reports 3.53.4 (wrapper 3.6.0)",
+  "runtime": "interactive GMTC play/pause/next/previous/paused five-second seek/shuffle/repeat/timeline/clean restart all passed",
+  "nativeArtifacts": "windows-native-artifacts.json",
+  "sourceLockHashes": {
+    "pubspec.lock": "25487df1423ce7f53367b1359c65b7d18b6773548cff0f3aaae52509eed790d2",
+    "third_party/navis_windows_smtc/Cargo.lock": "22b2796aa84cae623c0c697319afb3925247ca07de8fa4778d46fee2c82cb964"
+  },
+  "runtimeEvidence": "windows-smtc-runtime-evidence.json",
+  "finalArtifacts": "windows-native-artifacts.json refreshed from final Dev release; SQLite DLL loads with verified checksum",
+  "screenshots": "restored app-owned screenshot inspected, checksum verified"
+}

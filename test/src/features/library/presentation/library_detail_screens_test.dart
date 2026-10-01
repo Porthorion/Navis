@@ -6,10 +6,11 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -38,6 +39,7 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
+  new({required this.gate});
   @override
   EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
   @override
@@ -52,8 +54,6 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
       throw UnsupportedError('This fake has no EQ backend');
   @override
   Future<void> refreshEqualizerState() async {}
-
-  _DelayedReplaceHandler({required this.gate});
 
   final Completer<void> gate;
   int replaceCalls = 0;
@@ -213,10 +213,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> toggleLike() async {}
 
   @override
-  Future<void> syncSongLikedState(
-    String songId, {
-    required bool liked,
-  }) async {}
+  Future<void> syncSongLikedState(String songId, {required bool liked}) async {}
 
   @override
   Future<void> playRadioStream({
@@ -230,11 +227,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> stopRadio() async {}
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) {}
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {}
 
   @override
   void registerPreferredMixCallback(
@@ -268,7 +261,7 @@ Widget _buildApp({
     ],
     child: MaterialApp(
       theme: testTheme(theme),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       builder: textScaler == null
           ? null
@@ -495,58 +488,57 @@ void main() {
       await database.close();
     });
 
-    testWidgets(
-      'mobile artist preview reserves both inline controls',
-      (tester) async {
-        setAdaptiveTestViewport(tester, const Size(360, 1200));
-        const song = SongsTableData(
-          id: 'mobile-shared',
-          title: 'Mobile shared song',
-          artistName: 'Artist',
-          albumName: 'Album',
-          duration: 223,
-          isExternal: false,
-          isProvisional: false,
-        );
-        await tester.pumpWidget(
-          _buildApp(
-            database: database,
-            adaptiveContext: _mobileContext,
-            child: const Scaffold(
-              body: ArtistTopTracksSection(artistName: 'Artist'),
-            ),
-            overrides: [
-              artistTopTracksProvider('Artist').overrideWith(
-                (ref) async => const [
-                  ResolvedArtistTopTrack(
-                    rank: 1,
+    testWidgets('mobile artist preview reserves both inline controls', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(360, 1200));
+      const song = SongsTableData(
+        id: 'mobile-shared',
+        title: 'Mobile shared song',
+        artistName: 'Artist',
+        albumName: 'Album',
+        duration: 223,
+        isExternal: false,
+        isProvisional: false,
+      );
+      await tester.pumpWidget(
+        _buildApp(
+          database: database,
+          adaptiveContext: _mobileContext,
+          child: const Scaffold(
+            body: ArtistTopTracksSection(artistName: 'Artist'),
+          ),
+          overrides: [
+            artistTopTracksProvider('Artist').overrideWith(
+              (ref) async => const [
+                ResolvedArtistTopTrack(
+                  rank: 1,
+                  title: 'Mobile shared song',
+                  artist: 'Artist',
+                  resolvedSong: Song(
+                    id: 'mobile-shared',
                     title: 'Mobile shared song',
                     artist: 'Artist',
-                    resolvedSong: Song(
-                      id: 'mobile-shared',
-                      title: 'Mobile shared song',
-                      artist: 'Artist',
-                      album: 'Album',
-                      duration: 223,
-                    ),
+                    album: 'Album',
+                    duration: 223,
                   ),
-                ],
-              ),
-              songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
-            ],
-          ),
-        );
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(
-          tester
-              .widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow))
-              .actionExtent,
-          96,
-        );
-        _expectInlineMobileActions(tester);
-        await _disposeApp(tester);
-      },
-    );
+                ),
+              ],
+            ),
+            songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
+          ],
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester
+            .widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow))
+            .actionExtent,
+        96,
+      );
+      _expectInlineMobileActions(tester);
+      await _disposeApp(tester);
+    });
 
     testWidgets('artist detail renders albums and featured appearances', (
       tester,
@@ -630,9 +622,7 @@ void main() {
 
     testWidgets(
       'artist top tracks keeps its artist-specific title when empty',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await tester.pumpWidget(
           _buildApp(
             child: const ArtistTopTracksPlaylistDetailScreen(
@@ -651,12 +641,11 @@ void main() {
                   ),
                 ),
               ),
-              artistInfoProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(null),
-              ),
-              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
-                const AsyncData(<ResolvedArtistTopTrack>[]),
-              ),
+              artistInfoProvider('artist-top-tracks')
+                  .overrideWithValue(const AsyncData(null)),
+              artistTopTracksPlaylistProvider(
+                'Test Artist',
+              ).overrideWithValue(const AsyncData(<ResolvedArtistTopTrack>[])),
             ],
           ),
         );
@@ -669,121 +658,113 @@ void main() {
       },
     );
 
-    testWidgets(
-      'artist top tracks uses the continuous desktop detail header',
-      (tester) async {
-        setAdaptiveTestViewport(tester, const Size(1440, 900));
-        await tester.pumpWidget(
-          _buildApp(
-            child: const ArtistTopTracksPlaylistDetailScreen(
-              artistId: 'artist-top-tracks',
-            ),
-            database: database,
-            adaptiveContext: _desktopContext,
-            overrides: [
-              artistByIdProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(
-                  ArtistsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'artist-top-tracks',
-                    name: 'Test Artist',
-                  ),
+    testWidgets('artist top tracks uses the continuous desktop detail header', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1440, 900));
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistTopTracksPlaylistDetailScreen(
+            artistId: 'artist-top-tracks',
+          ),
+          database: database,
+          adaptiveContext: _desktopContext,
+          overrides: [
+            artistByIdProvider('artist-top-tracks').overrideWithValue(
+              const AsyncData(
+                ArtistsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'artist-top-tracks',
+                  name: 'Test Artist',
                 ),
               ),
-              artistInfoProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(null),
-              ),
-              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
-                const AsyncData(<ResolvedArtistTopTrack>[
-                  ResolvedArtistTopTrack(
-                    rank: 1,
-                    title: 'North Star',
-                    artist: 'Test Artist',
-                  ),
-                ]),
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(
-          find.byKey(
-            const ValueKey<String>('artist-top-tracks-desktop-header'),
-          ),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(
-            const ValueKey<String>('artist-top-tracks-desktop-fade'),
-          ),
-          findsOneWidget,
-        );
-        final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
-          find.byType(ArtistVirtualPlaylistArtwork),
-        );
-        expect(artwork.size, 260);
-        expect(artwork.borderRadius, 16);
-        expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
-        expect(find.text('Test Artist · 1 song'), findsOneWidget);
-        expect(find.text('North Star'), findsOneWidget);
-        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
-        await _disposeApp(tester);
-      },
-    );
-
-    testWidgets(
-      'artist top tracks keeps the playlist hierarchy on phone',
-      (tester) async {
-        setAdaptiveTestViewport(tester, const Size(390, 844));
-        await tester.pumpWidget(
-          _buildApp(
-            child: const ArtistTopTracksPlaylistDetailScreen(
-              artistId: 'artist-top-tracks',
             ),
-            database: database,
-            adaptiveContext: _mobileContext,
-            overrides: [
-              artistByIdProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(
-                  ArtistsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'artist-top-tracks',
-                    name: 'Test Artist',
-                  ),
+            artistInfoProvider('artist-top-tracks')
+                .overrideWithValue(const AsyncData(null)),
+            artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+              const AsyncData(<ResolvedArtistTopTrack>[
+                ResolvedArtistTopTrack(
+                  rank: 1,
+                  title: 'North Star',
+                  artist: 'Test Artist',
+                ),
+              ]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('artist-top-tracks-desktop-header')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('artist-top-tracks-desktop-fade')),
+        findsOneWidget,
+      );
+      final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
+        find.byType(ArtistVirtualPlaylistArtwork),
+      );
+      expect(artwork.size, 260);
+      expect(artwork.borderRadius, 16);
+      expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
+      expect(find.text('Test Artist · 1 song'), findsOneWidget);
+      expect(find.text('North Star'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('artist top tracks keeps the playlist hierarchy on phone', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistTopTracksPlaylistDetailScreen(
+            artistId: 'artist-top-tracks',
+          ),
+          database: database,
+          adaptiveContext: _mobileContext,
+          overrides: [
+            artistByIdProvider('artist-top-tracks').overrideWithValue(
+              const AsyncData(
+                ArtistsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'artist-top-tracks',
+                  name: 'Test Artist',
                 ),
               ),
-              artistInfoProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(null),
-              ),
-              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
-                const AsyncData(<ResolvedArtistTopTrack>[
-                  ResolvedArtistTopTrack(
-                    rank: 1,
-                    title: 'North Star',
-                    artist: 'Test Artist',
-                  ),
-                ]),
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
+            ),
+            artistInfoProvider('artist-top-tracks')
+                .overrideWithValue(const AsyncData(null)),
+            artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+              const AsyncData(<ResolvedArtistTopTrack>[
+                ResolvedArtistTopTrack(
+                  rank: 1,
+                  title: 'North Star',
+                  artist: 'Test Artist',
+                ),
+              ]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
-        expect(find.text('Test Artist · 1 song'), findsOneWidget);
-        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
-        _expectInlineMobileActions(tester);
-        final row = find.byType(AdaptiveTrackRow);
-        expect(
-          tester.getRect(find.byTooltip('Search')).center.dy,
-          tester.getRect(row).center.dy,
-        );
-        await _disposeApp(tester);
-      },
-    );
+      expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
+      expect(find.text('Test Artist · 1 song'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+      _expectInlineMobileActions(tester);
+      final row = find.byType(AdaptiveTrackRow);
+      expect(
+        tester.getRect(find.byTooltip('Search')).center.dy,
+        tester.getRect(row).center.dy,
+      );
+      await _disposeApp(tester);
+    });
 
     testWidgets(
       'artist top tracks remains readable at 200 percent phone text scale',
@@ -808,20 +789,18 @@ void main() {
                   ),
                 ),
               ),
-              artistInfoProvider('artist-top-tracks').overrideWithValue(
-                const AsyncData(null),
-              ),
-              artistTopTracksPlaylistProvider(
-                'Test Artist With A Long Name',
-              ).overrideWithValue(
-                const AsyncData(<ResolvedArtistTopTrack>[
-                  ResolvedArtistTopTrack(
-                    rank: 1,
-                    title: 'North Star',
-                    artist: 'Test Artist With A Long Name',
+              artistInfoProvider('artist-top-tracks')
+                  .overrideWithValue(const AsyncData(null)),
+              artistTopTracksPlaylistProvider('Test Artist With A Long Name')
+                  .overrideWithValue(
+                    const AsyncData(<ResolvedArtistTopTrack>[
+                      ResolvedArtistTopTrack(
+                        rank: 1,
+                        title: 'North Star',
+                        artist: 'Test Artist With A Long Name',
+                      ),
+                    ]),
                   ),
-                ]),
-              ),
             ],
           ),
         );
@@ -873,12 +852,10 @@ void main() {
                 ),
               ]),
             ),
-            artistAlbumSectionsProvider('artist-phone').overrideWithValue(
-              const AsyncData(ArtistAlbumSections()),
-            ),
-            artistInfoProvider('artist-phone').overrideWithValue(
-              const AsyncData(null),
-            ),
+            artistAlbumSectionsProvider('artist-phone')
+                .overrideWithValue(const AsyncData(ArtistAlbumSections())),
+            artistInfoProvider('artist-phone')
+                .overrideWithValue(const AsyncData(null)),
           ],
         ),
       );
@@ -904,18 +881,14 @@ void main() {
           adaptiveContext: _mobileContext,
           theme: ThemeData.dark(useMaterial3: true),
           overrides: [
-            artistByIdProvider('artist-loading').overrideWithValue(
-              const AsyncLoading(),
-            ),
-            artistAlbumSectionsProvider('artist-loading').overrideWithValue(
-              const AsyncLoading(),
-            ),
-            songsByArtistProvider('artist-loading').overrideWithValue(
-              const AsyncLoading(),
-            ),
-            artistInfoProvider('artist-loading').overrideWithValue(
-              const AsyncLoading(),
-            ),
+            artistByIdProvider('artist-loading')
+                .overrideWithValue(const AsyncLoading()),
+            artistAlbumSectionsProvider('artist-loading')
+                .overrideWithValue(const AsyncLoading()),
+            songsByArtistProvider('artist-loading')
+                .overrideWithValue(const AsyncLoading()),
+            artistInfoProvider('artist-loading')
+                .overrideWithValue(const AsyncLoading()),
           ],
         ),
       );
@@ -932,9 +905,7 @@ void main() {
 
     testWidgets(
       'artist detail desktop loading preserves page hierarchy golden',
-      (
-        tester,
-      ) async {
+      (tester) async {
         setAdaptiveTestViewport(tester, const Size(1440, 900));
         await tester.pumpWidget(
           _buildApp(
@@ -943,27 +914,20 @@ void main() {
             adaptiveContext: _desktopContext,
             theme: ThemeData.dark(useMaterial3: true),
             overrides: [
-              artistByIdProvider('artist-loading').overrideWithValue(
-                const AsyncLoading(),
-              ),
-              artistAlbumSectionsProvider('artist-loading').overrideWithValue(
-                const AsyncLoading(),
-              ),
-              songsByArtistProvider('artist-loading').overrideWithValue(
-                const AsyncLoading(),
-              ),
-              artistInfoProvider('artist-loading').overrideWithValue(
-                const AsyncLoading(),
-              ),
+              artistByIdProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+              artistAlbumSectionsProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+              songsByArtistProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+              artistInfoProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
             ],
           ),
         );
         await tester.pump();
 
-        expect(
-          find.bySemanticsLabel('Loading Artist Details'),
-          findsOneWidget,
-        );
+        expect(find.bySemanticsLabel('Loading Artist Details'), findsOneWidget);
         await expectLater(
           find.byType(ArtistDetailScreen),
           matchesGoldenFile('goldens/artist_detail_desktop_loading_after.png'),
@@ -974,9 +938,7 @@ void main() {
 
     testWidgets(
       'artist detail hides featured section when there are no featured albums',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await tester.pumpWidget(
           _buildApp(
             child: const ArtistDetailScreen(artistId: 'artist-only'),
@@ -1139,9 +1101,7 @@ void main() {
 
     testWidgets(
       'desktop album detail keeps the card artwork cache key and a distinct viewer Hero',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpAlbumDetail(
           tester,
           database: database,
@@ -1192,17 +1152,15 @@ void main() {
           tester,
           database: database,
           adaptiveContext: _compactWideContext,
-          album: _albumWithSongs(
-            const <SongsTableData>[
-              SongsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'visible-track',
-                title: 'Visible Track',
-                track: 1,
-              ),
-            ],
-          ),
+          album: _albumWithSongs(const <SongsTableData>[
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'visible-track',
+              title: 'Visible Track',
+              track: 1,
+            ),
+          ]),
         );
 
         expect(
@@ -1265,17 +1223,15 @@ void main() {
         tester,
         database: database,
         adaptiveContext: _mobileContext,
-        album: _albumWithSongs(
-          const <SongsTableData>[
-            SongsTableData(
-              id: 'mobile-track',
-              title: 'Mobile Track',
-              track: 1,
-              isProvisional: false,
-              isExternal: false,
-            ),
-          ],
-        ),
+        album: _albumWithSongs(const <SongsTableData>[
+          SongsTableData(
+            id: 'mobile-track',
+            title: 'Mobile Track',
+            track: 1,
+            isProvisional: false,
+            isExternal: false,
+          ),
+        ]),
       );
 
       expect(
@@ -1306,9 +1262,7 @@ void main() {
 
     testWidgets(
       'mobile album title shrinks only when it can avoid truncation',
-      (
-        tester,
-      ) async {
+      (tester) async {
         const title = 'A Long Album Name For Phones';
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1.0;
@@ -1321,18 +1275,15 @@ void main() {
           tester,
           database: database,
           adaptiveContext: _mobileContext,
-          album: _albumWithSongs(
-            const <SongsTableData>[
-              SongsTableData(
-                id: 'long-title-track',
-                title: 'Long Title Track',
-                track: 1,
-                isProvisional: false,
-                isExternal: false,
-              ),
-            ],
-            name: title,
-          ),
+          album: _albumWithSongs(const <SongsTableData>[
+            SongsTableData(
+              id: 'long-title-track',
+              title: 'Long Title Track',
+              track: 1,
+              isProvisional: false,
+              isExternal: false,
+            ),
+          ], name: title),
         );
 
         final headerTitle = tester.widget<Text>(
@@ -1402,18 +1353,15 @@ void main() {
           database: database,
           adaptiveContext: _mobileContext,
           textScaler: const TextScaler.linear(2),
-          album: _albumWithSongs(
-            const <SongsTableData>[
-              SongsTableData(
-                id: 'large-title-track',
-                title: 'Large Title Track',
-                track: 1,
-                isProvisional: false,
-                isExternal: false,
-              ),
-            ],
-            name: title,
-          ),
+          album: _albumWithSongs(const <SongsTableData>[
+            SongsTableData(
+              id: 'large-title-track',
+              title: 'Large Title Track',
+              track: 1,
+              isProvisional: false,
+              isExternal: false,
+            ),
+          ], name: title),
         );
 
         final headerTitle = tester.widget<Text>(
@@ -1442,17 +1390,15 @@ void main() {
         tester,
         database: database,
         adaptiveContext: _desktopContext,
-        album: _albumWithSongs(
-          const <SongsTableData>[
-            SongsTableData(
-              isProvisional: false,
-              isExternal: false,
-              id: 'desktop-track',
-              title: 'Desktop Track',
-              track: 1,
-            ),
-          ],
-        ),
+        album: _albumWithSongs(const <SongsTableData>[
+          SongsTableData(
+            isProvisional: false,
+            isExternal: false,
+            id: 'desktop-track',
+            title: 'Desktop Track',
+            track: 1,
+          ),
+        ]),
       );
 
       expect(
@@ -1480,25 +1426,22 @@ void main() {
           tester,
           database: database,
           adaptiveContext: _desktopContext,
-          album: _albumWithSongs(
-            const <SongsTableData>[
-              SongsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'compact-track-1',
-                title: 'Compact Track 1',
-                track: 1,
-              ),
-              SongsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'compact-track-2',
-                title: 'Compact Track 2',
-                track: 2,
-              ),
-            ],
-            name: 'Replay (Original Game Soundtrack)',
-          ),
+          album: _albumWithSongs(const <SongsTableData>[
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'compact-track-1',
+              title: 'Compact Track 1',
+              track: 1,
+            ),
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'compact-track-2',
+              title: 'Compact Track 2',
+              track: 2,
+            ),
+          ], name: 'Replay (Original Game Soundtrack)'),
         );
 
         final header = find.byKey(
@@ -1540,18 +1483,15 @@ void main() {
         database: database,
         adaptiveContext: _desktopContext,
         textScaler: const TextScaler.linear(1.3),
-        album: _albumWithSongs(
-          const <SongsTableData>[
-            SongsTableData(
-              isProvisional: false,
-              isExternal: false,
-              id: 'compact-large-text-track',
-              title: 'Compact Large Text Track',
-              track: 1,
-            ),
-          ],
-          name: 'Replay (Original Game Soundtrack)',
-        ),
+        album: _albumWithSongs(const <SongsTableData>[
+          SongsTableData(
+            isProvisional: false,
+            isExternal: false,
+            id: 'compact-large-text-track',
+            title: 'Compact Large Text Track',
+            track: 1,
+          ),
+        ], name: 'Replay (Original Game Soundtrack)'),
       );
 
       expect(find.text('Replay (Original Game Soundtrack)'), findsOneWidget);
@@ -1574,17 +1514,15 @@ void main() {
         tester,
         database: database,
         adaptiveContext: _desktopContext,
-        album: _albumWithSongs(
-          const <SongsTableData>[
-            SongsTableData(
-              isProvisional: false,
-              isExternal: false,
-              id: 'desktop-menu-track',
-              title: 'Desktop Menu Track',
-              track: 1,
-            ),
-          ],
-        ),
+        album: _albumWithSongs(const <SongsTableData>[
+          SongsTableData(
+            isProvisional: false,
+            isExternal: false,
+            id: 'desktop-menu-track',
+            title: 'Desktop Menu Track',
+            track: 1,
+          ),
+        ]),
       );
       final track = find.ancestor(
         of: find.text('Desktop Menu Track'),
@@ -1728,14 +1666,10 @@ void main() {
         await tester.pump();
 
         final matchedTitleLeft = tester
-            .getTopLeft(
-              find.text('Matched Track').last,
-            )
+            .getTopLeft(find.text('Matched Track').last)
             .dx;
         final missingTitleLeft = tester
-            .getTopLeft(
-              find.text('Missing Track'),
-            )
+            .getTopLeft(find.text('Missing Track'))
             .dx;
 
         expect(
@@ -1759,25 +1693,23 @@ void main() {
           tester,
           database: database,
           adaptiveContext: _compactWideContext,
-          album: _albumWithSongs(
-            <SongsTableData>[
-              SongsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'liked-track',
-                title: 'Liked Track',
-                track: 1,
-                starred: DateTime(2025),
-              ),
-              const SongsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'downloaded-track',
-                title: 'Downloaded Track',
-                track: 2,
-              ),
-            ],
-          ),
+          album: _albumWithSongs(<SongsTableData>[
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'liked-track',
+              title: 'Liked Track',
+              track: 1,
+              starred: DateTime(2025),
+            ),
+            const SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'downloaded-track',
+              title: 'Downloaded Track',
+              track: 2,
+            ),
+          ]),
           overrides: [
             downloadedSongIdsProvider.overrideWithValue(
               const AsyncData(<String>{'downloaded-track'}),
@@ -1846,11 +1778,7 @@ void main() {
             ),
           ),
         );
-        const sizes = <Size>[
-          Size(840, 420),
-          Size(900, 420),
-          Size(1408, 792),
-        ];
+        const sizes = <Size>[Size(840, 420), Size(900, 420), Size(1408, 792)];
 
         for (final size in sizes) {
           tester.view.physicalSize = size;
@@ -1876,9 +1804,7 @@ void main() {
     // by the _SupersedingLane in navis_audio_handler.dart.
     testWidgets(
       'album play-now rapid taps supersede previous command',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final gate = Completer<void>();
         final handler = _DelayedReplaceHandler(gate: gate);
 
@@ -1964,9 +1890,8 @@ void main() {
                 ),
               ),
             ),
-            artistAlbumSectionsProvider('starred-artist').overrideWithValue(
-              const AsyncData(ArtistAlbumSections()),
-            ),
+            artistAlbumSectionsProvider('starred-artist')
+                .overrideWithValue(const AsyncData(ArtistAlbumSections())),
           ],
         ),
       );
@@ -1997,9 +1922,8 @@ void main() {
                 ),
               ),
             ),
-            artistAlbumSectionsProvider('unstarred-artist').overrideWithValue(
-              const AsyncData(ArtistAlbumSections()),
-            ),
+            artistAlbumSectionsProvider('unstarred-artist')
+                .overrideWithValue(const AsyncData(ArtistAlbumSections())),
           ],
         ),
       );

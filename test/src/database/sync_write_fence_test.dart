@@ -43,7 +43,7 @@ void main() {
   });
 
   tearDown(() async {
-    otherConnection.dispose();
+    otherConnection.close();
     await database.close();
     await directory.delete(recursive: true);
   });
@@ -105,36 +105,33 @@ void main() {
     },
   );
 
-  test(
-    'a transaction that outlives the lease TTL still commits for its live owner',
-    () async {
-      // The owner validated its lease when the transaction acquired the
-      // writer lock; no takeover can happen while that lock is held, so
-      // expiry alone must not roll the transaction back at commit.
-      await expectLater(
-        fence.run(
-          () => database.transaction(() async {
-            await database.libraryDao.upsertSongs([
-              SongsTableCompanion.insert(id: 's', title: 'Song'),
-            ]);
-            await database.librarySyncDao.writeState(
-              const LibrarySyncStateTableCompanion(
-                serverId: Value(1),
-                currentGeneration: Value(2),
-              ),
-            );
-            now = now.add(const Duration(minutes: 2));
-          }),
-        ),
-        completes,
-      );
-      expect((await database.libraryDao.getSongById('s'))?.title, 'Song');
-      expect(
-        (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
-        2,
-      );
-    },
-  );
+  test('a transaction that outlives the lease TTL still commits for its live owner', () async {
+    // The owner validated its lease when the transaction acquired the
+    // writer lock; no takeover can happen while that lock is held, so
+    // expiry alone must not roll the transaction back at commit.
+    await expectLater(
+      fence.run(
+        () => database.transaction(() async {
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 's', title: 'Song'),
+          ]);
+          await database.librarySyncDao.writeState(
+            const LibrarySyncStateTableCompanion(
+              serverId: Value(1),
+              currentGeneration: Value(2),
+            ),
+          );
+          now = now.add(const Duration(minutes: 2));
+        }),
+      ),
+      completes,
+    );
+    expect((await database.libraryDao.getSongById('s'))?.title, 'Song');
+    expect(
+      (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+      2,
+    );
+  });
 
   test(
     'a renewal TTL extends the lease under the transaction write lock',

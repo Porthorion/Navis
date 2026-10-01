@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -30,7 +30,7 @@ String eqQuickSummary(EqState value, AppLocalizations l10n) =>
 
 /// Live one-line summary for quick panel headers.
 class EqQuickSummary extends ConsumerWidget {
-  const EqQuickSummary({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,7 +45,7 @@ class EqQuickSummary extends ConsumerWidget {
 
 /// Master on/off switch for the equalizer.
 class EqEnableSwitch extends ConsumerWidget {
-  const EqEnableSwitch({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,7 +80,7 @@ enum EqQuickLayout {
 /// selection. Editing curves stays on the full Equalizer page, which the
 /// graph opens through [onOpenFullPage].
 class EqQuickControls extends ConsumerWidget {
-  const EqQuickControls({
+  const new({
     this.layout = EqQuickLayout.panel,
     this.onOpenFullPage,
     super.key,
@@ -261,7 +261,7 @@ class EqQuickControls extends ConsumerWidget {
 /// Inline equalizer card for player settings: title, switch, graph, presets
 /// and a link to the full page.
 class EqQuickCard extends ConsumerWidget {
-  const EqQuickCard({this.onOpenFullPage, super.key});
+  const new({this.onOpenFullPage, super.key});
 
   /// Overrides how the full page opens (for example after closing a sheet).
   final VoidCallback? onOpenFullPage;

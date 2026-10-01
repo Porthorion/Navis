@@ -29,7 +29,7 @@ enum ArtistPlaybackStage {
 }
 
 class ArtistPlaybackSelection {
-  const ArtistPlaybackSelection({
+  const new({
     required this.songs,
     required this.albumCount,
     required this.completedAlbumCount,
@@ -53,14 +53,14 @@ class ArtistPlaybackSelection {
 }
 
 class ArtistPlaybackProgress {
-  const ArtistPlaybackProgress({this.completed = 0, this.total = 0});
+  const new({this.completed = 0, this.total = 0});
   final int completed;
   final int total;
 }
 
 /// Publishes available artist tracks while resolving the remaining releases.
 class ArtistPlaybackResolver {
-  const ArtistPlaybackResolver({
+  const new({
     required this.readSnapshot,
     required this.hydrate,
     required this.canHydrate,
@@ -288,7 +288,7 @@ final artistPlaybackResolverProvider = Provider<ArtistPlaybackResolver>((ref) {
 });
 
 class ArtistPlaybackState {
-  const ArtistPlaybackState({
+  const new({
     this.artistId,
     this.stage = ArtistPlaybackStage.idle,
     this.action = ArtistPlaybackAction.play,
@@ -557,10 +557,7 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
       if (newlyUnavailable.isNotEmpty) {
         ref
             .read(retainedArtistQueueProvider.notifier)
-            .retain(
-              newlyUnavailable,
-              append: true,
-            );
+            .retain(newlyUnavailable, append: true);
       }
       state = ArtistPlaybackState(
         artistId: artistId,

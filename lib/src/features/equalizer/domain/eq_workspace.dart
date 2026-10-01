@@ -7,12 +7,10 @@ bool sameEqCurve(EqConfiguration a, EqConfiguration b) =>
 
 /// Retains an installation-local working curve for every visited editing mode.
 class EqWorkspace {
-  EqWorkspace({
-    required this.mode,
-    required Map<EqMode, EqConfiguration> curves,
-  }) : curves = Map.unmodifiable(curves);
+  new({required this.mode, required Map<EqMode, EqConfiguration> curves})
+    : curves = Map.unmodifiable(curves);
 
-  factory EqWorkspace.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final mode = EqMode.values.byName(json['mode'] as String);
     final curves = {
       for (final entry in (json['curves'] as Map<String, dynamic>).entries)
@@ -27,11 +25,10 @@ class EqWorkspace {
     return EqWorkspace(mode: mode, curves: curves);
   }
 
-  factory EqWorkspace.fromConfiguration(EqConfiguration configuration) =>
-      EqWorkspace(
-        mode: configuration.mode,
-        curves: {configuration.mode: configuration},
-      );
+  factory fromConfiguration(EqConfiguration configuration) => EqWorkspace(
+    mode: configuration.mode,
+    curves: {configuration.mode: configuration},
+  );
 
   final EqMode mode;
   final Map<EqMode, EqConfiguration> curves;
@@ -42,9 +39,8 @@ class EqWorkspace {
     curves: {...curves, configuration.mode: configuration},
   );
 
-  EqWorkspace changeMode(EqMode next) => edit(
-    curves[next] ?? configuration.changeMode(next),
-  );
+  EqWorkspace changeMode(EqMode next) =>
+      edit(curves[next] ?? configuration.changeMode(next));
 
   bool differsFrom(EqConfiguration saved) =>
       curves.values.any((curve) => !sameEqCurve(curve, saved));

@@ -7,9 +7,9 @@ import 'package:flutter/widgets.dart';
 /// rather than introduce new hard-coded animation durations.
 @immutable
 class MotionPolicy {
-  const MotionPolicy._({required this.reduceMotion});
+  const new _({required this.reduceMotion});
 
-  factory MotionPolicy.of(BuildContext context) {
+  factory of(BuildContext context) {
     return MotionPolicy._(
       reduceMotion: MediaQuery.maybeOf(context)?.disableAnimations ?? false,
     );

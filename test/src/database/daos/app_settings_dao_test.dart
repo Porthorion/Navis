@@ -16,129 +16,125 @@ void main() {
       await database.close();
     });
 
-    test(
-      'saveSettings writes and overwrites single-row settings',
-      () async {
-        await database.appSettingsDao.saveSettings(
-          wifiMaxBitRate: 320,
-          wifiFormat: 'opus',
-          cellularMaxBitRate: 128,
-          cellularFormat: 'aac',
-          cachedPlaybackFirst: true,
-          scrobbleEnabled: false,
-          gaplessEnabled: false,
-          skipSilenceEnabled: true,
-          showAlbumsPage: false,
-          showRadioPage: false,
-          showPlaylistsPage: true,
-          showArtistsPage: true,
-          showLikedPage: true,
+    test('saveSettings writes and overwrites single-row settings', () async {
+      await database.appSettingsDao.saveSettings(
+        wifiMaxBitRate: 320,
+        wifiFormat: 'opus',
+        cellularMaxBitRate: 128,
+        cellularFormat: 'aac',
+        cachedPlaybackFirst: true,
+        scrobbleEnabled: false,
+        gaplessEnabled: false,
+        skipSilenceEnabled: true,
+        showAlbumsPage: false,
+        showRadioPage: false,
+        showPlaylistsPage: true,
+        showArtistsPage: true,
+        showLikedPage: true,
 
-          wifiOnlyDownloads: false,
-          autoDownloadStarredOnWifi: false,
-          customDownloadFolderEnabled: false,
-          customDownloadFolderPath: null,
-          themeMode: 'dark',
-          colorSchemeSeed: null,
-          crossfadeEnabled: false,
-          crossfadeDurationSeconds: 5,
-          crossfadeType: 'normal',
-          artTintedNowPlaying: false,
-          dynamicAlbumColorEnabled: false,
-          updateCheckEnabled: true,
-          updateChannel: 'stable',
-          audioMuseEnabled: false,
-          syncIntervalMinutes: 60,
-          useLrclib: true,
-          legacyInstantMixEnabled: false,
-          replayGainMode: 'off',
-          replayGainPreamp: 0,
-          playbackSpeed: 1,
-          coverArtShape: 'rounded',
-          nowPlayingArtShape: 'rounded',
-          artistCardShape: 'circle',
-          artistViewMode: 'grid',
-          homeDensity: 'comfortable',
-        );
+        wifiOnlyDownloads: false,
+        autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        customDownloadFolderPath: null,
+        themeMode: 'dark',
+        colorSchemeSeed: null,
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        artTintedNowPlaying: false,
+        dynamicAlbumColorEnabled: false,
+        updateCheckEnabled: true,
+        updateChannel: 'stable',
+        audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
+        useLrclib: true,
+        legacyInstantMixEnabled: false,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        playbackSpeed: 1,
+        coverArtShape: 'rounded',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
+        homeDensity: 'comfortable',
+      );
 
-        final first = await database.appSettingsDao.getSettings();
-        expect(first, isNotNull);
-        expect(first!.id, AppSettingsDao.primarySettingsId);
-        expect(first.wifiMaxBitRate, 320);
-        expect(first.wifiFormat, 'opus');
-        expect(first.cellularMaxBitRate, 128);
-        expect(first.cellularFormat, 'aac');
-        expect(first.cachedPlaybackFirst, isTrue);
-        expect(first.scrobbleEnabled, isFalse);
-        expect(first.gaplessEnabled, isFalse);
-        expect(first.skipSilenceEnabled, isTrue);
-        expect(first.showAlbumsPage, isFalse);
-        expect(first.showRadioPage, isFalse);
+      final first = await database.appSettingsDao.getSettings();
+      expect(first, isNotNull);
+      expect(first!.id, AppSettingsDao.primarySettingsId);
+      expect(first.wifiMaxBitRate, 320);
+      expect(first.wifiFormat, 'opus');
+      expect(first.cellularMaxBitRate, 128);
+      expect(first.cellularFormat, 'aac');
+      expect(first.cachedPlaybackFirst, isTrue);
+      expect(first.scrobbleEnabled, isFalse);
+      expect(first.gaplessEnabled, isFalse);
+      expect(first.skipSilenceEnabled, isTrue);
+      expect(first.showAlbumsPage, isFalse);
+      expect(first.showRadioPage, isFalse);
 
-        expect(first.customDownloadFolderEnabled, isFalse);
-        expect(first.customDownloadFolderPath, isNull);
+      expect(first.customDownloadFolderEnabled, isFalse);
+      expect(first.customDownloadFolderPath, isNull);
 
-        await database.appSettingsDao.saveSettings(
-          wifiMaxBitRate: null,
-          wifiFormat: null,
-          cellularMaxBitRate: 192,
-          cellularFormat: 'mp3',
-          cachedPlaybackFirst: false,
-          scrobbleEnabled: true,
-          gaplessEnabled: true,
-          skipSilenceEnabled: false,
-          showAlbumsPage: true,
-          showRadioPage: true,
-          showPlaylistsPage: true,
-          showArtistsPage: true,
-          showLikedPage: true,
+      await database.appSettingsDao.saveSettings(
+        wifiMaxBitRate: null,
+        wifiFormat: null,
+        cellularMaxBitRate: 192,
+        cellularFormat: 'mp3',
+        cachedPlaybackFirst: false,
+        scrobbleEnabled: true,
+        gaplessEnabled: true,
+        skipSilenceEnabled: false,
+        showAlbumsPage: true,
+        showRadioPage: true,
+        showPlaylistsPage: true,
+        showArtistsPage: true,
+        showLikedPage: true,
 
-          wifiOnlyDownloads: false,
-          autoDownloadStarredOnWifi: false,
-          customDownloadFolderEnabled: false,
-          customDownloadFolderPath: null,
-          themeMode: 'dark',
-          colorSchemeSeed: null,
-          crossfadeEnabled: false,
-          crossfadeDurationSeconds: 5,
-          crossfadeType: 'normal',
-          artTintedNowPlaying: false,
-          dynamicAlbumColorEnabled: false,
-          updateCheckEnabled: false,
-          updateChannel: 'beta',
-          audioMuseEnabled: false,
-          syncIntervalMinutes: 60,
-          useLrclib: true,
-          legacyInstantMixEnabled: false,
-          replayGainMode: 'off',
-          replayGainPreamp: 0,
-          playbackSpeed: 1,
-          coverArtShape: 'rounded',
-          nowPlayingArtShape: 'rounded',
-          artistCardShape: 'circle',
-          artistViewMode: 'grid',
-          homeDensity: 'compact',
-        );
+        wifiOnlyDownloads: false,
+        autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        customDownloadFolderPath: null,
+        themeMode: 'dark',
+        colorSchemeSeed: null,
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        artTintedNowPlaying: false,
+        dynamicAlbumColorEnabled: false,
+        updateCheckEnabled: false,
+        updateChannel: 'beta',
+        audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
+        useLrclib: true,
+        legacyInstantMixEnabled: false,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        playbackSpeed: 1,
+        coverArtShape: 'rounded',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
+        homeDensity: 'compact',
+      );
 
-        final second = await database.appSettingsDao.getSettings();
-        expect(second, isNotNull);
-        expect(second!.id, AppSettingsDao.primarySettingsId);
-        expect(second.wifiMaxBitRate, isNull);
-        expect(second.wifiFormat, isNull);
-        expect(second.cellularMaxBitRate, 192);
-        expect(second.cellularFormat, 'mp3');
-        expect(second.cachedPlaybackFirst, isFalse);
-        expect(second.scrobbleEnabled, isTrue);
-        expect(second.gaplessEnabled, isTrue);
-        expect(second.skipSilenceEnabled, isFalse);
-        expect(second.showAlbumsPage, isTrue);
-        expect(second.showRadioPage, isTrue);
+      final second = await database.appSettingsDao.getSettings();
+      expect(second, isNotNull);
+      expect(second!.id, AppSettingsDao.primarySettingsId);
+      expect(second.wifiMaxBitRate, isNull);
+      expect(second.wifiFormat, isNull);
+      expect(second.cellularMaxBitRate, 192);
+      expect(second.cellularFormat, 'mp3');
+      expect(second.cachedPlaybackFirst, isFalse);
+      expect(second.scrobbleEnabled, isTrue);
+      expect(second.gaplessEnabled, isTrue);
+      expect(second.skipSilenceEnabled, isFalse);
+      expect(second.showAlbumsPage, isTrue);
+      expect(second.showRadioPage, isTrue);
 
-        expect(second.customDownloadFolderEnabled, isFalse);
-        expect(second.customDownloadFolderPath, isNull);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(second.customDownloadFolderEnabled, isFalse);
+      expect(second.customDownloadFolderPath, isNull);
+    }, skip: !sqliteAvailable);
 
     test('resetDefaults restores app defaults', () async {
       await database.appSettingsDao.saveSettings(

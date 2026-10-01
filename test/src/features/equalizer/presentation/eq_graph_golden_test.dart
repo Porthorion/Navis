@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -82,9 +82,7 @@ void main() {
   testWidgets('dense profiles keep the selected band legible', (tester) async {
     await tester.binding.setSurfaceSize(const Size(820, 420));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      _graph(buildLightTheme(Colors.teal), _dense, 15),
-    );
+    await tester.pumpWidget(_graph(buildLightTheme(Colors.teal), _dense, 15));
     await tester.pumpAndSettle();
     await expectLater(
       find.byType(EqGraphEditor),

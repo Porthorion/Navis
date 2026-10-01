@@ -3,6 +3,8 @@
 /// All browse-tree nodes use a URI-like string that encodes the node type and
 /// identity so that [AutoMediaTreeService] can resolve children and playback
 /// targets from a single opaque ID.
+///
+/// @docImport 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 library;
 
 /// Well-known root node IDs.
@@ -43,7 +45,7 @@ enum AutoMediaContextType { album, playlist, downloads, liked, recent }
 
 /// A parsed representation of a browse-tree media ID.
 final class ParsedMediaId {
-  const ParsedMediaId({
+  const new({
     required this.type,
     this.entityId,
     this.contextType,
@@ -65,9 +67,7 @@ final class ParsedMediaId {
 
 /// Codec for Android Auto media IDs.
 abstract final class AutoMediaId {
-  static final RegExp _invalidPercentEncoding = RegExp(
-    '%(?![0-9A-Fa-f]{2})',
-  );
+  static final RegExp _invalidPercentEncoding = RegExp('%(?![0-9A-Fa-f]{2})');
 
   // ── Encoding ──────────────────────────────────────────────────────────────
 
@@ -126,18 +126,9 @@ abstract final class AutoMediaId {
         : null;
 
     return switch (prefix) {
-      'artist' => ParsedMediaId(
-        type: AutoMediaIdType.artist,
-        entityId: id,
-      ),
-      'album' => ParsedMediaId(
-        type: AutoMediaIdType.album,
-        entityId: id,
-      ),
-      'playlist' => ParsedMediaId(
-        type: AutoMediaIdType.playlist,
-        entityId: id,
-      ),
+      'artist' => ParsedMediaId(type: AutoMediaIdType.artist, entityId: id),
+      'album' => ParsedMediaId(type: AutoMediaIdType.album, entityId: id),
+      'playlist' => ParsedMediaId(type: AutoMediaIdType.playlist, entityId: id),
       'song' => ParsedMediaId(
         type: AutoMediaIdType.song,
         entityId: id,

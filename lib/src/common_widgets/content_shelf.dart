@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 /// A bounded, lazy horizontal preview that retains its position on resize.
 class ContentShelf extends StatefulWidget {
-  const ContentShelf({
+  const new({
     required this.itemCount,
     required this.extent,
     required this.height,

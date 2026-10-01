@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -15,7 +16,7 @@ void main() {
     return tester.pumpWidget(
       MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: AdaptiveContextScope(
           adaptiveContext: adaptiveContext,

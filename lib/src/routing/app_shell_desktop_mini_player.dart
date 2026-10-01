@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopMiniPlayerSurface extends ConsumerStatefulWidget {
-  const _DesktopMiniPlayerSurface({
+  const new({
     required this.playback,
     required this.songTitle,
     required this.songArtist,
@@ -118,7 +118,7 @@ class _DesktopMiniPlayerSurfaceState
 /// removed while an embedded panel is active so Queue, Lyrics, and settings
 /// controls own their full surface.
 class _DesktopMiniPlayerFloatingWindowControls extends StatelessWidget {
-  const _DesktopMiniPlayerFloatingWindowControls({required this.controller});
+  const new({required this.controller});
 
   final DesktopWindowController controller;
 
@@ -215,7 +215,7 @@ enum _DesktopMiniPlayerAction {
 }
 
 class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
-  const _DesktopMiniPlayerTightPlayback({
+  const new({
     required this.playback,
     required this.songTitle,
     required this.songArtist,
@@ -311,17 +311,13 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
           };
           unawaited(handler?.setRepeatMode(next));
         case _DesktopMiniPlayerAction.queue:
-          unawaited(
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const QueueScreen()),
-            ),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const QueueScreen()));
         case _DesktopMiniPlayerAction.lyrics:
-          unawaited(
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const NowPlayingLyricsScreen(),
-              ),
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const NowPlayingLyricsScreen(),
             ),
           );
       }
@@ -333,9 +329,8 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
         if (!playback.isRadioMode)
           IconButton(
             tooltip: l10n.nowPlayingPrevious,
-            onPressed: () => unawaited(
-              ref.read(audioHandlerProvider)?.skipToPrevious(),
-            ),
+            onPressed: () =>
+                unawaited(ref.read(audioHandlerProvider)?.skipToPrevious()),
             icon: const Icon(Icons.skip_previous_rounded),
           ),
         IconButton.filled(
@@ -445,12 +440,8 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
                       key: const ValueKey<String>('desktopMiniPlayerArtist'),
@@ -458,12 +449,8 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: colors.onSurfaceVariant),
                     ),
                     if (isExternalSource)
                       const Align(
@@ -530,7 +517,7 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
 }
 
 class _DesktopMiniPlayerUndersizedSurface extends StatelessWidget {
-  const _DesktopMiniPlayerUndersizedSurface();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -553,9 +540,8 @@ class _DesktopMiniPlayerUndersizedSurface extends StatelessWidget {
               Text(
                 l10n.desktopMiniPlayerTooSmallTitle,
                 textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               Text(
@@ -563,9 +549,8 @@ class _DesktopMiniPlayerUndersizedSurface extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
           ),
@@ -576,7 +561,7 @@ class _DesktopMiniPlayerUndersizedSurface extends StatelessWidget {
 }
 
 class _DesktopMiniPlayerInlineVolumeControl extends ConsumerWidget {
-  const _DesktopMiniPlayerInlineVolumeControl();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -592,9 +577,8 @@ class _DesktopMiniPlayerInlineVolumeControl extends ConsumerWidget {
         semanticLabel: l10n.playbackVolumeSemanticLabel,
         muteTooltip: l10n.playbackMuteTooltip,
         unmuteTooltip: l10n.playbackUnmuteTooltip,
-        onMuteToggle: () => unawaited(
-          ref.read(playbackVolumeProvider.notifier).toggleMute(),
-        ),
+        onMuteToggle: () =>
+            unawaited(ref.read(playbackVolumeProvider.notifier).toggleMute()),
         onChanged: (value) => unawaited(
           ref.read(playbackVolumeProvider.notifier).setVolume(value),
         ),
@@ -609,7 +593,7 @@ class _DesktopMiniPlayerInlineVolumeControl extends ConsumerWidget {
 }
 
 class _DesktopMiniPlayerEmptyState extends ConsumerWidget {
-  const _DesktopMiniPlayerEmptyState();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -633,17 +617,15 @@ class _DesktopMiniPlayerEmptyState extends ConsumerWidget {
                 const SizedBox(height: 14),
                 Text(
                   l10n.desktopNothingPlaying,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   l10n.desktopNothingPlayingPrompt,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -681,10 +663,7 @@ class _DesktopMiniPlayerEmptyState extends ConsumerWidget {
 }
 
 class _DesktopWindowTransitionGate extends ConsumerWidget {
-  const _DesktopWindowTransitionGate({
-    required this.mode,
-    required this.request,
-  });
+  const new({required this.mode, required this.request});
 
   final DesktopWindowMode mode;
   final DesktopWindowTransitionRequest? request;
@@ -707,8 +686,8 @@ class _DesktopWindowTransitionGate extends ConsumerWidget {
         final compact = constraints.maxHeight < 500;
         final outerInset = compact ? 8.0 : 24.0;
         final innerInset = compact ? 14.0 : 24.0;
-        final availableHeight = math.max(
-          0.0,
+        final availableHeight = math.max<double>(
+          0,
           constraints.maxHeight - (outerInset * 2),
         );
 
@@ -742,12 +721,12 @@ class _DesktopWindowTransitionGate extends ConsumerWidget {
                             textAlign: TextAlign.center,
                             style:
                                 (compact
-                                        ? Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium
-                                        : Theme.of(
-                                            context,
-                                          ).textTheme.titleLarge)
+                                        ? Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                        : Theme.of(context)
+                                              .textTheme
+                                              .titleLarge)
                                     ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           SizedBox(height: compact ? 4 : 8),
@@ -831,9 +810,8 @@ class _DesktopWindowTransitionGate extends ConsumerWidget {
           child: Focus(
             autofocus: true,
             child: ColoredBox(
-              color: Theme.of(
-                context,
-              ).colorScheme.scrim.withValues(alpha: 0.72),
+              color: Theme.of(context).colorScheme.scrim
+                  .withValues(alpha: 0.72),
               child: content,
             ),
           ),

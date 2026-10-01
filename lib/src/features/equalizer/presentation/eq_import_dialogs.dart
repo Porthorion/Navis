@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_import_messages.dart';
@@ -15,7 +15,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart'
 import 'package:navis/src/features/equalizer/presentation/eq_response_graph.dart';
 
 class EqNameDialog extends StatefulWidget {
-  const EqNameDialog({required this.initial, super.key});
+  const new({required this.initial, super.key});
   final String initial;
   @override
   State<EqNameDialog> createState() => _EqNameDialogState();
@@ -64,7 +64,7 @@ class _EqNameDialogState extends State<EqNameDialog> {
 }
 
 class EqPasteDialog extends StatefulWidget {
-  const EqPasteDialog({super.key});
+  const new({super.key});
   @override
   State<EqPasteDialog> createState() => _EqPasteDialogState();
 }
@@ -98,9 +98,7 @@ class _EqPasteDialogState extends State<EqPasteDialog> {
                 maxLines: 10,
                 maxLength: EqImportParser.maximumBytes,
                 style: const TextStyle(fontFamily: 'monospace'),
-                decoration: InputDecoration(
-                  errorText: error,
-                ),
+                decoration: InputDecoration(errorText: error),
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -143,7 +141,7 @@ class _EqPasteDialogState extends State<EqPasteDialog> {
 
 /// Returns `(name, enable)` when the user saves the reviewed preset.
 class EqImportPreviewDialog extends StatefulWidget {
-  const EqImportPreviewDialog({
+  const new({
     required this.preset,
     required this.name,
     this.warnings = const <EqImportWarning>[],
@@ -199,9 +197,7 @@ class _EqImportPreviewDialogState extends State<EqImportPreviewDialog> {
                 TextFormField(
                   controller: name,
                   maxLength: 120,
-                  decoration: InputDecoration(
-                    labelText: l10n.eqName,
-                  ),
+                  decoration: InputDecoration(labelText: l10n.eqName),
                   validator: (s) =>
                       s == null || s.trim().isEmpty ? l10n.eqNameInvalid : null,
                 ),
@@ -282,7 +278,7 @@ class _EqImportPreviewDialogState extends State<EqImportPreviewDialog> {
 
 /// A readable list of every imported filter, in authored order.
 class _FilterTable extends StatelessWidget {
-  const _FilterTable({required this.filters});
+  const new({required this.filters});
   final List<EqFilter> filters;
 
   @override
@@ -302,10 +298,7 @@ class _FilterTable extends StatelessWidget {
               opacity: filters[i].enabled ? 1 : .6,
               child: Row(
                 children: [
-                  SizedBox(
-                    width: 28,
-                    child: Text('${i + 1}', style: numbers),
-                  ),
+                  SizedBox(width: 28, child: Text('${i + 1}', style: numbers)),
                   Expanded(
                     flex: 3,
                     child: Text(
@@ -357,7 +350,7 @@ class _FilterTable extends StatelessWidget {
 }
 
 class EqAutoEqDialog extends ConsumerStatefulWidget {
-  const EqAutoEqDialog({super.key});
+  const new({super.key});
   @override
   ConsumerState<EqAutoEqDialog> createState() => _EqAutoEqDialogState();
 }

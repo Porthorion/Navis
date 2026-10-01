@@ -37,7 +37,7 @@ List<Override> withTestDatabase(
 bool get sqliteAvailable {
   try {
     final db = sqlite3.openInMemory();
-    db.dispose();
+    db.close();
     return true;
   } on Object {
     return false;

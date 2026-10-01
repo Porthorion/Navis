@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -7,9 +7,7 @@ void main() {
     return tester.pumpWidget(
       MaterialApp(
         theme: buildDarkTheme(Colors.deepPurple),
-        home: Scaffold(
-          body: _SyncSettingsPreview(continuous: continuous),
-        ),
+        home: Scaffold(body: _SyncSettingsPreview(continuous: continuous)),
       ),
     );
   }
@@ -40,7 +38,7 @@ void main() {
 }
 
 class _SyncSettingsPreview extends StatelessWidget {
-  const _SyncSettingsPreview({required this.continuous});
+  const new({required this.continuous});
 
   final bool continuous;
 
@@ -48,7 +46,7 @@ class _SyncSettingsPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    Widget summary = Column(
+    final Widget summary = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text('Current sync status', style: text.titleMedium),
@@ -61,7 +59,7 @@ class _SyncSettingsPreview extends StatelessWidget {
         ),
       ],
     );
-    Widget timing = Column(
+    final Widget timing = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text('Schedule', style: text.titleMedium),
@@ -144,11 +142,7 @@ class _SyncSettingsPreview extends StatelessWidget {
 }
 
 class _SettingRow extends StatelessWidget {
-  const _SettingRow({
-    required this.title,
-    required this.value,
-    this.trailing,
-  });
+  const new({required this.title, required this.value, this.trailing});
 
   final String title;
   final String value;
@@ -169,7 +163,7 @@ class _SettingRow extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }

@@ -13,7 +13,7 @@ enum InstantMixError {
 /// Immutable state for the Instant Mix background auto-refill service.
 @immutable
 class InstantMixState {
-  const InstantMixState({
+  const new({
     this.active = false,
     this.seedSongId,
     this.refilling = false,
@@ -21,7 +21,7 @@ class InstantMixState {
     this.pendingSnackbar,
   });
 
-  const InstantMixState.inactive()
+  const new inactive()
     : active = false,
       seedSongId = null,
       refilling = false,
@@ -77,13 +77,8 @@ class InstantMixState {
           pendingSnackbar == other.pendingSnackbar;
 
   @override
-  int get hashCode => Object.hash(
-    active,
-    seedSongId,
-    refilling,
-    error,
-    pendingSnackbar,
-  );
+  int get hashCode =>
+      Object.hash(active, seedSongId, refilling, error, pendingSnackbar);
 }
 
 /// Sentinel used to distinguish "don't change this field" from "clear it".

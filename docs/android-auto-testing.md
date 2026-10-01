@@ -14,12 +14,17 @@ For default real-car validation, use the Play-installed trusted-source runbook:
 2. **Android Auto Desktop Head Unit (DHU)** installed via:
    - Android Studio → Settings → Languages & Frameworks → Android SDK → SDK Tools tab
    - Check "Android Auto Desktop Head Unit Emulator"
-3. **Physical Android device** (emulators don't support Android Auto) connected via USB
-4. **Android Auto app** installed on the device (from Play Store)
+3. **Android phone with the full Google Android Auto projection component**
+   and a running head-unit server. Check component availability on a phone
+   emulator before attempting DHU; installed DHU alone is insufficient.
+4. **Google Android Auto app** installed/updated on that phone (from Play Store).
+   A version ending in `-stub` is a placeholder, not a working projection server.
+   This is separate from Navis: Navis uses its phone MediaBrowserService and
+   does not ship a separate head-unit APK.
 
 ## Automated Cold-Start Regression Gate
 
-Run this before the physical-phone DHU checklist whenever Android Auto startup,
+Run this before the DHU projection checklist whenever Android Auto startup,
 audio bootstrap, notifications, or media browsing changes:
 
 ```bash
@@ -33,7 +38,36 @@ launches `MainActivity`, and asserts the service initializes in 10 seconds and
 returns the four root tabs: Liked, Recent, Playlists, and Library.
 
 This is the repeatable automated regression test for the service-first path.
-It does not replace the physical phone required for DHU phone projection.
+It does not certify DHU projection. That requires the full Google Android Auto
+component and a running head-unit server on the connected phone or emulator.
+
+## Emulator native media gate
+
+A seeded disposable Navis Dev profile can exercise the real MediaBrowser and
+MediaSession APIs without a phone activity, DHU, or accessibility bridge:
+
+```bash
+# The named fixture song must already exist as a permanent download.
+adb -s emulator-5556 shell am force-stop com.navis.app.navis.dev.upgrade
+cd android
+ANDROID_SERIAL=emulator-5556 ./gradlew :auto_test_client:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.navisTargetPackage=com.navis.app.navis.dev.upgrade \
+  -Pandroid.testInstrumentationRunnerArguments.navisDownloadedFixtureSong=fixture-song
+```
+
+The additional `NavisMediaBrowserPlaybackTest` checks Downloads browse ordering,
+collection context, native browse selection, metadata, play/pause, paused seek,
+shuffle and repeat. It skips when no downloaded fixture argument is supplied;
+the original cold-root test retains its unconditional assertions. This is
+phone-side integration evidence; it does not certify projection rendering,
+Google Assistant, trusted installer visibility, or a real vehicle. Use only
+a disposable Dev fixture, never a normal listening profile.
+
+Google's [DHU guide](https://developer.android.com/training/cars/testing/dhu)
+requires the full Google Android Auto app and head-unit server. An ADB socket
+connection is not a successful projection session: require protocol negotiation,
+rendered media browsing, transport controls, and DHU screenshots before recording
+projection as passed.
 
 ## Setup
 

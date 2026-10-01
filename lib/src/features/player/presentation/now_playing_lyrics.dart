@@ -1,7 +1,7 @@
 part of 'now_playing_screen.dart';
 
 class _InlineLyrics extends ConsumerWidget {
-  const _InlineLyrics({super.key, required this.songId, this.maxSize});
+  const new({super.key, required this.songId, this.maxSize});
 
   final String songId;
   final double? maxSize;
@@ -33,7 +33,7 @@ class _InlineLyrics extends ConsumerWidget {
             : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
-          handler?.seek(seekPosition);
+          unawaited(handler?.seek(seekPosition));
         },
       );
     }
@@ -75,9 +75,8 @@ class _InlineLyrics extends ConsumerWidget {
               Text(
                 message,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.6),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -99,7 +98,7 @@ class _InlineLyrics extends ConsumerWidget {
 }
 
 class _FullscreenLyricsPage extends ConsumerWidget {
-  const _FullscreenLyricsPage({required this.songId, required this.title});
+  const new({required this.songId, required this.title});
 
   final String songId;
   final String title;
@@ -161,10 +160,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
 }
 
 class _EmbeddedFullscreenLyricsPanel extends ConsumerWidget {
-  const _EmbeddedFullscreenLyricsPanel({
-    required this.songId,
-    required this.playback,
-  });
+  const new({required this.songId, required this.playback});
 
   final String songId;
   final PlaybackSnapshot playback;

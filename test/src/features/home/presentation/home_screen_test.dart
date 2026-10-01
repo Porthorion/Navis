@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
@@ -58,7 +59,7 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 }
 
 class _FixedLibrarySyncController extends LibrarySyncController {
-  _FixedLibrarySyncController(this._fixedState);
+  new(this._fixedState);
 
   final LibrarySyncState _fixedState;
 
@@ -411,7 +412,7 @@ Future<void> _pumpHomeWithSyncState(
         ],
       ),
       child: MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: testTheme(theme),
         builder: (ctx, child) => MediaQuery(
@@ -472,7 +473,7 @@ Future<void> _pumpHomeWithControllerOverride(
       ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -533,12 +534,8 @@ Future<void> _pumpRandomSectionHome(
         ),
       ),
       homeLikedSongsProvider.overrideWithValue(AsyncData(homeLikedSongs)),
-      likedSongsProvider.overrideWithValue(
-        const AsyncData(<SongsTableData>[]),
-      ),
-      homeRecentlyAddedProvider.overrideWithValue(
-        const AsyncData(<Album>[]),
-      ),
+      likedSongsProvider.overrideWithValue(const AsyncData(<SongsTableData>[])),
+      homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
       homeRecentlyPlayedAlbumsProvider.overrideWithValue(
         const AsyncData(<AlbumsTableData>[]),
       ),
@@ -562,7 +559,7 @@ Future<void> _pumpRandomSectionHome(
         builder: (context, state) => Builder(
           builder: (context) {
             Widget screen = const HomeScreen();
-            if (nativeTouch || forceDesktop)
+            if (nativeTouch || forceDesktop) {
               screen = AdaptiveContextScope(
                 adaptiveContext: resolveAdaptiveContext(
                   desktopRuntime: forceDesktop,
@@ -571,6 +568,7 @@ Future<void> _pumpRandomSectionHome(
                 ),
                 child: screen,
               );
+            }
             return homeActive == null
                 ? screen
                 : ValueListenableBuilder<bool>(
@@ -596,7 +594,7 @@ Future<void> _pumpRandomSectionHome(
       overrides: sectionOverrides,
       child: MaterialApp.router(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
@@ -638,7 +636,7 @@ Future<void> _pumpWeeklyDetail(
             ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -724,13 +722,11 @@ Future<void> _pumpHomeWithAppSettings(
       ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(
-            disableAnimations: true,
-            textScaler: textScaler,
-          ),
+          data: MediaQuery.of(ctx)
+              .copyWith(disableAnimations: true, textScaler: textScaler),
           child: child!,
         ),
         home: const HomeScreen(),
@@ -853,8 +849,13 @@ void main() {
     // Short labels on the title line; full wording in their tooltips.
     expect(find.text('Unclear match'), findsOneWidget);
     expect(find.text('Not on server'), findsOneWidget);
-    expect(find.byTooltip('Ambiguous match'), findsOneWidget);
-    expect(find.byTooltip('Not available on your server'), findsOneWidget);
+    // These tooltips exclude themselves from semantics, and find.byTooltip
+    // reads such messages only from package:flutter's Tooltip type.
+    Finder statusTooltip(String message) => find.byWidgetPredicate(
+      (widget) => widget is Tooltip && widget.message == message,
+    );
+    expect(statusTooltip('Ambiguous match'), findsOneWidget);
+    expect(statusTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
   });
@@ -935,9 +936,7 @@ void main() {
     );
   });
 
-  testWidgets('patch release notes show a compact row on Home', (
-    tester,
-  ) async {
+  testWidgets('patch release notes show a compact row on Home', (tester) async {
     const patch = ChangelogVersion(
       version: '9.9.1',
       entries: <ChangelogEntry>[
@@ -1122,17 +1121,14 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             return MediaQuery(
-              data:
-                  MediaQuery.of(
-                    context,
-                  ).copyWith(
-                    textScaler: const TextScaler.linear(1.3),
-                    disableAnimations: true,
-                  ),
+              data: MediaQuery.of(context).copyWith(
+                textScaler: const TextScaler.linear(1.3),
+                disableAnimations: true,
+              ),
               child: child!,
             );
           },
@@ -1202,7 +1198,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
             data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -1368,9 +1364,7 @@ void main() {
 
   _testWidgetsWithCleanup(
     'desktop Home song rows use actions instead of navigation arrows',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final settings = const AppSettingsModel.defaults().copyWith(
         homeSectionOrder: <String>[HomeSectionIds.likedTracks],
         homeSectionsHidden: <String>[],
@@ -1509,7 +1503,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
               data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -1539,9 +1533,7 @@ void main() {
 
   testWidgets(
     'random hero carousel does not auto-advance with reduced motion',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final view = tester.view;
       view.devicePixelRatio = 1.0;
       view.physicalSize = const Size(390, 844);
@@ -1839,7 +1831,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
             data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -1867,9 +1859,7 @@ void main() {
 
   testWidgets(
     'random hero carousel renders two ListenBrainz cards and opens detail sheets',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final view = tester.view;
       view.devicePixelRatio = 1.0;
       view.physicalSize = const Size(390, 844);
@@ -1965,10 +1955,11 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Play').last);
       await tester.pumpAndSettle();
 
-      expect(
-        queueSpy.lastReplaceIds,
-        const <String>['weekly-song-1', 'weekly-song-2', 'weekly-song-3'],
-      );
+      expect(queueSpy.lastReplaceIds, const <String>[
+        'weekly-song-1',
+        'weekly-song-2',
+        'weekly-song-3',
+      ]);
       expect(queueSpy.lastStartIndex, 0);
       expect(queueSpy.lastAutoPlay, isTrue);
       expect(queueSpy.lastExpandMatchFlows, isFalse);
@@ -2414,7 +2405,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
               data: MediaQuery.of(ctx).copyWith(disableAnimations: false),
@@ -2560,19 +2551,15 @@ void main() {
           albumProvider.overrideWith(
             (ref, albumId) => Stream.value(
               albumId == 'desk-1'
-                  ? _albumWithSongs(
-                      'desk-1',
-                      'Desktop Album',
-                      <SongsTableData>[
-                        _songRow(
-                          id: 'desk-song-1',
-                          title: 'Desktop Song',
-                          albumId: 'desk-1',
-                          discNumber: 1,
-                          track: 1,
-                        ),
-                      ],
-                    )
+                  ? _albumWithSongs('desk-1', 'Desktop Album', <SongsTableData>[
+                      _songRow(
+                        id: 'desk-song-1',
+                        title: 'Desktop Song',
+                        albumId: 'desk-1',
+                        discNumber: 1,
+                        track: 1,
+                      ),
+                    ])
                   : null,
             ),
           ),
@@ -2611,9 +2598,7 @@ void main() {
 
   testWidgets(
     'desktop random pager renders two ListenBrainz cards and opens detail sheets',
-    (
-      tester,
-    ) async {
+    (tester) async {
       setAdaptiveTestViewport(tester, const Size(1366, 900));
       await _pumpRandomSectionHome(
         tester,
@@ -2713,9 +2698,7 @@ void main() {
       sourcePatch: 'weekly-exploration',
       database: database,
       playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
-        <ListenBrainzDiscoverPlaylist>[
-          _listenBrainzPlaylistWithTableSongs(),
-        ],
+        <ListenBrainzDiscoverPlaylist>[_listenBrainzPlaylistWithTableSongs()],
       ),
     );
     await tester.pumpAndSettle();
@@ -2730,10 +2713,7 @@ void main() {
       tester.widget<Tooltip>(tooltip).message,
       MaterialLocalizations.of(tester.element(moreButton)).showMenuTooltip,
     );
-    expect(
-      tooltip,
-      findsOneWidget,
-    );
+    expect(tooltip, findsOneWidget);
     await tester.tap(moreButton);
     await tester.pumpAndSettle();
 
@@ -3088,9 +3068,7 @@ void main() {
 
   testWidgets(
     'keeps the Home sync ring indeterminate while scanning the song index',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await _pumpHomeWithSyncState(
         tester,
         const LibrarySyncState(
@@ -3209,10 +3187,7 @@ void main() {
     final context = tester.element(find.byType(HomeScreen));
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    expect(
-      indicator.color,
-      theme.colorScheme.error.withValues(alpha: 0.65),
-    );
+    expect(indicator.color, theme.colorScheme.error.withValues(alpha: 0.65));
     expect(
       find.bySemanticsLabel(l10n.syncSettingsStatusFailed),
       findsOneWidget,
@@ -3239,10 +3214,7 @@ void main() {
       final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
       expect(ring, findsOneWidget);
       final ringOpacity = tester.widget<AnimatedOpacity>(
-        find.ancestor(
-          of: ring,
-          matching: find.byType(AnimatedOpacity),
-        ),
+        find.ancestor(of: ring, matching: find.byType(AnimatedOpacity)),
       );
       expect(ringOpacity.opacity, 0);
     }
@@ -3273,10 +3245,7 @@ void main() {
       expect(indicator.value, isNull);
 
       final ringOpacity = tester.widget<AnimatedOpacity>(
-        find.ancestor(
-          of: ring,
-          matching: find.byType(AnimatedOpacity),
-        ),
+        find.ancestor(of: ring, matching: find.byType(AnimatedOpacity)),
       );
       expect(ringOpacity.opacity, 1);
 
@@ -3285,10 +3254,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 260));
 
       final ringOpacityAfter = tester.widget<AnimatedOpacity>(
-        find.ancestor(
-          of: ring,
-          matching: find.byType(AnimatedOpacity),
-        ),
+        find.ancestor(of: ring, matching: find.byType(AnimatedOpacity)),
       );
       expect(ringOpacityAfter.opacity, 0);
     },

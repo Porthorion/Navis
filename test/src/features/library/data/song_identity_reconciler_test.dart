@@ -21,9 +21,7 @@ void main() {
     final canonical = _song(id: 'same', provisional: false);
     final result = reconciler.matchCanonicalSong(
       canonicalSong: canonical,
-      provisionalSongs: <SongsTableData>[
-        _song(id: 'same', provisional: true),
-      ],
+      provisionalSongs: <SongsTableData>[_song(id: 'same', provisional: true)],
     );
 
     expect(result, isA<SongIdentityMatched>());
@@ -41,16 +39,8 @@ void main() {
         recordingMbid: 'ABC-123',
       ),
       provisionalSongs: <SongsTableData>[
-        _song(
-          id: 'remote',
-          provisional: true,
-          recordingMbid: 'abc-123',
-        ),
-        _song(
-          id: 'other',
-          provisional: true,
-          recordingMbid: 'different',
-        ),
+        _song(id: 'remote', provisional: true, recordingMbid: 'abc-123'),
+        _song(id: 'other', provisional: true, recordingMbid: 'different'),
       ],
     );
 
@@ -146,11 +136,7 @@ void main() {
     final result = reconciler.matchCanonicalSong(
       canonicalSong: canonical,
       provisionalSongs: <SongsTableData>[
-        _song(
-          id: 'remote',
-          provisional: true,
-          recordingMbid: 'mbid-b',
-        ),
+        _song(id: 'remote', provisional: true, recordingMbid: 'mbid-b'),
       ],
     );
 
@@ -225,95 +211,83 @@ void main() {
     expect((result as SongIdentityAmbiguous).candidateCount, 2);
   }, skip: !sqliteAvailable);
 
-  test(
-    'canonical rows contending for one recording MBID resolve as ambiguous regardless of arrival order',
-    () async {
-      Future<SongIdentityReconciliationSummary> run(
-        List<SongsTableData> canonicals,
-      ) async {
-        final session = await reconciler.startSession(
-          provisionalSongs: <SongsTableData>[
-            _song(
-              id: 'remote',
-              provisional: true,
-              recordingMbid: 'shared-mbid',
-            ),
-          ],
-        );
-        await session.reconcile(canonicals);
-        await session.finalize();
-        return session.summary;
-      }
-
-      final first = _song(
-        id: 'canonical-a',
-        provisional: false,
-        recordingMbid: 'shared-mbid',
+  test('canonical rows contending for one recording MBID resolve as ambiguous regardless of arrival order', () async {
+    Future<SongIdentityReconciliationSummary> run(
+      List<SongsTableData> canonicals,
+    ) async {
+      final session = await reconciler.startSession(
+        provisionalSongs: <SongsTableData>[
+          _song(id: 'remote', provisional: true, recordingMbid: 'shared-mbid'),
+        ],
       );
-      final second = _song(
-        id: 'canonical-b',
-        provisional: false,
-        recordingMbid: 'shared-mbid',
+      await session.reconcile(canonicals);
+      await session.finalize();
+      return session.summary;
+    }
+
+    final first = _song(
+      id: 'canonical-a',
+      provisional: false,
+      recordingMbid: 'shared-mbid',
+    );
+    final second = _song(
+      id: 'canonical-b',
+      provisional: false,
+      recordingMbid: 'shared-mbid',
+    );
+
+    for (final summary in <SongIdentityReconciliationSummary>[
+      await run(<SongsTableData>[first, second]),
+      await run(<SongsTableData>[second, first]),
+    ]) {
+      expect(summary.aliases, isEmpty);
+      expect(summary.canonicalizedSongCount, 0);
+      expect(summary.ambiguousMatchCount, 2);
+      expect(summary.retainedProvisionalCount, 1);
+      expect(
+        summary.ambiguousCases.map((entry) => entry.canonicalSongId).toSet(),
+        <String>{'canonical-a', 'canonical-b'},
       );
-
-      for (final summary in <SongIdentityReconciliationSummary>[
-        await run(<SongsTableData>[first, second]),
-        await run(<SongsTableData>[second, first]),
-      ]) {
-        expect(summary.aliases, isEmpty);
-        expect(summary.canonicalizedSongCount, 0);
-        expect(summary.ambiguousMatchCount, 2);
-        expect(summary.retainedProvisionalCount, 1);
-        expect(
-          summary.ambiguousCases.map((entry) => entry.canonicalSongId).toSet(),
-          <String>{'canonical-a', 'canonical-b'},
-        );
-        for (final entry in summary.ambiguousCases) {
-          expect(entry.candidateIds, <String>['remote']);
-        }
+      for (final entry in summary.ambiguousCases) {
+        expect(entry.candidateIds, <String>['remote']);
       }
-    },
-    skip: !sqliteAvailable,
-  );
+    }
+  }, skip: !sqliteAvailable);
 
-  test(
-    'canonical rows contending for one metadata candidate resolve as ambiguous regardless of arrival order',
-    () async {
-      Future<SongIdentityReconciliationSummary> run(
-        List<SongsTableData> canonicals,
-      ) async {
-        final session = await reconciler.startSession(
-          provisionalSongs: <SongsTableData>[
-            _song(id: 'remote', provisional: true),
-          ],
-        );
-        await session.reconcile(canonicals);
-        await session.finalize();
-        return session.summary;
+  test('canonical rows contending for one metadata candidate resolve as ambiguous regardless of arrival order', () async {
+    Future<SongIdentityReconciliationSummary> run(
+      List<SongsTableData> canonicals,
+    ) async {
+      final session = await reconciler.startSession(
+        provisionalSongs: <SongsTableData>[
+          _song(id: 'remote', provisional: true),
+        ],
+      );
+      await session.reconcile(canonicals);
+      await session.finalize();
+      return session.summary;
+    }
+
+    final first = _song(id: 'canonical-a', provisional: false);
+    final second = _song(id: 'canonical-b', provisional: false);
+
+    for (final summary in <SongIdentityReconciliationSummary>[
+      await run(<SongsTableData>[first, second]),
+      await run(<SongsTableData>[second, first]),
+    ]) {
+      expect(summary.aliases, isEmpty);
+      expect(summary.canonicalizedSongCount, 0);
+      expect(summary.ambiguousMatchCount, 2);
+      expect(summary.retainedProvisionalCount, 1);
+      expect(
+        summary.ambiguousCases.map((entry) => entry.canonicalSongId).toSet(),
+        <String>{'canonical-a', 'canonical-b'},
+      );
+      for (final entry in summary.ambiguousCases) {
+        expect(entry.candidateIds, <String>['remote']);
       }
-
-      final first = _song(id: 'canonical-a', provisional: false);
-      final second = _song(id: 'canonical-b', provisional: false);
-
-      for (final summary in <SongIdentityReconciliationSummary>[
-        await run(<SongsTableData>[first, second]),
-        await run(<SongsTableData>[second, first]),
-      ]) {
-        expect(summary.aliases, isEmpty);
-        expect(summary.canonicalizedSongCount, 0);
-        expect(summary.ambiguousMatchCount, 2);
-        expect(summary.retainedProvisionalCount, 1);
-        expect(
-          summary.ambiguousCases.map((entry) => entry.canonicalSongId).toSet(),
-          <String>{'canonical-a', 'canonical-b'},
-        );
-        for (final entry in summary.ambiguousCases) {
-          expect(entry.candidateIds, <String>['remote']);
-        }
-      }
-    },
-    skip: !sqliteAvailable,
-  );
+    }
+  }, skip: !sqliteAvailable);
 
   test(
     'a same-identity claim keeps precedence over a contested MBID claim',
@@ -350,9 +324,7 @@ void main() {
   test('a uniquely claimed candidate applies at finalize', () async {
     await database
         .into(database.songsTable)
-        .insert(
-          _song(id: 'remote-a', provisional: true, recordingMbid: 'm-a'),
-        );
+        .insert(_song(id: 'remote-a', provisional: true, recordingMbid: 'm-a'));
     await database
         .into(database.songsTable)
         .insert(

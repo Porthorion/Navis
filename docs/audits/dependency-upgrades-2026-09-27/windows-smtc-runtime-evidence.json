@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "target": "windows",
+  "profile": "isolated-clone",
+  "appUserModelId": "com.navis.app.navis",
+  "metadataPublished": true,
+  "gmtcCommands": [
+    "play",
+    "pause",
+    "next",
+    "previous",
+    "seek",
+    "shuffle",
+    "repeat"
+  ],
+  "timelineProgressed": true,
+  "pausedSeekVerified": true,
+  "seekTargetMs": 5000,
+  "cleanRestart": true,
+  "restartCommandsVerified": true,
+  "finalHarnessRun": "passed with prepared graph, compatible PowerShell cleanup, restored-presentation wait",
+  "screenshotsInspected": true,
+  "screenshots": {
+    "screenshot": {
+      "pixelWidth": 1424,
+      "pixelHeight": 861,
+      "byteCount": 60482,
+      "sha256": "2ece6ad42fa0bd9ddc3e7ecad29922008dad97f44852e469c6b04cba0831e43b"
+    },
+    "restart-screenshot": {
+      "pixelWidth": 1424,
+      "pixelHeight": 861,
+      "byteCount": 60615,
+      "sha256": "21c4821700a06d64837f078a306c6ad2b0607d7c7957fcb7a9727fe25adf6321"
+    }
+  },
+  "remoteSourceHashesMatch": true,
+  "powerShellParseErrors": 0,
+  "testProcessExited": true,
+  "temporaryScheduledTaskRemoved": true
+}

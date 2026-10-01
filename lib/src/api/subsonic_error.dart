@@ -1,6 +1,6 @@
 /// Base class for Subsonic domain and transport exceptions.
 sealed class SubsonicException implements Exception {
-  const SubsonicException(this.message);
+  const new(this.message);
 
   final String message;
 
@@ -10,11 +10,8 @@ sealed class SubsonicException implements Exception {
 
 /// Base class for errors returned by the Subsonic API payload.
 class SubsonicApiException extends SubsonicException {
-  const SubsonicApiException({
-    required this.code,
-    required String message,
-    this.retryAt,
-  }) : super(message);
+  const new({required this.code, required String message, this.retryAt})
+    : super(message);
 
   final int? code;
   final DateTime? retryAt;
@@ -22,53 +19,46 @@ class SubsonicApiException extends SubsonicException {
 
 /// Authentication failed (`error.code == 40`).
 class SubsonicAuthException extends SubsonicApiException {
-  const SubsonicAuthException({required super.message}) : super(code: 40);
+  const new({required super.message}) : super(code: 40);
 }
 
 /// Authenticated user has insufficient permissions (`error.code == 50`).
 class SubsonicForbiddenException extends SubsonicApiException {
-  const SubsonicForbiddenException({required super.message}) : super(code: 50);
+  const new({required super.message}) : super(code: 50);
 }
 
 /// Resource does not exist (`error.code == 70`).
 class SubsonicNotFoundException extends SubsonicApiException {
-  const SubsonicNotFoundException({required super.message}) : super(code: 70);
+  const new({required super.message}) : super(code: 70);
 }
 
 /// Catch-all Subsonic API error.
 class SubsonicGenericException extends SubsonicApiException {
-  const SubsonicGenericException({
-    required super.message,
-    super.code,
-    super.retryAt,
-  });
+  const new({required super.message, super.code, super.retryAt});
 }
 
 /// Transport-layer connectivity failure (DNS, timeout, etc.).
 class SubsonicConnectionException extends SubsonicException {
-  const SubsonicConnectionException(super.message);
+  const new(super.message);
 }
 
 class SubsonicSyncLimitException extends SubsonicException {
-  const SubsonicSyncLimitException(this.reason)
-    : super('Sync paused at its execution limit.');
+  const new(this.reason) : super('Sync paused at its execution limit.');
   final String reason;
 }
 
 /// A successful envelope did not contain a trustworthy scoped snapshot.
 class SubsonicIncompleteResponseException extends SubsonicException {
-  const SubsonicIncompleteResponseException(super.message);
+  const new(super.message);
 }
 
 /// A Subsonic response exceeded the configured byte budget.
 class SubsonicResponseBudgetExceededException extends SubsonicException {
-  const SubsonicResponseBudgetExceededException({
-    required this.maxBytes,
-    required this.observedBytes,
-  }) : super(
-         'Response exceeded sync byte budget '
-         '($observedBytes > $maxBytes).',
-       );
+  const new({required this.maxBytes, required this.observedBytes})
+    : super(
+        'Response exceeded sync byte budget '
+        '($observedBytes > $maxBytes).',
+      );
 
   final int maxBytes;
   final int observedBytes;
@@ -76,7 +66,7 @@ class SubsonicResponseBudgetExceededException extends SubsonicException {
 
 /// Lyrics endpoint is not supported by the connected server.
 class LyricsUnsupportedException implements Exception {
-  const LyricsUnsupportedException([this.message = 'Lyrics not supported']);
+  const new([this.message = 'Lyrics not supported']);
 
   final String message;
 
@@ -86,7 +76,7 @@ class LyricsUnsupportedException implements Exception {
 
 /// Network or transport error while fetching lyrics.
 class LyricsNetworkException implements Exception {
-  const LyricsNetworkException([this.message = 'Could not load lyrics']);
+  const new([this.message = 'Could not load lyrics']);
 
   final String message;
 

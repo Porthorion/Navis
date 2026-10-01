@@ -8,12 +8,11 @@ part 'search_result3.g.dart';
 
 @freezed
 abstract class SearchResult3 with _$SearchResult3 {
-  const factory SearchResult3({
+  const factory({
     @Default(<Artist>[]) List<Artist> artists,
     @Default(<Album>[]) List<Album> albums,
     @Default(<Song>[]) List<Song> songs,
   }) = _SearchResult3;
 
-  factory SearchResult3.fromJson(Map<String, dynamic> json) =>
-      _$SearchResult3FromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$SearchResult3FromJson(json);
 }

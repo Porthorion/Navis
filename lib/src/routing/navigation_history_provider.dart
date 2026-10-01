@@ -10,10 +10,7 @@ import 'package:navis/src/routing/navigation_history.dart';
 /// [index] within them.
 @immutable
 class NavigationHistoryState {
-  const NavigationHistoryState({
-    this.entries = const <NavHistoryEntry>[],
-    this.index = -1,
-  });
+  const new({this.entries = const <NavHistoryEntry>[], this.index = -1});
 
   final List<NavHistoryEntry> entries;
   final int index;
@@ -67,10 +64,7 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
     );
     return initial == null
         ? const NavigationHistoryState()
-        : NavigationHistoryState(
-            entries: <NavHistoryEntry>[initial],
-            index: 0,
-          );
+        : NavigationHistoryState(entries: <NavHistoryEntry>[initial], index: 0);
   }
 
   void _record(RouteMatchList configuration) {

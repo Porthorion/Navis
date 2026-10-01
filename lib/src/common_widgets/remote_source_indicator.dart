@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -13,7 +13,7 @@ enum RemoteSourceIndicatorPolicy { automatic, hidden }
 /// the fixed-width Remote label, without changing the height of otherwise
 /// identical local and remote rows.
 class RemoteSourceMetadataLine extends StatelessWidget {
-  const RemoteSourceMetadataLine({
+  const new({
     required this.metadata,
     required this.isRemote,
     super.key,
@@ -40,10 +40,7 @@ class RemoteSourceMetadataLine extends StatelessWidget {
 }
 
 class RemoteSourceIndicator extends StatelessWidget {
-  const RemoteSourceIndicator({
-    required this.variant,
-    super.key,
-  });
+  const new({required this.variant, super.key});
 
   static const semanticsKey = ValueKey<String>('remote-source-indicator');
   static const tooltipKey = ValueKey<String>('remote-source-tooltip');
@@ -87,7 +84,7 @@ class RemoteSourceIndicator extends StatelessWidget {
 }
 
 class RemoteSourceArtworkOverlay extends StatelessWidget {
-  const RemoteSourceArtworkOverlay({
+  const new({
     required this.child,
     required this.isRemote,
     super.key,
@@ -154,7 +151,7 @@ class RemoteSourceArtworkOverlay extends StatelessWidget {
 }
 
 class _ArtworkIndicator extends StatelessWidget {
-  const _ArtworkIndicator({required this.label});
+  const new({required this.label});
 
   final String label;
 
@@ -199,7 +196,7 @@ class _ArtworkIndicator extends StatelessWidget {
 }
 
 class _CompactArtworkIndicator extends StatelessWidget {
-  const _CompactArtworkIndicator();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +225,7 @@ class _CompactArtworkIndicator extends StatelessWidget {
 }
 
 class _InlineIndicator extends StatelessWidget {
-  const _InlineIndicator({required this.label});
+  const new({required this.label});
 
   final String label;
 
@@ -255,7 +252,7 @@ class _InlineIndicator extends StatelessWidget {
 }
 
 class _ChipIndicator extends StatelessWidget {
-  const _ChipIndicator({required this.label});
+  const new({required this.label});
 
   final String label;
 

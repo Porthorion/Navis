@@ -12,57 +12,6 @@ import 'src/equalizer_chain.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
-  static const kErrorCode = 1;
-
-  /// `package:media_kit`'s [Player]
-  late final Player _player;
-
-  /// The subscriptions that have to be disposed
-  late final List<StreamSubscription> _streamSubscriptions;
-
-  final _readyCompleter = Completer<void>();
-
-  /// Completes when the player is ready
-  Future<void> ready() => _readyCompleter.future;
-
-  static final _logger = Logger('MediaKitPlayer');
-
-  final _eventController = StreamController<PlaybackEventMessage>.broadcast();
-  final _dataController = StreamController<PlayerDataMessage>.broadcast();
-
-  ProcessingStateMessage _processingState = ProcessingStateMessage.idle;
-  Duration _bufferedPosition = Duration.zero;
-  Duration _position = Duration.zero;
-  Duration? _duration;
-  bool _playing = false;
-  bool _mediaOpened = false;
-  int? _errorCode;
-  String? _errorMessage;
-  Completer<Duration?>? _loadCompleter;
-  int _loadGeneration = 0;
-
-  /// The index that's currently playing
-  int _currentIndex = 0;
-
-  /// [LoadRequest.initialPosition] or [seek] request before [Player.play] was called and/or finished loading.
-  Duration? _setPosition;
-
-  Media? get _currentMedia {
-    var medias = _player.state.playlist.medias;
-    if (medias.isEmpty) return null;
-    return medias[_player.state.playlist.index];
-  }
-
-  /// Diagnostics only: the URI of the media mpv is playing.
-  String? get debugCurrentMediaUri => _currentMedia?.uri;
-
-  EqualizerConfigurationMessage? _equalizer;
-  EqualizerStateMessage _eqState = const EqualizerStateMessage(enabled: false);
-  Future<void> _audioLane = Future<void>.value();
-  double _rate = 1;
-  double _pitch = 1;
-  double? _sampleRate;
-
   MediaKitPlayer(super.id, {EqualizerConfigurationMessage? equalizer}) {
     _equalizer = equalizer;
     _player = Player(
@@ -72,7 +21,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       title: JustAudioMediaKit.title,
       bufferSize: JustAudioMediaKit.bufferSize,
       logLevel: JustAudioMediaKit.mpvLogLevel,
-      ready: () => _readyCompleter.complete(),
+      ready: _readyCompleter.complete,
     ));
 
     // Navis: Subsonic progressive streams are often not marked seekable by
@@ -90,8 +39,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         if (rate != _sampleRate) {
           _sampleRate = rate;
           if (_equalizer != null) {
-            unawaited(
-                _serializeAudio(() => _applyAudio()).catchError((Object error) {
+            unawaited(_serializeAudio(_applyAudio).catchError((Object error) {
               _eqState = EqualizerStateMessage(
                   enabled: false,
                   sampleRate: _sampleRate,
@@ -204,11 +152,60 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _dataController.add(PlayerDataMessage(speed: rate));
       }),
       _player.stream.log.listen((event) {
-        // ignore: avoid_print
-        print("MPV: [${event.level}] ${event.prefix}: ${event.text}");
+        print('MPV: [${event.level}] ${event.prefix}: ${event.text}');
       }),
     ];
   }
+  static const kErrorCode = 1;
+
+  /// `package:media_kit`'s [Player]
+  late final Player _player;
+
+  /// The subscriptions that have to be disposed
+  late final List<StreamSubscription> _streamSubscriptions;
+
+  final _readyCompleter = Completer<void>();
+
+  /// Completes when the player is ready
+  Future<void> ready() => _readyCompleter.future;
+
+  static final _logger = Logger('MediaKitPlayer');
+
+  final _eventController = StreamController<PlaybackEventMessage>.broadcast();
+  final _dataController = StreamController<PlayerDataMessage>.broadcast();
+
+  ProcessingStateMessage _processingState = ProcessingStateMessage.idle;
+  Duration _bufferedPosition = Duration.zero;
+  Duration _position = Duration.zero;
+  Duration? _duration;
+  bool _playing = false;
+  bool _mediaOpened = false;
+  int? _errorCode;
+  String? _errorMessage;
+  Completer<Duration?>? _loadCompleter;
+  int _loadGeneration = 0;
+
+  /// The index that's currently playing
+  int _currentIndex = 0;
+
+  /// [LoadRequest.initialPosition] or [seek] request before [Player.play] was called and/or finished loading.
+  Duration? _setPosition;
+
+  Media? get _currentMedia {
+    final medias = _player.state.playlist.medias;
+    if (medias.isEmpty) return null;
+    return medias[_player.state.playlist.index];
+  }
+
+  /// Diagnostics only: the URI of the media mpv is playing.
+  String? get debugCurrentMediaUri => _currentMedia?.uri;
+
+  EqualizerConfigurationMessage? _equalizer;
+  EqualizerStateMessage _eqState = const EqualizerStateMessage(enabled: false);
+  Future<void> _audioLane = Future<void>.value();
+  double _rate = 1;
+  double _pitch = 1;
+  double? _sampleRate;
 
   void _updateDuration(Duration duration) {
     final start = _currentMedia?.start;
@@ -301,12 +298,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       } else {
         final playable =
             _convertAudioSourceIntoMediaKit(request.audioSourceMessage);
-        _logger.finest('playable is ${playable.toString()}');
+        _logger.finest('playable is $playable');
         await _player.open(playable, play: _playing);
       }
       if (generation != _loadGeneration) return LoadResponse(duration: null);
       _mediaOpened = true;
-      if (_equalizer != null) await _serializeAudio(() => _applyAudio());
+      if (_equalizer != null) await _serializeAudio(_applyAudio);
 
       if (request.initialPosition != null) {
         _setPosition = _position = request.initialPosition!;
@@ -443,7 +440,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<SetShuffleModeResponse> setShuffleMode(
       SetShuffleModeRequest request) async {
-    bool shuffling = request.shuffleMode != ShuffleModeMessage.none;
+    final shuffling = request.shuffleMode != ShuffleModeMessage.none;
     await _player.setShuffle(shuffling);
 
     _dataController.add(PlayerDataMessage(
@@ -556,7 +553,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _mediaOpened = false;
     await _player.dispose();
     // cancel all stream subscriptions
-    for (final StreamSubscription subscription in _streamSubscriptions) {
+    for (final subscription in _streamSubscriptions) {
       unawaited(subscription.cancel());
     }
     _streamSubscriptions.clear();

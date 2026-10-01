@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 Future<void> tryDeleteFile(File? file) async {
   if (file == null) return;
   try {
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (await file.exists()) await file.delete();
   } on FileSystemException {
     // best-effort
@@ -20,6 +22,8 @@ Future<void> deleteFileWithSuffixes(String filePath) async {
   for (final suffix in <String>['', '.part', '.mime']) {
     try {
       final f = File('$filePath$suffix');
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (await f.exists()) await f.delete();
     } on FileSystemException {
       // best-effort
@@ -75,33 +79,29 @@ Future<bool> openDirectoryInFileManager(String directoryPath) async {
   }
 
   final directory = Directory(normalized);
+  // Keep metadata access asynchronous so storage latency cannot stall UI.
+  // ignore: avoid_slow_async_io
   if (!await directory.exists()) {
     return false;
   }
 
   try {
     if (Platform.isWindows) {
-      await Process.start(
-        'explorer.exe',
-        <String>[p.normalize(normalized)],
-        mode: ProcessStartMode.detached,
-      );
+      await Process.start('explorer.exe', <String>[
+        p.normalize(normalized),
+      ], mode: ProcessStartMode.detached);
       return true;
     }
     if (Platform.isMacOS) {
-      await Process.start(
-        'open',
-        <String>[normalized],
-        mode: ProcessStartMode.detached,
-      );
+      await Process.start('open', <String>[
+        normalized,
+      ], mode: ProcessStartMode.detached);
       return true;
     }
     if (Platform.isLinux) {
-      await Process.start(
-        'xdg-open',
-        <String>[normalized],
-        mode: ProcessStartMode.detached,
-      );
+      await Process.start('xdg-open', <String>[
+        normalized,
+      ], mode: ProcessStartMode.detached);
       return true;
     }
 
@@ -173,9 +173,9 @@ bool _isReservedWindowsName(String name) {
         'PRN',
         'AUX',
         'NUL',
-        'CONIN\$',
-        'CONOUT\$',
-        'CLOCK\$',
+        r'CONIN$',
+        r'CONOUT$',
+        r'CLOCK$',
       }.contains(stem) ||
       RegExp(r'^(COM|LPT)[0-9\u00B9\u00B2\u00B3]$').hasMatch(stem);
 }

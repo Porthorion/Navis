@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 class LrclibLyrics {
-  const LrclibLyrics({
+  const new({
     required this.artistName,
     required this.trackName,
     this.albumName,
@@ -10,7 +10,7 @@ class LrclibLyrics {
     this.plainLyrics,
   });
 
-  factory LrclibLyrics.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LrclibLyrics(
       artistName: (json['artistName'] as String? ?? '').trim(),
       trackName: (json['trackName'] as String? ?? '').trim(),
@@ -33,7 +33,7 @@ class LrclibLyrics {
 }
 
 class LrclibClient {
-  LrclibClient({Dio? dio})
+  new({Dio? dio})
     : _dio =
           dio ??
           Dio(
@@ -83,10 +83,7 @@ class LrclibClient {
   }) async {
     final response = await _dio.get<List<dynamic>>(
       '/api/search',
-      queryParameters: {
-        'artist_name': artist,
-        'track_name': title,
-      },
+      queryParameters: {'artist_name': artist, 'track_name': title},
     );
     final data = response.data;
     if (data == null) {

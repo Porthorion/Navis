@@ -11,7 +11,7 @@ import 'package:navis_windows_smtc/navis_windows_smtc.dart';
 
 /// Bridges Navis playback state with Windows System Media Transport Controls.
 class WindowsSmtcBridge {
-  WindowsSmtcBridge({
+  new({
     required NavisPlaybackHandler handler,
     WindowsSmtcClientFactory? createClient,
     bool Function()? isWindowsRuntime,
@@ -71,21 +71,15 @@ class WindowsSmtcBridge {
   }
 
   void _wirePlaybackStateListeners() {
-    _snapshotSubscription = _handler.snapshotStream.listen(
-      (snapshot) {
-        _latestSnapshot = snapshot;
-        _latestPlaybackPosition = snapshot.position;
-        unawaited(_syncState());
-      },
-      onError: _logStreamError('Windows SMTC snapshot stream'),
-    );
-    _mediaItemSubscription = _handler.mediaItemStream.listen(
-      (item) {
-        _latestMediaItem = item;
-        unawaited(_syncState());
-      },
-      onError: _logStreamError('Windows SMTC media item stream'),
-    );
+    _snapshotSubscription = _handler.snapshotStream.listen((snapshot) {
+      _latestSnapshot = snapshot;
+      _latestPlaybackPosition = snapshot.position;
+      unawaited(_syncState());
+    }, onError: _logStreamError('Windows SMTC snapshot stream'));
+    _mediaItemSubscription = _handler.mediaItemStream.listen((item) {
+      _latestMediaItem = item;
+      unawaited(_syncState());
+    }, onError: _logStreamError('Windows SMTC media item stream'));
     _playbackPositionSubscription = _handler.positionStream.listen(
       _handlePlaybackPosition,
       onError: _logStreamError('Windows SMTC playback position stream'),
@@ -348,7 +342,7 @@ abstract class WindowsSmtcClient {
 }
 
 class OwnedWindowsSmtcClient implements WindowsSmtcClient {
-  OwnedWindowsSmtcClient(this._session);
+  new(this._session);
 
   final WindowsSmtcSession _session;
 

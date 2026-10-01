@@ -132,9 +132,7 @@ void main() {
 
       await database
           .into(database.artistsTable)
-          .insert(
-            ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
-          );
+          .insert(ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'));
       await database
           .into(database.albumsTable)
           .insert(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -20,7 +20,7 @@ double artistTileHeight(BuildContext context, double extent) {
 
 /// A lazy collection grid whose cards remain bounded as its pane grows.
 class ResponsiveContentSliverGrid extends ConsumerWidget {
-  const ResponsiveContentSliverGrid({
+  const new({
     required this.itemCount,
     required this.itemBuilder,
     this.artists = false,

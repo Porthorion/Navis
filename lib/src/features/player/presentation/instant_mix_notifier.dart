@@ -50,24 +50,21 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   @override
   InstantMixState build() {
-    ref.listen<PlaybackSnapshot>(
-      playerStateProvider,
-      _onSnapshotChanged,
-    );
+    ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
     ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
       if (state.active) {
         deactivate();
       }
     });
-    ref.listen<RecommendationSessionStatus>(
-      recommendationSessionProvider,
-      (previous, next) {
-        final session = _session;
-        if (session != null && next.generation != session.generation) {
-          deactivate();
-        }
-      },
-    );
+    ref.listen<RecommendationSessionStatus>(recommendationSessionProvider, (
+      previous,
+      next,
+    ) {
+      final session = _session;
+      if (session != null && next.generation != session.generation) {
+        deactivate();
+      }
+    });
     ref.onDispose(() => _retryTimer?.cancel());
     return const InstantMixState.inactive();
   }
@@ -89,10 +86,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _session = session;
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
-    state = InstantMixState(
-      active: true,
-      seedSongId: normalizedSeedSongId,
-    );
+    state = InstantMixState(active: true, seedSongId: normalizedSeedSongId);
     try {
       await _refill(normalizedSeedSongId, isInitial: true);
     } finally {
@@ -159,8 +153,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       }
       final seedSongId = next.currentSongId ?? state.seedSongId;
       if (seedSongId != null) {
-        // ignore: discarded_futures
-        _refill(seedSongId);
+        unawaited(_refill(seedSongId));
       }
     }
   }
@@ -215,9 +208,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
     } on Object catch (error, stackTrace) {
       if (!ref.mounted) return;
-      AppLogger.debug(
-        'InstantMix refill failed: $error\n$stackTrace',
-      );
+      AppLogger.debug('InstantMix refill failed: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
         return;
@@ -242,11 +233,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     try {
       final batch = await ref
           .read(recommendationServiceProvider)
-          .serverMix(
-            seedSongId,
-            count: 50,
-            cancelToken: session.cancelToken,
-          );
+          .serverMix(seedSongId, count: 50, cancelToken: session.cancelToken);
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
       coordinator.report(
@@ -294,16 +281,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         refilling: false,
         pendingSnackbar: isInitial ? '$queuedCount' : null,
       );
-      coordinator.report(
-        session,
-        stage: 'active',
-        insertedCount: queuedCount,
-      );
+      coordinator.report(session, stage: 'active', insertedCount: queuedCount);
     } on SubsonicNotFoundException {
       if (!ref.mounted) return;
-      state = const InstantMixState(
-        error: InstantMixError.unsupported,
-      );
+      state = const InstantMixState(error: InstantMixError.unsupported);
     } on Object catch (error, stackTrace) {
       if (!ref.mounted) return;
       if (queueChangeAttempted && previousQueue != null) {
@@ -330,10 +311,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     );
     _nextRefillAllowedAt = DateTime.now().add(delay);
     state = exhausted
-        ? state.copyWith(
-            refilling: false,
-            error: InstantMixError.networkError,
-          )
+        ? state.copyWith(refilling: false, error: InstantMixError.networkError)
         : state.copyWith(refilling: false, clearError: true);
     ref
         .read(recommendationSessionProvider.notifier)
@@ -402,9 +380,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       }
       return queuedCount;
     } on Object catch (error, stackTrace) {
-      AppLogger.debug(
-        'InstantMix queue failed: $error\n$stackTrace',
-      );
+      AppLogger.debug('InstantMix queue failed: $error\n$stackTrace');
       rethrow;
     }
   }

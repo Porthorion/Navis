@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,9 +17,7 @@ import 'helpers/test_theme.dart';
 /// Overrides that prevent Drift streams (and their periodic timers) from being
 /// subscribed in widget tests.  Without these, `tester.pump()` enters an
 /// infinite loop servicing Drift's internal change-check timer.
-List<Override> _noDbOverrides({
-  List<Override> extras = const [],
-}) {
+List<Override> _noDbOverrides({List<Override> extras = const []}) {
   return [
     // Prevent the database from being accessed at all.
     appSettingsProvider.overrideWith(
@@ -33,8 +31,7 @@ List<Override> _noDbOverrides({
 }
 
 class _StaticAudioBootstrapController extends AudioBootstrapController {
-  _StaticAudioBootstrapController({required AudioBootstrapState state})
-    : _state = state;
+  new({required this._state});
 
   final AudioBootstrapState _state;
 
@@ -65,9 +62,7 @@ class _FakePlaybackRecoveryService implements PlaybackRecoveryService {
 }
 
 void main() {
-  testWidgets('shows login screen while unauthenticated', (
-    tester,
-  ) async {
+  testWidgets('shows login screen while unauthenticated', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: _noDbOverrides(
@@ -115,9 +110,7 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
-      tester.getCenter(
-        find.byKey(const ValueKey<String>('bootstrap-logo')),
-      ),
+      tester.getCenter(find.byKey(const ValueKey<String>('bootstrap-logo'))),
       tester.getCenter(find.byType(CircularProgressIndicator)),
     );
   });
@@ -188,17 +181,12 @@ void main() {
 
   testWidgets(
     'shows authenticated startup recovery actions after ten seconds',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final recovery = _FakePlaybackRecoveryService();
       final router = GoRouter(
         initialLocation: '/',
         routes: [
-          GoRoute(
-            path: '/',
-            builder: (_, _) => const SizedBox.shrink(),
-          ),
+          GoRoute(path: '/', builder: (_, _) => const SizedBox.shrink()),
         ],
       );
       addTearDown(router.dispose);

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 // The batch is internal to the vendored media_kit bridge.
-// ignore: implementation_imports
 import 'package:just_audio_media_kit/src/audio_request_batch.dart';
 
 void main() {

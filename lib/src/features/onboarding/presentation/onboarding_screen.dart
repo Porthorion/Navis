@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -22,7 +22,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 
 /// A deliberately shell-free, one-time customization experience.
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({
+  const new({
     super.key,
     this.reviewMode = false,
     this.homeWarmupAfterRebuild = false,
@@ -287,12 +287,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final previewTheme = _previewTheme(context, draft);
     final viewport = MediaQuery.sizeOf(context);
     final compact = viewport.width < 600 || viewport.height < 700;
-    final stepPanel = _stepPanel(
-      draft,
-      previewTheme,
-      motion,
-      framed: false,
-    );
+    final stepPanel = _stepPanel(draft, previewTheme, motion, framed: false);
     return Theme(
       data: previewTheme,
       child: PopScope(
@@ -472,20 +467,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           skip,
           const SizedBox(width: 12),
-          if (back != null) back,
+          ?back,
           const SizedBox(width: 8),
           next,
         ],
       );
     }
     return Row(
-      children: [
-        skip,
-        const Spacer(),
-        if (back != null) back,
-        const SizedBox(width: 8),
-        next,
-      ],
+      children: [skip, const Spacer(), ?back, const SizedBox(width: 8), next],
     );
   }
 
@@ -541,9 +530,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               clearColorSchemeSeed: seed == null,
             ),
           ),
-          onCustomColorPicked: (value) => setState(
-            () => _draft = draft.copyWith(colorSchemeSeed: value),
-          ),
+          onCustomColorPicked: (value) =>
+              setState(() => _draft = draft.copyWith(colorSchemeSeed: value)),
           onSavePreset: (value) => setState(() {
             if (!_draftCustomPresets!.contains(value)) {
               _draftCustomPresets = [..._draftCustomPresets!, value];
@@ -769,11 +757,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _qualityField(
-    String label,
-    int? value,
-    ValueChanged<int?> onChanged,
-  ) {
+  Widget _qualityField(String label, int? value, ValueChanged<int?> onChanged) {
     final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

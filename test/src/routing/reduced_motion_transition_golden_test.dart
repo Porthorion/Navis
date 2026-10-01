@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/app_router.dart';
@@ -9,7 +9,7 @@ void main() {
     required bool disableAnimations,
     bool fadeOnly = false,
   }) async {
-    final destination = const _DetailRoutePreview();
+    const destination = _DetailRoutePreview();
     await tester.pumpWidget(
       MediaQuery(
         data: MediaQueryData(disableAnimations: disableAnimations),
@@ -17,12 +17,12 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Builder(
             builder: (context) {
-              final page = (buildSlideFadePage<void>(
+              final page = buildSlideFadePage<void>(
                 context: context,
                 key: const ValueKey<String>('detail-preview'),
                 child: destination,
                 fadeOnly: fadeOnly,
-              ) as CustomTransitionPage<void>);
+              ) as CustomTransitionPage<void>;
               return ColoredBox(
                 color: const Color(0xFF101010),
                 child: page.transitionsBuilder(
@@ -68,11 +68,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(720, 400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pumpTransition(
-      tester,
-      disableAnimations: false,
-      fadeOnly: true,
-    );
+    await pumpTransition(tester, disableAnimations: false, fadeOnly: true);
 
     await expectLater(
       find.byType(_DetailRoutePreview),
@@ -82,7 +78,7 @@ void main() {
 }
 
 class _DetailRoutePreview extends StatelessWidget {
-  const _DetailRoutePreview();
+  const new();
 
   @override
   Widget build(BuildContext context) {

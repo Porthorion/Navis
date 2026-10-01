@@ -39,7 +39,7 @@ enum EqImportErrorCode {
 /// a particular line. It stays a [FormatException] so existing callers keep
 /// working; the presentation layer maps [code] to a localized message.
 class EqImportException extends FormatException {
-  EqImportException(this.code, {this.line, this.detail})
+  new(this.code, {this.line, this.detail})
     : super(_describe(code, line, detail));
 
   final EqImportErrorCode code;
@@ -101,7 +101,7 @@ enum EqImportWarningCode {
 
 @immutable
 class EqImportWarning {
-  const EqImportWarning(this.code, {this.line, this.detail});
+  const new(this.code, {this.line, this.detail});
 
   final EqImportWarningCode code;
   final int? line;
@@ -110,7 +110,7 @@ class EqImportWarning {
 
 @immutable
 class EqImportResult {
-  const EqImportResult({
+  const new({
     required this.preset,
     required this.format,
     this.warnings = const <EqImportWarning>[],

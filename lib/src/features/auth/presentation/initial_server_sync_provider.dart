@@ -22,7 +22,7 @@ enum InitialServerSyncStatus {
 }
 
 class InitialServerSyncState {
-  const InitialServerSyncState({
+  const new({
     this.status = InitialServerSyncStatus.idle,
     this.errorMessage,
     this.completedWithWarnings = false,
@@ -65,15 +65,15 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
         unawaited(start());
       }
     });
-    ref.listen<ServerReachabilityState>(
-      serverReachabilityControllerProvider,
-      (_, next) {
-        if (state.status == InitialServerSyncStatus.waitingForNetwork &&
-            next.status == ServerReachabilityStatus.online) {
-          unawaited(start());
-        }
-      },
-    );
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      _,
+      next,
+    ) {
+      if (state.status == InitialServerSyncStatus.waitingForNetwork &&
+          next.status == ServerReachabilityStatus.online) {
+        unawaited(start());
+      }
+    });
     ref.listen<SyncNetworkPolicy>(syncNetworkPolicyProvider, (_, next) {
       if (state.status == InitialServerSyncStatus.waitingForNetwork &&
           !next.isOffline) {
@@ -84,7 +84,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
         unawaited(start());
       }
     });
-    Future<void>.microtask(start);
+    unawaited(Future<void>.microtask(start));
     return const InitialServerSyncState();
   }
 
@@ -134,9 +134,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
     try {
       result = await ref
           .read(librarySyncControllerProvider.notifier)
-          .syncNow(
-            allowMeteredBroadOverride: allowMeteredBroadOverride,
-          );
+          .syncNow(allowMeteredBroadOverride: allowMeteredBroadOverride);
     } on Object catch (error) {
       if (runEpoch == _epoch &&
           state.status != InitialServerSyncStatus.cancelling) {

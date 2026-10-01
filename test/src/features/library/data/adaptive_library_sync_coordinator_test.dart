@@ -286,7 +286,7 @@ void main() {
     );
   });
 
-  tearDown(() async => database.close());
+  tearDown(() => database.close());
 
   test(
     'a promoted catalog task completes before remaining album hydration',
@@ -381,127 +381,119 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'promotion completion closes only running broad catalog work',
-    () async {
-      await database.librarySyncDao.enqueueWork(
+  test('promotion completion closes only running broad catalog work', () async {
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.fullRepair.name,
+      priority: 80,
+    );
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.catalogSnapshot.name,
+      priority: 50,
+    );
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: 'album:pending',
+      priority: 30,
+    );
+    for (final kind in <LibrarySyncPlanKind>[
+      LibrarySyncPlanKind.fullRepair,
+      LibrarySyncPlanKind.catalogSnapshot,
+      LibrarySyncPlanKind.targetedHydration,
+    ]) {
+      final work = await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: kind.name,
+        entityId: kind == LibrarySyncPlanKind.targetedHydration
+            ? 'album:pending'
+            : '',
+      );
+      await database.librarySyncDao.markRunning(work!.id);
+    }
+
+    await database.librarySyncDao.completeRunningCatalogWork(1);
+
+    expect(
+      (await database.librarySyncDao.getWork(
         serverId: 1,
         kind: LibrarySyncPlanKind.fullRepair.name,
-        priority: 80,
-      );
-      await database.librarySyncDao.enqueueWork(
+      ))?.status,
+      'completed',
+    );
+    expect(
+      (await database.librarySyncDao.getWork(
         serverId: 1,
         kind: LibrarySyncPlanKind.catalogSnapshot.name,
-        priority: 50,
-      );
-      await database.librarySyncDao.enqueueWork(
+      ))?.status,
+      'completed',
+    );
+    expect(
+      (await database.librarySyncDao.getWork(
         serverId: 1,
         kind: LibrarySyncPlanKind.targetedHydration.name,
         entityId: 'album:pending',
-        priority: 30,
-      );
-      for (final kind in <LibrarySyncPlanKind>[
-        LibrarySyncPlanKind.fullRepair,
-        LibrarySyncPlanKind.catalogSnapshot,
-        LibrarySyncPlanKind.targetedHydration,
-      ]) {
-        final work = await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: kind.name,
-          entityId: kind == LibrarySyncPlanKind.targetedHydration
-              ? 'album:pending'
-              : '',
-        );
-        await database.librarySyncDao.markRunning(work!.id);
-      }
+      ))?.status,
+      'running',
+    );
+  }, skip: !sqliteAvailable);
 
-      await database.librarySyncDao.completeRunningCatalogWork(1);
+  test('same-ID targeted work remains distinct by entity type', () async {
+    const sharedId = 'shared-id';
+    await coordinator.requestSync(
+      const LibrarySyncRequest(
+        trigger: LibrarySyncTrigger.interaction,
+        intent: LibrarySyncIntent.checkForUpdates,
+        target: LibrarySyncTarget.artist(sharedId),
+      ),
+    );
+    await coordinator.requestSync(
+      const LibrarySyncRequest(
+        trigger: LibrarySyncTrigger.interaction,
+        intent: LibrarySyncIntent.checkForUpdates,
+        target: LibrarySyncTarget.album(sharedId),
+      ),
+    );
+    await coordinator.requestSync(
+      const LibrarySyncRequest(
+        trigger: LibrarySyncTrigger.interaction,
+        intent: LibrarySyncIntent.checkForUpdates,
+        target: LibrarySyncTarget.playlist(sharedId),
+      ),
+    );
 
-      expect(
-        (await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: LibrarySyncPlanKind.fullRepair.name,
-        ))?.status,
-        'completed',
-      );
-      expect(
-        (await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: LibrarySyncPlanKind.catalogSnapshot.name,
-        ))?.status,
-        'completed',
-      );
-      expect(
-        (await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: LibrarySyncPlanKind.targetedHydration.name,
-          entityId: 'album:pending',
-        ))?.status,
-        'running',
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+    final artistWork = await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: librarySyncTargetWorkKey(
+        const LibrarySyncTarget.artist(sharedId),
+      ),
+    );
+    final albumWork = await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: librarySyncTargetWorkKey(
+        const LibrarySyncTarget.album(sharedId),
+      ),
+    );
 
-  test(
-    'same-ID targeted work remains distinct by entity type',
-    () async {
-      const sharedId = 'shared-id';
-      await coordinator.requestSync(
-        const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.artist(sharedId),
-        ),
-      );
-      await coordinator.requestSync(
-        const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.album(sharedId),
-        ),
-      );
-      await coordinator.requestSync(
-        const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.playlist(sharedId),
-        ),
-      );
-
-      final artistWork = await database.librarySyncDao.getWork(
-        serverId: 1,
-        kind: LibrarySyncPlanKind.targetedHydration.name,
-        entityId: librarySyncTargetWorkKey(
-          const LibrarySyncTarget.artist(sharedId),
-        ),
-      );
-      final albumWork = await database.librarySyncDao.getWork(
-        serverId: 1,
-        kind: LibrarySyncPlanKind.targetedHydration.name,
-        entityId: librarySyncTargetWorkKey(
-          const LibrarySyncTarget.album(sharedId),
-        ),
-      );
-
-      expect(artistWork, isNotNull);
-      expect(albumWork, isNotNull);
-      expect(artistWork?.id, isNot(albumWork?.id));
-      expect(
-        executor.targetedCalls,
-        containsAll(<String>[
-          'artist:$sharedId',
-          'album:$sharedId',
-          'playlist:$sharedId',
-        ]),
-      );
-      expect(
-        executor.targetedCalls,
-        isNot(contains('playlist:playlist:$sharedId')),
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(artistWork, isNotNull);
+    expect(albumWork, isNotNull);
+    expect(artistWork?.id, isNot(albumWork?.id));
+    expect(
+      executor.targetedCalls,
+      containsAll(<String>[
+        'artist:$sharedId',
+        'album:$sharedId',
+        'playlist:$sharedId',
+      ]),
+    );
+    expect(
+      executor.targetedCalls,
+      isNot(contains('playlist:playlist:$sharedId')),
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'target hydration preserves a persisted catalog retry cooldown',
@@ -632,50 +624,46 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'manual refresh does not let queued album hydration replace catalog discovery',
-    () async {
-      await database.librarySyncDao.writeState(
-        const LibrarySyncStateTableCompanion(
-          serverId: Value(1),
-          currentGeneration: Value(1),
-        ),
-      );
-      final probeEngine = _ProbeLibrarySyncEngine();
-      final manualCoordinator = AdaptiveLibrarySyncCoordinator(
-        executor: probeEngine,
-        database: database,
-        serverConfigRepository: repository,
-        networkType: NetworkType.wifi,
-        staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
-        now: () => DateTime.utc(2026, 8, 4),
-      );
-      const target = LibrarySyncTarget.album('album-pending');
-      await database.librarySyncDao.enqueueWork(
+  test('manual refresh does not let queued album hydration replace catalog discovery', () async {
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        currentGeneration: Value(1),
+      ),
+    );
+    final probeEngine = _ProbeLibrarySyncEngine();
+    final manualCoordinator = AdaptiveLibrarySyncCoordinator(
+      executor: probeEngine,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+    const target = LibrarySyncTarget.album('album-pending');
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: librarySyncTargetWorkKey(target),
+      priority: 100,
+      workClass: 'interactive',
+    );
+
+    final result = await manualCoordinator.syncNow();
+
+    expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+    expect(probeEngine.syncNowCalls, 1);
+    expect(probeEngine.hydrateAlbumCalls, 0);
+    expect(
+      (await database.librarySyncDao.getWork(
         serverId: 1,
         kind: LibrarySyncPlanKind.targetedHydration.name,
         entityId: librarySyncTargetWorkKey(target),
-        priority: 100,
-        workClass: 'interactive',
-      );
-
-      final result = await manualCoordinator.syncNow();
-
-      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
-      expect(probeEngine.syncNowCalls, 1);
-      expect(probeEngine.hydrateAlbumCalls, 0);
-      expect(
-        (await database.librarySyncDao.getWork(
-          serverId: 1,
-          kind: LibrarySyncPlanKind.targetedHydration.name,
-          entityId: librarySyncTargetWorkKey(target),
-        ))?.status,
-        'queued',
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+      ))?.status,
+      'queued',
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'escalated delta reconciliation is claimed by the next due automatic sync',
@@ -788,52 +776,45 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'manual cellular refresh runs bounded discovery before a broad-data override',
-    () async {
-      await database.librarySyncDao.writeState(
-        const LibrarySyncStateTableCompanion(
-          serverId: Value(1),
-          currentGeneration: Value(1),
-        ),
-      );
-      final probeEngine = _ProbeLibrarySyncEngine();
-      const policy = SyncNetworkPolicy(
-        networkType: NetworkType.cellular,
-        isMetered: true,
-        allowsBackgroundSync: false,
-        allowsHardProbe: true,
-        allowsInteractiveHydration: true,
-      );
-      final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
-        executor: probeEngine,
-        database: database,
-        serverConfigRepository: repository,
-        readSyncNetworkPolicy: () => policy,
-        staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
-        now: () => DateTime.utc(2026, 8, 4),
-      );
+  test('manual cellular refresh runs bounded discovery before a broad-data override', () async {
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        currentGeneration: Value(1),
+      ),
+    );
+    final probeEngine = _ProbeLibrarySyncEngine();
+    const policy = SyncNetworkPolicy(
+      networkType: NetworkType.cellular,
+      isMetered: true,
+      allowsBackgroundSync: false,
+      allowsHardProbe: true,
+      allowsInteractiveHydration: true,
+    );
+    final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+      executor: probeEngine,
+      database: database,
+      serverConfigRepository: repository,
+      readSyncNetworkPolicy: () => policy,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
 
-      final discoveryResult = await meteredCoordinator.syncNow();
+    final discoveryResult = await meteredCoordinator.syncNow();
 
-      expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
-      expect(
-        discoveryResult.planReason,
-        'manualMeteredLimitedDiscovery',
-      );
-      expect(probeEngine.probeCalls, 0);
-      expect(probeEngine.syncNowCalls, 1);
+    expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
+    expect(discoveryResult.planReason, 'manualMeteredLimitedDiscovery');
+    expect(probeEngine.probeCalls, 0);
+    expect(probeEngine.syncNowCalls, 1);
 
-      final broadResult = await meteredCoordinator.syncNow(
-        allowMeteredBroadOverride: true,
-      );
+    final broadResult = await meteredCoordinator.syncNow(
+      allowMeteredBroadOverride: true,
+    );
 
-      expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
-      expect(probeEngine.syncNowCalls, 2);
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
+    expect(probeEngine.syncNowCalls, 2);
+  }, skip: !sqliteAvailable);
 
   test(
     'manual cellular refresh does not resume a queued automatic probe',
@@ -953,83 +934,75 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'interactive album hydration is allowed on metered networks',
-    () async {
-      final probeEngine = _ProbeLibrarySyncEngine();
-      final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
-        executor: probeEngine,
-        database: database,
-        serverConfigRepository: repository,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
+  test('interactive album hydration is allowed on metered networks', () async {
+    final probeEngine = _ProbeLibrarySyncEngine();
+    final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+      executor: probeEngine,
+      database: database,
+      serverConfigRepository: repository,
+      readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+        networkType: NetworkType.cellular,
+        isMetered: true,
+        allowsBackgroundSync: false,
+        allowsHardProbe: true,
+        allowsInteractiveHydration: true,
+      ),
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+
+    await meteredCoordinator.requestSync(
+      const LibrarySyncRequest(
+        trigger: LibrarySyncTrigger.interaction,
+        intent: LibrarySyncIntent.checkForUpdates,
+        target: LibrarySyncTarget.album('album-1'),
+      ),
+    );
+
+    final work = await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: librarySyncTargetWorkKey(
+        const LibrarySyncTarget.album('album-1'),
+      ),
+    );
+    expect(work?.workClass, 'interactive');
+    expect(work?.status, 'completed');
+  }, skip: !sqliteAvailable);
+
+  test('failed sync keeps executor failure diagnostics', () async {
+    final failingExecutor = _ProbeLibrarySyncEngine()
+      ..forcedResult = LibrarySyncState(
+        status: LibrarySyncStatus.failed,
+        stage: LibrarySyncStage.completed,
+        completedAt: DateTime.utc(2026, 8, 4),
+      );
+    final failingCoordinator = AdaptiveLibrarySyncCoordinator(
+      executor: failingExecutor,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        endpointFailureJson: Value(
+          '{"stage":"collectingCandidate","endpoint":"getAlbum",'
+          '"entityId":"album-1","exceptionType":"TimeoutException"}',
         ),
-        staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
-        now: () => DateTime.utc(2026, 8, 4),
-      );
+      ),
+    );
 
-      await meteredCoordinator.requestSync(
-        const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.album('album-1'),
-        ),
-      );
+    await failingCoordinator.requestSync(const LibrarySyncRequest.repair());
 
-      final work = await database.librarySyncDao.getWork(
-        serverId: 1,
-        kind: LibrarySyncPlanKind.targetedHydration.name,
-        entityId: librarySyncTargetWorkKey(
-          const LibrarySyncTarget.album('album-1'),
-        ),
-      );
-      expect(work?.workClass, 'interactive');
-      expect(work?.status, 'completed');
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test(
-    'failed sync keeps executor failure diagnostics',
-    () async {
-      final failingExecutor = _ProbeLibrarySyncEngine()
-        ..forcedResult = LibrarySyncState(
-          status: LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.utc(2026, 8, 4),
-        );
-      final failingCoordinator = AdaptiveLibrarySyncCoordinator(
-        executor: failingExecutor,
-        database: database,
-        serverConfigRepository: repository,
-        networkType: NetworkType.wifi,
-        staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
-        now: () => DateTime.utc(2026, 8, 4),
-      );
-      await database.librarySyncDao.writeState(
-        const LibrarySyncStateTableCompanion(
-          serverId: Value(1),
-          endpointFailureJson: Value(
-            '{"stage":"collectingCandidate","endpoint":"getAlbum",'
-            '"entityId":"album-1","exceptionType":"TimeoutException"}',
-          ),
-        ),
-      );
-
-      await failingCoordinator.requestSync(const LibrarySyncRequest.repair());
-
-      final persisted = await database.librarySyncDao.getOrCreateState(1);
-      expect(persisted.endpointFailureJson, contains('collectingCandidate'));
-      expect(persisted.endpointFailureJson, contains('TimeoutException'));
-    },
-    skip: !sqliteAvailable,
-  );
+    final persisted = await database.librarySyncDao.getOrCreateState(1);
+    expect(persisted.endpointFailureJson, contains('collectingCandidate'));
+    expect(persisted.endpointFailureJson, contains('TimeoutException'));
+  }, skip: !sqliteAvailable);
 
   test(
     'metered repair without consent defers before joining or starting work',

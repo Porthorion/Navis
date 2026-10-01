@@ -13,6 +13,17 @@
 When a removal is reintroduced, retain this history row and add the new
 decision/replacement information rather than erasing the record.
 
+## 2026-09-27 — Unversioned Windows SQLite cache fallback
+
+Remote Windows packaging previously accepted any DLL from older local build
+caches and patched published sqlite3 hook files to find sibling cached assets.
+This could select a binary unrelated to the locked package, and the patched
+hook path was obsolete. Packaging now requires the exact locked release DLL,
+checks its published SHA-256 locally and again after transfer, and configures
+the supported bundled-file hook source. Missing or mismatched assets fail
+explicitly. See `tool/remote_build_windows.sh`,
+`tool/sqlite3_windows_asset.py`, and `docs/ci-cd.md`.
+
 ### 2026-09-19 — Direct favorite/rating network writes
 
 Favorite controls and rating actions no longer send independent API requests or

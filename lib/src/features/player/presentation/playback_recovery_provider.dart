@@ -41,21 +41,19 @@ final playbackRecoveryServiceProvider = Provider<PlaybackRecoveryService>((
 });
 
 class _PlaybackRecoveryService implements PlaybackRecoveryService {
-  _PlaybackRecoveryService({
-    required Future<void> Function() abortBootstrap,
-    required Future<void> Function() startBootstrapRetry,
-    required void Function() navigateToLibraryRebuild,
-    required Future<void> Function(bool wipeLocalData) signOut,
-    required Future<void> Function() refreshServerConfig,
-  }) : _abortBootstrap = abortBootstrap,
-       _startBootstrapRetry = startBootstrapRetry,
-       _navigateToLibraryRebuild = navigateToLibraryRebuild,
-       _signOut = signOut,
-       _refreshServerConfig = refreshServerConfig;
+  new({
+    required this._abortBootstrap,
+    required this._startBootstrapRetry,
+    required this._navigateToLibraryRebuild,
+    required this._signOut,
+    required this._refreshServerConfig,
+  });
 
   final Future<void> Function() _abortBootstrap;
   final Future<void> Function() _startBootstrapRetry;
   final void Function() _navigateToLibraryRebuild;
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   final Future<void> Function(bool wipeLocalData) _signOut;
   final Future<void> Function() _refreshServerConfig;
 

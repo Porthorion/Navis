@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 double? resolveBufferedSeekValue({

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -91,7 +91,7 @@ GoRouter createNavigationShellHarnessRouter({
 
 /// The shell used by [createNavigationShellHarnessRouter].
 class HarnessShell extends ConsumerWidget {
-  const HarnessShell({required this.navigationShell, super.key});
+  const new({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
@@ -123,7 +123,7 @@ class HarnessShell extends ConsumerWidget {
 
 /// A placeholder page with buttons for common [NavService] actions.
 class HarnessPage extends ConsumerWidget {
-  const HarnessPage({required this.title, this.heroTag, super.key});
+  const new({required this.title, this.heroTag, super.key});
 
   final String title;
   final String? heroTag;

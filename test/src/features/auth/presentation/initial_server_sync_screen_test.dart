@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -13,8 +14,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 class _StaticRequiredRebuildController
     extends RequiredLibraryRebuildController {
-  _StaticRequiredRebuildController(this.initial)
-    : super(RequiredLibraryRebuildReason.initialLogin);
+  new(this.initial) : super(RequiredLibraryRebuildReason.initialLogin);
 
   final RequiredLibraryRebuildState initial;
   int retryCalls = 0;
@@ -35,7 +35,7 @@ class _StaticRequiredRebuildController
 }
 
 class _StaticLibrarySyncController extends LibrarySyncController {
-  _StaticLibrarySyncController(this.initial);
+  new(this.initial);
 
   final LibrarySyncState initial;
 
@@ -60,7 +60,7 @@ Widget _testApp({
       ),
     ],
     child: MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(colorSchemeSeed: Colors.indigo),
       home: const InitialServerSyncScreen(),
@@ -86,10 +86,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('requiredSyncRetry')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('requiredSyncSignOut')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('requiredSyncRetry')));
     await tester.pump();

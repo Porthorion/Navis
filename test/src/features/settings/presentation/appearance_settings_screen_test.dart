@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -50,7 +51,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: testTheme(buildLightTheme(defaultColorSchemeSeedColor)),
           builder: (context, child) => MediaQuery(
@@ -90,7 +91,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
@@ -113,10 +114,7 @@ void main() {
     await pumpAppearance(tester);
 
     final defaultDecoration = chipDecoration(tester, 'default');
-    expect(
-      (defaultDecoration.border! as Border).top.width,
-      3,
-    );
+    expect((defaultDecoration.border! as Border).top.width, 3);
 
     final orangeValue = Colors.orange.toARGB32();
     final orangeKey = 'preset-$orangeValue';
@@ -207,18 +205,12 @@ void main() {
 
     expect(customWarmFinder, findsOneWidget);
     expect(
-      find.byKey(
-        ValueKey<String>(
-          'customColorBadge-custom-$customWarm',
-        ),
-      ),
+      find.byKey(ValueKey<String>('customColorBadge-custom-$customWarm')),
       findsOneWidget,
     );
     expect(
       find.byKey(
-        ValueKey<String>(
-          'customColorBadge-custom-${Colors.orange.toARGB32()}',
-        ),
+        ValueKey<String>('customColorBadge-custom-${Colors.orange.toARGB32()}'),
       ),
       findsNothing,
     );
@@ -236,9 +228,8 @@ void main() {
     );
     expect(
       find.bySemanticsLabel(
-        lookupAppLocalizations(
-          const Locale('en'),
-        ).appearanceColorCustomSemantics('Custom: Coral'),
+        lookupAppLocalizations(const Locale('en'))
+            .appearanceColorCustomSemantics('Custom: Coral'),
       ),
       findsOneWidget,
     );
@@ -286,10 +277,7 @@ void main() {
       find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
       findsOneWidget,
     );
-    expect(
-      find.text(l10n.appearanceColorSchemeDynamicSub),
-      findsOneWidget,
-    );
+    expect(find.text(l10n.appearanceColorSchemeDynamicSub), findsOneWidget);
   });
 
   testWidgets('artwork choices wrap and save on a phone with large text', (

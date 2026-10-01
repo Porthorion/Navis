@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Default seed used when no explicit color has been saved.
@@ -16,13 +16,13 @@ Color resolveColorSchemeSeedColor(int? seed) {
 /// the selected accent should be shown exactly when it remains readable.
 @immutable
 class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
-  const NavisAccentColors({
+  const new({
     required this.source,
     required this.brand,
     required this.brandTrack,
   });
 
-  factory NavisAccentColors.fromScheme({
+  factory fromScheme({
     required Color source,
     required ColorScheme colorScheme,
   }) {
@@ -68,11 +68,7 @@ class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
   }
 
   @override
-  NavisAccentColors copyWith({
-    Color? source,
-    Color? brand,
-    Color? brandTrack,
-  }) {
+  NavisAccentColors copyWith({Color? source, Color? brand, Color? brandTrack}) {
     return NavisAccentColors(
       source: source ?? this.source,
       brand: brand ?? this.brand,
@@ -81,10 +77,7 @@ class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
   }
 
   @override
-  NavisAccentColors lerp(
-    ThemeExtension<NavisAccentColors>? other,
-    double t,
-  ) {
+  NavisAccentColors lerp(ThemeExtension<NavisAccentColors>? other, double t) {
     if (other is! NavisAccentColors) {
       return this;
     }
@@ -282,10 +275,7 @@ ThemeData _buildNavisTheme(
         : null,
     extensions: <ThemeExtension<dynamic>>[
       NavisTokens.forScheme(colorScheme, oled: oled),
-      NavisAccentColors.fromScheme(
-        source: seedColor,
-        colorScheme: colorScheme,
-      ),
+      NavisAccentColors.fromScheme(source: seedColor, colorScheme: colorScheme),
     ],
   );
 }
@@ -316,7 +306,7 @@ const List<NamedColor> presetColors = <NamedColor>[
 
 /// A named color for the scheme picker UI.
 class NamedColor {
-  const NamedColor(this.name, this.color);
+  const new(this.name, this.color);
   final String name;
   final Color color;
 }

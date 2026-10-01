@@ -66,15 +66,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         deactivate();
       }
     });
-    ref.listen<RecommendationSessionStatus>(
-      recommendationSessionProvider,
-      (previous, next) {
-        final session = _session;
-        if (session != null && next.generation != session.generation) {
-          deactivate();
-        }
-      },
-    );
+    ref.listen<RecommendationSessionStatus>(recommendationSessionProvider, (
+      previous,
+      next,
+    ) {
+      final session = _session;
+      if (session != null && next.generation != session.generation) {
+        deactivate();
+      }
+    });
     ref.onDispose(() {
       _retryTimer?.cancel();
       _retryTimer = null;
@@ -90,16 +90,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _mixSegmentEndIndex = null;
     _session = ref
         .read(recommendationSessionProvider.notifier)
-        .start(
-          RecommendationMode.sameVibes,
-          seedId: normalizedSeedSongId,
-        );
+        .start(RecommendationMode.sameVibes, seedId: normalizedSeedSongId);
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
-    state = SameVibesState(
-      active: true,
-      seedSongId: normalizedSeedSongId,
-    );
+    state = SameVibesState(active: true, seedSongId: normalizedSeedSongId);
     try {
       await _refill(isInitial: true);
     } finally {
@@ -540,9 +534,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         }
         _scheduleTransientRetry(reason: fallbackReason);
       } else {
-        AppLogger.debug(
-          'SameVibes diagnostics: queuedTracks=$totalQueued',
-        );
+        AppLogger.debug('SameVibes diagnostics: queuedTracks=$totalQueued');
         _consecutiveTransientFailures = 0;
         _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);
       }
@@ -668,9 +660,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
     final attemptsLimit = sortedRecs
         .take(maxSearchAttempts)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     var attempts = 0;
     var misses = 0;
     var mappedCount = 0;
@@ -1180,20 +1170,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 }
 
 class _SeedMetadata {
-  const _SeedMetadata({
-    required this.artist,
-    required this.title,
-  });
+  const new({required this.artist, required this.title});
 
   final String artist;
   final String title;
 }
 
 class _CandidatePreferenceContext {
-  const _CandidatePreferenceContext({
-    required this.downloadedSongIds,
-    required this.cachedSongIds,
-  });
+  const new({required this.downloadedSongIds, required this.cachedSongIds});
 
   final Set<String> downloadedSongIds;
   final Set<String> cachedSongIds;
@@ -1218,7 +1202,7 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
       return const <String, int?>{};
     }
     final dao = ref.read(navisDatabaseProvider).libraryDao;
-    return dao.getAlbumSongCountsByIds(albumIds);
+    return await dao.getAlbumSongCountsByIds(albumIds);
   };
 });
 

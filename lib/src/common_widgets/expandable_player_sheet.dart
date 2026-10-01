@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
@@ -10,7 +10,7 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// to `Offset(0,0)` — a GPU-composited transform with zero layout reflow.
 /// The mini player fades out over the first 30 % of the gesture.
 class ExpandablePlayerSheet extends StatefulWidget {
-  const ExpandablePlayerSheet({
+  const new({
     required this.miniPlayer,
     required this.fullPlayer,
     required this.isExpanded,

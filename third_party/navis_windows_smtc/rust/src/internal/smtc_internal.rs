@@ -4,7 +4,7 @@ use crate::frb_generated::StreamSink;
 use anyhow::anyhow;
 use windows::{
     core::HSTRING,
-    Foundation::{self, EventRegistrationToken, TypedEventHandler},
+    Foundation::{self, TypedEventHandler},
     Media::{
         AutoRepeatModeChangeRequestedEventArgs, MediaPlaybackAutoRepeatMode, MediaPlaybackType,
         PlaybackPositionChangeRequestedEventArgs, ShuffleEnabledChangeRequestedEventArgs,
@@ -27,10 +27,10 @@ pub struct SMTCInternal {
 
 #[derive(Default)]
 struct Subscriptions {
-    button: Option<EventRegistrationToken>,
-    position: Option<EventRegistrationToken>,
-    shuffle: Option<EventRegistrationToken>,
-    repeat: Option<EventRegistrationToken>,
+    button: Option<i64>,
+    position: Option<i64>,
+    shuffle: Option<i64>,
+    repeat: Option<i64>,
 }
 
 fn artwork_uri(thumbnail: &HSTRING) -> Option<Foundation::Uri> {
@@ -39,6 +39,11 @@ fn artwork_uri(thumbnail: &HSTRING) -> Option<Foundation::Uri> {
         return None;
     }
     Foundation::Uri::CreateUri(&HSTRING::from(value)).ok()
+}
+
+fn playback_position_ms(position: Foundation::TimeSpan) -> i64 {
+    // WinRT uses 100 ns ticks; the Dart event stream uses milliseconds.
+    position.Duration / 10_000
 }
 
 impl SMTCInternal {
@@ -205,7 +210,7 @@ impl SMTCInternal {
             let Ok(position) = args.RequestedPlaybackPosition() else {
                 return Ok(());
             };
-            let _ = sink.add(position.Duration);
+            let _ = sink.add(playback_position_ms(position));
             Ok(())
         });
         let token = self
@@ -291,8 +296,26 @@ impl Drop for SMTCInternal {
 
 #[cfg(test)]
 mod tests {
-    use super::{artwork_uri, Subscriptions};
+    use super::{artwork_uri, playback_position_ms, Subscriptions};
+    use std::time::Duration;
     use windows::core::HSTRING;
+    use windows::Foundation::TimeSpan;
+
+    #[test]
+    fn windows_seek_position_reaches_dart_in_milliseconds() {
+        assert_eq!(
+            playback_position_ms(TimeSpan::from(Duration::from_secs(5))),
+            5_000
+        );
+        assert_eq!(playback_position_ms(TimeSpan::from(Duration::ZERO)), 0);
+        assert_eq!(playback_position_ms(TimeSpan { Duration: 123_456 }), 12);
+        assert_eq!(
+            playback_position_ms(TimeSpan {
+                Duration: -50_000_000
+            }),
+            -5_000
+        );
+    }
 
     #[test]
     fn invalid_artwork_uri_is_skipped() {

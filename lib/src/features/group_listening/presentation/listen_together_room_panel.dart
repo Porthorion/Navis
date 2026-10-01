@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ListenTogetherRoomPanel extends StatelessWidget {
-  const ListenTogetherRoomPanel({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -12,7 +13,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _MockSettingsRepository extends Mock implements SettingsRepository {}
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
   setUpAll(() {
@@ -293,10 +294,7 @@ void main() {
 
       final gaplessTile = tester.widget<SwitchListTile>(gaplessToggle);
       expect(gaplessTile.value, isTrue);
-      expect(
-        find.textContaining('These features conflict'),
-        findsNothing,
-      );
+      expect(find.textContaining('These features conflict'), findsNothing);
 
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pumpAndSettle();
@@ -351,7 +349,7 @@ void main() {
 Widget _buildTestApp({bool desktopMode = false}) {
   return MaterialApp(
     theme: testTheme(),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: navisLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: desktopMode
         ? AdaptiveContextScope(

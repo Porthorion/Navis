@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class EmptyState extends StatelessWidget {
-  const EmptyState({
+  const new({
     required this.title,
     super.key,
     this.subtitle,

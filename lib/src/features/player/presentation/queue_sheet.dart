@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -24,7 +24,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// pointer listener can check the scroll offset when deciding whether a
 /// downward drag should move the sheet or scroll the list.
 class QueueSheet extends ConsumerWidget {
-  const QueueSheet({
+  const new({
     required this.scrollController,
     this.sheetDragActive = false,
     this.onReorderDragChanged,
@@ -79,11 +79,12 @@ class QueueSheet extends ConsumerWidget {
                   itemCount: queueIds.length,
                   onReorderStart: (_) => onReorderDragChanged?.call(true),
                   onReorderEnd: (_) => onReorderDragChanged?.call(false),
-                  onReorder: (oldIndex, newIndex) async {
+                  onReorderItem: (oldIndex, newIndex) async {
                     if (actionsDisabled) return;
+                    // The handler retains the insertion index before removal.
                     await ref.read(reorderQueueProvider)(
                       oldIndex,
-                      newIndex,
+                      oldIndex < newIndex ? newIndex + 1 : newIndex,
                     );
                   },
                   itemBuilder: (context, index) {
@@ -122,9 +123,7 @@ class QueueSheet extends ConsumerWidget {
                         if (actionsDisabled) return;
                         await ref
                             .read(queueProvider.notifier)
-                            .playFromIndex(
-                              index,
-                            );
+                            .playFromIndex(index);
                       },
                     );
                   },
@@ -163,7 +162,7 @@ class QueueSheet extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _QueueSheetHeader extends ConsumerWidget {
-  const _QueueSheetHeader({
+  const new({
     required this.queueIds,
     required this.actionsDisabled,
     required this.onClose,
@@ -192,9 +191,8 @@ class _QueueSheetHeader extends ConsumerWidget {
                 width: 22,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -224,11 +222,8 @@ class _QueueSheetHeader extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.playlist_add),
                   tooltip: l10n.queueSaveAsPlaylist,
-                  onPressed: () => _showSaveAsPlaylistDialog(
-                    context,
-                    ref,
-                    queueIds,
-                  ),
+                  onPressed: () =>
+                      _showSaveAsPlaylistDialog(context, ref, queueIds),
                 ),
               if (queueIds.isNotEmpty)
                 IconButton(
@@ -283,9 +278,7 @@ class _QueueSheetHeader extends ConsumerWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(
-            labelText: l10n.queueSaveAsPlaylistName,
-          ),
+          decoration: InputDecoration(labelText: l10n.queueSaveAsPlaylistName),
           onSubmitted: (_) => _savePlaylist(
             dialogContext,
             context,
@@ -345,7 +338,7 @@ class _QueueSheetHeader extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _QueueItem extends ConsumerStatefulWidget {
-  const _QueueItem({
+  const new({
     required super.key,
     required this.songId,
     required this.index,
@@ -432,9 +425,8 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
             child: ListTile(
               selected: isSelected,
               selectedColor: Theme.of(context).colorScheme.primary,
-              selectedTileColor: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.08),
+              selectedTileColor: Theme.of(context).colorScheme.primary
+                  .withValues(alpha: 0.08),
               leading: ArtworkPlaybackMarker(
                 state: widget.indicatorState,
                 child: CoverArtImage(
@@ -482,21 +474,19 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                           ? Icon(
                               Icons.drag_indicator_rounded,
                               size: 18,
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant.withValues(
-                                    alpha: 0.38,
-                                  ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withValues(alpha: 0.38),
                             )
                           : ReorderableDragStartListener(
                               index: widget.index,
                               child: Icon(
                                 Icons.drag_indicator_rounded,
                                 size: 18,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                             ),
                     ),

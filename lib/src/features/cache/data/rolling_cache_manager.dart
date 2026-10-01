@@ -37,13 +37,9 @@ abstract class RollingCacheManager {
 enum RollingCacheActivityStatus { idle, caching }
 
 class RollingCacheActivity {
-  const RollingCacheActivity({
-    required this.status,
-    this.songId,
-    this.progress,
-  });
+  const new({required this.status, this.songId, this.progress});
 
-  const RollingCacheActivity.idle()
+  const new idle()
     : status = RollingCacheActivityStatus.idle,
       songId = null,
       progress = null;
@@ -56,14 +52,12 @@ class RollingCacheActivity {
 }
 
 class DriftRollingCacheManager implements RollingCacheManager {
-  DriftRollingCacheManager({
-    required CacheDao cacheDao,
-    SongIdentityDao? songIdentityDao,
+  new({
+    required this._cacheDao,
+    this._songIdentityDao,
     Future<bool> Function(CachedTracksTableData entry)? entryExists,
     DateTime Function()? now,
-  }) : _cacheDao = cacheDao,
-       _songIdentityDao = songIdentityDao,
-       _entryExists = entryExists ?? _defaultEntryExists,
+  }) : _entryExists = entryExists ?? _defaultEntryExists,
        _now = now ?? DateTime.now;
 
   final CacheDao _cacheDao;

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:colornames/colornames.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +19,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
-  const AppearanceSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -157,9 +157,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 onSavePreset: (colorValue) async {
                   if (_normalizeColorSchemeSeed(colorValue) == null) return;
                   final db = ref.read(navisDatabaseProvider);
-                  final updated = {...customPresets, colorValue}.toList(
-                    growable: false,
-                  );
+                  final updated = {
+                    ...customPresets,
+                    colorValue,
+                  }.toList(growable: false);
                   await db.appSettingsDao.updateCustomColorPresets(
                     jsonEncode(updated),
                   );
@@ -408,19 +409,21 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           jsonEncode(newOrder),
                         );
                       },
-                      onToggleVisibility: (sectionId, visible) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        final current = List<String>.from(sanitizedHidden);
-                        if (visible) {
-                          current.remove(sectionId);
-                        } else {
-                          if (!current.contains(sectionId))
-                            current.add(sectionId);
-                        }
-                        await db.appSettingsDao.updateHomeSectionsHidden(
-                          current.isEmpty ? null : jsonEncode(current),
-                        );
-                      },
+                      onToggleVisibility:
+                          (sectionId, {required visible}) async {
+                            final db = ref.read(navisDatabaseProvider);
+                            final current = List<String>.from(sanitizedHidden);
+                            if (visible) {
+                              current.remove(sectionId);
+                            } else {
+                              if (!current.contains(sectionId)) {
+                                current.add(sectionId);
+                              }
+                            }
+                            await db.appSettingsDao.updateHomeSectionsHidden(
+                              current.isEmpty ? null : jsonEncode(current),
+                            );
+                          },
                     ),
                   ],
                 ),
@@ -449,7 +452,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                       ),
                     );
                   },
-                  onToggleVisibility: (section, visible) async {
+                  onToggleVisibility: (section, {required visible}) async {
                     final db = ref.read(navisDatabaseProvider);
                     switch (section) {
                       case LibrarySection.albums:
@@ -517,7 +520,7 @@ String _localeLabel(Locale locale, AppLocalizations l10n) {
 }
 
 class _LanguageSelector extends StatelessWidget {
-  const _LanguageSelector({
+  const new({
     required this.appLocale,
     required this.enabled,
     required this.onChanged,
@@ -556,7 +559,7 @@ class _LanguageSelector extends StatelessWidget {
 }
 
 class _SettingsCollapsibleGroup extends StatefulWidget {
-  const _SettingsCollapsibleGroup({
+  const new({
     required this.leading,
     required this.title,
     required this.child,
@@ -671,18 +674,14 @@ class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
 }
 
 class _CyclingShapeIcon extends StatefulWidget {
-  const _CyclingShapeIcon();
+  const new();
 
   @override
   State<_CyclingShapeIcon> createState() => _CyclingShapeIconState();
 }
 
 class _CyclingShapeIconState extends State<_CyclingShapeIcon> {
-  static const List<double> _cornerRadii = <double>[
-    1.5,
-    6,
-    999,
-  ];
+  static const List<double> _cornerRadii = <double>[1.5, 6, 999];
   Timer? _timer;
   int _index = 0;
 
@@ -728,7 +727,7 @@ class _CyclingShapeIconState extends State<_CyclingShapeIcon> {
 }
 
 class _BlinkingEyeIcon extends StatefulWidget {
-  const _BlinkingEyeIcon();
+  const new();
 
   @override
   State<_BlinkingEyeIcon> createState() => _BlinkingEyeIconState();
@@ -779,10 +778,7 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
 
 /// Shared theme-mode control used by Appearance and first-run customization.
 class ThemeModeSelector extends StatelessWidget {
-  const ThemeModeSelector({
-    required this.currentMode,
-    required this.onChanged,
-  });
+  const new({super.key, required this.currentMode, required this.onChanged});
 
   final String currentMode;
   final ValueChanged<String> onChanged;
@@ -835,7 +831,8 @@ class ThemeModeSelector extends StatelessWidget {
 
 /// Shared accent-color control used by Appearance and first-run customization.
 class ColorSchemeGrid extends StatelessWidget {
-  const ColorSchemeGrid({
+  const new({
+    super.key,
     required this.currentSeed,
     required this.dynamicAlbumColorEnabled,
     required this.customPresets,
@@ -930,7 +927,7 @@ class ColorSchemeGrid extends StatelessWidget {
 }
 
 class _ColorSwatchEntry {
-  const _ColorSwatchEntry({
+  const new({
     required this.label,
     required this.colorValue,
     required this.sortKey,
@@ -1031,7 +1028,7 @@ double _customColorSortKey(Color color) {
 }
 
 class _ColorChip extends StatelessWidget {
-  const _ColorChip({
+  const new({
     required this.color,
     required this.label,
     required this.isSelected,
@@ -1163,11 +1160,7 @@ class _ColorChip extends StatelessWidget {
 }
 
 class _RainbowChip extends StatelessWidget {
-  const _RainbowChip({
-    required this.theme,
-    required this.label,
-    required this.onTap,
-  });
+  const new({required this.theme, required this.label, required this.onTap});
 
   final ThemeData theme;
   final String label;
@@ -1202,10 +1195,7 @@ class _RainbowChip extends StatelessWidget {
 
     if (!isDesktopRuntime) return child;
 
-    return Tooltip(
-      message: label,
-      child: child,
-    );
+    return Tooltip(message: label, child: child);
   }
 }
 
@@ -1214,16 +1204,13 @@ class _RainbowChip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ColorPickerResult {
-  const _ColorPickerResult({
-    required this.colorValue,
-    required this.saveAsPreset,
-  });
+  const new({required this.colorValue, required this.saveAsPreset});
   final int colorValue;
   final bool saveAsPreset;
 }
 
 class _ColorPickerDialog extends StatefulWidget {
-  const _ColorPickerDialog({this.initialColor});
+  const new({this.initialColor});
 
   /// If provided, the picker opens pre-seeded with this color.
   final Color? initialColor;
@@ -1322,10 +1309,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               decoration: BoxDecoration(
                 color: _currentColor,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.colorScheme.outline,
-                  width: 2,
-                ),
+                border: Border.all(color: theme.colorScheme.outline, width: 2),
               ),
             ),
             const SizedBox(height: 16),
@@ -1431,10 +1415,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
 }
 
 class _HueSlider extends StatelessWidget {
-  const _HueSlider({
-    required this.hue,
-    required this.onChanged,
-  });
+  const new({required this.hue, required this.onChanged});
 
   final double hue;
   final ValueChanged<double> onChanged;
@@ -1455,11 +1436,7 @@ class _HueSlider extends StatelessWidget {
             ),
           ),
         ),
-        Slider(
-          value: hue,
-          max: 359,
-          onChanged: onChanged,
-        ),
+        Slider(value: hue, max: 359, onChanged: onChanged),
       ],
     );
   }
@@ -1470,10 +1447,7 @@ class _HueSlider extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ArtworkSizeSelector extends StatelessWidget {
-  const _ArtworkSizeSelector({
-    required this.current,
-    required this.onChanged,
-  });
+  const new({required this.current, required this.onChanged});
 
   final GridArtworkSize current;
   final ValueChanged<GridArtworkSize> onChanged;
@@ -1509,10 +1483,7 @@ class _ArtworkSizeSelector extends StatelessWidget {
 }
 
 class _HomeDensitySelector extends StatelessWidget {
-  const _HomeDensitySelector({
-    required this.current,
-    required this.onChanged,
-  });
+  const new({required this.current, required this.onChanged});
 
   final String current;
   final ValueChanged<String> onChanged;
@@ -1535,11 +1506,7 @@ class _HomeDensitySelector extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () => onChanged(value),
             icon: Icon(icon, size: 18),
-            label: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               backgroundColor: selected
@@ -1548,9 +1515,7 @@ class _HomeDensitySelector extends StatelessWidget {
               foregroundColor: selected
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(
-                borderRadius: NavisRadius.mdAll,
-              ),
+              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
             ),
           ),
         ),
@@ -1583,7 +1548,7 @@ class _HomeDensitySelector extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ShapeSelector extends ConsumerWidget {
-  const _ShapeSelector({
+  const new({
     required this.label,
     required this.value,
     required this.onChanged,
@@ -1648,7 +1613,7 @@ class _ShapeSelector extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _HomeSectionReorder extends StatefulWidget {
-  const _HomeSectionReorder({
+  const new({
     required this.order,
     required this.hidden,
     required this.onReorder,
@@ -1658,7 +1623,8 @@ class _HomeSectionReorder extends StatefulWidget {
   final List<String> order;
   final List<String> hidden;
   final ValueChanged<List<String>> onReorder;
-  final void Function(String sectionId, bool visible) onToggleVisibility;
+  final void Function(String sectionId, {required bool visible})
+  onToggleVisibility;
 
   @override
   State<_HomeSectionReorder> createState() => _HomeSectionReorderState();
@@ -1716,9 +1682,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorder: (oldIndex, newIndex) {
+      onReorderItem: (oldIndex, newIndex) {
         setState(() {
-          if (newIndex > oldIndex) newIndex--;
           final item = _localOrder.removeAt(oldIndex);
           _localOrder.insert(newIndex, item);
         });
@@ -1745,7 +1710,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
             ),
             trailing: Switch(
               value: !isHidden,
-              onChanged: (visible) => widget.onToggleVisibility(id, visible),
+              onChanged: (visible) =>
+                  widget.onToggleVisibility(id, visible: visible),
             ),
           ),
         );
@@ -1755,7 +1721,7 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
 }
 
 class _LibraryPageReorder extends StatefulWidget {
-  const _LibraryPageReorder({
+  const new({
     required this.order,
     required this.visibleSections,
     required this.onReorder,
@@ -1765,7 +1731,8 @@ class _LibraryPageReorder extends StatefulWidget {
   final List<LibrarySection> order;
   final Set<LibrarySection> visibleSections;
   final ValueChanged<List<LibrarySection>> onReorder;
-  final void Function(LibrarySection section, bool visible) onToggleVisibility;
+  final void Function(LibrarySection section, {required bool visible})
+  onToggleVisibility;
 
   @override
   State<_LibraryPageReorder> createState() => _LibraryPageReorderState();
@@ -1818,9 +1785,8 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorder: (oldIndex, newIndex) {
+      onReorderItem: (oldIndex, newIndex) {
         setState(() {
-          if (newIndex > oldIndex) newIndex--;
           final item = _localOrder.removeAt(oldIndex);
           _localOrder.insert(newIndex, item);
         });
@@ -1850,7 +1816,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
             trailing: Switch(
               value: visible,
               onChanged: (enabled) =>
-                  widget.onToggleVisibility(section, enabled),
+                  widget.onToggleVisibility(section, visible: enabled),
             ),
           ),
         );
@@ -1860,7 +1826,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
 }
 
 class _DesktopNavbarSettings extends StatelessWidget {
-  const _DesktopNavbarSettings({
+  const new({
     required this.currentStyle,
     required this.autohideEnabled,
     required this.onStyleChanged,
@@ -1893,11 +1859,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () => onStyleChanged(value),
             icon: Icon(icon, size: 18),
-            label: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               backgroundColor: isSelected
@@ -1906,9 +1868,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
               foregroundColor: isSelected
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(
-                borderRadius: NavisRadius.mdAll,
-              ),
+              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
             ),
           ),
         ),

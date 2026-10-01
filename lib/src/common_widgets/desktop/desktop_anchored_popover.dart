@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
@@ -48,9 +48,8 @@ Future<T?> showDesktopAnchoredPopover<T>({
     context: anchorContext,
     useRootNavigator: true,
     barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(
-      anchorContext,
-    ).modalBarrierDismissLabel,
+    barrierLabel: MaterialLocalizations.of(anchorContext)
+        .modalBarrierDismissLabel,
     barrierColor: Colors.transparent,
     transitionDuration: motion.reduceMotion
         ? Duration.zero
@@ -135,7 +134,7 @@ enum _PopoverSlot { card, tail }
 const _tailSize = Size(20, 9);
 
 class _AnchoredPopoverLayout extends MultiChildLayoutDelegate {
-  _AnchoredPopoverLayout({
+  new({
     required this.anchor,
     required this.width,
     required this.maxHeight,
@@ -218,11 +217,8 @@ class _AnchoredPopoverLayout extends MultiChildLayoutDelegate {
 
 /// The small triangle joining the card to its anchor.
 class _TailPainter extends CustomPainter {
-  _TailPainter({
-    required this.fill,
-    required this.edge,
-    required this.pointsDown,
-  }) : super(repaint: pointsDown);
+  new({required this.fill, required this.edge, required this.pointsDown})
+    : super(repaint: pointsDown);
 
   final Color fill;
   final Color edge;

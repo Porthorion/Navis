@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -53,10 +53,7 @@ Future<void> showAddToPlaylistSheet(
 }
 
 class _AddToPlaylistSheet extends ConsumerWidget {
-  const _AddToPlaylistSheet({
-    required this.songIds,
-    this.scrollController,
-  });
+  const new({required this.songIds, this.scrollController});
 
   final List<String> songIds;
   final ScrollController? scrollController;
@@ -102,9 +99,8 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                   child: Text(
                     l10n.playlistsEmpty,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withValues(alpha: 0.6),
                     ),
                   ),
                 );

@@ -544,3 +544,11 @@ These files currently exist locally but are ignored by Git. The workspace lock i
 | wasm-bindgen-shared | 0.2.92 | 0.2.129 |
 | web-sys | 0.3.66 | 0.3.106 |
 
+
+## Owned Android storage bridge added during runtime verification
+
+`third_party/navis_android_storage` 0.1.0 is a private, tracked GPL-3.0
+Flutter plugin. It exposes only a read-only content-URI existence query to
+service-created engines, using application context. It depends on the Flutter
+SDK and the already-used AndroidX DocumentFile 1.1.0; no hosted Dart versions
+were changed. Its source and license ship in this checkout.

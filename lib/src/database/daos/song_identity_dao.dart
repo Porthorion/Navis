@@ -24,7 +24,7 @@ import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 part 'song_identity_dao.g.dart';
 
 class SongIdentityAlias {
-  const SongIdentityAlias({
+  const new({
     required this.oldSongId,
     required this.canonicalSongId,
     required this.matchReason,
@@ -38,7 +38,7 @@ class SongIdentityAlias {
 }
 
 class SongIdentityRemapResult {
-  const SongIdentityRemapResult({
+  const new({
     required this.alias,
     this.deletedFilePaths = const <String>[],
     this.restoredLike = false,
@@ -54,11 +54,7 @@ class SongIdentityRemapResult {
 }
 
 class ProvisionalGarbageCollectionResult {
-  const ProvisionalGarbageCollectionResult({
-    required this.songs,
-    required this.albums,
-    required this.artists,
-  });
+  const new({required this.songs, required this.albums, required this.artists});
 
   final int songs;
   final int albums;
@@ -87,7 +83,7 @@ class ProvisionalGarbageCollectionResult {
 )
 class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     with _$SongIdentityDaoMixin {
-  SongIdentityDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   /// Provisional candidates for identity reconciliation.
   ///
@@ -175,9 +171,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> markCanonical(String songId) async {
-    await (update(
-      songsTable,
-    )..where((table) => table.id.equals(songId))).write(
+    await (update(songsTable)..where((table) => table.id.equals(songId))).write(
       const SongsTableCompanion(isProvisional: Value(false)),
     );
   }
@@ -356,12 +350,12 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "DELETE FROM starred_absence_candidates "
+        'DELETE FROM starred_absence_candidates '
         "WHERE entity_type = 'song' AND entity_id = ?;",
         <Object?>[oldId],
       );
       await customStatement(
-        "UPDATE library_sync_local_mutations SET entity_id = ? "
+        'UPDATE library_sync_local_mutations SET entity_id = ? '
         "WHERE entity_type = 'song' AND entity_id = ?;",
         <Object?>[canonicalId, oldId],
       );
@@ -376,19 +370,18 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           ? oldSong?.userRating
           : null;
       if (carriedStarredAt != null || carriedRating != null) {
-        await (update(songsTable)..where(
-              (table) => table.id.equals(canonicalId),
-            ))
-            .write(
-              SongsTableCompanion(
-                starred: carriedStarredAt != null
-                    ? Value(carriedStarredAt)
-                    : const Value.absent(),
-                userRating: carriedRating != null
-                    ? Value(carriedRating)
-                    : const Value.absent(),
-              ),
-            );
+        await (update(
+          songsTable,
+        )..where((table) => table.id.equals(canonicalId))).write(
+          SongsTableCompanion(
+            starred: carriedStarredAt != null
+                ? Value(carriedStarredAt)
+                : const Value.absent(),
+            userRating: carriedRating != null
+                ? Value(carriedRating)
+                : const Value.absent(),
+          ),
+        );
       }
       if (carriedStarredAt != null) {
         await attachedDatabase.starSyncDao.queueStarAction(
@@ -416,14 +409,9 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
       await delete(listenBrainzWeeklyCacheTable).go();
-      await (update(
-        songsTable,
-      )..where((table) => table.id.equals(canonicalId))).write(
-        const SongsTableCompanion(isProvisional: Value(false)),
-      );
-      await (delete(
-        songsTable,
-      )..where((table) => table.id.equals(oldId))).go();
+      await (update(songsTable)..where((table) => table.id.equals(canonicalId)))
+          .write(const SongsTableCompanion(isProvisional: Value(false)));
+      await (delete(songsTable)..where((table) => table.id.equals(oldId))).go();
     });
 
     final deletedPaths = <String>[];
@@ -443,11 +431,15 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     for (final path in losingPaths) {
       final file = File(path);
       try {
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (await file.exists()) {
           await file.delete();
           deletedPaths.add(path);
         }
         final sidecar = File('$path.mime');
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (await sidecar.exists()) {
           await sidecar.delete();
         }
@@ -509,24 +501,24 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "UPDATE star_sync_queue SET item_id = ? "
+        'UPDATE star_sync_queue SET item_id = ? '
         "WHERE item_type = 'album' AND item_id = ?;",
         <Object?>[canonicalId, oldId],
       );
       // Absence evidence and pending local mutations transfer to the
       // replacement identity, mirroring song remaps.
       await customStatement(
-        "UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? "
+        'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
         "WHERE entity_type = 'album' AND entity_id = ?;",
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "DELETE FROM starred_absence_candidates "
+        'DELETE FROM starred_absence_candidates '
         "WHERE entity_type = 'album' AND entity_id = ?;",
         <Object?>[oldId],
       );
       await customStatement(
-        "UPDATE library_sync_local_mutations SET entity_id = ? "
+        'UPDATE library_sync_local_mutations SET entity_id = ? '
         "WHERE entity_type = 'album' AND entity_id = ?;",
         <Object?>[canonicalId, oldId],
       );
@@ -538,19 +530,18 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           ? oldAlbum.userRating
           : null;
       if (carriedStarredAt != null || carriedRating != null) {
-        await (update(albumsTable)..where(
-              (table) => table.id.equals(canonicalId),
-            ))
-            .write(
-              AlbumsTableCompanion(
-                starred: carriedStarredAt != null
-                    ? Value(carriedStarredAt)
-                    : const Value.absent(),
-                userRating: carriedRating != null
-                    ? Value(carriedRating)
-                    : const Value.absent(),
-              ),
-            );
+        await (update(
+          albumsTable,
+        )..where((table) => table.id.equals(canonicalId))).write(
+          AlbumsTableCompanion(
+            starred: carriedStarredAt != null
+                ? Value(carriedStarredAt)
+                : const Value.absent(),
+            userRating: carriedRating != null
+                ? Value(carriedRating)
+                : const Value.absent(),
+          ),
+        );
       }
       if (carriedStarredAt != null) {
         await attachedDatabase.starSyncDao.queueStarAction(
@@ -626,22 +617,22 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "UPDATE star_sync_queue SET item_id = ? "
+        'UPDATE star_sync_queue SET item_id = ? '
         "WHERE item_type = 'artist' AND item_id = ?;",
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? "
+        'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
         "WHERE entity_type = 'artist' AND entity_id = ?;",
         <Object?>[canonicalId, oldId],
       );
       await customStatement(
-        "DELETE FROM starred_absence_candidates "
+        'DELETE FROM starred_absence_candidates '
         "WHERE entity_type = 'artist' AND entity_id = ?;",
         <Object?>[oldId],
       );
       await customStatement(
-        "UPDATE library_sync_local_mutations SET entity_id = ? "
+        'UPDATE library_sync_local_mutations SET entity_id = ? '
         "WHERE entity_type = 'artist' AND entity_id = ?;",
         <Object?>[canonicalId, oldId],
       );
@@ -650,14 +641,9 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           ? oldArtist.starred
           : null;
       if (carriedStarredAt != null) {
-        await (update(artistsTable)..where(
-              (table) => table.id.equals(canonicalId),
-            ))
-            .write(
-              ArtistsTableCompanion(
-                starred: Value(carriedStarredAt),
-              ),
-            );
+        await (update(artistsTable)
+              ..where((table) => table.id.equals(canonicalId)))
+            .write(ArtistsTableCompanion(starred: Value(carriedStarredAt)));
       }
       if (carriedStarredAt != null) {
         await attachedDatabase.starSyncDao.queueStarAction(
@@ -686,7 +672,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
 
   Future<ProvisionalGarbageCollectionResult>
   garbageCollectUnreferencedProvisionalMetadata() async {
-    return transaction(() async {
+    return await transaction(() async {
       final songs = await customUpdate(
         '''
         DELETE FROM songs
@@ -815,7 +801,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     }
     // SAF document URIs must be validated through the platform bridge;
     // File.exists() cannot see them.
-    return storedAudioExists(
+    return await storedAudioExists(
       locator: row.filePath,
       storageKind: row.storageKind,
     );
@@ -832,10 +818,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     await (delete(cachedTracksTable)..where(
-          (table) => table.songId.isIn(<String>[
-            oldSongId,
-            canonicalSongId,
-          ]),
+          (table) => table.songId.isIn(<String>[oldSongId, canonicalSongId]),
         ))
         .go();
     if (winner == null) {
@@ -857,10 +840,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
 }
 
 class _CacheChoice {
-  const _CacheChoice({
-    required this.winner,
-    required this.losingFilePaths,
-  });
+  const new({required this.winner, required this.losingFilePaths});
 
   final CachedTracksTableData? winner;
   final List<String> losingFilePaths;

@@ -36,6 +36,8 @@ class _MutableLibrarySyncController extends LibrarySyncController {
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
 
+  LibrarySyncState get value => state;
+
   set value(LibrarySyncState next) {
     state = next;
   }
@@ -44,9 +46,8 @@ class _MutableLibrarySyncController extends LibrarySyncController {
 class _CachedListenBrainzDiagnosticsOverridesController
     extends SyncDiagnosticsOverridesController {
   @override
-  SyncDiagnosticsOverrides build() => const SyncDiagnosticsOverrides(
-    cachedListenBrainzPresentation: true,
-  );
+  SyncDiagnosticsOverrides build() =>
+      const SyncDiagnosticsOverrides(cachedListenBrainzPresentation: true);
 }
 
 Future<void> _insertAlbum(
@@ -69,7 +70,7 @@ Future<void> _insertAlbum(
 }
 
 class _FakeDiscoveryApiClient extends SubsonicApiClient {
-  _FakeDiscoveryApiClient(
+  new(
     this._similarBySeed, {
     this.searchSongs = const <Song>[],
     this.searchGate,
@@ -136,7 +137,7 @@ class _FakeDiscoveryApiClient extends SubsonicApiClient {
 }
 
 class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
-  _FakeListenBrainzApiClient({
+  new({
     required this.playlists,
     List<ListenBrainzPlaylist>? createdForPlaylists,
     List<ListenBrainzPlaylist>? userPlaylists,
@@ -192,7 +193,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   }) async {
     recommendationPlaylistCalls++;
     if (recommendationCompleter != null) {
-      return recommendationCompleter!.future;
+      return await recommendationCompleter!.future;
     }
     return recommendationPlaylists;
   }
@@ -206,7 +207,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
     detailStarts.add(playlistMbid);
     final detailCompleter = detailCompleters[playlistMbid];
     if (detailCompleter != null) {
-      return detailCompleter.future;
+      return await detailCompleter.future;
     }
     final allPlaylists = <ListenBrainzPlaylist>[
       ...playlists,
@@ -223,7 +224,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
 
 class _FakeExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
-  const _FakeExternalScrobbleCredentialStore(this.token);
+  const new(this.token);
 
   final String? token;
 
@@ -345,9 +346,7 @@ Future<void> _primeListenBrainzWeeklyCache(
 }) async {
   final fakeApi = _FakeDiscoveryApiClient(
     {},
-    searchSongs: <Song>[
-      Song(id: songId, title: trackTitle, artist: artist),
-    ],
+    searchSongs: <Song>[Song(id: songId, title: trackTitle, artist: artist)],
   );
   final container = ProviderContainer(
     overrides: _listenBrainzWeeklyOverrides(
@@ -570,10 +569,7 @@ void main() {
 
     expect(
       fakeListenBrainz.detailStarts,
-      containsAll(<String>[
-        'exploration',
-        'jams',
-      ]),
+      containsAll(<String>['exploration', 'jams']),
     );
 
     explorationCompleter.complete(
@@ -687,90 +683,87 @@ void main() {
     expect(fakeApi.maxActiveSearchCalls, lessThanOrEqualTo(2));
   });
 
-  test(
-    'ListenBrainz duplicate exact title and artist candidates are not ambiguous',
-    () async {
-      final database = createTestDatabase();
-      final fakeApi = _FakeDiscoveryApiClient(
-        {},
-        searchSongs: const <Song>[
-          Song(
-            id: 'toxicity-album',
-            title: 'Toxicity',
-            artist: 'System Of A Down',
-            album: 'Toxicity',
-            duration: 219,
-          ),
-          Song(
-            id: 'toxicity-compilation',
-            title: 'Toxicity',
-            artist: 'System Of A Down',
-            album: 'Greatest Hits',
-            duration: 219,
-          ),
-        ],
-      );
-      final fakeListenBrainz = _FakeListenBrainzApiClient(
-        playlists: const <ListenBrainzPlaylist>[],
-        recommendationPlaylists: const <ListenBrainzPlaylist>[
-          ListenBrainzPlaylist(
-            identifier: 'jams',
-            title: 'Weekly Jams',
-            sourcePatch: 'weekly-jams',
-            tracks: <ListenBrainzPlaylistTrack>[],
-          ),
-        ],
-        detailsById: const <String, ListenBrainzPlaylist>{
-          'jams': ListenBrainzPlaylist(
-            identifier: 'jams',
-            title: 'Weekly Jams',
-            sourcePatch: 'weekly-jams',
-            tracks: <ListenBrainzPlaylistTrack>[
-              ListenBrainzPlaylistTrack(
-                title: 'Toxicity',
-                creator: 'System Of A Down',
-              ),
-            ],
-          ),
-        },
-      );
-      final container = ProviderContainer(
-        overrides: withHomeShowcaseTestOverrides(
-          database,
-          overrides: <Override>[
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(
-                  listenBrainzScrobblingEnabled: true,
-                  listenBrainzTokenValid: true,
-                  listenBrainzUserName: 'alice',
-                ),
-              ),
+  test('ListenBrainz duplicate exact title and artist candidates are not ambiguous', () async {
+    final database = createTestDatabase();
+    final fakeApi = _FakeDiscoveryApiClient(
+      {},
+      searchSongs: const <Song>[
+        Song(
+          id: 'toxicity-album',
+          title: 'Toxicity',
+          artist: 'System Of A Down',
+          album: 'Toxicity',
+          duration: 219,
+        ),
+        Song(
+          id: 'toxicity-compilation',
+          title: 'Toxicity',
+          artist: 'System Of A Down',
+          album: 'Greatest Hits',
+          duration: 219,
+        ),
+      ],
+    );
+    final fakeListenBrainz = _FakeListenBrainzApiClient(
+      playlists: const <ListenBrainzPlaylist>[],
+      recommendationPlaylists: const <ListenBrainzPlaylist>[
+        ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[],
+        ),
+      ],
+      detailsById: const <String, ListenBrainzPlaylist>{
+        'jams': ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[
+            ListenBrainzPlaylistTrack(
+              title: 'Toxicity',
+              creator: 'System Of A Down',
             ),
-            externalScrobbleCredentialStoreProvider.overrideWithValue(
-              const _FakeExternalScrobbleCredentialStore('token'),
-            ),
-            listenBrainzApiClientProvider.overrideWithValue(fakeListenBrainz),
-            subsonicApiProvider.overrideWithValue(fakeApi),
           ],
         ),
-      );
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
+      },
+    );
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(fakeListenBrainz),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
 
-      final result = await container.read(listenBrainzDiscoverProvider.future);
+    final result = await container.read(listenBrainzDiscoverProvider.future);
 
-      expect(result, hasLength(1));
-      expect(
-        result.single.recommendations.single.status,
-        ListenBrainzRecommendationMatchStatus.matched,
-      );
-      expect(result.single.recommendations.single.song!.id, 'toxicity-album');
-    },
-  );
+    expect(result, hasLength(1));
+    expect(
+      result.single.recommendations.single.status,
+      ListenBrainzRecommendationMatchStatus.matched,
+    );
+    expect(result.single.recommendations.single.song!.id, 'toxicity-album');
+  });
 
   test('ListenBrainz local matches do not call search3', () async {
     final database = createTestDatabase();
@@ -851,99 +844,94 @@ void main() {
     expect(fakeApi.totalSearchCalls, 0);
   });
 
-  test(
-    'ListenBrainz manual rematch bypasses stale miss and persists search3 match',
-    () async {
-      final database = createTestDatabase();
-      final searchSongs = <Song>[];
-      final fakeApi = _FakeDiscoveryApiClient(
-        {},
-        searchSongs: searchSongs,
-      );
-      final fakeListenBrainz = _FakeListenBrainzApiClient(
-        playlists: const <ListenBrainzPlaylist>[],
-        recommendationPlaylists: const <ListenBrainzPlaylist>[
-          ListenBrainzPlaylist(
-            identifier: 'jams',
-            title: 'Weekly Jams',
-            sourcePatch: 'weekly-jams',
-            tracks: <ListenBrainzPlaylistTrack>[],
-          ),
-        ],
-        detailsById: const <String, ListenBrainzPlaylist>{
-          'jams': ListenBrainzPlaylist(
-            identifier: 'jams',
-            title: 'Weekly Jams',
-            sourcePatch: 'weekly-jams',
-            tracks: <ListenBrainzPlaylistTrack>[
-              ListenBrainzPlaylistTrack(
-                title: 'Remote Song',
-                creator: 'Remote Artist',
-                album: 'Remote Album',
-              ),
-            ],
-          ),
-        },
-      );
-      final container = ProviderContainer(
-        overrides: withHomeShowcaseTestOverrides(
-          database,
-          overrides: <Override>[
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(
-                  listenBrainzScrobblingEnabled: true,
-                  listenBrainzTokenValid: true,
-                  listenBrainzUserName: 'alice',
-                ),
-              ),
+  test('ListenBrainz manual rematch bypasses stale miss and persists search3 match', () async {
+    final database = createTestDatabase();
+    final searchSongs = <Song>[];
+    final fakeApi = _FakeDiscoveryApiClient({}, searchSongs: searchSongs);
+    final fakeListenBrainz = _FakeListenBrainzApiClient(
+      playlists: const <ListenBrainzPlaylist>[],
+      recommendationPlaylists: const <ListenBrainzPlaylist>[
+        ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[],
+        ),
+      ],
+      detailsById: const <String, ListenBrainzPlaylist>{
+        'jams': ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[
+            ListenBrainzPlaylistTrack(
+              title: 'Remote Song',
+              creator: 'Remote Artist',
+              album: 'Remote Album',
             ),
-            externalScrobbleCredentialStoreProvider.overrideWithValue(
-              const _FakeExternalScrobbleCredentialStore('token'),
-            ),
-            listenBrainzApiClientProvider.overrideWithValue(fakeListenBrainz),
-            subsonicApiProvider.overrideWithValue(fakeApi),
           ],
         ),
-      );
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
+      },
+    );
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(fakeListenBrainz),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
 
-      final initial = await container.read(listenBrainzDiscoverProvider.future);
-      expect(initial.single.matchedCount, 0);
-      expect(fakeApi.totalSearchCalls, 1);
+    final initial = await container.read(listenBrainzDiscoverProvider.future);
+    expect(initial.single.matchedCount, 0);
+    expect(fakeApi.totalSearchCalls, 1);
 
-      searchSongs.add(
-        const Song(
-          id: 'remote-1',
-          title: 'Remote Song',
-          artist: 'Remote Artist',
-          album: 'Remote Album',
-        ),
-      );
-      final rematched = await container
-          .read(listenBrainzPlaylistRematchControllerProvider.notifier)
-          .rematch(initial.single);
+    searchSongs.add(
+      const Song(
+        id: 'remote-1',
+        title: 'Remote Song',
+        artist: 'Remote Artist',
+        album: 'Remote Album',
+      ),
+    );
+    final rematched = await container
+        .read(listenBrainzPlaylistRematchControllerProvider.notifier)
+        .rematch(initial.single);
 
-      expect(rematched.matchedCount, 1);
-      expect(rematched.recommendations.single.song!.id, 'remote-1');
-      expect(fakeApi.totalSearchCalls, 2);
+    expect(rematched.matchedCount, 1);
+    expect(rematched.recommendations.single.song!.id, 'remote-1');
+    expect(fakeApi.totalSearchCalls, 2);
 
-      final cacheRows = await database.cacheDao
-          .getListenBrainzWeeklyCacheForUser('alice');
-      expect(cacheRows, hasLength(1));
-      expect(cacheRows.single.matchedCount, 1);
-      final cachedRecommendations =
-          jsonDecode(cacheRows.single.recommendationsJson) as List<dynamic>;
-      final cachedRecommendation = Map<String, dynamic>.from(
-        cachedRecommendations.single as Map,
-      );
-      expect(cachedRecommendation['song'], isNotNull);
-    },
-  );
+    final cacheRows = await database.cacheDao.getListenBrainzWeeklyCacheForUser(
+      'alice',
+    );
+    expect(cacheRows, hasLength(1));
+    expect(cacheRows.single.matchedCount, 1);
+    final cachedRecommendations =
+        jsonDecode(cacheRows.single.recommendationsJson) as List<dynamic>;
+    final cachedRecommendation = Map<String, dynamic>.from(
+      cachedRecommendations.single as Map,
+    );
+    expect(cachedRecommendation['song'], isNotNull);
+  });
 
   test('cached weekly playlists emit before remote futures complete', () async {
     final database = createTestDatabase();
@@ -1068,9 +1056,7 @@ void main() {
       expect(fakeApi.totalSearchCalls, 1);
 
       final cacheRows = await database.cacheDao
-          .getListenBrainzWeeklyCacheForUser(
-            'alice',
-          );
+          .getListenBrainzWeeklyCacheForUser('alice');
       final cachedRecommendations =
           jsonDecode(cacheRows.single.recommendationsJson) as List<dynamic>;
       final cachedRecommendation = Map<String, dynamic>.from(
@@ -1221,9 +1207,7 @@ void main() {
           listenBrainz: fakeListenBrainz,
           subsonic: fakeApi,
           startupSyncStateOverride: listenBrainzDiscoverStartupSyncStateProvider
-              .overrideWith(
-                (ref) => syncState,
-              ),
+              .overrideWith((ref) => syncState),
         ),
       );
       addTearDown(() async {
@@ -1426,7 +1410,7 @@ void main() {
             ),
             _noListenBrainzTokenOverride(),
             syncDiagnosticsOverridesProvider.overrideWith(
-              () => _CachedListenBrainzDiagnosticsOverridesController(),
+              _CachedListenBrainzDiagnosticsOverridesController.new,
             ),
           ],
         ),
@@ -1541,10 +1525,10 @@ void main() {
       await database.close();
     });
 
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
     expect(result, hasLength(1));
     expect(result.first.album.id, 'srv-1');
@@ -1657,10 +1641,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(result, hasLength(3));
       expect(fakeListenBrainz.createdForCalls, 0);
@@ -1674,14 +1658,8 @@ void main() {
         result[0].listenBrainz.playlist!.playlist.identifier,
         'exploration',
       );
-      expect(
-        result[1].listenBrainz.playlist!.displayTitle,
-        'Weekly Jams',
-      );
-      expect(
-        result[1].listenBrainz.playlist!.playlist.identifier,
-        'jams',
-      );
+      expect(result[1].listenBrainz.playlist!.displayTitle, 'Weekly Jams');
+      expect(result[1].listenBrainz.playlist!.playlist.identifier, 'jams');
       expect(result[2].album.id, 'srv-1');
     },
   );
@@ -1740,14 +1718,11 @@ void main() {
       final libraryItems = container.read(playlistLibraryItemsProvider);
 
       expect(libraryItems.hasValue, isTrue);
-      expect(
-        libraryItems.requireValue.map((item) => item.id),
-        <String>[
-          listenBrainzWeeklyExplorationVirtualPlaylistId,
-          listenBrainzWeeklyJamsVirtualPlaylistId,
-          'server-playlist',
-        ],
-      );
+      expect(libraryItems.requireValue.map((item) => item.id), <String>[
+        listenBrainzWeeklyExplorationVirtualPlaylistId,
+        listenBrainzWeeklyJamsVirtualPlaylistId,
+        'server-playlist',
+      ]);
     },
   );
 
@@ -1796,10 +1771,10 @@ void main() {
         await database.close();
       });
 
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(result, hasLength(3));
       expect(result[0].stableId, 'listenbrainz:weekly-exploration');
@@ -1810,143 +1785,137 @@ void main() {
     },
   );
 
-  test(
-    'online unfiltered compacts Weekly Jams to front when exploration is absent',
-    () async {
-      final database = createTestDatabase();
-      final fakeApi = _FakeDiscoveryApiClient(
-        {},
-        searchSongs: const <Song>[
-          Song(id: 'song-jams', title: 'Jam Song', artist: 'Artist'),
+  test('online unfiltered compacts Weekly Jams to front when exploration is absent', () async {
+    final database = createTestDatabase();
+    final fakeApi = _FakeDiscoveryApiClient(
+      {},
+      searchSongs: const <Song>[
+        Song(id: 'song-jams', title: 'Jam Song', artist: 'Artist'),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(
+            _FakeListenBrainzApiClient(
+              playlists: const <ListenBrainzPlaylist>[],
+              recommendationPlaylists: const <ListenBrainzPlaylist>[
+                ListenBrainzPlaylist(
+                  identifier: 'jams',
+                  title: 'Weekly Jams for alice, week of 2026-06-15',
+                  sourcePatch: 'weekly-jams',
+                  tracks: <ListenBrainzPlaylistTrack>[],
+                ),
+              ],
+              detailsById: const <String, ListenBrainzPlaylist>{
+                'jams': ListenBrainzPlaylist(
+                  identifier: 'jams',
+                  title: 'Weekly Jams for alice, week of 2026-06-15',
+                  tracks: <ListenBrainzPlaylistTrack>[
+                    ListenBrainzPlaylistTrack(
+                      title: 'Jam Song',
+                      creator: 'Artist',
+                    ),
+                  ],
+                ),
+              },
+            ),
+          ),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+          homeRandomAlbumsProvider.overrideWith(
+            (ref) async => const <Album>[
+              Album(id: 'srv-1', name: 'Server Album'),
+            ],
+          ),
         ],
-      );
-      final container = ProviderContainer(
-        overrides: withHomeShowcaseTestOverrides(
-          database,
-          overrides: <Override>[
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(
-                  listenBrainzScrobblingEnabled: true,
-                  listenBrainzTokenValid: true,
-                  listenBrainzUserName: 'alice',
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await container.read(listenBrainzDiscoverProvider.future);
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
+
+    expect(result, hasLength(2));
+    expect(result.first.listenBrainz.playlist!.playlist.identifier, 'jams');
+    expect(result[1].album.id, 'srv-1');
+  });
+
+  test('online unfiltered ignores ordinary ListenBrainz playlists with weekly titles', () async {
+    final database = createTestDatabase();
+    final fakeApi = _FakeDiscoveryApiClient({});
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(
+            _FakeListenBrainzApiClient(
+              playlists: const <ListenBrainzPlaylist>[],
+              createdForPlaylists: const <ListenBrainzPlaylist>[],
+              userPlaylists: const <ListenBrainzPlaylist>[
+                ListenBrainzPlaylist(
+                  identifier: 'jams',
+                  title: 'Weekly Jams',
+                  tracks: <ListenBrainzPlaylistTrack>[],
                 ),
-              ),
-            ),
-            externalScrobbleCredentialStoreProvider.overrideWithValue(
-              const _FakeExternalScrobbleCredentialStore('token'),
-            ),
-            listenBrainzApiClientProvider.overrideWithValue(
-              _FakeListenBrainzApiClient(
-                playlists: const <ListenBrainzPlaylist>[],
-                recommendationPlaylists: const <ListenBrainzPlaylist>[
-                  ListenBrainzPlaylist(
-                    identifier: 'jams',
-                    title: 'Weekly Jams for alice, week of 2026-06-15',
-                    sourcePatch: 'weekly-jams',
-                    tracks: <ListenBrainzPlaylistTrack>[],
-                  ),
-                ],
-                detailsById: const <String, ListenBrainzPlaylist>{
-                  'jams': ListenBrainzPlaylist(
-                    identifier: 'jams',
-                    title: 'Weekly Jams for alice, week of 2026-06-15',
-                    tracks: <ListenBrainzPlaylistTrack>[
-                      ListenBrainzPlaylistTrack(
-                        title: 'Jam Song',
-                        creator: 'Artist',
-                      ),
-                    ],
-                  ),
-                },
-              ),
-            ),
-            subsonicApiProvider.overrideWithValue(fakeApi),
-            homeRandomAlbumsProvider.overrideWith(
-              (ref) async => const <Album>[
-                Album(id: 'srv-1', name: 'Server Album'),
               ],
             ),
-          ],
-        ),
-      );
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
+          ),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+          homeRandomAlbumsProvider.overrideWith(
+            (ref) async => const <Album>[
+              Album(id: 'srv-1', name: 'Server Album'),
+            ],
+          ),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
 
-      await container.read(listenBrainzDiscoverProvider.future);
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+    await container.read(listenBrainzDiscoverProvider.future);
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
-      expect(result, hasLength(2));
-      expect(result.first.listenBrainz.playlist!.playlist.identifier, 'jams');
-      expect(result[1].album.id, 'srv-1');
-    },
-  );
-
-  test(
-    'online unfiltered ignores ordinary ListenBrainz playlists with weekly titles',
-    () async {
-      final database = createTestDatabase();
-      final fakeApi = _FakeDiscoveryApiClient({});
-      final container = ProviderContainer(
-        overrides: withHomeShowcaseTestOverrides(
-          database,
-          overrides: <Override>[
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(
-                  listenBrainzScrobblingEnabled: true,
-                  listenBrainzTokenValid: true,
-                  listenBrainzUserName: 'alice',
-                ),
-              ),
-            ),
-            externalScrobbleCredentialStoreProvider.overrideWithValue(
-              const _FakeExternalScrobbleCredentialStore('token'),
-            ),
-            listenBrainzApiClientProvider.overrideWithValue(
-              _FakeListenBrainzApiClient(
-                playlists: const <ListenBrainzPlaylist>[],
-                createdForPlaylists: const <ListenBrainzPlaylist>[],
-                userPlaylists: const <ListenBrainzPlaylist>[
-                  ListenBrainzPlaylist(
-                    identifier: 'jams',
-                    title: 'Weekly Jams',
-                    tracks: <ListenBrainzPlaylistTrack>[],
-                  ),
-                ],
-              ),
-            ),
-            subsonicApiProvider.overrideWithValue(fakeApi),
-            homeRandomAlbumsProvider.overrideWith(
-              (ref) async => const <Album>[
-                Album(id: 'srv-1', name: 'Server Album'),
-              ],
-            ),
-          ],
-        ),
-      );
-      addTearDown(() async {
-        container.dispose();
-        await database.close();
-      });
-
-      await container.read(listenBrainzDiscoverProvider.future);
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
-
-      expect(result, hasLength(1));
-      expect(result.first.album.id, 'srv-1');
-    },
-  );
+    expect(result, hasLength(1));
+    expect(result.first.album.id, 'srv-1');
+  });
 
   test('online unfiltered ignores non-target ListenBrainz playlists', () async {
     final database = createTestDatabase();
@@ -1996,10 +1965,10 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
     expect(result, hasLength(1));
     expect(result.first.album.id, 'srv-1');
@@ -2067,10 +2036,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(result, hasLength(2));
       expect(
@@ -2140,10 +2109,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'srv-1');
@@ -2210,10 +2179,10 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
     expect(result, hasLength(2));
     expect(
@@ -2284,10 +2253,10 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
     expect(result, hasLength(1));
     expect(result.first.album.id, 'srv-1');
@@ -2364,45 +2333,43 @@ void main() {
               (ref) async => throw StateError('discovery should be used first'),
             ),
             likedSongsProvider.overrideWithValue(
-              const AsyncData(
-                <SongsTableData>[
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-1',
-                    title: 'Seed 1',
-                    albumId: 'liked-a',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-2',
-                    title: 'Seed 2',
-                    albumId: 'liked-b',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-3',
-                    title: 'Seed 3',
-                    albumId: 'liked-c',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-4',
-                    title: 'Seed 4',
-                    albumId: 'liked-d',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-5',
-                    title: 'Seed 5',
-                    albumId: 'liked-e',
-                  ),
-                ],
-              ),
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-1',
+                  title: 'Seed 1',
+                  albumId: 'liked-a',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-2',
+                  title: 'Seed 2',
+                  albumId: 'liked-b',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-3',
+                  title: 'Seed 3',
+                  albumId: 'liked-c',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-4',
+                  title: 'Seed 4',
+                  albumId: 'liked-d',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-5',
+                  title: 'Seed 5',
+                  albumId: 'liked-e',
+                ),
+              ]),
             ),
           ],
         ),
@@ -2412,10 +2379,10 @@ void main() {
         await database.close();
       });
 
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(result.length, greaterThanOrEqualTo(6));
       expect(
@@ -2428,155 +2395,142 @@ void main() {
     },
   );
 
-  test(
-    'ListenBrainz updates do not rerun liked-song discovery',
-    () async {
-      final database = createTestDatabase();
-      for (var i = 0; i < 12; i++) {
-        await _insertAlbum(database, id: 'disc-$i', name: 'Discovery $i');
-      }
+  test('ListenBrainz updates do not rerun liked-song discovery', () async {
+    final database = createTestDatabase();
+    for (var i = 0; i < 12; i++) {
+      await _insertAlbum(database, id: 'disc-$i', name: 'Discovery $i');
+    }
 
-      final fakeApi = _FakeDiscoveryApiClient({
-        'seed-1': const <Song>[
-          Song(id: 'sim-1', title: 'Sim 1', albumId: 'disc-1', album: 'Disc 1'),
-          Song(id: 'sim-2', title: 'Sim 2', albumId: 'disc-2', album: 'Disc 2'),
-        ],
-        'seed-2': const <Song>[
-          Song(id: 'sim-3', title: 'Sim 3', albumId: 'disc-3', album: 'Disc 3'),
-          Song(id: 'sim-4', title: 'Sim 4', albumId: 'disc-4', album: 'Disc 4'),
-        ],
-        'seed-3': const <Song>[
-          Song(id: 'sim-5', title: 'Sim 5', albumId: 'disc-5', album: 'Disc 5'),
-          Song(id: 'sim-6', title: 'Sim 6', albumId: 'disc-6', album: 'Disc 6'),
-        ],
-        'seed-4': const <Song>[
-          Song(id: 'sim-7', title: 'Sim 7', albumId: 'disc-7', album: 'Disc 7'),
-          Song(id: 'sim-8', title: 'Sim 8', albumId: 'disc-8', album: 'Disc 8'),
-        ],
-        'seed-5': const <Song>[
-          Song(id: 'sim-9', title: 'Sim 9', albumId: 'disc-9', album: 'Disc 9'),
-          Song(
-            id: 'sim-10',
-            title: 'Sim 10',
-            albumId: 'disc-10',
-            album: 'Disc 10',
+    final fakeApi = _FakeDiscoveryApiClient({
+      'seed-1': const <Song>[
+        Song(id: 'sim-1', title: 'Sim 1', albumId: 'disc-1', album: 'Disc 1'),
+        Song(id: 'sim-2', title: 'Sim 2', albumId: 'disc-2', album: 'Disc 2'),
+      ],
+      'seed-2': const <Song>[
+        Song(id: 'sim-3', title: 'Sim 3', albumId: 'disc-3', album: 'Disc 3'),
+        Song(id: 'sim-4', title: 'Sim 4', albumId: 'disc-4', album: 'Disc 4'),
+      ],
+      'seed-3': const <Song>[
+        Song(id: 'sim-5', title: 'Sim 5', albumId: 'disc-5', album: 'Disc 5'),
+        Song(id: 'sim-6', title: 'Sim 6', albumId: 'disc-6', album: 'Disc 6'),
+      ],
+      'seed-4': const <Song>[
+        Song(id: 'sim-7', title: 'Sim 7', albumId: 'disc-7', album: 'Disc 7'),
+        Song(id: 'sim-8', title: 'Sim 8', albumId: 'disc-8', album: 'Disc 8'),
+      ],
+      'seed-5': const <Song>[
+        Song(id: 'sim-9', title: 'Sim 9', albumId: 'disc-9', album: 'Disc 9'),
+        Song(
+          id: 'sim-10',
+          title: 'Sim 10',
+          albumId: 'disc-10',
+          album: 'Disc 10',
+        ),
+      ],
+    });
+    final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(
+            _FakeListenBrainzApiClient(
+              playlists: const <ListenBrainzPlaylist>[],
+              recommendationCompleter: recommendationCompleter,
+            ),
+          ),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+          homeRandomAlbumsProvider.overrideWith(
+            (ref) async => throw StateError('discovery should be reused'),
+          ),
+          likedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'seed-1',
+                title: 'Seed 1',
+                albumId: 'liked-a',
+              ),
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'seed-2',
+                title: 'Seed 2',
+                albumId: 'liked-b',
+              ),
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'seed-3',
+                title: 'Seed 3',
+                albumId: 'liked-c',
+              ),
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'seed-4',
+                title: 'Seed 4',
+                albumId: 'liked-d',
+              ),
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'seed-5',
+                title: 'Seed 5',
+                albumId: 'liked-e',
+              ),
+            ]),
           ),
         ],
-      });
-      final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
-      final container = ProviderContainer(
-        overrides: withHomeShowcaseTestOverrides(
-          database,
-          overrides: <Override>[
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(
-                  listenBrainzScrobblingEnabled: true,
-                  listenBrainzTokenValid: true,
-                  listenBrainzUserName: 'alice',
-                ),
-              ),
-            ),
-            externalScrobbleCredentialStoreProvider.overrideWithValue(
-              const _FakeExternalScrobbleCredentialStore('token'),
-            ),
-            listenBrainzApiClientProvider.overrideWithValue(
-              _FakeListenBrainzApiClient(
-                playlists: const <ListenBrainzPlaylist>[],
-                recommendationCompleter: recommendationCompleter,
-              ),
-            ),
-            subsonicApiProvider.overrideWithValue(fakeApi),
-            homeRandomAlbumsProvider.overrideWith(
-              (ref) async => throw StateError('discovery should be reused'),
-            ),
-            likedSongsProvider.overrideWithValue(
-              const AsyncData(
-                <SongsTableData>[
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-1',
-                    title: 'Seed 1',
-                    albumId: 'liked-a',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-2',
-                    title: 'Seed 2',
-                    albumId: 'liked-b',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-3',
-                    title: 'Seed 3',
-                    albumId: 'liked-c',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-4',
-                    title: 'Seed 4',
-                    albumId: 'liked-d',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-5',
-                    title: 'Seed 5',
-                    albumId: 'liked-e',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-      addTearDown(() async {
-        if (!recommendationCompleter.isCompleted) {
-          recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
-        }
-        container.dispose();
-        await database.close();
-      });
+      ),
+    );
+    addTearDown(() async {
+      if (!recommendationCompleter.isCompleted) {
+        recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
+      }
+      container.dispose();
+      await database.close();
+    });
 
-      const filters = (downloadedOnly: false, likedOnly: false);
-      final firstResult = await readHomeRandomShowcase(container, filters);
-      final similarCallsAfterDiscovery = fakeApi.totalSimilarSongCalls;
+    const filters = (downloadedOnly: false, likedOnly: false);
+    final firstResult = await readHomeRandomShowcase(container, filters);
+    final similarCallsAfterDiscovery = fakeApi.totalSimilarSongCalls;
 
-      expect(firstResult.length, greaterThanOrEqualTo(6));
-      expect(similarCallsAfterDiscovery, greaterThan(0));
+    expect(firstResult.length, greaterThanOrEqualTo(6));
+    expect(similarCallsAfterDiscovery, greaterThan(0));
 
-      recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
-      await container.read(listenBrainzDiscoverProvider.future);
-      final secondResult = await readHomeRandomShowcase(container, filters);
+    recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
+    await container.read(listenBrainzDiscoverProvider.future);
+    final secondResult = await readHomeRandomShowcase(container, filters);
 
-      expect(secondResult.length, greaterThanOrEqualTo(6));
-      expect(fakeApi.totalSimilarSongCalls, similarCallsAfterDiscovery);
-    },
-  );
+    expect(secondResult.length, greaterThanOrEqualTo(6));
+    expect(fakeApi.totalSimilarSongCalls, similarCallsAfterDiscovery);
+  });
 
   test(
     'slow liked-song discovery falls back without waiting for completion',
     () async {
       final database = createTestDatabase();
       final similarGate = Completer<void>();
-      final fakeApi = _FakeDiscoveryApiClient(
-        {
-          'seed-1': const <Song>[
-            Song(
-              id: 'sim-1',
-              title: 'Sim 1',
-              albumId: 'disc-1',
-              album: 'Disc 1',
-            ),
-          ],
-        },
-        similarGate: similarGate,
-      );
+      final fakeApi = _FakeDiscoveryApiClient({
+        'seed-1': const <Song>[
+          Song(id: 'sim-1', title: 'Sim 1', albumId: 'disc-1', album: 'Disc 1'),
+        ],
+      }, similarGate: similarGate);
       final container = ProviderContainer(
         overrides: withHomeShowcaseTestOverrides(
           database,
@@ -2590,45 +2544,43 @@ void main() {
               ],
             ),
             likedSongsProvider.overrideWithValue(
-              const AsyncData(
-                <SongsTableData>[
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-1',
-                    title: 'Seed 1',
-                    albumId: 'liked-a',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-2',
-                    title: 'Seed 2',
-                    albumId: 'liked-b',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-3',
-                    title: 'Seed 3',
-                    albumId: 'liked-c',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-4',
-                    title: 'Seed 4',
-                    albumId: 'liked-d',
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'seed-5',
-                    title: 'Seed 5',
-                    albumId: 'liked-e',
-                  ),
-                ],
-              ),
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-1',
+                  title: 'Seed 1',
+                  albumId: 'liked-a',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-2',
+                  title: 'Seed 2',
+                  albumId: 'liked-b',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-3',
+                  title: 'Seed 3',
+                  albumId: 'liked-c',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-4',
+                  title: 'Seed 4',
+                  albumId: 'liked-d',
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'seed-5',
+                  title: 'Seed 5',
+                  albumId: 'liked-e',
+                ),
+              ]),
             ),
           ],
         ),
@@ -2641,10 +2593,10 @@ void main() {
         await database.close();
       });
 
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: false, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: false,
+        likedOnly: false,
+      ));
 
       expect(fakeApi.totalSimilarSongCalls, 3);
       expect(result, hasLength(1));
@@ -2676,10 +2628,10 @@ void main() {
       await database.close();
     });
 
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: false,
+    ));
 
     expect(result, hasLength(1));
     expect(result.first.album.id, 'loc-1');
@@ -2707,18 +2659,16 @@ void main() {
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
           _noListenBrainzTokenOverride(),
           likedSongsProvider.overrideWithValue(
-            AsyncData(
-              <SongsTableData>[
-                SongsTableData(
-                  isProvisional: false,
-                  isExternal: false,
-                  id: 'liked-song-1',
-                  title: 'Liked Song',
-                  albumId: 'liked-song-album',
-                  starred: DateTime(2026, 1, 2),
-                ),
-              ],
-            ),
+            AsyncData(<SongsTableData>[
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'liked-song-1',
+                title: 'Liked Song',
+                albumId: 'liked-song-album',
+                starred: DateTime(2026, 1, 2),
+              ),
+            ]),
           ),
         ],
       ),
@@ -2728,10 +2678,10 @@ void main() {
       await database.close();
     });
 
-    final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: true),
-    );
+    final result = await readHomeRandomShowcase(container, (
+      downloadedOnly: false,
+      likedOnly: true,
+    ));
 
     final ids = result.map((album) => album.album.id).toSet();
     expect(ids, contains('liked-explicit'));
@@ -2771,10 +2721,10 @@ void main() {
         await database.close();
       });
 
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: true, likedOnly: false),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: true,
+        likedOnly: false,
+      ));
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'album-b');
@@ -2804,26 +2754,24 @@ void main() {
               const AsyncData(<String>{'song-a'}),
             ),
             likedSongsProvider.overrideWithValue(
-              AsyncData(
-                <SongsTableData>[
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'song-a',
-                    title: 'Downloaded liked song',
-                    albumId: 'album-a',
-                    starred: DateTime(2026, 1, 2),
-                  ),
-                  SongsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'song-b',
-                    title: 'Non-downloaded liked song',
-                    albumId: 'album-b',
-                    starred: DateTime(2026, 1, 3),
-                  ),
-                ],
-              ),
+              AsyncData(<SongsTableData>[
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'song-a',
+                  title: 'Downloaded liked song',
+                  albumId: 'album-a',
+                  starred: DateTime(2026, 1, 2),
+                ),
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'song-b',
+                  title: 'Non-downloaded liked song',
+                  albumId: 'album-b',
+                  starred: DateTime(2026, 1, 3),
+                ),
+              ]),
             ),
           ],
         ),
@@ -2833,10 +2781,10 @@ void main() {
         await database.close();
       });
 
-      final result = await readHomeRandomShowcase(
-        container,
-        (downloadedOnly: true, likedOnly: true),
-      );
+      final result = await readHomeRandomShowcase(container, (
+        downloadedOnly: true,
+        likedOnly: true,
+      ));
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'album-a');

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -8,7 +10,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 
 class TrackListTile extends ConsumerWidget {
-  const TrackListTile({
+  const new({
     required this.song,
     super.key,
     this.onTap,
@@ -80,16 +82,11 @@ class TrackListTile extends ConsumerWidget {
                   ),
                 ));
     final leading = showAlbumArt
-        ? ArtworkPlaybackMarker(
-            state: playbackState,
-            child: inactiveLeading!,
-          )
+        ? ArtworkPlaybackMarker(state: playbackState, child: inactiveLeading!)
         : isSelected
         ? SizedBox(
             width: 32,
-            child: Center(
-              child: SongPlaybackMarker(state: playbackState),
-            ),
+            child: Center(child: SongPlaybackMarker(state: playbackState)),
           )
         : inactiveLeading;
 
@@ -114,7 +111,7 @@ class TrackListTile extends ConsumerWidget {
       onLongPress: onLongPress == null
           ? null
           : () {
-              HapticFeedback.mediumImpact();
+              unawaited(HapticFeedback.mediumImpact());
               onLongPress!();
             },
       onSecondaryTapDown: onSecondaryTapDown,

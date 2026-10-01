@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _QueueOverlay extends StatefulWidget {
-  const _QueueOverlay({
+  const new({
     super.key,
     required this.onDismiss,
     this.fullscreen = false,
@@ -95,9 +95,11 @@ class _QueueOverlayState extends State<_QueueOverlay>
       widget.onDismiss();
       return;
     }
-    _controller
-        .animateBack(0, duration: _closeDuration, curve: Curves.easeInCubic)
-        .whenComplete(widget.onDismiss);
+    unawaited(
+      _controller
+          .animateBack(0, duration: _closeDuration, curve: Curves.easeInCubic)
+          .whenComplete(widget.onDismiss),
+    );
   }
 
   void dismissAnimated() => _dismiss();

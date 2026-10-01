@@ -29,16 +29,21 @@ $IndexesCopyWith<Indexes> get copyWith => _$IndexesCopyWithImpl<Indexes>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Indexes&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified)&&const DeepCollectionEquality().equals(other.indexes, indexes)&&const DeepCollectionEquality().equals(other.shortcut, shortcut)&&const DeepCollectionEquality().equals(other.child, child));
+  final _this = this as Indexes;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Indexes&&(identical(other.lastModified, _this.lastModified) || other.lastModified == _this.lastModified)&&const DeepCollectionEquality().equals(other.indexes, _this.indexes)&&const DeepCollectionEquality().equals(other.shortcut, _this.shortcut)&&const DeepCollectionEquality().equals(other.child, _this.child));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lastModified,const DeepCollectionEquality().hash(indexes),const DeepCollectionEquality().hash(shortcut),const DeepCollectionEquality().hash(child));
+int get hashCode {
+  final _this = this as Indexes;
+  return Object.hash(runtimeType,_this.lastModified,const DeepCollectionEquality().hash(_this.indexes),const DeepCollectionEquality().hash(_this.shortcut),const DeepCollectionEquality().hash(_this.child));
+}
 
 @override
 String toString() {
-  return 'Indexes(lastModified: $lastModified, indexes: $indexes, shortcut: $shortcut, child: $child)';
+  final _this = this as Indexes;
+  return 'Indexes(lastModified: ${_this.lastModified}, indexes: ${_this.indexes}, shortcut: ${_this.shortcut}, child: ${_this.child})';
 }
 
 
@@ -252,16 +257,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Indexes&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified)&&const DeepCollectionEquality().equals(other._indexes, _indexes)&&const DeepCollectionEquality().equals(other._shortcut, _shortcut)&&const DeepCollectionEquality().equals(other._child, _child));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Indexes&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified)&&const DeepCollectionEquality().equals(other.indexes, _indexes)&&const DeepCollectionEquality().equals(other.shortcut, _shortcut)&&const DeepCollectionEquality().equals(other.child, _child));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,lastModified,const DeepCollectionEquality().hash(_indexes),const DeepCollectionEquality().hash(_shortcut),const DeepCollectionEquality().hash(_child));
+int get hashCode {
+    return Object.hash(runtimeType,lastModified,const DeepCollectionEquality().hash(_indexes),const DeepCollectionEquality().hash(_shortcut),const DeepCollectionEquality().hash(_child));
+}
 
 @override
 String toString() {
-  return 'Indexes(lastModified: $lastModified, indexes: $indexes, shortcut: $shortcut, child: $child)';
+    return 'Indexes(lastModified: $lastModified, indexes: $indexes, shortcut: $shortcut, child: $child)';
 }
 
 
@@ -319,16 +326,21 @@ $IndexesIndexCopyWith<IndexesIndex> get copyWith => _$IndexesIndexCopyWithImpl<I
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is IndexesIndex&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.artists, artists));
+  final _this = this as IndexesIndex;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IndexesIndex&&(identical(other.name, _this.name) || other.name == _this.name)&&const DeepCollectionEquality().equals(other.artists, _this.artists));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,const DeepCollectionEquality().hash(artists));
+int get hashCode {
+  final _this = this as IndexesIndex;
+  return Object.hash(runtimeType,_this.name,const DeepCollectionEquality().hash(_this.artists));
+}
 
 @override
 String toString() {
-  return 'IndexesIndex(name: $name, artists: $artists)';
+  final _this = this as IndexesIndex;
+  return 'IndexesIndex(name: ${_this.name}, artists: ${_this.artists})';
 }
 
 
@@ -526,16 +538,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _IndexesIndex&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other._artists, _artists));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _IndexesIndex&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.artists, _artists));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,const DeepCollectionEquality().hash(_artists));
+int get hashCode {
+    return Object.hash(runtimeType,name,const DeepCollectionEquality().hash(_artists));
+}
 
 @override
 String toString() {
-  return 'IndexesIndex(name: $name, artists: $artists)';
+    return 'IndexesIndex(name: $name, artists: $artists)';
 }
 
 

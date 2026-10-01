@@ -591,9 +591,11 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
-      final songs = await database.libraryDao.getSongsByIds(
-        <String>['song-0', 'song-1', 'song-2'],
-      );
+      final songs = await database.libraryDao.getSongsByIds(<String>[
+        'song-0',
+        'song-1',
+        'song-2',
+      ]);
       await handler.replaceQueueWithData(songs);
       expect(player.audioSources.length, 3);
 
@@ -614,42 +616,32 @@ void main() {
     },
   );
 
-  test(
-    'large queue fill applies sources in batches, in order',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'navis-nav-test-',
-      );
-      final (handler, player, database) = await createHandler(directory, 100);
-      addTearDown(() async {
-        await handler.disposeHandler();
-        await database.close();
-        await directory.delete(recursive: true);
-      });
-      final ids = List<String>.generate(100, (index) => 'song-$index');
-      final songs = await database.libraryDao.getSongsByIds(ids);
-      final byId = {for (final song in songs) song.id: song};
-      final filled = handler.snapshotStream
-          .firstWhere((snapshot) => snapshot.queueSongIds.length == 100)
-          .timeout(const Duration(seconds: 60));
-      await handler.replaceQueueWithData(
-        [for (final id in ids) byId[id]!],
-        startIndex: 50,
-      );
-      await filled;
+  test('large queue fill applies sources in batches, in order', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final (handler, player, database) = await createHandler(directory, 100);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(100, (index) => 'song-$index');
+    final songs = await database.libraryDao.getSongsByIds(ids);
+    final byId = {for (final song in songs) song.id: song};
+    final filled = handler.snapshotStream
+        .firstWhere((snapshot) => snapshot.queueSongIds.length == 100)
+        .timeout(const Duration(seconds: 60));
+    await handler.replaceQueueWithData([
+      for (final id in ids) byId[id]!,
+    ], startIndex: 50);
+    await filled;
 
-      // A small first batch then 64-song batches on each side of the start,
-      // instead of one native mutation per song.
-      expect(player.batchMutationCount, 4);
-      expect(handler.snapshot.queueSongIds, ids);
-      expect(
-        player.sequence.map((source) => (source.tag as MediaItem).id),
-        ids,
-      );
-      expect(handler.snapshot.currentIndex, 50);
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+    // A small first batch then 64-song batches on each side of the start,
+    // instead of one native mutation per song.
+    expect(player.batchMutationCount, 4);
+    expect(handler.snapshot.queueSongIds, ids);
+    expect(player.sequence.map((source) => (source.tag as MediaItem).id), ids);
+    expect(handler.snapshot.currentIndex, 50);
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test(
     'large saved queue restores the current item first, then fills in order',
@@ -792,9 +784,11 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
-      final songs = await database.libraryDao.getSongsByIds(
-        <String>['song-0', 'song-1', 'song-2'],
-      );
+      final songs = await database.libraryDao.getSongsByIds(<String>[
+        'song-0',
+        'song-1',
+        'song-2',
+      ]);
       await handler.replaceQueueWithData(songs);
 
       final loadEntered = Completer<void>();
@@ -829,13 +823,15 @@ void main() {
       await database.close();
       await directory.delete(recursive: true);
     });
-    final songs = await database.libraryDao.getSongsByIds(
-      <String>['song-0', 'song-1'],
-    );
-    await handler.replaceQueueWithData(
-      <SongsTableData>[songs[0], songs[1], songs[0]],
-      startIndex: 2,
-    );
+    final songs = await database.libraryDao.getSongsByIds(<String>[
+      'song-0',
+      'song-1',
+    ]);
+    await handler.replaceQueueWithData(<SongsTableData>[
+      songs[0],
+      songs[1],
+      songs[0],
+    ], startIndex: 2);
 
     expect(handler.snapshot.queueSongIds, <String>[
       'song-0',
@@ -1457,12 +1453,7 @@ void main() {
 
         await handler.setShuffleMode(AudioServiceShuffleMode.none);
 
-        final expected = <String>[
-          ...ids(6),
-          'song-0',
-          ...ids(60, 6),
-          'song-1',
-        ];
+        final expected = <String>[...ids(6), 'song-0', ...ids(60, 6), 'song-1'];
         expect(handler.snapshot.queueSongIds, expected);
         expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
         expect(handler.snapshot.currentSongId, playing);
@@ -1734,10 +1725,9 @@ void main() {
       api = createApiClient();
       // The session arrives together with the user's own selection.
       final retry = handler.retryDeferredQueueRestore();
-      final userQueue = handler.replaceQueue(
-        ['song-2'],
-        expandMatchFlows: false,
-      );
+      final userQueue = handler.replaceQueue([
+        'song-2',
+      ], expandMatchFlows: false);
       await Future.wait([retry, userQueue]);
       await handler.retryDeferredQueueRestore();
 

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -35,7 +35,7 @@ Future<void> showPlaybackAdjustmentQuickPanel(BuildContext anchorContext) {
 }
 
 class _PlaybackAdjustmentFooter extends ConsumerWidget {
-  const _PlaybackAdjustmentFooter();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -125,7 +125,7 @@ Future<PlaybackSpeedNudgeResult?> nudgePlaybackSpeed(
 /// icon with the multiplier (for example `1.25×`); a pitch-only change tints
 /// the icon. The glyph slot has a fixed width so transport rows never shift.
 class PlaybackSpeedQuickButton extends ConsumerWidget {
-  const PlaybackSpeedQuickButton({
+  const new({
     this.enabled = true,
     this.disabledTooltip,
     this.style,
@@ -199,15 +199,12 @@ class PlaybackSpeedQuickButton extends ConsumerWidget {
 /// The Speed button swaps its icon for a label such as `1.25×`, so both
 /// quick buttons reserve the same slot; flanking the transport with equal
 /// widths keeps Play exactly centred.
-Widget quickActionGlyphSlot(
-  double size,
-  Widget child, {
-  bool dense = false,
-}) => SizedBox(
-  width: size + (dense ? 4 : 12),
-  height: size,
-  child: Center(child: child),
-);
+Widget quickActionGlyphSlot(double size, Widget child, {bool dense = false}) =>
+    SizedBox(
+      width: size + (dense ? 4 : 12),
+      height: size,
+      child: Center(child: child),
+    );
 
 /// Tighter padding for [dense] quick buttons on narrow transport rows.
 ButtonStyle? quickActionDenseStyle(ButtonStyle? style, {required bool dense}) =>
@@ -225,7 +222,7 @@ ButtonStyle? quickActionDenseStyle(ButtonStyle? style, {required bool dense}) =>
 /// equalizer, so transport rows never carry a permanently dead button; the
 /// Settings entry still explains why the equalizer is unavailable.
 class EqualizerQuickButton extends ConsumerWidget {
-  const EqualizerQuickButton({
+  const new({
     this.enabled = true,
     this.disabledTooltip,
     this.style,

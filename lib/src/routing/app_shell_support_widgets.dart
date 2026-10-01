@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _BatteryOptimizationSheet extends StatelessWidget {
-  const _BatteryOptimizationSheet({required this.onOpenSettings});
+  const new({required this.onOpenSettings});
 
   final VoidCallback onOpenSettings;
 
@@ -87,9 +87,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: onOpenSettings,
                   icon: const Icon(Icons.open_in_new),
-                  label: Text(
-                    l10n.batteryOptimizationPromptOpenSettingsAction,
-                  ),
+                  label: Text(l10n.batteryOptimizationPromptOpenSettingsAction),
                 ),
               ),
             ],
@@ -101,7 +99,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
 }
 
 class _BottomNavReveal extends StatelessWidget {
-  const _BottomNavReveal({required this.reveal, required this.child});
+  const new({required this.reveal, required this.child});
 
   final double reveal;
   final Widget child;

@@ -61,23 +61,20 @@ function Wait-Until {
 function Invoke-WinRtOperation {
   # Windows PowerShell exposes WinRT async operations as bare COM objects, so
   # the result type cannot be discovered by reflection and is passed in.
-  param(
-    [Parameter(Mandatory = $true)][object]$Operation,
-    [Type]$ResultType = [bool]
-  )
+  param([Parameter(Mandatory = $true)][object]$Operation, [type]$ResultType = [bool])
   $asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() |
     Where-Object {
       $_.Name -eq 'AsTask' -and $_.IsGenericMethodDefinition -and
-      $_.GetParameters().Count -eq 1 -and
+      $_.GetGenericArguments().Count -eq 1 -and $_.GetParameters().Count -eq 1 -and
       $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
-    } |
-    Select-Object -First 1
+    } | Select-Object -First 1
   $task = $asTask.MakeGenericMethod($ResultType).Invoke($null, @($Operation))
   return $task.GetAwaiter().GetResult()
 }
 
 function Get-NavisSession {
-  $manager = Invoke-WinRtOperation ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+  $managerType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
+  $manager = Invoke-WinRtOperation ($managerType::RequestAsync()) -ResultType $managerType
   return $manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -eq $AppUserModelId } | Select-Object -First 1
 }
 
@@ -88,18 +85,29 @@ function Wait-ForNavisSession {
 
 function Get-PlaybackStatus { return Invoke-Api GET '/v1/playback/status' }
 
+function Wait-ForPresentation {
+  Wait-Until -Description 'the restored application presentation' -TimeoutSeconds 60 -Condition {
+    $status = Invoke-Api GET '/v1/presentation/status'
+    $status.appReady -and $status.screenshotReady -and $status.route -and $status.route -ne '/loading'
+  }
+}
+
+
 function Stop-Navis {
   if ($null -eq $script:AppProcess) { return }
   try { Invoke-Api POST '/v1/shutdown' | Out-Null } catch {}
   # Process.Kill(bool) is unavailable in Windows PowerShell (.NET Framework).
-  if (-not $script:AppProcess.WaitForExit(30000)) { & taskkill.exe /T /F /PID $script:AppProcess.Id | Out-Null }
+  if (-not $script:AppProcess.WaitForExit(30000)) {
+    & taskkill.exe /PID $script:AppProcess.Id /T /F | Out-Null
+    if ($LASTEXITCODE -ne 0 -and -not $script:AppProcess.HasExited) { throw 'Unable to stop the diagnostics process tree.' }
+  }
   $script:AppProcess = $null
 }
 
 function Start-Navis {
   Remove-Item $Handshake -Force -ErrorAction SilentlyContinue
   $arguments = @(
-    'run', '-d', 'windows', '--profile',
+    'run', '-d', 'windows', '--profile', '--no-pub',
     '--dart-define=NAVIS_UPDATE_CHANNEL=dev',
     '--dart-define=NAVIS_APP_ID_SUFFIX=.dev',
     '--dart-define=NAVIS_APP_NAME=Navis SMTC Diagnostics',
@@ -110,11 +118,11 @@ function Start-Navis {
     "--dart-define=NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CloneDatabase",
     "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$CredentialFile"
   )
-  # Start-Process joins arguments with spaces without quoting them, so values
-  # containing spaces (the app name, or any path) must carry their own quotes.
-  $arguments = $arguments | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }
-  $script:AppProcess = Start-Process -FilePath 'flutter' -ArgumentList $arguments -WorkingDirectory $RepoRoot -RedirectStandardOutput $AppLog -RedirectStandardError "$AppLog.stderr" -PassThru
-  Wait-Until -Description 'the authenticated diagnostics API handshake' -TimeoutSeconds 180 -Condition { Test-Path $Handshake -PathType Leaf }
+  # Start-Process joins arguments with spaces without quoting them, so every
+  # argument carries its own quotes.
+  $argumentLine = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
+  $script:AppProcess = Start-Process -FilePath 'flutter' -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -RedirectStandardOutput $AppLog -RedirectStandardError "$AppLog.stderr" -PassThru
+  Wait-Until -Description 'the authenticated diagnostics API handshake' -TimeoutSeconds 300 -Condition { Test-Path $Handshake -PathType Leaf }
   $handshake = Get-Content -Raw $Handshake | ConvertFrom-Json
   $script:BaseUrl = "http://127.0.0.1:$($handshake.port)"
   $script:Token = $handshake.token
@@ -146,6 +154,9 @@ try {
     -not [string]::IsNullOrWhiteSpace($media.Title) -and $controls.IsPauseEnabled -and $controls.IsNextEnabled -and $controls.IsPreviousEnabled
   }
   $session = Get-NavisSession
+  $mediaType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType = WindowsRuntime]
+  $media = Invoke-WinRtOperation ($session.TryGetMediaPropertiesAsync()) -ResultType $mediaType
+  $playback = $session.GetPlaybackInfo()
   $timelineBefore = $session.GetTimelineProperties()
   # The timeline is republished about once a second; a short track may also
   # change in between, so require a newer publication with a new position.
@@ -172,25 +183,52 @@ try {
       if ($press -eq 2) { throw }
     }
   }
-  if (-not (Invoke-WinRtOperation $session.TryChangePlaybackPositionAsync([int64]50000000))) { throw 'GMTC seek command was rejected.' }
-  Wait-Until -Description 'GMTC seek to reach Navis' -Condition { (Get-PlaybackStatus).positionMs -ge 4000 }
+  # A paused seek must land at five seconds: a WinRT TimeSpan is in 100 ns
+  # ticks, and a unit error clamps it to the end of the song.
+  if (-not (Invoke-WinRtOperation $session.TryPauseAsync())) { throw 'GMTC pause before seek was rejected.' }
+  Wait-Until -Description 'GMTC pause before seek to reach Navis' -Condition { -not (Get-PlaybackStatus).playing }
+  $seekPositionTicks = [TimeSpan]::FromSeconds(5).Ticks
+  if (-not (Invoke-WinRtOperation $session.TryChangePlaybackPositionAsync($seekPositionTicks))) { throw 'GMTC seek command was rejected.' }
+  Wait-Until -Description 'paused GMTC seek to five seconds' -TimeoutSeconds 10 -Condition {
+    $status = Get-PlaybackStatus
+    -not $status.playing -and $status.positionMs -ge 4500 -and $status.positionMs -le 5500
+  }
+  if (-not (Invoke-WinRtOperation $session.TryPlayAsync())) { throw 'GMTC play after seek was rejected.' }
+  Wait-Until -Description 'GMTC play after seek to reach Navis' -Condition { (Get-PlaybackStatus).playing }
   if (-not (Invoke-WinRtOperation $session.TryChangeShuffleActiveAsync($true))) { throw 'GMTC shuffle command was rejected.' }
   Wait-Until -Description 'GMTC shuffle to reach Navis' -Condition { (Get-PlaybackStatus).shuffleMode -eq 'all' }
   $repeat = [Windows.Media.MediaPlaybackAutoRepeatMode, Windows.Media, ContentType = WindowsRuntime]::List
   if (-not (Invoke-WinRtOperation $session.TryChangeAutoRepeatModeAsync($repeat))) { throw 'GMTC repeat command was rejected.' }
   Wait-Until -Description 'GMTC repeat to reach Navis' -Condition { (Get-PlaybackStatus).repeatMode -eq 'all' }
 
+  Wait-ForPresentation
+  Invoke-Api POST '/v1/presentation/screenshot' @{ label = 'windows-smtc' } |
+    ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'screenshot.json')
   Stop-Navis
   Start-Navis
+  Wait-Until -Description 'restored queue after clean restart' -Condition { (Get-PlaybackStatus).songId -eq $SongId }
   $session = Wait-ForNavisSession
+  if (-not (Invoke-WinRtOperation $session.TryPlayAsync())) { throw 'GMTC play after restart was rejected.' }
+  Wait-Until -Description 'GMTC play after restart to reach Navis' -Condition { (Get-PlaybackStatus).playing }
+  if (-not (Invoke-WinRtOperation $session.TryPauseAsync())) { throw 'GMTC pause after restart was rejected.' }
+  Wait-Until -Description 'GMTC pause after restart to reach Navis' -Condition { -not (Get-PlaybackStatus).playing }
+  Wait-ForPresentation
+  Invoke-Api POST '/v1/presentation/screenshot' @{ label = 'windows-smtc-restart' } |
+    ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'restart-screenshot.json')
   $result = [ordered]@{
     status = 'passed'; target = 'windows'; profile = 'isolated-clone';
     appUserModelId = $session.SourceAppUserModelId; metadataPublished = $true;
     gmtcCommands = @('play', 'pause', 'next', 'previous', 'seek', 'shuffle', 'repeat');
-    timelineProgressed = $true; cleanRestart = $true
+    timelineProgressed = $true; pausedSeekVerified = $true; seekTargetMs = 5000; cleanRestart = $true; restartCommandsVerified = $true
   }
   $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'runtime-validation.json')
   Write-Host "Windows SMTC diagnostics passed: $OutputRoot"
+} catch {
+  try {
+    Get-PlaybackStatus | Select-Object songId, playing, processingState, positionMs, playerPositionMs, durationMs, shuffleMode, repeatMode, navigation |
+      ConvertTo-Json -Depth 6 | Set-Content (Join-Path $OutputRoot 'failure-playback.json')
+  } catch {}
+  throw
 } finally {
   Stop-Navis
   $script:Token = $null

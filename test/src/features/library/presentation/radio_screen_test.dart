@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -33,7 +34,7 @@ Future<void> _pumpRadio(
       ],
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: MediaQuery(
           data: MediaQueryData(textScaler: TextScaler.linear(scale)),
@@ -159,7 +160,7 @@ void main() {
             ],
             child: MaterialApp(
               theme: testTheme(),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: Scaffold(
                 body: RadioTabContent(

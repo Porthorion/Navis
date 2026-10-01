@@ -66,9 +66,8 @@ abstract class JustAudioPlatform extends PlatformInterface {
 /// `implements` this interface will be broken by newly added
 /// [AudioPlayerPlatform] methods.
 abstract class AudioPlayerPlatform {
-  final String id;
-
   AudioPlayerPlatform(this.id);
+  final String id;
 
   /// Applies app-owned parametric EQ to this player.
   Future<EqualizerStateMessage> setEqualizer(
@@ -94,53 +93,53 @@ abstract class AudioPlayerPlatform {
 
   /// Loads an audio source.
   Future<LoadResponse> load(LoadRequest request) {
-    throw UnimplementedError("load() has not been implemented.");
+    throw UnimplementedError('load() has not been implemented.');
   }
 
   /// Plays the current audio source at the current index and position.
   Future<PlayResponse> play(PlayRequest request) {
-    throw UnimplementedError("play() has not been implemented.");
+    throw UnimplementedError('play() has not been implemented.');
   }
 
   /// Pauses playback.
   Future<PauseResponse> pause(PauseRequest request) {
-    throw UnimplementedError("pause() has not been implemented.");
+    throw UnimplementedError('pause() has not been implemented.');
   }
 
   /// Changes the volume.
   Future<SetVolumeResponse> setVolume(SetVolumeRequest request) {
-    throw UnimplementedError("setVolume() has not been implemented.");
+    throw UnimplementedError('setVolume() has not been implemented.');
   }
 
   /// Changes the playback speed.
   Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) {
-    throw UnimplementedError("setSpeed() has not been implemented.");
+    throw UnimplementedError('setSpeed() has not been implemented.');
   }
 
   /// Changes the pitch.
   Future<SetPitchResponse> setPitch(SetPitchRequest request) {
-    throw UnimplementedError("setPitch() has not been implemented.");
+    throw UnimplementedError('setPitch() has not been implemented.');
   }
 
   /// Sets skipSilence to true/false.
   Future<SetSkipSilenceResponse> setSkipSilence(SetSkipSilenceRequest request) {
-    throw UnimplementedError("setSkipSilence() has not been implemented.");
+    throw UnimplementedError('setSkipSilence() has not been implemented.');
   }
 
   /// Sets the loop mode.
   Future<SetLoopModeResponse> setLoopMode(SetLoopModeRequest request) {
-    throw UnimplementedError("setLoopMode() has not been implemented.");
+    throw UnimplementedError('setLoopMode() has not been implemented.');
   }
 
   /// Sets the shuffle mode.
   Future<SetShuffleModeResponse> setShuffleMode(SetShuffleModeRequest request) {
-    throw UnimplementedError("setShuffleMode() has not been implemented.");
+    throw UnimplementedError('setShuffleMode() has not been implemented.');
   }
 
   /// Sets the shuffle order.
   Future<SetShuffleOrderResponse> setShuffleOrder(
       SetShuffleOrderRequest request) {
-    throw UnimplementedError("setShuffleOrder() has not been implemented.");
+    throw UnimplementedError('setShuffleOrder() has not been implemented.');
   }
 
   /// On iOS and macOS, sets the automaticallyWaitsToMinimizeStalling option,
@@ -149,7 +148,7 @@ abstract class AudioPlayerPlatform {
       setAutomaticallyWaitsToMinimizeStalling(
           SetAutomaticallyWaitsToMinimizeStallingRequest request) {
     throw UnimplementedError(
-        "setAutomaticallyWaitsToMinimizeStalling() has not been implemented.");
+        'setAutomaticallyWaitsToMinimizeStalling() has not been implemented.');
   }
 
   /// On iOS and macOS, sets the
@@ -159,7 +158,7 @@ abstract class AudioPlayerPlatform {
       setCanUseNetworkResourcesForLiveStreamingWhilePaused(
           SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest request) {
     throw UnimplementedError(
-        "setCanUseNetworkResourcesForLiveStreamingWhilePaused() has not been implemented.");
+        'setCanUseNetworkResourcesForLiveStreamingWhilePaused() has not been implemented.');
   }
 
   /// On iOS and macOS, sets the preferredPeakBitRate option, and does nothing
@@ -167,7 +166,7 @@ abstract class AudioPlayerPlatform {
   Future<SetPreferredPeakBitRateResponse> setPreferredPeakBitRate(
       SetPreferredPeakBitRateRequest request) {
     throw UnimplementedError(
-        "setPreferredPeakBitRate() has not been implemented.");
+        'setPreferredPeakBitRate() has not been implemented.');
   }
 
   /// On iOS and macOS, sets the allowsExternalPlayback option, and does nothing
@@ -175,12 +174,12 @@ abstract class AudioPlayerPlatform {
   Future<SetAllowsExternalPlaybackResponse> setAllowsExternalPlayback(
       SetAllowsExternalPlaybackRequest request) {
     throw UnimplementedError(
-        "setAllowsExternalPlayback() has not been implemented.");
+        'setAllowsExternalPlayback() has not been implemented.');
   }
 
   /// Seeks to the given index and position.
   Future<SeekResponse> seek(SeekRequest request) {
-    throw UnimplementedError("seek() has not been implemented.");
+    throw UnimplementedError('seek() has not been implemented.');
   }
 
   /// On Android, sets the audio attributes, and does nothing on other
@@ -188,41 +187,41 @@ abstract class AudioPlayerPlatform {
   Future<SetAndroidAudioAttributesResponse> setAndroidAudioAttributes(
       SetAndroidAudioAttributesRequest request) {
     throw UnimplementedError(
-        "setAndroidAudioAttributes() has not been implemented.");
+        'setAndroidAudioAttributes() has not been implemented.');
   }
 
   /// This method has been superseded by [JustAudioPlatform.disposePlayer].
   /// For backward compatibility, this method will still be called as a
   /// fallback if [JustAudioPlatform.disposePlayer] is not implemented.
   Future<DisposeResponse> dispose(DisposeRequest request) {
-    throw UnimplementedError("dispose() has not been implemented.");
+    throw UnimplementedError('dispose() has not been implemented.');
   }
 
   /// Inserts audio sources into the given concatenating audio source.
   Future<ConcatenatingInsertAllResponse> concatenatingInsertAll(
       ConcatenatingInsertAllRequest request) {
     throw UnimplementedError(
-        "concatenatingInsertAll() has not been implemented.");
+        'concatenatingInsertAll() has not been implemented.');
   }
 
   /// Removes audio sources from the given concatenating audio source.
   Future<ConcatenatingRemoveRangeResponse> concatenatingRemoveRange(
       ConcatenatingRemoveRangeRequest request) {
     throw UnimplementedError(
-        "concatenatingRemoveRange() has not been implemented.");
+        'concatenatingRemoveRange() has not been implemented.');
   }
 
   /// Moves an audio source within a concatenating audio source.
   Future<ConcatenatingMoveResponse> concatenatingMove(
       ConcatenatingMoveRequest request) {
-    throw UnimplementedError("concatenatingMove() has not been implemented.");
+    throw UnimplementedError('concatenatingMove() has not been implemented.');
   }
 
   /// Changes the enabled status of an audio effect.
   Future<AudioEffectSetEnabledResponse> audioEffectSetEnabled(
       AudioEffectSetEnabledRequest request) {
     throw UnimplementedError(
-        "audioEffectSetEnabled() has not been implemented.");
+        'audioEffectSetEnabled() has not been implemented.');
   }
 
   /// Sets the target gain on the Android loudness enhancer.
@@ -230,32 +229,32 @@ abstract class AudioPlayerPlatform {
       androidLoudnessEnhancerSetTargetGain(
           AndroidLoudnessEnhancerSetTargetGainRequest request) {
     throw UnimplementedError(
-        "androidLoudnessEnhancerSetTargetGain() has not been implemented.");
+        'androidLoudnessEnhancerSetTargetGain() has not been implemented.');
   }
 
   /// Gets the Android equalizer parameters.
   Future<AndroidEqualizerGetParametersResponse> androidEqualizerGetParameters(
       AndroidEqualizerGetParametersRequest request) {
     throw UnimplementedError(
-        "androidEqualizerGetParameters() has not been implemented.");
+        'androidEqualizerGetParameters() has not been implemented.');
   }
 
   /// Sets the gain for an Android equalizer band.
   Future<AndroidEqualizerBandSetGainResponse> androidEqualizerBandSetGain(
       AndroidEqualizerBandSetGainRequest request) {
     throw UnimplementedError(
-        "androidEqualizerBandSetGain() has not been implemented.");
+        'androidEqualizerBandSetGain() has not been implemented.');
   }
 
   /// Sets the 'crossOrigin' attribute on the web audio element.
   Future<SetWebCrossOriginResponse> setWebCrossOrigin(
       SetWebCrossOriginRequest request) {
-    throw UnimplementedError("setWebCrossOrigin() has not been implemented.");
+    throw UnimplementedError('setWebCrossOrigin() has not been implemented.');
   }
 
   /// Sets a specific device output id on the web audio element.
   Future<SetWebSinkIdResponse> setWebSinkId(SetWebSinkIdRequest request) {
-    throw UnimplementedError("setWebSinkId() has not been implemented.");
+    throw UnimplementedError('setWebSinkId() has not been implemented.');
   }
 }
 
@@ -265,12 +264,6 @@ abstract class AudioPlayerPlatform {
 /// need to broadcast new state changes for this state as such state changes
 /// will be initiated from the frontend.
 class PlayerDataMessage {
-  final bool? playing;
-  final double? volume;
-  final double? speed;
-  final double? pitch;
-  final LoopModeMessage? loopMode;
-  final ShuffleModeMessage? shuffleMode;
   // TODO: Eventually move other state here?
   // bufferedPosition, androidAudioSessionId, icyMetadata
 
@@ -282,6 +275,12 @@ class PlayerDataMessage {
     this.loopMode,
     this.shuffleMode,
   });
+  final bool? playing;
+  final double? volume;
+  final double? speed;
+  final double? pitch;
+  final LoopModeMessage? loopMode;
+  final ShuffleModeMessage? shuffleMode;
 
   static PlayerDataMessage fromMap(Map<dynamic, dynamic> map) =>
       PlayerDataMessage(
@@ -301,17 +300,6 @@ class PlayerDataMessage {
 /// A playback event communicated from the platform implementation to the
 /// Flutter plugin.
 class PlaybackEventMessage {
-  final ProcessingStateMessage processingState;
-  final DateTime updateTime;
-  final Duration updatePosition;
-  final Duration bufferedPosition;
-  final Duration? duration;
-  final IcyMetadataMessage? icyMetadata;
-  final int? currentIndex;
-  final int? androidAudioSessionId;
-  final int? errorCode;
-  final String? errorMessage;
-
   PlaybackEventMessage({
     required this.processingState,
     required this.updateTime,
@@ -324,6 +312,16 @@ class PlaybackEventMessage {
     this.errorCode,
     this.errorMessage,
   });
+  final ProcessingStateMessage processingState;
+  final DateTime updateTime;
+  final Duration updatePosition;
+  final Duration bufferedPosition;
+  final Duration? duration;
+  final IcyMetadataMessage? icyMetadata;
+  final int? currentIndex;
+  final int? androidAudioSessionId;
+  final int? errorCode;
+  final String? errorMessage;
 
   static PlaybackEventMessage fromMap(Map<dynamic, dynamic> map) =>
       PlaybackEventMessage(
@@ -359,13 +357,12 @@ enum ProcessingStateMessage {
 
 /// Icy metadata communicated from the platform implementation.
 class IcyMetadataMessage {
-  final IcyInfoMessage? info;
-  final IcyHeadersMessage? headers;
-
   IcyMetadataMessage({
     required this.info,
     required this.headers,
   });
+  final IcyInfoMessage? info;
+  final IcyHeadersMessage? headers;
 
   static IcyMetadataMessage fromMap(Map<dynamic, dynamic> json) =>
       IcyMetadataMessage(
@@ -381,13 +378,12 @@ class IcyMetadataMessage {
 
 /// Icy info communicated from the platform implementation.
 class IcyInfoMessage {
-  final String? title;
-  final String? url;
-
   IcyInfoMessage({
     required this.title,
     required this.url,
   });
+  final String? title;
+  final String? url;
 
   static IcyInfoMessage fromMap(Map<dynamic, dynamic> json) => IcyInfoMessage(
       title: json['title'] as String?, url: json['url'] as String?);
@@ -395,13 +391,6 @@ class IcyInfoMessage {
 
 /// Icy headers communicated from the platform implementation.
 class IcyHeadersMessage {
-  final int? bitrate;
-  final String? genre;
-  final String? name;
-  final int? metadataInterval;
-  final String? url;
-  final bool? isPublic;
-
   IcyHeadersMessage({
     required this.bitrate,
     required this.genre,
@@ -410,6 +399,12 @@ class IcyHeadersMessage {
     required this.url,
     required this.isPublic,
   });
+  final int? bitrate;
+  final String? genre;
+  final String? name;
+  final int? metadataInterval;
+  final String? url;
+  final bool? isPublic;
 
   static IcyHeadersMessage fromMap(Map<dynamic, dynamic> json) =>
       IcyHeadersMessage(
@@ -425,16 +420,6 @@ class IcyHeadersMessage {
 /// Information communicated to the platform implementation when creating a new
 /// player instance.
 class InitRequest {
-  final String id;
-  final AudioLoadConfigurationMessage? audioLoadConfiguration;
-  final List<AudioEffectMessage> androidAudioEffects;
-  final List<AudioEffectMessage> darwinAudioEffects;
-  final EqualizerConfigurationMessage? equalizerConfiguration;
-
-  final AndroidAudioOffloadPreferencesMessage? androidAudioOffloadPreferences;
-  final bool? androidOffloadSchedulingEnabled;
-  final bool useLazyPreparation;
-
   InitRequest({
     required this.id,
     this.audioLoadConfiguration,
@@ -445,6 +430,15 @@ class InitRequest {
     this.androidOffloadSchedulingEnabled,
     this.useLazyPreparation = true,
   });
+  final String id;
+  final AudioLoadConfigurationMessage? audioLoadConfiguration;
+  final List<AudioEffectMessage> androidAudioEffects;
+  final List<AudioEffectMessage> darwinAudioEffects;
+  final EqualizerConfigurationMessage? equalizerConfiguration;
+
+  final AndroidAudioOffloadPreferencesMessage? androidAudioOffloadPreferences;
+  final bool? androidOffloadSchedulingEnabled;
+  final bool useLazyPreparation;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'id': id,
@@ -467,9 +461,8 @@ class InitRequest {
 /// Information communicated to the platform implementation when disposing of a
 /// player instance.
 class DisposePlayerRequest {
-  final String id;
-
   DisposePlayerRequest({required this.id});
+  final String id;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'id': id,
@@ -501,15 +494,14 @@ class DisposeAllPlayersResponse {
 /// Information communicated to the platform implementation when loading an
 /// audio source.
 class LoadRequest {
-  final AudioSourceMessage audioSourceMessage;
-  final Duration? initialPosition;
-  final int? initialIndex;
-
   LoadRequest({
     required this.audioSourceMessage,
     this.initialPosition,
     this.initialIndex,
   });
+  final AudioSourceMessage audioSourceMessage;
+  final Duration? initialPosition;
+  final int? initialIndex;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'audioSource': audioSourceMessage.toMap(),
@@ -521,9 +513,8 @@ class LoadRequest {
 /// Information returned by the platform implementation after loading an audio
 /// source.
 class LoadResponse {
-  final Duration? duration;
-
   LoadResponse({required this.duration});
+  final Duration? duration;
 
   static LoadResponse fromMap(Map<dynamic, dynamic> map) => LoadResponse(
       duration: map['duration'] == null || map['duration'] as int < 0
@@ -557,9 +548,8 @@ class PauseResponse {
 /// Information communicated to the platform implementation when setting the
 /// volume.
 class SetVolumeRequest {
-  final double volume;
-
   SetVolumeRequest({required this.volume});
+  final double volume;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'volume': volume,
@@ -576,9 +566,8 @@ class SetVolumeResponse {
 /// Information communicated to the platform implementation when setting the
 /// speed.
 class SetSpeedRequest {
-  final double speed;
-
   SetSpeedRequest({required this.speed});
+  final double speed;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'speed': speed,
@@ -595,9 +584,8 @@ class SetSpeedResponse {
 /// Information communicated to the platform implementation when setting the
 /// pitch.
 class SetPitchRequest {
-  final double pitch;
-
   SetPitchRequest({required this.pitch});
+  final double pitch;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'pitch': pitch,
@@ -614,9 +602,8 @@ class SetPitchResponse {
 /// Information communicated to the platform implementation when setting the
 /// skipSilence.
 class SetSkipSilenceRequest {
-  final bool enabled;
-
   SetSkipSilenceRequest({required this.enabled});
+  final bool enabled;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'enabled': enabled,
@@ -633,9 +620,8 @@ class SetSkipSilenceResponse {
 /// Information communicated to the platform implementation when setting the
 /// loop mode.
 class SetLoopModeRequest {
-  final LoopModeMessage loopMode;
-
   SetLoopModeRequest({required this.loopMode});
+  final LoopModeMessage loopMode;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'loopMode': loopMode.index,
@@ -655,9 +641,8 @@ enum LoopModeMessage { off, one, all }
 /// Information communicated to the platform implementation when setting the
 /// shuffle mode.
 class SetShuffleModeRequest {
-  final ShuffleModeMessage shuffleMode;
-
   SetShuffleModeRequest({required this.shuffleMode});
+  final ShuffleModeMessage shuffleMode;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'shuffleMode': shuffleMode.index,
@@ -677,9 +662,8 @@ enum ShuffleModeMessage { none, all }
 /// Information communicated to the platform implementation when setting the
 /// shuffle order.
 class SetShuffleOrderRequest {
-  final AudioSourceMessage audioSourceMessage;
-
   SetShuffleOrderRequest({required this.audioSourceMessage});
+  final AudioSourceMessage audioSourceMessage;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'audioSource': audioSourceMessage.toMap(),
@@ -696,9 +680,8 @@ class SetShuffleOrderResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetAutomaticallyWaitsToMinimizeStallingRequest {
-  final bool enabled;
-
   SetAutomaticallyWaitsToMinimizeStallingRequest({required this.enabled});
+  final bool enabled;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'enabled': enabled,
@@ -716,10 +699,9 @@ class SetAutomaticallyWaitsToMinimizeStallingResponse {
 /// Information communicated to the platform implementation when setting the
 /// canUseNetworkResourcesForLiveStreamingWhilePaused option.
 class SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest {
-  final bool enabled;
-
   SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest(
       {required this.enabled});
+  final bool enabled;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'enabled': enabled,
@@ -737,9 +719,8 @@ class SetCanUseNetworkResourcesForLiveStreamingWhilePausedResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetPreferredPeakBitRateRequest {
-  final double bitRate;
-
   SetPreferredPeakBitRateRequest({required this.bitRate});
+  final double bitRate;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'bitRate': bitRate,
@@ -756,9 +737,8 @@ class SetPreferredPeakBitRateResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetAllowsExternalPlaybackRequest {
-  final bool allowsExternalPlayback;
-
   SetAllowsExternalPlaybackRequest({required this.allowsExternalPlayback});
+  final bool allowsExternalPlayback;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'allowsExternalPlayback': allowsExternalPlayback,
@@ -775,10 +755,9 @@ class SetAllowsExternalPlaybackResponse {
 /// Information communicated to the platform implementation when seeking to a
 /// position and index.
 class SeekRequest {
+  SeekRequest({this.position, this.index});
   final Duration? position;
   final int? index;
-
-  SeekRequest({this.position, this.index});
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'position': position?.inMicroseconds,
@@ -795,15 +774,14 @@ class SeekResponse {
 /// Information communicated to the platform implementation when setting the
 /// Android audio attributes.
 class SetAndroidAudioAttributesRequest {
-  final int contentType;
-  final int flags;
-  final int usage;
-
   SetAndroidAudioAttributesRequest({
     required this.contentType,
     required this.flags,
     required this.usage,
   });
+  final int contentType;
+  final int flags;
+  final int usage;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'contentType': contentType,
@@ -833,17 +811,16 @@ class DisposeResponse {
 /// Information communicated to the platform implementation when inserting audio
 /// sources into a concatenating audio source.
 class ConcatenatingInsertAllRequest {
-  final String id;
-  final int index;
-  final List<AudioSourceMessage> children;
-  final List<int> shuffleOrder;
-
   ConcatenatingInsertAllRequest({
     required this.id,
     required this.index,
     required this.children,
     required this.shuffleOrder,
   });
+  final String id;
+  final int index;
+  final List<AudioSourceMessage> children;
+  final List<int> shuffleOrder;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'id': id,
@@ -863,17 +840,16 @@ class ConcatenatingInsertAllResponse {
 /// Information communicated to the platform implementation when removing audio
 /// sources from a concatenating audio source.
 class ConcatenatingRemoveRangeRequest {
-  final String id;
-  final int startIndex;
-  final int endIndex;
-  final List<int> shuffleOrder;
-
   ConcatenatingRemoveRangeRequest({
     required this.id,
     required this.startIndex,
     required this.endIndex,
     required this.shuffleOrder,
   });
+  final String id;
+  final int startIndex;
+  final int endIndex;
+  final List<int> shuffleOrder;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'id': id,
@@ -893,17 +869,16 @@ class ConcatenatingRemoveRangeResponse {
 /// Information communicated to the platform implementation when moving an audio
 /// source within a concatenating audio source.
 class ConcatenatingMoveRequest {
-  final String id;
-  final int currentIndex;
-  final int newIndex;
-  final List<int> shuffleOrder;
-
   ConcatenatingMoveRequest({
     required this.id,
     required this.currentIndex,
     required this.newIndex,
     required this.shuffleOrder,
   });
+  final String id;
+  final int currentIndex;
+  final int newIndex;
+  final List<int> shuffleOrder;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'id': id,
@@ -923,15 +898,14 @@ class ConcatenatingMoveResponse {
 /// Information communicated to the platform implementation when setting the
 /// audio load configuration options.
 class AudioLoadConfigurationMessage {
-  final DarwinLoadControlMessage? darwinLoadControl;
-  final AndroidLoadControlMessage? androidLoadControl;
-  final AndroidLivePlaybackSpeedControlMessage? androidLivePlaybackSpeedControl;
-
   const AudioLoadConfigurationMessage({
     required this.darwinLoadControl,
     required this.androidLoadControl,
     required this.androidLivePlaybackSpeedControl,
   });
+  final DarwinLoadControlMessage? darwinLoadControl;
+  final AndroidLoadControlMessage? androidLoadControl;
+  final AndroidLivePlaybackSpeedControlMessage? androidLivePlaybackSpeedControl;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'darwinLoadControl': darwinLoadControl?.toMap(),
@@ -942,6 +916,13 @@ class AudioLoadConfigurationMessage {
 }
 
 class DarwinLoadControlMessage {
+  DarwinLoadControlMessage({
+    required this.automaticallyWaitsToMinimizeStalling,
+    required this.preferredForwardBufferDuration,
+    required this.canUseNetworkResourcesForLiveStreamingWhilePaused,
+    required this.preferredPeakBitRate,
+  });
+
   /// (iOS/macOS) Whether the player will wait for sufficient data to be
   /// buffered before starting playback to avoid the likelihood of stalling.
   final bool automaticallyWaitsToMinimizeStalling;
@@ -959,13 +940,6 @@ class DarwinLoadControlMessage {
   /// second.
   final double? preferredPeakBitRate;
 
-  DarwinLoadControlMessage({
-    required this.automaticallyWaitsToMinimizeStalling,
-    required this.preferredForwardBufferDuration,
-    required this.canUseNetworkResourcesForLiveStreamingWhilePaused,
-    required this.preferredPeakBitRate,
-  });
-
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'automaticallyWaitsToMinimizeStalling':
             automaticallyWaitsToMinimizeStalling,
@@ -978,6 +952,16 @@ class DarwinLoadControlMessage {
 }
 
 class AndroidLoadControlMessage {
+  AndroidLoadControlMessage({
+    required this.minBufferDuration,
+    required this.maxBufferDuration,
+    required this.bufferForPlaybackDuration,
+    required this.bufferForPlaybackAfterRebufferDuration,
+    required this.targetBufferBytes,
+    required this.prioritizeTimeOverSizeThresholds,
+    required this.backBufferDuration,
+  });
+
   /// (Android) The minimum duration of audio that should be buffered ahead of
   /// the current position.
   final Duration minBufferDuration;
@@ -1004,16 +988,6 @@ class AndroidLoadControlMessage {
   /// (Android) The back buffer duration.
   final Duration backBufferDuration;
 
-  AndroidLoadControlMessage({
-    required this.minBufferDuration,
-    required this.maxBufferDuration,
-    required this.bufferForPlaybackDuration,
-    required this.bufferForPlaybackAfterRebufferDuration,
-    required this.targetBufferBytes,
-    required this.prioritizeTimeOverSizeThresholds,
-    required this.backBufferDuration,
-  });
-
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'minBufferDuration': minBufferDuration.inMicroseconds,
         'maxBufferDuration': maxBufferDuration.inMicroseconds,
@@ -1027,6 +1001,16 @@ class AndroidLoadControlMessage {
 }
 
 class AndroidLivePlaybackSpeedControlMessage {
+  AndroidLivePlaybackSpeedControlMessage({
+    required this.fallbackMinPlaybackSpeed,
+    required this.fallbackMaxPlaybackSpeed,
+    required this.minUpdateInterval,
+    required this.proportionalControlFactor,
+    required this.maxLiveOffsetErrorForUnitSpeed,
+    required this.targetLiveOffsetIncrementOnRebuffer,
+    required this.minPossibleLiveOffsetSmoothingFactor,
+  });
+
   /// (Android) The minimum playback speed to use when adjusting playback speed
   /// to approach the target live offset, if none is defined by the media.
   final double fallbackMinPlaybackSpeed;
@@ -1056,16 +1040,6 @@ class AndroidLivePlaybackSpeedControlMessage {
   /// achievable during playback.
   final double minPossibleLiveOffsetSmoothingFactor;
 
-  AndroidLivePlaybackSpeedControlMessage({
-    required this.fallbackMinPlaybackSpeed,
-    required this.fallbackMaxPlaybackSpeed,
-    required this.minUpdateInterval,
-    required this.proportionalControlFactor,
-    required this.maxLiveOffsetErrorForUnitSpeed,
-    required this.targetLiveOffsetIncrementOnRebuffer,
-    required this.minPossibleLiveOffsetSmoothingFactor,
-  });
-
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'fallbackMinPlaybackSpeed': fallbackMinPlaybackSpeed,
         'fallbackMaxPlaybackSpeed': fallbackMaxPlaybackSpeed,
@@ -1086,15 +1060,14 @@ enum AndroidAudioOffloadModeMessage { disabled, enabled }
 /// Information communicated to the platform implementation when setting the
 /// audio offload preferences.
 class AndroidAudioOffloadPreferencesMessage {
-  final AndroidAudioOffloadModeMessage audioOffloadMode;
-  final bool isGaplessSupportRequired;
-  final bool isSpeedChangeSupportRequired;
-
   AndroidAudioOffloadPreferencesMessage({
     required this.audioOffloadMode,
     required this.isGaplessSupportRequired,
     required this.isSpeedChangeSupportRequired,
   });
+  final AndroidAudioOffloadModeMessage audioOffloadMode;
+  final bool isGaplessSupportRequired;
+  final bool isSpeedChangeSupportRequired;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'audioOffloadMode': audioOffloadMode.index,
@@ -1106,13 +1079,12 @@ class AndroidAudioOffloadPreferencesMessage {
 /// Progressive audio source options to be communicated with the platform
 /// implementation.
 class ProgressiveAudioSourceOptionsMessage {
-  final AndroidExtractorOptionsMessage? androidExtractorOptions;
-  final DarwinAssetOptionsMessage? darwinAssetOptions;
-
   const ProgressiveAudioSourceOptionsMessage({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
   });
+  final AndroidExtractorOptionsMessage? androidExtractorOptions;
+  final DarwinAssetOptionsMessage? darwinAssetOptions;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'androidExtractorOptions': androidExtractorOptions?.toMap(),
@@ -1123,11 +1095,10 @@ class ProgressiveAudioSourceOptionsMessage {
 /// Options for loading audio assets on iOS/macOS to be communicated with the
 /// platform implementation.
 class DarwinAssetOptionsMessage {
-  final bool preferPreciseDurationAndTiming;
-
   const DarwinAssetOptionsMessage({
     required this.preferPreciseDurationAndTiming,
   });
+  final bool preferPreciseDurationAndTiming;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'preferPreciseDurationAndTiming': preferPreciseDurationAndTiming,
@@ -1137,15 +1108,14 @@ class DarwinAssetOptionsMessage {
 /// Options for extracting media files on Android to be communicated with the
 /// platform implementation.
 class AndroidExtractorOptionsMessage {
-  final bool constantBitrateSeekingEnabled;
-  final bool constantBitrateSeekingAlwaysEnabled;
-  final int mp3Flags;
-
   const AndroidExtractorOptionsMessage({
     required this.constantBitrateSeekingEnabled,
     required this.constantBitrateSeekingAlwaysEnabled,
     required this.mp3Flags,
   });
+  final bool constantBitrateSeekingEnabled;
+  final bool constantBitrateSeekingAlwaysEnabled;
+  final int mp3Flags;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'constantBitrateSeekingEnabled': constantBitrateSeekingEnabled,
@@ -1158,9 +1128,8 @@ class AndroidExtractorOptionsMessage {
 /// Information about an audio source to be communicated with the platform
 /// implementation.
 abstract class AudioSourceMessage {
-  final String id;
-
   AudioSourceMessage({required this.id});
+  final String id;
 
   Map<dynamic, dynamic> toMap();
 }
@@ -1168,31 +1137,29 @@ abstract class AudioSourceMessage {
 /// Information about an indexed audio source to be communicated with the
 /// platform implementation.
 abstract class IndexedAudioSourceMessage extends AudioSourceMessage {
+  IndexedAudioSourceMessage({required super.id, this.tag});
+
   /// Since the tag type is unknown, this can only be used by platform
   /// implementations that pass by reference.
   final dynamic tag;
-  IndexedAudioSourceMessage({required super.id, this.tag});
 }
 
 /// Information about a URI audio source to be communicated with the platform
 /// implementation.
 abstract class UriAudioSourceMessage extends IndexedAudioSourceMessage {
-  final String uri;
-  final Map<String, String>? headers;
-
   UriAudioSourceMessage({
     required super.id,
     required this.uri,
     this.headers,
     super.tag,
   });
+  final String uri;
+  final Map<String, String>? headers;
 }
 
 /// Information about a progressive audio source to be communicated with the
 /// platform implementation.
 class ProgressiveAudioSourceMessage extends UriAudioSourceMessage {
-  final ProgressiveAudioSourceOptionsMessage? options;
-
   ProgressiveAudioSourceMessage({
     required super.id,
     required super.uri,
@@ -1200,6 +1167,7 @@ class ProgressiveAudioSourceMessage extends UriAudioSourceMessage {
     super.tag,
     this.options,
   });
+  final ProgressiveAudioSourceOptionsMessage? options;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1252,12 +1220,11 @@ class HlsAudioSourceMessage extends UriAudioSourceMessage {
 /// Information about a silence audio source to be communicated with the
 /// platform implementation.
 class SilenceAudioSourceMessage extends IndexedAudioSourceMessage {
-  final Duration duration;
-
   SilenceAudioSourceMessage({
     required super.id,
     required this.duration,
   });
+  final Duration duration;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1270,16 +1237,15 @@ class SilenceAudioSourceMessage extends IndexedAudioSourceMessage {
 /// Information about a concatenating audio source to be communicated with the
 /// platform implementation.
 class ConcatenatingAudioSourceMessage extends AudioSourceMessage {
-  final List<AudioSourceMessage> children;
-  final bool useLazyPreparation;
-  final List<int> shuffleOrder;
-
   ConcatenatingAudioSourceMessage({
     required super.id,
     required this.children,
     required this.useLazyPreparation,
     required this.shuffleOrder,
   });
+  final List<AudioSourceMessage> children;
+  final bool useLazyPreparation;
+  final List<int> shuffleOrder;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1294,10 +1260,6 @@ class ConcatenatingAudioSourceMessage extends AudioSourceMessage {
 /// Information about a clipping audio source to be communicated with the
 /// platform implementation.
 class ClippingAudioSourceMessage extends IndexedAudioSourceMessage {
-  final UriAudioSourceMessage child;
-  final Duration? start;
-  final Duration? end;
-
   ClippingAudioSourceMessage({
     required super.id,
     required this.child,
@@ -1305,6 +1267,9 @@ class ClippingAudioSourceMessage extends IndexedAudioSourceMessage {
     this.end,
     super.tag,
   });
+  final UriAudioSourceMessage child;
+  final Duration? start;
+  final Duration? end;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1319,14 +1284,13 @@ class ClippingAudioSourceMessage extends IndexedAudioSourceMessage {
 /// Information about a looping audio source to be communicated with the
 /// platform implementation.
 class LoopingAudioSourceMessage extends AudioSourceMessage {
-  final AudioSourceMessage child;
-  final int count;
-
   LoopingAudioSourceMessage({
     required super.id,
     required this.child,
     required this.count,
   });
+  final AudioSourceMessage child;
+  final int count;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1340,13 +1304,12 @@ class LoopingAudioSourceMessage extends AudioSourceMessage {
 /// Information communicated to the platform implementation when setting the
 /// enabled status of an audio effect.
 class AudioEffectSetEnabledRequest {
-  final String type;
-  final bool enabled;
-
   AudioEffectSetEnabledRequest({
     required this.type,
     required this.enabled,
   });
+  final String type;
+  final bool enabled;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'type': type,
@@ -1364,12 +1327,12 @@ class AudioEffectSetEnabledResponse {
 /// Information communicated to the platform implementation when setting the
 /// target gain on the loudness enhancer audio effect.
 class AndroidLoudnessEnhancerSetTargetGainRequest {
-  /// The target gain in decibels.
-  final double targetGain;
-
   AndroidLoudnessEnhancerSetTargetGainRequest({
     required this.targetGain,
   });
+
+  /// The target gain in decibels.
+  final double targetGain;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'targetGain': targetGain,
@@ -1395,9 +1358,8 @@ class AndroidEqualizerGetParametersRequest {
 /// Information communicated to the platform implementation after requesting the
 /// equalizer parameters.
 class AndroidEqualizerGetParametersResponse {
-  final AndroidEqualizerParametersMessage parameters;
-
   AndroidEqualizerGetParametersResponse({required this.parameters});
+  final AndroidEqualizerParametersMessage parameters;
 
   static AndroidEqualizerGetParametersResponse fromMap(
           Map<dynamic, dynamic> map) =>
@@ -1410,13 +1372,12 @@ class AndroidEqualizerGetParametersResponse {
 /// Information communicated to the platform implementation when setting the
 /// gain for an equalizer band.
 class AndroidEqualizerBandSetGainRequest {
-  final int bandIndex;
-  final double gain;
-
   AndroidEqualizerBandSetGainRequest({
     required this.bandIndex,
     required this.gain,
   });
+  final int bandIndex;
+  final double gain;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'bandIndex': bandIndex,
@@ -1437,9 +1398,8 @@ class AndroidEqualizerBandSetGainResponse {
 /// Information about an audio effect to be communicated with the platform
 /// implementation.
 abstract class AudioEffectMessage {
-  final bool enabled;
-
   AudioEffectMessage({required this.enabled});
+  final bool enabled;
 
   Map<dynamic, dynamic> toMap();
 }
@@ -1447,12 +1407,11 @@ abstract class AudioEffectMessage {
 /// Information about a loudness enhancer to be communicated with the platform
 /// implementation.
 class AndroidLoudnessEnhancerMessage extends AudioEffectMessage {
-  final double targetGain;
-
   AndroidLoudnessEnhancerMessage({
     required super.enabled,
     required this.targetGain,
   });
+  final double targetGain;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1465,6 +1424,14 @@ class AndroidLoudnessEnhancerMessage extends AudioEffectMessage {
 /// Information about an equalizer band to be communicated with the platform
 /// implementation.
 class AndroidEqualizerBandMessage {
+  AndroidEqualizerBandMessage({
+    required this.index,
+    required this.lowerFrequency,
+    required this.upperFrequency,
+    required this.centerFrequency,
+    required this.gain,
+  });
+
   /// A zero-based index of the position of this band within its [AndroidEqualizer].
   final int index;
 
@@ -1479,14 +1446,6 @@ class AndroidEqualizerBandMessage {
 
   /// The gain for this band in decibels.
   final double gain;
-
-  AndroidEqualizerBandMessage({
-    required this.index,
-    required this.lowerFrequency,
-    required this.upperFrequency,
-    required this.centerFrequency,
-    required this.gain,
-  });
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'index': index,
@@ -1509,15 +1468,14 @@ class AndroidEqualizerBandMessage {
 /// Information about the equalizer parameters to be communicated with the
 /// platform implementation.
 class AndroidEqualizerParametersMessage {
-  final double minDecibels;
-  final double maxDecibels;
-  final List<AndroidEqualizerBandMessage> bands;
-
   AndroidEqualizerParametersMessage({
     required this.minDecibels,
     required this.maxDecibels,
     required this.bands,
   });
+  final double minDecibels;
+  final double maxDecibels;
+  final List<AndroidEqualizerBandMessage> bands;
 
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
         'minDecibels': minDecibels,
@@ -1539,12 +1497,11 @@ class AndroidEqualizerParametersMessage {
 /// Information about the equalizer to be communicated with the platform
 /// implementation.
 class AndroidEqualizerMessage extends AudioEffectMessage {
-  final AndroidEqualizerParametersMessage? parameters;
-
   AndroidEqualizerMessage({
     required super.enabled,
     required this.parameters,
   });
+  final AndroidEqualizerParametersMessage? parameters;
 
   @override
   Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
@@ -1555,9 +1512,8 @@ class AndroidEqualizerMessage extends AudioEffectMessage {
 }
 
 class SetWebCrossOriginRequest {
-  final WebCrossOriginMessage? crossOrigin;
-
   SetWebCrossOriginRequest({required this.crossOrigin});
+  final WebCrossOriginMessage? crossOrigin;
 }
 
 class SetWebCrossOriginResponse {}
@@ -1565,9 +1521,8 @@ class SetWebCrossOriginResponse {}
 enum WebCrossOriginMessage { anonymous, useCredentials }
 
 class SetWebSinkIdRequest {
-  final String sinkId;
-
   SetWebSinkIdRequest({required this.sinkId});
+  final String sinkId;
 }
 
 class SetWebSinkIdResponse {}

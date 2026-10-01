@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, bool commandStrip) =>
+  Future<void> pump(WidgetTester tester, {required bool commandStrip}) =>
       tester.pumpWidget(
         MaterialApp(
           theme: buildDarkTheme(Colors.deepPurple),
@@ -16,7 +16,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, commandStrip: false);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/downloads_desktop_workspace_before.png'),
@@ -28,7 +28,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, commandStrip: true);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/downloads_desktop_workspace_after.png'),
@@ -37,7 +37,7 @@ void main() {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.commandStrip});
+  const new({required this.commandStrip});
 
   final bool commandStrip;
 
@@ -46,10 +46,10 @@ class _Preview extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final tabs = Row(
       mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
+      children: const <Widget>[
         _Tab(label: 'Queue', selected: true),
-        const _Tab(label: 'Downloaded'),
-        const _Tab(label: 'Settings'),
+        _Tab(label: 'Downloaded'),
+        _Tab(label: 'Settings'),
       ],
     );
     final search = Container(
@@ -66,9 +66,8 @@ class _Preview extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             'Search queue',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: colors.onSurfaceVariant),
           ),
         ],
       ),
@@ -100,9 +99,8 @@ class _Preview extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     'Downloads',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(width: 28),
                   Expanded(
@@ -129,9 +127,8 @@ class _Preview extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 'Downloads',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             Container(
@@ -153,7 +150,7 @@ class _Preview extends StatelessWidget {
 }
 
 class _Tab extends StatelessWidget {
-  const _Tab({required this.label, this.selected = false});
+  const new({required this.label, this.selected = false});
 
   final String label;
   final bool selected;
@@ -182,7 +179,7 @@ class _Tab extends StatelessWidget {
 }
 
 class _Rows extends StatelessWidget {
-  const _Rows();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -215,9 +212,8 @@ class _Rows extends StatelessWidget {
                   Text('Downloaded track ${index + 1}'),
                   Text(
                     'Artist · MP3 · 8.4 MB',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
                   ),
                 ],
               ),

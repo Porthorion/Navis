@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/routing/app_shell.dart';
+library;
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -61,10 +64,12 @@ final searchFilterProvider =
     );
 
 /// Whether the desktop quick-search overlay is currently visible.
-/// Updated by [_AppShellState] when the overlay opens / closes.
+/// Updated by [AppShell] when the overlay opens / closes.
 class QuickSearchOverlayVisibleNotifier extends Notifier<bool> {
   @override
   bool build() => false;
+
+  bool get visible => state;
 
   set visible(bool value) => state = value;
 }
@@ -82,7 +87,7 @@ final searchIsOfflineProvider = Provider.autoDispose<bool>((ref) {
 
 @immutable
 class SearchResultsState {
-  const SearchResultsState({
+  const new({
     required this.result,
     required this.isWaitingForApi,
     required this.isLocalOnly,
@@ -115,10 +120,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     final filter = ref.watch(searchFilterProvider);
     final isOffline = ref.watch(searchIsOfflineProvider);
     final localResult = _filterResultByType(
-      rankSearchResult(
-        await _searchLocal(ref, query, filter),
-        query,
-      ),
+      rankSearchResult(await _searchLocal(ref, query, filter), query),
       filter,
     );
 
@@ -291,11 +293,7 @@ Future<SearchResult3> _searchLocal(
 
 @immutable
 class SearchExpandedParams {
-  const SearchExpandedParams({
-    required this.query,
-    required this.type,
-    this.offset = 0,
-  });
+  const new({required this.query, required this.type, this.offset = 0});
 
   final String query;
   final SearchResultType type;

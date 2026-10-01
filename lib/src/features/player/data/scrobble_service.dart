@@ -12,7 +12,7 @@ enum ScrobbleProvider {
   lastFm('lastfm'),
   listenBrainz('listenbrainz');
 
-  const ScrobbleProvider(this.id);
+  new(this.id);
 
   final String id;
 
@@ -27,7 +27,7 @@ enum ScrobbleProvider {
 }
 
 class ScrobbleTrackPayload {
-  const ScrobbleTrackPayload({
+  const new({
     required this.songId,
     this.title,
     this.artist,
@@ -43,7 +43,7 @@ class ScrobbleTrackPayload {
 }
 
 class ListenBrainzScrobbleCredentials {
-  const ListenBrainzScrobbleCredentials({required this.userToken});
+  const new({required this.userToken});
 
   final String userToken;
 }
@@ -69,30 +69,25 @@ abstract class ScrobbleService {
 }
 
 class DriftScrobbleService implements ScrobbleService {
-  DriftScrobbleService({
-    required ScrobbleDao dao,
-    required SubsonicApiClient? Function() readApiClient,
-    required bool Function() readScrobbleEnabled,
+  new({
+    required this._dao,
+    required this._readApiClient,
+    required this._readScrobbleEnabled,
     Future<ListenBrainzScrobbleCredentials?> Function()?
     readListenBrainzCredentials,
     ListenBrainzApiClient Function()? createListenBrainzClient,
-    void Function()? onListenBrainzInvalidToken,
-    required bool Function() readReachable,
+    this._onListenBrainzInvalidToken,
+    required this._readReachable,
     DateTime Function()? now,
     this.nowPlayingRetention = const Duration(hours: 2),
     this.submissionRetention = const Duration(days: 7),
     this.baseRetryDelay = const Duration(seconds: 15),
     this.maxRetryDelay = const Duration(minutes: 30),
     this.dispatchInterval = const Duration(seconds: 30),
-  }) : _dao = dao,
-       _readApiClient = readApiClient,
-       _readScrobbleEnabled = readScrobbleEnabled,
-       _readListenBrainzCredentials =
+  }) : _readListenBrainzCredentials =
            readListenBrainzCredentials ?? (() async => null),
        _createListenBrainzClient =
-           createListenBrainzClient ?? (() => ListenBrainzApiClient()),
-       _onListenBrainzInvalidToken = onListenBrainzInvalidToken,
-       _readReachable = readReachable,
+           createListenBrainzClient ?? ListenBrainzApiClient.new,
        _now = now ?? DateTime.now;
 
   final ScrobbleDao _dao;
@@ -398,5 +393,5 @@ class DriftScrobbleService implements ScrobbleService {
 }
 
 class _MalformedScrobbleMetadataException implements Exception {
-  const _MalformedScrobbleMetadataException();
+  const new();
 }

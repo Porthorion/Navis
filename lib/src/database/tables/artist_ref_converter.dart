@@ -10,7 +10,7 @@ import 'package:navis/src/api/models/artist_ref.dart';
 /// so existing rows upgraded via migration automatically get `[]` without
 /// needing an UPDATE pass.
 class ArtistRefListConverter extends TypeConverter<List<ArtistRef>, String> {
-  const ArtistRefListConverter();
+  const new();
 
   @override
   List<ArtistRef> fromSql(String fromDb) {

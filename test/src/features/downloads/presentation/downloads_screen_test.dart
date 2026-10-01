@@ -1,9 +1,10 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -58,15 +59,13 @@ void main() {
             downloadRelatedSongsProvider.overrideWith(
               (ref) => Stream.value({song.id: song}),
             ),
-            songByIdProvider.overrideWith(
-              (ref, songId) => Stream.value(song),
-            ),
+            songByIdProvider.overrideWith((ref, songId) => Stream.value(song)),
             playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
           ],
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const DownloadsScreen(),
         ),
@@ -194,7 +193,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AdaptiveContextScope(
             adaptiveContext: resolveAdaptiveContext(
@@ -225,9 +224,7 @@ void main() {
 
   testWidgets(
     'desktop downloaded-track menu separates the destructive action',
-    (
-      tester,
-    ) async {
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(900, 700);
       addTearDown(() {
@@ -274,7 +271,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: AdaptiveContextScope(
               adaptiveContext: resolveAdaptiveContext(
@@ -341,15 +338,13 @@ void main() {
             downloadRelatedSongsProvider.overrideWith(
               (ref) => Stream.value({song.id: song}),
             ),
-            songByIdProvider.overrideWith(
-              (ref, songId) => Stream.value(song),
-            ),
+            songByIdProvider.overrideWith((ref, songId) => Stream.value(song)),
             playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
           ],
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const DownloadsScreen(),
         ),

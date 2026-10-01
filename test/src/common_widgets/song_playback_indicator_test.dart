@@ -1,9 +1,10 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -204,7 +205,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: TrackListTile(
@@ -237,7 +238,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const Scaffold(
             body: Column(
@@ -273,17 +274,12 @@ Future<void> _pumpTile(
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        playerStateProvider.overrideWithValue(snapshot),
-      ],
+      overrides: [playerStateProvider.overrideWithValue(snapshot)],
       child: MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: TrackListTile(
-            song: _song,
-            showAlbumArt: showAlbumArt,
-          ),
+          body: TrackListTile(song: _song, showAlbumArt: showAlbumArt),
         ),
       ),
     ),

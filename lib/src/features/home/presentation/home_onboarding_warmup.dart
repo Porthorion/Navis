@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -19,10 +19,7 @@ const int _homeWarmupDecodeLimit = 3;
 /// One exact cover-art variant that an initial Home surface will request.
 @immutable
 class HomeArtworkWarmupTarget {
-  const HomeArtworkWarmupTarget({
-    required this.coverArtId,
-    required this.size,
-  });
+  const new({required this.coverArtId, required this.size});
 
   final String coverArtId;
   final int size;
@@ -56,10 +53,7 @@ class HomeOnboardingWarmupTracker {
 
 @immutable
 class HomeOnboardingWarmupStatus {
-  const HomeOnboardingWarmupStatus({
-    required this.targetCount,
-    required this.readyCount,
-  });
+  const new({required this.targetCount, required this.readyCount});
 
   final int targetCount;
   final int readyCount;
@@ -71,7 +65,7 @@ String _targetCacheKey(HomeArtworkWarmupTarget target) {
 
 /// A session-only handle for Home artwork work started during onboarding.
 class HomeOnboardingWarmupSession {
-  HomeOnboardingWarmupSession._(this._run, this.done);
+  new _(this._run, this.done);
 
   final _HomeOnboardingWarmupRun _run;
   final Future<void> done;
@@ -89,7 +83,7 @@ class _HomeOnboardingWarmupRun {
 /// screen. It owns no durable work: leaving onboarding simply stops scheduling
 /// any remaining targets.
 class HomeOnboardingWarmup {
-  HomeOnboardingWarmup({
+  new({
     required this._resolveTargets,
     required this._warmTarget,
     required this._isOnline,
@@ -278,9 +272,7 @@ Future<List<HomeArtworkWarmupTarget>> _targetsForHomeSection(
         final albums = await ref.read(
           homeDownloadedRandomAlbumsProvider.future,
         );
-        return _randomLocalAlbumTargets(
-          _filterLikedAlbums(albums, likedOnly),
-        );
+        return _randomLocalAlbumTargets(_filterLikedAlbums(albums, likedOnly));
       }
       final albums = await ref.read(homeRandomAlbumsProvider.future);
       // Home's regular random fallback is intentionally used rather than its

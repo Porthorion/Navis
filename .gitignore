@@ -3,6 +3,8 @@
 *.class
 *.lock
 !pubspec.lock
+!third_party/navis_windows_smtc/Cargo.lock
+/third_party/navis_windows_smtc/target/
 *.log
 *.pyc
 *.swp

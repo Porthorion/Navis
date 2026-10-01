@@ -8,10 +8,7 @@ class SubsonicLoggingInterceptor extends Interceptor {
   static const _sensitiveParams = {'u', 't', 's', 'p'};
 
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     options.extra[_startKey] = DateTime.now().millisecondsSinceEpoch;
     handler.next(options);
   }

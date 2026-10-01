@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Spacing scale shared by every layout.
 ///
@@ -33,9 +33,7 @@ abstract final class NavisRadius {
   static const BorderRadius mdAll = BorderRadius.all(Radius.circular(md));
   static const BorderRadius lgAll = BorderRadius.all(Radius.circular(lg));
   static const BorderRadius xlAll = BorderRadius.all(Radius.circular(xl));
-  static const BorderRadius pillAll = BorderRadius.all(
-    Radius.circular(pill),
-  );
+  static const BorderRadius pillAll = BorderRadius.all(Radius.circular(pill));
 }
 
 /// Theme-dependent layout values and surface roles.
@@ -44,7 +42,7 @@ abstract final class NavisRadius {
 /// this extension carries the ones that do, such as OLED surface overrides.
 @immutable
 class NavisTokens extends ThemeExtension<NavisTokens> {
-  const NavisTokens({
+  const new({
     required this.frameMaxWidthCompact,
     required this.frameMaxWidthStandard,
     required this.frameMaxWidthUltraWide,
@@ -62,7 +60,7 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
 
   /// Tokens for [scheme]. OLED keeps warnings off pure black by raising the
   /// container one step, matching its other container overrides.
-  factory NavisTokens.forScheme(ColorScheme scheme, {bool oled = false}) {
+  factory forScheme(ColorScheme scheme, {bool oled = false}) {
     final warningBase = oled
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;

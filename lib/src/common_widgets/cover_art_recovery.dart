@@ -33,11 +33,7 @@ enum CoverArtFailureCategory {
 
 /// Typed artwork fetch failure carrying its [CoverArtFailureCategory].
 class CoverArtFetchException implements Exception {
-  const CoverArtFetchException(
-    this.category, {
-    this.statusCode,
-    this.cause,
-  });
+  const new(this.category, {this.statusCode, this.cause});
 
   final CoverArtFailureCategory category;
   final int? statusCode;
@@ -90,9 +86,7 @@ CoverArtFailureCategory classifyCoverArtFailure(
 /// cover ID or bump the targeted revision, after which widgets naturally
 /// retry the resulting cover identity.
 class CoverArtRecoveryCoordinator {
-  CoverArtRecoveryCoordinator({
-    Future<void> Function(String coverArtId)? refreshEntityForCover,
-  }) : _refreshEntityForCover = refreshEntityForCover;
+  new({this._refreshEntityForCover});
 
   final Future<void> Function(String coverArtId)? _refreshEntityForCover;
 
@@ -113,9 +107,7 @@ class CoverArtRecoveryCoordinator {
     try {
       await cacheManager.removeFile(cacheKey);
     } on Object catch (error) {
-      AppLogger.warning(
-        'Cover art eviction failed for $cacheKey: $error',
-      );
+      AppLogger.warning('Cover art eviction failed for $cacheKey: $error');
     }
     if (cachedFile != null) {
       try {
@@ -167,7 +159,7 @@ class CoverArtRecoveryCoordinator {
         '$error\n$stackTrace',
       );
     } finally {
-      _pendingRefreshes.remove(coverArtId);
+      final _ = _pendingRefreshes.remove(coverArtId);
     }
   }
 }

@@ -48,9 +48,8 @@ void main() {
   );
 
   test('Android adaptive background is transparent', () {
-    final colors = File(
-      'android/app/src/main/res/values/colors.xml',
-    ).readAsStringSync();
+    final colors = File('android/app/src/main/res/values/colors.xml')
+        .readAsStringSync();
     expect(
       colors,
       contains('<color name="ic_launcher_background">#00000000</color>'),

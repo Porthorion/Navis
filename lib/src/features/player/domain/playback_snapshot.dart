@@ -23,7 +23,7 @@ enum TransportVisualIntent {
 
 @immutable
 class TransportVisualCue {
-  const TransportVisualCue({
+  const new({
     required this.token,
     required this.intent,
     required this.fromSongId,
@@ -40,14 +40,9 @@ class TransportVisualCue {
 /// a newly selected track.
 @immutable
 class PlaybackBufferState {
-  const PlaybackBufferState({
-    required this.songId,
-    required this.bufferedPosition,
-  });
+  const new({required this.songId, required this.bufferedPosition});
 
-  const PlaybackBufferState.idle()
-    : songId = null,
-      bufferedPosition = Duration.zero;
+  const new idle() : songId = null, bufferedPosition = Duration.zero;
 
   final String? songId;
   final Duration bufferedPosition;
@@ -75,7 +70,7 @@ Duration resolveEffectivePlaybackDuration({
 /// Metadata for the currently playing radio station.
 @immutable
 class RadioStationMetadata {
-  const RadioStationMetadata({
+  const new({
     required this.stationId,
     required this.stationName,
     required this.streamUrl,
@@ -118,7 +113,7 @@ class RadioStationMetadata {
 
 @immutable
 class PlaybackSnapshot {
-  const PlaybackSnapshot({
+  const new({
     required this.queueSongIds,
     required this.currentSongId,
     required this.currentIndex,
@@ -138,7 +133,7 @@ class PlaybackSnapshot {
     this.lastFailedSongId,
   });
 
-  const PlaybackSnapshot.idle()
+  const new idle()
     : queueSongIds = const <String>[],
       currentSongId = null,
       currentIndex = null,
@@ -232,10 +227,7 @@ class PlaybackSnapshot {
       hasPendingLogicalQueue:
           hasPendingLogicalQueue ?? this.hasPendingLogicalQueue,
       pendingQueueIndex:
-          identical(
-            pendingQueueIndex,
-            _unmodifiedPendingQueueIndex,
-          )
+          identical(pendingQueueIndex, _unmodifiedPendingQueueIndex)
           ? this.pendingQueueIndex
           : pendingQueueIndex as int?,
       loadingSongId: loadingSongId ?? this.loadingSongId,

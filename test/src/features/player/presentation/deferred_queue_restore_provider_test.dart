@@ -7,7 +7,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/deferred_queue_restore_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-class _Handler extends Mock implements NavisPlaybackHandler {}
+class _Handler extends Mock implements NavisPlaybackHandler;
 
 class _Value<T> extends Notifier<T?> {
   @override

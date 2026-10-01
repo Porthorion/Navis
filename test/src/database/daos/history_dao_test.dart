@@ -11,37 +11,31 @@ void main() {
 
     setUp(() async {
       database = NavisDatabase(NativeDatabase.memory());
-      await database.libraryDao.upsertSongs(
-        <SongsTableCompanion>[
-          SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
-        ],
-      );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
+      ]);
     });
 
     tearDown(() async {
       await database.close();
     });
 
-    test(
-      'duplicate play-history inserts can be ignored safely',
-      () async {
-        final now = DateTime.now();
-        await database
-            .into(database.playHistoryTable)
-            .insert(
-              PlayHistoryTableCompanion.insert(songId: 'song-1', playedAt: now),
-            );
-        await database
-            .into(database.playHistoryTable)
-            .insert(
-              PlayHistoryTableCompanion.insert(songId: 'song-1', playedAt: now),
-              mode: InsertMode.insertOrIgnore,
-            );
+    test('duplicate play-history inserts can be ignored safely', () async {
+      final now = DateTime.now();
+      await database
+          .into(database.playHistoryTable)
+          .insert(
+            PlayHistoryTableCompanion.insert(songId: 'song-1', playedAt: now),
+          );
+      await database
+          .into(database.playHistoryTable)
+          .insert(
+            PlayHistoryTableCompanion.insert(songId: 'song-1', playedAt: now),
+            mode: InsertMode.insertOrIgnore,
+          );
 
-        final rows = await database.select(database.playHistoryTable).get();
-        expect(rows, hasLength(1));
-      },
-      skip: !sqliteAvailable,
-    );
+      final rows = await database.select(database.playHistoryTable).get();
+      expect(rows, hasLength(1));
+    }, skip: !sqliteAvailable);
   });
 }

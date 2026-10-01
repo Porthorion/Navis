@@ -44,10 +44,9 @@ void main() {
   );
 
   test('negative imported preamp is retained without extra gain', () {
-    final curve = response(
-      const [EqFilter(frequencyHz: 1000, gainDb: 6)],
-      preamp: -7.3,
-    );
+    final curve = response(const [
+      EqFilter(frequencyHz: 1000, gainDb: 6),
+    ], preamp: -7.3);
     expect(curve.headroomDb, 0);
     expect(curve.effectivePreampDb, -7.3);
     final unprotected = EqResponse(

@@ -23,8 +23,7 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
-  PlaybackArtCache({NetworkUsageReporter? reportNetworkUsage})
-    : _reportNetworkUsage = reportNetworkUsage;
+  new({this._reportNetworkUsage});
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
 
@@ -78,6 +77,8 @@ class PlaybackArtCache {
       // without a network round-trip on subsequent plays).
       // A zero-byte file indicates a prior failed/partial download — delete
       // and re-download it.
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (await file.exists()) {
         final length = await file.length();
         if (length > 0) {

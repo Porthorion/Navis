@@ -4,9 +4,9 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
 /// Normalized cookbook biquad coefficients, shared by response calculations.
 class EqBiquad {
-  const EqBiquad(this.b0, this.b1, this.b2, this.a1, this.a2);
+  const new(this.b0, this.b1, this.b2, this.a1, this.a2);
 
-  factory EqBiquad.forFilter(EqFilter filter, double sampleRate) {
+  factory forFilter(EqFilter filter, double sampleRate) {
     if (!filter.enabled || (filter.usesGain && filter.gainDb == 0)) {
       return identity;
     }
@@ -90,7 +90,7 @@ class EqBiquad {
 }
 
 class EqResponse {
-  EqResponse(this.configuration, {this.sampleRate = 48000}) {
+  new(this.configuration, {this.sampleRate = 48000}) {
     if (!configuration.isValid ||
         !configuration.supportsSampleRate(sampleRate)) {
       throw const FormatException('Unsupported EQ configuration.');

@@ -1,7 +1,7 @@
 part of 'now_playing_screen.dart';
 
 class _TransportControls extends ConsumerWidget {
-  const _TransportControls({
+  const new({
     required this.playback,
     required this.isExternalSource,
     this.isRadio = false,
@@ -171,7 +171,7 @@ class _TransportControls extends ConsumerWidget {
                   onSkipPrevious!.call();
                   return;
                 }
-                HapticFeedback.mediumImpact();
+                unawaited(HapticFeedback.mediumImpact());
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.skipToPrevious());
               },
@@ -211,7 +211,7 @@ class _TransportControls extends ConsumerWidget {
                   onSkipNext!.call();
                   return;
                 }
-                HapticFeedback.mediumImpact();
+                unawaited(HapticFeedback.mediumImpact());
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.skipToNext());
               },

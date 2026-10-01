@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -47,7 +47,7 @@ void main() {
 }
 
 class _CardBasedSearchWorkspace extends StatelessWidget {
-  const _CardBasedSearchWorkspace();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +71,7 @@ class _CardBasedSearchWorkspace extends StatelessWidget {
 }
 
 class _IntegratedSearchWorkspace extends StatelessWidget {
-  const _IntegratedSearchWorkspace();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -88,9 +88,8 @@ class _IntegratedSearchWorkspace extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     'Search',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(width: 20),
                   const Expanded(child: _SearchField()),
@@ -116,7 +115,7 @@ class _IntegratedSearchWorkspace extends StatelessWidget {
 }
 
 class _SurfaceCard extends StatelessWidget {
-  const _SurfaceCard({required this.child});
+  const new({required this.child});
 
   final Widget child;
 
@@ -132,7 +131,7 @@ class _SurfaceCard extends StatelessWidget {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({this.color});
+  const new({this.color});
 
   final Color? color;
 
@@ -163,7 +162,7 @@ class _SearchField extends StatelessWidget {
 }
 
 class _ResultRows extends StatelessWidget {
-  const _ResultRows({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -173,10 +172,7 @@ class _ResultRows extends StatelessWidget {
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 14, 8, 8),
-          child: Text(
-            'Albums',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          child: Text('Albums', style: Theme.of(context).textTheme.titleSmall),
         ),
         for (final row in <(String, String)>[
           ('Dawn FM', 'The Weeknd'),

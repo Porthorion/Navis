@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -17,7 +17,7 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _Api extends Mock implements SubsonicApiClient {}
+class _Api extends Mock implements SubsonicApiClient;
 
 class _Queue extends QueueController {
   int? startIndex;
@@ -86,9 +86,7 @@ void main() {
               ),
             ),
             playlistSongsProvider('occurrences').overrideWith(
-              (ref) => Stream.value(
-                const [_duplicate, _middle, _duplicate],
-              ),
+              (ref) => Stream.value(const [_duplicate, _middle, _duplicate]),
             ),
             playlistDetailSyncProvider('occurrences')
                 .overrideWith((ref) async {}),
@@ -202,9 +200,9 @@ void main() {
       );
       tester
           .widget<SliverReorderableList>(find.byType(SliverReorderableList))
-          // This regression drives the existing production callback contract.
-          // ignore: deprecated_member_use
-          .onReorder!(0, 3);
+          // onReorderItem receives the index after removing the moved row:
+          // moving the first of three rows to the end is (0, 2).
+          .onReorderItem!(0, 2);
       await tester.pumpAndSettle();
       verify(
         () => api.replacePlaylistSongs(

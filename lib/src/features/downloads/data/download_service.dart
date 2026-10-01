@@ -63,34 +63,26 @@ typedef _SafRelocatedPermanentDownload = ({
 /// * All file I/O uses async methods (no `Sync` calls) to avoid blocking the
 ///   event loop.
 class DownloadService {
-  DownloadService({
-    required AppSettingsDao appSettingsDao,
+  new({
+    required this._appSettingsDao,
     required CacheDao cacheDao,
-    required DownloadQueueDao downloadQueueDao,
+    required this._downloadQueueDao,
     required LibraryDao libraryDao,
-    required SubsonicApiClient? Function() readApiClient,
-    required bool Function() readWifiOnly,
-    required bool Function() readIsWifi,
+    required this._readApiClient,
+    required this._readWifiOnly,
+    required this._readIsWifi,
     required bool Function() readCustomDownloadFolderEnabled,
     required String? Function() readCustomDownloadFolderPath,
-    required LrclibClient lrclibClient,
-    required BaseCacheManager Function() readCoverArtCacheManager,
+    required this._lrclibClient,
+    required this._readCoverArtCacheManager,
     String? Function()? readProfileIdentity,
-    NetworkUsageReporter? reportNetworkUsage,
+    this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
-  }) : _appSettingsDao = appSettingsDao,
-       _cacheDao = cacheDao,
-       _downloadQueueDao = downloadQueueDao,
+  }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
-       _readApiClient = readApiClient,
-       _readWifiOnly = readWifiOnly,
-       _readIsWifi = readIsWifi,
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
-       _lrclibClient = lrclibClient,
-       _readCoverArtCacheManager = readCoverArtCacheManager,
-       _reportNetworkUsage = reportNetworkUsage,
        _dio = dio ?? Dio(),
        _permanentPathResolver = PermanentDownloadPathResolver(
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
@@ -207,9 +199,7 @@ class DownloadService {
       );
     });
     _backgroundTasks.add(tracked);
-    unawaited(
-      tracked.whenComplete(() => _backgroundTasks.remove(tracked)),
-    );
+    unawaited(tracked.whenComplete(() => _backgroundTasks.remove(tracked)));
   }
 
   void _trackProgressWrite(Future<void> write) {
@@ -232,9 +222,7 @@ class DownloadService {
 
   Future<void> _waitForPendingProgressWrites() async {
     while (_pendingProgressWrites.isNotEmpty) {
-      await Future.wait<void>(
-        _pendingProgressWrites.toList(growable: false),
-      );
+      await Future.wait<void>(_pendingProgressWrites.toList(growable: false));
     }
   }
 
@@ -474,7 +462,7 @@ class DownloadService {
       '(${songs.length} songs, quality=$quality, format=$format).',
     );
     final songIds = songs.map((s) => s.id).toList();
-    return _batchEnqueue(
+    return await _batchEnqueue(
       songIds: songIds,
       albumId: albumId,
       quality: quality,
@@ -492,7 +480,7 @@ class DownloadService {
     String? format,
   }) async {
     if (songIds.isEmpty) return 0;
-    return _batchEnqueue(
+    return await _batchEnqueue(
       songIds: songIds,
       playlistId: playlistId,
       quality: quality,
@@ -574,11 +562,12 @@ class DownloadService {
     if (track.cacheType == CacheType.permanent) return true;
 
     final file = File(track.filePath);
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await file.exists()) return false;
 
-    final song = (await _libraryDao.getSongsByIds(<String>[
-      songId,
-    ])).firstOrNull;
+    final song = (await _libraryDao.getSongsByIds(<String>[songId]))
+        .firstOrNull;
     final newPath = await _resolvePermanentPathForEntry(
       songId: songId,
       song: song,
@@ -601,9 +590,7 @@ class DownloadService {
         }
       }
     } on FileSystemException catch (e) {
-      AppLogger.warning(
-        'DownloadService: Failed to copy to permanent: $e',
-      );
+      AppLogger.warning('DownloadService: Failed to copy to permanent: $e');
       return false;
     }
     // Clean up rolling cache files.
@@ -820,6 +807,8 @@ class DownloadService {
           );
         }
         // Register in cached_tracks as permanent.
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         final stat = await destFile.stat();
         _reportNetworkUsage?.call(
           category: NetworkUsageCategory.download,
@@ -907,9 +896,8 @@ class DownloadService {
           DownloadNotifier.dismissProgress().catchError((_) {}),
         );
         _trackBackgroundTask(
-          DownloadNotifier.showComplete(
-            title: 'Downloaded: $songTitle',
-          ).catchError((_) {}),
+          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
+              .catchError((_) {}),
         );
 
         // Best-effort: pre-fetch lyrics so they're available offline.
@@ -932,10 +920,7 @@ class DownloadService {
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
           await DownloadNotifier.showFailed().catchError((_) {});
         } else {
-          await _handleFailure(
-            item,
-            'HTTP ${response.statusCode}',
-          );
+          await _handleFailure(item, 'HTTP ${response.statusCode}');
         }
       }
     } on DioException catch (e) {
@@ -1014,6 +999,8 @@ class DownloadService {
 
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         : !await File(cached.filePath).exists()) {
       await _cacheDao.removeCachedTrack(songId);
       return false;
@@ -1119,6 +1106,8 @@ class DownloadService {
   Future<void> _cleanupOrphanedFiles() async {
     try {
       final permDir = await _permanentDirectory();
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (!await permDir.exists()) return;
 
       final knownEntries = await _cacheDao.getPermanentEntries();
@@ -1147,17 +1136,13 @@ class DownloadService {
             : path;
         final key = identity.keyFor(basePath);
         if (key != null && !knownKeys.contains(identity.lookupKey(key))) {
-          AppLogger.info(
-            'DownloadService: Removing orphaned file $path',
-          );
+          AppLogger.info('DownloadService: Removing orphaned file $path');
           await deleteFileWithSuffixes(basePath);
         }
       }
     } on Object catch (e) {
       // Best-effort — don't crash the service on cleanup failure.
-      AppLogger.warning(
-        'DownloadService: Orphaned file cleanup error: $e',
-      );
+      AppLogger.warning('DownloadService: Orphaned file cleanup error: $e');
     }
   }
 
@@ -1224,7 +1209,7 @@ class DownloadService {
       }
 
       AppLogger.info('DownloadService: Lyrics backfill complete.');
-    } catch (e) {
+    } on Object catch (e) {
       AppLogger.warning('DownloadService: Lyrics backfill error: $e');
     }
   }
@@ -1325,6 +1310,8 @@ class DownloadService {
         final source = _isSafRoot(entry.filePath)
             ? (temporary = await _safStorage.materialize(entry.filePath))
             : File(entry.filePath);
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (!await source.exists()) {
           continue;
         }
@@ -1434,6 +1421,8 @@ class DownloadService {
                 entry.filePath,
               ))
             : File(entry.filePath);
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (!await sourceFile.exists()) {
           if (materializedSource != null) {
             try {
@@ -1593,7 +1582,7 @@ class DownloadService {
     String? customDownloadFolderPath,
   }) async {
     if (song != null) {
-      return _permanentPathResolver.resolveSongPath(
+      return await _permanentPathResolver.resolveSongPath(
         song: song,
         extension: format,
         existingPath: existingPath,
@@ -1663,16 +1652,17 @@ class DownloadService {
     File destination, {
     bool missingIsOk = false,
   }) async {
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await source.exists()) {
       if (missingIsOk) {
         return;
       }
-      throw FileSystemException(
-        'Source file does not exist.',
-        source.path,
-      );
+      throw FileSystemException('Source file does not exist.', source.path);
     }
 
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (await destination.exists()) {
       // The same file reached through another spelling of its folder (a
       // link, junction or mapped drive): deleting the "destination" would
@@ -1753,7 +1743,7 @@ class DownloadService {
         .convert(utf8.encode(song.id))
         .toString()
         .substring(0, 8);
-    return '${artist}/${title} [${identity}].${format.replaceFirst('.', '')}';
+    return '$artist/$title [$identity].${format.replaceFirst('.', '')}';
   }
 
   String _mimeTypeFor(String format) => switch (format.toLowerCase()) {
@@ -1776,11 +1766,7 @@ class DownloadService {
     }
     // Otherwise use stream.view with transcoding params.
     final maxBitRate = quality != null ? int.tryParse(quality) : null;
-    return api.streamUrl(
-      id: songId,
-      maxBitRate: maxBitRate,
-      format: format,
-    );
+    return api.streamUrl(id: songId, maxBitRate: maxBitRate, format: format);
   }
 
   /// Resolve the file format/extension for a download item.

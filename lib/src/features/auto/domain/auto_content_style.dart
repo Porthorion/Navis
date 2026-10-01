@@ -4,6 +4,8 @@
 /// Android Auto can pick the right layout (grid vs. list) for children.
 ///
 /// See https://developer.android.com/training/cars/media/create-media-browser/content-style
+///
+/// @docImport 'package:audio_service/audio_service.dart';
 library;
 
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';

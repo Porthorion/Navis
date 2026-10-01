@@ -11,7 +11,7 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/providers/app_providers.dart';
 
 class _AuthStateController extends Notifier<AsyncValue<ServerConfigModel?>> {
-  _AuthStateController(this._initialState);
+  new(this._initialState);
 
   final AsyncValue<ServerConfigModel?> _initialState;
 

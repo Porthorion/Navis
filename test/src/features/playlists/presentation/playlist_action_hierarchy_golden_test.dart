@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -10,17 +10,18 @@ void main() {
           child: Wrap(
             spacing: 8,
             children: <Widget>[
-              primaryPlay
-                  ? FilledButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Play'),
-                    )
-                  : FilledButton.tonalIcon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.play_arrow_outlined),
-                      label: const Text('Play'),
-                    ),
+              if (primaryPlay)
+                FilledButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Play'),
+                )
+              else
+                FilledButton.tonalIcon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.play_arrow_outlined),
+                  label: const Text('Play'),
+                ),
               FilledButton.tonalIcon(
                 onPressed: () {},
                 icon: const Icon(Icons.shuffle_outlined),

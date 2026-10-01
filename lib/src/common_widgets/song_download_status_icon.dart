@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -27,10 +27,7 @@ enum SongDownloadStatus {
 
 /// Resolved state of a song's download / cache status, including progress.
 class SongDownloadState {
-  const SongDownloadState({
-    required this.status,
-    this.progress = 0.0,
-  });
+  const new({required this.status, this.progress = 0.0});
 
   static const none = SongDownloadState(status: SongDownloadStatus.none);
 
@@ -103,7 +100,7 @@ final songDownloadStateProvider = Provider.autoDispose
 ///
 /// When [onDownload] is null the download icon is disabled.
 class SongDownloadStatusIcon extends ConsumerWidget {
-  const SongDownloadStatusIcon({
+  const new({
     required this.songId,
     this.onDownload,
     this.size = 24.0,

@@ -1,0 +1,16 @@
+name: navis_android_storage
+description: Engine-owned Android SAF existence checks for Navis background playback.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.13.0
+  flutter: '>=3.47.5'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.navis.android_storage
+        pluginClass: NavisAndroidStoragePlugin

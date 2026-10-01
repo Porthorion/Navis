@@ -55,7 +55,7 @@ AppSettingsTableData? isolateCloneDownloadFolder(
 @DriftAccessor(tables: [AppSettingsTable])
 class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     with _$AppSettingsDaoMixin {
-  AppSettingsDao(super.db);
+  new(super.attachedDatabase);
 
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
@@ -934,6 +934,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Targeted update for desktop navigation sidebar autohide.
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> updateDesktopNavbarAutohide(bool enabled) {
     return (update(
       appSettingsTable,
@@ -981,10 +983,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> updateLastFmScrobblingState({
-    bool? enabled,
-    bool? connected,
-  }) {
+  Future<void> updateLastFmScrobblingState({bool? enabled, bool? connected}) {
     return (update(
       appSettingsTable,
     )..where((t) => t.id.equals(primarySettingsId))).write(

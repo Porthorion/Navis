@@ -29,16 +29,21 @@ $PlaylistCopyWith<Playlist> get copyWith => _$PlaylistCopyWithImpl<Playlist>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Playlist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.comment, comment) || other.comment == comment)&&(identical(other.changed, changed) || other.changed == changed)&&const DeepCollectionEquality().equals(other.entries, entries));
+  final _this = this as Playlist;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Playlist&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.songCount, _this.songCount) || other.songCount == _this.songCount)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.owner, _this.owner) || other.owner == _this.owner)&&(identical(other.isPublic, _this.isPublic) || other.isPublic == _this.isPublic)&&(identical(other.coverArt, _this.coverArt) || other.coverArt == _this.coverArt)&&(identical(other.comment, _this.comment) || other.comment == _this.comment)&&(identical(other.changed, _this.changed) || other.changed == _this.changed)&&const DeepCollectionEquality().equals(other.entries, _this.entries));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,songCount,duration,owner,isPublic,coverArt,comment,changed,const DeepCollectionEquality().hash(entries));
+int get hashCode {
+  final _this = this as Playlist;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.songCount,_this.duration,_this.owner,_this.isPublic,_this.coverArt,_this.comment,_this.changed,const DeepCollectionEquality().hash(_this.entries));
+}
 
 @override
 String toString() {
-  return 'Playlist(id: $id, name: $name, songCount: $songCount, duration: $duration, owner: $owner, isPublic: $isPublic, coverArt: $coverArt, comment: $comment, changed: $changed, entries: $entries)';
+  final _this = this as Playlist;
+  return 'Playlist(id: ${_this.id}, name: ${_this.name}, songCount: ${_this.songCount}, duration: ${_this.duration}, owner: ${_this.owner}, isPublic: ${_this.isPublic}, coverArt: ${_this.coverArt}, comment: ${_this.comment}, changed: ${_this.changed}, entries: ${_this.entries})';
 }
 
 
@@ -252,16 +257,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Playlist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.comment, comment) || other.comment == comment)&&(identical(other.changed, changed) || other.changed == changed)&&const DeepCollectionEquality().equals(other._entries, _entries));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Playlist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.owner, owner) || other.owner == owner)&&(identical(other.isPublic, isPublic) || other.isPublic == isPublic)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.comment, comment) || other.comment == comment)&&(identical(other.changed, changed) || other.changed == changed)&&const DeepCollectionEquality().equals(other.entries, _entries));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,songCount,duration,owner,isPublic,coverArt,comment,changed,const DeepCollectionEquality().hash(_entries));
+int get hashCode {
+    return Object.hash(runtimeType,id,name,songCount,duration,owner,isPublic,coverArt,comment,changed,const DeepCollectionEquality().hash(_entries));
+}
 
 @override
 String toString() {
-  return 'Playlist(id: $id, name: $name, songCount: $songCount, duration: $duration, owner: $owner, isPublic: $isPublic, coverArt: $coverArt, comment: $comment, changed: $changed, entries: $entries)';
+    return 'Playlist(id: $id, name: $name, songCount: $songCount, duration: $duration, owner: $owner, isPublic: $isPublic, coverArt: $coverArt, comment: $comment, changed: $changed, entries: $entries)';
 }
 
 

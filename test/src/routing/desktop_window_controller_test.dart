@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -13,6 +13,7 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 class _FakeWindowManagerAdapter implements WindowManagerAdapter {
+  new({required this.bounds, this.maximized = false});
   Rect bounds;
   bool maximized;
   Size minimumSize = Size.zero;
@@ -25,11 +26,6 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   int unmaximizeCalls = 0;
   WindowListener? listener;
   final Completer<void> _closed = Completer<void>();
-
-  _FakeWindowManagerAdapter({
-    required this.bounds,
-    this.maximized = false,
-  });
 
   @override
   void addListener(WindowListener listener) {
@@ -127,7 +123,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
 }
 
 class _FakeScreenRetrieverAdapter implements ScreenRetrieverAdapter {
-  _FakeScreenRetrieverAdapter(this.displays);
+  new(this.displays);
 
   List<Display> displays;
   ScreenListener? listener;
@@ -158,15 +154,13 @@ void main() {
     setUp(() async {
       database = NavisDatabase(NativeDatabase.memory());
       repository = SettingsRepository(database.appSettingsDao);
-      tempDir = await Directory.systemTemp.createTemp(
-        'navis-mini-window-test',
-      );
+      tempDir = await Directory.systemTemp.createTemp('navis-mini-window-test');
       stateFile = File('${tempDir.path}/window_state.json');
     });
 
     tearDown(() async {
       await database.close();
-      if (await tempDir.exists()) {
+      if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
       }
     });
@@ -192,10 +186,7 @@ void main() {
         expect(adapter.minimumSize, DesktopWindowController.miniMinSize);
         expect(adapter.maximumSize, const Size(-1, -1));
         expect(adapter.aspectRatio, 0);
-        expect(
-          adapter.bounds.size,
-          DesktopWindowController.miniDefaultSize,
-        );
+        expect(adapter.bounds.size, DesktopWindowController.miniDefaultSize);
 
         final persisted = DesktopWindowStateRecord.fromJson(
           await _readJson(stateFile),
@@ -306,10 +297,7 @@ void main() {
         expect(restartedController.restorationSource, 'saved');
         expect(restartedController.stateRecordVersion, 3);
         expect(restartedController.lastPersistenceCompleted, isTrue);
-        expect(
-          restartedAdapter.bounds,
-          const Rect.fromLTWH(70, 90, 1440, 880),
-        );
+        expect(restartedAdapter.bounds, const Rect.fromLTWH(70, 90, 1440, 880));
         expect(restartedAdapter.alwaysOnTop, isFalse);
       },
     );
@@ -339,10 +327,7 @@ void main() {
         await controller.initialize();
 
         expect(controller.mode, DesktopWindowMode.desktop);
-        expect(
-          adapter.bounds.size,
-          const Size(1200, 760),
-        );
+        expect(adapter.bounds.size, const Size(1200, 760));
       },
     );
 
@@ -551,52 +536,43 @@ void main() {
       expect(controller.transitionRequest, isNull);
     });
 
-    test(
-      'mode cycles preserve valid Desktop bounds and always re-enter canonical Mini Player',
-      () async {
-        final adapter = _FakeWindowManagerAdapter(
-          bounds: const Rect.fromLTWH(30, 40, 1200, 760),
-        );
-        final controller = DesktopWindowController(
-          desktopRuntime: true,
-          stateFile: stateFile,
-          settingsRepository: repository,
-          adapter: adapter,
-        );
-        await controller.initialize();
-        adapter.bounds = const Rect.fromLTWH(30, 40, 1366, 820);
-        controller.onWindowResized();
-        await Future<void>.delayed(const Duration(milliseconds: 520));
+    test('mode cycles preserve valid Desktop bounds and always re-enter canonical Mini Player', () async {
+      final adapter = _FakeWindowManagerAdapter(
+        bounds: const Rect.fromLTWH(30, 40, 1200, 760),
+      );
+      final controller = DesktopWindowController(
+        desktopRuntime: true,
+        stateFile: stateFile,
+        settingsRepository: repository,
+        adapter: adapter,
+      );
+      await controller.initialize();
+      adapter.bounds = const Rect.fromLTWH(30, 40, 1366, 820);
+      controller.onWindowResized();
+      await Future<void>.delayed(const Duration(milliseconds: 520));
 
-        adapter.bounds = const Rect.fromLTWH(30, 40, 799, 599);
-        controller.updateViewportSize(adapter.bounds.size);
-        await Future<void>.delayed(const Duration(milliseconds: 430));
-        await controller.resolveTransition(switchMode: true);
+      adapter.bounds = const Rect.fromLTWH(30, 40, 799, 599);
+      controller.updateViewportSize(adapter.bounds.size);
+      await Future<void>.delayed(const Duration(milliseconds: 430));
+      await controller.resolveTransition(switchMode: true);
 
-        expect(controller.mode, DesktopWindowMode.miniPlayer);
-        expect(
-          adapter.bounds.size,
-          DesktopWindowController.miniDefaultSize,
-        );
+      expect(controller.mode, DesktopWindowMode.miniPlayer);
+      expect(adapter.bounds.size, DesktopWindowController.miniDefaultSize);
 
-        adapter.bounds = const Rect.fromLTWH(30, 40, 900, 700);
-        controller.updateViewportSize(adapter.bounds.size);
-        await Future<void>.delayed(const Duration(milliseconds: 430));
-        await controller.resolveTransition(switchMode: true);
+      adapter.bounds = const Rect.fromLTWH(30, 40, 900, 700);
+      controller.updateViewportSize(adapter.bounds.size);
+      await Future<void>.delayed(const Duration(milliseconds: 430));
+      await controller.resolveTransition(switchMode: true);
 
-        expect(controller.mode, DesktopWindowMode.desktop);
-        expect(adapter.bounds.size, const Size(1366, 820));
+      expect(controller.mode, DesktopWindowMode.desktop);
+      expect(adapter.bounds.size, const Size(1366, 820));
 
-        await controller.setMiniPlayerMode(true);
-        expect(controller.mode, DesktopWindowMode.miniPlayer);
-        expect(
-          adapter.bounds.size,
-          DesktopWindowController.miniDefaultSize,
-        );
-        controller.updateViewportSize(adapter.bounds.size);
-        expect(controller.transitionRequest, isNull);
-      },
-    );
+      await controller.setMiniPlayerMode(true);
+      expect(controller.mode, DesktopWindowMode.miniPlayer);
+      expect(adapter.bounds.size, DesktopWindowController.miniDefaultSize);
+      controller.updateViewportSize(adapter.bounds.size);
+      expect(controller.transitionRequest, isNull);
+    });
 
     test(
       'undersized Mini Player automatically restores valid bounds',
@@ -691,5 +667,7 @@ void main() {
 }
 
 Future<Object?> _readJson(File file) async {
-  return file.existsSync() ? file.readAsString().then(jsonDecode) : null;
+  return await (file.existsSync()
+      ? file.readAsString().then(jsonDecode)
+      : null);
 }

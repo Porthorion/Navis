@@ -14,9 +14,9 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
-class _Repository extends Mock implements EqRepository {}
+class _Repository extends Mock implements EqRepository;
 
-class _Handler extends Mock implements NavisPlaybackHandler {}
+class _Handler extends Mock implements NavisPlaybackHandler;
 
 void main() {
   setUpAll(() => registerFallbackValue(EqConfiguration.flat()));

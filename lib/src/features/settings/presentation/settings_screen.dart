@@ -1,5 +1,5 @@
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -9,7 +9,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -52,7 +52,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         l10n.settingsGroupLibrarySynchronization;
     final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
-    final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
+    final coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
         title: l10n.settingsServerTitle,
@@ -106,7 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         group: groupOther,
       ),
     ];
-    final List<_SettingsEntry> desktopEntries = [
+    final desktopEntries = <_SettingsEntry>[
       if (adaptiveContext.desktopRuntime)
         _SettingsEntry(
           icon: Icons.picture_in_picture_alt_outlined,
@@ -124,14 +124,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           group: groupDesktop,
         ),
     ];
-    final _SettingsEntry aboutEntry = _SettingsEntry(
+    final aboutEntry = _SettingsEntry(
       icon: Icons.info_outline,
       title: l10n.aboutTitle,
       subtitle: null,
       page: SettingsPage.about,
       group: groupOther,
     );
-    final _SettingsEntry quickCustomizationEntry = _SettingsEntry(
+    final quickCustomizationEntry = _SettingsEntry(
       icon: Icons.auto_awesome_outlined,
       title: l10n.settingsRunQuickCustomizationTitle,
       subtitle: l10n.settingsRunQuickCustomizationSubtitle,
@@ -291,12 +291,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: SafeArea(
         child: ListView(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(
-            24,
-            desktopIconsOnly ? 20 : 16,
-            24,
-            24,
-          ),
+          padding: EdgeInsets.fromLTRB(24, desktopIconsOnly ? 20 : 16, 24, 24),
           children: <Widget>[
             if (desktopIconsOnly) ...<Widget>[
               DesktopSectionHeader(
@@ -343,7 +338,7 @@ void _open(BuildContext context, WidgetRef ref, _SettingsEntry entry) {
 }
 
 class _SettingsEntry {
-  const _SettingsEntry({
+  const new({
     required this.icon,
     required this.title,
     required this.subtitle,

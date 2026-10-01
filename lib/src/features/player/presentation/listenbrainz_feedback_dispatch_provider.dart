@@ -19,17 +19,17 @@ class ListenBrainzFeedbackDispatchController extends Notifier<int> {
         .read(serverReachabilityControllerProvider)
         .status;
 
-    ref.listen<ServerReachabilityState>(
-      serverReachabilityControllerProvider,
-      (_, next) {
-        final previous = _lastReachabilityStatus;
-        _lastReachabilityStatus = next.status;
-        if (next.status == ServerReachabilityStatus.online &&
-            previous != ServerReachabilityStatus.online) {
-          unawaited(ref.read(listenBrainzFeedbackServiceProvider).flush());
-        }
-      },
-    );
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      _,
+      next,
+    ) {
+      final previous = _lastReachabilityStatus;
+      _lastReachabilityStatus = next.status;
+      if (next.status == ServerReachabilityStatus.online &&
+          previous != ServerReachabilityStatus.online) {
+        unawaited(ref.read(listenBrainzFeedbackServiceProvider).flush());
+      }
+    });
 
     unawaited(
       Future<void>.microtask(

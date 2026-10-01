@@ -13,13 +13,8 @@ import 'package:navis/src/utils/app_logger.dart';
 /// 2. **ICY metadata** — Falls back to `IcyMetadata` provided by `just_audio`
 ///    for generic Icecast/Shoutcast streams.
 class RadioMetadataService {
-  RadioMetadataService({
-    required NavisPlaybackHandler handler,
-    required AudioPlayer player,
-    Dio? dio,
-  }) : _handler = handler,
-       _player = player,
-       _dio = dio ?? Dio();
+  new({required this._handler, required this._player, Dio? dio})
+    : _dio = dio ?? Dio();
 
   final NavisPlaybackHandler _handler;
   final AudioPlayer _player;
@@ -76,7 +71,7 @@ class RadioMetadataService {
   void stop() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
-    _icySubscription?.cancel();
+    unawaited(_icySubscription?.cancel());
     _icySubscription = null;
     _activeStationId = null;
     _azuracastBaseUrl = null;
@@ -132,21 +127,13 @@ class RadioMetadataService {
       _updateDeadStreamCounter(title, stationShortName);
 
       if (_activeStationId != null) {
-        _handler.updateRadioMetadata(
-          title: title,
-          artist: artist,
-          artUrl: art,
-        );
+        _handler.updateRadioMetadata(title: title, artist: artist, artUrl: art);
       }
     } on DioException catch (error) {
-      AppLogger.debug(
-        'Azuracast metadata fetch failed: ${error.message}',
-      );
+      AppLogger.debug('Azuracast metadata fetch failed: ${error.message}');
       // Preserve existing metadata on polling failure — do not clear.
     } on Object catch (error, stackTrace) {
-      AppLogger.debug(
-        'Azuracast metadata fetch failed: $error\n$stackTrace',
-      );
+      AppLogger.debug('Azuracast metadata fetch failed: $error\n$stackTrace');
       // Preserve existing metadata on polling failure — do not clear.
     }
   }
@@ -224,10 +211,7 @@ class RadioMetadataService {
       parsedTitle = title;
     }
 
-    _handler.updateRadioMetadata(
-      title: parsedTitle,
-      artist: parsedArtist,
-    );
+    _handler.updateRadioMetadata(title: parsedTitle, artist: parsedArtist);
   }
 
   /// Dispose resources. Call when the handler is being disposed.

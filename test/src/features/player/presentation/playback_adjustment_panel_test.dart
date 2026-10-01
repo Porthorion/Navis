@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,7 +19,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _Repository extends Mock implements SettingsRepository {}
+class _Repository extends Mock implements SettingsRepository;
 
 void main() {
   test('readouts show two decimals and mark retained legacy precision', () {
@@ -239,10 +239,7 @@ void main() {
     tester,
   ) async {
     await mount(tester, pitchSupported: false);
-    expect(
-      find.byKey(const ValueKey('adjustment-pitch-ruler')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('adjustment-pitch-ruler')), findsNothing);
     expect(find.byKey(const ValueKey('playback-pitch-lock')), findsNothing);
     expect(
       find.text('Pitch control is unavailable on this audio backend.'),
@@ -360,20 +357,17 @@ void main() {
     await mount(
       tester,
       pitchSupported: false,
-      settings:
-          const AsyncData(
-            AppSettingsModel.defaults(),
-          ).whenData(
-            (settings) => settings.copyWith(
-              playbackPresets: const [
-                PlaybackPreset(
-                  id: 'user:deep',
-                  name: 'Deep',
-                  values: PlaybackAdjustments(pitchSemitones: -3),
-                ),
-              ],
+      settings: const AsyncData(AppSettingsModel.defaults()).whenData(
+        (settings) => settings.copyWith(
+          playbackPresets: const [
+            PlaybackPreset(
+              id: 'user:deep',
+              name: 'Deep',
+              values: PlaybackAdjustments(pitchSemitones: -3),
             ),
-          ),
+          ],
+        ),
+      ),
     );
     final menu = tester.widget<DropdownMenu<String>>(
       find.byKey(const ValueKey('playbackPresetDropdown')),
@@ -422,10 +416,7 @@ void main() {
     final container = await mount(tester);
     expect(find.textContaining('Available range'), findsNothing);
     expect(find.text('Pitch Lock'), findsOneWidget);
-    expect(
-      find.text('Match pitch to speed.'),
-      findsOneWidget,
-    );
+    expect(find.text('Match pitch to speed.'), findsOneWidget);
     await container
         .read(playbackAdjustmentsProvider.notifier)
         .setValues(const PlaybackAdjustments(speed: 8));
@@ -536,10 +527,7 @@ void main() {
           .pitchSemitones,
       linked.pitchSemitones,
     );
-    expect(
-      find.byKey(const ValueKey('adjustment-pitch-linked')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('adjustment-pitch-linked')), findsNothing);
     expect(
       find.byKey(const ValueKey('adjustment-pitch-minus')),
       findsOneWidget,

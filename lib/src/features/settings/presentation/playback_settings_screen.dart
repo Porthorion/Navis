@@ -3,7 +3,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
@@ -19,7 +19,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
-  const PlaybackSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<PlaybackSettingsScreen> createState() =>
@@ -247,12 +247,8 @@ class _PlaybackSettingsScreenState
                     onChanged: _isSaving
                         ? null
                         : (value) => setState(() => _albumQueueEnabled = value),
-                    title: Text(
-                      l10n.playbackSettingsAlbumQueueTitle,
-                    ),
-                    subtitle: Text(
-                      l10n.playbackSettingsAlbumQueueSubtitle,
-                    ),
+                    title: Text(l10n.playbackSettingsAlbumQueueTitle),
+                    subtitle: Text(l10n.playbackSettingsAlbumQueueSubtitle),
                   ),
                   if (_albumQueueEnabled)
                     Padding(
@@ -357,9 +353,9 @@ class _PlaybackSettingsScreenState
                                   : l10n.playbackSettingsCrossfadeTypeNormalDescription,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outline,
                                   ),
                             ),
                           ],
@@ -467,9 +463,7 @@ class _PlaybackSettingsScreenState
                           ? null
                           : (value) => setState(
                               () => _replayGainPreamp =
-                                  _normalizeReplayGainPreamp(
-                                    value,
-                                  ),
+                                  _normalizeReplayGainPreamp(value),
                             ),
                     ),
                     Text(

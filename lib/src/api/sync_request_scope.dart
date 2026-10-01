@@ -5,7 +5,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 /// Per-operation limits and attribution shared by the executor and transport.
 /// Async zones keep concurrent UI/search traffic out of a sync's accounting.
 class SyncRequestScope {
-  SyncRequestScope({
+  new({
     required this.allowedEndpoints,
     required this.maxRequests,
     required this.maxNewestPages,
@@ -22,8 +22,12 @@ class SyncRequestScope {
   }
 
   final Set<String> allowedEndpoints;
-  final int maxRequests, maxNewestPages, maxAlbumHydrations, maxConcurrency;
-  final int? maxResponseBytes, maxTotalBytes;
+  final int maxRequests;
+  final int maxNewestPages;
+  final int maxAlbumHydrations;
+  final int maxConcurrency;
+  final int? maxResponseBytes;
+  final int? maxTotalBytes;
   final bool Function() canRequest;
   final void Function()? onStop;
   final DateTime Function() _now;
@@ -39,7 +43,8 @@ class SyncRequestScope {
   int requestCount = 0;
   int byteCount = 0;
   int retryCount = 0;
-  int _acceptedAttempts = 0, _failedAttempts = 0;
+  int _acceptedAttempts = 0;
+  int _failedAttempts = 0;
   final _transportAttempts = <SyncTransportAttempt>[];
   final Map<String, int> endpointBytes = {};
   static const retainedTransportAttempts = 128;
@@ -92,8 +97,9 @@ class SyncRequestScope {
         !allowedEndpoints.contains(endpoint)) {
       _stop('endpointPolicy');
     }
-    if (maxTotalBytes != null && byteCount >= maxTotalBytes!)
+    if (maxTotalBytes != null && byteCount >= maxTotalBytes!) {
       _stop('byteBudget');
+    }
   }
 
   Future<T> request<T>(String endpoint, Future<T> Function() action) async {
@@ -108,14 +114,17 @@ class SyncRequestScope {
       final count = logicalRequests[endpoint] ?? 0;
       if (endpoint == 'getNewestAlbumList2' &&
           maxNewestPages > 0 &&
-          count >= maxNewestPages)
+          count >= maxNewestPages) {
         _stop('pageBudget');
+      }
       if (endpoint == 'getAlbum' &&
           maxAlbumHydrations > 0 &&
-          count >= maxAlbumHydrations)
+          count >= maxAlbumHydrations) {
         _stop('entityBudget');
-      if (logicalRequests.values.fold(0, (a, b) => a + b) >= maxRequests)
+      }
+      if (logicalRequests.values.fold(0, (a, b) => a + b) >= maxRequests) {
         _stop('requestBudget');
+      }
       logicalRequests[endpoint] = count + 1;
       return await action();
     } finally {
@@ -167,7 +176,7 @@ class SyncRequestScope {
 }
 
 class SyncTransportAttempt {
-  SyncTransportAttempt._(
+  new _(
     this.scope,
     this.endpoint,
     this.ordinal,
@@ -177,7 +186,9 @@ class SyncTransportAttempt {
   );
   final SyncRequestScope scope;
   final String endpoint;
-  final int ordinal, requestOrdinal, retry;
+  final int ordinal;
+  final int requestOrdinal;
+  final int retry;
   final DateTime startedAt;
   final Stopwatch _duration = Stopwatch()..start();
   String _outcome = 'running';

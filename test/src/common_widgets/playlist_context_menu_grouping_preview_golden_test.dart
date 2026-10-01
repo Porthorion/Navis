@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -26,9 +26,7 @@ void main() {
 
   testWidgets(
     'playlist track menu after keeps removal in a final action group',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 760));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await pump(tester, grouped: true);
@@ -41,7 +39,7 @@ void main() {
 }
 
 class _PlaylistTrackMenuPreview extends StatelessWidget {
-  const _PlaylistTrackMenuPreview({required this.grouped});
+  const new({required this.grouped});
 
   final bool grouped;
 
@@ -92,11 +90,7 @@ class _PlaylistTrackMenuPreview extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
+  const new({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;

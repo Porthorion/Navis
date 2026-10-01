@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -14,7 +14,7 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _Catalogue extends Mock implements AutoEqCatalogue {}
+class _Catalogue extends Mock implements AutoEqCatalogue;
 
 void main() {
   testWidgets('AutoEQ discovery fits large text and a mobile keyboard', (

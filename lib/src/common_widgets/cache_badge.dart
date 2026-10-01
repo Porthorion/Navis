@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
@@ -12,10 +12,7 @@ enum CacheBadgeType {
 }
 
 class CacheBadge extends StatelessWidget {
-  const CacheBadge({
-    super.key,
-    this.type = CacheBadgeType.downloaded,
-  });
+  const new({super.key, this.type = CacheBadgeType.downloaded});
 
   final CacheBadgeType type;
 

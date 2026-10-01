@@ -1,17 +1,9 @@
 import 'package:navis/src/api/models/models.dart';
 
-enum LyricsSource {
-  serverSynced,
-  serverPlain,
-  lrclibSynced,
-  lrclibPlain,
-}
+enum LyricsSource { serverSynced, serverPlain, lrclibSynced, lrclibPlain }
 
 class LyricsResolution {
-  const LyricsResolution({
-    required this.lyrics,
-    required this.source,
-  });
+  const new({required this.lyrics, required this.source});
 
   final LyricsList lyrics;
   final LyricsSource source;

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -12,10 +12,7 @@ enum AppNoticeLevel { info, success, error }
 /// provider.
 @immutable
 class AppNoticeDiagnosticsCommand {
-  const AppNoticeDiagnosticsCommand({
-    required this.message,
-    required this.level,
-  });
+  const new({required this.message, required this.level});
 
   final String message;
   final AppNoticeLevel level;
@@ -35,13 +32,11 @@ final appNoticeDiagnosticsProvider =
     NotifierProvider<
       AppNoticeDiagnosticsController,
       AppNoticeDiagnosticsCommand?
-    >(
-      AppNoticeDiagnosticsController.new,
-    );
+    >(AppNoticeDiagnosticsController.new);
 
 @immutable
 class AppNoticeData {
-  const AppNoticeData({
+  const new({
     required this.id,
     required this.message,
     required this.level,
@@ -112,11 +107,7 @@ class AppNoticeController extends ChangeNotifier {
 }
 
 class AppNoticeScope extends InheritedNotifier<AppNoticeController> {
-  const AppNoticeScope({
-    required super.notifier,
-    required super.child,
-    super.key,
-  });
+  const new({required super.notifier, required super.child, super.key});
 
   static AppNoticeController? maybeOf(BuildContext context) {
     return context
@@ -145,9 +136,9 @@ void showAppNotice(
 }
 
 class AppNoticeMessenger {
-  const AppNoticeMessenger._(this.context);
+  const new _(this.context);
 
-  factory AppNoticeMessenger.of(BuildContext context) {
+  factory of(BuildContext context) {
     return AppNoticeMessenger._(context);
   }
 
@@ -167,10 +158,7 @@ class AppNoticeMessenger {
     if (controller == null || message == null || message.trim().isEmpty) {
       return;
     }
-    controller.show(
-      message: message,
-      duration: snackBar.duration,
-    );
+    controller.show(message: message, duration: snackBar.duration);
   }
 
   String? _extractMessage(Widget content) {
@@ -182,11 +170,7 @@ class AppNoticeMessenger {
 }
 
 class AppNoticeHost extends StatelessWidget {
-  const AppNoticeHost({
-    required this.controller,
-    this.topOffset = 12,
-    super.key,
-  });
+  const new({required this.controller, this.topOffset = 12, super.key});
 
   final AppNoticeController controller;
   final double topOffset;
@@ -236,11 +220,7 @@ class AppNoticeHost extends StatelessWidget {
 }
 
 class _NoticePill extends StatelessWidget {
-  const _NoticePill({
-    required this.notice,
-    required this.onDismissed,
-    super.key,
-  });
+  const new({required this.notice, required this.onDismissed, super.key});
 
   final AppNoticeData notice;
   final VoidCallback onDismissed;

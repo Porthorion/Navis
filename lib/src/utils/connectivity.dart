@@ -1,12 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 /// Simplified network type used by streaming quality logic.
-enum NetworkType {
-  offline,
-  wifi,
-  cellular,
-  other,
-}
+enum NetworkType { offline, wifi, cellular, other }
 
 NetworkType resolveNetworkType(List<ConnectivityResult> results) {
   if (results.isEmpty || results.contains(ConnectivityResult.none)) {
@@ -27,7 +22,7 @@ NetworkType resolveNetworkType(List<ConnectivityResult> results) {
 
 /// Cost-aware policy used by library sync scheduling and execution.
 class SyncNetworkPolicy {
-  const SyncNetworkPolicy({
+  const new({
     required this.networkType,
     required this.isMetered,
     required this.allowsBackgroundSync,

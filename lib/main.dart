@@ -26,7 +26,7 @@ import 'package:path/path.dart' as path;
 
 /// Root-library entrypoint resolved by Android's headless FlutterEngine.
 ///
-/// [DartExecutor.DartEntrypoint] resolves a named function from the app's root
+/// `DartExecutor.DartEntrypoint` resolves a named function from the app's root
 /// library, so retaining the implementation only in a feature library is not
 /// sufficient for profile or release builds even when it has its own pragma.
 @pragma('vm:entry-point')
@@ -52,9 +52,7 @@ Future<void> main() async {
       _isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
     final sidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>(
-          'isSidecar',
-        );
+        .invokeMethod<bool>('isSidecar');
     if (sidecar != true) {
       throw StateError('Android clone diagnostics require a sidecar package.');
     }
@@ -388,7 +386,7 @@ _createDiagnosticsPresentationController() async {
 }
 
 class _DesktopBootstrap {
-  const _DesktopBootstrap({
+  const new({
     required this.database,
     required this.settingsRepository,
     required this.controller,

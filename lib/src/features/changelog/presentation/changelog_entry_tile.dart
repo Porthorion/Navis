@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// One changelog entry as a plain paragraph. Entries sit under a heading
 /// that names their type, so the row itself carries no label or marker.
 class ChangelogEntryTile extends StatelessWidget {
-  const ChangelogEntryTile({required this.entry, super.key});
+  const new({required this.entry, super.key});
 
   final ChangelogEntry entry;
 

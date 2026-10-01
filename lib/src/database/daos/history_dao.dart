@@ -12,7 +12,7 @@ part 'history_dao.g.dart';
 )
 class HistoryDao extends DatabaseAccessor<NavisDatabase>
     with _$HistoryDaoMixin {
-  HistoryDao(super.db);
+  new(super.attachedDatabase);
 
   Stream<List<PlayHistoryTableData>> watchPlayHistory({int limit = 100}) {
     final query = select(playHistoryTable)
@@ -65,14 +65,8 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
   /// returns distinct albums in most-recently-played order.
   Stream<List<AlbumsTableData>> watchRecentlyPlayedAlbums({int? limit = 20}) {
     final query = select(playHistoryTable).join([
-      innerJoin(
-        songsTable,
-        songsTable.id.equalsExp(playHistoryTable.songId),
-      ),
-      innerJoin(
-        albumsTable,
-        albumsTable.id.equalsExp(songsTable.albumId),
-      ),
+      innerJoin(songsTable, songsTable.id.equalsExp(playHistoryTable.songId)),
+      innerJoin(albumsTable, albumsTable.id.equalsExp(songsTable.albumId)),
     ])..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)]);
     if (limit != null) {
       query.limit(limit * 5);

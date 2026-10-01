@@ -39,9 +39,8 @@ void main() {
       _song('song-1', title: 'Old title'),
     ]);
 
-    final stats = await LibraryCatalogDiffAnalyzer(
-      database,
-    ).analyze(serverId: 1, generation: 2);
+    final stats = await LibraryCatalogDiffAnalyzer(database)
+        .analyze(serverId: 1, generation: 2);
 
     expect(stats.songChangedCount, 1);
     expect(stats.songUnchangedCount, 2);
@@ -65,9 +64,8 @@ void main() {
     await database.libraryDao.updateSongStarred('song-0', starred);
     await database.libraryDao.updateSongRating('song-0', 5);
 
-    final stats = await LibraryCatalogDiffAnalyzer(
-      database,
-    ).analyze(serverId: 1, generation: 2);
+    final stats = await LibraryCatalogDiffAnalyzer(database)
+        .analyze(serverId: 1, generation: 2);
 
     expect(stats.changedCount, 0);
     expect(stats.unchangedCount, 3);
@@ -92,10 +90,8 @@ void main() {
         ),
       ]);
 
-      final stats = await LibraryCatalogDiffAnalyzer(database).analyze(
-        serverId: 1,
-        generation: 2,
-      );
+      final stats = await LibraryCatalogDiffAnalyzer(database)
+          .analyze(serverId: 1, generation: 2);
 
       expect(stats.albumChangedCount, 0);
       expect(stats.albumUnchangedCount, 1);
@@ -125,9 +121,8 @@ void main() {
       addTearDown(database.close);
       await _seedMatchingCatalog(database, songCount: 1200);
 
-      final stats = await LibraryCatalogDiffAnalyzer(
-        database,
-      ).analyze(serverId: 1, generation: 2);
+      final stats = await LibraryCatalogDiffAnalyzer(database)
+          .analyze(serverId: 1, generation: 2);
 
       expect(stats.maximumPageSize, lessThanOrEqualTo(384));
       expect(stats.songUnchangedCount, 1200);
@@ -145,9 +140,8 @@ void main() {
       unchangedIds: const <String>['song-0'],
     );
 
-    final stats = await LibraryCatalogDiffAnalyzer(
-      database,
-    ).analyze(serverId: 1, generation: 2);
+    final stats = await LibraryCatalogDiffAnalyzer(database)
+        .analyze(serverId: 1, generation: 2);
 
     expect(stats.songUnchangedCount, 2);
     final counts = await database.librarySyncCandidateDao.getApplyCounts(
@@ -180,10 +174,9 @@ Future<void> _seedMatchingCatalog(
     for (var index = 0; index < songCount; index++) _song('song-$index'),
   ];
   await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[artist]);
-  await database.libraryDao.upsertAlbums(
-    <AlbumsTableCompanion>[album],
-    preserveHydrationState: false,
-  );
+  await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+    album,
+  ], preserveHydrationState: false);
   await database.libraryDao.upsertSongs(songs);
   await database.librarySyncCandidateDao.replaceArtists(
     serverId: 1,
@@ -198,9 +191,7 @@ Future<void> _seedMatchingCatalog(
   await database.librarySyncCandidateDao.replaceSongsForAlbums(
     serverId: 1,
     generation: 2,
-    songsByAlbum: <String, List<SongsTableCompanion>>{
-      'album-1': songs,
-    },
+    songsByAlbum: <String, List<SongsTableCompanion>>{'album-1': songs},
   );
 }
 

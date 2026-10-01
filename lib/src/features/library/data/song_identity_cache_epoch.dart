@@ -3,7 +3,7 @@
 /// Persisted aliases are authoritative. This epoch only ensures that in-memory
 /// derived caches are rebuilt after a sync retires provisional IDs.
 class SongIdentityCacheEpoch {
-  SongIdentityCacheEpoch._();
+  new _();
 
   static int _value = 0;
 

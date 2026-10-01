@@ -8,8 +8,9 @@ import 'package:navis/src/utils/app_logger.dart';
 DateTime? subsonicRetryAt(String? value) {
   if (value == null) return null;
   final seconds = int.tryParse(value.trim());
-  if (seconds != null && seconds >= 0)
+  if (seconds != null && seconds >= 0) {
     return DateTime.now().toUtc().add(Duration(seconds: seconds));
+  }
   try {
     return HttpDate.parse(value.trim());
   } on FormatException {
@@ -19,7 +20,7 @@ DateTime? subsonicRetryAt(String? value) {
 
 /// Retries transient Subsonic request failures with exponential backoff.
 class SubsonicRetryInterceptor extends Interceptor {
-  SubsonicRetryInterceptor({
+  new({
     required this.dio,
     this.maxRetries = 1,
     Duration Function(int attempt)? backoff,

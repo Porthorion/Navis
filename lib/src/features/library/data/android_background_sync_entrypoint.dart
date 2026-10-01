@@ -36,7 +36,7 @@ Future<void> navisBackgroundSyncEntrypoint() async {
         if (command == null) {
           return const <String, Object?>{'category': 'permanentFailure'};
         }
-        return runner.run(command);
+        return await runner.run(command);
       case 'cancel':
         await runner.cancel();
         return true;
@@ -71,9 +71,7 @@ class _HeadlessBackgroundSyncRunner {
     }
   }
 
-  Future<Map<String, Object?>> _run(
-    _BackgroundWorkerCommand command,
-  ) async {
+  Future<Map<String, Object?>> _run(_BackgroundWorkerCommand command) async {
     final container = ProviderContainer();
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
@@ -174,13 +172,7 @@ class _HeadlessBackgroundSyncRunner {
         ),
         enableLogging: false,
         maxConnectionsPerHost: 4,
-        reportNetworkUsage: ({required category, required bytes, operation}) {
-          meter.record(
-            category: category,
-            bytes: bytes,
-            operation: operation,
-          );
-        },
+        reportNetworkUsage: meter.record,
       );
       final coordinator = LibrarySyncExecutionBootstrap.createCoordinator(
         client: client,
@@ -188,9 +180,7 @@ class _HeadlessBackgroundSyncRunner {
         serverConfigRepository: repository,
         initialNetworkType: tracker.current.networkType,
         readSyncNetworkPolicy: () => tracker.current,
-        staleAfter: Duration(
-          minutes: settings?.syncIntervalMinutes ?? 60,
-        ),
+        staleAfter: Duration(minutes: settings?.syncIntervalMinutes ?? 60),
         readHasActivePlayback: () => false,
         readIsForeground: () => false,
         executionOwnerKind: 'androidWorker',
@@ -275,19 +265,14 @@ class _HeadlessBackgroundSyncRunner {
 /// connectivity transition and a native metering change that occurs after the
 /// worker has started.
 class BackgroundNetworkPolicyTracker {
-  BackgroundNetworkPolicyTracker._({
+  new _({
     required SyncNetworkPolicy initialPolicy,
-    required Future<List<ConnectivityResult>> Function() readConnectivity,
-    required Stream<List<ConnectivityResult>> connectivityChanges,
-    required Future<bool> Function() readNativeMetered,
-    required bool backgroundSyncUnmeteredOnly,
-    required Duration refreshInterval,
-  }) : _current = initialPolicy,
-       _readConnectivity = readConnectivity,
-       _connectivityChanges = connectivityChanges,
-       _readNativeMetered = readNativeMetered,
-       _backgroundSyncUnmeteredOnly = backgroundSyncUnmeteredOnly,
-       _refreshInterval = refreshInterval;
+    required this._readConnectivity,
+    required this._connectivityChanges,
+    required this._readNativeMetered,
+    required this._backgroundSyncUnmeteredOnly,
+    required this._refreshInterval,
+  }) : _current = initialPolicy;
 
   static Future<BackgroundNetworkPolicyTracker> create({
     required Future<List<ConnectivityResult>> Function() readConnectivity,
@@ -364,7 +349,7 @@ class BackgroundNetworkPolicyTracker {
 /// Strictly validates the small Kotlin-to-Dart work protocol. No profile
 /// identity or credential can cross this boundary.
 class _BackgroundWorkerCommand {
-  const _BackgroundWorkerCommand({
+  const new({
     required this.profileKey,
     required this.workId,
     required this.attemptCount,

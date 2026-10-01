@@ -7,7 +7,7 @@ import 'package:navis/src/utils/connectivity.dart';
 /// Runtime overrides used by the Linux sync diagnostics API (clone mode only).
 @immutable
 class SyncDiagnosticsOverrides {
-  const SyncDiagnosticsOverrides({
+  const new({
     this.networkType,
     this.nativeMetered,
     this.backgroundSyncUnmeteredOnly,
@@ -20,6 +20,36 @@ class SyncDiagnosticsOverrides {
     this.radioPresentationFixture = false,
     this.artistTopTracksPresentationFixture = false,
   });
+
+  factory fromJson(Map<String, Object?> json) {
+    NetworkType? networkType;
+    final rawNetworkType = json['networkType'];
+    if (rawNetworkType is String) {
+      for (final type in NetworkType.values) {
+        if (type.name == rawNetworkType) {
+          networkType = type;
+          break;
+        }
+      }
+    }
+    return SyncDiagnosticsOverrides(
+      networkType: networkType,
+      nativeMetered: json['nativeMetered'] as bool?,
+      backgroundSyncUnmeteredOnly: json['backgroundSyncUnmeteredOnly'] as bool?,
+      automaticSyncAllowed: json['automaticSyncAllowed'] as bool?,
+      interactiveHydrationAllowed: json['interactiveHydrationAllowed'] as bool?,
+      meteredBudgetBytes: json['meteredBudgetBytes'] as int?,
+      requestReporting: json['requestReporting'] as bool? ?? false,
+      cachedListenBrainzPresentation:
+          json['cachedListenBrainzPresentation'] as bool? ?? false,
+      forceSearchRemoteFailure:
+          json['forceSearchRemoteFailure'] as bool? ?? false,
+      radioPresentationFixture:
+          json['radioPresentationFixture'] as bool? ?? false,
+      artistTopTracksPresentationFixture:
+          json['artistTopTracksPresentationFixture'] as bool? ?? false,
+    );
+  }
 
   final NetworkType? networkType;
   final bool? nativeMetered;
@@ -95,36 +125,6 @@ class SyncDiagnosticsOverrides {
     'radioPresentationFixture': radioPresentationFixture,
     'artistTopTracksPresentationFixture': artistTopTracksPresentationFixture,
   };
-
-  static SyncDiagnosticsOverrides fromJson(Map<String, Object?> json) {
-    NetworkType? networkType;
-    final rawNetworkType = json['networkType'];
-    if (rawNetworkType is String) {
-      for (final type in NetworkType.values) {
-        if (type.name == rawNetworkType) {
-          networkType = type;
-          break;
-        }
-      }
-    }
-    return SyncDiagnosticsOverrides(
-      networkType: networkType,
-      nativeMetered: json['nativeMetered'] as bool?,
-      backgroundSyncUnmeteredOnly: json['backgroundSyncUnmeteredOnly'] as bool?,
-      automaticSyncAllowed: json['automaticSyncAllowed'] as bool?,
-      interactiveHydrationAllowed: json['interactiveHydrationAllowed'] as bool?,
-      meteredBudgetBytes: json['meteredBudgetBytes'] as int?,
-      requestReporting: json['requestReporting'] as bool? ?? false,
-      cachedListenBrainzPresentation:
-          json['cachedListenBrainzPresentation'] as bool? ?? false,
-      forceSearchRemoteFailure:
-          json['forceSearchRemoteFailure'] as bool? ?? false,
-      radioPresentationFixture:
-          json['radioPresentationFixture'] as bool? ?? false,
-      artistTopTracksPresentationFixture:
-          json['artistTopTracksPresentationFixture'] as bool? ?? false,
-    );
-  }
 }
 
 class SyncDiagnosticsOverridesController
@@ -150,15 +150,14 @@ class SyncDiagnosticsOverridesController
     };
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void apply(SyncDiagnosticsOverrides overrides) {
     state = overrides;
   }
 
   void patch(Map<String, Object?> json) {
-    final merged = <String, Object?>{
-      ...state.toJson(),
-      ...json,
-    };
+    final merged = <String, Object?>{...state.toJson(), ...json};
     if (json.containsKey('networkType') && json['networkType'] == null) {
       merged.remove('networkType');
     }
@@ -193,9 +192,7 @@ final syncDiagnosticsOverridesProvider =
     NotifierProvider<
       SyncDiagnosticsOverridesController,
       SyncDiagnosticsOverrides
-    >(
-      SyncDiagnosticsOverridesController.new,
-    );
+    >(SyncDiagnosticsOverridesController.new);
 
 /// Clone-diagnostics-only override for the desktop Now Playing surface.
 ///
@@ -207,6 +204,8 @@ class DesktopNowPlayingDiagnosticsController extends Notifier<bool?> {
   @override
   bool? build() => null;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties, avoid_positional_boolean_parameters
   void setVisible(bool visible) => state = visible;
 
   void clear() => state = null;
@@ -225,11 +224,7 @@ final desktopNowPlayingDiagnosticsProvider =
 /// modifying the user's queue, or relying on server timing.
 @immutable
 class TransportMotionPresentationFixture {
-  const TransportMotionPresentationFixture({
-    required this.playback,
-    required this.sequence,
-    this.cue,
-  });
+  const new({required this.playback, required this.sequence, this.cue});
 
   final PlaybackSnapshot playback;
   final int sequence;

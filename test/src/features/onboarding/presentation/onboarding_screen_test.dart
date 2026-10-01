@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -34,7 +35,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingScreen(),
         ),
@@ -60,7 +61,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingScreen(),
         ),
@@ -91,7 +92,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingScreen(),
         ),
@@ -99,9 +100,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final initialPrimary = Theme.of(
-      tester.element(find.byType(Scaffold)),
-    ).colorScheme.primary;
+    final initialPrimary = Theme.of(tester.element(find.byType(Scaffold)))
+        .colorScheme
+        .primary;
     await tester.tap(find.text('Light'));
     await tester.pumpAndSettle();
     expect(
@@ -155,7 +156,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingScreen(),
         ),

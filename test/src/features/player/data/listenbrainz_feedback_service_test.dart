@@ -7,7 +7,7 @@ import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dar
 import '../../../../helpers/test_database.dart';
 
 class _FakeListenBrainzFeedbackApiClient extends ListenBrainzApiClient {
-  _FakeListenBrainzFeedbackApiClient({this.lookupResult});
+  new({this.lookupResult});
 
   final String? lookupResult;
   final submitted = <({String recordingMbid, int score})>[];

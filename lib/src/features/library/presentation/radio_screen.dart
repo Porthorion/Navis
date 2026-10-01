@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -15,7 +15,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 
 /// The Library Radio section.
 class RadioTabContent extends ConsumerWidget {
-  const RadioTabContent({
+  const new({
     super.key,
     this.scrollController,
     this.typeFilterQuery = '',
@@ -52,16 +52,16 @@ class RadioTabContent extends ConsumerWidget {
         }
       },
       child: stationsAsync.when(
-        data: (stations) {
-          final hasStations = stations.isNotEmpty;
-          if (typeFilterQuery.isNotEmpty) {
-            final query = typeFilterQuery.toLowerCase();
-            stations = stations
-                .where(
-                  (s) => s.name.toLowerCase().contains(query),
-                )
-                .toList();
-          }
+        data: (allStations) {
+          final hasStations = allStations.isNotEmpty;
+          final query = typeFilterQuery.toLowerCase();
+          final stations = typeFilterQuery.isEmpty
+              ? allStations
+              : allStations
+                    .where(
+                      (station) => station.name.toLowerCase().contains(query),
+                    )
+                    .toList();
           if (stations.isEmpty) {
             final isFilteredEmpty = hasStations && typeFilterQuery.isNotEmpty;
             return ListView(
@@ -219,7 +219,7 @@ class RadioTabContent extends ConsumerWidget {
 }
 
 class _RadioStationCard extends StatelessWidget {
-  const _RadioStationCard({
+  const new({
     required this.station,
     required this.playing,
     required this.onTap,

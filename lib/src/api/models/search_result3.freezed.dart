@@ -29,16 +29,21 @@ $SearchResult3CopyWith<SearchResult3> get copyWith => _$SearchResult3CopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchResult3&&const DeepCollectionEquality().equals(other.artists, artists)&&const DeepCollectionEquality().equals(other.albums, albums)&&const DeepCollectionEquality().equals(other.songs, songs));
+  final _this = this as SearchResult3;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchResult3&&const DeepCollectionEquality().equals(other.artists, _this.artists)&&const DeepCollectionEquality().equals(other.albums, _this.albums)&&const DeepCollectionEquality().equals(other.songs, _this.songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(artists),const DeepCollectionEquality().hash(albums),const DeepCollectionEquality().hash(songs));
+int get hashCode {
+  final _this = this as SearchResult3;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.artists),const DeepCollectionEquality().hash(_this.albums),const DeepCollectionEquality().hash(_this.songs));
+}
 
 @override
 String toString() {
-  return 'SearchResult3(artists: $artists, albums: $albums, songs: $songs)';
+  final _this = this as SearchResult3;
+  return 'SearchResult3(artists: ${_this.artists}, albums: ${_this.albums}, songs: ${_this.songs})';
 }
 
 
@@ -250,16 +255,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchResult3&&const DeepCollectionEquality().equals(other._artists, _artists)&&const DeepCollectionEquality().equals(other._albums, _albums)&&const DeepCollectionEquality().equals(other._songs, _songs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchResult3&&const DeepCollectionEquality().equals(other.artists, _artists)&&const DeepCollectionEquality().equals(other.albums, _albums)&&const DeepCollectionEquality().equals(other.songs, _songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_artists),const DeepCollectionEquality().hash(_albums),const DeepCollectionEquality().hash(_songs));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_artists),const DeepCollectionEquality().hash(_albums),const DeepCollectionEquality().hash(_songs));
+}
 
 @override
 String toString() {
-  return 'SearchResult3(artists: $artists, albums: $albums, songs: $songs)';
+    return 'SearchResult3(artists: $artists, albums: $albums, songs: $songs)';
 }
 
 

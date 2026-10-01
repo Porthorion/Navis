@@ -7,7 +7,7 @@ part 'scrobble_dao.g.dart';
 @DriftAccessor(tables: [ScrobbleQueueTable])
 class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
     with _$ScrobbleDaoMixin {
-  ScrobbleDao(super.db);
+  new(super.attachedDatabase);
 
   Future<void> enqueue({
     required String songId,
@@ -50,9 +50,7 @@ class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
             table.nextAttemptAt.isSmallerOrEqualValue(now) &
             table.expiresAt.isBiggerThanValue(now),
       )
-      ..orderBy([
-        (table) => OrderingTerm.asc(table.nextAttemptAt),
-      ])
+      ..orderBy([(table) => OrderingTerm.asc(table.nextAttemptAt)])
       ..limit(limit);
     return query.get();
   }
@@ -93,6 +91,7 @@ class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
     final query = selectOnly(scrobbleQueueTable)
       ..addColumns(<Expression<Object>>[countExpression]);
     final row = await query.getSingle();
-    return row.read(countExpression) ?? 0;
+    final resolvedCount = row.read(countExpression) ?? 0;
+    return resolvedCount;
   }
 }

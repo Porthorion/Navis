@@ -8,10 +8,8 @@ enum GridArtworkSize {
   medium,
   large;
 
-  static GridArtworkSize parse(String value) => values.firstWhere(
-    (size) => size.name == value,
-    orElse: () => auto,
-  );
+  static GridArtworkSize parse(String value) =>
+      values.firstWhere((size) => size.name == value, orElse: () => auto);
 }
 
 enum TrackRowMode { compact, medium, wide }
@@ -19,13 +17,9 @@ enum TrackRowMode { compact, medium, wide }
 /// Geometry resolved from the content pane, after navigation and padding.
 @immutable
 class ContentGridGeometry {
-  const ContentGridGeometry({
-    required this.columns,
-    required this.extent,
-    required this.gap,
-  });
+  const new({required this.columns, required this.extent, required this.gap});
 
-  factory ContentGridGeometry.bounded({
+  factory bounded({
     required double width,
     required double minimum,
     required double maximum,
@@ -47,7 +41,7 @@ class ContentGridGeometry {
 }
 
 class ContentLayout {
-  const ContentLayout._();
+  const new _();
 
   static double padding(double width) => width < 600 ? 12 : 24;
   static double gap(double width) => width < 600 ? 8 : 12;

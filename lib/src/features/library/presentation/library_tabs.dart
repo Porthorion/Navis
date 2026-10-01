@@ -1,7 +1,7 @@
 part of 'library_screen.dart';
 
 class _LikedArtistStripTile extends ConsumerWidget {
-  const _LikedArtistStripTile({
+  const new({
     required this.artist,
     this.artworkExtent = 64,
     this.onTap,
@@ -65,7 +65,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
-  const _LibraryPlaylistsTab({this.scrollController});
+  const new({this.scrollController});
 
   /// Optional external [ScrollController] for scroll-to-top support.
   final ScrollController? scrollController;
@@ -295,11 +295,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               ],
             )
           : const Icon(Icons.chevron_right),
-      onTap: () => NavService.openPlaylistDetail(
-        context,
-        ref,
-        playlist.id,
-      ),
+      onTap: () => NavService.openPlaylistDetail(context, ref, playlist.id),
       onLongPress: isDesktopRuntime
           ? null
           : () => _showPlaylistActions(context, playlist),
@@ -383,9 +379,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     Offset? anchor,
   }) {
     if (anchor != null && isDesktopRuntime) {
-      unawaited(
-        _showDesktopPlaylistActions(context, playlist, anchor: anchor),
-      );
+      unawaited(_showDesktopPlaylistActions(context, playlist, anchor: anchor));
       return;
     }
     final l10n = AppLocalizations.of(context)!;
@@ -509,10 +503,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     );
   }
 
-  void _confirmDelete(
-    BuildContext context,
-    PlaylistsTableData playlist,
-  ) {
+  void _confirmDelete(BuildContext context, PlaylistsTableData playlist) {
     final l10n = AppLocalizations.of(context)!;
     showDialog<void>(
       context: context,
@@ -562,7 +553,7 @@ enum _PlaylistContextAction { rename, delete }
 // ─────────────────────────────────────────────────────────────────────────────
 
 class LikedAlbumsAllScreen extends ConsumerWidget {
-  const LikedAlbumsAllScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -647,9 +638,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                             badge: AlbumDownloadBadge(albumId: album.id),
                             onTap: () {
                               ref
-                                  .read(
-                                    librarySyncControllerProvider.notifier,
-                                  )
+                                  .read(librarySyncControllerProvider.notifier)
                                   .registerAlbumInteraction(album.id);
                               NavService.openAlbumDetail(
                                 context,
@@ -684,7 +673,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
 
 /// A liked-artist destination when the general Artists page is hidden.
 class LikedArtistsAllScreen extends ConsumerWidget {
-  const LikedArtistsAllScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -697,9 +686,7 @@ class LikedArtistsAllScreen extends ConsumerWidget {
     Future<void> refresh() =>
         ref.read(librarySyncControllerProvider.notifier).syncNow();
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.libraryLikedArtistsSectionTitle),
-      ),
+      appBar: AppBar(title: Text(l10n.libraryLikedArtistsSectionTitle)),
       body: RefreshIndicator(
         onRefresh: refresh,
         child: artists.when(

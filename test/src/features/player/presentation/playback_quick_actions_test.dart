@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +22,7 @@ import '../../../../helpers/fake_eq_controller.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _Repository extends Mock implements SettingsRepository {}
+class _Repository extends Mock implements SettingsRepository;
 
 class _EnabledEq extends EqController {
   @override
@@ -218,9 +218,7 @@ void main() {
     expect(find.byType(PlaybackAdjustmentPanel), findsNothing);
   });
 
-  testWidgets('touch layouts open the panel in a bottom sheet', (
-    tester,
-  ) async {
+  testWidgets('touch layouts open the panel in a bottom sheet', (tester) async {
     await pumpButton(tester, container(), desktop: false);
     await tester.tap(find.byKey(const ValueKey('speedButton')));
     await tester.pumpAndSettle();
@@ -346,10 +344,7 @@ void main() {
       expect(button.tooltip, 'Equalizer: Custom');
       await tester.tap(find.byKey(const ValueKey('eqButton')));
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('equalizerQuickPanel')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('equalizerQuickPanel')), findsOneWidget);
       expect(find.byType(BottomSheet), findsOneWidget);
       expect(location(), '/');
     });
@@ -380,10 +375,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(fake.calls, contains('flush'));
       expect(location(), '/');
-      expect(
-        providers.read(playerOverlayStackProvider),
-        [PlayerOverlayRoute.nowPlaying],
-      );
+      expect(providers.read(playerOverlayStackProvider), [
+        PlayerOverlayRoute.nowPlaying,
+      ]);
     });
 
     testWidgets('navigating elsewhere does not re-open the player', (

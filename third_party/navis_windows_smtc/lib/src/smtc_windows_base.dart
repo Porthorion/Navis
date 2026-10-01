@@ -11,7 +11,7 @@ import 'package:navis_windows_smtc/src/rust/internal/timeline.dart';
 
 /// Complete native SMTC state applied as one ordered operation.
 class WindowsSmtcState {
-  const WindowsSmtcState({
+  const new({
     required this.enabled,
     required this.config,
     required this.status,
@@ -37,20 +37,21 @@ class WindowsSmtcState {
 /// present in the upstream package constructor, which scheduled its initial
 /// configuration without awaiting it.
 class WindowsSmtcSession {
-  WindowsSmtcSession._(this._internal) {
+  new _(this._internal) {
     _buttonPressStream = api
         .smtcButtonPressEvent(internal: _internal)
         .map(PressedButton.fromString)
         .asBroadcastStream();
-    _shuffleChangeStream =
-        api.smtcShuffleRequestEvent(internal: _internal).asBroadcastStream();
+    _shuffleChangeStream = api
+        .smtcShuffleRequestEvent(internal: _internal)
+        .asBroadcastStream();
     _repeatModeChangeStream = api
         .smtcRepeatModeRequestEvent(internal: _internal)
         .map(RepeatMode.fromString)
         .asBroadcastStream();
     _positionChangeStream = api
         .smtcPositionChangeRequestEvent(internal: _internal)
-        .map((position) => Duration(milliseconds: position.toInt()))
+        .map((position) => Duration(milliseconds: position))
         .asBroadcastStream();
   }
 

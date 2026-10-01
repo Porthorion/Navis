@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +24,7 @@ import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:path/path.dart' as p;
 
-class _SettingsRepository extends Mock implements SettingsRepository {}
+class _SettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
   testWidgets('player quick controls are observed and opened by the button', (
@@ -444,11 +444,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      controller.wrap(
-        const MaterialApp(
-          home: ColoredBox(color: Colors.blue),
-        ),
-      ),
+      controller.wrap(const MaterialApp(home: ColoredBox(color: Colors.blue))),
     );
 
     expect(controller.status.screenshotReady, isTrue);

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
@@ -7,11 +7,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// The top of a release, laid out like an album page: the cover beside the
 /// release's name, version and date. Patches have no cover.
 class ChangelogReleaseHeader extends StatelessWidget {
-  const ChangelogReleaseHeader({
-    required this.version,
-    super.key,
-    this.desktop = false,
-  });
+  const new({required this.version, super.key, this.desktop = false});
 
   final ChangelogVersion version;
   final bool desktop;

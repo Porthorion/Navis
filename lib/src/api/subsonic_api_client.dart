@@ -17,13 +17,13 @@ import 'package:uuid/uuid.dart';
 
 /// Typed Subsonic/OpenSubsonic API wrapper.
 class SubsonicApiClient {
-  SubsonicApiClient({
+  new({
     required String baseUrl,
     required this.authConfig,
     Dio? dio,
     this.enableLogging = true,
     this.maxConnectionsPerHost,
-    NetworkUsageReporter? reportNetworkUsage,
+    this._reportNetworkUsage,
   }) : connectionIdentity = sha256
            .convert(
              utf8.encode(
@@ -37,7 +37,6 @@ class SubsonicApiClient {
            )
            .toString(),
        _uuid = const Uuid(),
-       _reportNetworkUsage = reportNetworkUsage,
        _dio =
            dio ??
            Dio(
@@ -46,9 +45,7 @@ class SubsonicApiClient {
                connectTimeout: const Duration(seconds: 15),
                receiveTimeout: const Duration(seconds: 30),
                sendTimeout: const Duration(seconds: 15),
-               headers: const <String, Object>{
-                 'User-Agent': _userAgent,
-               },
+               headers: const <String, Object>{'User-Agent': _userAgent},
              ),
            ) {
     _configureTransport();
@@ -141,9 +138,7 @@ class SubsonicApiClient {
 
     final artists = <Artist>[];
     for (final indexEntry in indexEntries) {
-      artists.addAll(
-        _snapshotList(indexEntry['artist']).map(Artist.fromJson),
-      );
+      artists.addAll(_snapshotList(indexEntry['artist']).map(Artist.fromJson));
     }
 
     if (artists.isEmpty) {
@@ -243,16 +238,12 @@ class SubsonicApiClient {
   }) async {
     final root = await _readRoot(
       '/rest/getAlbumList2.view',
-      query: {
-        'type': type,
-        'size': size,
-        'offset': offset,
-      },
+      query: {'type': type, 'size': size, 'offset': offset},
       cancelToken: cancelToken,
     );
-    return _snapshotList(
-      _snapshotNode(root, 'albumList2')['album'],
-    ).map(Album.fromJson).toList(growable: false);
+    return _snapshotList(_snapshotNode(root, 'albumList2')['album'])
+        .map(Album.fromJson)
+        .toList(growable: false);
   }
 
   Future<Indexes> getIndexes({
@@ -289,9 +280,9 @@ class SubsonicApiClient {
       query: {'size': size},
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['randomSongs'])['song'],
-    ).map(Song.fromJson).toList(growable: false);
+    return _asMapList(_asMap(root['randomSongs'])['song'])
+        .map(Song.fromJson)
+        .toList(growable: false);
   }
 
   Future<StarredContent> getStarred2({CancelToken? cancelToken}) async {
@@ -301,15 +292,15 @@ class SubsonicApiClient {
     );
     final starred = _snapshotNode(root, 'starred2');
     return StarredContent(
-      albums: _snapshotList(
-        starred['album'],
-      ).map(Album.fromJson).toList(growable: false),
-      artists: _snapshotList(
-        starred['artist'],
-      ).map(Artist.fromJson).toList(growable: false),
-      songs: _snapshotList(
-        starred['song'],
-      ).map(Song.fromJson).toList(growable: false),
+      albums: _snapshotList(starred['album'])
+          .map(Album.fromJson)
+          .toList(growable: false),
+      artists: _snapshotList(starred['artist'])
+          .map(Artist.fromJson)
+          .toList(growable: false),
+      songs: _snapshotList(starred['song'])
+          .map(Song.fromJson)
+          .toList(growable: false),
     );
   }
 
@@ -330,9 +321,9 @@ class SubsonicApiClient {
       '/rest/getNowPlaying.view',
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['nowPlaying'])['entry'],
-    ).map(Song.fromJson).toList(growable: false);
+    return _asMapList(_asMap(root['nowPlaying'])['entry'])
+        .map(Song.fromJson)
+        .toList(growable: false);
   }
 
   /// Returns songs from Navidrome's optional `getInstantMix` endpoint.
@@ -346,9 +337,9 @@ class SubsonicApiClient {
       query: {'id': seedSongId, 'count': count},
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['instantMix'])['song'],
-    ).map(Song.fromJson).toList(growable: false);
+    return _asMapList(_asMap(root['instantMix'])['song'])
+        .map(Song.fromJson)
+        .toList(growable: false);
   }
 
   /// Generic server similarity without endpoint fallback. A caller can
@@ -408,7 +399,7 @@ class SubsonicApiClient {
           cancelToken: cancelToken,
         );
       } on SubsonicNotFoundException {
-        return getInstantMix(
+        return await getInstantMix(
           seedSongId,
           count: count,
           cancelToken: cancelToken,
@@ -443,15 +434,15 @@ class SubsonicApiClient {
 
     final result = _asMap(root['searchResult3']);
     return SearchResult3(
-      artists: _asMapList(
-        result['artist'],
-      ).map(Artist.fromJson).toList(growable: false),
-      albums: _asMapList(
-        result['album'],
-      ).map(Album.fromJson).toList(growable: false),
-      songs: _asMapList(
-        result['song'],
-      ).map(Song.fromJson).toList(growable: false),
+      artists: _asMapList(result['artist'])
+          .map(Artist.fromJson)
+          .toList(growable: false),
+      albums: _asMapList(result['album'])
+          .map(Album.fromJson)
+          .toList(growable: false),
+      songs: _asMapList(result['song'])
+          .map(Song.fromJson)
+          .toList(growable: false),
     );
   }
 
@@ -460,9 +451,9 @@ class SubsonicApiClient {
       '/rest/getPlaylists.view',
       cancelToken: cancelToken,
     );
-    return _snapshotList(
-      _snapshotNode(root, 'playlists')['playlist'],
-    ).map(Playlist.fromJson).toList(growable: false);
+    return _snapshotList(_snapshotNode(root, 'playlists')['playlist'])
+        .map(Playlist.fromJson)
+        .toList(growable: false);
   }
 
   Future<Playlist> getPlaylist(
@@ -491,10 +482,7 @@ class SubsonicApiClient {
   }) async {
     final root = await _readRoot(
       '/rest/createPlaylist.view',
-      query: {
-        'name': name,
-        if (songIds.isNotEmpty) 'songId': songIds,
-      },
+      query: {'name': name, if (songIds.isNotEmpty) 'songId': songIds},
       cancelToken: cancelToken,
     );
 
@@ -613,10 +601,7 @@ class SubsonicApiClient {
   }) async {
     final root = await _readRoot(
       '/rest/getLyrics.view',
-      query: {
-        'artist': ?artist,
-        'title': ?title,
-      },
+      query: {'artist': ?artist, 'title': ?title},
       cancelToken: cancelToken,
     );
 
@@ -671,10 +656,7 @@ class SubsonicApiClient {
   }) async {
     await _readRoot(
       '/rest/setRating.view',
-      query: {
-        'id': id,
-        'rating': rating,
-      },
+      query: {'id': id, 'rating': rating},
       cancelToken: cancelToken,
     );
   }
@@ -806,17 +788,19 @@ class SubsonicApiClient {
     } on DioException catch (err) {
       final nested = err.error;
       final failedData = err.response?.data;
-      if (failedData != null)
+      if (failedData != null) {
         attempt?.observe(utf8.encode(jsonEncode(failedData)).length);
+      }
       if (nested is SubsonicSyncLimitException) throw nested;
-      if (scope?.stopped case final SubsonicSyncLimitException stopped)
+      if (scope?.stopped case final SubsonicSyncLimitException stopped) {
         throw stopped;
+      }
       if (nested is SubsonicResponseBudgetExceededException) {
         throw nested;
       }
       if (err.type == DioExceptionType.cancel &&
           err.error is SubsonicResponseBudgetExceededException) {
-        throw err.error as SubsonicResponseBudgetExceededException;
+        throw err.error! as SubsonicResponseBudgetExceededException;
       }
       throw _mapDioException(err);
     } finally {
@@ -984,17 +968,13 @@ class SubsonicApiClient {
     }
 
     if (raw is List) {
-      return _dedupeArtists(
-        _asMapList(raw).map(Artist.fromJson),
-      );
+      return _dedupeArtists(_asMapList(raw).map(Artist.fromJson));
     }
 
     if (raw is Map<String, dynamic>) {
       final nested = _asMapList(raw['artist']);
       if (nested.isNotEmpty) {
-        return _dedupeArtists(
-          nested.map(Artist.fromJson),
-        );
+        return _dedupeArtists(nested.map(Artist.fromJson));
       }
       return _dedupeArtists(<Artist>[Artist.fromJson(raw)]);
     }

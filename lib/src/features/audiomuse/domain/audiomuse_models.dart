@@ -3,11 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Configuration for the AudioMuse AI server connection.
 @immutable
 class AudioMuseConfig {
-  const AudioMuseConfig({
-    required this.serverUrl,
-    this.apiKey,
-    required this.enabled,
-  });
+  const new({required this.serverUrl, this.apiKey, required this.enabled});
 
   /// Base URL of the AudioMuse server (e.g. `https://audiomuse.example.com`).
   final String serverUrl;
@@ -55,7 +51,7 @@ class AudioMuseConfig {
 /// A recommendation result from the AudioMuse API.
 @immutable
 class AudioMuseRecommendation {
-  const AudioMuseRecommendation({
+  const new({
     required this.id,
     required this.title,
     this.artist,
@@ -64,7 +60,7 @@ class AudioMuseRecommendation {
     this.score,
   });
 
-  factory AudioMuseRecommendation.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return AudioMuseRecommendation(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -107,13 +103,9 @@ class AudioMuseRecommendation {
 /// An AI-generated mix result containing a list of song IDs.
 @immutable
 class AudioMuseMix {
-  const AudioMuseMix({
-    required this.name,
-    required this.songIds,
-    this.description,
-  });
+  const new({required this.name, required this.songIds, this.description});
 
-  factory AudioMuseMix.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return AudioMuseMix(
       name: json['name'] as String? ?? 'AI Mix',
       songIds:
@@ -138,12 +130,9 @@ class AudioMuseMix {
 /// Health check response from the AudioMuse server.
 @immutable
 class AudioMuseHealth {
-  const AudioMuseHealth({
-    required this.healthy,
-    this.version,
-  });
+  const new({required this.healthy, this.version});
 
-  factory AudioMuseHealth.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return AudioMuseHealth(
       healthy: json['healthy'] as bool? ?? false,
       version: json['version'] as String?,

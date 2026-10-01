@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -164,9 +164,7 @@ void main() {
     expect(find.text('Releases'), findsOneWidget);
   });
 
-  testWidgets('fixes collapse past five and expand on request', (
-    tester,
-  ) async {
+  testWidgets('fixes collapse past five and expand on request', (tester) async {
     await _pump(tester, initialVersion: '9.9.0', size: const Size(390, 3000));
 
     expect(find.text('Fixed thing 5'), findsOneWidget);
@@ -216,9 +214,7 @@ void main() {
     expect(find.text('Older fix 1'), findsOneWidget);
   });
 
-  testWidgets('desktop lists releases beside the selected one', (
-    tester,
-  ) async {
+  testWidgets('desktop lists releases beside the selected one', (tester) async {
     await _pump(
       tester,
       size: const Size(1280, 800),

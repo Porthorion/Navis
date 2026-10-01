@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -19,7 +19,7 @@ final matchFlowsProvider = StreamProvider<List<MatchFlowWithSongs>>((ref) {
 });
 
 class MatchFlowScreen extends ConsumerWidget {
-  const MatchFlowScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -92,7 +92,7 @@ class MatchFlowScreen extends ConsumerWidget {
 }
 
 class _EmptyMatchFlowState extends StatelessWidget {
-  const _EmptyMatchFlowState({required this.onCreate});
+  const new({required this.onCreate});
 
   final VoidCallback onCreate;
 
@@ -138,7 +138,7 @@ class _EmptyMatchFlowState extends StatelessWidget {
 }
 
 class _MatchFlowCard extends ConsumerStatefulWidget {
-  const _MatchFlowCard({required this.flow});
+  const new({required this.flow});
 
   final MatchFlowWithSongs flow;
 
@@ -213,20 +213,16 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
                 ),
                 Switch(
                   value: flow.flow.enabled,
-                  onChanged: (value) => _run(
-                    context,
-                    ref,
-                    () async {
-                      if (!value && mounted) {
-                        setState(() {
-                          _contentsExpanded = false;
-                        });
-                      }
-                      await ref
-                          .read(matchFlowDaoProvider)
-                          .setFlowEnabled(flow.flow.id, enabled: value);
-                    },
-                  ),
+                  onChanged: (value) => _run(context, ref, () async {
+                    if (!value && mounted) {
+                      setState(() {
+                        _contentsExpanded = false;
+                      });
+                    }
+                    await ref
+                        .read(matchFlowDaoProvider)
+                        .setFlowEnabled(flow.flow.id, enabled: value);
+                  }),
                 ),
                 PopupMenuButton<_FlowAction>(
                   onSelected: (action) => switch (action) {
@@ -290,7 +286,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
 
   void _reorderSong(int oldIndex, int newIndex) {
     final flow = widget.flow;
-    final adjusted = oldIndex < newIndex ? newIndex - 1 : newIndex;
+    final adjusted = newIndex;
     final currentSongs = List<MatchFlowSongEntry>.of(
       _optimisticSongs ?? flow.songs,
     );
@@ -432,7 +428,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
 }
 
 class _RenameMatchFlowDialog extends StatefulWidget {
-  const _RenameMatchFlowDialog({required this.initialName});
+  const new({required this.initialName});
 
   final String initialName;
 
@@ -482,7 +478,7 @@ class _RenameMatchFlowDialogState extends State<_RenameMatchFlowDialog> {
 }
 
 class _MatchFlowContents extends ConsumerWidget {
-  const _MatchFlowContents({
+  const new({
     required this.flow,
     required this.enabled,
     required this.onReorder,
@@ -526,7 +522,7 @@ class _MatchFlowContents extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
                     itemCount: flow.songs.length,
-                    onReorder: onReorder,
+                    onReorderItem: onReorder,
                     proxyDecorator: (child, index, animation) {
                       return AnimatedBuilder(
                         animation: animation,
@@ -573,7 +569,7 @@ class _MatchFlowContents extends ConsumerWidget {
 }
 
 class _MatchFlowSongTile extends ConsumerWidget {
-  const _MatchFlowSongTile({
+  const new({
     required super.key,
     required this.entry,
     required this.index,
@@ -668,9 +664,7 @@ class _MatchFlowSongTile extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       isRemote: song?.isExternal ?? false,

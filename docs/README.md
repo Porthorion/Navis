@@ -79,10 +79,9 @@ user preferences, and open questions. Automotive work is deferred separately
 from ordinary responsive-layout work; this is not an implementation plan or a
 claim of native AAOS support.
 
-[Dependency Upgrade Plan](../Dependency_Upgrade_Plan.md) records the
-2026-09-27 dependency inventory, compatible targets, major migrations,
-intentional holds, and execution/validation gates. Its checkboxes describe
-planned work, not completed upgrades.
+[Dependency Upgrade Plan](../Dependency_Upgrade_Plan.md) tracks the 2026-09-27
+dependency audit, implementation batches, compatibility holds, and required
+validation, and how the upgrades were brought onto dev on 2026-10-01.
 
 [Sync Improvement Plan — 1.4.0](../Sync_Improvement_Plan_1-4-0.md) records the
 2026-09-19 sync audit, tested defects, live-server measurements, and phased

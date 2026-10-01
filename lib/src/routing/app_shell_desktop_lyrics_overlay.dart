@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopLyricsOverlay extends ConsumerWidget {
-  const _DesktopLyricsOverlay({
+  const new({
     required this.onClose,
     required this.songTitle,
     required this.songArtist,
@@ -77,9 +77,7 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                  ),
+                                  ?.copyWith(color: colors.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -88,9 +86,8 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).closeButtonTooltip,
+                    tooltip: MaterialLocalizations.of(context)
+                        .closeButtonTooltip,
                     icon: const Icon(Icons.close),
                     onPressed: onClose,
                   ),
@@ -118,7 +115,7 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
 }
 
 class _DesktopLyricsContent extends ConsumerWidget {
-  const _DesktopLyricsContent({required this.songId});
+  const new({required this.songId});
 
   final String songId;
 
@@ -155,9 +152,8 @@ class _DesktopLyricsContent extends ConsumerWidget {
             children: <Widget>[
               Text(
                 message,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colors.onSurface.withValues(alpha: 0.6),
-                ),
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: colors.onSurface.withValues(alpha: 0.6)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -180,10 +176,7 @@ class _DesktopLyricsContent extends ConsumerWidget {
 /// the viewport. When it transitions to `false`, the child slides back down
 /// and is then removed from the tree.
 class _SlideUpPlayerTransition extends StatefulWidget {
-  const _SlideUpPlayerTransition({
-    required this.showPlayer,
-    required this.child,
-  });
+  const new({required this.showPlayer, required this.child});
 
   final bool showPlayer;
   final Widget child;

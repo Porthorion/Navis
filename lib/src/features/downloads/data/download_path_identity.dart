@@ -12,14 +12,10 @@ import 'package:path/path.dart' as p;
 /// folder, with `/` separators on every platform. Keys compare
 /// case-insensitively on Windows only.
 class DownloadRootIdentity {
-  DownloadRootIdentity._(this.rootPath, this.canonicalRoot, this._context);
+  new _(this.rootPath, this.canonicalRoot, this._context);
 
   /// [rootPath] as given and its resolved form; [context] is for tests.
-  factory DownloadRootIdentity.of(
-    String rootPath, {
-    String? canonicalRoot,
-    p.Context? context,
-  }) {
+  factory of(String rootPath, {String? canonicalRoot, p.Context? context}) {
     final paths = context ?? p.context;
     final root = paths.normalize(rootPath);
     return DownloadRootIdentity._(

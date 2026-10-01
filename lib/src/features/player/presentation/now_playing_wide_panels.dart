@@ -5,7 +5,7 @@ enum _WideNowPlayingPanel { none, settings, mix, queue }
 enum _NowPlayingLayoutMode { compact, standard, split }
 
 class _NowPlayingSplitMetrics {
-  const _NowPlayingSplitMetrics({
+  const new({
     required this.outerPadding,
     required this.gap,
     required this.leftPaneWidth,
@@ -21,7 +21,7 @@ class _NowPlayingSplitMetrics {
 }
 
 class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
-  const _EmbeddedRightPaneBottomSheet({
+  const new({
     required this.heightFactor,
     required this.useHeader,
     required this.onClose,
@@ -125,9 +125,8 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                                       ),
                                     ),
                                     IconButton(
-                                      tooltip: MaterialLocalizations.of(
-                                        context,
-                                      ).closeButtonTooltip,
+                                      tooltip: MaterialLocalizations.of(context)
+                                          .closeButtonTooltip,
                                       onPressed: onClose,
                                       icon: const Icon(Icons.close),
                                     ),
@@ -151,7 +150,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
 }
 
 class _EmbeddedNowPlayingPanelScaffold extends StatefulWidget {
-  const _EmbeddedNowPlayingPanelScaffold({
+  const new({
     required this.title,
     required this.onBack,
     required this.child,
@@ -193,9 +192,7 @@ class _EmbeddedNowPlayingPanelScaffoldState
         if (_reduceMotion) {
           _transitionController.value = 1;
         } else {
-          unawaited(
-            _transitionController.animateTo(1, curve: Curves.easeOutCubic),
-          );
+          _transitionController.animateTo(1, curve: Curves.easeOutCubic);
         }
       }
     });
@@ -269,12 +266,11 @@ class _EmbeddedNowPlayingPanelScaffoldState
       unawaited(_requestDismiss());
       return;
     }
-    unawaited(
-      _transitionController.animateTo(
-        1,
-        duration: MotionPolicy.of(context).surface,
-        curve: Curves.easeOutCubic,
-      ),
+
+    _transitionController.animateTo(
+      1,
+      duration: MotionPolicy.of(context).surface,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -293,12 +289,10 @@ class _EmbeddedNowPlayingPanelScaffoldState
       if (_reduceMotion) {
         _transitionController.value = 1;
       } else {
-        unawaited(
-          _transitionController.animateTo(
-            1,
-            duration: MotionPolicy.of(context).feedback,
-            curve: Curves.easeOut,
-          ),
+        _transitionController.animateTo(
+          1,
+          duration: MotionPolicy.of(context).feedback,
+          curve: Curves.easeOut,
         );
       }
       return false;
@@ -341,9 +335,8 @@ class _EmbeddedNowPlayingPanelScaffoldState
                   child: Row(
                     children: <Widget>[
                       IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).backButtonTooltip,
+                        tooltip: MaterialLocalizations.of(context)
+                            .backButtonTooltip,
                         onPressed: () {
                           unawaited(_requestDismiss());
                         },
@@ -416,9 +409,9 @@ class _EmbeddedNowPlayingPanelScaffoldState
 /// Slides in from the bottom with 1:1 finger tracking on the drag-handle
 /// area, matching the gesture feel of [ExpandablePlayerSheet]. Dismisses via
 /// downward swipe, fling, or the back-arrow button. Scroll-integrated dismiss
-/// is also supported for panels whose [child] is a scrollable list.
+/// is also supported for panels whose [_CompactWideOverlaySheet.child] is a scrollable list.
 class _CompactWideOverlaySheet extends StatefulWidget {
-  const _CompactWideOverlaySheet({
+  const new({
     required this.title,
     required this.onDismiss,
     required this.child,
@@ -466,7 +459,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
         if (_reduceMotion) {
           _controller.value = 1;
         } else {
-          unawaited(_controller.animateTo(1, curve: Curves.easeOutCubic));
+          _controller.animateTo(1, curve: Curves.easeOutCubic);
         }
       }
     });
@@ -512,7 +505,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     final size = context.size;
     if (size != null && size.height > 0) return size.height;
     final media = MediaQuery.maybeOf(context);
-    return media == null ? 1.0 : math.max(1.0, media.size.height);
+    return media == null ? 1.0 : math.max(1, media.size.height);
   }
 
   void _applyDragDelta(double delta) {
@@ -548,12 +541,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
       if (_controller.value < _CompactWideOverlaySheet._snapDismissThreshold) {
         _startDismiss();
       } else {
-        unawaited(
-          _controller.animateTo(
-            1,
-            duration: MotionPolicy.of(context).surface,
-            curve: Curves.easeOutCubic,
-          ),
+        _controller.animateTo(
+          1,
+          duration: MotionPolicy.of(context).surface,
+          curve: Curves.easeOutCubic,
         );
       }
     }
@@ -573,12 +564,11 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     }
     // Buttons, Back, and other programmatic closes should retrace the
     // entrance at a readable speed instead of disappearing in one tick.
-    unawaited(
-      _controller.animateBack(
-        0,
-        duration: _controller.reverseDuration,
-        curve: Curves.easeInCubic,
-      ),
+
+    _controller.animateBack(
+      0,
+      duration: _controller.reverseDuration,
+      curve: Curves.easeInCubic,
     );
   }
 
@@ -596,12 +586,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
       if (_reduceMotion) {
         _controller.value = 1;
       } else {
-        unawaited(
-          _controller.animateTo(
-            1,
-            duration: MotionPolicy.of(context).feedback,
-            curve: Curves.easeOut,
-          ),
+        _controller.animateTo(
+          1,
+          duration: MotionPolicy.of(context).feedback,
+          curve: Curves.easeOut,
         );
       }
       return false;
@@ -661,9 +649,8 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
                     child: Row(
                       children: <Widget>[
                         IconButton(
-                          tooltip: MaterialLocalizations.of(
-                            context,
-                          ).backButtonTooltip,
+                          tooltip: MaterialLocalizations.of(context)
+                              .backButtonTooltip,
                           onPressed: _startDismiss,
                           icon: const Icon(Icons.arrow_back),
                         ),
@@ -719,7 +706,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
 }
 
 class _NowPlayingSettingsPanel extends ConsumerWidget {
-  const _NowPlayingSettingsPanel({
+  const new({
     required this.song,
     this.onCollapse,
     this.fullscreenLyricsSongId,
@@ -743,9 +730,8 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     final songDownloadState = song == null
         ? SongDownloadState.none
         : ref.watch(songDownloadStateProvider(song!.id));
-    final disabledColor = Theme.of(
-      context,
-    ).colorScheme.onSurface.withValues(alpha: 0.38);
+    final disabledColor = Theme.of(context).colorScheme.onSurface
+        .withValues(alpha: 0.38);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
@@ -870,13 +856,10 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
             ),
             title: Text(
               l10n.deleteDownloadAction,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            onTap: () => unawaited(
-              confirmAndDeleteDownload(context, ref, song!.id),
-            ),
+            onTap: () =>
+                unawaited(confirmAndDeleteDownload(context, ref, song!.id)),
           )
         else if (song != null &&
             songDownloadState.status != SongDownloadStatus.queued &&
@@ -918,7 +901,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
 }
 
 class _EmbeddedMixPanel extends ConsumerWidget {
-  const _EmbeddedMixPanel({required this.seedSongId});
+  const new({required this.seedSongId});
 
   final String seedSongId;
 
@@ -941,9 +924,8 @@ class _EmbeddedMixPanel extends ConsumerWidget {
         : l10n.nowPlayingSameVibesDescription;
     final isRemote = !isServerAddressableSongId(seedSongId);
     final legacyMixUnavailable = isRemote && useLegacy;
-    final disabledColor = Theme.of(
-      context,
-    ).colorScheme.onSurface.withValues(alpha: 0.38);
+    final disabledColor = Theme.of(context).colorScheme.onSurface
+        .withValues(alpha: 0.38);
     final cards = <Widget>[
       Card(
         child: ListTile(

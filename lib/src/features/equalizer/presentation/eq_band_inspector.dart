@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
@@ -56,7 +56,7 @@ String eqModeShortLabel(AppLocalizations l10n, EqMode mode) => switch (mode) {
 
 /// Every band in authored order; the only band selector besides the graph.
 class EqBandStrip extends StatefulWidget {
-  const EqBandStrip({
+  const new({
     required this.filters,
     required this.selected,
     required this.onSelect,
@@ -223,7 +223,7 @@ class _EqBandStripState extends State<EqBandStrip> {
 
 /// A labelled value that opens exact entry, or explains why it is fixed.
 class EqParameterTile extends StatelessWidget {
-  const EqParameterTile({
+  const new({
     required this.parameter,
     required this.value,
     this.onPressed,
@@ -345,7 +345,7 @@ class EqParameterTile extends StatelessWidget {
 
 /// Logarithmic Q control with plain-language direction labels.
 class EqQControl extends StatelessWidget {
-  const EqQControl({
+  const new({
     required this.q,
     required this.onBegin,
     required this.onChanged,
@@ -365,9 +365,8 @@ class EqQControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-    );
+    final style = Theme.of(context).textTheme.labelMedium
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
     return Row(
       children: [
         Text(l10n.eqWider, style: style),
@@ -396,7 +395,7 @@ class EqQControl extends StatelessWidget {
 
 /// The selected band's parameters and band-level actions.
 class EqBandInspector extends StatelessWidget {
-  const EqBandInspector({
+  const new({
     required this.configuration,
     required this.selected,
     required this.onSelect,
@@ -634,7 +633,7 @@ class EqBandInspector extends StatelessWidget {
 }
 
 class _BandSwitch extends StatelessWidget {
-  const _BandSwitch({required this.value, required this.onChanged});
+  const new({required this.value, required this.onChanged});
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -660,7 +659,7 @@ class _BandSwitch extends StatelessWidget {
 
 /// Inline exact entry. The page keeps ownership of text, preview and commit.
 class EqNumberEditor extends StatelessWidget {
-  const EqNumberEditor({
+  const new({
     required this.parameter,
     required this.bandNumber,
     required this.controller,
@@ -780,12 +779,12 @@ class EqNumberEditor extends StatelessWidget {
 }
 
 class _CancelNumberIntent extends Intent {
-  const _CancelNumberIntent();
+  const new();
 }
 
 /// Undo/Redo and draft actions, or Cancel/Done while entering a number.
 class EqActionBar extends StatelessWidget {
-  const EqActionBar({
+  const new({
     required this.editingNumber,
     required this.canUndo,
     required this.canRedo,
@@ -912,7 +911,7 @@ class EqActionBar extends StatelessWidget {
 
 /// Simple, 10-band and Advanced, plus Imported when that layout exists.
 class EqModeSelector extends StatelessWidget {
-  const EqModeSelector({
+  const new({
     required this.mode,
     required this.modes,
     required this.onChanged,
@@ -961,10 +960,7 @@ class EqModeSelector extends StatelessWidget {
           key: ValueKey('eq-mode-$mode'),
           initialValue: mode,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: l10n.eqMode,
-            isDense: true,
-          ),
+          decoration: InputDecoration(labelText: l10n.eqMode, isDense: true),
           items: [
             for (final value in modes)
               DropdownMenuItem(

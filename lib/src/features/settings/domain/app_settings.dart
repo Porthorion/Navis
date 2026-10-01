@@ -20,18 +20,12 @@ double sanitizeDesktopLastAudibleVolume(double? value) {
 
 @immutable
 class CustomVoyageServer {
-  const CustomVoyageServer({
-    required this.label,
-    required this.url,
-  });
+  const new({required this.label, required this.url});
 
   final String label;
   final String url;
 
-  Map<String, Object> toJson() => <String, Object>{
-    'label': label,
-    'url': url,
-  };
+  Map<String, Object> toJson() => <String, Object>{'label': label, 'url': url};
 
   static CustomVoyageServer? fromJson(Object? raw) {
     if (raw is! Map) {
@@ -48,7 +42,7 @@ class CustomVoyageServer {
 
 @immutable
 class AppSettingsModel {
-  const AppSettingsModel({
+  const new({
     required this.wifiMaxBitRate,
     required this.wifiFormat,
     required this.cellularMaxBitRate,
@@ -124,7 +118,7 @@ class AppSettingsModel {
     this.voyageAutoFollowHost = true,
   });
 
-  const AppSettingsModel.defaults()
+  const new defaults()
     : wifiMaxBitRate = null,
       wifiFormat = null,
       cellularMaxBitRate = AppSettingsDao.defaultCellularBitRate,

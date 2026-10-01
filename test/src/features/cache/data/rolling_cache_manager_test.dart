@@ -13,9 +13,7 @@ import '../../../../helpers/test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const pathProviderChannel = MethodChannel(
-    'plugins.flutter.io/path_provider',
-  );
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
   group('DriftRollingCacheManager', () {
     late NavisDatabase database;
@@ -65,11 +63,9 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test('registerTrack resolves a retired song identity', () async {
-      await database.libraryDao.upsertProvisionalSongs(
-        <SongsTableCompanion>[
-          SongsTableCompanion.insert(id: 'remote-song', title: 'Song'),
-        ],
-      );
+      await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'remote-song', title: 'Song'),
+      ]);
       await _insertSong(database, 'server-song');
       await database.songIdentityDao.remapSongIdentity(
         oldSongId: 'remote-song',
@@ -268,22 +264,17 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'cleanup protects recently active orphan audio files',
-      () async {
-        final rollingDirectory = Directory(
-          p.join(tempDir.path, 'audio', 'rolling'),
-        )..createSync(recursive: true);
-        final activeOrphan = File(
-          p.join(rollingDirectory.path, 'active.audio'),
-        )..writeAsBytesSync(<int>[1, 2, 3]);
+    test('cleanup protects recently active orphan audio files', () async {
+      final rollingDirectory = Directory(
+        p.join(tempDir.path, 'audio', 'rolling'),
+      )..createSync(recursive: true);
+      final activeOrphan = File(p.join(rollingDirectory.path, 'active.audio'))
+        ..writeAsBytesSync(<int>[1, 2, 3]);
 
-        await manager.cleanupOrphanedRollingFiles();
+      await manager.cleanupOrphanedRollingFiles();
 
-        expect(activeOrphan.existsSync(), isTrue);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(activeOrphan.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
 
     test(
       'eviction garbage-collects unreferenced provisional metadata',
@@ -302,16 +293,14 @@ void main() {
             ),
           ],
         );
-        await database.libraryDao.upsertProvisionalSongs(
-          <SongsTableCompanion>[
-            SongsTableCompanion.insert(
-              id: 'remote-song',
-              title: 'Song',
-              albumId: const Value('remote-album'),
-              artistId: const Value('remote-artist'),
-            ),
-          ],
-        );
+        await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'remote-song',
+            title: 'Song',
+            albumId: const Value('remote-album'),
+            artistId: const Value('remote-artist'),
+          ),
+        ]);
         final file = await _writeFile(tempDir, 'remote.mp3', 100);
         await database.cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
@@ -340,14 +329,9 @@ void main() {
 }
 
 Future<void> _insertSong(NavisDatabase database, String id) {
-  return database.libraryDao.upsertSongs(
-    <SongsTableCompanion>[
-      SongsTableCompanion.insert(
-        id: id,
-        title: id,
-      ),
-    ],
-  );
+  return database.libraryDao.upsertSongs(<SongsTableCompanion>[
+    SongsTableCompanion.insert(id: id, title: id),
+  ]);
 }
 
 Future<File> _writeFile(Directory dir, String name, int size) async {

@@ -10,10 +10,10 @@ import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-class _MockDio extends Mock implements Dio {}
+class _MockDio extends Mock implements Dio;
 
 class _FakeInstallSourceService extends InstallSourceService {
-  _FakeInstallSourceService(this._installerPackage)
+  new(this._installerPackage)
     : super(channel: const MethodChannel('test/distribution'));
 
   final String? _installerPackage;
@@ -25,7 +25,7 @@ class _FakeInstallSourceService extends InstallSourceService {
 }
 
 class _MemoryUpdateCheckStore extends UpdateCheckStore {
-  _MemoryUpdateCheckStore({required this.allowCheck});
+  new({required this.allowCheck});
 
   bool allowCheck;
   int recordCount = 0;
@@ -67,10 +67,7 @@ void main() {
         }
 
         when(
-          () => dio.get<List<dynamic>>(
-            any(),
-            options: any(named: 'options'),
-          ),
+          () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
         ).thenAnswer(
           (_) async => Response<List<dynamic>>(
             data: [
@@ -116,10 +113,7 @@ void main() {
         }
 
         when(
-          () => dio.get<List<dynamic>>(
-            any(),
-            options: any(named: 'options'),
-          ),
+          () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
         ).thenAnswer(
           (_) async => Response<List<dynamic>>(
             data: [
@@ -176,15 +170,14 @@ void main() {
         release('third-party-binaries'),
         release('v1.3.0'),
       ];
-      when(
-        () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
-      ).thenAnswer(
-        (_) async => Response<List<dynamic>>(
-          data: releases,
-          requestOptions: RequestOptions(path: '/releases'),
-          statusCode: 200,
-        ),
-      );
+      when(() => dio.get<List<dynamic>>(any(), options: any(named: 'options')))
+          .thenAnswer(
+            (_) async => Response<List<dynamic>>(
+              data: releases,
+              requestOptions: RequestOptions(path: '/releases'),
+              statusCode: 200,
+            ),
+          );
       final repository = UpdateRepository(
         dio: dio,
         updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),

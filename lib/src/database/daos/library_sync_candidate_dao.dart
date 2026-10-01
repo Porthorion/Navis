@@ -16,7 +16,7 @@ abstract final class LibraryCandidateApplyState {
 }
 
 class CandidateApplyCounts {
-  const CandidateApplyCounts({
+  const new({
     required this.changed,
     required this.unchanged,
     required this.unclassified,
@@ -39,7 +39,7 @@ class CandidateApplyCounts {
 )
 class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncCandidateDaoMixin {
-  LibrarySyncCandidateDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const _candidateWritePageSize = 384;
   static const _candidateCleanupPageSize = 512;
@@ -399,7 +399,8 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                     librarySyncCandidateAlbumsTable.songsHydrated.equals(false),
               ))
             .getSingle();
-    return row.read(count) ?? 0;
+    final resolvedCount = row.read(count) ?? 0;
+    return resolvedCount;
   }
 
   Future<Set<String>> getArtistIds({
@@ -566,9 +567,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }
@@ -585,9 +584,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }
@@ -604,9 +601,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }
@@ -849,7 +844,8 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                       predicate,
                 ))
               .getSingle();
-      return row.read(count) ?? 0;
+      final resolvedCount = row.read(count) ?? 0;
+      return resolvedCount;
     }
 
     return CandidateApplyCounts(

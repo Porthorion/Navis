@@ -14,10 +14,7 @@ void main() {
 
         dio.interceptors
           ..add(
-            SubsonicRetryInterceptor(
-              dio: dio,
-              backoff: (_) => Duration.zero,
-            ),
+            SubsonicRetryInterceptor(dio: dio, backoff: (_) => Duration.zero),
           )
           ..add(
             InterceptorsWrapper(
@@ -58,12 +55,7 @@ void main() {
       var attempts = 0;
 
       dio.interceptors
-        ..add(
-          SubsonicRetryInterceptor(
-            dio: dio,
-            backoff: (_) => Duration.zero,
-          ),
-        )
+        ..add(SubsonicRetryInterceptor(dio: dio, backoff: (_) => Duration.zero))
         ..add(
           InterceptorsWrapper(
             onRequest: (options, handler) {
@@ -96,12 +88,7 @@ void main() {
       var attempts = 0;
 
       dio.interceptors
-        ..add(
-          SubsonicRetryInterceptor(
-            dio: dio,
-            backoff: (_) => Duration.zero,
-          ),
-        )
+        ..add(SubsonicRetryInterceptor(dio: dio, backoff: (_) => Duration.zero))
         ..add(
           InterceptorsWrapper(
             onRequest: (options, handler) {

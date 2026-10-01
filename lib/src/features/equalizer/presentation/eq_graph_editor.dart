@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -16,7 +16,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 
 /// A graph of authored bands with independent, explicitly labelled output gain.
 class EqGraphEditor extends StatefulWidget {
-  const EqGraphEditor({
+  const new({
     required this.configuration,
     required this.selectedBand,
     required this.onSelect,
@@ -423,12 +423,7 @@ class EqGraphEditorState extends State<EqGraphEditor> {
             width: _focused && widget.enabled && !widget.readOnly ? 2 : 1,
           ),
         ),
-        padding: EdgeInsets.fromLTRB(
-          6,
-          toolbar ? 4 : 8,
-          6,
-          summary ? 4 : 6,
-        ),
+        padding: EdgeInsets.fromLTRB(6, toolbar ? 4 : 8, 6, summary ? 4 : 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -441,9 +436,8 @@ class EqGraphEditorState extends State<EqGraphEditor> {
                   '${l10n.eqOutputResponse}: ${_calculating ? l10n.eqCalculatingOutput : '${l10n.eqAttenuation}: ${eqNumber(_headroom)} dB · ${l10n.eqEffectiveOutput}: ${eqNumber(current.preampDb + _headroom)} dB'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
               ),
           ],
@@ -456,9 +450,7 @@ class EqGraphEditorState extends State<EqGraphEditor> {
     final roomy = width >= 560;
     final canFit = _samples.maximum > 24 || _limit > 24;
     final fitted = _limit > 24;
-    void fit() => setState(
-      () => _limit = fitted ? 24 : _samples.fittedLimit,
-    );
+    void fit() => setState(() => _limit = fitted ? 24 : _samples.fittedLimit);
     void output() => setState(() {
       _output = !_output;
       if (_output) _scheduleHeadroom();
@@ -688,9 +680,8 @@ class EqGraphEditorState extends State<EqGraphEditor> {
                       geometry: geometry,
                       colors: Theme.of(context).colorScheme,
                       selected: widget.selectedBand,
-                      textScaler: MediaQuery.textScalerOf(
-                        context,
-                      ).clamp(maxScaleFactor: 1.4),
+                      textScaler: MediaQuery.textScalerOf(context)
+                          .clamp(maxScaleFactor: 1.4),
                       labelStyle:
                           Theme.of(context).textTheme.labelSmall ??
                           const TextStyle(),

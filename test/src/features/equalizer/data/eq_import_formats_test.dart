@@ -171,9 +171,8 @@ Filter  3: OFF None
     });
 
     test('an AutoEQ fixed-band file is recognised by its contents', () {
-      final fixture = File(
-        'test/fixtures/autoeq/FixedBandEQ.txt',
-      ).readAsStringSync();
+      final fixture = File('test/fixtures/autoeq/FixedBandEQ.txt')
+          .readAsStringSync();
       final detected = text(fixture);
       expect(detected.format, EqImportFormat.fixedBand);
       expect(detected.preset.configuration.mode, EqMode.importedFixed);

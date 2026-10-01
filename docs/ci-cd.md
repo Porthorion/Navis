@@ -6,6 +6,9 @@ Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development-workflow.md`:
 `tool/windows_smtc_diagnostics.ps1`. It runs after Linux smoke and focused
 tests; it is not a replacement for `./tool/check.sh`.
+The seek gate sends `TimeSpan` ticks to GMTC and checks the paused position
+within 500 ms of five seconds. Restored playback and real play/pause commands
+are checked again after restart, with app-owned screenshots retained.
 
 `tool/dev_app.sh run -d linux` accepts interactive, isolated sync/setup
 presets. Their profile-mode clone and fixture flows are documented in
@@ -462,6 +465,37 @@ Set these in `tool/release.env` or export them in your shell.
 
 ### Additional packaging prerequisites
 
+Android builds use AGP 9.3.1, the checksum-pinned Gradle 9.5.0 wrapper and Kotlin
+2.4.20 with built-in Kotlin enabled. Compile SDK remains 37, target SDK 36,
+minimum SDK 24 and Java/Kotlin bytecode target 17. Flutter 3.47.5 still calls
+legacy variant APIs, so `android.newDsl=false` is required despite built-in
+Kotlin support. This is the compatibility setting described in Flutter's
+[migration guide](https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers).
+Remove it when stable Flutter supports the public AGP API surface; AGP 10 must
+not be adopted while that legacy dependency remains. Plugin-owned Media3
+versions remain resolved by just_audio rather than independently overridden.
+
+The owned Windows SMTC adapter uses the tracked
+`third_party/navis_windows_smtc/Cargo.lock` workspace lockfile. CargoKit builds
+with `--locked`; dependency updates must regenerate and review this workspace
+lock rather than allowing release builds to resolve a different Rust graph.
+Do not use a nested `rust/Cargo.lock` as the dependency source of truth.
+CargoKit's artifact hash includes the workspace manifest and authoritative lock
+for workspace members, so dependency-only fixes and release-profile changes
+cannot reuse an artifact keyed solely by unchanged Rust source.
+Bootstrap resolves the owned packages' development dependencies as well as the
+root app graph, so a fresh checkout can analyze their generators and drivers.
+
+Remote Windows builds prepare the SQLite DLL from the exact root-lockfile
+release before contacting the builder. `tool/sqlite3_windows_asset.py` verifies
+the download against `asset_hashes.dart` in that resolved Pub package; the
+Windows script checks the transferred hash again and uses the supported native
+hook's bundled-file source. Missing downloads, wrong release metadata or hash
+mismatches fail the build. No older DLL cache fallback or published hook-source
+patch is used. The local host needs the resolved Pub cache and network access
+to obtain the DLL; the Windows host can remain offline for this native asset.
+The asset helper's success/failure tests run in `tool/check.sh`.
+
 - Windows installer mode (`--windows-package=exe`)
   - Requires Inno Setup 6 (`ISCC.exe`) on the Windows build host.
   - Install from https://jrsoftware.org/isdl.php and ensure `ISCC.exe` is on `PATH`.
@@ -601,3 +635,16 @@ Graph EQ validation additionally covers coordinate mapping, precise inline
 editing, gesture cancellation/grouped Undo, checkpoint failures and stale edits,
 overlap selection, keyboard/large-text layouts, AutoEQ round trips, and a measured
 32-band runtime profile through authenticated presentation diagnostics.
+
+Windows SMTC diagnostics use `--no-pub` with a prepared dependency graph,
+allow up to five minutes for native build/startup, and wait for restored app
+presentation before capturing screenshots. On failure they retain only selected
+playback-state fields for diagnosis. Windows PowerShell 5.1 cleanup terminates
+the task-owned process tree if authenticated shutdown does not finish.
+
+Apple native runtime checks are deferred by the project owner while Apple
+development is unavailable. Record that limitation instead of blocking
+non-Apple upgrade handoff or claiming an Apple pass. Emulator media-browser
+and MediaSession tests are Android integration evidence; full DHU projection
+requires the full Google Android Auto phone component and remains a separate
+check. See `docs/android-auto-testing.md` for the seeded Dev fixture gate.

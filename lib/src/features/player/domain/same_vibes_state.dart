@@ -18,7 +18,7 @@ enum SameVibesError {
 /// Immutable state for the Same Vibes auto-refill mode.
 @immutable
 class SameVibesState {
-  const SameVibesState({
+  const new({
     this.active = false,
     this.seedSongId,
     this.refilling = false,
@@ -26,7 +26,7 @@ class SameVibesState {
     this.pendingSnackbar,
   });
 
-  const SameVibesState.inactive()
+  const new inactive()
     : active = false,
       seedSongId = null,
       refilling = false,
@@ -80,13 +80,8 @@ class SameVibesState {
           pendingSnackbar == other.pendingSnackbar;
 
   @override
-  int get hashCode => Object.hash(
-    active,
-    seedSongId,
-    refilling,
-    error,
-    pendingSnackbar,
-  );
+  int get hashCode =>
+      Object.hash(active, seedSongId, refilling, error, pendingSnackbar);
 }
 
 const Object _sentinel = Object();

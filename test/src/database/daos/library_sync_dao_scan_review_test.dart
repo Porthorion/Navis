@@ -175,9 +175,8 @@ void main() {
       reason: 'missingFromCatalog',
       evidenceGeneration: 11,
     );
-    final reviewed = (await database.librarySyncDao.getPendingRecoveryReview(
-      1,
-    )).single;
+    final reviewed = (await database.librarySyncDao.getPendingRecoveryReview(1))
+        .single;
     await database.librarySyncDao.setRecoveryReviewDisposition(
       id: reviewed.id,
       disposition: 'keptForLater',

@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Keeps playback times visible beside or below the available seek space.
 class DesktopPlaybackProgress extends StatelessWidget {
-  const DesktopPlaybackProgress({
+  const new({
     required this.elapsed,
     required this.total,
     required this.seekBar,
@@ -45,12 +45,8 @@ class DesktopPlaybackProgress extends StatelessWidget {
     if (isLive) return Text(liveLabel, style: style);
     final elapsedSize = _measure(context, elapsed);
     final totalSize = _measure(context, total);
-    Widget label(String value, String key) => Text(
-      value,
-      key: ValueKey(key),
-      style: style,
-      maxLines: 1,
-    );
+    Widget label(String value, String key) =>
+        Text(value, key: ValueKey(key), style: style, maxLines: 1);
     final bar = SizedBox(height: 28, child: seekBar);
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -8,12 +8,10 @@ void main() {
     const dynamicAccent = Color(0xFF008577);
 
     test('keeps a vivid selected color exact in light and dark themes', () {
-      final lightAccent = buildLightTheme(
-        vividAccent,
-      ).extension<NavisAccentColors>()!;
-      final darkAccent = buildDarkTheme(
-        vividAccent,
-      ).extension<NavisAccentColors>()!;
+      final lightAccent = buildLightTheme(vividAccent)
+          .extension<NavisAccentColors>()!;
+      final darkAccent = buildDarkTheme(vividAccent)
+          .extension<NavisAccentColors>()!;
 
       expect(lightAccent.source, vividAccent);
       expect(lightAccent.brand, vividAccent);
@@ -48,12 +46,10 @@ void main() {
     });
 
     test('keeps white exact in dark and OLED themes when contrast is safe', () {
-      final darkAccent = buildDarkTheme(
-        defaultColorSchemeSeedColor,
-      ).extension<NavisAccentColors>()!;
-      final oledAccent = buildOledTheme(
-        defaultColorSchemeSeedColor,
-      ).extension<NavisAccentColors>()!;
+      final darkAccent = buildDarkTheme(defaultColorSchemeSeedColor)
+          .extension<NavisAccentColors>()!;
+      final oledAccent = buildOledTheme(defaultColorSchemeSeedColor)
+          .extension<NavisAccentColors>()!;
 
       expect(darkAccent.brand, defaultColorSchemeSeedColor);
       expect(oledAccent.brand, defaultColorSchemeSeedColor);

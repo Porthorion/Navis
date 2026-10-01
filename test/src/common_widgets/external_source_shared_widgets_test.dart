@@ -1,8 +1,9 @@
 import 'package:drift/drift.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -19,15 +20,13 @@ void main() {
     if (!sqliteAvailable) return;
     final database = createTestDatabase();
     addTearDown(database.close);
-    await database.libraryDao.upsertProvisionalArtists(
-      <ArtistsTableCompanion>[
-        ArtistsTableCompanion.insert(
-          id: 'ext-artist',
-          name: 'Remote Artist',
-          isExternal: const Value(true),
-        ),
-      ],
-    );
+    await database.libraryDao.upsertProvisionalArtists(<ArtistsTableCompanion>[
+      ArtistsTableCompanion.insert(
+        id: 'ext-artist',
+        name: 'Remote Artist',
+        isExternal: const Value(true),
+      ),
+    ]);
     await database.libraryDao.upsertProvisionalAlbums(<AlbumsTableCompanion>[
       AlbumsTableCompanion.insert(
         id: 'ext-album',
@@ -58,12 +57,12 @@ void main() {
           artistCardShapeProvider.overrideWithValue('rounded'),
         ],
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: ListView(
               children: <Widget>[
-                Container(
+                ColoredBox(
                   key: const ValueKey<String>('local-track-row'),
                   color: Colors.transparent,
                   child: TrackListTile(
@@ -75,7 +74,7 @@ void main() {
                     showAlbumArt: true,
                   ),
                 ),
-                Container(
+                ColoredBox(
                   key: const ValueKey<String>('remote-track-row'),
                   color: Colors.transparent,
                   child: TrackListTile(song: song, showAlbumArt: true),

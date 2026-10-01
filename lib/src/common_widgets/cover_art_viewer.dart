@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
@@ -39,7 +39,7 @@ Future<void> showRemoteArtViewer(
 }
 
 class _RemoteArtViewerScreen extends StatelessWidget {
-  const _RemoteArtViewerScreen({required this.artUrl});
+  const new({required this.artUrl});
 
   final String artUrl;
 
@@ -67,10 +67,7 @@ class _RemoteArtViewerScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final side = math.min(
-              constraints.maxWidth,
-              constraints.maxHeight,
-            );
+            final side = math.min(constraints.maxWidth, constraints.maxHeight);
             final imageLeft = (constraints.maxWidth - side) / 2;
             final imageTop = (constraints.maxHeight - side) / 2;
 
@@ -154,7 +151,7 @@ Future<void> showCoverArtViewer(
 }
 
 class CoverArtViewerScreen extends StatelessWidget {
-  const CoverArtViewerScreen({
+  const new({
     required this.coverArtId,
     required this.heroTag,
     required this.previewSize,
@@ -191,10 +188,7 @@ class CoverArtViewerScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final side = math.min(
-              constraints.maxWidth,
-              constraints.maxHeight,
-            );
+            final side = math.min(constraints.maxWidth, constraints.maxHeight);
             final imageLeft = (constraints.maxWidth - side) / 2;
             final imageTop = (constraints.maxHeight - side) / 2;
 
@@ -249,7 +243,7 @@ class CoverArtViewerScreen extends StatelessWidget {
 /// or make the handoff look like a flicker. This surface explicitly owns one
 /// preview → full-resolution cross-fade, then removes the preview layer.
 class _ProgressiveCoverArtViewerImage extends StatefulWidget {
-  const _ProgressiveCoverArtViewerImage({
+  const new({
     required this.coverArtId,
     required this.previewSize,
     required this.side,

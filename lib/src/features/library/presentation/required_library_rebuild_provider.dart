@@ -26,7 +26,7 @@ enum RequiredLibraryRebuildStatus {
 }
 
 class RequiredLibraryRebuildState {
-  const RequiredLibraryRebuildState({
+  const new({
     this.status = RequiredLibraryRebuildStatus.idle,
     this.errorMessage,
   });
@@ -44,7 +44,7 @@ final requiredLibraryRebuildControllerProvider =
 
 class RequiredLibraryRebuildController
     extends Notifier<RequiredLibraryRebuildState> {
-  RequiredLibraryRebuildController(this._reason);
+  new(this._reason);
 
   final RequiredLibraryRebuildReason _reason;
   Future<void>? _inFlight;
@@ -53,15 +53,15 @@ class RequiredLibraryRebuildController
 
   @override
   RequiredLibraryRebuildState build() {
-    ref.listen<ServerReachabilityState>(
-      serverReachabilityControllerProvider,
-      (_, next) {
-        if (state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
-            next.status == ServerReachabilityStatus.online) {
-          unawaited(start());
-        }
-      },
-    );
+    ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
+      _,
+      next,
+    ) {
+      if (state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
+          next.status == ServerReachabilityStatus.online) {
+        unawaited(start());
+      }
+    });
     ref.listen<SyncNetworkPolicy>(syncNetworkPolicyProvider, (_, next) {
       if (state.status == RequiredLibraryRebuildStatus.waitingForNetwork &&
           !next.isOffline) {
@@ -228,11 +228,9 @@ class RequiredLibraryRebuildController
     state = const RequiredLibraryRebuildState(
       status: RequiredLibraryRebuildStatus.syncing,
     );
-    return ref
+    return await ref
         .read(librarySyncControllerProvider.notifier)
-        .resetCachesAndRebuildLibrary(
-          allowMeteredBroadOverride: allowMetered,
-        );
+        .resetCachesAndRebuildLibrary(allowMeteredBroadOverride: allowMetered);
   }
 
   Future<LibrarySyncState> _runRepair(bool allowMetered) {
@@ -262,7 +260,7 @@ class RequiredLibraryRebuildController
     final database = ref.read(navisDatabaseProvider);
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     if (_reason == RequiredLibraryRebuildReason.initialLogin) {
-      return recordInitialCatalogReadiness(
+      return await recordInitialCatalogReadiness(
         database: database,
         serverId: serverId,
         result: result,

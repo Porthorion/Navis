@@ -33,11 +33,10 @@ class MethodChannelJustAudio extends JustAudioPlatform {
 
 /// An implementation of [AudioPlayerPlatform] that uses method channels.
 class MethodChannelAudioPlayer extends AudioPlayerPlatform {
-  final MethodChannel _channel;
-
   MethodChannelAudioPlayer(String id)
       : _channel = MethodChannel('com.ryanheise.just_audio.methods.$id'),
         super(id);
+  final MethodChannel _channel;
 
   @override
   Future<EqualizerStateMessage> setEqualizer(
@@ -58,7 +57,7 @@ class MethodChannelAudioPlayer extends AudioPlayerPlatform {
       EventChannel('com.ryanheise.just_audio.events.$id')
           .receiveBroadcastStream()
           .cast<Map<dynamic, dynamic>>()
-          .map((map) => PlaybackEventMessage.fromMap(map));
+          .map(PlaybackEventMessage.fromMap);
 
   @override
   Stream<PlayerDataMessage> get playerDataMessageStream =>

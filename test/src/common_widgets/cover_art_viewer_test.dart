@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -44,11 +44,7 @@ Future<void> _pumpViewerHarness(
 void main() {
   testWidgets('art viewer keeps its short fade by default', (tester) async {
     final observer = _RouteObserver();
-    await _pumpViewerHarness(
-      tester,
-      reduceMotion: false,
-      observer: observer,
-    );
+    await _pumpViewerHarness(tester, reduceMotion: false, observer: observer);
 
     final route = observer.pushedRoute! as PageRoute<dynamic>;
     expect(route.transitionDuration, const Duration(milliseconds: 170));
@@ -60,11 +56,7 @@ void main() {
     tester,
   ) async {
     final observer = _RouteObserver();
-    await _pumpViewerHarness(
-      tester,
-      reduceMotion: true,
-      observer: observer,
-    );
+    await _pumpViewerHarness(tester, reduceMotion: true, observer: observer);
 
     final route = observer.pushedRoute! as PageRoute<dynamic>;
     expect(route.transitionDuration, Duration.zero);
@@ -74,14 +66,10 @@ void main() {
 
   testWidgets(
     'full-resolution viewer art replaces its preview only when ready',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            subsonicApiProvider.overrideWithValue(null),
-          ],
+          overrides: [subsonicApiProvider.overrideWithValue(null)],
           child: MaterialApp(
             home: CoverArtViewerScreen(
               coverArtId: 'cover-1',

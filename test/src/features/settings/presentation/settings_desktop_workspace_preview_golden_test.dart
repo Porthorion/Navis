@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, bool groupedPanels) =>
+  Future<void> pump(WidgetTester tester, {required bool groupedPanels}) =>
       tester.pumpWidget(
         MaterialApp(
           theme: buildDarkTheme(Colors.deepPurple),
@@ -16,7 +16,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, groupedPanels: true);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/settings_desktop_workspace_before.png'),
@@ -28,7 +28,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, groupedPanels: false);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/settings_desktop_workspace_after.png'),
@@ -37,7 +37,7 @@ void main() {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.groupedPanels});
+  const new({required this.groupedPanels});
 
   final bool groupedPanels;
 
@@ -101,16 +101,14 @@ class _Preview extends StatelessWidget {
           if (groupedPanels) ...<Widget>[
             Text(
               'Settings',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 3),
             Text(
               'Desktop workspace controls and app preferences',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
           ],
@@ -127,11 +125,7 @@ class _Preview extends StatelessWidget {
 }
 
 class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({
-    required this.title,
-    required this.rows,
-    required this.panel,
-  });
+  const new({required this.title, required this.rows, required this.panel});
 
   final String title;
   final List<({IconData icon, String title, String subtitle})> rows;
@@ -145,9 +139,8 @@ class _SettingsGroup extends StatelessWidget {
       children: <Widget>[
         Text(
           title,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: colors.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(color: colors.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         for (final row in rows)
@@ -165,9 +158,8 @@ class _SettingsGroup extends StatelessWidget {
                       Text(row.title),
                       Text(
                         row.subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: colors.onSurfaceVariant),
                       ),
                     ],
                   ),

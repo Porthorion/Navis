@@ -51,21 +51,15 @@ void _logAndroidAutoCallback(String message) {
 /// reads library data.  Playback actions (`playFromMediaId`, etc.) remain in
 /// `NavisAudioHandler`.
 class AutoMediaTreeService {
-  AutoMediaTreeService({
-    required LibraryDao libraryDao,
-    required PlaylistDao playlistDao,
-    required PlayQueueDao playQueueDao,
-    required HistoryDao historyDao,
-    required SubsonicApiClient? Function() readApiClient,
+  new({
+    required this._libraryDao,
+    required this._playlistDao,
+    required this._playQueueDao,
+    required this._historyDao,
+    required this._readApiClient,
     Future<Set<String>> Function()? readDownloadedSongIds,
-    Duration remoteSearchTimeout = _kRemoteSearchTimeout,
-  }) : _libraryDao = libraryDao,
-       _playlistDao = playlistDao,
-       _playQueueDao = playQueueDao,
-       _historyDao = historyDao,
-       _readApiClient = readApiClient,
-       _remoteSearchTimeout = remoteSearchTimeout,
-       _readDownloadedSongIds =
+    this._remoteSearchTimeout = _kRemoteSearchTimeout,
+  }) : _readDownloadedSongIds =
            readDownloadedSongIds ?? (() async => const <String>{});
 
   final LibraryDao _libraryDao;
@@ -110,7 +104,7 @@ class AutoMediaTreeService {
   }
 
   Future<List<MediaItem>> _getChildrenImpl(String parentMediaId) async {
-    return switch (parentMediaId) {
+    return await (switch (parentMediaId) {
       AutoMediaRoot.root => _getRootChildren(),
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
@@ -125,7 +119,7 @@ class AutoMediaTreeService {
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
       AutoMediaRoot.downloads => _getDownloadedSongs(),
       _ => _getEntityChildren(parentMediaId),
-    };
+    });
   }
 
   Future<List<MediaItem>> _getRootChildren() async {
@@ -191,9 +185,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.albums, 'No albums')
         : items;
@@ -273,9 +265,7 @@ class AutoMediaTreeService {
             contextId: AutoMediaRoot.likedSongs,
           ),
         )
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.likedSongs, 'No liked songs')
         : items;
@@ -286,9 +276,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.likedAlbums, 'No liked albums')
         : items;
@@ -394,12 +382,12 @@ class AutoMediaTreeService {
       return _emptyItems(parentMediaId, 'No content');
     }
 
-    return switch (parsed.type) {
+    return await (switch (parsed.type) {
       AutoMediaIdType.artist => _getArtistAlbums(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumSongs(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistSongs(parsed.entityId!),
       _ => _emptyItems(parentMediaId, 'No content'),
-    };
+    });
   }
 
   Future<List<MediaItem>> _getArtistAlbums(String artistId) async {
@@ -407,9 +395,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty ? _emptyItems('artist/$artistId', 'No albums') : items;
   }
 
@@ -471,26 +457,23 @@ class AutoMediaTreeService {
     final parsed = AutoMediaId.parse(mediaId);
     if (parsed == null) {
       final rawSongId = AutoMediaId.songIdFrom(mediaId);
-      return rawSongId == null ? null : _getSongMediaItem(rawSongId);
+      return await (rawSongId == null ? null : _getSongMediaItem(rawSongId));
     }
 
-    return switch (parsed.type) {
+    return await (switch (parsed.type) {
       AutoMediaIdType.song => _getSongMediaItem(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumMediaItem(parsed.entityId!),
       AutoMediaIdType.artist => _getArtistMediaItem(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistMediaItem(parsed.entityId!),
       _ => null,
-    };
+    });
   }
 
   Future<MediaItem?> _getSongMediaItem(String songId) async {
     final songs = await _libraryDao.getSongsByIds([songId]);
     if (songs.isEmpty) return null;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    return _songToMediaItem(
-      songs.first,
-      downloadedSongIds: downloadedSongIds,
-    );
+    return _songToMediaItem(songs.first, downloadedSongIds: downloadedSongIds);
   }
 
   Future<MediaItem?> _getAlbumMediaItem(String albumId) async {
@@ -556,9 +539,9 @@ class AutoMediaTreeService {
     final focus = _SearchFocus.fromExtras(extras);
     final api = _readApiClient();
     if (api != null) {
-      return _searchViaApi(api, query, focus);
+      return await _searchViaApi(api, query, focus);
     }
-    return _searchLocalDb(query, focus);
+    return await _searchLocalDb(query, focus);
   }
 
   Future<List<MediaItem>> _searchViaApi(
@@ -598,7 +581,7 @@ class AutoMediaTreeService {
       AppLogger.debug(
         'Android Auto remote search unavailable; using local library.',
       );
-      return _searchLocalDb(query, focus);
+      return await _searchLocalDb(query, focus);
     }
   }
 
@@ -934,14 +917,14 @@ class AutoMediaTreeService {
 }
 
 class _SearchFocus {
-  const _SearchFocus({
+  const new({
     this.includeArtists = true,
     this.includeAlbums = true,
     this.includePlaylists = true,
     this.includeSongs = true,
   });
 
-  factory _SearchFocus.fromExtras(Map<String, dynamic>? extras) {
+  factory fromExtras(Map<String, dynamic>? extras) {
     final focus = extras?[AndroidAutoConstants.mediaFocusKey];
     return switch (focus) {
       AndroidAutoConstants.mediaFocusArtist => const _SearchFocus(

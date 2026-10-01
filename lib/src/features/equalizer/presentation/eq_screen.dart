@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -28,7 +28,7 @@ export 'package:navis/src/features/equalizer/presentation/eq_band_inspector.dart
     show eqModeLabel;
 
 class EqualizerScreen extends ConsumerStatefulWidget {
-  const EqualizerScreen({super.key});
+  const new({super.key});
   @override
   ConsumerState<EqualizerScreen> createState() => EqualizerScreenState();
 }
@@ -1042,9 +1042,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           section(l10n.eqUnsavedWork),
           ListTile(
             key: const ValueKey('eq-preset-custom'),
-            shape: RoundedRectangleBorder(
-              borderRadius: NavisRadius.mdAll,
-            ),
+            shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
             selectedTileColor: theme.colorScheme.surfaceContainerHighest,
             leading: Icon(
               value.selectedPresetId == null ? Icons.check : Icons.edit_note,
@@ -1379,13 +1377,20 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           allowedExtensions: ['txt', 'json'],
         );
         if (file != null) {
-          if (await file.length() > EqImportParser.maximumBytes) {
+          // Some platforms cannot report the size before reading, so the
+          // bytes read are checked as well.
+          final size = await file.length();
+          if (size != null && size > EqImportParser.maximumBytes) {
+            throw EqImportException(EqImportErrorCode.tooLarge);
+          }
+          final bytes = await file.readAsBytes();
+          if (bytes.length > EqImportParser.maximumBytes) {
             throw EqImportException(EqImportErrorCode.tooLarge);
           }
           // The contents decide the format and encoding; the file name is
           // only the suggested preset name.
           imported = EqImportParser().parseBytes(
-            await file.readAsBytes(),
+            bytes,
             id: 'preview',
             name: file.name.replaceAll(
               RegExp(r'\.(txt|json)$', caseSensitive: false),

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_sheet.dart';
 
@@ -22,9 +23,7 @@ class _FakeRecoveryService implements PlaybackRecoveryService {
 void main() {
   testWidgets(
     'offers playback recovery actions and retries without replaying',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final recovery = _FakeRecoveryService();
       await tester.pumpWidget(
         ProviderScope(
@@ -32,7 +31,7 @@ void main() {
             playbackRecoveryServiceProvider.overrideWithValue(recovery),
           ],
           child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Builder(
               builder: (context) => Scaffold(

@@ -8,7 +8,7 @@ part 'download_queue_dao.g.dart';
 @DriftAccessor(tables: [DownloadQueueTable])
 class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
     with _$DownloadQueueDaoMixin {
-  DownloadQueueDao(super.db);
+  new(super.attachedDatabase);
 
   Stream<List<DownloadQueueTableData>> watchQueue() {
     final query = select(downloadQueueTable)
@@ -24,19 +24,13 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> updateProgress(int id, double progress) {
-    return (update(
-      downloadQueueTable,
-    )..where((table) => table.id.equals(id))).write(
-      DownloadQueueTableCompanion(progress: Value(progress)),
-    );
+    return (update(downloadQueueTable)..where((table) => table.id.equals(id)))
+        .write(DownloadQueueTableCompanion(progress: Value(progress)));
   }
 
   Future<void> updateStatus(int id, DownloadStatus status) {
-    return (update(
-      downloadQueueTable,
-    )..where((table) => table.id.equals(id))).write(
-      DownloadQueueTableCompanion(status: Value(status)),
-    );
+    return (update(downloadQueueTable)..where((table) => table.id.equals(id)))
+        .write(DownloadQueueTableCompanion(status: Value(status)));
   }
 
   Future<void> remove(int id) {
@@ -74,29 +68,27 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   /// Call on startup to recover from a previous app kill.
   /// Returns how many downloads were interrupted.
   Future<int> requeueStuckDownloads() {
-    return (update(downloadQueueTable)..where(
-          (t) => t.status.equalsValue(DownloadStatus.downloading),
-        ))
-        .write(
-          const DownloadQueueTableCompanion(
-            status: Value(DownloadStatus.queued),
-            progress: Value(0),
-          ),
-        );
+    return (update(
+      downloadQueueTable,
+    )..where((t) => t.status.equalsValue(DownloadStatus.downloading))).write(
+      const DownloadQueueTableCompanion(
+        status: Value(DownloadStatus.queued),
+        progress: Value(0),
+      ),
+    );
   }
 
   /// Reset all failed items to `queued` so they can be retried.
   Future<void> retryAllFailed() {
-    return (update(downloadQueueTable)..where(
-          (t) => t.status.equalsValue(DownloadStatus.failed),
-        ))
-        .write(
-          const DownloadQueueTableCompanion(
-            status: Value(DownloadStatus.queued),
-            progress: Value(0),
-            retryCount: Value(0),
-          ),
-        );
+    return (update(
+      downloadQueueTable,
+    )..where((t) => t.status.equalsValue(DownloadStatus.failed))).write(
+      const DownloadQueueTableCompanion(
+        status: Value(DownloadStatus.queued),
+        progress: Value(0),
+        retryCount: Value(0),
+      ),
+    );
   }
 
   /// Return the set of songIds that are currently queued or downloading.

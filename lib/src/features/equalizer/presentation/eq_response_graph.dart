@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
 
 /// Read-only response previews use the same rendering as the main graph editor.
 class EqResponseGraph extends StatelessWidget {
-  const EqResponseGraph({
+  const new({
     required this.configuration,
     this.sampleRate = 48000,
     this.compact = false,

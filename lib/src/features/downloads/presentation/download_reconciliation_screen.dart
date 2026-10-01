@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -12,7 +12,7 @@ import 'package:navis/src/utils/format_utils.dart';
 /// Reviews files Navis could not safely associate with one local song.
 /// Mappings only live for this route; leaving it cannot adopt source files.
 class DownloadReconciliationScreen extends StatefulWidget {
-  const DownloadReconciliationScreen({
+  const new({
     required this.preview,
     required this.automaticallyImported,
     required this.pendingPaths,
@@ -122,7 +122,7 @@ class _DownloadReconciliationScreenState
 }
 
 class _DownloadMatchPicker extends ConsumerStatefulWidget {
-  const _DownloadMatchPicker({required this.item});
+  const new({required this.item});
 
   final PermanentDownloadImportItem item;
 
@@ -197,8 +197,9 @@ class _DownloadMatchPickerState extends ConsumerState<_DownloadMatchPicker> {
               }
               final results = snapshot.data;
               final songs = results?.songs ?? const <SongsTableData>[];
-              if (songs.isEmpty)
+              if (songs.isEmpty) {
                 return const Center(child: Text('No local songs found.'));
+              }
               return ListView.builder(
                 itemCount: songs.length,
                 itemBuilder: (context, index) {
@@ -240,7 +241,7 @@ class _DownloadMatchPickerState extends ConsumerState<_DownloadMatchPicker> {
 }
 
 class _CandidateResults {
-  const _CandidateResults({required this.songs, required this.likedIds});
+  const new({required this.songs, required this.likedIds});
 
   final List<SongsTableData> songs;
   final Set<String> likedIds;

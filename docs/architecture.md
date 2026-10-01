@@ -721,6 +721,31 @@ Features:
 - Manual scroll with re-center button
 - Graceful fallback for unsynced/missing lyrics
 
+Apple runners remain unreleased scaffolds. Their native configuration floors
+are iOS 16 and macOS 12; Linux validation does not certify either runner. This
+upgrade reconciles Podfile/project settings without adding Apple media features.
+
+## UI libraries and localization
+
+Navis uses the standalone `material_ui` and `cupertino_ui` design libraries.
+The `cupertino_icons` dependency supplies the icon font referenced by Cupertino
+and platform-adaptive library widgets, including release builds.
+Application widgets, themes and test harnesses use their types consistently;
+`go_router` 18 therefore recognizes the modern `MaterialApp` and preserves its
+Material page behavior. Core widgets, services and gestures remain in Flutter.
+The handwritten `lib/l10n/navis_localizations.dart` combines Navis strings with
+modern design-library delegates. Generated localization output is left intact;
+its legacy delegate list is not used by application harnesses. Application
+strings currently support English; design-library localization also supports
+RTL languages without claiming Navis translations for those languages.
+
+The release-notes Markdown subtree alone uses `MaterialUiCompatibilityBridge`
+with a legacy theme below it, because `flutter_markdown_plus` still requires
+framework Material types. Remove this scoped, deprecated compatibility utility
+when that dependency migrates. The desktop input boundary, presentation host,
+bootstrap overlay, theme seeds, OLED colors and router lifetime remain owned by
+Navis.
+
 ## Routing Structure
 
 Routes are declared in `lib/src/routing/app_router.dart` from the path
@@ -1704,7 +1729,8 @@ position from `positionStream`; Windows SMTC coalesces routine timeline updates
 to about one per second and sends track changes and seek discontinuities
 immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
 creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
-WinRT event tokens, serializes complete state writes, and omits unusable
+WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
+Dart stream's milliseconds, serializes complete state writes, and omits unusable
 artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
 secondary track and ignore states keyed to another song. For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
@@ -2449,3 +2475,15 @@ before returning. Cancellation suppresses automatic rearming until the session's
 existing restart path enables it again. Diagnostics shutdown and sign-out use
 this barrier before database disposal; synchronous provider disposal alone
 cannot await these owners.
+
+### Android SAF availability during service-first playback
+
+The private tracked `navis_android_storage` Flutter plugin registers a read-only
+`com.navis.app/permanent_download_playback` channel on every Android engine.
+`AndroidSafStorage.exists` uses it to query an already granted content document
+with application context. It works when the canonical audio_service service
+creates an engine before MainActivity and preserves permanent-download priority.
+This does not eagerly create an engine, launch UI, request storage permissions,
+or probe writable access. Folder management, import and write operations remain
+on the activity-owned storage channel. Android native generated registration is
+produced by Flutter; it is not edited manually.

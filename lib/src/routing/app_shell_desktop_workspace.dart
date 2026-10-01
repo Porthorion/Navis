@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopWorkspace extends StatefulWidget {
-  const _DesktopWorkspace({
+  const new({
     required this.desktopLayoutClass,
     required this.sidebarWidth,
     required this.navbarStyle,
@@ -86,7 +86,7 @@ class _DesktopWorkspace extends StatefulWidget {
 class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   static const Duration _animDuration = Duration(milliseconds: 280);
   static const Curve _animCurve = Curves.easeOutCubic;
-  static const double _collapsedWidth = 64.0;
+  static const double _collapsedWidth = 64;
   static const Duration _collapseDelay = Duration(milliseconds: 500);
   static const Duration _navExpandHoldDuration = Duration(milliseconds: 1600);
 

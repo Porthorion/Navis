@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -41,7 +41,7 @@ void main() {
 }
 
 class _DownloadsSearchEmptyPreview extends StatelessWidget {
-  const _DownloadsSearchEmptyPreview({required this.hasRecovery});
+  const new({required this.hasRecovery});
 
   final bool hasRecovery;
 

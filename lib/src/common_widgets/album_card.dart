@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -20,7 +20,7 @@ enum AlbumCardSize {
   /// Larger cards used in the library grid – sized to fill available width.
   library(double.infinity);
 
-  const AlbumCardSize(this.extent);
+  new(this.extent);
   final double extent;
 }
 
@@ -29,7 +29,7 @@ enum AlbumCardSize {
 /// Album art fills the entire card.  The title and artist name are overlaid
 /// at the bottom where the artwork fades into the active app surface.
 class AlbumCard extends ConsumerWidget {
-  const AlbumCard({
+  const new({
     required this.album,
     super.key,
     this.size = AlbumCardSize.library,
@@ -72,9 +72,7 @@ class AlbumCard extends ConsumerWidget {
         child: Card(
           clipBehavior: Clip.antiAlias,
           margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: cardBorderRadius,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
           child: InkWell(
             key: const ValueKey('albumCardTapTarget'),
             onTap: onTap,
@@ -82,7 +80,7 @@ class AlbumCard extends ConsumerWidget {
             onLongPress: onLongPress == null
                 ? null
                 : () {
-                    HapticFeedback.mediumImpact();
+                    unawaited(HapticFeedback.mediumImpact());
                     onLongPress!();
                   },
             child: Stack(
@@ -114,11 +112,7 @@ class AlbumCard extends ConsumerWidget {
                     fit: StackFit.expand,
                     children: <Widget>[
                       if (badge != null)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: badge!,
-                        ),
+                        Positioned(top: 8, right: 8, child: badge!),
                       // Fade into the selected app surface so the labels use
                       // the same readable foreground roles as the rest of Navis.
                       Positioned(
@@ -195,7 +189,7 @@ class AlbumCard extends ConsumerWidget {
 /// It stays out of the focus order and hit testing while hidden; keyboard
 /// users play albums from the card's context menu or detail page.
 class _AlbumCardHoverPlay extends ConsumerStatefulWidget {
-  const _AlbumCardHoverPlay({required this.albumId});
+  const new({required this.albumId});
 
   final String albumId;
 

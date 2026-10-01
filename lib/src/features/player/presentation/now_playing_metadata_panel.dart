@@ -1,7 +1,7 @@
 part of 'now_playing_screen.dart';
 
 class _CoverArt extends ConsumerWidget {
-  const _CoverArt({
+  const new({
     this.coverArtId,
     this.semanticLabel,
     this.maxSize,
@@ -40,7 +40,7 @@ class _CoverArt extends ConsumerWidget {
 }
 
 class _RadioCoverArt extends ConsumerWidget {
-  const _RadioCoverArt({super.key, this.artUrl, this.maxSize});
+  const new({super.key, this.artUrl, this.maxSize});
 
   final String? artUrl;
   final double? maxSize;
@@ -113,7 +113,7 @@ class _RadioCoverArt extends ConsumerWidget {
 }
 
 class _TrackInfo extends StatelessWidget {
-  const _TrackInfo({
+  const new({
     super.key,
     required this.title,
     required this.artist,
@@ -235,7 +235,7 @@ class _TrackInfo extends StatelessWidget {
 }
 
 class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
-  const _NowPlayingInfoPanel({
+  const new({
     super.key,
     required this.song,
     required this.album,
@@ -411,7 +411,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
 }
 
 class _NowPlayingInfoPage {
-  const _NowPlayingInfoPage({
+  const new({
     required this.icon,
     required this.semanticLabel,
     required this.value,
@@ -477,7 +477,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
 }
 
 class _NowPlayingInfoGrid extends ConsumerWidget {
-  const _NowPlayingInfoGrid({
+  const new({
     super.key,
     required this.song,
     required this.album,
@@ -517,10 +517,8 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
       color: colors.onSurfaceVariant.withValues(alpha: 0.86),
       fontWeight: FontWeight.w600,
     );
-    final valueStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: colors.onSurface,
-      fontWeight: FontWeight.w500,
-    );
+    final valueStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: colors.onSurface, fontWeight: FontWeight.w500);
     final currentSongId = song?.id;
     final currentRating = currentSongId == null
         ? null
@@ -603,7 +601,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
 }
 
 class _NowPlayingInfoGridCell extends StatelessWidget {
-  const _NowPlayingInfoGridCell({
+  const new({
     required this.page,
     required this.labelStyle,
     required this.valueStyle,
@@ -636,11 +634,7 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
                 style: labelStyle,
               ),
               const SizedBox(height: 2),
-              _NowPlayingInfoValue(
-                page: page,
-                maxLines: 2,
-                style: valueStyle,
-              ),
+              _NowPlayingInfoValue(page: page, maxLines: 2, style: valueStyle),
             ],
           ),
         ),
@@ -650,7 +644,7 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
 }
 
 class _NowPlayingInfoValue extends StatelessWidget {
-  const _NowPlayingInfoValue({
+  const new({
     required this.page,
     required this.maxLines,
     required this.style,

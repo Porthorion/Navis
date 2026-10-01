@@ -281,10 +281,8 @@ void main() {
         ..writeAsBytesSync(<int>[1, 2, 3]);
       final preview = await service('profile').preview(root);
 
-      final result = await service('profile').commit(
-        preview,
-        includeRecognized: false,
-      );
+      final result = await service('profile')
+          .commit(preview, includeRecognized: false);
 
       expect(result.importedCount, 0);
       expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
@@ -380,10 +378,7 @@ void main() {
           preview.items.single.disposition,
           PermanentDownloadImportDisposition.alreadyRegistered,
         );
-        expect(
-          preview.items.single.relativePath,
-          'Rips/track 07.flac',
-        );
+        expect(preview.items.single.relativePath, 'Rips/track 07.flac');
       },
       skip: Platform.isWindows,
     );
@@ -409,7 +404,7 @@ void main() {
           format: 'flac',
         );
         manifest.execute(
-          "UPDATE download_records SET relative_path = replace(relative_path, '/', '\\')",
+          r"UPDATE download_records SET relative_path = replace(relative_path, '/', '\')",
         );
         manifest.close();
 

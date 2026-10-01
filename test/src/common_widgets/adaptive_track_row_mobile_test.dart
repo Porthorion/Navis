@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -207,9 +207,7 @@ void main() {
 
   testWidgets(
     'missing metadata retains readable duration and compact targets',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await render(tester, artist: null, album: null, duration: null);
       expect(find.text('--:--'), findsOneWidget);
       expect(tester.getSize(find.byKey(rowKey)).height, 64);

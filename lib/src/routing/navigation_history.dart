@@ -11,7 +11,7 @@ import 'package:go_router/go_router.dart';
 /// rebuilding a stack from a URL.
 @immutable
 class NavHistoryEntry {
-  const NavHistoryEntry._({
+  const new _({
     required this.snapshot,
     required this.branch,
     required this.pageKeys,
@@ -92,7 +92,7 @@ class NavHistoryEntry {
   }
 
   static Uri _topUri(RouteMatchList configuration) {
-    RouteMatchBase? top = configuration.matches.lastOrNull;
+    var top = configuration.matches.lastOrNull;
     while (top is ShellRouteMatch) {
       top = top.matches.lastOrNull;
     }

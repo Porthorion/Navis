@@ -3,7 +3,7 @@ part of 'navis_audio_handler.dart';
 _NavisAudioHandlerInitCacheEntry? _audioHandlerInitCache;
 
 class _NavisAudioHandlerInitCacheEntry {
-  _NavisAudioHandlerInitCacheEntry(this.future);
+  new(this.future);
 
   final Future<NavisPlaybackHandler> future;
   NavisPlaybackHandler? handler;
@@ -84,6 +84,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<bool> Function(bool autoPlay)? startPersonalRadio,
   Future<void> Function(String)? startPreferredMix,
   Future<void> Function(String)? togglePreferredMix,
@@ -177,7 +179,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
 
 class WindowsNavisPlaybackHandler
     implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
-  WindowsNavisPlaybackHandler(this._delegate) {
+  new(this._delegate) {
     _smtcBridge = WindowsSmtcBridge(handler: this);
   }
 
@@ -200,11 +202,8 @@ class WindowsNavisPlaybackHandler
     List<SongsTableData> songs, {
     required int notBefore,
     math.Random? random,
-  }) => _delegate.mergeIntoUpcoming(
-    songs,
-    notBefore: notBefore,
-    random: random,
-  );
+  }) =>
+      _delegate.mergeIntoUpcoming(songs, notBefore: notBefore, random: random);
 
   @override
   Future<QueueBatchEditResult> insertQueueRuns(List<QueueInsertRun> runs) =>
@@ -294,10 +293,8 @@ class WindowsNavisPlaybackHandler
   }) => _delegate.addToQueue(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
-  Future<void> playNext(
-    List<String> songIds, {
-    bool expandMatchFlows = true,
-  }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
+  Future<void> playNext(List<String> songIds, {bool expandMatchFlows = true}) =>
+      _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
   Future<void> retainCurrentSongAsQueue(String songId) =>
@@ -423,15 +420,12 @@ class WindowsNavisPlaybackHandler
   Future<void> stopRadio() => _delegate.stopRadio();
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) => _delegate.updateRadioMetadata(
-    title: title,
-    artist: artist,
-    artUrl: artUrl,
-  );
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) =>
+      _delegate.updateRadioMetadata(
+        title: title,
+        artist: artist,
+        artUrl: artUrl,
+      );
 
   @override
   void registerPreferredMixCallback(
@@ -446,7 +440,7 @@ class WindowsNavisPlaybackHandler
 
 class LinuxNavisPlaybackHandler
     implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
-  LinuxNavisPlaybackHandler(this._delegate) {
+  new(this._delegate) {
     _mprisBridge = LinuxMprisBridge(handler: this);
   }
 
@@ -469,11 +463,8 @@ class LinuxNavisPlaybackHandler
     List<SongsTableData> songs, {
     required int notBefore,
     math.Random? random,
-  }) => _delegate.mergeIntoUpcoming(
-    songs,
-    notBefore: notBefore,
-    random: random,
-  );
+  }) =>
+      _delegate.mergeIntoUpcoming(songs, notBefore: notBefore, random: random);
 
   @override
   Future<QueueBatchEditResult> insertQueueRuns(List<QueueInsertRun> runs) =>
@@ -563,10 +554,8 @@ class LinuxNavisPlaybackHandler
   }) => _delegate.addToQueue(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
-  Future<void> playNext(
-    List<String> songIds, {
-    bool expandMatchFlows = true,
-  }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
+  Future<void> playNext(List<String> songIds, {bool expandMatchFlows = true}) =>
+      _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
   Future<void> retainCurrentSongAsQueue(String songId) =>
@@ -692,15 +681,12 @@ class LinuxNavisPlaybackHandler
   Future<void> stopRadio() => _delegate.stopRadio();
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) => _delegate.updateRadioMetadata(
-    title: title,
-    artist: artist,
-    artUrl: artUrl,
-  );
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) =>
+      _delegate.updateRadioMetadata(
+        title: title,
+        artist: artist,
+        artUrl: artUrl,
+      );
 
   @override
   void registerPreferredMixCallback(

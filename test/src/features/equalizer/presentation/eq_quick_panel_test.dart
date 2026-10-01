@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -56,9 +56,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
           home: Scaffold(
@@ -169,16 +168,13 @@ void main() {
       'builtin:vocal',
     ]);
     expect(entries.first.label, 'Custom*');
-    expect(
-      entries.map((entry) => (entry.leadingIcon! as Icon).icon),
-      [
-        Icons.edit_outlined,
-        Icons.headphones_outlined,
-        Icons.graphic_eq,
-        Icons.graphic_eq,
-        Icons.graphic_eq,
-      ],
-    );
+    expect(entries.map((entry) => (entry.leadingIcon! as Icon).icon), [
+      Icons.edit_outlined,
+      Icons.headphones_outlined,
+      Icons.graphic_eq,
+      Icons.graphic_eq,
+      Icons.graphic_eq,
+    ]);
   });
 
   testWidgets('without a draft, Custom only appears while selected', (
@@ -205,19 +201,13 @@ void main() {
     tester,
   ) async {
     await pump(tester, initial: state(selected: 'builtin:flat'));
-    expect(
-      tester.getSize(find.byType(EqGraphEditor)).height,
-      176,
-    );
+    expect(tester.getSize(find.byType(EqGraphEditor)).height, 176);
     await pump(
       tester,
       initial: state(selected: 'builtin:flat'),
       layout: EqQuickLayout.inline,
     );
-    expect(
-      tester.getSize(find.byType(EqGraphEditor)).height,
-      136,
-    );
+    expect(tester.getSize(find.byType(EqGraphEditor)).height, 136);
   });
 
   testWidgets('failure offers Retry and the graph opens the full page', (

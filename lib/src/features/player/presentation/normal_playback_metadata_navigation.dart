@@ -1,5 +1,5 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -11,20 +11,18 @@ enum NormalPlaybackMetadataDestinationType { artist, album, filteredSearch }
 
 @immutable
 class NormalPlaybackMetadataDestination {
-  const NormalPlaybackMetadataDestination.artist(this.id)
+  const new artist(this.id)
     : type = NormalPlaybackMetadataDestinationType.artist,
       query = null,
       filter = null;
 
-  const NormalPlaybackMetadataDestination.album(this.id)
+  const new album(this.id)
     : type = NormalPlaybackMetadataDestinationType.album,
       query = null,
       filter = null;
 
-  const NormalPlaybackMetadataDestination.filteredSearch(
-    this.query,
-    this.filter,
-  ) : type = NormalPlaybackMetadataDestinationType.filteredSearch,
+  const new filteredSearch(this.query, this.filter)
+    : type = NormalPlaybackMetadataDestinationType.filteredSearch,
       id = null;
 
   final NormalPlaybackMetadataDestinationType type;
@@ -35,7 +33,7 @@ class NormalPlaybackMetadataDestination {
 
 @immutable
 class NormalPlaybackMetadataContext {
-  const NormalPlaybackMetadataContext({
+  const new({
     this.song,
     this.mediaItem,
     this.title,
@@ -55,7 +53,7 @@ class NormalPlaybackMetadataContext {
 }
 
 class NormalPlaybackMetadataNavigationResolver {
-  const NormalPlaybackMetadataNavigationResolver(this._dao);
+  const new(this._dao);
 
   final LibraryDao _dao;
 
@@ -311,7 +309,7 @@ abstract final class NormalPlaybackMetadataNavigator {
           context,
           ref,
           destination.query!,
-          filter: destination.filter!,
+          filter: destination.filter,
         );
     }
   }

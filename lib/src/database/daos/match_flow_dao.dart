@@ -10,20 +10,20 @@ part 'match_flow_dao.g.dart';
 enum MatchFlowFailure { songAlreadyInFlow, flowMissing, masterInAnotherFlow }
 
 class MatchFlowException implements Exception {
-  const MatchFlowException(this.failure);
+  const new(this.failure);
 
   final MatchFlowFailure failure;
 }
 
 class MatchFlowSongEntry {
-  const MatchFlowSongEntry({required this.link, required this.song});
+  const new({required this.link, required this.song});
 
   final MatchFlowSongsTableData link;
   final SongsTableData? song;
 }
 
 class MatchFlowWithSongs {
-  const MatchFlowWithSongs({required this.flow, required this.songs});
+  const new({required this.flow, required this.songs});
 
   final MatchFlowsTableData flow;
   final List<MatchFlowSongEntry> songs;
@@ -32,10 +32,7 @@ class MatchFlowWithSongs {
 }
 
 class MatchFlowExpansionResult {
-  const MatchFlowExpansionResult({
-    required this.songIds,
-    required this.startIndex,
-  });
+  const new({required this.songIds, required this.startIndex});
 
   final List<String> songIds;
   final int startIndex;
@@ -44,7 +41,7 @@ class MatchFlowExpansionResult {
 @DriftAccessor(tables: [MatchFlowsTable, MatchFlowSongsTable, SongsTable])
 class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
     with _$MatchFlowDaoMixin {
-  MatchFlowDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const String defaultFlowName = 'New Flow';
 
@@ -301,10 +298,7 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
       final link = row.readTableOrNull(matchFlowSongsTable);
       if (link == null) continue;
       (songs[flow.id] ??= <MatchFlowSongEntry>[]).add(
-        MatchFlowSongEntry(
-          link: link,
-          song: row.readTableOrNull(songsTable),
-        ),
+        MatchFlowSongEntry(link: link, song: row.readTableOrNull(songsTable)),
       );
     }
     return flows.values
@@ -339,16 +333,13 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
     String flowId,
     MatchFlowsTableCompanion companion,
   ) async {
-    await (update(matchFlowsTable)..where((t) => t.id.equals(flowId))).write(
-      companion,
-    );
+    await (update(
+      matchFlowsTable,
+    )..where((t) => t.id.equals(flowId))).write(companion);
   }
 
   Future<void> _touchFlow(String flowId, DateTime now) {
-    return _updateFlow(
-      flowId,
-      MatchFlowsTableCompanion(updatedAt: Value(now)),
-    );
+    return _updateFlow(flowId, MatchFlowsTableCompanion(updatedAt: Value(now)));
   }
 
   Future<List<MatchFlowSongsTableData>> _orderedLinks(String flowId) {

@@ -2,7 +2,7 @@ import 'dart:async';
 
 /// Owns one cancellable deadline; callers supply current visibility eligibility.
 class RecommendationAutoAdvance {
-  RecommendationAutoAdvance({required this.onAdvance, DateTime Function()? now})
+  new({required this.onAdvance, DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
   final void Function() onAdvance;

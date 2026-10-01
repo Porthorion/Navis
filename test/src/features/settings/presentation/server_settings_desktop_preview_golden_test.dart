@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -26,9 +26,7 @@ void main() {
 
   testWidgets(
     'server settings after uses a continuous configuration workspace',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 720));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await pump(tester, continuous: true);
@@ -41,7 +39,7 @@ void main() {
 }
 
 class _ServerSettingsPreview extends StatelessWidget {
-  const _ServerSettingsPreview({required this.continuous});
+  const new({required this.continuous});
 
   final bool continuous;
 
@@ -156,7 +154,7 @@ class _ServerSettingsPreview extends StatelessWidget {
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.label, required this.value});
+  const new({required this.label, required this.value});
 
   final String label;
   final String value;

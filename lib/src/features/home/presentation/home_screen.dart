@@ -4,12 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/content_layout.dart';
-import 'package:flutter/rendering.dart' show RenderBox, RenderAbstractViewport;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -69,17 +69,14 @@ part 'home_support_widgets.dart';
 part 'you_might_like_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
 class ListenBrainzWeeklyDetailScreen extends ConsumerStatefulWidget {
-  const ListenBrainzWeeklyDetailScreen({
-    required this.sourcePatch,
-    super.key,
-  });
+  const new({required this.sourcePatch, super.key});
 
   final String sourcePatch;
 
@@ -160,10 +157,7 @@ class _ListenBrainzWeeklyDetailScreenState
 }
 
 class _ListenBrainzWeeklyDetailContent extends ConsumerStatefulWidget {
-  const _ListenBrainzWeeklyDetailContent({
-    required this.playlist,
-    super.key,
-  });
+  const new({required this.playlist, super.key});
 
   final ListenBrainzDiscoverPlaylist playlist;
 
@@ -314,9 +308,8 @@ class _ListenBrainzWeeklyDetailContentState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).backButtonTooltip,
+                        tooltip: MaterialLocalizations.of(context)
+                            .backButtonTooltip,
                         onPressed: () => NavService.back(context),
                         icon: const Icon(Icons.arrow_back),
                       ),
@@ -374,14 +367,8 @@ class _ListenBrainzWeeklyDetailContentState
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     _screenWidth = screenWidth;
-    final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
-      0.0,
-      1.0,
-    );
-    final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(
-      0.0,
-      1.0,
-    );
+    final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
+    final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
 
     return CustomScrollView(
       controller: _scrollController,
@@ -415,10 +402,7 @@ class _ListenBrainzWeeklyDetailContentState
             background: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                _ListenBrainzArtwork(
-                  playlist: playlist,
-                  size: screenWidth,
-                ),
+                _ListenBrainzArtwork(playlist: playlist, size: screenWidth),
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -531,9 +515,7 @@ class _ListenBrainzWeeklyDetailContentState
     return sourcePatch.isNotEmpty &&
         ref
             .watch(listenBrainzPlaylistRematchControllerProvider)
-            .contains(
-              sourcePatch,
-            );
+            .contains(sourcePatch);
   }
 
   Widget _buildActions(
@@ -624,7 +606,7 @@ class _ListenBrainzWeeklyDetailContentState
     return SliverList.builder(
       itemCount: playlist.recommendations.length + 1,
       itemBuilder: (context, index) {
-        if (index == 0)
+        if (index == 0) {
           return AdaptiveTrackHeader(
             numberColumnExtent: 32,
             leadingExtent: 32,
@@ -634,6 +616,7 @@ class _ListenBrainzWeeklyDetailContentState
                 ? const EdgeInsetsDirectional.only(start: 8, end: 4)
                 : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           );
+        }
         final recommendation = playlist.recommendations[index - 1];
         final tableSong = recommendation.tableSong;
         if (recommendation.hasServerSong && tableSong != null) {
@@ -665,9 +648,8 @@ class _ListenBrainzWeeklyDetailContentState
                 ),
                 Builder(
                   builder: (buttonContext) => IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      buttonContext,
-                    ).showMenuTooltip,
+                    tooltip: MaterialLocalizations.of(buttonContext)
+                        .showMenuTooltip,
                     icon: const Icon(Icons.more_vert),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -694,10 +676,9 @@ class _ListenBrainzWeeklyDetailContentState
               : null,
           horizontalTitleGap: 6,
           onPlay: (song) {
-            ref.read(queueProvider.notifier).replaceWithSongs(
-              <Song>[song],
-              expandMatchFlows: false,
-            ).ignore();
+            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+              song,
+            ], expandMatchFlows: false).ignore();
           },
           onSearch: (track) {
             NavService.openSearch(
@@ -829,7 +810,7 @@ class _ListenBrainzWeeklyDetailContentState
 }
 
 class _VirtualAlbumHeaderText extends StatelessWidget {
-  const _VirtualAlbumHeaderText({
+  const new({
     required this.playlist,
     required this.titleStyle,
     required this.metadataStyle,
@@ -853,9 +834,8 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
     final date = _listenBrainzGenerationDate(playlist);
     final metadata = <String>[
       l10n.weeklyPlaylistServiceName,
-      DateFormat.yMMMd(
-        Localizations.localeOf(context).toLanguageTag(),
-      ).format(date),
+      DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag())
+          .format(date),
       l10n.weeklyPlaylistTrackCount(playlist.totalCount),
       _listenBrainzAvailabilityText(playlist, l10n),
     ].join(' • ');
@@ -882,10 +862,7 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: metadataStyle,
         ),
-        if (actions != null) ...<Widget>[
-          const SizedBox(height: 20),
-          actions!,
-        ],
+        if (actions != null) ...<Widget>[const SizedBox(height: 20), actions!],
       ],
     );
   }
@@ -978,11 +955,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return;
     }
     _homePullSpringController.stop();
-    _homePullSpringAnimation =
-        Tween<double>(
-          begin: _homePullProgress,
-          end: 0,
-        ).animate(
+    _homePullSpringAnimation = Tween<double>(begin: _homePullProgress, end: 0)
+        .animate(
           CurvedAnimation(
             parent: _homePullSpringController,
             curve: Curves.easeOutCubic,
@@ -1142,9 +1116,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 Expanded(
                   child: Text(
                     l10n.appName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const _HomeActionRow(variant: _HomeActionRowVariant.desktop),
@@ -1173,9 +1146,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     l10n.appName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const _HomeActionRow(
@@ -1634,9 +1606,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                   (song) => downloadedSongIds.contains(song.id),
                                 )
                               : songs)
-                          .where(
-                            (song) => !likedOnly || song.starred != null,
-                          )
+                          .where((song) => !likedOnly || song.starred != null)
                           .take(5)
                           .toList(growable: false),
                 ),
@@ -1720,7 +1690,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 }
 
 class _HomeSyncLogo extends ConsumerWidget {
-  const _HomeSyncLogo({
+  const new({
     required this.size,
     this.pullProgress = 0,
     this.showImmediateRefreshRing = false,
@@ -1876,7 +1846,7 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HomeSection<T> extends StatelessWidget {
-  const _HomeSection({
+  const new({
     required this.title,
     required this.data,
     required this.builder,
@@ -1951,10 +1921,7 @@ class _HomeSection<T> extends StatelessWidget {
         padding: EdgeInsets.symmetric(
           horizontal: compactWideLandscapeMode ? 0 : 16,
         ),
-        child: ErrorState(
-          title: l10n.homeLoadErrorTitle,
-          onRetry: onRetry,
-        ),
+        child: ErrorState(title: l10n.homeLoadErrorTitle, onRetry: onRetry),
       ),
     );
 
@@ -2030,7 +1997,7 @@ class _HomeSection<T> extends StatelessWidget {
 
 /// Carousel for [Album] objects coming from the server API.
 class _ServerAlbumCarousel extends ConsumerWidget {
-  const _ServerAlbumCarousel({
+  const new({
     required this.albums,
     required this.onTap,
     required this.heroContext,
@@ -2109,7 +2076,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
 }
 
 class _LocalAlbumCarousel extends ConsumerWidget {
-  const _LocalAlbumCarousel({
+  const new({
     required this.albums,
     required this.onTap,
     required this.heroContext,
@@ -2184,7 +2151,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
 }
 
 class _CarouselEdgeArrow extends StatelessWidget {
-  const _CarouselEdgeArrow({
+  const new({
     super.key,
     required this.icon,
     required this.onPressed,
@@ -2225,7 +2192,7 @@ class _CarouselEdgeArrow extends StatelessWidget {
 }
 
 class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
-  const _DesktopRandomAlbumsPager({
+  const new({
     required this.albums,
     required this.heroContext,
     this.density = _HomeSectionDensity.comfortable,
@@ -2451,10 +2418,7 @@ class _DesktopRandomAlbumsPagerState
 }
 
 class _DesktopRandomAlbumPage extends ConsumerWidget {
-  const _DesktopRandomAlbumPage({
-    required this.album,
-    required this.heroContext,
-  });
+  const new({required this.album, required this.heroContext});
 
   final HomeRandomShowcaseItem album;
   final String heroContext;
@@ -2513,10 +2477,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 }
 
 class _DesktopRandomAlbumVisual extends ConsumerWidget {
-  const _DesktopRandomAlbumVisual({
-    required this.album,
-    required this.heroContext,
-  });
+  const new({required this.album, required this.heroContext});
 
   final HomeRandomShowcaseAlbum album;
   final String heroContext;
@@ -2655,7 +2616,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
 }
 
 class _DesktopListenBrainzPage extends ConsumerWidget {
-  const _DesktopListenBrainzPage({required this.item});
+  const new({required this.item});
 
   final HomeRandomShowcaseListenBrainz item;
 
@@ -2685,9 +2646,8 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
                         .withValues(alpha: 0.28),
                     borderRadius: NavisRadius.xlAll,
                     border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withValues(alpha: 0.34),
+                      color: Theme.of(context).colorScheme.outlineVariant
+                          .withValues(alpha: 0.34),
                     ),
                   ),
                   child: Padding(
@@ -2708,9 +2668,7 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
 }
 
 class _ListenBrainzShowcaseVisual extends ConsumerWidget {
-  const _ListenBrainzShowcaseVisual({
-    required this.item,
-  });
+  const new({required this.item});
 
   final HomeRandomShowcaseListenBrainz item;
 
@@ -2724,11 +2682,8 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
       child: InkWell(
         onTap: item.isLoading
             ? null
-            : () => _showListenBrainzDiscoverDetail(
-                context,
-                ref,
-                item.playlist!,
-              ),
+            : () =>
+                  _showListenBrainzDiscoverDetail(context, ref, item.playlist!),
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
@@ -2772,9 +2727,8 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
                         : _listenBrainzAvailabilityText(item.playlist!, l10n),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.78),
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Colors.white.withValues(alpha: 0.78)),
                   ),
                 ],
               ),
@@ -2796,7 +2750,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
 }
 
 class _DesktopListenBrainzSongList extends ConsumerStatefulWidget {
-  const _DesktopListenBrainzSongList({required this.item, super.key});
+  const new({required this.item, super.key});
 
   final HomeRandomShowcaseListenBrainz item;
 
@@ -2863,10 +2817,9 @@ class _DesktopListenBrainzSongListState
                 expandMatchFlows: false,
               ).ignore();
             } else {
-              ref.read(queueProvider.notifier).replaceWithSongs(
-                <Song>[song],
-                expandMatchFlows: false,
-              ).ignore();
+              ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+                song,
+              ], expandMatchFlows: false).ignore();
             }
           },
           onSearch: (track) {
@@ -2883,15 +2836,13 @@ class _DesktopListenBrainzSongListState
 }
 
 class _ListenBrainzLoadingArtwork extends StatelessWidget {
-  const _ListenBrainzLoadingArtwork();
+  const new();
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-      ),
+      decoration: BoxDecoration(color: colors.surfaceContainerHighest),
       child: Center(
         child: Icon(
           Icons.graphic_eq_rounded,
@@ -2904,7 +2855,7 @@ class _ListenBrainzLoadingArtwork extends StatelessWidget {
 }
 
 class _DesktopRandomAlbumSongList extends ConsumerWidget {
-  const _DesktopRandomAlbumSongList({required this.album});
+  const new({required this.album});
 
   final HomeRandomShowcaseAlbum album;
 
@@ -2980,9 +2931,8 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
                   key: const ValueKey<String>('home-random-desktop-reason'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.labelLarge
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
               ),
               EntityActionBar(
@@ -3020,7 +2970,7 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
 }
 
 class _DesktopRandomAlbumSongRow extends ConsumerWidget {
-  const _DesktopRandomAlbumSongRow({
+  const new({
     required this.song,
     required this.albumTracks,
     required this.queueStartIndex,
@@ -3066,12 +3016,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
             ),
       ),
       onSecondaryTapDown: (details) => unawaited(
-        showSongContextMenu(
-          context,
-          ref,
-          song,
-          anchor: details.globalPosition,
-        ),
+        showSongContextMenu(context, ref, song, anchor: details.globalPosition),
       ),
     );
     return SongPlaybackSemantics(state: playbackState, child: row);
@@ -3079,7 +3024,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
 }
 
 class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
-  const _DesktopRandomMiniCoverStrip({
+  const new({
     required this.albums,
     required this.currentPage,
     required this.onPageSelected,
@@ -3197,10 +3142,7 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
 }
 
 class _RandomMiniCover extends StatelessWidget {
-  const _RandomMiniCover({
-    required this.item,
-    required this.borderRadius,
-  });
+  const new({required this.item, required this.borderRadius});
 
   final HomeRandomShowcaseItem item;
   final BorderRadius borderRadius;
@@ -3267,7 +3209,7 @@ int _compareDesktopRandomSongs(SongsTableData a, SongsTableData b) {
 }
 
 class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
-  const _RandomAlbumsHeroCarousel({
+  const new({
     required this.albums,
     required this.heroContext,
     required this.desktopMode,
@@ -3318,9 +3260,7 @@ class _RandomAlbumsHeroCarouselState
   @override
   void initState() {
     super.initState();
-    _displayedAlbums = List<HomeRandomShowcaseItem>.unmodifiable(
-      widget.albums,
-    );
+    _displayedAlbums = List<HomeRandomShowcaseItem>.unmodifiable(widget.albums);
     final initialPage = _initialVirtualPage(_displayedAlbums.length);
     _currentVirtualPage = initialPage;
     _currentLogicalPage = _logicalIndexForPage(
@@ -3507,8 +3447,9 @@ class _RandomAlbumsHeroCarouselState
     _currentLogicalPage = nextLogicalPage;
     _currentVirtualPage = _rebaseVirtualPage(nextLogicalPage);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _pageController.hasClients)
+      if (mounted && _pageController.hasClients) {
         _pageController.jumpToPage(_currentVirtualPage);
+      }
       if (mounted) _scheduleVisibilityCheck();
     });
     _updateAutoAdvance();
@@ -3688,10 +3629,7 @@ class _RandomAlbumsHeroCarouselState
                           ? _pageController.page ??
                                 _currentVirtualPage.toDouble()
                           : _currentVirtualPage.toDouble();
-                      final distance = (position - index).abs().clamp(
-                        0.0,
-                        1.0,
-                      );
+                      final distance = (position - index).abs().clamp(0.0, 1.0);
                       return Opacity(
                         opacity: 1 - 0.45 * distance,
                         child: Transform.scale(
@@ -3770,9 +3708,8 @@ class _RandomAlbumsHeroCarouselState
                 decoration: BoxDecoration(
                   color: currentIndex == index
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(
-                          context,
-                        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
+                      : Theme.of(context).colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.35),
                   borderRadius: NavisRadius.pillAll,
                 ),
               ),
@@ -3796,10 +3733,7 @@ class _RandomAlbumsHeroCarouselState
 }
 
 class _RandomAlbumsHeroCard extends ConsumerWidget {
-  const _RandomAlbumsHeroCard({
-    required this.album,
-    required this.heroContext,
-  });
+  const new({required this.album, required this.heroContext});
 
   final HomeRandomShowcaseItem album;
   final String heroContext;
@@ -3824,9 +3758,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: NavisRadius.xlAll,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
       child: InkWell(
         onTap: () => NavService.openAlbumDetail(
           context,
@@ -3934,7 +3866,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
 }
 
 class _RandomListenBrainzHeroCard extends ConsumerWidget {
-  const _RandomListenBrainzHeroCard({required this.item});
+  const new({required this.item});
 
   final HomeRandomShowcaseListenBrainz item;
 
@@ -3944,17 +3876,12 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: NavisRadius.xlAll,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
       child: InkWell(
         onTap: item.isLoading
             ? null
-            : () => _showListenBrainzDiscoverDetail(
-                context,
-                ref,
-                item.playlist!,
-              ),
+            : () =>
+                  _showListenBrainzDiscoverDetail(context, ref, item.playlist!),
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
@@ -3995,10 +3922,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                     Text(
                       item.isLoading
                           ? l10n.weeklyPlaylistFetching
-                          : _listenBrainzAvailabilityText(
-                              item.playlist!,
-                              l10n,
-                            ),
+                          : _listenBrainzAvailabilityText(item.playlist!, l10n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -4054,7 +3978,7 @@ String _listenBrainzAvailabilityText(
 /// A small square card for server [Album] objects (same visual as [AlbumCard]
 /// but accepts the API model directly).
 class _ServerAlbumCard extends StatelessWidget {
-  const _ServerAlbumCard({
+  const new({
     required this.name,
     required this.borderRadius,
     this.width = 150,
@@ -4087,16 +4011,14 @@ class _ServerAlbumCard extends StatelessWidget {
         child: Card(
           clipBehavior: Clip.antiAlias,
           margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: borderRadius,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: borderRadius),
           child: InkWell(
             onTap: onTap,
             onSecondaryTapDown: onSecondaryTapDown,
             onLongPress: onLongPress == null
                 ? null
                 : () {
-                    HapticFeedback.mediumImpact();
+                    unawaited(HapticFeedback.mediumImpact());
                     onLongPress!();
                   },
             child: Stack(
@@ -4188,7 +4110,7 @@ class _ServerAlbumCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SongListSection extends ConsumerWidget {
-  const _SongListSection({
+  const new({
     required this.songs,
     required this.onTap,
     this.density = _HomeSectionDensity.comfortable,
@@ -4267,9 +4189,7 @@ class _SongListSection extends ConsumerWidget {
           return Column(
             key: const ValueKey<String>('homeSongListSingleColumn'),
             mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              for (final song in songs) songTile(song),
-            ],
+            children: <Widget>[for (final song in songs) songTile(song)],
           );
         },
       ),
@@ -4297,7 +4217,7 @@ final _homeRadioAvailableProvider = StreamProvider.autoDispose
     });
 
 class _HomeActionRow extends ConsumerWidget {
-  const _HomeActionRow({required this.variant});
+  const new({required this.variant});
 
   final _HomeActionRowVariant variant;
 

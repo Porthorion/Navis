@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -17,11 +17,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// [initialVersion]) followed by a list of the others; tapping one shows it.
 /// The desktop shell keeps that list beside the selected release.
 class ChangelogScreen extends StatefulWidget {
-  const ChangelogScreen({
-    super.key,
-    this.initialVersion,
-    this.versions = changelogs,
-  });
+  const new({super.key, this.initialVersion, this.versions = changelogs});
 
   /// Version to show first, e.g. from the Home "What's New" card.
   final String? initialVersion;
@@ -209,7 +205,7 @@ class _ChangelogScreenState extends State<ChangelogScreen> {
 /// One release in full: header, highlights for a major (or the major a
 /// patch belongs to), then every change.
 class _ReleaseBody extends StatelessWidget {
-  const _ReleaseBody({
+  const new({
     required this.version,
     required this.parentMajor,
     required this.onOpen,

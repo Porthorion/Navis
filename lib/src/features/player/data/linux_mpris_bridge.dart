@@ -19,11 +19,8 @@ import 'package:navis/src/utils/app_logger.dart';
 /// This replaces the incomplete `audio_service_mpris` integration which did
 /// not implement `Seek`, `SetPosition`, `Shuffle`, or `LoopStatus`.
 class LinuxMprisBridge {
-  LinuxMprisBridge({
-    required NavisPlaybackHandler handler,
-    bool Function()? isLinuxRuntime,
-  }) : _handler = handler,
-       _isLinuxRuntime = isLinuxRuntime ?? _defaultIsLinuxRuntime {
+  new({required this._handler, bool Function()? isLinuxRuntime})
+    : _isLinuxRuntime = isLinuxRuntime ?? _defaultIsLinuxRuntime {
     unawaited(_initialize());
   }
 
@@ -129,16 +126,13 @@ class LinuxMprisBridge {
           await _handler.skipToNext();
         case _PreviousCommand():
           await _handler.skipToPrevious();
-        case _SeekCommand(offsetUs: final offsetUs):
+        case _SeekCommand(:final offsetUs):
           final base = _handler.snapshot.position;
           final target = base + Duration(microseconds: offsetUs);
           final clamped = target < Duration.zero ? Duration.zero : target;
           await _handler.seek(clamped);
           unawaited(_mprisObject?.emitSeeked(clamped));
-        case _SetPositionCommand(
-          trackId: final trackId,
-          positionUs: final posUs,
-        ):
+        case _SetPositionCommand(:final trackId, positionUs: final posUs):
           final obj = _mprisObject;
           if (obj == null || trackId != obj.currentTrackId) {
             return;
@@ -152,20 +146,20 @@ class LinuxMprisBridge {
           // Use the nullable field, not the local 'obj', so that a concurrent
           // dispose() that nulls _mprisObject prevents emitting on a closed client.
           unawaited(_mprisObject?.emitSeeked(target));
-        case _SetLoopStatusCommand(loopStatus: final loopStatus):
+        case _SetLoopStatusCommand(:final loopStatus):
           final repeatMode = switch (loopStatus) {
             'Track' => AudioServiceRepeatMode.one,
             'Playlist' => AudioServiceRepeatMode.all,
             _ => AudioServiceRepeatMode.none,
           };
           await _handler.setRepeatMode(repeatMode);
-        case _SetShuffleCommand(enabled: final enabled):
+        case _SetShuffleCommand(:final enabled):
           await _handler.setShuffleMode(
             enabled
                 ? AudioServiceShuffleMode.all
                 : AudioServiceShuffleMode.none,
           );
-        case _SetRateCommand(rate: final rate):
+        case _SetRateCommand(:final rate):
           if (rate > 0.0) {
             await _handler.setPlaybackSpeed(rate);
             _mprisObject?.updateRate(rate);
@@ -262,7 +256,7 @@ Future<void> _requestMprisBusName(DBusClient client) async {
     return;
   }
   await client.requestName(
-    'org.mpris.MediaPlayer2.navis.instance${pid}',
+    'org.mpris.MediaPlayer2.navis.instance$pid',
     flags: {DBusRequestNameFlag.doNotQueue},
   );
 }
@@ -270,50 +264,50 @@ Future<void> _requestMprisBusName(DBusClient client) async {
 /// Converts an arbitrary song ID to a valid D-Bus object path segment.
 /// Object path components must match `[A-Za-z0-9_]+`.
 String _sanitizeTrackId(String songId) {
-  final sanitized = songId.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_');
+  final sanitized = songId.replaceAll(RegExp('[^A-Za-z0-9_]'), '_');
   final safe = sanitized.isEmpty ? 'unknown' : sanitized;
   return '/org/mpris/MediaPlayer2/Track/$safe';
 }
 
 // ---- Command types ----------------------------------------------------------
 
-sealed class _MprisCommand {}
+sealed class _MprisCommand;
 
-final class _PlayCommand extends _MprisCommand {}
+final class _PlayCommand extends _MprisCommand;
 
-final class _PauseCommand extends _MprisCommand {}
+final class _PauseCommand extends _MprisCommand;
 
-final class _PlayPauseCommand extends _MprisCommand {}
+final class _PlayPauseCommand extends _MprisCommand;
 
-final class _StopCommand extends _MprisCommand {}
+final class _StopCommand extends _MprisCommand;
 
-final class _NextCommand extends _MprisCommand {}
+final class _NextCommand extends _MprisCommand;
 
-final class _PreviousCommand extends _MprisCommand {}
+final class _PreviousCommand extends _MprisCommand;
 
 final class _SeekCommand extends _MprisCommand {
-  _SeekCommand({required this.offsetUs});
+  new({required this.offsetUs});
   final int offsetUs;
 }
 
 final class _SetPositionCommand extends _MprisCommand {
-  _SetPositionCommand({required this.trackId, required this.positionUs});
+  new({required this.trackId, required this.positionUs});
   final String trackId;
   final int positionUs;
 }
 
 final class _SetLoopStatusCommand extends _MprisCommand {
-  _SetLoopStatusCommand({required this.loopStatus});
+  new({required this.loopStatus});
   final String loopStatus;
 }
 
 final class _SetShuffleCommand extends _MprisCommand {
-  _SetShuffleCommand({required this.enabled});
+  new({required this.enabled});
   final bool enabled;
 }
 
 final class _SetRateCommand extends _MprisCommand {
-  _SetRateCommand({required this.rate});
+  new({required this.rate});
   final double rate;
 }
 
@@ -323,7 +317,7 @@ final class _SetRateCommand extends _MprisCommand {
 /// `org.mpris.MediaPlayer2.Player` interfaces, including working `Seek`,
 /// `SetPosition`, `LoopStatus`, and `Shuffle` support.
 class _NavisMprisObject extends DBusObject {
-  _NavisMprisObject({required this.onCommand})
+  new({required this.onCommand})
     : super(DBusObjectPath('/org/mpris/MediaPlayer2'));
 
   final Future<void> Function(_MprisCommand) onCommand;
@@ -334,7 +328,7 @@ class _NavisMprisObject extends DBusObject {
   Duration _position = Duration.zero;
   bool _shuffleEnabled = false;
   String _loopStatus = 'None';
-  double _rate = 1.0;
+  double _rate = 1;
   NavisOsControlCapabilities _capabilities = NavisOsControlCapabilities.idle;
 
   /// Current track D-Bus object path; used to validate `SetPosition` calls.
@@ -376,9 +370,7 @@ class _NavisMprisObject extends DBusObject {
       final expectedUs =
           _lastSyncedPosition.inMicroseconds +
           (elapsed.inMicroseconds * _rate).round();
-      final expectedPosition = Duration(
-        microseconds: math.max(0, expectedUs),
-      );
+      final expectedPosition = Duration(microseconds: math.max(0, expectedUs));
       if ((position - expectedPosition).abs() > _seekDetectionThreshold) {
         unawaited(emitSeeked(position));
       }
@@ -481,6 +473,8 @@ class _NavisMprisObject extends DBusObject {
     );
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void updatePosition(Duration position) {
     _position = position;
   }
@@ -498,10 +492,7 @@ class _NavisMprisObject extends DBusObject {
     return [
       DBusIntrospectInterface(
         'org.mpris.MediaPlayer2',
-        methods: [
-          DBusIntrospectMethod('Raise'),
-          DBusIntrospectMethod('Quit'),
-        ],
+        methods: [DBusIntrospectMethod('Raise'), DBusIntrospectMethod('Quit')],
         properties: [
           DBusIntrospectProperty(
             'CanQuit',
@@ -737,10 +728,7 @@ class _NavisMprisObject extends DBusObject {
   }
 
   @override
-  Future<DBusMethodResponse> getProperty(
-    String interface,
-    String name,
-  ) async {
+  Future<DBusMethodResponse> getProperty(String interface, String name) async {
     if (interface == 'org.mpris.MediaPlayer2') {
       return switch (name) {
         'CanQuit' => DBusGetPropertyResponse(const DBusBoolean(false)),
@@ -762,12 +750,12 @@ class _NavisMprisObject extends DBusObject {
         'Rate' => DBusGetPropertyResponse(DBusDouble(_rate)),
         'Shuffle' => DBusGetPropertyResponse(DBusBoolean(_shuffleEnabled)),
         'Metadata' => DBusGetPropertyResponse(_metadata),
-        'Volume' => DBusGetPropertyResponse(const DBusDouble(1.0)),
+        'Volume' => DBusGetPropertyResponse(const DBusDouble(1)),
         'Position' => DBusGetPropertyResponse(
           DBusInt64(_position.inMicroseconds),
         ),
         'MinimumRate' => DBusGetPropertyResponse(const DBusDouble(0.5)),
-        'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2.0)),
+        'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2)),
         'CanGoNext' => DBusGetPropertyResponse(
           DBusBoolean(_capabilities.canSkipNext),
         ),
@@ -805,9 +793,7 @@ class _NavisMprisObject extends DBusObject {
           );
           return DBusMethodSuccessResponse();
         case 'Shuffle':
-          unawaited(
-            onCommand(_SetShuffleCommand(enabled: value.asBoolean())),
-          );
+          unawaited(onCommand(_SetShuffleCommand(enabled: value.asBoolean())));
           return DBusMethodSuccessResponse();
         case 'Rate':
           unawaited(onCommand(_SetRateCommand(rate: value.asDouble())));
@@ -843,10 +829,10 @@ class _NavisMprisObject extends DBusObject {
         'Rate': DBusDouble(_rate),
         'Shuffle': DBusBoolean(_shuffleEnabled),
         'Metadata': _metadata,
-        'Volume': const DBusDouble(1.0),
+        'Volume': const DBusDouble(1),
         'Position': DBusInt64(_position.inMicroseconds),
         'MinimumRate': const DBusDouble(0.5),
-        'MaximumRate': const DBusDouble(2.0),
+        'MaximumRate': const DBusDouble(2),
         'CanGoNext': DBusBoolean(_capabilities.canSkipNext),
         'CanGoPrevious': DBusBoolean(_capabilities.canSkipPrevious),
         'CanPlay': DBusBoolean(_capabilities.canPlay),

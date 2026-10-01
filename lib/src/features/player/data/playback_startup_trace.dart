@@ -3,7 +3,7 @@
 /// Song identity stays private to the handler so diagnostics can correlate
 /// stages without retaining titles, URLs, or server credentials.
 class PlaybackStartupTrace {
-  PlaybackStartupTrace({
+  new({
     required this.attempt,
     required this.songId,
     required this.isExternal,

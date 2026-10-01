@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -33,17 +33,14 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      container.read(retainedArtistQueueProvider.notifier).retain(
-        const [
-          SongsTableData(
-            id: 'ext-unavailable',
-            title: 'Remote track with a long descriptive release title',
-            isExternal: true,
-            isProvisional: true,
-          ),
-        ],
-        append: false,
-      );
+      container.read(retainedArtistQueueProvider.notifier).retain(const [
+        SongsTableData(
+          id: 'ext-unavailable',
+          title: 'Remote track with a long descriptive release title',
+          isExternal: true,
+          isProvisional: true,
+        ),
+      ], append: false);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -70,9 +67,7 @@ void main() {
       expect(find.text('Unavailable · skipped automatically'), findsOneWidget);
       expect(find.text('Your queue is empty'), findsNothing);
       final title = tester.widget<Text>(
-        find.text(
-          'Remote track with a long descriptive release title',
-        ),
+        find.text('Remote track with a long descriptive release title'),
       );
       expect(title.style!.color, Theme.of(tester.element(row)).disabledColor);
       await tester.tap(

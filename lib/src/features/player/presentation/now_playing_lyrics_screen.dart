@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -7,7 +9,7 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class NowPlayingLyricsScreen extends ConsumerWidget {
-  const NowPlayingLyricsScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,33 +31,24 @@ class NowPlayingLyricsScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.lyricsTitle),
-      ),
+      appBar: AppBar(title: Text(l10n.lyricsTitle)),
       body: songId == null
           ? Center(
               child: Text(
                 l10n.lyricsNoneAvailable,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.6),
                 ),
               ),
             )
-          : _LyricsContent(
-              songId: songId,
-              position: position,
-            ),
+          : _LyricsContent(songId: songId, position: position),
     );
   }
 }
 
 class _LyricsContent extends ConsumerWidget {
-  const _LyricsContent({
-    required this.songId,
-    required this.position,
-  });
+  const new({required this.songId, required this.position});
 
   final String songId;
   final Duration position;
@@ -77,7 +70,7 @@ class _LyricsContent extends ConsumerWidget {
             : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
-          handler?.seek(seekPosition);
+          unawaited(handler?.seek(seekPosition));
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -103,9 +96,8 @@ class _LyricsContent extends ConsumerWidget {
               Text(
                 message,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.6),
                 ),
                 textAlign: TextAlign.center,
               ),

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
@@ -31,7 +32,7 @@ Future<void> _pumpSearchScreen(
     UncontrolledProviderScope(
       container: container,
       child: const MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: SearchScreen(),
       ),
@@ -49,9 +50,7 @@ void main() {
   group('SearchScreen focus behavior', () {
     testWidgets(
       'focus request focuses the search bar when player is collapsed',
-      (
-        tester,
-      ) async {
+      (tester) async {
         if (!sqliteAvailable) {
           return;
         }
@@ -114,9 +113,7 @@ void main() {
 
       expect(
         tester
-            .widget<IconButton>(
-              find.widgetWithIcon(IconButton, Icons.close),
-            )
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.close))
             .tooltip,
         'Clear search',
       );

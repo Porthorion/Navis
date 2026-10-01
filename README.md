@@ -7,15 +7,13 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 | Platform | Status | Notes |
 |---|---|---|
 | Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
-| iOS | Supported | Built from macOS/Xcode; playback path active, CarPlay and media-session parity still under audit |
-| macOS | Supported | Native desktop build with adaptive shell and shortcuts; native Control Centre bridge still pending |
+| iOS | Unreleased scaffold | Configured for iOS 16; requires macOS/Xcode build and runtime validation |
+| macOS | Unreleased scaffold | Configured for macOS 12; build/runtime validation and native media controls remain pending |
 | Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
 | Windows | Supported | Native desktop build with adaptive shell, shortcuts, and SMTC integration |
 
-Minimum tested versions:
+Released target baselines:
 - Android 8.0 (API 26)
-- iOS 14+
-- macOS 12+
 - Ubuntu 22.04+ (or equivalent Linux desktop runtime)
 - Windows 10/11
 
@@ -58,24 +56,28 @@ platform and validation limits.
   MPRIS bridge over `dbus`.
 - Windows: system media transport controls use Navis’s owned manual-SMTC
   Rust/WinRT adapter with a stable Navis session identity.
-- macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
+- Apple scaffolds are not shipped or certified. Native macOS `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration remains planned work.
 
 ## Tech Stack
 
 | Layer | Package | Version |
 |---|---|---|
-| UI framework | Flutter | ≥ 3.44.0 |
-| Language | Dart | ^3.12.0 |
-| State management | flutter_riverpod | ^3.3.1 |
-| Navigation | go_router | ^17.1.0 |
-| Local database | drift + drift_flutter | ^2.32.1 |
-| Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
-| Android background work | WorkManager | 2.11.2 |
+| UI framework | Flutter | ≥ 3.47.5 |
+| Language | Dart | ^3.13.0 |
+| State management | flutter_riverpod | ^3.4.3 |
+| Navigation | go_router | ^18.0.1 |
+| Local database | drift + drift_flutter | ^2.35.0 / ^0.3.1 |
+| Audio playback | just_audio + audio_service | ^0.10.6 / ^0.18.19 |
+| Android background work | WorkManager | 2.12.0 |
 | Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
-| Linux desktop media | dbus | ^0.7.10 |
+| Linux desktop media | dbus | ^0.7.15 |
 | Windows desktop media | Navis-owned `navis_windows_smtc` | local Rust/WinRT adapter |
 
 ## Dependency Maintenance
+
+The [September dependency upgrade plan](Dependency_Upgrade_Plan.md) tracks
+the current upgrade work, compatible versions, major migrations, and runtime
+validation gates. The build baseline is Flutter 3.47.5 with Dart 3.13.
 
 A dependency sweep was completed on July 26, 2026. Direct resolvable updates
 were applied, direct imports were declared explicitly, and the unused

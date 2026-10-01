@@ -5,11 +5,8 @@ import 'package:path_provider/path_provider.dart';
 
 /// Persists the timestamp of the last successful Forgejo update check.
 class UpdateCheckStore {
-  UpdateCheckStore({
-    Duration throttle = const Duration(hours: 24),
-    DateTime Function()? now,
-  }) : _throttle = throttle,
-       _now = now ?? DateTime.now;
+  new({this._throttle = const Duration(hours: 24), DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   static const _fileName = 'update_check_state.json';
 

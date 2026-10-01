@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,7 +20,7 @@ import 'package:path/path.dart' as p;
 
 @immutable
 class ResolvedPlaybackMetadata {
-  const ResolvedPlaybackMetadata({
+  const new({
     this.format,
     this.bitRate,
     this.sampleRate,
@@ -32,7 +35,7 @@ class ResolvedPlaybackMetadata {
 
 @immutable
 class ResolvedPlaybackSource {
-  const ResolvedPlaybackSource.file({
+  const new file({
     required this.songId,
     required this.uri,
     required this.metadata,
@@ -42,7 +45,7 @@ class ResolvedPlaybackSource {
        lockCachingAudioSource = null,
        sidecarCacheFilePath = null;
 
-  const ResolvedPlaybackSource.lockCachedStream({
+  const new lockCachedStream({
     required this.songId,
     required this.lockCachingStreamUri,
     required this.lockCachingAudioSource,
@@ -52,7 +55,7 @@ class ResolvedPlaybackSource {
        uri = null,
        sidecarCacheFilePath = null;
 
-  const ResolvedPlaybackSource.directStream({
+  const new directStream({
     required this.songId,
     required this.uri,
     required this.metadata,
@@ -100,14 +103,10 @@ class ResolvedPlaybackSource {
   }
 }
 
-enum PlaybackSourceKind {
-  file,
-  directStream,
-  lockCachedStream,
-}
+enum PlaybackSourceKind { file, directStream, lockCachedStream }
 
 class PlaybackSourceUnavailableException implements Exception {
-  const PlaybackSourceUnavailableException(this.message);
+  const new(this.message);
 
   final String message;
 
@@ -119,29 +118,23 @@ class PlaybackSourceUnavailableException implements Exception {
 /// without a cached copy, or no server session exists yet.
 class PlaybackSourceTemporarilyUnavailableException
     extends PlaybackSourceUnavailableException {
-  const PlaybackSourceTemporarilyUnavailableException(super.message);
+  const new(super.message);
 }
 
 class PlaybackSourceResolver {
-  const PlaybackSourceResolver({
-    required CacheDao cacheDao,
-    LibraryDao? libraryDao,
-    required RollingCacheManager rollingCacheManager,
-    required SubsonicApiClient? Function() readApiClient,
-    required StreamingQuality Function() readStreamingQuality,
-    required Future<Directory> Function() readRollingCacheDirectory,
+  const new({
+    required this._cacheDao,
+    this._libraryDao,
+    required this._rollingCacheManager,
+    required this._readApiClient,
+    required this._readStreamingQuality,
+    required this._readRollingCacheDirectory,
     bool Function()? readCachedPlaybackFirst,
     bool Function()? readPreferAnyCache,
     bool Function()? readCanStream,
     bool Function()? readSupportsLockCaching,
     bool Function()? readUsesSidecarRollingCache,
-  }) : _cacheDao = cacheDao,
-       _libraryDao = libraryDao,
-       _rollingCacheManager = rollingCacheManager,
-       _readApiClient = readApiClient,
-       _readStreamingQuality = readStreamingQuality,
-       _readRollingCacheDirectory = readRollingCacheDirectory,
-       _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
+  }) : _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
        _readSupportsLockCaching =
@@ -268,11 +261,7 @@ class PlaybackSourceResolver {
       );
     }
 
-    final streamUri = _buildStreamUri(
-      api: api,
-      song: song,
-      quality: quality,
-    );
+    final streamUri = _buildStreamUri(api: api, song: song, quality: quality);
     final canUseLockCaching = preferLockCaching && _readSupportsLockCaching();
     if (!canUseLockCaching) {
       final reason = !preferLockCaching
@@ -363,6 +352,8 @@ class PlaybackSourceResolver {
   Future<bool> _cachedLocatorExists(CachedTracksTableData track) =>
       _isSafLocator(track)
       ? _safStorage.exists(track.filePath)
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       : File(track.filePath).exists();
 
   Uri _cachedLocatorUri(CachedTracksTableData track) => _isSafLocator(track)
@@ -630,7 +621,7 @@ class PlaybackSourceResolver {
 
 @immutable
 class PlaybackCachePolicy {
-  const PlaybackCachePolicy({
+  const new({
     required this.cachedPlaybackFirst,
     required this.preferAnyCache,
     required this.canStream,

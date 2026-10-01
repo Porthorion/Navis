@@ -9,7 +9,7 @@ part 'playlist_dao.g.dart';
 @DriftAccessor(tables: [PlaylistsTable, PlaylistSongsTable, SongsTable])
 class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     with _$PlaylistDaoMixin {
-  PlaylistDao(super.db);
+  new(super.attachedDatabase);
 
   Stream<List<PlaylistsTableData>> watchPlaylists() {
     final query = select(playlistsTable)
@@ -43,9 +43,7 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
             ),
           ])
           ..where(playlistSongsTable.playlistId.equals(playlistId))
-          ..orderBy([
-            OrderingTerm.asc(playlistSongsTable.sortOrder),
-          ]);
+          ..orderBy([OrderingTerm.asc(playlistSongsTable.sortOrder)]);
 
     return query.watch().map(
       (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
@@ -58,10 +56,7 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
         batch.insert(
           playlistsTable,
           playlist,
-          onConflict: DoUpdate(
-            (old) => playlist,
-            target: [playlistsTable.id],
-          ),
+          onConflict: DoUpdate((old) => playlist, target: [playlistsTable.id]),
         );
       }
     });

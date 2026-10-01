@@ -10,9 +10,9 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-class _Repository extends Mock implements SettingsRepository {}
+class _Repository extends Mock implements SettingsRepository;
 
-class _Handler extends Mock implements NavisPlaybackHandler {}
+class _Handler extends Mock implements NavisPlaybackHandler;
 
 void main() {
   setUpAll(() => registerFallbackValue(const PlaybackAdjustments()));

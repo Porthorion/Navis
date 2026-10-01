@@ -24,7 +24,7 @@ import 'package:rxdart/rxdart.dart';
 /// its songs change, and system queue indices are mapped back to the full
 /// queue. Everything else is forwarded unchanged.
 class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
-  RealTimeProjectionAudioHandler(this.inner) : super(inner) {
+  new(this.inner) : super(inner) {
     _subscriptions
       ..add(
         inner.playbackState.listen((state) {

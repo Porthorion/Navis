@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file/file.dart' as files;
+import 'package:file/local.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:drift/drift.dart' show Value;
@@ -12,9 +15,96 @@ import 'package:navis/src/database/navis_database.dart';
 
 import '../../helpers/test_database.dart';
 
-class _MockCacheManager extends Mock implements CacheManager {}
+class _MockCacheManager extends Mock implements CacheManager;
+
+class _TestCacheFileSystem implements FileSystem {
+  new(this.directory);
+
+  final Directory directory;
+  final files.FileSystem _fileSystem = const LocalFileSystem();
+
+  @override
+  Future<files.File> createFile(String name) async =>
+      _fileSystem.file(_fileSystem.path.join(directory.path, name));
+}
+
+class _FailingCacheRepository extends JsonCacheInfoRepository {
+  new({required super.path});
+
+  @override
+  Future<CacheObject> insert(
+    CacheObject cacheObject, {
+    bool setTouchedToNow = true,
+  }) async => throw StateError('Metadata write failed');
+}
 
 void main() {
+  group('cover-art cache persistence', () {
+    late Directory directory;
+    late String metadataPath;
+    late _TestCacheFileSystem fileSystem;
+
+    setUp(() async {
+      directory = await Directory.systemTemp.createTemp(
+        'navis-art-persistence-',
+      );
+      metadataPath = directory.uri.resolve('metadata.json').toFilePath();
+      fileSystem = _TestCacheFileSystem(directory);
+    });
+    tearDown(() => directory.delete(recursive: true));
+
+    CacheManager createManager(CacheInfoRepository repository) => CacheManager(
+      Config('art-persistence-test', repo: repository, fileSystem: fileSystem),
+    );
+
+    test(
+      'metadata survives immediate close and reopen after putFile',
+      () async {
+        final manager = createManager(
+          JsonCacheInfoRepository(path: metadataPath),
+        );
+        await manager.putFile(
+          'https://example.com/cover',
+          Uint8List.fromList(<int>[1, 2, 3]),
+          key: 'cover-1:600',
+        );
+        await manager.dispose();
+
+        final reopened = createManager(
+          JsonCacheInfoRepository(path: metadataPath),
+        );
+        addTearDown(reopened.dispose);
+        final cached = await reopened.getFileFromCache('cover-1:600');
+        expect(cached, isNotNull);
+        expect(await cached!.file.readAsBytes(), <int>[1, 2, 3]);
+      },
+    );
+
+    for (final streamed in <bool>[false, true]) {
+      test(
+        '${streamed ? 'putFileStream' : 'putFile'} exposes metadata write failure',
+        () async {
+          final manager = createManager(
+            _FailingCacheRepository(path: metadataPath),
+          );
+          addTearDown(manager.dispose);
+          final operation = streamed
+              ? manager.putFileStream(
+                  'https://example.com/cover',
+                  Stream<List<int>>.value(<int>[1, 2, 3]),
+                  key: 'cover-1:600',
+                )
+              : manager.putFile(
+                  'https://example.com/cover',
+                  Uint8List.fromList(<int>[1, 2, 3]),
+                  key: 'cover-1:600',
+                );
+          await expectLater(operation, throwsStateError);
+        },
+      );
+    }
+  });
+
   group('coverArtImageCacheKey', () {
     test('uses stable cover-art ID and size instead of URL salt', () {
       expect(coverArtImageCacheKey(' cover-1 ', 600), 'cover-1:600');
@@ -57,10 +147,7 @@ void main() {
 
       interest.dispose();
 
-      await expectLater(
-        queued,
-        throwsA(isA<CoverArtLoadCanceledException>()),
-      );
+      await expectLater(queued, throwsA(isA<CoverArtLoadCanceledException>()));
       expect(coordinator.queuedCount, 0);
 
       blocker.release();
@@ -171,10 +258,7 @@ void main() {
 
       final url = _coverArtUrl(server, id: 'cover-1');
 
-      await expectLater(
-        service.get(url),
-        throwsA(isA<TimeoutException>()),
-      );
+      await expectLater(service.get(url), throwsA(isA<TimeoutException>()));
 
       final response = await service.get(_coverArtUrl(server, id: 'cover-ok'));
 
@@ -521,10 +605,7 @@ void main() {
         expect(second, isFalse);
         expect(removals, 1);
         verify(() => manager.removeFile('al-1:r2:600')).called(1);
-        expect(
-          coverArtImageCacheKey('al-1', 600, revision: 2),
-          'al-1:r2:600',
-        );
+        expect(coverArtImageCacheKey('al-1', 600, revision: 2), 'al-1:r2:600');
       },
       skip: !sqliteAvailable,
     );
@@ -554,55 +635,46 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'failure taxonomy classifies the five plan categories',
-      () {
-        expect(
-          classifyCoverArtFailure(
-            const CoverArtFetchException(
-              CoverArtFailureCategory.missingCoverReference,
-              statusCode: 404,
-            ),
+    test('failure taxonomy classifies the five plan categories', () {
+      expect(
+        classifyCoverArtFailure(
+          const CoverArtFetchException(
+            CoverArtFailureCategory.missingCoverReference,
+            statusCode: 404,
           ),
-          CoverArtFailureCategory.missingCoverReference,
-        );
-        expect(
-          classifyCoverArtFailure(
-            const CoverArtFetchException(
-              CoverArtFailureCategory.authRejection,
-              statusCode: 403,
-            ),
+        ),
+        CoverArtFailureCategory.missingCoverReference,
+      );
+      expect(
+        classifyCoverArtFailure(
+          const CoverArtFetchException(
+            CoverArtFailureCategory.authRejection,
+            statusCode: 403,
           ),
-          CoverArtFailureCategory.authRejection,
-        );
-        expect(
-          classifyCoverArtFailure(
-            TimeoutException('timed out'),
-          ),
-          CoverArtFailureCategory.networkTimeout,
-        );
-        expect(
-          classifyCoverArtFailure(
-            const CoverArtInvalidResponseException('text/html'),
-          ),
-          CoverArtFailureCategory.invalidPayload,
-        );
-        expect(
-          classifyCoverArtFailure(
-            const FormatException('cannot decode'),
-          ),
-          CoverArtFailureCategory.transport,
-        );
-        expect(
-          classifyCoverArtFailure(
-            const CoverArtFetchException(
-              CoverArtFailureCategory.decodeFailure,
-            ),
-          ),
-          CoverArtFailureCategory.decodeFailure,
-        );
-      },
-    );
+        ),
+        CoverArtFailureCategory.authRejection,
+      );
+      expect(
+        classifyCoverArtFailure(TimeoutException('timed out')),
+        CoverArtFailureCategory.networkTimeout,
+      );
+      expect(
+        classifyCoverArtFailure(
+          const CoverArtInvalidResponseException('text/html'),
+        ),
+        CoverArtFailureCategory.invalidPayload,
+      );
+      expect(
+        classifyCoverArtFailure(const FormatException('cannot decode')),
+        CoverArtFailureCategory.transport,
+      );
+      expect(
+        classifyCoverArtFailure(
+          const CoverArtFetchException(CoverArtFailureCategory.decodeFailure),
+        ),
+        CoverArtFailureCategory.decodeFailure,
+      );
+    });
   });
 
   group('HTTP 200 non-image payloads (Navidrome missing artwork)', () {
@@ -646,29 +718,26 @@ void main() {
           .codeUnits,
     ];
 
-    test(
-      'a Subsonic error document under HTTP 200 triggers missing-cover recovery',
-      () async {
-        serve(
-          id: 'cover-doc',
-          contentType: ContentType('application', 'json'),
-          body: errorDocumentBody,
-        );
+    test('a Subsonic error document under HTTP 200 triggers missing-cover recovery', () async {
+      serve(
+        id: 'cover-doc',
+        contentType: ContentType('application', 'json'),
+        body: errorDocumentBody,
+      );
 
-        await expectLater(
-          service.get(_coverArtUrl(server, id: 'cover-doc')),
-          throwsA(
-            isA<CoverArtFetchException>().having(
-              (error) => error.category,
-              'category',
-              CoverArtFailureCategory.missingCoverReference,
-            ),
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-doc')),
+        throwsA(
+          isA<CoverArtFetchException>().having(
+            (error) => error.category,
+            'category',
+            CoverArtFailureCategory.missingCoverReference,
           ),
-        );
-        expect(recoveredIds, ['cover-doc']);
-        expect(coordinator.activeCount, 0);
-      },
-    );
+        ),
+      );
+      expect(recoveredIds, ['cover-doc']);
+      expect(coordinator.activeCount, 0);
+    });
 
     test(
       'a non-image success body without an error envelope stays invalidPayload',
@@ -714,25 +783,22 @@ void main() {
       },
     );
 
-    test(
-      'a spoofed image content type with garbage bytes rejects without recovery',
-      () async {
-        serve(
-          id: 'cover-spoofed-garbage',
-          contentType: ContentType('image', 'jpeg'),
-          body: 'this is definitely not artwork'.codeUnits,
-        );
+    test('a spoofed image content type with garbage bytes rejects without recovery', () async {
+      serve(
+        id: 'cover-spoofed-garbage',
+        contentType: ContentType('image', 'jpeg'),
+        body: 'this is definitely not artwork'.codeUnits,
+      );
 
-        final response = await service
-            .get(_coverArtUrl(server, id: 'cover-spoofed-garbage'))
-            .timeout(const Duration(seconds: 1));
-        await expectLater(
-          response.content.expand((chunk) => chunk).toList(),
-          throwsA(isA<CoverArtInvalidResponseException>()),
-        );
-        expect(recoveredIds, isEmpty);
-      },
-    );
+      final response = await service
+          .get(_coverArtUrl(server, id: 'cover-spoofed-garbage'))
+          .timeout(const Duration(seconds: 1));
+      await expectLater(
+        response.content.expand((chunk) => chunk).toList(),
+        throwsA(isA<CoverArtInvalidResponseException>()),
+      );
+      expect(recoveredIds, isEmpty);
+    });
 
     test('an empty success body rejects as an invalid payload', () async {
       serve(
@@ -811,7 +877,7 @@ void main() {
         // Row-level distinctness survives: no identity merge occurred.
         final rows = await database
             .customSelect(
-              "SELECT id FROM albums WHERE name = "
+              'SELECT id FROM albums WHERE name = '
               "'NieR:Automata Original Soundtrack';",
             )
             .get();
@@ -830,10 +896,6 @@ String _coverArtUrl(HttpServer server, {required String id}) {
     host: InternetAddress.loopbackIPv4.address,
     port: server.port,
     path: '/rest/getCoverArt.view',
-    queryParameters: <String, String>{
-      'id': id,
-      'size': '600',
-      't': 'redacted',
-    },
+    queryParameters: <String, String>{'id': id, 'size': '600', 't': 'redacted'},
   ).toString();
 }
