@@ -1,0 +1,144 @@
+{
+  "packages": [
+    {
+      "package": "cli_util",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.4.2"
+      },
+      "upgradable": {
+        "version": "0.4.2"
+      },
+      "resolvable": {
+        "version": "0.4.2"
+      },
+      "latest": {
+        "version": "0.6.0"
+      }
+    },
+    {
+      "package": "cross_file",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.3.5+5"
+      },
+      "upgradable": {
+        "version": "0.3.5+5"
+      },
+      "resolvable": {
+        "version": "0.3.5+5"
+      },
+      "latest": {
+        "version": "0.4.0"
+      }
+    },
+    {
+      "package": "dbus",
+      "kind": "direct",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.7.15"
+      },
+      "upgradable": {
+        "version": "0.7.15"
+      },
+      "resolvable": {
+        "version": "0.7.15"
+      },
+      "latest": {
+        "version": "0.8.0"
+      }
+    },
+    {
+      "package": "file_picker_linux",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "2.0.0"
+      },
+      "upgradable": {
+        "version": "2.0.0"
+      },
+      "resolvable": {
+        "version": "2.0.0"
+      },
+      "latest": {
+        "version": "2.0.1"
+      }
+    },
+    {
+      "package": "material_color_utilities",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.13.0"
+      },
+      "upgradable": {
+        "version": "0.13.0"
+      },
+      "resolvable": {
+        "version": "0.13.0"
+      },
+      "latest": {
+        "version": "0.13.1"
+      }
+    },
+    {
+      "package": "nm",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.5.0"
+      },
+      "upgradable": {
+        "version": "0.5.0"
+      },
+      "resolvable": {
+        "version": "0.5.0"
+      },
+      "latest": {
+        "version": "0.6.0"
+      }
+    },
+    {
+      "package": "test_api",
+      "kind": "transitive",
+      "isDiscontinued": false,
+      "replacedBy": null,
+      "isCurrentRetracted": false,
+      "isCurrentAffectedByAdvisory": false,
+      "current": {
+        "version": "0.7.12"
+      },
+      "upgradable": {
+        "version": "0.7.12"
+      },
+      "resolvable": {
+        "version": "0.7.12"
+      },
+      "latest": {
+        "version": "0.7.14"
+      }
+    }
+  ]
+}

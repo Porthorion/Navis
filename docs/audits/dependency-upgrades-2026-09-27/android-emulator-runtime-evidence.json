@@ -1,0 +1,107 @@
+{
+  "date": "2026-09-27",
+  "package": "com.navis.app.navis.dev.upgrade",
+  "label": "Navis Dev",
+  "emulator": "Navis_Dependency_Upgrade",
+  "apiLevel": 37,
+  "pageSizeBytes": 16384,
+  "abi": "x86_64",
+  "baseline": {
+    "commit": "646275b8",
+    "flutterSecureStorage": "11.0.0",
+    "sqlite3": "3.5.2",
+    "apkSha256": "9cba5e95900130a25054155334b1c9e1a85642360c5c9b81013af7d39e17d6ad"
+  },
+  "upgraded": {
+    "flutterSecureStorage": "11.2.0",
+    "sqlite3": "3.6.0",
+    "apkSha256": "b3855721788d519cc91aba1236f947ddf1c0ee2a37124e366f3b6d6b3a2ace1c"
+  },
+  "credentials": {
+    "savedBeforeUpgrade": true,
+    "noSigninAfterUpgrade": true,
+    "realAndroidSecureStorage": true,
+    "saltedTokenValidation": {
+      "authenticatedRequests": {
+        "accepted": 5,
+        "rejected": 0
+      },
+      "catalog": {
+        "artists": 1,
+        "albums": 1,
+        "songs": 1
+      },
+      "status": "succeeded"
+    }
+  },
+  "database": {
+    "schema": 80,
+    "integrity": "ok",
+    "foreignKeyViolations": 0
+  },
+  "coldMediaBrowserServiceBeforeMainActivity": "passed; external Android instrumentation; upgraded debug build on Pixel_9_Pro_XL",
+  "playback": {
+    "streamReady": true,
+    "nativeMediaSessionPlayPause": true,
+    "seekPermanentFile": true,
+    "cleanRestartQueueRestore": "restored",
+    "muted": true
+  },
+  "notifications": {
+    "playbackForegroundTransport": true,
+    "downloadCompletion": true
+  },
+  "saf": {
+    "nativeFixtureDocumentsProvider": true,
+    "downloadPermanentEntries": 1,
+    "deniedReadImportBlocked": true,
+    "deniedReadPermanentEntries": 0,
+    "restoredImportCount": 1,
+    "interactiveSystemPicker": "not exercised"
+  },
+  "background": {
+    "meteredCatchupBlockedByConnectivity": true,
+    "oldPid": 5263,
+    "newPid": 5472,
+    "processKilledWithoutForceStop": true,
+    "workerAfterUnmetered": {
+      "enabled": true,
+      "requestedIntervalMinutes": 60,
+      "scheduleReconciledAt": "2026-09-27T14:58:10.000Z",
+      "state": "scheduled",
+      "attemptCount": 0,
+      "workerStartedAt": "2026-09-27T14:57:54.000Z",
+      "workerCompletedAt": "2026-09-27T14:57:55.000Z",
+      "workerDurationMs": 870,
+      "result": "succeeded",
+      "stopReason": "none"
+    },
+    "durableCompletedCatalogRequestId": 8,
+    "catalogRequests": 3,
+    "catalogSongs": 1,
+    "originalNetworkPolicyRestored": "undefined"
+  },
+  "screenshotsInspected": [
+    {
+      "path": "build/android-upgrade-diagnostics/final-home.png",
+      "sha256": "614603b1eb0f30d95f4ccd0d5e0794dab350522a92b3d4821c64266740a5b07b"
+    },
+    {
+      "path": "build/android-upgrade-diagnostics/restarted-library.png",
+      "sha256": "d1807e8ff0d998a41bc14ce1704180d022fd7d27681f0a8e3c2c9364018a0458"
+    }
+  ],
+  "limitations": [
+    "x86_64 emulator does not certify physical arm64 hardware",
+    "interactive system picker and head-unit projection were not exercised",
+    "first SwiftShader renderer crashed in emulator host; continued with ANGLE software renderer and preserved app data",
+    "permission and battery setup used Android service APIs on fresh test sidecar"
+  ],
+  "cleanup": {
+    "appShutdown": true,
+    "fixtureStopped": true,
+    "emulatorStopped": true,
+    "existingAppsAndPrimaryDataPreserved": true
+  },
+  "followUpColdSafPlaybackEvidence": "android-headunit-emulator-evidence.json"
+}

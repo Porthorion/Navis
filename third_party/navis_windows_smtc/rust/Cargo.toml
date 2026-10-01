@@ -2,14 +2,15 @@
 name = "smtc_windows"
 version = "0.1.3"
 edition = "2021"
+license-file = "../LICENSE"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
-anyhow = '1'
+anyhow = '1.0.103'
 
 [dependencies.windows]
-version = '0.58.*'
+version = '0.62.2'
 features = ['Media', 'Media_Playback', 'Foundation', 'Storage_Streams']

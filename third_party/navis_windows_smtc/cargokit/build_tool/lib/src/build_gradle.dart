@@ -1,5 +1,5 @@
-/// This is copied from Cargokit (which is the official way to use it currently)
-/// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
+// This is copied from Cargokit (which is the official way to use it currently)
+// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
 
 import 'dart:io';
 
@@ -24,14 +24,17 @@ class BuildGradle {
       final target = Target.forFlutterName(arch);
       if (target == null) {
         throw Exception(
-            "Unknown darwin target or platform: $arch, ${Environment.darwinPlatformName}");
+          "Unknown darwin target or platform: $arch, ${Environment.darwinPlatformName}",
+        );
       }
       return target;
     }).toList();
 
     final environment = BuildEnvironment.fromEnvironment(isAndroid: true);
-    final provider =
-        ArtifactProvider(environment: environment, userOptions: userOptions);
+    final provider = ArtifactProvider(
+      environment: environment,
+      userOptions: userOptions,
+    );
     final artifacts = await provider.getArtifacts(targets);
 
     for (final target in targets) {

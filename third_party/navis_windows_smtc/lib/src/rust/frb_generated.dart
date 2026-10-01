@@ -4,8 +4,10 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/api.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
@@ -13,6 +15,7 @@ import 'internal/config.dart';
 import 'internal/metadata.dart';
 import 'internal/playback_status.dart';
 import 'internal/timeline.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Main entrypoint of the Rust API
@@ -39,12 +42,8 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({
-    required RustLibApi api,
-  }) {
-    instance.initMockImpl(
-      api: api,
-    );
+  static void initMock({required RustLibApi api}) {
+    instance.initMockImpl(api: api);
   }
 
   /// Dispose flutter_rust_bridge
@@ -78,18 +77,19 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
-    stem: 'smtc_windows',
-    ioDirectory: 'rust/target/release/',
-    webPrefix: 'pkg/',
-    wasmBindgenName: 'wasm_bindgen',
-  );
+        stem: 'smtc_windows',
+        ioDirectory: 'rust/target/release/',
+        webPrefix: 'pkg/',
+        wasmBindgenName: 'wasm_bindgen',
+      );
 }
 
 abstract class RustLibApi extends BaseApi {
   Future<void> crateApiApiInitApp();
 
-  Stream<String> crateApiApiSmtcButtonPressEvent(
-      {required SmtcInternal internal});
+  Stream<String> crateApiApiSmtcButtonPressEvent({
+    required SmtcInternal internal,
+  });
 
   Future<void> crateApiApiSmtcClearMetadata({required SmtcInternal internal});
 
@@ -99,38 +99,53 @@ abstract class RustLibApi extends BaseApi {
 
   SmtcInternal crateApiApiSmtcNew({bool? enabled});
 
-  Stream<PlatformInt64> crateApiApiSmtcPositionChangeRequestEvent(
-      {required SmtcInternal internal});
+  Stream<PlatformInt64> crateApiApiSmtcPositionChangeRequestEvent({
+    required SmtcInternal internal,
+  });
 
-  Stream<String> crateApiApiSmtcRepeatModeRequestEvent(
-      {required SmtcInternal internal});
+  Stream<String> crateApiApiSmtcRepeatModeRequestEvent({
+    required SmtcInternal internal,
+  });
 
-  Stream<bool> crateApiApiSmtcShuffleRequestEvent(
-      {required SmtcInternal internal});
+  Stream<bool> crateApiApiSmtcShuffleRequestEvent({
+    required SmtcInternal internal,
+  });
 
-  Future<void> crateApiApiSmtcUpdateConfig(
-      {required SmtcInternal internal, required SMTCConfig config});
+  Future<void> crateApiApiSmtcUpdateConfig({
+    required SmtcInternal internal,
+    required SMTCConfig config,
+  });
 
-  Future<void> crateApiApiSmtcUpdateMetadata(
-      {required SmtcInternal internal, required MusicMetadata metadata});
+  Future<void> crateApiApiSmtcUpdateMetadata({
+    required SmtcInternal internal,
+    required MusicMetadata metadata,
+  });
 
-  Future<void> crateApiApiSmtcUpdatePlaybackStatus(
-      {required SmtcInternal internal, required PlaybackStatus status});
+  Future<void> crateApiApiSmtcUpdatePlaybackStatus({
+    required SmtcInternal internal,
+    required PlaybackStatus status,
+  });
 
-  Future<void> crateApiApiSmtcUpdateRepeatMode(
-      {required SmtcInternal internal, required String repeatMode});
+  Future<void> crateApiApiSmtcUpdateRepeatMode({
+    required SmtcInternal internal,
+    required String repeatMode,
+  });
 
-  Future<void> crateApiApiSmtcUpdateShuffle(
-      {required SmtcInternal internal, required bool shuffle});
+  Future<void> crateApiApiSmtcUpdateShuffle({
+    required SmtcInternal internal,
+    required bool shuffle,
+  });
 
-  Future<void> crateApiApiSmtcUpdateTimeline(
-      {required SmtcInternal internal, required PlaybackTimeline timeline});
+  Future<void> crateApiApiSmtcUpdateTimeline({
+    required SmtcInternal internal,
+    required PlaybackTimeline timeline,
+  });
 
   RustArcIncrementStrongCountFnType
-      get rust_arc_increment_strong_count_SmtcInternal;
+  get rust_arc_increment_strong_count_SmtcInternal;
 
   RustArcDecrementStrongCountFnType
-      get rust_arc_decrement_strong_count_SmtcInternal;
+  get rust_arc_decrement_strong_count_SmtcInternal;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_SmtcInternalPtr;
 }
@@ -145,47 +160,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void> crateApiApiInitApp() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 1, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: null,
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiApiInitAppConstMeta,
+        argValues: [],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiInitAppConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
+    );
   }
 
-  TaskConstMeta get kCrateApiApiInitAppConstMeta => const TaskConstMeta(
-        debugName: "init_app",
-        argNames: [],
-      );
+  TaskConstMeta get kCrateApiApiInitAppConstMeta =>
+      const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  Stream<String> crateApiApiSmtcButtonPressEvent(
-      {required SmtcInternal internal}) {
+  Stream<String> crateApiApiSmtcButtonPressEvent({
+    required SmtcInternal internal,
+  }) {
     final sink = RustStreamSink<String>();
-    unawaited(handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_StreamSink_String_Sse(sink, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 2, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 2,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiApiSmtcButtonPressEventConstMeta,
+          argValues: [internal, sink],
+          apiImpl: this,
+        ),
       ),
-      constMeta: kCrateApiApiSmtcButtonPressEventConstMeta,
-      argValues: [internal, sink],
-      apiImpl: this,
-    )));
+    );
     return sink.stream;
   }
 
@@ -197,21 +225,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void> crateApiApiSmtcClearMetadata({required SmtcInternal internal}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 3, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcClearMetadataConstMeta,
+        argValues: [internal],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcClearMetadataConstMeta,
-      argValues: [internal],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcClearMetadataConstMeta =>
@@ -222,95 +256,116 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void> crateApiApiSmtcDisableSmtc({required SmtcInternal internal}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 4, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcDisableSmtcConstMeta,
+        argValues: [internal],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcDisableSmtcConstMeta,
-      argValues: [internal],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcDisableSmtcConstMeta => const TaskConstMeta(
-        debugName: "smtc_disable_smtc",
-        argNames: ["internal"],
-      );
+    debugName: "smtc_disable_smtc",
+    argNames: ["internal"],
+  );
 
   @override
   Future<void> crateApiApiSmtcEnableSmtc({required SmtcInternal internal}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 5, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcEnableSmtcConstMeta,
+        argValues: [internal],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcEnableSmtcConstMeta,
-      argValues: [internal],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcEnableSmtcConstMeta => const TaskConstMeta(
-        debugName: "smtc_enable_smtc",
-        argNames: ["internal"],
-      );
+    debugName: "smtc_enable_smtc",
+    argNames: ["internal"],
+  );
 
   @override
   SmtcInternal crateApiApiSmtcNew({bool? enabled}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_opt_box_autoadd_bool(enabled, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_RustOpaque_SMTCInternal,
-        decodeErrorData: sse_decode_AnyhowException,
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_box_autoadd_bool(enabled, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_RustOpaque_SMTCInternal,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcNewConstMeta,
+        argValues: [enabled],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcNewConstMeta,
-      argValues: [enabled],
-      apiImpl: this,
-    ));
+    );
   }
 
-  TaskConstMeta get kCrateApiApiSmtcNewConstMeta => const TaskConstMeta(
-        debugName: "smtc_new",
-        argNames: ["enabled"],
-      );
+  TaskConstMeta get kCrateApiApiSmtcNewConstMeta =>
+      const TaskConstMeta(debugName: "smtc_new", argNames: ["enabled"]);
 
   @override
-  Stream<PlatformInt64> crateApiApiSmtcPositionChangeRequestEvent(
-      {required SmtcInternal internal}) {
+  Stream<PlatformInt64> crateApiApiSmtcPositionChangeRequestEvent({
+    required SmtcInternal internal,
+  }) {
     final sink = RustStreamSink<PlatformInt64>();
-    unawaited(handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_StreamSink_i_64_Sse(sink, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 7, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+            sse_encode_StreamSink_i_64_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 7,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiApiSmtcPositionChangeRequestEventConstMeta,
+          argValues: [internal, sink],
+          apiImpl: this,
+        ),
       ),
-      constMeta: kCrateApiApiSmtcPositionChangeRequestEventConstMeta,
-      argValues: [internal, sink],
-      apiImpl: this,
-    )));
+    );
     return sink.stream;
   }
 
@@ -321,25 +376,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<String> crateApiApiSmtcRepeatModeRequestEvent(
-      {required SmtcInternal internal}) {
+  Stream<String> crateApiApiSmtcRepeatModeRequestEvent({
+    required SmtcInternal internal,
+  }) {
     final sink = RustStreamSink<String>();
-    unawaited(handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_StreamSink_String_Sse(sink, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 8, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+            sse_encode_StreamSink_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 8,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiApiSmtcRepeatModeRequestEventConstMeta,
+          argValues: [internal, sink],
+          apiImpl: this,
+        ),
       ),
-      constMeta: kCrateApiApiSmtcRepeatModeRequestEventConstMeta,
-      argValues: [internal, sink],
-      apiImpl: this,
-    )));
+    );
     return sink.stream;
   }
 
@@ -350,25 +414,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<bool> crateApiApiSmtcShuffleRequestEvent(
-      {required SmtcInternal internal}) {
+  Stream<bool> crateApiApiSmtcShuffleRequestEvent({
+    required SmtcInternal internal,
+  }) {
     final sink = RustStreamSink<bool>();
-    unawaited(handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_StreamSink_bool_Sse(sink, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 9, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+            sse_encode_StreamSink_bool_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 9,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiApiSmtcShuffleRequestEventConstMeta,
+          argValues: [internal, sink],
+          apiImpl: this,
+        ),
       ),
-      constMeta: kCrateApiApiSmtcShuffleRequestEventConstMeta,
-      argValues: [internal, sink],
-      apiImpl: this,
-    )));
+    );
     return sink.stream;
   }
 
@@ -379,24 +452,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdateConfig(
-      {required SmtcInternal internal, required SMTCConfig config}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_box_autoadd_smtc_config(config, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 10, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdateConfig({
+    required SmtcInternal internal,
+    required SMTCConfig config,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_box_autoadd_smtc_config(config, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdateConfigConstMeta,
+        argValues: [internal, config],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdateConfigConstMeta,
-      argValues: [internal, config],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdateConfigConstMeta =>
@@ -406,24 +487,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdateMetadata(
-      {required SmtcInternal internal, required MusicMetadata metadata}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_box_autoadd_music_metadata(metadata, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 11, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdateMetadata({
+    required SmtcInternal internal,
+    required MusicMetadata metadata,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_box_autoadd_music_metadata(metadata, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdateMetadataConstMeta,
+        argValues: [internal, metadata],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdateMetadataConstMeta,
-      argValues: [internal, metadata],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdateMetadataConstMeta =>
@@ -433,24 +522,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdatePlaybackStatus(
-      {required SmtcInternal internal, required PlaybackStatus status}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_playback_status(status, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 12, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdatePlaybackStatus({
+    required SmtcInternal internal,
+    required PlaybackStatus status,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_playback_status(status, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdatePlaybackStatusConstMeta,
+        argValues: [internal, status],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdatePlaybackStatusConstMeta,
-      argValues: [internal, status],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdatePlaybackStatusConstMeta =>
@@ -460,24 +557,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdateRepeatMode(
-      {required SmtcInternal internal, required String repeatMode}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_String(repeatMode, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 13, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdateRepeatMode({
+    required SmtcInternal internal,
+    required String repeatMode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_String(repeatMode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdateRepeatModeConstMeta,
+        argValues: [internal, repeatMode],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdateRepeatModeConstMeta,
-      argValues: [internal, repeatMode],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdateRepeatModeConstMeta =>
@@ -487,24 +592,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdateShuffle(
-      {required SmtcInternal internal, required bool shuffle}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_bool(shuffle, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 14, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdateShuffle({
+    required SmtcInternal internal,
+    required bool shuffle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_bool(shuffle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdateShuffleConstMeta,
+        argValues: [internal, shuffle],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdateShuffleConstMeta,
-      argValues: [internal, shuffle],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdateShuffleConstMeta =>
@@ -514,24 +627,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSmtcUpdateTimeline(
-      {required SmtcInternal internal, required PlaybackTimeline timeline}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_RustOpaque_SMTCInternal(internal, serializer);
-        sse_encode_box_autoadd_playback_timeline(timeline, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 15, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_unit,
-        decodeErrorData: sse_decode_AnyhowException,
+  Future<void> crateApiApiSmtcUpdateTimeline({
+    required SmtcInternal internal,
+    required PlaybackTimeline timeline,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_RustOpaque_SMTCInternal(internal, serializer);
+          sse_encode_box_autoadd_playback_timeline(timeline, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSmtcUpdateTimelineConstMeta,
+        argValues: [internal, timeline],
+        apiImpl: this,
       ),
-      constMeta: kCrateApiApiSmtcUpdateTimelineConstMeta,
-      argValues: [internal, timeline],
-      apiImpl: this,
-    ));
+    );
   }
 
   TaskConstMeta get kCrateApiApiSmtcUpdateTimelineConstMeta =>
@@ -541,12 +662,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   RustArcIncrementStrongCountFnType
-      get rust_arc_increment_strong_count_SmtcInternal =>
-          wire.rust_arc_increment_strong_count_RustOpaque_SMTCInternal;
+  get rust_arc_increment_strong_count_SmtcInternal =>
+      wire.rust_arc_increment_strong_count_RustOpaque_SMTCInternal;
 
   RustArcDecrementStrongCountFnType
-      get rust_arc_decrement_strong_count_SmtcInternal =>
-          wire.rust_arc_decrement_strong_count_RustOpaque_SMTCInternal;
+  get rust_arc_decrement_strong_count_SmtcInternal =>
+      wire.rust_arc_decrement_strong_count_RustOpaque_SMTCInternal;
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
@@ -736,29 +857,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   SmtcInternal sse_decode_RustOpaque_SMTCInternal(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return SmtcInternalImpl.frbInternalSseDecode(
-        sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
   }
 
   @protected
   RustStreamSink<String> sse_decode_StreamSink_String_Sse(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     throw UnimplementedError('Unreachable ()');
   }
 
   @protected
   RustStreamSink<bool> sse_decode_StreamSink_bool_Sse(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     throw UnimplementedError('Unreachable ()');
   }
 
   @protected
   RustStreamSink<PlatformInt64> sse_decode_StreamSink_i_64_Sse(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     throw UnimplementedError('Unreachable ()');
   }
@@ -790,14 +917,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   MusicMetadata sse_decode_box_autoadd_music_metadata(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_music_metadata(deserializer));
   }
 
   @protected
   PlaybackTimeline sse_decode_box_autoadd_playback_timeline(
-      SseDeserializer deserializer) {
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_playback_timeline(deserializer));
   }
@@ -836,11 +965,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_albumArtist = sse_decode_opt_String(deserializer);
     var var_thumbnail = sse_decode_opt_String(deserializer);
     return MusicMetadata(
-        title: var_title,
-        artist: var_artist,
-        album: var_album,
-        albumArtist: var_albumArtist,
-        thumbnail: var_thumbnail);
+      title: var_title,
+      artist: var_artist,
+      album: var_album,
+      albumArtist: var_albumArtist,
+      thumbnail: var_thumbnail,
+    );
   }
 
   @protected
@@ -892,11 +1022,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_minSeekTimeMs = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_maxSeekTimeMs = sse_decode_opt_box_autoadd_i_64(deserializer);
     return PlaybackTimeline(
-        startTimeMs: var_startTimeMs,
-        endTimeMs: var_endTimeMs,
-        positionMs: var_positionMs,
-        minSeekTimeMs: var_minSeekTimeMs,
-        maxSeekTimeMs: var_maxSeekTimeMs);
+      startTimeMs: var_startTimeMs,
+      endTimeMs: var_endTimeMs,
+      positionMs: var_positionMs,
+      minSeekTimeMs: var_minSeekTimeMs,
+      maxSeekTimeMs: var_maxSeekTimeMs,
+    );
   }
 
   @protected
@@ -910,13 +1041,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_fastForwardEnabled = sse_decode_bool(deserializer);
     var var_rewindEnabled = sse_decode_bool(deserializer);
     return SMTCConfig(
-        playEnabled: var_playEnabled,
-        pauseEnabled: var_pauseEnabled,
-        stopEnabled: var_stopEnabled,
-        nextEnabled: var_nextEnabled,
-        prevEnabled: var_prevEnabled,
-        fastForwardEnabled: var_fastForwardEnabled,
-        rewindEnabled: var_rewindEnabled);
+      playEnabled: var_playEnabled,
+      pauseEnabled: var_pauseEnabled,
+      stopEnabled: var_stopEnabled,
+      nextEnabled: var_nextEnabled,
+      prevEnabled: var_prevEnabled,
+      fastForwardEnabled: var_fastForwardEnabled,
+      rewindEnabled: var_rewindEnabled,
+    );
   }
 
   @protected
@@ -938,57 +1070,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_AnyhowException(
-      AnyhowException self, SseSerializer serializer) {
+    AnyhowException self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
   }
 
   @protected
   void sse_encode_RustOpaque_SMTCInternal(
-      SmtcInternal self, SseSerializer serializer) {
+    SmtcInternal self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-        (self as SmtcInternalImpl).frbInternalSseEncode(move: null),
-        serializer);
+      (self as SmtcInternalImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
   }
 
   @protected
   void sse_encode_StreamSink_String_Sse(
-      RustStreamSink<String> self, SseSerializer serializer) {
+    RustStreamSink<String> self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(
-        self.setupAndSerialize(
-            codec: SseCodec(
+      self.setupAndSerialize(
+        codec: SseCodec(
           decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
-        )),
-        serializer);
+        ),
+      ),
+      serializer,
+    );
   }
 
   @protected
   void sse_encode_StreamSink_bool_Sse(
-      RustStreamSink<bool> self, SseSerializer serializer) {
+    RustStreamSink<bool> self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(
-        self.setupAndSerialize(
-            codec: SseCodec(
+      self.setupAndSerialize(
+        codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
           decodeErrorData: sse_decode_AnyhowException,
-        )),
-        serializer);
+        ),
+      ),
+      serializer,
+    );
   }
 
   @protected
   void sse_encode_StreamSink_i_64_Sse(
-      RustStreamSink<PlatformInt64> self, SseSerializer serializer) {
+    RustStreamSink<PlatformInt64> self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(
-        self.setupAndSerialize(
-            codec: SseCodec(
+      self.setupAndSerialize(
+        codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
           decodeErrorData: sse_decode_AnyhowException,
-        )),
-        serializer);
+        ),
+      ),
+      serializer,
+    );
   }
 
   @protected
@@ -1011,28 +1160,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_box_autoadd_i_64(
-      PlatformInt64 self, SseSerializer serializer) {
+    PlatformInt64 self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self, serializer);
   }
 
   @protected
   void sse_encode_box_autoadd_music_metadata(
-      MusicMetadata self, SseSerializer serializer) {
+    MusicMetadata self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_music_metadata(self, serializer);
   }
 
   @protected
   void sse_encode_box_autoadd_playback_timeline(
-      PlaybackTimeline self, SseSerializer serializer) {
+    PlaybackTimeline self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_playback_timeline(self, serializer);
   }
 
   @protected
   void sse_encode_box_autoadd_smtc_config(
-      SMTCConfig self, SseSerializer serializer) {
+    SMTCConfig self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_smtc_config(self, serializer);
   }
@@ -1051,7 +1208,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-      Uint8List self, SseSerializer serializer) {
+    Uint8List self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
@@ -1089,7 +1248,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
-      PlatformInt64? self, SseSerializer serializer) {
+    PlatformInt64? self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
@@ -1100,14 +1261,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_playback_status(
-      PlaybackStatus self, SseSerializer serializer) {
+    PlaybackStatus self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
 
   @protected
   void sse_encode_playback_timeline(
-      PlaybackTimeline self, SseSerializer serializer) {
+    PlaybackTimeline self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self.startTimeMs, serializer);
     sse_encode_i_64(self.endTimeMs, serializer);
@@ -1150,11 +1315,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 class SmtcInternalImpl extends RustOpaque implements SmtcInternal {
   // Not to be used by end users
   SmtcInternalImpl.frbInternalDcoDecode(List<dynamic> wire)
-      : super.frbInternalDcoDecode(wire, _kStaticData);
+    : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
   SmtcInternalImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-      : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:

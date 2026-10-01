@@ -1,0 +1,14 @@
+group = "com.navis.android_storage"
+version = "1.0"
+apply plugin: "com.android.library"
+android {
+    namespace = "com.navis.android_storage"
+    compileSdk = 37
+    defaultConfig { minSdk = 24 }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+repositories { google(); mavenCentral() }
+dependencies { implementation "androidx.documentfile:documentfile:1.1.0" }

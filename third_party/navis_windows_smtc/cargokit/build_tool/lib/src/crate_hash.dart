@@ -1,5 +1,5 @@
-/// This is copied from Cargokit (which is the official way to use it currently)
-/// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
+// This is copied from Cargokit (which is the official way to use it currently)
+// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
 
 import 'dart:convert';
 import 'dart:io';
@@ -9,11 +9,13 @@ import 'package:collection/collection.dart';
 import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
+import 'package:toml/toml.dart';
 
 class CrateHash {
   /// Computes a hash uniquely identifying crate content. This takes into account
   /// content all all .rs files inside the src directory, as well as Cargo.toml,
-  /// Cargo.lock, build.rs and cargokit.yaml.
+  /// the authoritative Cargo.lock, build.rs and cargokit.yaml. For a workspace
+  /// member, the workspace manifest and lockfile participate in the hash.
   ///
   /// If [tempStorage] is provided, computed hash is stored in a file in that directory
   /// and reused on subsequent calls if the crate content hasn't changed.
@@ -24,10 +26,7 @@ class CrateHash {
     )._compute();
   }
 
-  CrateHash._({
-    required this.manifestDir,
-    required this.tempStorage,
-  });
+  CrateHash._({required this.manifestDir, required this.tempStorage});
 
   String _compute() {
     final files = getFiles();
@@ -105,18 +104,39 @@ class CrateHash {
         .whereType<File>()
         .toList();
     files.sortBy((element) => element.path);
-    void addFile(String relative) {
-      final file = File(path.join(manifestDir, relative));
+    void addFile(String relative, {String? directory}) {
+      final file = File(path.join(directory ?? manifestDir, relative));
       if (file.existsSync()) {
         files.add(file);
       }
     }
 
     addFile('Cargo.toml');
-    addFile('Cargo.lock');
+    final workspace = _workspaceDirectory();
+    if (workspace != null &&
+        !path.equals(workspace, path.absolute(manifestDir))) {
+      addFile('Cargo.toml', directory: workspace);
+    }
+    addFile('Cargo.lock', directory: workspace);
     addFile('build.rs');
     addFile('cargokit.yaml');
     return files;
+  }
+
+  String? _workspaceDirectory() {
+    var directory = path.absolute(manifestDir);
+    while (true) {
+      final manifest = File(path.join(directory, 'Cargo.toml'));
+      if (manifest.existsSync() &&
+          TomlDocument.parse(
+            manifest.readAsStringSync(),
+          ).toMap().containsKey('workspace')) {
+        return directory;
+      }
+      final parent = path.dirname(directory);
+      if (path.equals(parent, directory)) return null;
+      directory = parent;
+    }
   }
 
   final String manifestDir;

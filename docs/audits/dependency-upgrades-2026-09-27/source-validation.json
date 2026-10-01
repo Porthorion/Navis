@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-27",
+  "flutter": "3.47.5",
+  "dart": "3.13.4",
+  "rootAnalysis": "No issues found",
+  "fullSuite": {
+    "passed": 1642,
+    "skipped": 1
+  },
+  "migrationTests": 34,
+  "criticalReliabilityTests": 168,
+  "cargoKitTests": 12,
+  "cargoKitAnalysis": "No issues found",
+  "androidDevApkBuild": "passed",
+  "androidInstalled": true,
+  "linuxThemesInspected": [
+    "light",
+    "dark",
+    "oled"
+  ],
+  "linuxPlaybackIndicatorAndRestart": "passed",
+  "windowsNativeVerification": "FRB generation, locked Rust check/three tests, final Dev release build, exact SQLite DLL loading and interactive SMTC commands/restart passed",
+  "androidDeviceVerification": "emulator checks passed; interactive picker, physical arm64 and head-unit projection pending",
+  "lockHashes": {
+    "pubspec.lock": "b440e4267b8d038b93fce1eaf7c3bef82e828b7b1c9a0374fbe0e7e26b6354c3",
+    "third_party/navis_windows_smtc/Cargo.lock": "22b2796aa84cae623c0c697319afb3925247ca07de8fa4778d46fee2c82cb964"
+  },
+  "cupertinoIcons": "1.0.9",
+  "fullGateAfterFontDependency": "passed; 1636 tests, one skipped; no analysis issues",
+  "linuxReleaseBuild": "passed",
+  "androidDevReleaseBuild": "passed",
+  "androidDevDebugBuild": "passed",
+  "cupertinoFontPackagedBothAndroidVariants": true,
+  "retainedSourceNoticeFiles": 201,
+  "androidEmulatorEvidence": "android-emulator-runtime-evidence.json",
+  "fullGateAfterWindowsRegenerationAndHarnessCorrections": "passed; 1636 tests, one skipped; no analysis issues",
+  "desktopAdapterTests": 8,
+  "desktopAdapterAnalysis": "No issues found",
+  "fullGateAfterDesktopShuffleFix": "passed; 1641 project tests, one skipped; eight adapter tests; zero analysis issues",
+  "fullGateAfterFinalWindowsHarnessCorrections": "passed; 1641 project tests, one skipped; eight adapter tests; zero analysis issues",
+  "linuxShuffleAndDuplicateOccurrenceRestart": "passed; inspected restored app screenshot; schema 80, integrity ok, no foreign-key violations",
+  "finalReleaseBuildsAfterDesktopFix": {
+    "linux": "passed",
+    "androidDevRelease": "passed; com.navis.app.navis.dev",
+    "windowsDevRelease": "passed"
+  },
+  "desktopAdapterLockSha256": "fc12d583b712fcb36bfbd70b4d3a631a715ffe5e003dc6d1d47d1efec939346c",
+  "fullGateAfterColdAndroidSafFix": "passed; 1642 project tests, one intentional skip, eight adapter tests; zero analyzer issues",
+  "previousDesktopReleaseLockSha256": "25487df1423ce7f53367b1359c65b7d18b6773548cff0f3aaae52509eed790d2",
+  "androidColdSafNativeTests": "passed; 2 tests, 0 failures/skips; external MediaBrowser/MediaSession after force-stop",
+  "androidHeadunitEvidence": "android-headunit-emulator-evidence.json",
+  "appleVerification": "deferred by owner; no Apple native pass claimed",
+  "latestGraphNote": "Adds owned Android-only navis_android_storage 0.1.0; no hosted dependency version changes. Previous desktop release records retain their original graph hash.",
+  "androidDevReleaseAfterColdSafFix": "passed; 58.2 seconds; com.navis.app.navis.dev / Navis Dev; GPL notice and Cupertino font verified",
+  "linuxFollowUpAfterColdSafFix": {
+    "build": "passed",
+    "runtime": "inconclusive; diagnostics timed out in isolated Wayland and X11 sessions, including readiness wait; task app and fixture stopped",
+    "historicalDesktopAcceptance": "earlier Linux/Windows tests retained as dated evidence; new bridge is Android-only"
+  }
+}

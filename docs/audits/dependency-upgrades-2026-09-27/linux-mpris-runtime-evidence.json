@@ -1,0 +1,9 @@
+{
+  "isolatedBusOwner": true,
+  "matchingTrackMetadata": true,
+  "sourceKind": "directStream",
+  "nativePause": true,
+  "nativePlay": true,
+  "nativeSetPosition": true,
+  "cleanShutdown": true
+}

@@ -1,10 +1,7 @@
 use crate::frb_generated::{RustOpaque, StreamSink};
 
-use crate::internal::{
-    config::SMTCConfig, metadata::MusicMetadata,
-    timeline::PlaybackTimeline,
-};
 use crate::internal::playback_status::PlaybackStatus;
+use crate::internal::{config::SMTCConfig, metadata::MusicMetadata, timeline::PlaybackTimeline};
 
 pub type SMTCInternal = crate::internal::smtc_internal::SMTCInternal;
 

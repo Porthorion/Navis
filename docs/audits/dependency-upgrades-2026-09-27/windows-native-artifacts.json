@@ -1,0 +1,81 @@
+{
+  "target": "windows-x64",
+  "build": "Dev release",
+  "sqliteWrapper": "3.6.0",
+  "sqliteEngine": "3.53.4",
+  "sqliteExpectedShaVerified": true,
+  "files": [
+    {
+      "path": "connectivity_plus_plugin.dll",
+      "bytes": 102912,
+      "sha256": "a6e469ac4a244c838f301f2145d08453a108cc6e4053812b7019af6041e2fdc0"
+    },
+    {
+      "path": "data/app.so",
+      "bytes": 18236296,
+      "sha256": "4f9431c1b39d7da74429a2fac7651dab5f8e6bd1db0f5e41684e6feaf15f3fcc"
+    },
+    {
+      "path": "data/flutter_assets/NOTICES.Z",
+      "bytes": 147428,
+      "sha256": "9e705ea685230968412cb6db08849b644a8638441cc2073262246ca1fdbbf8bc"
+    },
+    {
+      "path": "flutter_local_notifications_windows.dll",
+      "bytes": 91136,
+      "sha256": "3f72122d9204cea4fed2bfd0d1946a2f065f12a26f4b8f2d896e39dfa1eee253"
+    },
+    {
+      "path": "flutter_secure_storage_windows_plugin.dll",
+      "bytes": 159744,
+      "sha256": "411faa736e6dbf05463347e1864574548e4f7ebd84b4451e95c7db2ad3ceb6d2"
+    },
+    {
+      "path": "flutter_windows.dll",
+      "bytes": 21274112,
+      "sha256": "8bd7b61eee31aa436edb182db41624d1cd3b2688a7e03622320dbeae067b5251"
+    },
+    {
+      "path": "libmpv-2.dll",
+      "bytes": 15525902,
+      "sha256": "0a5a0b476866c91a639a4e511e8153968f8fa23564461b0aa09acdba816164a4"
+    },
+    {
+      "path": "media_kit_libs_windows_audio_plugin.dll",
+      "bytes": 12800,
+      "sha256": "1d42b232852dc6abe45088fc2d6f0e07afb054fcfb12dadfb3684624a017a58a"
+    },
+    {
+      "path": "navis.exe",
+      "bytes": 432128,
+      "sha256": "ee1f91ee7abb24d654cdfd258916319a58ed18d3b3e570a962ff63e2972d370d"
+    },
+    {
+      "path": "screen_retriever_windows_plugin.dll",
+      "bytes": 119296,
+      "sha256": "23dcdf89f7bfb324a7c6df62743ecb7f59f318a7565b63cb5441a274b77061f2"
+    },
+    {
+      "path": "smtc_windows.dll",
+      "bytes": 396800,
+      "sha256": "e3c6210e120b81bf4d7571df19b0fb71d7a6bd246402e572bdc828bb2f7f399f"
+    },
+    {
+      "path": "sqlite3.dll",
+      "bytes": 1709056,
+      "sha256": "c5a4ebf9922c63fa252a01c4679992f1fbaa2762b962b78ba6cbdc5cbf7ca91c"
+    },
+    {
+      "path": "url_launcher_windows_plugin.dll",
+      "bytes": 98304,
+      "sha256": "3c4d404fdfbb217fd7d12bda55238bc4949dc1b60fd57bfb605966e20c32521c"
+    },
+    {
+      "path": "window_manager_plugin.dll",
+      "bytes": 130048,
+      "sha256": "a5e21210dc44eec3d6b201c426d6ceb28a6668c5fa0aff6dba04752c75abcb3c"
+    }
+  ],
+  "noticeBytes": 1554937,
+  "noticeHasCupertinoFont": true
+}

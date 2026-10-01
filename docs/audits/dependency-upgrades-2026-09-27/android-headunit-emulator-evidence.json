@@ -1,0 +1,81 @@
+{
+  "date": "2026-09-27",
+  "navisIntegration": "Phone projection through canonical com.ryanheise.audioservice.AudioService; no separate Navis head-unit APK",
+  "targetPackage": "com.navis.app.navis.dev.upgrade",
+  "emulator": "Navis_Dependency_Upgrade",
+  "apiLevel": 37,
+  "abi": "x86_64",
+  "pageSizeBytes": 16384,
+  "googleAndroidAutoComponents": {
+    "Navis_Dependency_Upgrade": "1.2.565510-stub",
+    "Pixel_9_Pro_XL_readOnly": "1.2.565510-stub"
+  },
+  "dhu": {
+    "version": "2.0-linux",
+    "status": "not verified; ADB connection ended at EOF without projection negotiation",
+    "reason": "Full Google Android Auto phone component/head-unit server unavailable in installed emulator images",
+    "officialPrerequisites": "https://developer.android.com/training/cars/testing/dhu"
+  },
+  "nativeMediaBrowserAndMediaSession": {
+    "status": "passed",
+    "coldStart": "Dev profile force-stopped before external instrumentation; no MainActivity launch until both tests finished",
+    "tests": 2,
+    "failures": 0,
+    "skipped": 0,
+    "checks": [
+      "four root tabs",
+      "Downloads browse and collection context",
+      "SAF downloaded playFromMediaId",
+      "metadata ID and title",
+      "pause",
+      "paused seek to 1000ms within 250ms",
+      "shuffle all",
+      "repeat all",
+      "resume"
+    ],
+    "postTestNativeState": {
+      "state": "PAUSED",
+      "positionMs": 1000,
+      "error": null
+    },
+    "xmlSha256": "6ae2eb0aa0d11b5e1aa5219bfa75b2de36d7640e2e226d2dc207918b8dfbf835"
+  },
+  "coldSafFix": {
+    "ownedPlugin": "third_party/navis_android_storage",
+    "cause": "Existence query was Activity-owned and unavailable to service-only playback",
+    "solution": "Read-only content URI query registered per Flutter engine with application context",
+    "profileApkSha256": "f0b0a28b4c6e252a6d95a7465efc5c4d9a7b8e3c82840519eda27a5ec74d9db4",
+    "rootLockSha256": "b440e4267b8d038b93fce1eaf7c3bef82e828b7b1c9a0374fbe0e7e26b6354c3",
+    "hostedVersionChanges": false,
+    "newPermissions": false,
+    "postActivitySafStatus": {
+      "displayName": "Navis diagnostics",
+      "canRead": true,
+      "canWrite": false,
+      "canReplace": false,
+      "documentCount": 2,
+      "configured": true,
+      "cache": {
+        "entries": 1,
+        "rollingEntries": 0,
+        "permanentEntries": 1,
+        "missingFiles": 0,
+        "renewalRequired": false
+      }
+    },
+    "appOwnedScreenshotSha256": "fd0b21bdd74c7e16509e7d18082eedc83d5a79b0dfdc28f7bd7253e5a2ebe8e4",
+    "screenshotInspected": true,
+    "screenshotContext": "Offline synthetic fixture server stopped; expected retry banner, no layout error, downloaded track retained"
+  },
+  "apple": "deferred by owner; no native pass claimed",
+  "limitations": [
+    "Full projection rendering/distraction/rotary behavior unverified",
+    "Physical arm64 hardware and interactive system picker unverified"
+  ],
+  "cleanup": {
+    "profileAppShutdown": true,
+    "bothTemporaryEmulatorsStopped": true,
+    "taskForwardsRemoved": true,
+    "stableAppsAndUserAvdDataPreserved": true
+  }
+}

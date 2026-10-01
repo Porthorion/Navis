@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-27",
+  "vm": "win11",
+  "state": "running",
+  "ssh": "authenticated with existing public key; access recovered",
+  "flutter": "3.47.5 (isolated task SDK)",
+  "dart": "3.13.4 (isolated task SDK)",
+  "rust": "1.97.1",
+  "cargo": "1.97.1",
+  "cmake": "available",
+  "frbCodegen": "2.13.0 staged and runnable",
+  "windowsFreeBytes": 51585024,
+  "requiredBuildFreeSpaceGiB": "8\u201310",
+  "nativeBuild": "final Dev release passed; generation, locked Rust check and three native tests pass",
+  "runtime": "actual interactive GMTC commands and clean restart passed",
+  "existingFilesDeleted": true,
+  "latestWindowsFreeBytes": 3044724736,
+  "storageBlockerConsecutiveGoalTurns": 0,
+  "goalStatus": "upgrade implementation and available-host acceptance complete; explicitly listed release follow-ups remain",
+  "latestAccessRetry": "authenticated successfully",
+  "scopedCleanupAuthorized": true,
+  "windowsCleanupConfirmed": true,
+  "lastSshProbe": {
+    "authenticated": true,
+    "exitCode": 0
+  },
+  "sshBlockerTurnsSinceLatestRetryRequest": 0,
+  "temporaryBuildDisk": {
+    "source": "/Gaming/navis-dependency-upgrades-scratch.qcow2",
+    "serial": "navis-upgrade-build",
+    "sizeBytes": 34359738368,
+    "drive": "N:",
+    "attachment": "live only; USB",
+    "guard": "exact unique serial, RAW state and size verified before initialization",
+    "workspace": "N:\\NavisDependencyUpgrades\\workspace",
+    "relocation": "completed; zero source-file differences; lock/Dart/generator hash comparisons passed",
+    "freeBytes": 30867722240
+  },
+  "bindings": "FRB 2.13 regenerated successfully on Windows; Rust check and three tests pass"
+}

@@ -73,7 +73,7 @@ if [[ "${UPDATE_CHANNEL}" != "stable" && "${UPDATE_CHANNEL}" != "dev" ]]; then
   exit 1
 fi
 
-for tool in ssh scp tar; do
+for tool in ssh scp tar python3; do
   if ! command -v "${tool}" >/dev/null 2>&1; then
     echo "[remote-windows] Missing required tool: ${tool}" >&2
     exit 1
@@ -103,7 +103,7 @@ tar \
 # vendored SMTC adapter's cargokit build-tool dependencies, which are pinned
 # independently from the main app.
 printf '[remote-windows] Bundling pub package cache...\n'
-_pub_cache_host="${HOME}/.pub-cache/hosted/pub.dev"
+_pub_cache_host="${PUB_CACHE:-${HOME}/.pub-cache}/hosted/pub.dev"
 _lock_file="${REPO_ROOT}/pubspec.lock"
 # The first-party Windows adapter ships cargokit with its own lockfile.
 _cargokit_lock="${REPO_ROOT}/third_party/navis_windows_smtc/cargokit/build_tool/pubspec.lock"
@@ -145,6 +145,15 @@ else
   printf '[remote-windows] Warning: no pub packages bundled.\n'
 fi
 
+# Prepare the exact locked native asset before contacting the builder. The
+# published sqlite3 package supplies the release tag and SHA-256 we trust.
+_sqlite3_dll_tmp="$(mktemp -t sqlite3_windows.XXXXXX.dll)"
+_sqlite3_dll_name="sqlite3.x64.windows.dll"
+_sqlite3_dll_sha256="$(python3 "${REPO_ROOT}/tool/sqlite3_windows_asset.py" \
+  --lockfile "${_lock_file}" --package-cache "${_pub_cache_host}" \
+  --output "${_sqlite3_dll_tmp}")"
+printf '[remote-windows] Verified locked sqlite3 Windows DLL.\n'
+
 cat > "${REMOTE_SCRIPT}" <<'REMOTE_POWERSHELL'
 param(
   [Parameter(Mandatory = $true)][string]$RemoteDir,
@@ -155,7 +164,8 @@ param(
   [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
   [string]$LastFmApiKey = '',
   [string]$PubCacheArchiveName = '',
-  [string]$Sqlite3DllName = '',
+  [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]+$')][string]$Sqlite3DllName,
+  [Parameter(Mandatory = $true)][ValidatePattern('^[a-fA-F0-9]{64}$')][string]$Sqlite3DllSha256,
   [string]$FlutterDir = ''
 )
 
@@ -321,44 +331,24 @@ if ([System.IO.File]::Exists($_resolvePs1)) {
     }
 }
 
-# Pre-seed sqlite3 native asset DLL so the hooks_runner doesn't try to
-# download it from GitHub. sqlite3 uses native assets (hook/build.dart) to
-# download sqlite3.dll at build time. On this VM github.com downloads fail.
-# Priority: use the bundled DLL shipped with the source archive; fall back to
-# any cached DLL from a prior local build on this machine.
-$_sqlite3SharedDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'shared', 'sqlite3', 'build', 'download-bundled')
+# Use only the checksum-verified asset from the locked release. Never scan
+# older build caches or patch the published sqlite3 hook source.
+$_sqlite3Dll = Join-Path $baseDir $Sqlite3DllName
+if (-not (Test-Path -LiteralPath $_sqlite3Dll -PathType Leaf)) {
+    throw "The verified SQLite DLL was not transferred to the builder"
+}
+if ((Get-FileHash -LiteralPath $_sqlite3Dll -Algorithm SHA256).Hash -ne $Sqlite3DllSha256) {
+    throw "The transferred SQLite DLL checksum does not match the locked asset"
+}
 $_sqlite3OfflineDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'offline_native_assets', 'sqlite3')
-New-Item -ItemType Directory -Force -Path $_sqlite3SharedDir | Out-Null
 New-Item -ItemType Directory -Force -Path $_sqlite3OfflineDir | Out-Null
-$_sqlite3Seeded = $false
-if ($Sqlite3DllName -ne '' -and (Test-Path (Join-Path $baseDir $Sqlite3DllName))) {
-    Copy-Item (Join-Path $baseDir $Sqlite3DllName) (Join-Path $_sqlite3SharedDir 'sqlite3.dll') -Force
-    Copy-Item (Join-Path $baseDir $Sqlite3DllName) (Join-Path $_sqlite3OfflineDir 'sqlite3.x64.windows.dll') -Force
-    Write-Host "[remote-windows] Pre-seeded sqlite3 native asset from bundled DLL"
-    $_sqlite3Seeded = $true
+Copy-Item -LiteralPath $_sqlite3Dll -Destination (Join-Path $_sqlite3OfflineDir 'sqlite3.x64.windows.dll') -Force
+$_pubspecPath = Join-Path $workspaceDir 'pubspec.yaml'
+$_pubspecContent = [System.IO.File]::ReadAllText($_pubspecPath)
+if ($_pubspecContent -match '(?m)^hooks:') {
+    throw "Existing native hook configuration must be reconciled before an offline build"
 }
-if (-not $_sqlite3Seeded) {
-    $_sqlite3SrcBase = [System.IO.Path]::Combine($HOME, 'Documents', 'forgejo_projects', 'Navis', '.dart_tool', 'hooks_runner', 'shared', 'sqlite3', 'build')
-    if (Test-Path $_sqlite3SrcBase) {
-        $ErrorActionPreference = 'Continue'
-        Get-ChildItem $_sqlite3SrcBase -Directory | ForEach-Object {
-            $_srcFile = Join-Path $_.FullName 'sqlite3.dll'
-            if ((Test-Path $_srcFile) -and -not $_sqlite3Seeded) {
-                Copy-Item $_srcFile (Join-Path $_sqlite3SharedDir 'sqlite3.dll') -Force
-                Copy-Item $_srcFile (Join-Path $_sqlite3OfflineDir 'sqlite3.x64.windows.dll') -Force
-                Write-Host "[remote-windows] Pre-seeded sqlite3 native asset from $_srcFile"
-                $_sqlite3Seeded = $true
-            }
-        }
-        $ErrorActionPreference = 'Stop'
-    }
-}
-
-if ($_sqlite3Seeded) {
-    $_pubspecPath = Join-Path $workspaceDir 'pubspec.yaml'
-    $_pubspecContent = [System.IO.File]::ReadAllText($_pubspecPath)
-    if ($_pubspecContent -notmatch '(?m)^hooks:') {
-        Add-Content -Path $_pubspecPath -Value @'
+Add-Content -Path $_pubspecPath -Value @'
 
 hooks:
   user_defines:
@@ -366,55 +356,9 @@ hooks:
       source: test-sqlite3
       directory: .dart_tool/offline_native_assets/sqlite3/
 '@
-        Write-Host "[remote-windows] Configured sqlite3 native hook to use bundled DLL"
-        $ErrorActionPreference = 'Continue'
-        $_dillDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'sqlite3')
-        if (Test-Path $_dillDir) { Remove-Item -Recurse -Force $_dillDir 2>$null }
-        $ErrorActionPreference = 'Stop'
-        flutter pub get --offline
-        if ($LASTEXITCODE -ne 0) { throw "flutter pub get --offline after sqlite3 hook config failed with exit code $LASTEXITCODE" }
-    }
-}
-
-# Patch all sqlite3-X.Y.Z versions found in the pub cache to add an offline
-# fallback that scans sibling download-* directories in the shared output dir
-# (where we already pre-seeded the DLL above) and copies the DLL to the
-# expected location before any network download is attempted.
-# The hook downloads sqlite3.dll from GitHub into a subdirectory whose name
-# is derived from Object.hash(), which is non-deterministic across Dart VM
-# runs — we cannot pre-seed the exact path, only sibling directories.
-$_sqlite3PubBase = Join-Path $_systemPubCache 'hosted\pub.dev'
-$_dlMarker = '    final tmp = File(''${downloadedFile.path}.tmp'');'
-$_fallback = @'
-    // Offline fallback: before attempting a network download, check if the
-    // DLL already exists in any sibling download-* directory (pre-seeded).
-    final sharedBuildDir = dir.parent;
-    if (sharedBuildDir.existsSync()) {
-      for (final entry in sharedBuildDir.listSync().whereType<Directory>()) {
-        final candidate = File(p.join(entry.path, fileName));
-        if (candidate.existsSync() && candidate.path != downloadedFile.path) {
-          candidate.copySync(downloadedFile.path);
-          return downloadedFile;
-        }
-      }
-    }
-    final tmp = File('${downloadedFile.path}.tmp');
-'@
-Get-ChildItem $_sqlite3PubBase -Directory | Where-Object { $_.Name -like 'sqlite3-*' } | ForEach-Object {
-    $_sqlite3DescPath = Join-Path $_.FullName 'lib\src\hook\description.dart'
-    if (Test-Path $_sqlite3DescPath) {
-        $_descContent = [System.IO.File]::ReadAllText($_sqlite3DescPath)
-        if ($_descContent.Contains($_dlMarker) -and -not $_descContent.Contains('Offline fallback')) {
-            $_descContent = $_descContent.Replace($_dlMarker, $_fallback)
-            [System.IO.File]::WriteAllText($_sqlite3DescPath, $_descContent)
-            Write-Host "[remote-windows] Patched $($_.Name) description.dart with offline fallback"
-            $ErrorActionPreference = 'Continue'
-            $_dillDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'sqlite3')
-            if (Test-Path $_dillDir) { Remove-Item -Recurse -Force $_dillDir 2>$null }
-            $ErrorActionPreference = 'Stop'
-        }
-    }
-}
+Write-Host "[remote-windows] Configured sqlite3 native hook with the verified bundled DLL"
+flutter pub get --offline
+if ($LASTEXITCODE -ne 0) { throw "flutter pub get --offline after sqlite3 hook config failed with exit code $LASTEXITCODE" }
 
 # Patch cargokit's run_build_tool.cmd to use --offline for pub get.
 # cargokit creates a temporary pubspec and runs "dart pub get --no-precompile"
@@ -506,24 +450,7 @@ scp "${SOURCE_ARCHIVE}" "${SSH_TARGET}:${REMOTE_DIR}/source.tgz" >/dev/null
 scp "${PUB_CACHE_ARCHIVE}" "${SSH_TARGET}:${REMOTE_DIR}/pub_cache.tgz" >/dev/null
 scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.ps1" >/dev/null
 
-# Download sqlite3 Windows DLL from GitHub on the local machine (which has
-# internet access) and transfer it to the Windows VM so it can be pre-seeded
-# into the hooks_runner shared directory, bypassing the network-dependent hook.
-_sqlite3_version="$(grep -A8 '^  sqlite3:$' "${REPO_ROOT}/pubspec.lock" | grep 'version:' | head -1 | sed 's/.*version: *"\([^"]*\)".*/\1/')"
-_sqlite3_dll_name=""
-_sqlite3_dll_tmp=""
-if [[ -n "${_sqlite3_version}" ]]; then
-  _sqlite3_dll_url="https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-${_sqlite3_version}/sqlite3.x64.windows.dll"
-  _sqlite3_dll_tmp="$(mktemp -t sqlite3_windows.XXXXXX.dll)"
-  printf '[remote-windows] Downloading sqlite3 v%s Windows DLL from GitHub...\n' "${_sqlite3_version}"
-  if curl -fsSL "${_sqlite3_dll_url}" -o "${_sqlite3_dll_tmp}" 2>/dev/null; then
-    _sqlite3_dll_name="sqlite3-${_sqlite3_version}-x64.dll"
-    scp "${_sqlite3_dll_tmp}" "${SSH_TARGET}:${REMOTE_DIR}/${_sqlite3_dll_name}" >/dev/null
-    printf '[remote-windows] Transferred sqlite3 DLL to remote.\n'
-  else
-    printf '[remote-windows] Warning: could not download sqlite3 DLL from GitHub; will try local cache on Windows.\n'
-  fi
-fi
+scp "${_sqlite3_dll_tmp}" "${SSH_TARGET}:${REMOTE_DIR}/${_sqlite3_dll_name}" >/dev/null
 
 printf '[remote-windows] Running remote build...\n'
 # Windows OpenSSH runs commands through cmd.exe, which doesn't treat single-quotes as
@@ -533,10 +460,7 @@ _lastfm_arg=""
 if [[ -n "${LASTFM_API_KEY}" ]]; then
   _lastfm_arg="-LastFmApiKey ${LASTFM_API_KEY}"
 fi
-_sqlite3_dll_arg=""
-if [[ -n "${_sqlite3_dll_name}" ]]; then
-  _sqlite3_dll_arg="-Sqlite3DllName ${_sqlite3_dll_name}"
-fi
+_sqlite3_dll_arg="-Sqlite3DllName ${_sqlite3_dll_name} -Sqlite3DllSha256 ${_sqlite3_dll_sha256}"
 _flutter_arg=""
 if [[ -n "${FLUTTER_DIR}" ]]; then
   _flutter_arg="-FlutterDir ${FLUTTER_DIR}"

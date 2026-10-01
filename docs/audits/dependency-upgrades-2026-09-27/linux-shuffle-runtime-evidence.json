@@ -1,0 +1,10 @@
+{
+  "duplicateOccurrencePreserved": true,
+  "shufflePositionPreserved": true,
+  "cleanRestart": true,
+  "nativePlayPauseAfterRestart": true,
+  "shuffleToggleOffPreservedOccurrence": true,
+  "schemaVersion": 80,
+  "integrity": "ok",
+  "foreignKeyViolations": 0
+}
