@@ -1398,12 +1398,7 @@
   "aboutVersion": "Version",
   "aboutChangelog": "Changelog",
   "aboutChangelogSub": "See every version's changes and bug fixes.",
-  "whatsNewTitle": "What's New",
-  "changelogDialogBugFixesTitle": "Bug Fixes",
-  "changelogDialogOtherBugFixes": "Other bug fixes",
   "changelogSpecialThanks": "Special Thanks",
-  "changelogDialogViewAll": "View full changelog",
-  "changelogDialogGotIt": "Got it",
   "changelogDiscoveryTitle": "What’s New",
   "changelogDiscoveryVersion": "Version {version}",
   "@changelogDiscoveryVersion": {
@@ -1411,8 +1406,6 @@
       "version": { "type": "String" }
     }
   },
-  "changelogDiscoveryFixesSummary": "This update includes reliability and polish improvements.",
-  "changelogDiscoveryAction": "View Updates",
   "changelogDiscoveryDismiss": "Dismiss update notes",
   "changelogDiscoverySemanticLabel": "What’s new in version {version}",
   "@changelogDiscoverySemanticLabel": {
@@ -1420,7 +1413,67 @@
       "version": { "type": "String" }
     }
   },
+  "changelogDiscoveryCheckOut": "Check out {version}",
+  "@changelogDiscoveryCheckOut": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "changelogDiscoveryCheckOutNamed": "Check out {version} “{codename}”",
+  "@changelogDiscoveryCheckOutNamed": {
+    "placeholders": {
+      "version": { "type": "String" },
+      "codename": { "type": "String" }
+    }
+  },
+  "changelogDiscoveryUpdatedTo": "Updated to {version}",
+  "@changelogDiscoveryUpdatedTo": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
   "changelogEmpty": "No Changelog Entries Yet.",
+  "changelogEntryTypeNew": "New",
+  "changelogEntryTypeImproved": "Improved",
+  "changelogEntryTypeFixed": "Fixed",
+  "changelogFilterAll": "All",
+  "changelogChangeCount": "{count, plural, =1{1 change} other{{count} changes}}",
+  "@changelogChangeCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "changelogShowAllFixes": "{count, plural, =1{Show 1 more fix} other{Show {count} more fixes}}",
+  "@changelogShowAllFixes": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "changelogShowFewerFixes": "Show fewer fixes",
+  "changelogEarlierReleases": "Earlier releases",
+  "changelogReleases": "Releases",
+  "changelogPartOf": "Part of {version}",
+  "@changelogPartOf": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "changelogPartOfNamed": "Part of {version} “{codename}”",
+  "@changelogPartOfNamed": {
+    "placeholders": {
+      "version": { "type": "String" },
+      "codename": { "type": "String" }
+    }
+  },
+  "changelogHighlights": "Highlights",
+  "changelogAllChanges": "All changes",
+  "changelogDiscoveryAndMore": "{list} and {count} more",
+  "@changelogDiscoveryAndMore": {
+    "placeholders": {
+      "list": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "privacyTitle": "Privacy",

@@ -538,6 +538,57 @@ header adds the same reason line and a compact Play/Shuffle pair.
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged.
 
+### Changelog and What's New (`lib/src/features/changelog/`)
+
+**Data.** `changelog_data.dart` is a `const` list of `ChangelogVersion`s,
+newest first. It has no imports, so it is the single source for the app and
+for `tool/generate_release_notes.dart`, which renders a Forgejo release body
+through `release_notes_markdown.dart`.
+- Every `x.y.0` release is major (`isMajor`) and shows as `1.4`
+  (`displayVersion`).
+- A release can carry `released` (`YYYY-MM-DD`), `codename`, `summary`,
+  `highlights` and `iconAsset` (SVG or PNG under `assets/changelog/`).
+- `ChangelogReleaseCover` draws a release like album art and follows the
+  cover-shape preference. It uses the release's asset, or, when there is none
+  or it fails to load, a typographic cover: the version set large on
+  `primary`.
+- Highlight icons are a `ChangelogHighlightIcon` enum, mapped to Material
+  icons in `changelog_style.dart`, so the data file needs no Flutter import.
+- `changelog_data_test.dart` enforces valid, descending versions and dates,
+  3–5 highlights for majors from 1.2.0 on, and that icon files exist.
+
+**Home card (`ChangelogDiscoveryCard`).** It is inline and non-blocking
+(design-ux-audit D5). `changelogToShowProvider` calls
+`resolveChangelogDiscovery`: it returns nothing once the running version is
+recorded in `changelog_seen_version.txt` (Application Support), otherwise the
+running release plus the newest *major* in the unseen range
+(last seen, current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
+- It is a flat row styled like a library row.
+- With a featured major: a 48 px cover, "Check out 1.4 “Navi”", and one plain
+  line naming up to three highlights ("…and 2 more").
+- Patch only: "Updated to Navis 1.4.1" and its number of changes.
+- Tapping opens `/settings/about/changelog?version=<featured or current>`.
+  Opening or dismissing records the running version as seen.
+
+**Changelog screen (`/settings/about/changelog`).** A release reads like an
+album page, in the album screen's own grammar rather than banners or cards.
+- `ChangelogReleaseHeader`: the cover on the left (112 px phone, 208 px
+  desktop), then the codename (or "Navis 1.4"), "Navis 1.4" and
+  "Sep 30, 2026 • 90 changes", bottom-aligned like the desktop album header.
+  Patches have no cover.
+- `ChangelogHighlightList`: highlights as track-style rows (a narrow icon
+  column, title, one line), in two columns on desktop.
+- `ChangelogReleaseDetails`: an "All changes" section with Library-style
+  tabs (All, New, Improved, Fixed), plain paragraphs under plain
+  subheadings, and fixes past five behind "Show N more fixes".
+- `ChangelogReleaseRow`: a release in a list, with a 48 px cover for majors
+  and an empty slot for patches so they sit under their major.
+- Phones show the focused release (the `version` query parameter, else the
+  newest), then "Earlier releases" rows; tapping one shows it in place. A
+  patch adds a "Part of Navis 1.4 “Navi”" row that shows its major.
+- The desktop shell keeps the release rows in a list beside the selected
+  release.
+
 ### Common Widgets (`lib/src/common_widgets/`)
 
 Reusable UI components used across features:

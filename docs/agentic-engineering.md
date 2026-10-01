@@ -49,8 +49,9 @@ changes materially. If no documentation update is needed, be prepared to state
 why.
 
 For user-facing behavior, also update
-`lib/src/features/changelog/changelog_data.dart` and
-`tool/generate_release_notes.dart`. For a material removed, replaced, or
+`lib/src/features/changelog/changelog_data.dart`; the release-notes tool
+reads it, so there is no second copy to keep in sync. For a material removed,
+replaced, or
 deprecated capability, add or update a record in
 [history/removed-features.md](history/removed-features.md). Normal edits do
 not require copying documents into an archive: Git supplies line history.

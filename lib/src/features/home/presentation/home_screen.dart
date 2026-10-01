@@ -34,8 +34,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/changelog/changelog_data.dart';
-import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_discovery_card.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
@@ -1204,7 +1203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           const SizedBox(height: 10),
         ],
-        const _ChangelogDiscoveryCard(),
+        const ChangelogDiscoveryCard(),
         const _UpdateBanner(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))

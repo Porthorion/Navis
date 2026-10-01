@@ -124,3 +124,37 @@ titles over darkened art. They now show uncropped covers with the details and
 the recommendation reason below, a Play button on the focused cover, and a
 colour wash. Desktop gained the reason line and Play/Shuffle. See
 `docs/architecture.md` → *Home: You Might Like*.
+
+## Changelog redesign
+
+Follow-up decisions:
+- **Major releases** are every `x.y.0` and get a curated banner: optional
+  codename and icon, date, counts and 3–5 highlights.
+- **Home** stays an inline card. For a major it reads "Check out 1.4 “Navi”"
+  with highlight badges and no description; a patch is a single row.
+- **One source.** The release-notes tool now reads the app's changelog data
+  instead of a hand-synced copy.
+
+The Settings changelog used to be one flat list of about 430 paragraph-length
+entries, with fixes tinted in the error colour. It now groups each release
+into New / Improved / Fixed with filters, collapses long fix lists, shows
+older releases as an expandable timeline, and uses a two-pane layout on
+desktop. The unused post-update dialog was removed. See
+`docs/architecture.md` → *Changelog and What's New*.
+
+### Follow-up: removing the generic look
+
+The first pass read as generic, AI-styled UI: a centred banner with a
+gradient wash, an icon in a tinted circle, pill badges, a grid of identical
+icon cards, a sparkles icon and a dotted timeline. None of it was specific
+to Navis. Decisions:
+- **Releases look like albums.** The header, highlight rows and release list
+  reuse the album page's grammar: cover-left headers, track-style rows,
+  section headings and the `•` summary line.
+- **One bold element.** A release's cover, either its own art or a
+  typographic "1.4" on the accent colour, is the only expressive element.
+  Everything else is left-aligned and flat.
+- **Removed:** gradients, pills and badges, tinted icon circles, the sparkles
+  fallback, coloured entry stripes, the timeline rail, card grids, and the
+  Home card's badge chips, which are now one plain line.
+

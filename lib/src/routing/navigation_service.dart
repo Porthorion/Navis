@@ -273,10 +273,16 @@ abstract final class NavService {
     context.go('/search');
   }
 
-  /// Open the full changelog in Settings > About.
-  static void openAboutChangelog(BuildContext context) {
+  /// Open the full changelog in Settings > About, optionally focused on
+  /// [version].
+  static void openAboutChangelog(BuildContext context, {String? version}) {
     clearExitPrompt();
-    context.go('/settings/about/changelog');
+    context.go(
+      Uri(
+        path: '/settings/about/changelog',
+        queryParameters: version == null ? null : {'version': version},
+      ).toString(),
+    );
   }
 
   /// Switch to the Home tab.

@@ -18,9 +18,6 @@
   "lib/src/common_widgets/track_list_tile.dart": {
     "radius": 1
   },
-  "lib/src/features/changelog/presentation/changelog_entry_tile.dart": {
-    "radius": 1
-  },
   "lib/src/features/downloads/presentation/download_reconciliation_screen.dart": {
     "radius": 1,
     "paletteColor": 1

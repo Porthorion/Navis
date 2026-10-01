@@ -86,6 +86,7 @@ flutter:
 
   assets:
     - assets/autoeq/
+    - assets/changelog/
     - lib/src/icon/Navis_App_Icon.png
     - lib/src/icon/Navis_Logo.svg
     - assets/fonts/OFL.txt

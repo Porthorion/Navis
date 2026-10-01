@@ -61,9 +61,10 @@ flows and platform contracts.
   `test/src/database/migrations/navis_migration_test.dart` updates.
 - After Freezed, JSON, Drift table, or DAO changes run `make gen` and commit
   the generated source required by the repository workflow.
-- User-visible behavior changes require entries in both
-  `lib/src/features/changelog/changelog_data.dart` and
-  `tool/generate_release_notes.dart`.
+- User-visible behavior changes require an entry in
+  `lib/src/features/changelog/changelog_data.dart`, the single source for the
+  in-app changelog and the release notes that
+  `tool/generate_release_notes.dart` renders.
 - Listen Together/Voyage is retired. Do not restore its networking, sessions,
   settings, queue sync, or visible UI without an explicit product decision.
 - Never commit credentials, put real values in examples, reset unrelated work,
@@ -104,7 +105,7 @@ test requires them.
 | Architecture, routing, providers, playback, adaptive layout | `docs/architecture.md` |
 | Schema or migration | relevant architecture detail + migration test |
 | Quality gate or `tool/*` behavior | `docs/ci-cd.md` and `docs/development-workflow.md` |
-| User-visible behavior | changelog data and release-notes generator |
+| User-visible behavior | `changelog_data.dart` (feeds the release notes) |
 | Platform support or public capability | `README.md` and relevant docs |
 | Material removal/deprecation | `docs/history/removed-features.md` |
 | Engineering workflow/policy | `docs/agentic-engineering.md` and this entry point if needed |
