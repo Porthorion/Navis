@@ -167,10 +167,13 @@
   "syncSettingsFailureDescription": "Could not refresh your library. Check your connection and try again.",
   "syncSettingsPlanLabel": "Sync Plan",
   "syncSettingsPendingWorkLabel": "Pending Work",
-  "syncSettingsPendingWorkValue": "{count} task(s) pending",
+  "syncSettingsPendingWorkValue": "{count, plural, =1{1 task pending} other{{count} tasks pending}}",
   "@syncSettingsPendingWorkValue": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsCatalogUpdateLabel": "Catalog Update",
@@ -181,11 +184,16 @@
     }
   },
   "syncSettingsLastRunLabel": "Last Run",
-  "syncSettingsLastRunValue": "{requests} request(s) • {bytes}",
+  "syncSettingsLastRunValue": "{requests, plural, =1{1 request} other{{requests} requests}} • {bytes}",
   "@syncSettingsLastRunValue": {
     "placeholders": {
-      "requests": {},
-      "bytes": {}
+      "requests": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "bytes": {
+        "type": "String"
+      }
     }
   },
   "syncSettingsLastCheckedLabel": "Last Checked",
@@ -213,20 +221,38 @@
       "outcome": {}
     }
   },
-  "syncSettingsCatalogPromotionRemovalSummary": "Catalog promotion removed {artists} artist(s), {albums} album(s), and {songs} song(s).",
+  "syncSettingsCatalogPromotionRemovalSummary": "The last library update removed {artists, plural, =1{1 artist} other{{artists} artists}}, {albums, plural, =1{1 album} other{{albums} albums}} and {songs, plural, =1{1 song} other{{songs} songs}}.",
   "@syncSettingsCatalogPromotionRemovalSummary": {
     "placeholders": {
-      "artists": {},
-      "albums": {},
-      "songs": {}
+      "artists": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "albums": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "songs": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
-  "syncSettingsStarredReconciliationRemovalSummary": "Confirmed server update removed {artists} artist(s), {albums} album(s), and {songs} song(s) from Liked.",
+  "syncSettingsStarredReconciliationRemovalSummary": "Removed from Liked after the server confirmed the change: {artists, plural, =1{1 artist} other{{artists} artists}}, {albums, plural, =1{1 album} other{{albums} albums}} and {songs, plural, =1{1 song} other{{songs} songs}}.",
   "@syncSettingsStarredReconciliationRemovalSummary": {
     "placeholders": {
-      "artists": {},
-      "albums": {},
-      "songs": {}
+      "artists": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "albums": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "songs": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsDegradation": "Degraded domain: {category}",
@@ -242,10 +268,13 @@
       "reason": {}
     }
   },
-  "syncSettingsPendingWork": "{count} resumable task(s) pending",
+  "syncSettingsPendingWork": "{count, plural, =1{1 resumable task pending} other{{count} resumable tasks pending}}",
   "@syncSettingsPendingWork": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "librarySyncBacklogBanner": "{count, plural, =1{Library synced, 1 album is still loading details} other{Library synced, {count} albums are still loading details}}",
@@ -254,17 +283,21 @@
       "count": {"type": "int"}
     }
   },
-  "syncSettingsCandidate": "Candidate generation {generation}: {status}",
+  "syncSettingsCandidate": "Prepared library update: {status}",
   "@syncSettingsCandidate": {
     "placeholders": {
-      "generation": {},
-      "status": {}
+      "status": {
+        "type": "String"
+      }
     }
   },
-  "syncSettingsCarriedForward": "{count} unavailable album(s) kept from the previous catalog",
+  "syncSettingsCarriedForward": "{count, plural, =1{1 unavailable album kept from the previous catalog} other{{count} unavailable albums kept from the previous catalog}}",
   "@syncSettingsCarriedForward": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsApplyDuration": "Catalog applied in {milliseconds} ms",
@@ -273,21 +306,29 @@
       "milliseconds": {}
     }
   },
-  "syncSettingsUsage": "Last run: {requests} request(s) • {bytes}",
+  "syncSettingsUsage": "Last run: {requests, plural, =1{1 request} other{{requests} requests}} • {bytes}",
   "@syncSettingsUsage": {
     "placeholders": {
-      "requests": {},
-      "bytes": {}
+      "requests": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "bytes": {
+        "type": "String"
+      }
     }
   },
   "syncSettingsCheckForUpdates": "Check for updates",
   "syncSettingsFreshnessCurrent": "Current",
   "syncSettingsFreshnessPending": "Verification pending",
   "syncSettingsFreshnessRepair": "Repair recommended",
-  "syncSettingsRemainingVerification": "{count} artists remain to verify",
+  "syncSettingsRemainingVerification": "{count, plural, =1{1 artist remains to verify} other{{count} artists remain to verify}}",
   "@syncSettingsRemainingVerification": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsIdentitySummary": "{canonicalized} cached songs canonicalized; {ambiguous} ambiguous matches retained",
@@ -305,10 +346,13 @@
       "minutes": {}
     }
   },
-  "syncSettingsIntervalHours": "Every {hours} hour(s)",
+  "syncSettingsIntervalHours": "{hours, plural, =1{Every hour} other{Every {hours} hours}}",
   "@syncSettingsIntervalHours": {
     "placeholders": {
-      "hours": {}
+      "hours": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsIntervalDescription": "How often the library syncs automatically in the background.",
@@ -320,17 +364,23 @@
   "syncSettingsRepairLibraryMetadata": "Repair Library",
   "syncSettingsRepairLibraryMetadataDescription": "Reconcile your local library with the server. Keeps downloads, streaming cache, and artwork.",
   "syncSettingsRepairLibraryMetadataRunning": "Repairing library...",
-  "syncSettingsRepairDeletionConfirmationPending": "{count} server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.",
+  "syncSettingsRepairDeletionConfirmationPending": "{count, plural, =1{1 item the server no longer has is waiting for your confirmation before Navis removes it from the local library.} other{{count} items the server no longer has are waiting for your confirmation before Navis removes them from the local library.}}",
   "@syncSettingsRepairDeletionConfirmationPending": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsRepairDeletionConfirmationTitle": "Confirm Library Repair",
-  "syncSettingsRepairDeletionConfirmationBody": "The server no longer reports {count} item(s). Applying this repair will remove them from Navis's local library. Downloads and cached audio are kept.",
+  "syncSettingsRepairDeletionConfirmationBody": "{count, plural, =1{The server no longer reports 1 item. Applying this repair will remove it from Navis's local library.} other{The server no longer reports {count} items. Applying this repair will remove them from Navis's local library.}} Downloads and cached audio are kept.",
   "@syncSettingsRepairDeletionConfirmationBody": {
     "placeholders": {
-      "count": {}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsRepairDeletionConfirmationAction": "Apply Library Repair",
@@ -567,11 +617,12 @@
   "serverSettingsAuthModeLegacy": "Legacy password",
   "serverSettingsCapabilitiesLabel": "Capabilities",
   "serverSettingsCapabilitiesEmpty": "None detected",
-  "serverSettingsCapabilitiesCount": "{count} extension(s)",
+  "serverSettingsCapabilitiesCount": "{count, plural, =1{1 extension} other{{count} extensions}}",
   "@serverSettingsCapabilitiesCount": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -1611,10 +1662,13 @@
       "total": { "type": "int" }
     }
   },
-  "cacheSettingsPrecacheSuccess": "Done — cached {total} album art image(s).",
+  "cacheSettingsPrecacheSuccess": "Done — cached {total, plural, =1{1 album art image} other{{total} album art images}}.",
   "@cacheSettingsPrecacheSuccess": {
     "placeholders": {
-      "total": { "type": "int" }
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
 

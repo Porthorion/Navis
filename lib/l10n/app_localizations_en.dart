@@ -543,8 +543,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsPendingWorkLabel => 'Pending Work';
 
   @override
-  String syncSettingsPendingWorkValue(Object count) {
-    return '$count task(s) pending';
+  String syncSettingsPendingWorkValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString tasks pending',
+      one: '1 task pending',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -559,8 +569,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsLastRunLabel => 'Last Run';
 
   @override
-  String syncSettingsLastRunValue(Object requests, Object bytes) {
-    return '$requests request(s) • $bytes';
+  String syncSettingsLastRunValue(int requests, String bytes) {
+    final intl.NumberFormat requestsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String requestsString = requestsNumberFormat.format(requests);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      requests,
+      locale: localeName,
+      other: '$requestsString requests',
+      one: '1 request',
+    );
+    return '$_temp0 • $bytes';
   }
 
   @override
@@ -619,20 +639,76 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String syncSettingsCatalogPromotionRemovalSummary(
-    Object artists,
-    Object albums,
-    Object songs,
+    int artists,
+    int albums,
+    int songs,
   ) {
-    return 'Catalog promotion removed $artists artist(s), $albums album(s), and $songs song(s).';
+    final intl.NumberFormat artistsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String artistsString = artistsNumberFormat.format(artists);
+    final intl.NumberFormat albumsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String albumsString = albumsNumberFormat.format(albums);
+    final intl.NumberFormat songsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String songsString = songsNumberFormat.format(songs);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      artists,
+      locale: localeName,
+      other: '$artistsString artists',
+      one: '1 artist',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      albums,
+      locale: localeName,
+      other: '$albumsString albums',
+      one: '1 album',
+    );
+    String _temp2 = intl.Intl.pluralLogic(
+      songs,
+      locale: localeName,
+      other: '$songsString songs',
+      one: '1 song',
+    );
+    return 'The last library update removed $_temp0, $_temp1 and $_temp2.';
   }
 
   @override
   String syncSettingsStarredReconciliationRemovalSummary(
-    Object artists,
-    Object albums,
-    Object songs,
+    int artists,
+    int albums,
+    int songs,
   ) {
-    return 'Confirmed server update removed $artists artist(s), $albums album(s), and $songs song(s) from Liked.';
+    final intl.NumberFormat artistsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String artistsString = artistsNumberFormat.format(artists);
+    final intl.NumberFormat albumsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String albumsString = albumsNumberFormat.format(albums);
+    final intl.NumberFormat songsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String songsString = songsNumberFormat.format(songs);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      artists,
+      locale: localeName,
+      other: '$artistsString artists',
+      one: '1 artist',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      albums,
+      locale: localeName,
+      other: '$albumsString albums',
+      one: '1 album',
+    );
+    String _temp2 = intl.Intl.pluralLogic(
+      songs,
+      locale: localeName,
+      other: '$songsString songs',
+      one: '1 song',
+    );
+    return 'Removed from Liked after the server confirmed the change: $_temp0, $_temp1 and $_temp2.';
   }
 
   @override
@@ -646,8 +722,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String syncSettingsPendingWork(Object count) {
-    return '$count resumable task(s) pending';
+  String syncSettingsPendingWork(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString resumable tasks pending',
+      one: '1 resumable task pending',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -662,13 +748,23 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String syncSettingsCandidate(Object generation, Object status) {
-    return 'Candidate generation $generation: $status';
+  String syncSettingsCandidate(String status) {
+    return 'Prepared library update: $status';
   }
 
   @override
-  String syncSettingsCarriedForward(Object count) {
-    return '$count unavailable album(s) kept from the previous catalog';
+  String syncSettingsCarriedForward(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString unavailable albums kept from the previous catalog',
+      one: '1 unavailable album kept from the previous catalog',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -677,8 +773,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String syncSettingsUsage(Object requests, Object bytes) {
-    return 'Last run: $requests request(s) • $bytes';
+  String syncSettingsUsage(int requests, String bytes) {
+    final intl.NumberFormat requestsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String requestsString = requestsNumberFormat.format(requests);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      requests,
+      locale: localeName,
+      other: '$requestsString requests',
+      one: '1 request',
+    );
+    return 'Last run: $_temp0 • $bytes';
   }
 
   @override
@@ -694,8 +800,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsFreshnessRepair => 'Repair recommended';
 
   @override
-  String syncSettingsRemainingVerification(Object count) {
-    return '$count artists remain to verify';
+  String syncSettingsRemainingVerification(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString artists remain to verify',
+      one: '1 artist remains to verify',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -715,8 +831,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String syncSettingsIntervalHours(Object hours) {
-    return 'Every $hours hour(s)';
+  String syncSettingsIntervalHours(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Every $hoursString hours',
+      one: 'Every hour',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -753,8 +879,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsRepairLibraryMetadataRunning => 'Repairing library...';
 
   @override
-  String syncSettingsRepairDeletionConfirmationPending(Object count) {
-    return '$count server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.';
+  String syncSettingsRepairDeletionConfirmationPending(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$countString items the server no longer has are waiting for your confirmation before Navis removes them from the local library.',
+      one: '1 item the server no longer has is waiting for your confirmation before Navis removes it from the local library.',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -762,8 +899,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Confirm Library Repair';
 
   @override
-  String syncSettingsRepairDeletionConfirmationBody(Object count) {
-    return 'The server no longer reports $count item(s). Applying this repair will remove them from Navis\'s local library. Downloads and cached audio are kept.';
+  String syncSettingsRepairDeletionConfirmationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'The server no longer reports $countString items. Applying this repair will remove them from Navis\'s local library.',
+      one: 'The server no longer reports 1 item. Applying this repair will remove it from Navis\'s local library.',
+    );
+    return '$_temp0 Downloads and cached audio are kept.';
   }
 
   @override
@@ -1375,7 +1523,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String serverSettingsCapabilitiesCount(int count) {
-    return '$count extension(s)';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString extensions',
+      one: '1 extension',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -3538,7 +3696,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String cacheSettingsPrecacheSuccess(int total) {
-    return 'Done — cached $total album art image(s).';
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$totalString album art images',
+      one: '1 album art image',
+    );
+    return 'Done — cached $_temp0.';
   }
 
   @override

@@ -197,12 +197,12 @@ class SyncSettingsScreen extends ConsumerWidget {
                             ),
                           ],
                         ],
-                        if (syncState.candidateGeneration != null &&
-                            syncState.candidateStatus != null) ...<Widget>[
+                        // The confirmation message below says more.
+                        if (syncState.candidateStatus != null &&
+                            !awaitingDeletionConfirmation) ...<Widget>[
                           const SizedBox(height: 8),
                           Text(
                             l10n.syncSettingsCandidate(
-                              syncState.candidateGeneration!,
                               _humanize(syncState.candidateStatus!),
                             ),
                             style: Theme.of(context).textTheme.bodySmall,

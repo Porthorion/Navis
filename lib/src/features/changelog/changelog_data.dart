@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Sync Settings reads more naturally: counts say "1 artist" or "2 artists" instead of "artist(s)", large numbers are grouped (63,733), and internal library-update details are described in plain words',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'When first-time library setup cannot finish, the screen now says so once, in setup wording, and shows the server\'s own explanation when it gives one',
         type: ChangelogEntryType.improvement,
       ),
