@@ -347,6 +347,39 @@ void main() {
     await _disposeApp(tester);
   });
 
+  testWidgets('offers the retained server address and username', (
+    tester,
+  ) async {
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://music.example.test',
+        username: 'alice',
+        apiVersion: '1.16.1',
+        isAuthenticated: const Value(false),
+      ),
+    );
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('https://music.example.test'), findsOneWidget);
+    expect(find.text('alice'), findsOneWidget);
+    final password = tester.widget<TextFormField>(
+      find.byType(TextFormField).at(2),
+    );
+    expect(password.controller?.text, isEmpty);
+    await _disposeApp(tester);
+  });
+
   testWidgets('different retained profile requires destructive confirmation', (
     tester,
   ) async {

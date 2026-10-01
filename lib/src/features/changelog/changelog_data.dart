@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'When Navis asks you to sign in again to the same server, the server address and username are already filled in',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Sync Settings reads more naturally: counts say "1 artist" or "2 artists" instead of "artist(s)", large numbers are grouped (63,733), and internal library-update details are described in plain words',
         type: ChangelogEntryType.improvement,
       ),
