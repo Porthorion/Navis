@@ -648,7 +648,10 @@ Authentication lifecycle work uses:
 The script creates isolated database/cache profiles, uses the authenticated
 `/v1/session/*` API to create a first-sync state through
 `ServerDataResetService`, exercises offline recovery, captures app-owned setup
-screenshots, waits for safe promotion, verifies a clean restart, starts real
+screenshots (each waits for the setup screen's own controller state from
+`GET /v1/presentation/library-rebuild?reason=initial-login`; the retry after
+the failed state presses that screen's Retry through
+`POST /v1/presentation/library-rebuild`), waits for safe promotion, verifies a clean restart, starts real
 playback, and signs out through `SessionLifecycleService`. A second clone
 verifies initial-sync cancellation and restart at login. The clones use a
 deterministic loopback Subsonic fixture and a mode-600 fixture credential file;

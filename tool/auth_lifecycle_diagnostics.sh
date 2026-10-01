@@ -287,6 +287,30 @@ PY
   exit 70
 }
 
+# Waits for the setup screen's own initial-login rebuild controller to reach
+# one of the space-separated statuses in $1.
+wait_for_rebuild_status() {
+  local expected="$1"
+  local output_file="$2"
+  local timeout_seconds="${3:-300}"
+  local deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    api GET '/v1/presentation/library-rebuild?reason=initial-login' \
+      > "$output_file"
+    if python3 - "$output_file" "$expected" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if value.get("status") in sys.argv[2].split() else 1)
+PY
+    then
+      return
+    fi
+    sleep 0.5
+  done
+  echo "Timed out waiting for the setup screen status $expected. See $APP_LOG" >&2
+  exit 70
+}
+
 # Waits for the initial-login rebuild controller to leave its active states.
 wait_for_rebuild_settled() {
   local output_file="$1"
@@ -754,22 +778,25 @@ api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false}' >/dev/null
 wait_for_session initialSyncRequired failed \
   "$OUTPUT_ROOT/setup-failed.json" 300
+# The screenshot shows the setup screen, which runs its own controller.
+wait_for_rebuild_status failed "$OUTPUT_ROOT/setup-failed-screen.json" 300
 capture_screenshot setup-failed \
   "$OUTPUT_ROOT/setup-failed-screenshot.json" \
   > "$OUTPUT_ROOT/setup-failed-screenshot-path.txt"
 rm -f "$FIXTURE_FAILURE_FLAG"
-curl --fail-with-body --silent --show-error \
-  -X POST -H "Authorization: Bearer $TOKEN" \
-  "$BASE_URL/v1/session/initial-sync/retry" \
-  > "$OUTPUT_ROOT/setup-retry-result.json" &
-RETRY_REQUEST_PID=$!
-wait_for_session initialSyncRequired running \
+# Press the setup screen's own Retry, as a user would. (The legacy
+# /v1/session/initial-sync/retry drives a separate diagnostics controller, so
+# the screen would still show the failure.)
+api POST /v1/presentation/library-rebuild \
+  '{"reason":"initial-login","action":"retry"}' \
+  > "$OUTPUT_ROOT/setup-retry-result.json"
+wait_for_rebuild_status 'clearingCache syncing' \
   "$OUTPUT_ROOT/setup-running.json" 300
 capture_screenshot setup-running \
   "$OUTPUT_ROOT/setup-running-screenshot.json" \
   > "$OUTPUT_ROOT/setup-running-screenshot-path.txt"
-wait "$RETRY_REQUEST_PID"
-wait_for_session ready complete "$OUTPUT_ROOT/setup-complete.json" 14400
+wait_for_rebuild_status complete "$OUTPUT_ROOT/setup-complete-screen.json" 14400
+wait_for_session ready '' "$OUTPUT_ROOT/setup-complete.json" 600
 capture_screenshot setup-complete-home \
   "$OUTPUT_ROOT/setup-complete-screenshot.json" \
   > "$OUTPUT_ROOT/setup-complete-screenshot-path.txt"
