@@ -32,8 +32,9 @@ class QueueBatchEditResult {
 abstract interface class QueueBatchEditor {
   /// Inserts [songs] at uniformly random positions among the upcoming songs
   /// at or after logical index [notBefore]; the next two songs keep their
-  /// place. Costs at most one native removal regardless of how many songs
-  /// arrive.
+  /// place, and once part of the queue waits outside the player, every song
+  /// the player holds keeps its place too. Costs at most one native removal
+  /// regardless of how many songs arrive, and none once songs are deferred.
   Future<QueueBatchEditResult> mergeIntoUpcoming(
     List<SongsTableData> songs, {
     required int notBefore,

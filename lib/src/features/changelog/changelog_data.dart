@@ -156,6 +156,14 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Shuffling a large artist with crossfade on no longer plays a different song than the one shown, and the queue no longer collapses to one song when a stream stalls and cannot be reloaded',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playback and the library no longer freeze when queued songs are matched to your library while an artist or album loads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloaded songs in a custom Android folder now play when Android Auto starts Navis before the phone screen is opened',
         type: ChangelogEntryType.fix,
       ),

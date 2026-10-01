@@ -83,7 +83,26 @@ class _RevisionedList<E> extends ListBase<E> {
   final List<E> _items = <E>[];
 
   /// Increases on every change; never decreases.
-  int revision = 0;
+  int get revision => _revision;
+  int _revision = 0;
+
+  /// Increases on every change except [replaceAt]: an element refreshed in
+  /// place (art, liked state, a canonical id) keeps the queue's structure,
+  /// so work that snapshotted the structure stays valid.
+  int get structureRevision => _structureRevision;
+  int _structureRevision = 0;
+
+  void _changed() {
+    _revision++;
+    _structureRevision++;
+  }
+
+  /// Replaces the element at [index] with an updated copy of the same queue
+  /// entry, without changing [structureRevision].
+  void replaceAt(int index, E value) {
+    _items[index] = value;
+    _revision++;
+  }
 
   @override
   int get length => _items.length;
@@ -91,7 +110,7 @@ class _RevisionedList<E> extends ListBase<E> {
   @override
   set length(int value) {
     _items.length = value;
-    revision++;
+    _changed();
   }
 
   @override
@@ -100,67 +119,67 @@ class _RevisionedList<E> extends ListBase<E> {
   @override
   void operator []=(int index, E value) {
     _items[index] = value;
-    revision++;
+    _changed();
   }
 
   @override
   void add(E element) {
     _items.add(element);
-    revision++;
+    _changed();
   }
 
   @override
   void addAll(Iterable<E> iterable) {
     _items.addAll(iterable);
-    revision++;
+    _changed();
   }
 
   @override
   void insert(int index, E element) {
     _items.insert(index, element);
-    revision++;
+    _changed();
   }
 
   @override
   void insertAll(int index, Iterable<E> iterable) {
     _items.insertAll(index, iterable);
-    revision++;
+    _changed();
   }
 
   @override
   E removeAt(int index) {
-    revision++;
+    _changed();
     return _items.removeAt(index);
   }
 
   @override
   E removeLast() {
-    revision++;
+    _changed();
     return _items.removeLast();
   }
 
   @override
   void removeRange(int start, int end) {
     _items.removeRange(start, end);
-    revision++;
+    _changed();
   }
 
   @override
   bool remove(Object? element) {
     final removed = _items.remove(element);
-    if (removed) revision++;
+    if (removed) _changed();
     return removed;
   }
 
   @override
   void removeWhere(bool Function(E element) test) {
     _items.removeWhere(test);
-    revision++;
+    _changed();
   }
 
   @override
   void clear() {
     _items.clear();
-    revision++;
+    _changed();
   }
 }

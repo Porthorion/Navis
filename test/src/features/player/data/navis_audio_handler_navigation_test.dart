@@ -1638,6 +1638,362 @@ void main() {
       final earlier = queue.where(ids(10).contains).toList();
       expect(earlier, ids(10));
     });
+
+    test('a merge into a queue with deferred songs makes no native call '
+        'and spreads over the deferred songs', () async {
+      final (handler, player, database) = await windowed(60);
+      await handler.replaceQueue(ids(40), expandMatchFlows: false);
+      final held = player.sourceIds;
+      expect(held, ids(9));
+      final removals = player.rangeRemovals;
+      final batches = player.batchMutationCount;
+      final incoming = await database.libraryDao.getSongsByIds(ids(60, 40));
+      await handler.mergeIntoUpcoming(
+        incoming,
+        notBefore: 1,
+        random: Random(7),
+      );
+      expect(player.sourceIds, held);
+      expect(player.rangeRemovals, removals);
+      expect(player.batchMutationCount, batches);
+      final queue = handler.snapshot.queueSongIds;
+      expect(queue.take(9), held);
+      expect(queue.toSet(), ids(60).toSet());
+      expect(queue.where(ids(40).contains).toList(), ids(40));
+      // Not simply appended: new songs land among the deferred ones.
+      expect(
+        queue.skip(9).take(31).toSet().intersection(ids(60, 40).toSet()),
+        isNotEmpty,
+      );
+    });
+
+    test('a song refreshed in place does not stop a release', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      // Liked-state (and art) updates replace queue entries outside the
+      // queue lane, any time.
+      var refreshing = true;
+      var liked = false;
+      final refresher = () async {
+        while (refreshing) {
+          liked = !liked;
+          await handler.syncSongLikedState('song-0', liked: liked);
+          await Future<void>.delayed(Duration.zero);
+        }
+      }();
+      addTearDown(() => refreshing = false);
+      player.moveTo(6);
+      await until(() => player.sourceIds.length == 17);
+      refreshing = false;
+      await refresher;
+      expect(player.sourceIds, ids(17));
+      expect(handler.snapshot.queueSongIds, ids(60));
+    });
+    test('an alias update from inside a database transaction does not wait '
+        'for queue work', () async {
+      final (handler, player, database) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      // As sync does, before it remaps the rows in the same transaction: the
+      // queue must not make the transaction wait for it.
+      await database.transaction(() async {
+        await handler
+            .applySongIdentityAliases(<String, String>{'song-30': 'song-31'})
+            .timeout(const Duration(seconds: 2));
+      });
+      await until(
+        () =>
+            handler.debugQueueLaneIdle &&
+            handler.snapshot.queueSongIds[30] == 'song-31',
+      );
+      // Queue work started from inside the transaction must not keep using
+      // it after it closed: its coalesced save lands, and a release still
+      // reads the database.
+      await Future<void>.delayed(const Duration(seconds: 1));
+      final saved = await database.playQueueDao.getQueueItems();
+      expect(saved.elementAt(30).id, 'song-31');
+      player.moveTo(6);
+      await until(() => player.sourceIds.length == 17);
+    });
+  });
+
+  Map<String, Object?> fade(NavisAudioHandler handler) =>
+      handler.collectPlaybackDiagnostics()['crossfade']!
+          as Map<String, Object?>;
+
+  group('cross-fade deck', () {
+    List<String> ids(int count, [int from = 0]) =>
+        List<String>.generate(count - from, (i) => 'song-${i + from}');
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
+    crossfading(int count, {bool sidecarStreams = false}) async {
+      final directory = await Directory.systemTemp.createTemp('navis-fade-');
+      final created = await createHandler(
+        directory,
+        count,
+        crossfade: true,
+        sidecarStreams: sidecarStreams,
+      );
+      addTearDown(() async {
+        await created.$1.disposeHandler();
+        await created.$3.close();
+        await directory.delete(recursive: true);
+      });
+      return created;
+    }
+
+    test(
+      'a deck load that races a queue edit loads again before it plays',
+      () async {
+        final (handler, player, _) = await crossfading(8);
+        await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        deck
+          ..loadGate = gate
+          ..loadEntered = entered;
+
+        final started = handler.debugStartCrossfade();
+        await entered.future;
+        // Queue edits do not wait for a fade.
+        await handler.addToQueue(<String>[
+          'song-6',
+          'song-7',
+        ], expandMatchFlows: false);
+        gate.complete();
+        await started;
+
+        expect(player.sourceIds, ids(8));
+        expect(deck.sourceIds, ids(8));
+        expect(deck.isPlaying, isTrue);
+        expect(fade(handler)['phases'], containsPair('deck_resynced', 1));
+
+        await handler.debugCompleteCrossfade();
+        expect(identical(handler.debugActivePlayer, deck), isTrue);
+        expect(
+          handler.collectPlaybackDiagnostics()['playerMatchesQueue'],
+          true,
+        );
+        expect(handler.snapshot.queueSongIds, ids(8));
+      },
+    );
+
+    test('a deck that missed an edit is never handed over', () async {
+      final (handler, player, _) = await crossfading(6);
+      await handler.replaceQueue(ids(6), expandMatchFlows: false);
+      final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      await handler.debugStartCrossfade();
+      expect(deck.isPlaying, isTrue);
+      // A mirror the deck did not get.
+      await deck.removeAudioSourceAt(5);
+
+      await handler.debugCompleteCrossfade();
+
+      expect(identical(handler.debugActivePlayer, player), isTrue);
+      expect(deck.isPlaying, isFalse);
+      expect(fade(handler)['active'], isFalse);
+      expect(fade(handler)['phases'], containsPair('deck_mismatch', 1));
+      expect(handler.collectPlaybackDiagnostics()['playerMatchesQueue'], true);
+    });
+
+    test(
+      'a transition that cannot be prepared is not retried every tick',
+      () async {
+        final (handler, player, _) = await crossfading(6);
+        await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        player.isPlaying = true;
+        final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        // The deck cannot load the queue.
+        deck.failLoadSongId = 'song-0';
+        int failures() =>
+            (fade(handler)['phases']! as Map<String, int>)['prewarm_failed'] ??
+            0;
+        const nearEnd = Duration(minutes: 2, seconds: 56);
+
+        handler.debugCheckCrossfadeTrigger(nearEnd);
+        for (var i = 0; i < 100 && failures() == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(failures(), 1);
+        for (var tick = 0; tick < 5; tick++) {
+          handler.debugCheckCrossfadeTrigger(nearEnd);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+
+        expect(failures(), 1);
+        expect(fade(handler)['active'], isFalse);
+      },
+    );
+
+    test('a deck with the same length but other songs is reloaded', () async {
+      final (handler, _, _) = await crossfading(7);
+      await handler.replaceQueue(ids(6), expandMatchFlows: false);
+      final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      // Same length as the queue, different last song.
+      await deck.setAudioSources(<AudioSource>[
+        for (final id in <String>[...ids(5), 'song-6'])
+          AudioSource.uri(
+            Uri.parse('file:///$id.mp3'),
+            tag: MediaItem(id: id, title: id),
+          ),
+      ]);
+
+      await handler.debugStartCrossfade();
+
+      expect(deck.sourceIds, ids(6));
+    });
+  });
+
+  group('seek recovery', () {
+    List<String> ids(int count, [int from = 0]) =>
+        List<String>.generate(count - from, (i) => 'song-${i + from}');
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
+    recovering(int count, {bool crossfade = false}) async {
+      final directory = await Directory.systemTemp.createTemp('navis-recover-');
+      final created = await createHandler(
+        directory,
+        count,
+        crossfade: crossfade,
+        sidecarStreams: true,
+      );
+      addTearDown(() async {
+        await created.$1.disposeHandler();
+        await created.$3.close();
+        await directory.delete(recursive: true);
+      });
+      return created;
+    }
+
+    /// Plays [count] songs from the second one, with its stream already cached
+    /// in a completed sidecar file so a seek that does not land reloads the
+    /// queue (the fake player never lands a seek).
+    Future<void> start(NavisAudioHandler handler, int count) async {
+      await handler.replaceQueue(
+        ids(count),
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      final sidecar =
+          handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+    }
+
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 300 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(condition(), isTrue);
+    }
+
+    test(
+      'restores the whole queue even when playback is paused meanwhile',
+      () async {
+        final (handler, player, _) = await recovering(5);
+        await start(handler, 5);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+
+        unawaited(handler.seek(const Duration(seconds: 30)));
+        await entered.future;
+        // A newer transport command while the current song reloads.
+        await handler.pause();
+        gate.complete();
+
+        await until(
+          () => player.sourceIds.length == 5 && !handler.snapshot.isLoading,
+        );
+        expect(player.sourceIds, ids(5));
+        expect(handler.snapshot.queueSongIds, ids(5));
+        expect(
+          handler.collectPlaybackDiagnostics()['playerMatchesQueue'],
+          true,
+        );
+      },
+    );
+
+    test('keeps an edit made while the current song reloads', () async {
+      final (handler, player, _) = await recovering(7);
+      await start(handler, 5);
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..loadGate = gate
+        ..loadEntered = entered;
+
+      unawaited(handler.seek(const Duration(seconds: 30)));
+      await entered.future;
+      final edit = handler.addToQueue(<String>[
+        'song-5',
+        'song-6',
+      ], expandMatchFlows: false);
+      gate.complete();
+      await edit;
+
+      await until(
+        () => player.sourceIds.length == 7 && !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.queueSongIds, ids(7));
+      expect(player.sourceIds, ids(7));
+    });
+
+    test(
+      'a song that cannot be reloaded keeps the queue and moves on',
+      () async {
+        final (handler, player, _) = await recovering(5);
+        await start(handler, 5);
+        // The stream that stalled fails again when reloaded.
+        player.failLoadSongId = 'song-1';
+
+        await handler.debugRecoverCurrentSong();
+
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-2' &&
+              !handler.snapshot.isLoading,
+        );
+        expect(handler.snapshot.queueSongIds, ids(5));
+        expect(player.sourceIds, ids(5));
+      },
+    );
+
+    test('a skip rebuilds a player that lost its songs', () async {
+      final (handler, player, _) = await recovering(5);
+      await start(handler, 5);
+      // As after a timed-out reload: the rebuilt player holds nothing.
+      await player.setAudioSources(const <AudioSource>[]);
+
+      await handler.playFromIndex(3);
+
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-3' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.queueSongIds, ids(5));
+      expect(player.sourceIds, ids(5));
+      expect(player.index, 3);
+    });
+
+    test('cancels a cross-fade in progress', () async {
+      final (handler, player, _) = await recovering(5, crossfade: true);
+      await start(handler, 5);
+      await handler.debugStartCrossfade();
+      expect(fade(handler)['active'], isTrue);
+
+      await handler.debugRecoverCurrentSong();
+
+      await until(
+        () => player.sourceIds.length == 5 && !handler.snapshot.isLoading,
+      );
+      expect(fade(handler)['active'], isFalse);
+      expect(identical(handler.debugActivePlayer, player), isTrue);
+      expect(handler.debugInactiveDeck!.playing, isFalse);
+    });
   });
 
   group('deferred startup queue restore', () {

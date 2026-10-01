@@ -192,6 +192,35 @@ def prepare_profile(credentials: dict, fresh: bool) -> None:
     os.chmod(database, 0o600)
 
 
+def unhydrate_artist(database: pathlib.Path, name: str, keep: int = 2) -> dict:
+    """Forgets the songs of all but [keep] of an artist's albums in the clone,
+    so playing the artist hydrates them from the server one by one, as for an
+    artist the user has never opened."""
+    with sqlite3.connect(database) as clone:
+        clone.execute('PRAGMA foreign_keys=ON')
+        row = clone.execute(
+            'SELECT id FROM artists WHERE name = ? COLLATE NOCASE LIMIT 1',
+            (name,)).fetchone()
+        if row is None:
+            return {'error': f'artist {name!r} not in catalog'}
+        albums = [r[0] for r in clone.execute(
+            'SELECT id FROM albums WHERE artist_id = ? ORDER BY id',
+            (row[0],))][keep:]
+        marks = ','.join('?' * len(albums))
+        songs = [r[0] for r in clone.execute(
+            f'SELECT id FROM songs WHERE album_id IN ({marks})', albums)]
+        song_marks = ','.join('?' * len(songs))
+        clone.execute(
+            f'DELETE FROM song_search_text WHERE song_id IN ({song_marks})',
+            songs)
+        clone.execute(f'DELETE FROM songs WHERE id IN ({song_marks})', songs)
+        clone.execute(
+            f'UPDATE albums SET songs_hydrated = 0 WHERE id IN ({marks})',
+            albums)
+        clone.commit()
+    return {'albums': len(albums), 'songs': len(songs)}
+
+
 class App:
     def __init__(self, output: pathlib.Path):
         self.output = output
@@ -459,8 +488,14 @@ class Runner:
             extra = action() or {}
         except Failure as failure:
             error = str(failure)
+        except Exception as failure:  # an API timeout ends only this scenario
+            error = f'{type(failure).__name__}: {failure}'
         elapsed = time.monotonic() - started
-        report = self.app.api('/v1/diagnostics/report')
+        try:
+            report = self.app.api('/v1/diagnostics/report', timeout=120)
+        except Exception as failure:
+            report = {}
+            error = error or f'report {type(failure).__name__}: {failure}'
         if heartbeat:
             self.app.api('/v1/diagnostics/heartbeat', {'enabled': False})
         result = frame_summary(report)
@@ -553,6 +588,175 @@ class Runner:
             'playerSequenceLength': playback.get('playerSequenceLength'),
             'deferredLength': playback.get('deferredLength'),
             'queueOpenMs': queue_open_ms,
+        }
+
+    def remote_artist_crossfade(self, fade_s: int, linger_s: float = 60):
+        """Shuffles the remote artist and forces a cross-fade every few
+        seconds (by seeking near the end of each song) while its releases
+        hydrate, sampling whether the player still holds the Dart queue."""
+        started = time.monotonic()
+        self.app.api('/v1/presentation/artist-action', {'action': 'shuffle'})
+        deadline = started + 420
+        done_at = None
+        next_seek = started + 8
+        samples = 0
+        streak = 0
+        mismatches = 0
+        deck_mismatches = 0
+        first_mismatch = None
+        loading_since = None
+        longest_loading = 0.0
+        stopped_since = None
+        longest_stopped = 0.0
+        max_queue = 0
+        min_after_max = None
+        seeks = 0
+        stage = None
+        playback = {}
+        collapse = None
+        timeline = open(self.app.output / 'artist-crossfade-timeline.jsonl', 'w')
+        db_state = None
+        next_db_probe = started
+        db_blocked_s = 0.0
+        while time.monotonic() < deadline:
+            # The report reads the database; a blocked connection shows here
+            # first (playback status never touches it).
+            if time.monotonic() >= next_db_probe:
+                probed = time.monotonic()
+                try:
+                    self.app.api('/v1/diagnostics/report', timeout=5)
+                    db_state = round((time.monotonic() - probed) * 1000)
+                except Exception:
+                    db_state = 'timeout'
+                    db_blocked_s += time.monotonic() - probed
+                next_db_probe = time.monotonic() + 10
+            now = time.monotonic()
+            if done_at is None:
+                stage = self.app.api('/v1/artists/playback/status').get('stage')
+                if stage in ('completed', 'failed', 'cancelled'):
+                    done_at = now
+            elif now - done_at >= linger_s:
+                break
+            playback = self.app.api('/v1/playback/status')
+            samples += 1
+            length = playback.get('queueLength') or 0
+            native = playback.get('native') or {}
+            crossfade = playback.get('crossfade') or {}
+            seek_events = playback.get('seekEvents') or []
+            timeline.write(json.dumps({
+                't': round(now - started, 1),
+                'stage': stage,
+                'queue': length,
+                'materialized': playback.get('materializedLength'),
+                'sequence': playback.get('playerSequenceLength'),
+                'tail': playback.get('deferredLength'),
+                'head': playback.get('deferredHeadLength'),
+                'index': playback.get('currentIndex'),
+                'nativeIndex': native.get('index'),
+                'song': playback.get('songId'),
+                'playing': playback.get('playing'),
+                'state': playback.get('processingState'),
+                'loading': playback.get('isLoading'),
+                'settled': playback.get('queueSettled'),
+                'matches': playback.get('playerMatchesQueue'),
+                'fading': crossfade.get('active'),
+                'deck': crossfade.get('inactiveDeckSequenceLength'),
+                'phases': crossfade.get('phases'),
+                'seeks': len(seek_events),
+                'lastSeekPath': (seek_events[-1] if seek_events else {})
+                                .get('path'),
+                'timedOps': (playback.get('counters') or {})
+                            .get('timedPlayerOperations'),
+                'nav': playback.get('navigation'),
+                'lane': playback.get('queueLane'),
+                'recovery': playback.get('recovery'),
+                'db': db_state,
+            }) + '\n')
+            timeline.flush()
+            if collapse is None and max_queue > 50 and length < max_queue / 2:
+                collapse = round(now - started, 1)
+                (self.app.output / 'artist-crossfade-collapse.json').write_text(
+                    json.dumps(playback, indent=1))
+            if length >= max_queue:
+                max_queue = length
+                min_after_max = length
+            else:
+                min_after_max = min(min_after_max or length, length)
+            settled = playback.get('queueSettled', True)
+            crossfade = playback.get('crossfade') or {}
+            # A native call and its Dart commit are a moment apart; only a
+            # mismatch that survives two samples counts.
+            if settled and not crossfade.get('active') and \
+                    playback.get('playerMatchesQueue') is False:
+                streak += 1
+                if streak == 2:
+                    mismatches += 1
+                    if first_mismatch is None:
+                        native = playback.get('native') or {}
+                        first_mismatch = {
+                            'atS': round(now - started, 1),
+                            'songId': playback.get('songId'),
+                            'currentIndex': playback.get('currentIndex'),
+                            'nativeIndex': native.get('index'),
+                            'materializedLength':
+                                playback.get('materializedLength'),
+                            'playerSequenceLength':
+                                playback.get('playerSequenceLength'),
+                        }
+            else:
+                streak = 0
+            if crossfade.get('active') is False and \
+                    crossfade.get('inactiveDeckMatchesQueue') is False:
+                deck_mismatches += 1
+            if playback.get('isLoading'):
+                loading_since = loading_since or now
+                longest_loading = max(longest_loading, now - loading_since)
+            else:
+                loading_since = None
+            if not playback.get('playing'):
+                stopped_since = stopped_since or now
+                longest_stopped = max(longest_stopped, now - stopped_since)
+            else:
+                stopped_since = None
+            duration = playback.get('durationMs') or 0
+            position = playback.get('positionMs') or 0
+            # A seek cancels a fade in progress; let each fade finish.
+            if now >= next_seek and playback.get('playing') and \
+                    not crossfade.get('active') and \
+                    duration > (2 * fade_s + 10) * 1000 and \
+                    duration - position > (fade_s + 6) * 1000:
+                try:
+                    self.app.api('/v1/playback/seek', {
+                        'positionMs': duration - (fade_s + 4) * 1000})
+                    seeks += 1
+                except Exception:  # reported through the counters only
+                    pass
+                next_seek = now + fade_s + 8
+            time.sleep(0.5)
+        timeline.close()
+        (self.app.output / 'artist-crossfade-final.json').write_text(
+            json.dumps(playback, indent=1))
+        crossfade = playback.get('crossfade') or {}
+        return {
+            'stage': stage or 'timeout',
+            'collapseAtS': collapse,
+            'dbProbeTimeoutS': round(db_blocked_s, 1),
+            'finalLane': playback.get('queueLane'),
+            'finalRecovery': playback.get('recovery'),
+            'finalLoading': playback.get('isLoading'),
+            'runS': round(time.monotonic() - started, 1),
+            'samples': samples,
+            'seeks': seeks,
+            'crossfadePhases': crossfade.get('phases'),
+            'playerQueueMismatches': mismatches,
+            'firstMismatch': first_mismatch,
+            'idleDeckMismatchSamples': deck_mismatches,
+            'longestLoadingS': round(longest_loading, 1),
+            'longestStoppedS': round(longest_stopped, 1),
+            'maxQueueLength': max_queue,
+            'minQueueLengthAfterMax': min_after_max,
+            'finalQueueLength': playback.get('queueLength'),
+            'finalPlaying': playback.get('playing'),
         }
 
     def build_folder_fixture(self, count: int, flac_kb: int, other_kb: int,
@@ -794,7 +998,16 @@ def main() -> int:
                              'Android sidecar before running')
     parser.add_argument('--scenarios', default='all',
                         help='comma list: idle,queue2k,library,search,queue10k,'
-                             'artist,artist-remote,folder-import,cold')
+                             'artist,artist-remote,artist-crossfade,'
+                             'folder-import,cold (artist-crossfade runs only '
+                             'when named)')
+    parser.add_argument('--unhydrate-artist', action='store_true',
+                        help='forget the remote artist\'s album songs in the '
+                             'clone (all but two albums), so playing it '
+                             'hydrates them during playback')
+    parser.add_argument('--crossfade', type=int, metavar='SECONDS',
+                        help='set the cross-fade length in the clone; 0 turns '
+                             'cross-fade off (default: keep the clone\'s)')
     parser.add_argument('--folder-files', type=int, default=400,
                         help='files in the folder-import fixture')
     parser.add_argument('--refresh-golden', action='store_true',
@@ -818,6 +1031,17 @@ def main() -> int:
         print(f"[perf] built in {summary['buildS']}s", flush=True)
         return 0
     prepare_profile(credentials, args.fresh)
+    if args.crossfade is not None:
+        with sqlite3.connect(PROFILE / 'navis.sqlite') as clone:
+            clone.execute(
+                'UPDATE app_settings SET crossfade_enabled=?, '
+                'crossfade_duration_seconds=?, gapless_enabled=1',
+                (1 if args.crossfade > 0 else 0, max(args.crossfade, 1)))
+            clone.commit()
+        summary['crossfadeS'] = args.crossfade
+    if args.unhydrate_artist:
+        summary['unhydrated'] = unhydrate_artist(
+            PROFILE / 'navis.sqlite', REMOTE_ARTIST)
     if android:
         app = AndroidApp(output, args.android)
         app.install_and_seed(
@@ -890,6 +1114,19 @@ def main() -> int:
                                lambda: runner.artist_page(artist), heartbeat=True)
                 runner.measure('S7b_remote_artist_shuffle',
                                runner.remote_artist_shuffle, heartbeat=True)
+        if 'artist-crossfade' in wanted:
+            artist = runner.remote_artist_id()
+            if artist is None:
+                runner.results['S7c_remote_artist_crossfade'] = {
+                    'error': f'artist {REMOTE_ARTIST!r} not in catalog'}
+            else:
+                if not enabled('artist-remote'):
+                    runner.artist_page(artist)
+                else:
+                    app.api('/v1/playback/queue/clear', {})
+                fade = args.crossfade if args.crossfade else 5
+                runner.measure('S7c_remote_artist_crossfade',
+                               lambda: runner.remote_artist_crossfade(fade))
         if enabled('folder-import'):
             app.api('/v1/presentation/navigate', {'location': '/'})
             time.sleep(2)
