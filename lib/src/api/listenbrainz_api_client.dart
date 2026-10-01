@@ -2,11 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 
 class ListenBrainzInvalidTokenException implements Exception {
-  const ListenBrainzInvalidTokenException();
+  const new();
 }
 
 class ListenBrainzApiClient {
-  ListenBrainzApiClient({Dio? dio})
+  new({Dio? dio})
     : _dio =
           dio ??
           Dio(
@@ -72,10 +72,7 @@ class ListenBrainzApiClient {
     final encodedUserName = Uri.encodeComponent(userName);
     final response = await _dio.get<Map<String, dynamic>>(
       '/user/$encodedUserName/playlists',
-      queryParameters: <String, Object?>{
-        'count': count,
-        'offset': offset,
-      },
+      queryParameters: <String, Object?>{'count': count, 'offset': offset},
       options: userToken == null || userToken.trim().isEmpty
           ? null
           : _authOptions(userToken),
@@ -93,10 +90,7 @@ class ListenBrainzApiClient {
     final encodedUserName = Uri.encodeComponent(userName);
     final response = await _dio.get<Map<String, dynamic>>(
       '/user/$encodedUserName/playlists/createdfor',
-      queryParameters: <String, Object?>{
-        'count': count,
-        'offset': offset,
-      },
+      queryParameters: <String, Object?>{'count': count, 'offset': offset},
     );
     return parseListenBrainzPlaylistList(
       response.data ?? const <String, dynamic>{},

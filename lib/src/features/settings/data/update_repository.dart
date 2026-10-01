@@ -15,7 +15,7 @@ import 'package:navis/src/utils/constants.dart';
 /// it with the installed app version to determine whether an update is
 /// available.
 class UpdateRepository {
-  UpdateRepository({
+  new({
     Dio? dio,
     InstallSourceService? installSourceService,
     UpdateCheckStore? updateCheckStore,

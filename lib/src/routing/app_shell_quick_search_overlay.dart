@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopQuickSearchOverlay extends StatefulWidget {
-  const _DesktopQuickSearchOverlay({
+  const new({
     required this.controller,
     required this.focusNode,
     required this.onDismiss,

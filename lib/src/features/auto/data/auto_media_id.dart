@@ -43,7 +43,7 @@ enum AutoMediaContextType { album, playlist, downloads, liked, recent }
 
 /// A parsed representation of a browse-tree media ID.
 final class ParsedMediaId {
-  const ParsedMediaId({
+  const new({
     required this.type,
     this.entityId,
     this.contextType,
@@ -65,9 +65,7 @@ final class ParsedMediaId {
 
 /// Codec for Android Auto media IDs.
 abstract final class AutoMediaId {
-  static final RegExp _invalidPercentEncoding = RegExp(
-    '%(?![0-9A-Fa-f]{2})',
-  );
+  static final RegExp _invalidPercentEncoding = RegExp('%(?![0-9A-Fa-f]{2})');
 
   // ── Encoding ──────────────────────────────────────────────────────────────
 
@@ -126,18 +124,9 @@ abstract final class AutoMediaId {
         : null;
 
     return switch (prefix) {
-      'artist' => ParsedMediaId(
-        type: AutoMediaIdType.artist,
-        entityId: id,
-      ),
-      'album' => ParsedMediaId(
-        type: AutoMediaIdType.album,
-        entityId: id,
-      ),
-      'playlist' => ParsedMediaId(
-        type: AutoMediaIdType.playlist,
-        entityId: id,
-      ),
+      'artist' => ParsedMediaId(type: AutoMediaIdType.artist, entityId: id),
+      'album' => ParsedMediaId(type: AutoMediaIdType.album, entityId: id),
+      'playlist' => ParsedMediaId(type: AutoMediaIdType.playlist, entityId: id),
       'song' => ParsedMediaId(
         type: AutoMediaIdType.song,
         entityId: id,

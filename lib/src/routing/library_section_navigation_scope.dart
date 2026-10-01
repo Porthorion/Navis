@@ -12,7 +12,7 @@ import 'package:flutter/widgets.dart';
 /// only it knows whether the links fit its height.
 class LibrarySectionNavigationScope
     extends InheritedNotifier<ValueNotifier<bool>> {
-  const LibrarySectionNavigationScope({
+  const new({
     required this.sidebarAllowsSections,
     required ValueNotifier<bool> sectionsFit,
     required super.child,

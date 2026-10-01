@@ -6,7 +6,7 @@ part 'artist.g.dart';
 
 @freezed
 abstract class Artist with _$Artist {
-  const factory Artist({
+  const factory({
     required String id,
     required String name,
     int? albumCount,
@@ -20,5 +20,5 @@ abstract class Artist with _$Artist {
     @Default(<Album>[]) List<Album> albums,
   }) = _Artist;
 
-  factory Artist.fromJson(Map<String, dynamic> json) => _$ArtistFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$ArtistFromJson(json);
 }

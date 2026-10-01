@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Manages download-progress and completion notifications on the
 /// `downloads` Android notification channel.
 class DownloadNotifier {
-  DownloadNotifier._();
+  new _();
 
   /// Notification titles must not include internal song IDs or backend detail.
   static const String failureNotificationTitle = 'Download failed';
@@ -104,9 +104,7 @@ class DownloadNotifier {
       await _plugin.show(
         id: _summaryId,
         title: title,
-        notificationDetails: const NotificationDetails(
-          android: androidDetails,
-        ),
+        notificationDetails: const NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.
@@ -131,9 +129,7 @@ class DownloadNotifier {
       await _plugin.show(
         id: _summaryId,
         title: failureNotificationTitle,
-        notificationDetails: const NotificationDetails(
-          android: androidDetails,
-        ),
+        notificationDetails: const NotificationDetails(android: androidDetails),
       );
     } on Object {
       // Notifications are best-effort in tests and unsupported environments.

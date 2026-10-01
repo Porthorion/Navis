@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 
@@ -9,9 +9,7 @@ void main() {
   for (final preserveTargetNode in <bool>[false, true]) {
     testWidgets(
       'excluded nested tooltip keeps semantics valid (target node: $preserveTargetNode)',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final semantics = tester.ensureSemantics();
         final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
         await mouse.addPointer(location: Offset.zero);

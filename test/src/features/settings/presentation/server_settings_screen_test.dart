@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -24,7 +24,7 @@ import 'package:url_launcher_platform_interface/url_launcher_platform_interface.
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
-class _MockSettingsRepository extends Mock implements SettingsRepository {}
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 class _FakeServerConnectionService extends ServerConnectionService {
   final result = const ServerConnectionProbeResult(
@@ -57,7 +57,7 @@ class _FakeSignOutService implements SignOutService {
 }
 
 class _TestServerConfigNotifier extends ServerConfigNotifier {
-  _TestServerConfigNotifier(this._initial);
+  new(this._initial);
 
   ServerConfigModel? _initial;
   ServerConfigModel? _savedConfig;
@@ -86,17 +86,13 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
 }
 
 class _FakeLastFmApiClient extends LastFmApiClient {
-  _FakeLastFmApiClient({
-    LastFmApiKeyValidationResult validationResult =
-        const LastFmApiKeyValidationResult(valid: true),
+  new({
+    this._validationResult = const LastFmApiKeyValidationResult(valid: true),
     super.apiKey = 'fake-key',
-    String authToken = 'auth-token',
-    LastFmApiException? authTokenError,
+    this._authToken = 'auth-token',
+    this._authTokenError,
     List<Object> sessionResults = const <Object>[],
-  }) : _validationResult = validationResult,
-       _authToken = authToken,
-       _authTokenError = authTokenError,
-       _sessionResults = List<Object>.of(sessionResults);
+  }) : _sessionResults = List<Object>.of(sessionResults);
 
   final LastFmApiKeyValidationResult _validationResult;
   final String _authToken;
@@ -171,7 +167,7 @@ class _FakeUrlLauncherPlatform extends UrlLauncherPlatform {
 }
 
 class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
-  _FakeListenBrainzApiClient({required this.valid});
+  new({required this.valid});
 
   final bool valid;
 
@@ -301,10 +297,7 @@ void main() {
     final lastFmPosition = tester.getTopLeft(find.text('Last.fm'));
     final listenBrainzPosition = tester.getTopLeft(find.text('ListenBrainz'));
     expect(listenBrainzPosition.dx, greaterThan(lastFmPosition.dx));
-    expect(
-      listenBrainzPosition.dy,
-      closeTo(lastFmPosition.dy, 16),
-    );
+    expect(listenBrainzPosition.dy, closeTo(lastFmPosition.dy, 16));
   });
 
   testWidgets(
@@ -515,9 +508,7 @@ void main() {
     expect(fakeConnection.callCount, 1);
   });
 
-  testWidgets('server details are read-only static text', (
-    tester,
-  ) async {
+  testWidgets('server details are read-only static text', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
 

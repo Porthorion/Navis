@@ -66,9 +66,7 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
 final librarySyncOperationLedgerProvider =
     StreamProvider<List<LibrarySyncOperationLedgerTableData>>((ref) {
       final serverId = ref.watch(
-        serverConfigStateProvider.select(
-          (config) => config.asData?.value?.id,
-        ),
+        serverConfigStateProvider.select((config) => config.asData?.value?.id),
       );
       if (serverId == null) {
         return Stream<List<LibrarySyncOperationLedgerTableData>>.value(
@@ -106,9 +104,7 @@ final androidBackgroundSyncReconcilerProvider =
 final androidBackgroundSyncStatusProvider =
     StreamProvider<LibrarySyncStateTableData?>((ref) {
       final serverId = ref.watch(
-        serverConfigStateProvider.select(
-          (config) => config.asData?.value?.id,
-        ),
+        serverConfigStateProvider.select((config) => config.asData?.value?.id),
       );
       if (serverId == null) {
         return Stream<LibrarySyncStateTableData?>.value(null);
@@ -334,17 +330,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       serverReachabilityControllerProvider,
       (_, next) => _onReachabilityChanged(next),
     );
-    ref.listen<int>(
-      syncIntervalMinutesProvider,
-      (previous, next) {
-        // App settings hydrate asynchronously. That first value is not a user
-        // changing their preference and must not erase a server's persisted
-        // deadline simply because the controller was rebuilt.
-        if (previous != null && previous != next) {
-          _onSyncIntervalChanged(next);
-        }
-      },
-    );
+    ref.listen<int>(syncIntervalMinutesProvider, (previous, next) {
+      // App settings hydrate asynchronously. That first value is not a user
+      // changing their preference and must not erase a server's persisted
+      // deadline simply because the controller was rebuilt.
+      if (previous != null && previous != next) {
+        _onSyncIntervalChanged(next);
+      }
+    });
     // Do not create the app-settings-backed network-policy provider on other
     // platforms. Besides avoiding needless database work, this preserves the
     // controller's test and desktop lifecycle without a mobile scheduler.
@@ -1018,10 +1011,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// delta discovery for the next eligible connection. Full repair remains
   /// deliberately excluded because it always requires another explicit Repair
   /// Library action.
-  Future<bool> _hasEligibleManualCatalogWork(
-    int serverId,
-    DateTime now,
-  ) async {
+  Future<bool> _hasEligibleManualCatalogWork(int serverId, DateTime now) async {
     final work = await ref
         .read(navisDatabaseProvider)
         .librarySyncDao
@@ -1503,22 +1493,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
     final delay = nextCheckAt.difference(DateTime.now().toUtc());
-    _periodicSyncTimer = Timer(
-      delay.isNegative ? Duration.zero : delay,
-      () {
-        if (epoch != _automaticScheduleEpoch) {
-          return;
-        }
-        AppLogger.debug(
-          'Automatic sync deadline reached (interval: ${minutes}m, '
-          'foreground=$_isForeground).',
-        );
-        if (!_isForeground) {
-          return;
-        }
-        unawaited(syncIfStale());
-      },
-    );
+    _periodicSyncTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      if (epoch != _automaticScheduleEpoch) {
+        return;
+      }
+      AppLogger.debug(
+        'Automatic sync deadline reached (interval: ${minutes}m, '
+        'foreground=$_isForeground).',
+      );
+      if (!_isForeground) {
+        return;
+      }
+      unawaited(syncIfStale());
+    });
   }
 
   Future<void> _resetAutomaticCheckSchedule(int minutes) async {

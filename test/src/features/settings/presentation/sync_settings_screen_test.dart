@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +17,7 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
-  _FakeLibrarySyncController({
+  new({
     required this.stateValue,
     this.onSyncNow,
     this.onDiscardRepairCandidate,
@@ -26,7 +26,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   final LibrarySyncState stateValue;
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
   final Future<bool> Function()? onDiscardRepairCandidate;
-  var repairCalls = 0;
+  int repairCalls = 0;
   bool? lastRepairMeteredOverride;
 
   @override
@@ -126,9 +126,8 @@ void main() {
             ),
           ),
           librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState.idle(),
-            ),
+            () =>
+                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
           ),
           syncNetworkPolicyProvider.overrideWith(
             (_) => const SyncNetworkPolicy(
@@ -388,9 +387,8 @@ void main() {
         ),
         GoRoute(
           path: '/library-rebuild',
-          builder: (context, state) => const Scaffold(
-            body: Text('Required library rebuild'),
-          ),
+          builder: (context, state) =>
+              const Scaffold(body: Text('Required library rebuild')),
         ),
       ],
     );
@@ -523,9 +521,8 @@ void main() {
             ),
           ),
           librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState.idle(),
-            ),
+            () =>
+                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
           ),
           androidBackgroundSyncAvailableProvider.overrideWith((_) => true),
           syncNetworkPolicyProvider.overrideWith(
@@ -647,9 +644,8 @@ void main() {
         ),
         GoRoute(
           path: '/library-rebuild',
-          builder: (context, state) => const Scaffold(
-            body: Text('Required library rebuild'),
-          ),
+          builder: (context, state) =>
+              const Scaffold(body: Text('Required library rebuild')),
         ),
       ],
     );
@@ -670,9 +666,8 @@ void main() {
             ),
           ),
           librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState.idle(),
-            ),
+            () =>
+                _FakeLibrarySyncController(stateValue: LibrarySyncState.idle()),
           ),
           syncNetworkPolicyProvider.overrideWith(
             (_) => const SyncNetworkPolicy(
@@ -699,10 +694,7 @@ void main() {
 
     await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Repair Library on Mobile Data?'),
-      findsOneWidget,
-    );
+    expect(find.text('Repair Library on Mobile Data?'), findsOneWidget);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -739,9 +731,8 @@ void main() {
         ),
         GoRoute(
           path: '/library-rebuild',
-          builder: (context, state) => const Scaffold(
-            body: Text('Required library rebuild'),
-          ),
+          builder: (context, state) =>
+              const Scaffold(body: Text('Required library rebuild')),
         ),
       ],
     );

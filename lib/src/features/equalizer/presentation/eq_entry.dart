@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -6,7 +6,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 
 /// Shared navigation entry, disabled when the actual backend lacks EQ.
 class EqualizerEntry extends ConsumerWidget {
-  const EqualizerEntry({this.onOpen, super.key});
+  const new({this.onOpen, super.key});
   final VoidCallback? onOpen;
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -18,7 +18,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../../../helpers/test_database.dart';
 
 class _FakeLastFmApiClient extends LastFmApiClient {
-  _FakeLastFmApiClient(this.tracks) : super(apiKey: 'fake');
+  new(this.tracks) : super(apiKey: 'fake');
 
   final List<LastFmArtistTopTrack> tracks;
   int? requestedLimit;
@@ -36,7 +36,7 @@ class _FakeLastFmApiClient extends LastFmApiClient {
 }
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
-  _FakeSubsonicApiClient()
+  new()
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -75,9 +75,8 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
 
 class _FixtureDiagnosticsOverrides extends SyncDiagnosticsOverridesController {
   @override
-  SyncDiagnosticsOverrides build() => const SyncDiagnosticsOverrides(
-    artistTopTracksPresentationFixture: true,
-  );
+  SyncDiagnosticsOverrides build() =>
+      const SyncDiagnosticsOverrides(artistTopTracksPresentationFixture: true);
 }
 
 List<LastFmArtistTopTrack> _lastFmTracks(int count) {
@@ -141,12 +140,7 @@ void main() {
     required String title,
     String? artist,
     String? album,
-  }) => Song(
-    id: id,
-    title: title,
-    artist: artist,
-    album: album,
-  );
+  }) => Song(id: id, title: title, artist: artist, album: album);
 
   LastFmArtistTopTrack lastFm({
     required String title,
@@ -330,33 +324,26 @@ void main() {
     expect(fakeSubsonic.searchCallCount, 0);
   }, skip: !sqliteAvailable);
 
-  test(
-    'search3 runs only for local misses with bounded concurrency',
-    () async {
-      final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(16));
-      final fakeSubsonic = _FakeSubsonicApiClient();
-      final container = _providerContainerWithDatabase(
-        overrides: [
-          hasLastFmApiKeyProvider.overrideWithValue(true),
-          lastFmApiClientProvider.overrideWithValue(fakeLastFm),
-          subsonicApiProvider.overrideWithValue(fakeSubsonic),
-        ],
-      );
+  test('search3 runs only for local misses with bounded concurrency', () async {
+    final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(16));
+    final fakeSubsonic = _FakeSubsonicApiClient();
+    final container = _providerContainerWithDatabase(
+      overrides: [
+        hasLastFmApiKeyProvider.overrideWithValue(true),
+        lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+        subsonicApiProvider.overrideWithValue(fakeSubsonic),
+      ],
+    );
 
-      final tracks = await container.read(
-        artistTopTracksPlaylistProvider('Test Artist').future,
-      );
+    final tracks = await container.read(
+      artistTopTracksPlaylistProvider('Test Artist').future,
+    );
 
-      expect(tracks, hasLength(16));
-      expect(fakeSubsonic.searchCallCount, 16);
-      expect(fakeSubsonic.maxActiveSearchCalls, lessThanOrEqualTo(4));
-      expect(
-        tracks.where((track) => track.resolvedSong == null),
-        hasLength(16),
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(tracks, hasLength(16));
+    expect(fakeSubsonic.searchCallCount, 16);
+    expect(fakeSubsonic.maxActiveSearchCalls, lessThanOrEqualTo(4));
+    expect(tracks.where((track) => track.resolvedSong == null), hasLength(16));
+  }, skip: !sqliteAvailable);
 
   test(
     'watching section and playlist shares search3 resolution for overlap',
@@ -458,36 +445,26 @@ void main() {
     expect(match, isNull);
   });
 
-  test(
-    'returns null when title matches exactly but artist is completely different',
-    () {
-      // "Heart Attack" by Demi Lovato should NOT match a search for a
-      // "Heart Attack" track by Pokelawls — the artist is entirely wrong.
-      final match = pickBestArtistTopTrackMatch(
-        track: lastFm(title: 'Heart Attack', artist: 'Pokelawls'),
-        candidates: [
-          song(id: '1', title: 'Heart Attack', artist: 'Demi Lovato'),
-        ],
-      );
+  test('returns null when title matches exactly but artist is completely different', () {
+    // "Heart Attack" by Demi Lovato should NOT match a search for a
+    // "Heart Attack" track by Pokelawls — the artist is entirely wrong.
+    final match = pickBestArtistTopTrackMatch(
+      track: lastFm(title: 'Heart Attack', artist: 'Pokelawls'),
+      candidates: [song(id: '1', title: 'Heart Attack', artist: 'Demi Lovato')],
+    );
 
-      expect(match, isNull);
-    },
-  );
+    expect(match, isNull);
+  });
 
-  test(
-    'returns null when title partially matches but artist is completely different',
-    () {
-      // "RUNAWAY" by Aurora should NOT match a search for "RUNWAY" by Pokelawls.
-      final match = pickBestArtistTopTrackMatch(
-        track: lastFm(title: 'RUNWAY', artist: 'Pokelawls'),
-        candidates: [
-          song(id: '1', title: 'RUNAWAY', artist: 'Aurora'),
-        ],
-      );
+  test('returns null when title partially matches but artist is completely different', () {
+    // "RUNAWAY" by Aurora should NOT match a search for "RUNWAY" by Pokelawls.
+    final match = pickBestArtistTopTrackMatch(
+      track: lastFm(title: 'RUNWAY', artist: 'Pokelawls'),
+      candidates: [song(id: '1', title: 'RUNAWAY', artist: 'Aurora')],
+    );
 
-      expect(match, isNull);
-    },
-  );
+    expect(match, isNull);
+  });
 
   test('returns null for empty candidate list', () {
     final match = pickBestArtistTopTrackMatch(
@@ -506,16 +483,8 @@ void main() {
     final match = pickBestArtistTopTrackMatch(
       track: lastFm(title: 'Bohemian Rhapsody', artist: 'Queen'),
       candidates: [
-        song(
-          id: 'live',
-          title: 'Bohemian Rhapsody (Live)',
-          artist: 'Queen',
-        ),
-        song(
-          id: 'studio',
-          title: 'Bohemian Rhapsody',
-          artist: 'Queen',
-        ),
+        song(id: 'live', title: 'Bohemian Rhapsody (Live)', artist: 'Queen'),
+        song(id: 'studio', title: 'Bohemian Rhapsody', artist: 'Queen'),
       ],
     );
 
@@ -552,10 +521,7 @@ void main() {
 
   test('matches despite parenthetical differences', () {
     final match = pickBestArtistTopTrackMatch(
-      track: lastFm(
-        title: 'Blinding Lights',
-        artist: 'The Weeknd',
-      ),
+      track: lastFm(title: 'Blinding Lights', artist: 'The Weeknd'),
       candidates: [
         song(
           id: '1',
@@ -588,9 +554,7 @@ void main() {
   test('matches case-insensitively', () {
     final match = pickBestArtistTopTrackMatch(
       track: lastFm(title: 'bohemian rhapsody', artist: 'queen'),
-      candidates: [
-        song(id: '1', title: 'Bohemian Rhapsody', artist: 'Queen'),
-      ],
+      candidates: [song(id: '1', title: 'Bohemian Rhapsody', artist: 'Queen')],
     );
 
     expect(match, isNotNull);
@@ -600,9 +564,7 @@ void main() {
   test('matches when punctuation differs', () {
     final match = pickBestArtistTopTrackMatch(
       track: lastFm(title: "Don't Stop Me Now", artist: 'Queen'),
-      candidates: [
-        song(id: '1', title: 'Dont Stop Me Now', artist: 'Queen'),
-      ],
+      candidates: [song(id: '1', title: 'Dont Stop Me Now', artist: 'Queen')],
     );
 
     expect(match, isNotNull);

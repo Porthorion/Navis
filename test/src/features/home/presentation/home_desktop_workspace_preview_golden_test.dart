@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -32,7 +32,7 @@ void main() {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.panels});
+  const new({required this.panels});
   final bool panels;
   @override
   Widget build(BuildContext context) {
@@ -53,9 +53,8 @@ class _Preview extends StatelessWidget {
         children: <Widget>[
           Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           Row(

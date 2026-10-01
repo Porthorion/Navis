@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -500,7 +500,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     await mount(tester, configuration: EqConfiguration.flat());
     expect(
-      find.bySemanticsLabel(RegExp(r'^Band 3, 1000 Hz, Peaking · 0 dB')),
+      find.bySemanticsLabel(RegExp('^Band 3, 1000 Hz, Peaking · 0 dB')),
       findsWidgets,
     );
     expect(

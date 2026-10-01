@@ -2,7 +2,7 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 
 /// Information about an available app update fetched from the Forgejo releases API.
 class UpdateInfo {
-  const UpdateInfo({
+  const new({
     required this.tagName,
     required this.htmlUrl,
     required this.delivery,

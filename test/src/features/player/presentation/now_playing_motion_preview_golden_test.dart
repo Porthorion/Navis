@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -22,9 +22,7 @@ void main() {
 
   testWidgets(
     'reduced motion presents the next Now Playing track immediately',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 220));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(preview(reduceMotion: true));
@@ -39,11 +37,7 @@ void main() {
 }
 
 class _TrackCard extends StatelessWidget {
-  const _TrackCard({
-    required super.key,
-    required this.title,
-    required this.artColor,
-  });
+  const new({required super.key, required this.title, required this.artColor});
 
   final String title;
   final Color artColor;
@@ -85,7 +79,7 @@ class _TrackCard extends StatelessWidget {
 }
 
 class _TrackSwapPreview extends StatefulWidget {
-  const _TrackSwapPreview({required this.reduceMotion});
+  const new({required this.reduceMotion});
 
   final bool reduceMotion;
 
@@ -123,9 +117,10 @@ class _TrackSwapPreviewState extends State<_TrackSwapPreview> {
               : (child, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(
-                    scale: Tween<double>(begin: 0.985, end: 1).animate(
-                      animation,
-                    ),
+                    scale: Tween<double>(
+                      begin: 0.985,
+                      end: 1,
+                    ).animate(animation),
                     child: child,
                   ),
                 ),

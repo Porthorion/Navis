@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:file/local.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,15 +15,13 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-class _CachedManager extends Mock implements CacheManager {}
+class _CachedManager extends Mock implements CacheManager;
 
 void main() {
   for (final dimensions in [(2400, 2400), (1200, 600), (60, 120)]) {
     testWidgets(
       'bounds both decode paths for ${dimensions.$1}x${dimensions.$2}',
-      (
-        tester,
-      ) async {
+      (tester) async {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
         final dir = Directory.systemTemp.createTempSync('navis-art-decode-');
         addTearDown(() => dir.deleteSync(recursive: true));

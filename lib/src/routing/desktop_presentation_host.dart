@@ -9,7 +9,7 @@ import 'package:navis/src/routing/desktop_window_controller.dart';
 /// controller changes modes, preserving GoRouter branch navigators, overlays,
 /// searches, and playback-owned state.
 class DesktopPresentationHost extends ConsumerWidget {
-  const DesktopPresentationHost({required this.child, super.key});
+  const new({required this.child, super.key});
 
   final Widget child;
 

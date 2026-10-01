@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_anchored_popover.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -53,7 +53,7 @@ Future<void> showQuickPanel(
 
 /// Pinned header, scrolling body and pinned footer for quick panels.
 class QuickPanelScaffold extends StatefulWidget {
-  const QuickPanelScaffold({
+  const new({
     required this.title,
     required this.body,
     required this.onClose,
@@ -148,9 +148,7 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
                 ],
                 IconButton(
                   key: const ValueKey<String>('quickPanelClose'),
-                  tooltip: MaterialLocalizations.of(
-                    context,
-                  ).closeButtonTooltip,
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   onPressed: widget.onClose,
                   icon: const Icon(Icons.close),
                 ),
@@ -194,7 +192,7 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
 /// Fades the leading and trailing edges of a scroll view only while more
 /// content lies beyond that edge, hinting that the area scrolls.
 class ScrollEdgeFade extends StatefulWidget {
-  const ScrollEdgeFade({
+  const new({
     required this.controller,
     required this.child,
     this.axis = Axis.vertical,

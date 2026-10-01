@@ -1,6 +1,6 @@
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
@@ -87,10 +87,7 @@ Page<T> buildSlideFadePage<T>({
         reverseCurve: const Interval(0.35, 1, curve: Curves.easeIn),
       );
       final slide =
-          Tween<Offset>(
-            begin: const Offset(0, 0.05),
-            end: Offset.zero,
-          ).animate(
+          Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
             CurvedAnimation(
               parent: animation,
               curve: Curves.fastEaseInToSlowEaseOut,

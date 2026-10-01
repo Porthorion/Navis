@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -35,7 +35,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this._state);
+  new(this._state);
 
   final ServerReachabilityState _state;
 
@@ -44,7 +44,7 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _TestServerConfigNotifier extends ServerConfigNotifier {
-  _TestServerConfigNotifier(this._initial);
+  new(this._initial);
 
   ServerConfigModel? _initial;
 
@@ -69,7 +69,7 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
 }
 
 class _CallbackSignOutService implements SignOutService {
-  _CallbackSignOutService(this._onSignOut);
+  new(this._onSignOut);
 
   final Future<void> Function({required bool wipeLocalData}) _onSignOut;
 
@@ -98,8 +98,7 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 
 class _StaticRequiredLibraryRebuildController
     extends RequiredLibraryRebuildController {
-  _StaticRequiredLibraryRebuildController()
-    : super(RequiredLibraryRebuildReason.initialLogin);
+  new() : super(RequiredLibraryRebuildReason.initialLogin);
 
   @override
   RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
@@ -109,8 +108,7 @@ class _StaticRequiredLibraryRebuildController
 
 class _StaticCacheUpgradeRebuildController
     extends RequiredLibraryRebuildController {
-  _StaticCacheUpgradeRebuildController()
-    : super(RequiredLibraryRebuildReason.cacheUpgrade);
+  new() : super(RequiredLibraryRebuildReason.cacheUpgrade);
 
   @override
   RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
@@ -120,8 +118,7 @@ class _StaticCacheUpgradeRebuildController
 
 class _CompletedCacheUpgradeRebuildController
     extends RequiredLibraryRebuildController {
-  _CompletedCacheUpgradeRebuildController()
-    : super(RequiredLibraryRebuildReason.cacheUpgrade);
+  new() : super(RequiredLibraryRebuildReason.cacheUpgrade);
 
   @override
   RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
@@ -319,10 +316,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 
@@ -345,10 +339,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 
@@ -398,10 +389,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 
@@ -416,74 +404,60 @@ void main() {
     expect(find.text('Unknown track'), findsNothing);
   });
 
-  testWidgets(
-    'fresh authenticated profile stays on required library setup',
-    (
-      tester,
-    ) async {
-      final container = _createContainerWithDatabase(
-        initialSyncRequired: true,
-        overrides: [
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                id: 1,
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
+  testWidgets('fresh authenticated profile stays on required library setup', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      initialSyncRequired: true,
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              id: 1,
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
             ),
           ),
-          requiredLibraryRebuildControllerProvider(
-            RequiredLibraryRebuildReason.initialLogin,
-          ).overrideWith(
-            _StaticRequiredLibraryRebuildController.new,
-          ),
-          librarySyncControllerProvider.overrideWith(
-            _StaticLibrarySyncController.new,
-          ),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
+        ),
+        requiredLibraryRebuildControllerProvider(
+          RequiredLibraryRebuildReason.initialLogin,
+        ).overrideWith(_StaticRequiredLibraryRebuildController.new),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
             ),
           ),
-          homeRecentlyPlayedProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          homeRecentlyAddedProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeFrequentAlbumsProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeRandomAlbumsProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeStarredSongsProvider.overrideWithValue(
-            const AsyncData(<Song>[]),
-          ),
-          artistInfoProvider.overrideWith((ref, artistId) async => null),
-        ],
-      );
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+      ],
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(container: container, child: _testApp),
-      );
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
 
-      expect(find.text('Building Your Library'), findsOneWidget);
-      expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
-      expect(
-        find.byKey(const ValueKey('requiredSyncSignOut')),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(find.text('Building Your Library'), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
+    expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
+  });
 
   testWidgets('cache renewal has priority over onboarding', (tester) async {
     final container = _createContainerWithDatabase(
@@ -611,9 +585,8 @@ void main() {
         ),
         GoRoute(
           path: '/onboarding',
-          builder: (context, state) => const Scaffold(
-            body: Text('Onboarding destination'),
-          ),
+          builder: (context, state) =>
+              const Scaffold(body: Text('Onboarding destination')),
         ),
       ],
     );
@@ -685,10 +658,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 
@@ -735,10 +705,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 
@@ -771,12 +738,12 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Builder(
           builder: (context) {
-            final page = (buildSlideFadePage<void>(
+            final page = buildSlideFadePage<void>(
               context: context,
               key: const ValueKey<String>('album-detail'),
               heroDriven: true,
               child: child,
-            ) as CustomTransitionPage<void>);
+            ) as CustomTransitionPage<void>;
             return page.transitionsBuilder(
               context,
               const AlwaysStoppedAnimation<double>(0.5),
@@ -803,12 +770,12 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Builder(
           builder: (context) {
-            final page = (buildSlideFadePage<void>(
+            final page = buildSlideFadePage<void>(
               context: context,
               key: const ValueKey<String>('mobile-album-detail'),
               fadeOnly: true,
               child: child,
-            ) as CustomTransitionPage<void>);
+            ) as CustomTransitionPage<void>;
             expect(page.transitionDuration, const Duration(milliseconds: 180));
             expect(
               page.reverseTransitionDuration,
@@ -842,11 +809,11 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Builder(
             builder: (context) {
-              final page = (buildSlideFadePage<void>(
+              final page = buildSlideFadePage<void>(
                 context: context,
                 key: const ValueKey<String>('detail'),
                 child: child,
-              ) as CustomTransitionPage<void>);
+              ) as CustomTransitionPage<void>;
               expect(page.transitionDuration, Duration.zero);
               expect(page.reverseTransitionDuration, Duration.zero);
               return page.transitionsBuilder(
@@ -1104,10 +1071,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: _testApp,
-      ),
+      UncontrolledProviderScope(container: container, child: _testApp),
     );
     await tester.pumpAndSettle();
 

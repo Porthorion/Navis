@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -40,7 +40,7 @@ RulerTick rulerTickFeedback(double from, double to, double resetValue) {
 
 /// A continuous visual scale that settles onto supported hundredths.
 class AdjustmentRuler extends StatefulWidget {
-  const AdjustmentRuler({
+  const new({
     required this.value,
     required this.label,
     required this.valueLabel,
@@ -96,31 +96,26 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   void initState() {
     super.initState();
     _visualValue = widget.value;
-    _settle =
-        AnimationController(
-            vsync: this,
-            duration: _settleDuration,
-          )
-          ..addListener(() {
-            final next =
-                _from + (_to - _from) * _curve.transform(_settle.value);
-            if (_glideTicks && widget.enabled) {
-              _tick(
-                rulerTickFeedback(_lastGlideValue, next, widget.resetValue),
-                _settle.lastElapsedDuration,
-              );
-            }
-            _lastGlideValue = next;
-            setState(() => _visualValue = next);
-          })
-          ..addStatusListener((status) {
-            // Only a finished glide stops ticking. `forward(from: 0)` on a
-            // completed controller first reports `dismissed` as it rewinds,
-            // which previously silenced every glide after the first.
-            if (status == AnimationStatus.completed) {
-              _glideTicks = false;
-            }
-          });
+    _settle = AnimationController(vsync: this, duration: _settleDuration)
+      ..addListener(() {
+        final next = _from + (_to - _from) * _curve.transform(_settle.value);
+        if (_glideTicks && widget.enabled) {
+          _tick(
+            rulerTickFeedback(_lastGlideValue, next, widget.resetValue),
+            _settle.lastElapsedDuration,
+          );
+        }
+        _lastGlideValue = next;
+        setState(() => _visualValue = next);
+      })
+      ..addStatusListener((status) {
+        // Only a finished glide stops ticking. `forward(from: 0)` on a
+        // completed controller first reports `dismissed` as it rewinds,
+        // which previously silenced every glide after the first.
+        if (status == AnimationStatus.completed) {
+          _glideTicks = false;
+        }
+      });
   }
 
   static const _settleDuration = Duration(milliseconds: 140);
@@ -402,7 +397,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
 }
 
 class _RulerPainter extends CustomPainter {
-  _RulerPainter({
+  new({
     required this.value,
     required this.range,
     required this.pixelsPerUnit,

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 
 class ManualDownloadMatchingState {
-  const ManualDownloadMatchingState({
+  const new({
     this.preview,
     this.automaticallyImported = 0,
     this.pendingPaths = const <String>{},

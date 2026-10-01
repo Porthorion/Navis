@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
@@ -137,16 +137,10 @@ Future<void> _togglePreferredMixMode({
 }
 
 /// Backwards-compatible entrypoint: now directly toggles the preferred mode.
-void showMixModeSheet(
-  BuildContext context, {
-  required String seedSongId,
-}) {
+void showMixModeSheet(BuildContext context, {required String seedSongId}) {
   final container = ProviderScope.containerOf(context, listen: false);
   unawaited(
-    togglePreferredMixModeFromContainer(
-      container,
-      seedSongId: seedSongId,
-    ),
+    togglePreferredMixModeFromContainer(container, seedSongId: seedSongId),
   );
 }
 

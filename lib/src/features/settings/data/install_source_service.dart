@@ -4,10 +4,7 @@ import 'package:flutter/services.dart';
 
 /// Android install-source details reported by the platform.
 class InstallSourceInfo {
-  const InstallSourceInfo({
-    this.installerPackage,
-    this.initiatingPackage,
-  });
+  const new({this.installerPackage, this.initiatingPackage});
 
   final String? installerPackage;
   final String? initiatingPackage;
@@ -15,7 +12,7 @@ class InstallSourceInfo {
 
 /// Reads the Android package installer that delivered the current app install.
 class InstallSourceService {
-  InstallSourceService({MethodChannel? channel})
+  new({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel('com.navis.app/distribution');
 
   final MethodChannel _channel;

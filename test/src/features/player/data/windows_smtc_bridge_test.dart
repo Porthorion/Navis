@@ -148,10 +148,7 @@ void main() {
     test('disables unavailable controls for radio snapshots', () async {
       final handler = _FakePlaybackHandler(
         initialSnapshot: const PlaybackSnapshot.idle(),
-        initialMediaItem: const MediaItem(
-          id: 'radio:radio-1',
-          title: 'Radio',
-        ),
+        initialMediaItem: const MediaItem(id: 'radio:radio-1', title: 'Radio'),
       );
       final client = _FakeWindowsSmtcClient();
 
@@ -448,6 +445,9 @@ class _BlockingWindowsSmtcClient extends _FakeWindowsSmtcClient {
 }
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
+  new({required PlaybackSnapshot initialSnapshot, MediaItem? initialMediaItem})
+    : _snapshot = initialSnapshot,
+      _currentMediaItem = initialMediaItem;
   @override
   EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
   @override
@@ -462,12 +462,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
       throw UnsupportedError('This fake has no EQ backend');
   @override
   Future<void> refreshEqualizerState() async {}
-
-  _FakePlaybackHandler({
-    required PlaybackSnapshot initialSnapshot,
-    MediaItem? initialMediaItem,
-  }) : _snapshot = initialSnapshot,
-       _currentMediaItem = initialMediaItem;
 
   PlaybackSnapshot _snapshot;
   MediaItem? _currentMediaItem;
@@ -685,11 +679,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> toggleLike() async {}
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) {}
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {}
 
   @override
   void registerPreferredMixCallback(

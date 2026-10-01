@@ -1,5 +1,5 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -11,7 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 
 class _QueueSpyController extends QueueController {
-  _QueueSpyController(this.ids);
+  new(this.ids);
 
   final List<String> ids;
   int removeCalls = 0;
@@ -100,9 +100,7 @@ Future<_QueueSpyController> _pumpQueueSheet(
                 data: MediaQuery.of(context).copyWith(textScaler: textScaler),
                 child: child!,
               ),
-        home: Scaffold(
-          body: QueueSheet(scrollController: ScrollController()),
-        ),
+        home: Scaffold(body: QueueSheet(scrollController: ScrollController())),
       ),
     ),
   );
@@ -163,10 +161,7 @@ void main() {
   testWidgets('pending logical queue disables item actions while visible', (
     tester,
   ) async {
-    final queueSpy = await _pumpQueueSheet(
-      tester,
-      snapshot: _pendingSnapshot,
-    );
+    final queueSpy = await _pumpQueueSheet(tester, snapshot: _pendingSnapshot);
 
     expect(find.text('Track song-1'), findsOneWidget);
     expect(find.text('Track song-2'), findsOneWidget);

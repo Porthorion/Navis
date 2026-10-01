@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -37,7 +37,7 @@ Duration lyricsActiveLinePosition(LyricsList? lyrics, Duration position) {
 }
 
 class LyricsDisplayWidget extends StatefulWidget {
-  const LyricsDisplayWidget({
+  const new({
     required this.lyrics,
     required this.currentPosition,
     this.onSeek,
@@ -191,12 +191,11 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
       builder: (context, constraints) {
         final inactiveFontSize = _resolveSyncedFontSize(constraints.maxWidth);
         final activeFontSize = inactiveFontSize + 2;
-        final horizontalPadding = (constraints.maxWidth * 0.06)
-            .clamp(20.0, 48.0)
-            .toDouble();
-        final verticalPadding = (inactiveFontSize * 0.65)
-            .clamp(10.0, 20.0)
-            .toDouble();
+        final horizontalPadding = (constraints.maxWidth * 0.06).clamp(
+          20.0,
+          48.0,
+        );
+        final verticalPadding = (inactiveFontSize * 0.65).clamp(10.0, 20.0);
 
         return NotificationListener<ScrollNotification>(
           onNotification: (notification) {
@@ -245,11 +244,8 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                             ?.copyWith(
                               color: isActive
                                   ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withValues(
-                                      alpha: 0.6,
-                                    ),
+                                  : Theme.of(context).colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
                               fontWeight: isActive
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -291,9 +287,10 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final fontSize = _resolveUnsyncedFontSize(constraints.maxWidth);
-        final horizontalPadding = (constraints.maxWidth * 0.06)
-            .clamp(20.0, 56.0)
-            .toDouble();
+        final horizontalPadding = (constraints.maxWidth * 0.06).clamp(
+          20.0,
+          56.0,
+        );
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
@@ -306,10 +303,8 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
               Text(
                 unsyncedLyrics,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  height: 1.8,
-                  fontSize: fontSize,
-                ),
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(height: 1.8, fontSize: fontSize),
               ),
               if (hasFooter) ...<Widget>[
                 const SizedBox(height: 20),
@@ -333,7 +328,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
   double _resolveUnsyncedFontSize(double width) {
     final synced = _resolveSyncedFontSize(width);
-    return (synced - 2).clamp(15.0, 28.0).toDouble();
+    return (synced - 2).clamp(15.0, 28.0);
   }
 
   bool get _hasFooter {
@@ -354,9 +349,8 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             Text(
               source,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                color: Theme.of(context).colorScheme.onSurfaceVariant
+                    .withValues(alpha: 0.85),
               ),
               textAlign: TextAlign.center,
             ),
@@ -364,9 +358,8 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             Text(
               attribution,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                color: Theme.of(context).colorScheme.onSurfaceVariant
+                    .withValues(alpha: 0.75),
               ),
               textAlign: TextAlign.center,
             ),
@@ -383,17 +376,15 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
           Icon(
             Icons.lyrics_outlined,
             size: 64,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.onSurface
+                .withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
             AppLocalizations.of(context)!.lyricsNoneAvailable,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: 0.6),
             ),
           ),
         ],

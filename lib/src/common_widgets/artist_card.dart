@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -7,7 +7,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class ArtistCard extends StatelessWidget {
-  const ArtistCard({
+  const new({
     required this.artist,
     super.key,
     this.onTap,
@@ -48,9 +48,8 @@ class ArtistCard extends StatelessWidget {
             Builder(
               builder: (buttonContext) => IconButton(
                 icon: const Icon(Icons.more_horiz),
-                tooltip: MaterialLocalizations.of(
-                  buttonContext,
-                ).showMenuTooltip,
+                tooltip: MaterialLocalizations.of(buttonContext)
+                    .showMenuTooltip,
                 onPressed: () {
                   final renderObject = buttonContext.findRenderObject();
                   if (renderObject is! RenderBox) return;

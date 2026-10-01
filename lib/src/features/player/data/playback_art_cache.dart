@@ -23,8 +23,7 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
-  PlaybackArtCache({NetworkUsageReporter? reportNetworkUsage})
-    : _reportNetworkUsage = reportNetworkUsage;
+  new({this._reportNetworkUsage});
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
 

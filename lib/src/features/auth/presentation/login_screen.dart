@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +16,7 @@ import 'package:navis/src/features/auth/presentation/server_url_validation.dart'
 import 'package:navis/src/routing/app_routes.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -122,10 +122,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           textInputAction: TextInputAction.next,
           scrollPadding: EdgeInsets.only(bottom: bottomInset + 20),
           enabled: !_isBusy,
-          validator: (value) => _validateRequired(
-            value,
-            l10n.loginValidationUsernameRequired,
-          ),
+          validator: (value) =>
+              _validateRequired(value, l10n.loginValidationUsernameRequired),
         ),
         const SizedBox(height: 16),
         TextFormField(
@@ -152,10 +150,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           scrollPadding: EdgeInsets.only(bottom: bottomInset + 20),
           onFieldSubmitted: (_) => _connect(),
           enabled: !_isBusy,
-          validator: (value) => _validateRequired(
-            value,
-            l10n.loginValidationPasswordRequired,
-          ),
+          validator: (value) =>
+              _validateRequired(value, l10n.loginValidationPasswordRequired),
         ),
         const SizedBox(height: 24),
         FilledButton(
@@ -267,9 +263,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               CrossAxisAlignment.stretch,
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            credentialsFields,
-                                          ],
+                                          children: <Widget>[credentialsFields],
                                         ),
                                       ),
                                     ),
@@ -511,7 +505,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 }
 
 class _LoginHeroSection extends StatelessWidget {
-  const _LoginHeroSection({this.subtitle, this.compact = false});
+  const new({this.subtitle, this.compact = false});
 
   /// Full subtitle text shown in portrait/wide layouts.
   /// Omitted when [compact] is true.

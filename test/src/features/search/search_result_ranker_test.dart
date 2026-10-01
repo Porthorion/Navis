@@ -14,10 +14,10 @@ void main() {
       'Aurora',
     );
 
-    expect(
-      result.songs.map((song) => song.id),
-      <String>['remote-exact', 'server-prefix'],
-    );
+    expect(result.songs.map((song) => song.id), <String>[
+      'remote-exact',
+      'server-prefix',
+    ]);
   });
 
   test('on-server items lead within the same relevance tier', () {
@@ -33,15 +33,12 @@ void main() {
       'Aurora',
     );
 
-    expect(
-      result.artists.map((artist) => artist.id),
-      <String>[
-        'server-second',
-        'server-third',
-        'remote-first',
-        'remote-fourth',
-      ],
-    );
+    expect(result.artists.map((artist) => artist.id), <String>[
+      'server-second',
+      'server-third',
+      'remote-first',
+      'remote-fourth',
+    ]);
   });
 
   test(
@@ -59,15 +56,12 @@ void main() {
         'Aurora',
       );
 
-      expect(
-        result.albums.map((album) => album.id),
-        <String>[
-          'remote-imported',
-          'ordinary-fallback',
-          'ordinary-remote',
-          'ext-fallback',
-        ],
-      );
+      expect(result.albums.map((album) => album.id), <String>[
+        'remote-imported',
+        'ordinary-fallback',
+        'ordinary-remote',
+        'ext-fallback',
+      ]);
     },
   );
 

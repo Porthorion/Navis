@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -25,7 +25,7 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this._state);
+  new(this._state);
 
   final ServerReachabilityState _state;
 
@@ -34,17 +34,14 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _FakeServerConnectionService extends ServerConnectionService {
-  _FakeServerConnectionService({
-    ServerConnectionProbeResult? result,
-    this.error,
-    this.completer,
-  }) : _result =
-           result ??
-           const ServerConnectionProbeResult(
-             apiVersion: '1.16.1',
-             useLegacyAuth: false,
-             capabilities: ServerCapabilities(),
-           );
+  new({ServerConnectionProbeResult? result, this.error, this.completer})
+    : _result =
+          result ??
+          const ServerConnectionProbeResult(
+            apiVersion: '1.16.1',
+            useLegacyAuth: false,
+            capabilities: ServerCapabilities(),
+          );
 
   final ServerConnectionProbeResult _result;
   final Exception? error;

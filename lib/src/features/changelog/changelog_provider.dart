@@ -34,7 +34,7 @@ Future<void> _writeLastSeenVersion(String version) async {
 
 /// What the Home "What's New" card shows after an update.
 class ChangelogDiscovery {
-  const ChangelogDiscovery({required this.current, this.featured});
+  const new({required this.current, this.featured});
 
   /// The release matching the running app version.
   final ChangelogVersion current;

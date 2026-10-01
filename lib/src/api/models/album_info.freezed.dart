@@ -29,16 +29,21 @@ $AlbumInfoCopyWith<AlbumInfo> get copyWith => _$AlbumInfoCopyWithImpl<AlbumInfo>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlbumInfo&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl));
+  final _this = this as AlbumInfo;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlbumInfo&&(identical(other.notes, _this.notes) || other.notes == _this.notes)&&(identical(other.musicBrainzId, _this.musicBrainzId) || other.musicBrainzId == _this.musicBrainzId)&&(identical(other.lastFmUrl, _this.lastFmUrl) || other.lastFmUrl == _this.lastFmUrl)&&(identical(other.smallImageUrl, _this.smallImageUrl) || other.smallImageUrl == _this.smallImageUrl)&&(identical(other.mediumImageUrl, _this.mediumImageUrl) || other.mediumImageUrl == _this.mediumImageUrl)&&(identical(other.largeImageUrl, _this.largeImageUrl) || other.largeImageUrl == _this.largeImageUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,notes,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl);
+int get hashCode {
+  final _this = this as AlbumInfo;
+  return Object.hash(runtimeType,_this.notes,_this.musicBrainzId,_this.lastFmUrl,_this.smallImageUrl,_this.mediumImageUrl,_this.largeImageUrl);
+}
 
 @override
 String toString() {
-  return 'AlbumInfo(notes: $notes, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl)';
+  final _this = this as AlbumInfo;
+  return 'AlbumInfo(notes: ${_this.notes}, musicBrainzId: ${_this.musicBrainzId}, lastFmUrl: ${_this.lastFmUrl}, smallImageUrl: ${_this.smallImageUrl}, mediumImageUrl: ${_this.mediumImageUrl}, largeImageUrl: ${_this.largeImageUrl})';
 }
 
 
@@ -238,16 +243,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AlbumInfo&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _AlbumInfo&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,notes,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl);
+int get hashCode {
+    return Object.hash(runtimeType,notes,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl);
+}
 
 @override
 String toString() {
-  return 'AlbumInfo(notes: $notes, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl)';
+    return 'AlbumInfo(notes: $notes, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl)';
 }
 
 

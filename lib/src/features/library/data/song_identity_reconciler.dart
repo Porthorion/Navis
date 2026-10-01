@@ -6,28 +6,21 @@ final _identityPunctuation = RegExp(
 );
 final _identityWhitespace = RegExp(r'\s+');
 
-enum SongIdentityMatchReason {
-  sameId,
-  recordingMbid,
-  exactMetadata,
-}
+enum SongIdentityMatchReason { sameId, recordingMbid, exactMetadata }
 
 sealed class SongIdentityMatchResult {
-  const SongIdentityMatchResult();
+  const new();
 }
 
 class SongIdentityMatched extends SongIdentityMatchResult {
-  const SongIdentityMatched({
-    required this.provisionalSong,
-    required this.reason,
-  });
+  const new({required this.provisionalSong, required this.reason});
 
   final SongsTableData provisionalSong;
   final SongIdentityMatchReason reason;
 }
 
 class SongIdentityAmbiguous extends SongIdentityMatchResult {
-  const SongIdentityAmbiguous({
+  const new({
     required this.candidateCount,
     required this.reason,
     this.canonicalSongId,
@@ -44,11 +37,11 @@ class SongIdentityAmbiguous extends SongIdentityMatchResult {
 }
 
 class SongIdentityUnmatched extends SongIdentityMatchResult {
-  const SongIdentityUnmatched();
+  const new();
 }
 
 class SongIdentityReconciliationSummary {
-  const SongIdentityReconciliationSummary({
+  const new({
     this.aliases = const <SongIdentityAlias>[],
     this.canonicalizedSongCount = 0,
     this.ambiguousMatchCount = 0,
@@ -70,7 +63,7 @@ class SongIdentityReconciliationSummary {
 }
 
 class SongIdentityReconciler {
-  const SongIdentityReconciler(
+  const new(
     this._identityDao, {
     this.onBeforeRemap,
     this.readActiveSongId,
@@ -103,9 +96,7 @@ class SongIdentityReconciler {
     final canonicalMbid = _normalizeMbid(canonicalSong.recordingMbid);
     if (canonicalMbid != null) {
       final mbidMatches = provisionalSongs
-          .where(
-            (song) => _normalizeMbid(song.recordingMbid) == canonicalMbid,
-          )
+          .where((song) => _normalizeMbid(song.recordingMbid) == canonicalMbid)
           .toList(growable: false);
       if (mbidMatches.length == 1) {
         return SongIdentityMatched(
@@ -157,10 +148,7 @@ class SongIdentityReconciler {
                   canonicalAlbum) {
             return false;
           }
-          return _positionsCompatible(
-                canonicalSong.track,
-                candidate.track,
-              ) &&
+          return _positionsCompatible(canonicalSong.track, candidate.track) &&
               _positionsCompatible(
                 canonicalSong.discNumber,
                 candidate.discNumber,
@@ -239,7 +227,7 @@ class SongIdentityReconciler {
 /// ambiguous for every claimant regardless of page arrival order, instead of
 /// silently honoring whichever row streamed first.
 class SongIdentityReconciliationSession {
-  SongIdentityReconciliationSession._(this._reconciler, this._index);
+  new _(this._reconciler, this._index);
 
   final SongIdentityReconciler _reconciler;
   final _ProvisionalIdentityIndex _index;
@@ -360,7 +348,7 @@ class SongIdentityReconciliationSession {
 }
 
 class _ClaimDecision {
-  const _ClaimDecision({
+  const new({
     required this.canonical,
     required this.provisional,
     required this.reason,
@@ -372,10 +360,7 @@ class _ClaimDecision {
 }
 
 class _ProvisionalIdentityIndex {
-  _ProvisionalIdentityIndex(
-    this._reconciler,
-    Iterable<SongsTableData> songs,
-  ) {
+  new(this._reconciler, Iterable<SongsTableData> songs) {
     for (final song in songs) {
       _remaining[song.id] = song;
       final mbid = _reconciler._normalizeMbid(song.recordingMbid);

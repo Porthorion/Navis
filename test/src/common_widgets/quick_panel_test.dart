@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/quick_panel.dart';
@@ -54,10 +54,8 @@ void main() {
                         SizedBox(height: 40, child: Text('Row $i')),
                     ],
                   ),
-                  footerBuilder: (_) => TextButton(
-                    onPressed: () {},
-                    child: const Text('Reset'),
-                  ),
+                  footerBuilder: (_) =>
+                      TextButton(onPressed: () {}, child: const Text('Reset')),
                 ),
                 icon: const Icon(Icons.speed),
               ),
@@ -116,9 +114,7 @@ void main() {
     await pumpHost(tester, desktop: true);
     await open(tester);
     expect(find.byType(QuickPanelScaffold), findsOneWidget);
-    await tester.tapAt(
-      tester.getCenter(find.byKey(const ValueKey('anchor'))),
-    );
+    await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('anchor'))));
     await tester.pumpAndSettle();
     expect(find.byType(QuickPanelScaffold), findsNothing);
   });
@@ -184,9 +180,7 @@ void main() {
     await tester.pump();
     expect(find.byType(QuickPanelScaffold), findsOneWidget);
     await tester.pump();
-    final fade = tester.state<ScrollEdgeFadeState>(
-      find.byType(ScrollEdgeFade),
-    );
+    final fade = tester.state<ScrollEdgeFadeState>(find.byType(ScrollEdgeFade));
     expect(fade.fadesLeading, isFalse);
     expect(fade.fadesTrailing, isFalse);
   });

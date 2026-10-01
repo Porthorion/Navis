@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -11,7 +11,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// same control as Library's), plain paragraphs under plain subheadings,
 /// fixes folded past [collapsedFixCount], then the release's thanks.
 class ChangelogReleaseDetails extends StatefulWidget {
-  const ChangelogReleaseDetails({required this.version, super.key});
+  const new({required this.version, super.key});
 
   final ChangelogVersion version;
 
@@ -134,7 +134,7 @@ class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails>
 }
 
 class _EntrySection extends StatelessWidget {
-  const _EntrySection({
+  const new({
     required this.type,
     required this.showHeading,
     required this.entries,

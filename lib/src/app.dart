@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -21,7 +21,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
   /// Creates a new [NavisApp].
-  const NavisApp({
+  const new({
     super.key,
     this.requirePlaybackBootstrap = false,
     this.schedulePlaybackBootstrap = true,
@@ -84,9 +84,8 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
-      theme: buildLightTheme(seedColor).copyWith(
-        splashFactory: widget.splashFactory,
-      ),
+      theme: buildLightTheme(seedColor)
+          .copyWith(splashFactory: widget.splashFactory),
       darkTheme:
           (isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor))
               .copyWith(splashFactory: widget.splashFactory),
@@ -133,7 +132,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
 }
 
 class _DesktopActivationShortcutManager extends ShortcutManager {
-  _DesktopActivationShortcutManager()
+  new()
     : super(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.space):
@@ -160,7 +159,7 @@ class _DesktopActivationShortcutManager extends ShortcutManager {
 // ---------------------------------------------------------------------------
 
 class _AppBootstrapOverlay extends ConsumerStatefulWidget {
-  const _AppBootstrapOverlay({required this.child, this.onDismissed});
+  const new({required this.child, this.onDismissed});
 
   final Widget child;
   final VoidCallback? onDismissed;
@@ -280,9 +279,9 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     } on Object {
       if (mounted) {
         setState(
-          () => _recoveryError = AppLocalizations.of(
-            context,
-          )!.playbackRecoveryActionFailed,
+          () =>
+              _recoveryError = AppLocalizations.of(context)!
+                  .playbackRecoveryActionFailed,
         );
       }
     } finally {
@@ -367,7 +366,7 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
 }
 
 class _BootstrapSplashScreen extends StatelessWidget {
-  const _BootstrapSplashScreen({
+  const new({
     required this.ringFill,
     required this.isRingCompleting,
     required this.exitProgress,
@@ -463,24 +462,20 @@ class _BootstrapSplashScreen extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             showRecovery
-                                ? AppLocalizations.of(
-                                    context,
-                                  )!.playbackBootstrapRecoveryTitle
-                                : AppLocalizations.of(
-                                    context,
-                                  )!.playbackBootstrapLoadingTitle,
+                                ? AppLocalizations.of(context)!
+                                      .playbackBootstrapRecoveryTitle
+                                : AppLocalizations.of(context)!
+                                      .playbackBootstrapLoadingTitle,
                             style: Theme.of(context).textTheme.titleLarge,
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
                           Text(
                             showRecovery
-                                ? AppLocalizations.of(
-                                    context,
-                                  )!.playbackBootstrapRecoverySubtitle
-                                : AppLocalizations.of(
-                                    context,
-                                  )!.playbackBootstrapLoadingSubtitle,
+                                ? AppLocalizations.of(context)!
+                                      .playbackBootstrapRecoverySubtitle
+                                : AppLocalizations.of(context)!
+                                      .playbackBootstrapLoadingSubtitle,
                             style: Theme.of(context).textTheme.bodyMedium,
                             textAlign: TextAlign.center,
                           ),
@@ -492,35 +487,31 @@ class _BootstrapSplashScreen extends StatelessWidget {
                               OutlinedButton(
                                 onPressed: onResetCache,
                                 child: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.playbackRecoveryResetCache,
+                                  AppLocalizations.of(context)!
+                                      .playbackRecoveryResetCache,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               TextButton(
                                 onPressed: onSignOutKeepData,
                                 child: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.serverSettingsSignOutKeepData,
+                                  AppLocalizations.of(context)!
+                                      .serverSettingsSignOutKeepData,
                                 ),
                               ),
                               TextButton(
                                 onPressed: onSignOutWipeData,
                                 child: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.serverSettingsSignOutWipeData,
+                                  AppLocalizations.of(context)!
+                                      .serverSettingsSignOutWipeData,
                                 ),
                               ),
                             ] else
                               FilledButton(
                                 onPressed: onContinueToSignIn,
                                 child: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.playbackBootstrapContinueToSignIn,
+                                  AppLocalizations.of(context)!
+                                      .playbackBootstrapContinueToSignIn,
                                 ),
                               ),
                             if (recoveryError != null) ...<Widget>[
@@ -529,9 +520,9 @@ class _BootstrapSplashScreen extends StatelessWidget {
                                 recoveryError!,
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error,
                                     ),
                                 textAlign: TextAlign.center,
                               ),

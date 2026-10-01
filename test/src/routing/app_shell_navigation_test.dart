@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui' show SemanticsAction;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,7 +50,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this._state);
+  new(this._state);
 
   final ServerReachabilityState _state;
 
@@ -383,10 +383,7 @@ void main() {
     fail('Failed to focus desktop queue toggle via Tab traversal.');
   }
 
-  Future<void> pumpDesktopLongMetadata(
-    WidgetTester tester,
-    Size size,
-  ) async {
+  Future<void> pumpDesktopLongMetadata(WidgetTester tester, Size size) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(() {
@@ -458,10 +455,7 @@ void main() {
     final offlineMessage = find.text('Server unreachable. Retrying every 30s.');
     expect(offlineMessage, findsOneWidget);
     final banner = find
-        .ancestor(
-          of: offlineMessage,
-          matching: find.byType(Material),
-        )
+        .ancestor(of: offlineMessage, matching: find.byType(Material))
         .first;
     expect(
       tester.widget<Material>(banner).color,
@@ -514,9 +508,7 @@ void main() {
 
   testWidgets(
     'desktop-wide shell uses unified desktop sidebar and player bar',
-    (
-      tester,
-    ) async {
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 1000);
       addTearDown(() {
@@ -600,33 +592,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'compact Desktop View keeps the persistent desktop player bar',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1024, 1000);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('compact Desktop View keeps the persistent desktop player bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(desktopRuntime: true),
-      );
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
-      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('800x600 Desktop View keeps an operable empty player bar', (
     tester,
@@ -766,9 +754,7 @@ void main() {
           desktopRuntime: true,
           playback: const PlaybackSnapshot.idle(),
         ),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1021,9 +1007,7 @@ void main() {
 
   testWidgets(
     'desktop player truncates representative long metadata at 800px',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await pumpDesktopLongMetadata(tester, const Size(800, 600));
 
       for (final text in <String>[
@@ -1068,9 +1052,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byKey(const ValueKey<String>('appShellScaffold')),
-      matchesGoldenFile(
-        'goldens/desktop_player_long_metadata_1920x1080.png',
-      ),
+      matchesGoldenFile('goldens/desktop_player_long_metadata_1920x1080.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
   });
@@ -1096,9 +1078,8 @@ void main() {
     );
     await tester.pumpWidget(
       MediaQuery(
-        data: MediaQueryData.fromView(
-          tester.view,
-        ).copyWith(textScaler: const TextScaler.linear(1.3)),
+        data: MediaQueryData.fromView(tester.view)
+            .copyWith(textScaler: const TextScaler.linear(1.3)),
         child: UncontrolledProviderScope(
           container: container,
           child: testNavisApp,
@@ -1142,9 +1123,8 @@ void main() {
     );
     await tester.pumpWidget(
       MediaQuery(
-        data: MediaQueryData.fromView(
-          tester.view,
-        ).copyWith(textScaler: const TextScaler.linear(2)),
+        data: MediaQueryData.fromView(tester.view)
+            .copyWith(textScaler: const TextScaler.linear(2)),
         child: UncontrolledProviderScope(
           container: container,
           child: testNavisApp,
@@ -1305,9 +1285,7 @@ void main() {
 
   testWidgets(
     'desktop Lyrics retains the current track context in its header',
-    (
-      tester,
-    ) async {
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(800, 600);
       addTearDown(() {
@@ -1375,9 +1353,8 @@ void main() {
     );
     await tester.pumpWidget(
       MediaQuery(
-        data: MediaQueryData.fromView(
-          tester.view,
-        ).copyWith(textScaler: const TextScaler.linear(2)),
+        data: MediaQueryData.fromView(tester.view)
+            .copyWith(textScaler: const TextScaler.linear(2)),
         child: UncontrolledProviderScope(
           container: container,
           child: testNavisApp,
@@ -1443,10 +1420,7 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final entry in <(String, String)>[
-      (
-        'desktopPlayerFavoriteButton',
-        'Favorite is unavailable for radio',
-      ),
+      ('desktopPlayerFavoriteButton', 'Favorite is unavailable for radio'),
       ('desktopPlayerLyricsButton', 'Lyrics are unavailable for radio'),
       ('desktopQueueButton', 'Queue is unavailable for radio'),
     ]) {
@@ -1512,9 +1486,7 @@ void main() {
           desktopRuntime: true,
           playback: const PlaybackSnapshot.idle(),
         ),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1547,9 +1519,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1564,9 +1534,7 @@ void main() {
     expect(
       tester
           .getSize(
-            find.byKey(
-              const ValueKey<String>('desktopMiniPlayerVolumeSlider'),
-            ),
+            find.byKey(const ValueKey<String>('desktopMiniPlayerVolumeSlider')),
           )
           .width,
       greaterThan(160),
@@ -1642,9 +1610,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
         songByIdProvider.overrideWith(
           (ref, songId) => Stream.value(
             songId == _remoteMetadataSong.id ? _remoteMetadataSong : null,
@@ -1704,9 +1670,7 @@ void main() {
           desktopRuntime: true,
           playback: radioPlayback,
         ),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1744,9 +1708,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
 
@@ -1787,9 +1749,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1828,9 +1788,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1884,9 +1842,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: <Override>[
         ..._authenticatedShellOverrides(desktopRuntime: true),
-        desktopWindowControllerProvider.overrideWith(
-          (ref) => windowController,
-        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
       ],
     );
     await tester.pumpWidget(
@@ -1980,10 +1936,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -2095,10 +2048,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -2227,10 +2177,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -2294,10 +2241,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -2773,9 +2717,7 @@ void main() {
     expect(position.pixels, 0);
   });
 
-  testWidgets('Search focuses its field only when re-selected', (
-    tester,
-  ) async {
+  testWidgets('Search focuses its field only when re-selected', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(() {
@@ -2900,10 +2842,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -3012,10 +2951,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -3043,9 +2979,7 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
 
-      quickSearchField = find.byKey(
-        const ValueKey('desktopQuickSearchField'),
-      );
+      quickSearchField = find.byKey(const ValueKey('desktopQuickSearchField'));
       await tester.enterText(quickSearchField, 'opeth');
       await tester.tap(find.widgetWithText(FilterChip, 'Songs'));
       await tester.pumpAndSettle();
@@ -3144,10 +3078,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -3220,10 +3151,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 
@@ -3258,10 +3186,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: testNavisApp,
-        ),
+        UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
 

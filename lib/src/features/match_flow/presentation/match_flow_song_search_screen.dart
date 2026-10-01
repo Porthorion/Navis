@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -15,7 +15,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 class MatchFlowSongSearchScreen extends ConsumerStatefulWidget {
-  const MatchFlowSongSearchScreen({required this.flowId, super.key});
+  const new({required this.flowId, super.key});
 
   final String flowId;
 

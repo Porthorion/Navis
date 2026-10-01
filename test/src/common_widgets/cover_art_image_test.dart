@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +12,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
-  _FakeSubsonicApiClient({super.baseUrl = 'https://example.com'})
+  new({super.baseUrl = 'https://example.com'})
     : super(
         authConfig: const SubsonicAuthConfig(
           username: 'alice',
@@ -75,9 +75,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         _buildWidget(
-          overrides: <Object>[
-            subsonicApiProvider.overrideWith((_) => null),
-          ],
+          overrides: <Object>[subsonicApiProvider.overrideWith((_) => null)],
           child: const CoverArtImage(
             coverArtId: 'cover-1',
             width: 64,
@@ -94,9 +92,7 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(
-        loadCoordinator: coordinator,
-      );
+      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
       addTearDown(() => _disposeCacheManager(manager));
 
       await tester.pumpWidget(
@@ -135,9 +131,7 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(
-        loadCoordinator: coordinator,
-      );
+      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
       addTearDown(() => _disposeCacheManager(manager));
 
       await tester.pumpWidget(
@@ -179,9 +173,7 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(
-        loadCoordinator: coordinator,
-      );
+      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
       addTearDown(() => _disposeCacheManager(manager));
 
       await tester.pumpWidget(
@@ -221,9 +213,7 @@ void main() {
 
     testWidgets('critical images bypass viewport deferral', (tester) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(
-        loadCoordinator: coordinator,
-      );
+      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
       addTearDown(() => _disposeCacheManager(manager));
 
       await tester.pumpWidget(
@@ -247,18 +237,14 @@ void main() {
       await tester.pump();
 
       expect(
-        coordinator.interestCount(
-          coverArtImageCacheKey('cover-critical', 600),
-        ),
+        coordinator.interestCount(coverArtImageCacheKey('cover-critical', 600)),
         1,
       );
     });
 
     testWidgets(
       'remote indicator uses thumbnail top-left geometry and semantics',
-      (
-        tester,
-      ) async {
+      (tester) async {
         var taps = 0;
         await tester.pumpWidget(
           _buildWidget(
@@ -295,9 +281,7 @@ void main() {
 
     testWidgets(
       'remote indicator uses large-art geometry and stays absent locally',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await tester.pumpWidget(
           _buildWidget(
             child: const CoverArtImage(

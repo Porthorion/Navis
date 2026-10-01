@@ -18,20 +18,13 @@ enum NavisAutoResumeSource {
   none,
 }
 
-enum NavisPreviousTrackAction {
-  none,
-  restartCurrent,
-  skipToPrevious,
-}
+enum NavisPreviousTrackAction { none, restartCurrent, skipToPrevious }
 
 const Duration navisPreviousTrackRestartThreshold = Duration(seconds: 3);
 
 @immutable
 class NavisQueueReplacementMetadataAnchor {
-  const NavisQueueReplacementMetadataAnchor({
-    required this.expectedIndex,
-    required this.mediaItem,
-  });
+  const new({required this.expectedIndex, required this.mediaItem});
 
   final int expectedIndex;
   final MediaItem mediaItem;
@@ -39,20 +32,14 @@ class NavisQueueReplacementMetadataAnchor {
 
 @immutable
 class NavisResolvedQueueMetadata {
-  const NavisResolvedQueueMetadata({
-    required this.mediaItem,
-    required this.currentIndex,
-  });
+  const new({required this.mediaItem, required this.currentIndex});
 
   final MediaItem? mediaItem;
   final int? currentIndex;
 }
 
 final class NavisAndroidAutoSearchRequest {
-  const NavisAndroidAutoSearchRequest({
-    required this.type,
-    required this.term,
-  });
+  const new({required this.type, required this.term});
 
   final NavisAndroidAutoSearchType type;
   final String term;
@@ -365,7 +352,7 @@ const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
 
 @immutable
 class NavisOsControlCapabilities {
-  const NavisOsControlCapabilities({
+  const new({
     required this.canPlay,
     required this.canPause,
     required this.canStop,

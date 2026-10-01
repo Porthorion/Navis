@@ -4,7 +4,7 @@ import 'package:navis/src/database/navis_database.dart';
 /// Read inside the write transaction, after the network response arrives.
 /// Successful local edits remain protected even after their outbox is drained.
 class SnapshotWriteGuard {
-  SnapshotWriteGuard(this._stars, this._ratings, this._pending);
+  new(this._stars, this._ratings, this._pending);
 
   final Set<String> _stars;
   final Set<String> _ratings;
@@ -47,9 +47,8 @@ class SnapshotWriteGuard {
     return _pending.containsKey(key) ? Value(_pending[key]) : incoming;
   }
 
-  ArtistsTableCompanion artist(ArtistsTableCompanion row) => row.copyWith(
-    starred: _star('artist', row.id.value, row.starred),
-  );
+  ArtistsTableCompanion artist(ArtistsTableCompanion row) =>
+      row.copyWith(starred: _star('artist', row.id.value, row.starred));
 
   AlbumsTableCompanion album(AlbumsTableCompanion row) => row.copyWith(
     starred: _star('album', row.id.value, row.starred),

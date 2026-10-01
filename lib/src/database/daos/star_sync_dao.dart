@@ -7,7 +7,7 @@ part 'star_sync_dao.g.dart';
 @DriftAccessor(tables: [StarSyncQueueTable])
 class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     with _$StarSyncDaoMixin {
-  StarSyncDao(super.db);
+  new(super.db);
 
   static const dispatchLeaseTtl = Duration(minutes: 1);
 
@@ -168,8 +168,9 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   Future<List<StarSyncQueueTableData>> getPendingActions({String? operation}) {
     final query = select(starSyncQueueTable)
       ..orderBy([(t) => OrderingTerm.asc(t.id)]);
-    if (operation != null)
+    if (operation != null) {
       query.where((row) => row.operation.equals(operation));
+    }
     return query.get();
   }
 

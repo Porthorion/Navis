@@ -52,9 +52,7 @@ Future<void> main() async {
       _isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
     final sidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>(
-          'isSidecar',
-        );
+        .invokeMethod<bool>('isSidecar');
     if (sidecar != true) {
       throw StateError('Android clone diagnostics require a sidecar package.');
     }
@@ -388,7 +386,7 @@ _createDiagnosticsPresentationController() async {
 }
 
 class _DesktopBootstrap {
-  const _DesktopBootstrap({
+  const new({
     required this.database,
     required this.settingsRepository,
     required this.controller,

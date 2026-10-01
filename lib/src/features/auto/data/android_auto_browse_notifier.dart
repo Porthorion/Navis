@@ -9,7 +9,7 @@ import 'package:rxdart/rxdart.dart';
 /// This avoids the deprecated static bridge, which sends null options and is
 /// rejected by current AndroidX media services.
 class AndroidAutoBrowseNotifier {
-  AndroidAutoBrowseNotifier()
+  new()
     : _parents = <String, BehaviorSubject<Map<String, dynamic>>>{
         for (final parentMediaId in _notifiedParentMediaIds)
           parentMediaId: BehaviorSubject<Map<String, dynamic>>.seeded(
@@ -38,7 +38,6 @@ class AndroidAutoBrowseNotifier {
     }
   }
 
-  Future<void> dispose() => Future.wait<void>(
-    _parents.values.map((stream) => stream.close()),
-  );
+  Future<void> dispose() =>
+      Future.wait<void>(_parents.values.map((stream) => stream.close()));
 }

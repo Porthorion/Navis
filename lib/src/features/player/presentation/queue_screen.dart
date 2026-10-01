@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -13,7 +13,7 @@ import 'package:navis/src/providers/app_providers.dart'
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class QueueScreen extends ConsumerWidget {
-  const QueueScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,11 +30,8 @@ class QueueScreen extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.playlist_add),
               tooltip: l10n.queueSaveAsPlaylist,
-              onPressed: () => _showSaveAsPlaylistDialog(
-                context,
-                ref,
-                queueIds,
-              ),
+              onPressed: () =>
+                  _showSaveAsPlaylistDialog(context, ref, queueIds),
             ),
           if (queueIds.isNotEmpty)
             IconButton(
@@ -123,9 +120,7 @@ class QueueScreen extends ConsumerWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(
-            labelText: l10n.queueSaveAsPlaylistName,
-          ),
+          decoration: InputDecoration(labelText: l10n.queueSaveAsPlaylistName),
           onSubmitted: (_) => _savePlaylist(
             dialogContext,
             context,
@@ -183,7 +178,7 @@ class QueueScreen extends ConsumerWidget {
 }
 
 class _QueueItem extends ConsumerWidget {
-  const _QueueItem({
+  const new({
     required super.key,
     required this.songId,
     required this.index,
@@ -235,9 +230,8 @@ class _QueueItem extends ConsumerWidget {
             child: ListTile(
               selected: isSelected,
               selectedColor: Theme.of(context).colorScheme.primary,
-              selectedTileColor: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.08),
+              selectedTileColor: Theme.of(context).colorScheme.primary
+                  .withValues(alpha: 0.08),
               leading: ArtworkPlaybackMarker(
                 state: indicatorState,
                 child: CoverArtImage(

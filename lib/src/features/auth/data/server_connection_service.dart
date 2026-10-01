@@ -4,7 +4,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 
 class ServerConnectionProbeResult {
-  const ServerConnectionProbeResult({
+  const new({
     required this.apiVersion,
     required this.useLegacyAuth,
     required this.capabilities,
@@ -23,9 +23,8 @@ class ServerConnectionProbeResult {
   }
 }
 
-// ignore: one_member_abstracts, reason: Shared interface for production and test server connection probing.
 abstract class ServerConnectionService {
-  const ServerConnectionService();
+  const new();
 
   Future<ServerConnectionProbeResult> probe({
     required String url,
@@ -35,7 +34,7 @@ abstract class ServerConnectionService {
 }
 
 class SubsonicServerConnectionService extends ServerConnectionService {
-  const SubsonicServerConnectionService();
+  const new();
 
   static const _defaultApiVersion = '1.16.1';
 

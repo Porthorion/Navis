@@ -3,7 +3,7 @@ import 'package:navis/src/api/models/artist.dart';
 import 'package:navis/src/api/models/song.dart';
 
 class StarredContent {
-  const StarredContent({
+  const new({
     this.albums = const <Album>[],
     this.artists = const <Artist>[],
     this.songs = const <Song>[],

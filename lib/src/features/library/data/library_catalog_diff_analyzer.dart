@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:navis/src/database/navis_database.dart';
 
 class CatalogDiffStats {
-  const CatalogDiffStats({
+  const new({
     required this.artistChangedCount,
     required this.artistUnchangedCount,
     required this.albumChangedCount,
@@ -41,7 +41,7 @@ class CatalogDiffStats {
 /// Classification is durable and intentionally runs outside the final apply
 /// transaction. A process restart resumes from the first unclassified row.
 class LibraryCatalogDiffAnalyzer {
-  const LibraryCatalogDiffAnalyzer(
+  const new(
     this._database, {
     this.readActivePlayback,
     this.initialPageSize = 384,

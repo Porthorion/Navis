@@ -5,7 +5,7 @@ part 'server_config.g.dart';
 
 @freezed
 abstract class ServerConfigModel with _$ServerConfigModel {
-  const factory ServerConfigModel({
+  const factory({
     int? id,
     String? name,
     required String url,
@@ -18,6 +18,6 @@ abstract class ServerConfigModel with _$ServerConfigModel {
     DateTime? lastFullSyncedAt,
   }) = _ServerConfigModel;
 
-  factory ServerConfigModel.fromJson(Map<String, dynamic> json) =>
+  factory fromJson(Map<String, dynamic> json) =>
       _$ServerConfigModelFromJson(json);
 }

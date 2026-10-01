@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -22,10 +22,8 @@ Future<void> showUpdateDialog(
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _UpdateDownloadDialog(
-      info: info,
-      updateService: updateService,
-    ),
+    builder: (_) =>
+        _UpdateDownloadDialog(info: info, updateService: updateService),
   );
 }
 
@@ -42,10 +40,7 @@ enum _DownloadPhase {
 }
 
 class _UpdateDownloadDialog extends StatefulWidget {
-  const _UpdateDownloadDialog({
-    required this.info,
-    this.updateService,
-  });
+  const new({required this.info, this.updateService});
   final UpdateInfo info;
   final UpdateService? updateService;
 
@@ -208,19 +203,15 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             if (widget.info.releaseNotes != null &&
                 widget.info.releaseNotes!.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(
-                l10n.updateReleaseNotes,
-                style: theme.textTheme.labelLarge,
-              ),
+              Text(l10n.updateReleaseNotes, style: theme.textTheme.labelLarge),
               const SizedBox(height: 4),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 160),
                 child: SingleChildScrollView(
                   child: MarkdownBody(
                     data: widget.info.releaseNotes!,
-                    styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                      p: theme.textTheme.bodySmall,
-                    ),
+                    styleSheet: MarkdownStyleSheet.fromTheme(theme)
+                        .copyWith(p: theme.textTheme.bodySmall),
                     shrinkWrap: true,
                   ),
                 ),
@@ -282,10 +273,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       case _DownloadPhase.signatureMismatch:
         return Row(
           children: [
-            Icon(
-              Icons.security_update_warning,
-              color: theme.colorScheme.error,
-            ),
+            Icon(Icons.security_update_warning, color: theme.colorScheme.error),
             const SizedBox(width: 12),
             Expanded(child: Text(l10n.updateSignatureMismatch)),
           ],

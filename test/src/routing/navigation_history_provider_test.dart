@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -83,16 +83,11 @@ void main() {
 
     await harness.tap('go:settings');
 
-    expect(harness.history.stack, <String>[
-      AppRoutes.home,
-      AppRoutes.settings,
-    ]);
+    expect(harness.history.stack, <String>[AppRoutes.home, AppRoutes.settings]);
     expect(harness.history.canGoForward, isFalse);
   });
 
-  testWidgets('library sections are ordinary history entries', (
-    tester,
-  ) async {
+  testWidgets('library sections are ordinary history entries', (tester) async {
     final harness = await _pumpHistoryHarness(tester);
     harness.router.go(AppRoutes.librarySection('artists'));
     await tester.pumpAndSettle();
@@ -149,9 +144,7 @@ class _SessionPhase extends Notifier<SessionRoutePhase> {
 }
 
 final _sessionPhaseProvider =
-    NotifierProvider<_SessionPhase, SessionRoutePhase>(
-      _SessionPhase.new,
-    );
+    NotifierProvider<_SessionPhase, SessionRoutePhase>(_SessionPhase.new);
 
 Future<_HistoryHarness> _pumpHistoryHarness(WidgetTester tester) async {
   final router = createNavigationShellHarnessRouter();
@@ -181,7 +174,7 @@ Future<_HistoryHarness> _pumpHistoryHarness(WidgetTester tester) async {
 }
 
 class _HistoryHarness {
-  const _HistoryHarness(this.tester, this.container, this.router);
+  const new(this.tester, this.container, this.router);
 
   final WidgetTester tester;
   final ProviderContainer container;

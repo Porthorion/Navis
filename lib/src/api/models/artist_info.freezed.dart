@@ -29,16 +29,21 @@ $ArtistInfoCopyWith<ArtistInfo> get copyWith => _$ArtistInfoCopyWithImpl<ArtistI
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArtistInfo&&(identical(other.biography, biography) || other.biography == biography)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl)&&const DeepCollectionEquality().equals(other.similarArtists, similarArtists));
+  final _this = this as ArtistInfo;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArtistInfo&&(identical(other.biography, _this.biography) || other.biography == _this.biography)&&(identical(other.musicBrainzId, _this.musicBrainzId) || other.musicBrainzId == _this.musicBrainzId)&&(identical(other.lastFmUrl, _this.lastFmUrl) || other.lastFmUrl == _this.lastFmUrl)&&(identical(other.smallImageUrl, _this.smallImageUrl) || other.smallImageUrl == _this.smallImageUrl)&&(identical(other.mediumImageUrl, _this.mediumImageUrl) || other.mediumImageUrl == _this.mediumImageUrl)&&(identical(other.largeImageUrl, _this.largeImageUrl) || other.largeImageUrl == _this.largeImageUrl)&&const DeepCollectionEquality().equals(other.similarArtists, _this.similarArtists));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,biography,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl,const DeepCollectionEquality().hash(similarArtists));
+int get hashCode {
+  final _this = this as ArtistInfo;
+  return Object.hash(runtimeType,_this.biography,_this.musicBrainzId,_this.lastFmUrl,_this.smallImageUrl,_this.mediumImageUrl,_this.largeImageUrl,const DeepCollectionEquality().hash(_this.similarArtists));
+}
 
 @override
 String toString() {
-  return 'ArtistInfo(biography: $biography, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl, similarArtists: $similarArtists)';
+  final _this = this as ArtistInfo;
+  return 'ArtistInfo(biography: ${_this.biography}, musicBrainzId: ${_this.musicBrainzId}, lastFmUrl: ${_this.lastFmUrl}, smallImageUrl: ${_this.smallImageUrl}, mediumImageUrl: ${_this.mediumImageUrl}, largeImageUrl: ${_this.largeImageUrl}, similarArtists: ${_this.similarArtists})';
 }
 
 
@@ -246,16 +251,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArtistInfo&&(identical(other.biography, biography) || other.biography == biography)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl)&&const DeepCollectionEquality().equals(other._similarArtists, _similarArtists));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArtistInfo&&(identical(other.biography, biography) || other.biography == biography)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.lastFmUrl, lastFmUrl) || other.lastFmUrl == lastFmUrl)&&(identical(other.smallImageUrl, smallImageUrl) || other.smallImageUrl == smallImageUrl)&&(identical(other.mediumImageUrl, mediumImageUrl) || other.mediumImageUrl == mediumImageUrl)&&(identical(other.largeImageUrl, largeImageUrl) || other.largeImageUrl == largeImageUrl)&&const DeepCollectionEquality().equals(other.similarArtists, _similarArtists));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,biography,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl,const DeepCollectionEquality().hash(_similarArtists));
+int get hashCode {
+    return Object.hash(runtimeType,biography,musicBrainzId,lastFmUrl,smallImageUrl,mediumImageUrl,largeImageUrl,const DeepCollectionEquality().hash(_similarArtists));
+}
 
 @override
 String toString() {
-  return 'ArtistInfo(biography: $biography, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl, similarArtists: $similarArtists)';
+    return 'ArtistInfo(biography: $biography, musicBrainzId: $musicBrainzId, lastFmUrl: $lastFmUrl, smallImageUrl: $smallImageUrl, mediumImageUrl: $mediumImageUrl, largeImageUrl: $largeImageUrl, similarArtists: $similarArtists)';
 }
 
 

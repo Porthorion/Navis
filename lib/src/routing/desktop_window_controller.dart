@@ -18,10 +18,7 @@ enum DesktopWindowTransitionDirection { enterMiniPlayer, exitMiniPlayer }
 
 @immutable
 class DesktopWindowTransitionRequest {
-  const DesktopWindowTransitionRequest({
-    required this.direction,
-    required this.viewportSize,
-  });
+  const new({required this.direction, required this.viewportSize});
 
   final DesktopWindowTransitionDirection direction;
   final Size viewportSize;
@@ -29,7 +26,7 @@ class DesktopWindowTransitionRequest {
 
 @immutable
 class DesktopWindowSnapshot {
-  const DesktopWindowSnapshot(this.bounds);
+  const new(this.bounds);
 
   final Rect bounds;
 
@@ -54,7 +51,7 @@ class DesktopWindowSnapshot {
 
 @immutable
 class DesktopWindowStateRecord {
-  const DesktopWindowStateRecord({
+  const new({
     required this.version,
     required this.activeMode,
     this.normalBounds,
@@ -63,7 +60,7 @@ class DesktopWindowStateRecord {
     this.miniAlwaysOnTop = false,
   });
 
-  const DesktopWindowStateRecord.defaults()
+  const new defaults()
     : version = currentVersion,
       activeMode = DesktopWindowMode.desktop,
       normalBounds = null,
@@ -163,7 +160,7 @@ abstract class WindowManagerAdapter {
 }
 
 class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
-  const WindowManagerDesktopWindowAdapter();
+  const new();
 
   @override
   Future<void> ensureInitialized() => windowManager.ensureInitialized();
@@ -239,7 +236,7 @@ abstract class ScreenRetrieverAdapter {
 }
 
 class SystemScreenRetrieverAdapter implements ScreenRetrieverAdapter {
-  const SystemScreenRetrieverAdapter();
+  const new();
 
   @override
   void addListener(ScreenListener listener) =>
@@ -255,25 +252,21 @@ class SystemScreenRetrieverAdapter implements ScreenRetrieverAdapter {
 
 class DesktopWindowController extends ChangeNotifier
     with WindowListener, ScreenListener {
-  DesktopWindowController({
-    required bool desktopRuntime,
-    required File stateFile,
-    required SettingsRepository settingsRepository,
+  new({
+    required this._desktopRuntime,
+    required this._stateFile,
+    required SettingsRepository this._settingsRepository,
     WindowManagerAdapter? adapter,
     ScreenRetrieverAdapter? screenAdapter,
     bool? alwaysOnTopSupported,
-  }) : _desktopRuntime = desktopRuntime,
-       _stateFile = stateFile,
-       _settingsRepository = settingsRepository,
-       _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
+  }) : _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
        _alwaysOnTopSupportedOverride = alwaysOnTopSupported,
        _screenAdapter =
            screenAdapter ??
            (adapter == null ? const SystemScreenRetrieverAdapter() : null);
 
-  DesktopWindowController.fallback({bool desktopRuntime = false})
-    : _desktopRuntime = desktopRuntime,
-      _stateFile = File(''),
+  new fallback({this._desktopRuntime = false})
+    : _stateFile = File(''),
       _settingsRepository = null,
       _adapter = null,
       _alwaysOnTopSupportedOverride = null,
@@ -426,9 +419,7 @@ class DesktopWindowController extends ChangeNotifier
     _isInitialized = true;
     await _persistCurrentState(reason: 'initialize');
     notifyListeners();
-    AppLogger.info(
-      '[DESKTOP_WINDOW] initialized mode=${_mode.name}',
-    );
+    AppLogger.info('[DESKTOP_WINDOW] initialized mode=${_mode.name}');
   }
 
   void updateViewportSize(Size viewportSize) {
@@ -524,9 +515,7 @@ class DesktopWindowController extends ChangeNotifier
       } else {
         await _exitMiniPlayerMode();
       }
-      await _persistCurrentState(
-        reason: enabled ? 'enter_mini' : 'exit_mini',
-      );
+      await _persistCurrentState(reason: enabled ? 'enter_mini' : 'exit_mini');
     } finally {
       _isApplyingMode = false;
       notifyListeners();
@@ -764,12 +753,7 @@ class DesktopWindowController extends ChangeNotifier
   Rect _normalizeMiniBounds(Rect? bounds) {
     final source =
         bounds ??
-        Rect.fromLTWH(
-          0,
-          0,
-          miniDefaultSize.width,
-          miniDefaultSize.height,
-        );
+        Rect.fromLTWH(0, 0, miniDefaultSize.width, miniDefaultSize.height);
     return Rect.fromLTWH(
       source.left,
       source.top,
@@ -789,7 +773,7 @@ class DesktopWindowController extends ChangeNotifier
     final displays =
         await _screenAdapter?.getAllDisplays() ?? const <Display>[];
     if (displays.isEmpty) return bounds;
-    Display selected = displays.first;
+    var selected = displays.first;
     var bestIntersection = -1.0;
     for (final display in displays) {
       final area = _displayWorkArea(display);

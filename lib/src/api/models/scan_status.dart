@@ -5,9 +5,9 @@
 /// present so a completed-scan token can be observed without extra probing.
 /// Missing optional fields never fail the parse.
 class ScanStatus {
-  const ScanStatus({required this.scanning, this.count, this.lastScan});
+  const new({required this.scanning, this.count, this.lastScan});
 
-  factory ScanStatus.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return ScanStatus(
       scanning: json['scanning'] == true,
       count: (json['count'] as num?)?.toInt(),

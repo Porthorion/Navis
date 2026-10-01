@@ -7,11 +7,8 @@ class ListenBrainzFeedbackQueueTable extends Table {
 
   IntColumn get id => integer().autoIncrement()();
 
-  TextColumn get songId => text().references(
-    SongsTable,
-    #id,
-    onDelete: KeyAction.cascade,
-  )();
+  TextColumn get songId =>
+      text().references(SongsTable, #id, onDelete: KeyAction.cascade)();
 
   IntColumn get score => integer()();
 

@@ -39,11 +39,6 @@ class ScrobbleQueueTable extends Table {
 
   @override
   List<Set<Column<Object>>> get uniqueKeys => <Set<Column<Object>>>[
-    <Column<Object>>{
-      songId,
-      provider,
-      submission,
-      sessionKey,
-    },
+    <Column<Object>>{songId, provider, submission, sessionKey},
   ];
 }

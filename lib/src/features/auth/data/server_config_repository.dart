@@ -10,7 +10,7 @@ import 'package:navis/src/utils/app_logger.dart';
 enum RetainedServerMatch { none, same, different }
 
 class RetainedServerMismatchException implements Exception {
-  const RetainedServerMismatchException();
+  const new();
 
   @override
   String toString() =>
@@ -18,10 +18,7 @@ class RetainedServerMismatchException implements Exception {
 }
 
 class ServerConfigRepository {
-  ServerConfigRepository(
-    this._database, {
-    required SecureCredentialStore credentials,
-  }) : _credentials = credentials;
+  new(this._database, {required this._credentials});
 
   final NavisDatabase _database;
   final SecureCredentialStore _credentials;
@@ -286,9 +283,7 @@ class ServerConfigRepository {
     try {
       return await _credentials.readPassword();
     } on Object catch (error) {
-      AppLogger.warning(
-        'Secure credential read failed: ${error.runtimeType}.',
-      );
+      AppLogger.warning('Secure credential read failed: ${error.runtimeType}.');
       return null;
     }
   }

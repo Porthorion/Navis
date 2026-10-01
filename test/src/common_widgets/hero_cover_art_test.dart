@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -30,9 +30,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          subsonicApiProvider.overrideWith((_) => null),
-        ],
+        overrides: [subsonicApiProvider.overrideWith((_) => null)],
         child: const MaterialApp(home: _HeroSourcePage()),
       ),
     );
@@ -56,9 +54,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          subsonicApiProvider.overrideWith((_) => null),
-        ],
+        overrides: [subsonicApiProvider.overrideWith((_) => null)],
         child: const MaterialApp(home: _HeroSourcePage()),
       ),
     );
@@ -78,74 +74,66 @@ void main() {
     expect(destinationImage.useRequestedMemCacheSize, isTrue);
   });
 
-  testWidgets(
-    'fades source card chrome only after the hero return completes',
-    (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            subsonicApiProvider.overrideWith((_) => null),
-          ],
-          child: const MaterialApp(home: _HeroSourcePage()),
-        ),
-      );
+  testWidgets('fades source card chrome only after the hero return completes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [subsonicApiProvider.overrideWith((_) => null)],
+        child: const MaterialApp(home: _HeroSourcePage()),
+      ),
+    );
 
-      await tester.tap(find.byKey(const Key('open-album')));
-      await tester.pumpAndSettle();
-      tester.state<NavigatorState>(find.byType(Navigator)).pop();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.byKey(const Key('open-album')));
+    await tester.pumpAndSettle();
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
-      final duringHeroOpacity = tester.widget<Opacity>(
-        find.ancestor(
-          of: find.text('Source album metadata', skipOffstage: false),
-          matching: find.byType(Opacity),
-        ),
-      );
-      expect(duringHeroOpacity.opacity, 0);
+    final duringHeroOpacity = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.text('Source album metadata', skipOffstage: false),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(duringHeroOpacity.opacity, 0);
 
-      final sourceRoute = ModalRoute.of(
-        tester.element(find.text('Source album metadata', skipOffstage: false)),
-      )!;
-      for (
-        var frame = 0;
-        frame < 40 &&
-            sourceRoute.secondaryAnimation!.status != AnimationStatus.dismissed;
-        frame++
-      ) {
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      expect(
-        sourceRoute.secondaryAnimation!.status,
-        AnimationStatus.dismissed,
-      );
+    final sourceRoute = ModalRoute.of(
+      tester.element(find.text('Source album metadata', skipOffstage: false)),
+    )!;
+    for (
+      var frame = 0;
+      frame < 40 &&
+          sourceRoute.secondaryAnimation!.status != AnimationStatus.dismissed;
+      frame++
+    ) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(sourceRoute.secondaryAnimation!.status, AnimationStatus.dismissed);
 
-      final settledHeroOpacity = tester.widget<Opacity>(
-        find.ancestor(
-          of: find.text('Source album metadata', skipOffstage: false),
-          matching: find.byType(Opacity),
-        ),
-      );
-      expect(settledHeroOpacity.opacity, 0);
+    final settledHeroOpacity = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.text('Source album metadata', skipOffstage: false),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(settledHeroOpacity.opacity, 0);
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 60));
-      final settledReturnOpacity = tester.widget<Opacity>(
-        find.ancestor(
-          of: find.text('Source album metadata', skipOffstage: false),
-          matching: find.byType(Opacity),
-        ),
-      );
-      expect(settledReturnOpacity.opacity, greaterThan(0));
-      expect(settledReturnOpacity.opacity, lessThan(1));
-    },
-  );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final settledReturnOpacity = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.text('Source album metadata', skipOffstage: false),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(settledReturnOpacity.opacity, greaterThan(0));
+    expect(settledReturnOpacity.opacity, lessThan(1));
+  });
 }
 
 class _HeroSourcePage extends StatelessWidget {
-  const _HeroSourcePage();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +177,7 @@ class _HeroSourcePage extends StatelessWidget {
 }
 
 class _HeroDestinationPage extends StatelessWidget {
-  const _HeroDestinationPage();
+  const new();
 
   @override
   Widget build(BuildContext context) {

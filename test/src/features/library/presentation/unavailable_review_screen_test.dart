@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -107,22 +107,17 @@ void main() {
       evidenceGeneration: 3,
     );
     await database.libraryDao.upsertSongs([
-      SongsTableCompanion.insert(
-        id: 'song-new',
-        title: 'Missing Favorite',
-      ),
+      SongsTableCompanion.insert(id: 'song-new', title: 'Missing Favorite'),
     ]);
     // A live reference the preview must surface.
     await database
         .into(database.playlistsTable)
-        .insert(
-          PlaylistsTableCompanion.insert(id: 'pl-1', name: 'Favorites'),
-        );
+        .insert(PlaylistsTableCompanion.insert(id: 'pl-1', name: 'Favorites'));
     await database.libraryDao.upsertProvisionalSongs([
       SongsTableCompanion.insert(id: 'song-gone', title: 'Missing Favorite'),
     ]);
     await database.customStatement(
-      "INSERT INTO playlist_songs (playlist_id, song_id, sort_order) "
+      'INSERT INTO playlist_songs (playlist_id, song_id, sort_order) '
       "VALUES ('pl-1', 'song-gone', 0);",
     );
 
@@ -145,7 +140,7 @@ void main() {
     // The remap recorded the alias and resolved the entry.
     final aliases = await database
         .customSelect(
-          "SELECT old_id, new_id FROM entity_identity_aliases "
+          'SELECT old_id, new_id FROM entity_identity_aliases '
           "WHERE entity_type = 'song';",
         )
         .get();
@@ -183,10 +178,7 @@ void main() {
       evidenceGeneration: 3,
     );
     await database.libraryDao.upsertSongs([
-      SongsTableCompanion.insert(
-        id: 'song-new',
-        title: 'Missing Favorite',
-      ),
+      SongsTableCompanion.insert(id: 'song-new', title: 'Missing Favorite'),
     ]);
 
     await _pumpScreen(tester, database, serverId);

@@ -102,14 +102,16 @@ void main() {
     final buckets = await database.libraryDao
         .watchArtistAlbumBuckets('sq')
         .first;
-    expect(
-      buckets.primaryAlbums.map((album) => album.id).toSet(),
-      <String>{'by-id', 'by-name', 'remote'},
-    );
-    expect(
-      buckets.featuredInAlbums.map((album) => album.id).toSet(),
-      <String>{'credit-id', 'credit-name', 'related'},
-    );
+    expect(buckets.primaryAlbums.map((album) => album.id).toSet(), <String>{
+      'by-id',
+      'by-name',
+      'remote',
+    });
+    expect(buckets.featuredInAlbums.map((album) => album.id).toSet(), <String>{
+      'credit-id',
+      'credit-name',
+      'related',
+    });
     await expectBucketsMatchFullScan('sq');
     await expectBucketsMatchFullScan('other');
   });
@@ -240,9 +242,7 @@ void main() {
         );
 
     test('match exactly like the whole library, stale or fresh', () async {
-      final reference = await matches(
-        await database.libraryDao.getAllSongs(),
-      );
+      final reference = await matches(await database.libraryDao.getAllSongs());
       // Before the refresh every row is stale and is a candidate.
       expect(await matches(await candidates()), reference);
       await database.libraryDao.refreshSongSearchIndex();

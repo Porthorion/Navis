@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,7 +83,7 @@ List<SongsTableData> _filterLikedSongs(
 }
 
 class LibraryScreen extends ConsumerStatefulWidget {
-  const LibraryScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -212,8 +212,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             duration: const Duration(milliseconds: 250),
             curve: Curves.linear,
           );
-          if (!mounted || !controller.hasClients)
+          if (!mounted || !controller.hasClients) {
             throw StateError('Albums scroll view detached');
+          }
           request.completed.complete(controller.offset);
         } on Object catch (error, stack) {
           request.completed.completeError(error, stack);
@@ -310,8 +311,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // Don't intercept modifier combos (shortcuts)
     if (HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed ||
-        HardwareKeyboard.instance.isAltPressed)
+        HardwareKeyboard.instance.isAltPressed) {
       return false;
+    }
     // Don't intercept when a text field is being edited
     final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
     if (focusWidget is EditableText) return false;
@@ -362,15 +364,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _cachedYearSectionsSource = null; // invalidate year cache
     });
     ref.read(libraryTypeFilterActiveProvider.notifier).active = true;
-    _typeFilterFadeTimer = Timer(
-      const Duration(milliseconds: 900),
-      () {
-        if (mounted) {
-          setState(() => _typeFilterOverlayVisible = false);
-          ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
-        }
-      },
-    );
+    _typeFilterFadeTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) {
+        setState(() => _typeFilterOverlayVisible = false);
+        ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+      }
+    });
   }
 
   void _clearTypeFilter() {
@@ -531,10 +530,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (sections.isEmpty) {
       return;
     }
-    final section = _sectionForTabIndex(
-      controller.index,
-      sections,
-    );
+    final section = _sectionForTabIndex(controller.index, sections);
     _scheduleSectionSync(section);
   }
 
@@ -661,11 +657,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     : const PageScrollPhysics(),
                 children: <Widget>[
                   for (final section in visibleSections)
-                    _viewForSection(
-                      context,
-                      section,
-                      desktopMode: desktopMode,
-                    ),
+                    _viewForSection(context, section, desktopMode: desktopMode),
                 ],
               ),
             ),
@@ -708,13 +700,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       final colors = Theme.of(context).colorScheme;
       // With the sections in the sidebar the page is one continuous
       // workspace; otherwise a toolbar carries the title and section tabs.
-      final Widget? toolbarTrailing = useWideLibraryNavigation
+      final toolbarTrailing = useWideLibraryNavigation
           ? (DesktopNavigationPresentationScope.iconsOnlyOf(context)
                 ? Text(
                     _sectionTitle(l10n, activeSection),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(color: colors.onSurfaceVariant),
                   )
                 : null)
           : TabBar(
@@ -784,9 +775,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
                 child: Text(
                   wideHeaderTitle,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               const Divider(height: 1),
@@ -799,10 +789,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     if (tabletMode) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.libraryTitle),
-          bottom: tabBar,
-        ),
+        appBar: AppBar(title: Text(l10n.libraryTitle), bottom: tabBar),
         body: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
@@ -987,9 +974,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 ),
               ),
               IconButton(
-                icon: Icon(
-                  isGridMode ? Icons.view_list : Icons.grid_view,
-                ),
+                icon: Icon(isGridMode ? Icons.view_list : Icons.grid_view),
                 tooltip: isGridMode
                     ? l10n.librarySwitchToArtistList
                     : l10n.librarySwitchToArtistGrid,
@@ -1369,53 +1354,45 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     else
                       ResponsiveContentSliverGrid(
                         itemCount: typeFiltered.length,
-                        itemBuilder:
-                            (
-                              context,
-                              index,
-                            ) {
-                              final album = typeFiltered[index];
-                              final heroTag = buildCoverArtHeroTag(
-                                coverArtId: album.coverArt,
-                                context: 'album',
-                                entityId: album.id,
-                              );
-                              return RepaintBoundary(
-                                child: AlbumCard(
-                                  key: ValueKey(album.id),
-                                  album: album,
-                                  size: AlbumCardSize.library,
+                        itemBuilder: (context, index) {
+                          final album = typeFiltered[index];
+                          final heroTag = buildCoverArtHeroTag(
+                            coverArtId: album.coverArt,
+                            context: 'album',
+                            entityId: album.id,
+                          );
+                          return RepaintBoundary(
+                            child: AlbumCard(
+                              key: ValueKey(album.id),
+                              album: album,
+                              size: AlbumCardSize.library,
+                              heroTag: heroTag,
+                              badge: AlbumDownloadBadge(albumId: album.id),
+                              onTap: () {
+                                ref
+                                    .read(
+                                      librarySyncControllerProvider.notifier,
+                                    )
+                                    .registerAlbumInteraction(album.id);
+                                NavService.openAlbumDetail(
+                                  context,
+                                  ref,
+                                  album.id,
                                   heroTag: heroTag,
-                                  badge: AlbumDownloadBadge(albumId: album.id),
-                                  onTap: () {
-                                    ref
-                                        .read(
-                                          librarySyncControllerProvider
-                                              .notifier,
-                                        )
-                                        .registerAlbumInteraction(album.id);
-                                    NavService.openAlbumDetail(
-                                      context,
-                                      ref,
-                                      album.id,
-                                      heroTag: heroTag,
-                                    );
-                                  },
-                                  onLongPress: () => showAlbumContextMenu(
+                                );
+                              },
+                              onLongPress: () =>
+                                  showAlbumContextMenu(context, ref, album.id),
+                              onSecondaryTapDown: (details) =>
+                                  showAlbumContextMenu(
                                     context,
                                     ref,
                                     album.id,
+                                    anchor: details.globalPosition,
                                   ),
-                                  onSecondaryTapDown: (details) =>
-                                      showAlbumContextMenu(
-                                        context,
-                                        ref,
-                                        album.id,
-                                        anchor: details.globalPosition,
-                                      ),
-                                ),
-                              );
-                            },
+                            ),
+                          );
+                        },
                       ),
                     if (hasMore)
                       SliverToBoxAdapter(
@@ -1447,9 +1424,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ref.watch(downloadedContentIdsProvider);
     }
     final sectionsAsync = ref.watch(
-      albumYearSectionsProvider(
-        (likedOnly: false, downloadedOnly: _downloadedOnly),
-      ),
+      albumYearSectionsProvider((
+        likedOnly: false,
+        downloadedOnly: _downloadedOnly,
+      )),
     );
     if (sectionsAsync.asData != null) {
       var sections = sectionsAsync.asData!.value;
@@ -2152,8 +2130,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final metrics = _albumsScrollController.position;
     if (!metrics.hasContentDimensions ||
-        metrics.extentAfter >= metrics.viewportDimension)
+        metrics.extentAfter >= metrics.viewportDimension) {
       return;
+    }
     final sort = _toAlbumSortOrder(_albumSort);
     final pageSize = ref.read(albumPageSizeProvider);
     final current = ref.read(
@@ -2167,8 +2146,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         items == null ||
         total == null ||
         items.length < pageSize * _loadedAlbumPages ||
-        items.length >= total)
+        items.length >= total) {
       return;
+    }
     setState(() => _loadedAlbumPages += 1);
   }
 
@@ -2310,11 +2290,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     child: ArtistGridCard(
                       key: ValueKey(artist.id),
                       artist: artist,
-                      onTap: () => NavService.openArtistDetail(
-                        context,
-                        ref,
-                        artist.id,
-                      ),
+                      onTap: () =>
+                          NavService.openArtistDetail(context, ref, artist.id),
                       onLongPress: () => _showArtistActions(context, artist.id),
                       onSecondaryTapDown: (details) => _showArtistActions(
                         context,
@@ -2488,10 +2465,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       }
       return a.index.compareTo(b.index);
     });
-    final topIndex = targetSet.first.index.clamp(
-      0,
-      _yearListItems.length - 1,
-    );
+    final topIndex = targetSet.first.index.clamp(0, _yearListItems.length - 1);
     // Walk back through the flat list to find the nearest section header.
     String? label;
     for (var i = topIndex; i >= 0; i--) {
@@ -2507,10 +2481,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     setState(() => _activeYearDecade = label);
   }
 
-  void _scrollToArtistLetter(
-    String letter, {
-    required bool animate,
-  }) {
+  void _scrollToArtistLetter(String letter, {required bool animate}) {
     if (_activeArtistLetter == letter) {
       return;
     }
@@ -2551,10 +2522,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _artistsItemScrollController.jumpTo(index: sectionIndex);
   }
 
-  void _scrollToYearDecade(
-    String label, {
-    required bool animate,
-  }) {
+  void _scrollToYearDecade(String label, {required bool animate}) {
     if (_activeYearDecade != label) {
       setState(() => _activeYearDecade = label);
     }
@@ -2588,11 +2556,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       await ref
           .read(navisDatabaseProvider)
           .starSyncDao
-          .setStarred(
-            itemId: id,
-            itemType: type,
-            liked: liked,
-          );
+          .setStarred(itemId: id, itemType: type, liked: liked);
     } on Object {
       if (!mounted) return;
       showAppNotice(
@@ -2615,7 +2579,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 /// Liked-tab entry to the unavailable-items review list, shown only when at
 /// least one item is awaiting review.
 class _UnavailableReviewSliver extends ConsumerWidget {
-  const _UnavailableReviewSliver();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

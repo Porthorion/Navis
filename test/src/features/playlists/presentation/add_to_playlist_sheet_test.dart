@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -12,16 +12,13 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _PickerLauncher extends ConsumerWidget {
-  const _PickerLauncher();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return FilledButton(
-      onPressed: () => showAddToPlaylistSheet(
-        context,
-        ref,
-        const <String>['song-1'],
-      ),
+      onPressed: () =>
+          showAddToPlaylistSheet(context, ref, const <String>['song-1']),
       child: const Text('Open picker'),
     );
   }

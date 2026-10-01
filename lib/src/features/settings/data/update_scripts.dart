@@ -27,7 +27,7 @@ class UpdateScripts {
       'navis_update_${DateTime.now().millisecondsSinceEpoch}.bat',
     );
 
-    final backupDir = '${targetDir}.backup';
+    final backupDir = '$targetDir.backup';
     final tdEsc = _winEsc(targetDir);
     final sdEsc = _winEsc(stagingDir);
     final bdEsc = _winEsc(backupDir);
@@ -140,6 +140,6 @@ rm -- "\$0" 2>/dev/null || true
   /// Wraps a Unix path in single quotes; internal single quotes are closed,
   /// escaped with a backslash, and reopened.
   static String _shEsc(String path) {
-    return "'${path.replaceAll("'", "'\\''")}'";
+    return "'${path.replaceAll("'", r"'\''")}'";
   }
 }

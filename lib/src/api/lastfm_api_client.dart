@@ -14,7 +14,7 @@ enum LastFmFetchOutcome {
 }
 
 class LastFmTrackFetchResult {
-  const LastFmTrackFetchResult({
+  const new({
     required this.outcome,
     required this.tracks,
     this.statusCode,
@@ -30,11 +30,7 @@ class LastFmTrackFetchResult {
 }
 
 class LastFmTrackRecommendation {
-  const LastFmTrackRecommendation({
-    required this.artist,
-    required this.title,
-    this.match,
-  });
+  const new({required this.artist, required this.title, this.match});
 
   final String artist;
   final String title;
@@ -45,7 +41,7 @@ class LastFmTrackRecommendation {
 
 /// A single entry in an artist's top-tracks chart from Last.fm.
 class LastFmArtistTopTrack {
-  const LastFmArtistTopTrack({
+  const new({
     required this.rank,
     required this.title,
     required this.artist,
@@ -65,17 +61,14 @@ class LastFmArtistTopTrack {
 }
 
 class LastFmAuthSession {
-  const LastFmAuthSession({
-    required this.name,
-    required this.key,
-  });
+  const new({required this.name, required this.key});
 
   final String name;
   final String key;
 }
 
 class LastFmApiException implements Exception {
-  const LastFmApiException(this.code, this.message);
+  const new(this.code, this.message);
 
   final int? code;
   final String message;
@@ -85,11 +78,11 @@ class LastFmApiException implements Exception {
 }
 
 class LastFmInvalidSessionException extends LastFmApiException {
-  const LastFmInvalidSessionException() : super(9, 'Invalid session key');
+  const new() : super(9, 'Invalid session key');
 }
 
 class LastFmApiKeyValidationResult {
-  const LastFmApiKeyValidationResult({
+  const new({
     required this.valid,
     this.message,
     this.apiErrorCode,
@@ -103,21 +96,19 @@ class LastFmApiKeyValidationResult {
 }
 
 class LastFmApiClient {
-  LastFmApiClient({
-    required String apiKey,
-    Dio? dio,
-  }) : _apiKey = apiKey.trim(),
-       _dio =
-           dio ??
-           Dio(
-             BaseOptions(
-               baseUrl: 'https://ws.audioscrobbler.com/2.0',
-               connectTimeout: const Duration(seconds: 10),
-               receiveTimeout: const Duration(seconds: 15),
-               sendTimeout: const Duration(seconds: 10),
-               headers: const {'User-Agent': 'Navis/0.8'},
-             ),
-           );
+  new({required String apiKey, Dio? dio})
+    : _apiKey = apiKey.trim(),
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: 'https://ws.audioscrobbler.com/2.0',
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+              sendTimeout: const Duration(seconds: 10),
+              headers: const {'User-Agent': 'Navis/0.8'},
+            ),
+          );
 
   final Dio _dio;
   final String _apiKey;
@@ -183,13 +174,9 @@ class LastFmApiClient {
     }
   }
 
-  Future<String> getAuthToken({
-    required String sharedSecret,
-  }) async {
+  Future<String> getAuthToken({required String sharedSecret}) async {
     final response = await _signedPost(
-      <String, String>{
-        'method': 'auth.getToken',
-      },
+      <String, String>{'method': 'auth.getToken'},
       sharedSecret: sharedSecret,
       sessionKey: null,
     );
@@ -208,10 +195,7 @@ class LastFmApiClient {
     required String sharedSecret,
   }) async {
     final response = await _signedPost(
-      <String, String>{
-        'method': 'auth.getSession',
-        'token': token,
-      },
+      <String, String>{'method': 'auth.getSession', 'token': token},
       sharedSecret: sharedSecret,
       sessionKey: null,
     );
@@ -273,10 +257,7 @@ class LastFmApiClient {
     required String sharedSecret,
     required String? sessionKey,
   }) async {
-    final normalized = <String, String>{
-      ...parameters,
-      'api_key': _apiKey,
-    };
+    final normalized = <String, String>{...parameters, 'api_key': _apiKey};
     if (sessionKey != null) {
       normalized['sk'] = sessionKey;
     }
@@ -491,12 +472,7 @@ class LastFmApiClient {
       return value;
     }
     if (value is Map) {
-      return value.map(
-        (key, val) => MapEntry(
-          key.toString(),
-          val,
-        ),
-      );
+      return value.map((key, val) => MapEntry(key.toString(), val));
     }
     return const <String, dynamic>{};
   }
@@ -525,23 +501,13 @@ class LastFmApiClient {
       return value
           .whereType<Map<dynamic, dynamic>>()
           .map(
-            (entry) => entry.map(
-              (key, val) => MapEntry(
-                key.toString(),
-                val,
-              ),
-            ),
+            (entry) => entry.map((key, val) => MapEntry(key.toString(), val)),
           )
           .toList(growable: false);
     }
     if (value is Map) {
       return <Map<String, dynamic>>[
-        value.map(
-          (key, val) => MapEntry(
-            key.toString(),
-            val,
-          ),
-        ),
+        value.map((key, val) => MapEntry(key.toString(), val)),
       ];
     }
     return const <Map<String, dynamic>>[];

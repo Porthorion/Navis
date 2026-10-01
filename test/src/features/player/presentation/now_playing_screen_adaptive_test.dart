@@ -1,5 +1,5 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -100,20 +100,13 @@ Future<void> _pumpNowPlaying(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: ThemeData(
-          platform: platform,
-          brightness: brightness,
-        ),
+        theme: ThemeData(platform: platform, brightness: brightness),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
-          data:
-              MediaQuery.of(
-                context,
-              ).copyWith(
-                disableAnimations: reduceMotion,
-                textScaler: textScaler,
-              ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(disableAnimations: reduceMotion, textScaler: textScaler),
           child: child!,
         ),
         home: Scaffold(
@@ -180,9 +173,7 @@ void main() {
 
   testWidgets(
     'now playing info changes without decorative motion when reduced',
-    (
-      tester,
-    ) async {
+    (tester) async {
       if (!sqliteAvailable) {
         return;
       }
@@ -218,9 +209,7 @@ void main() {
       expect(
         tester
             .widget<AnimatedSwitcher>(
-              find.byKey(
-                const ValueKey<String>('nowPlayingArtLyricsSwitcher'),
-              ),
+              find.byKey(const ValueKey<String>('nowPlayingArtLyricsSwitcher')),
             )
             .duration,
         Duration.zero,
@@ -228,9 +217,7 @@ void main() {
       expect(
         tester
             .widget<AnimatedSwitcher>(
-              find.byKey(
-                const ValueKey<String>('nowPlayingTrackInfoSwitcher'),
-              ),
+              find.byKey(const ValueKey<String>('nowPlayingTrackInfoSwitcher')),
             )
             .duration,
         Duration.zero,
@@ -392,28 +379,25 @@ void main() {
     );
   });
 
-  testWidgets(
-    'fullscreen action row hides retired Listen Together control',
-    (
-      tester,
-    ) async {
-      if (!sqliteAvailable) {
-        return;
-      }
-      setAdaptiveTestViewport(tester, const Size(390, 844));
-      final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
-      await _pumpNowPlaying(tester, container);
+  testWidgets('fullscreen action row hides retired Listen Together control', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await _pumpNowPlaying(tester, container);
 
-      expect(find.byTooltip('Queue'), findsOneWidget);
-      expect(find.byTooltip('Pause'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('groupListeningSessionButton')),
-        findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(find.byTooltip('Queue'), findsOneWidget);
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('groupListeningSessionButton')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('fullscreen remote loading stays visible against play button', (
     tester,
@@ -446,10 +430,7 @@ void main() {
     final indicatorFinder = find.byKey(
       const ValueKey<String>('remote-playback-loading-indicator'),
     );
-    for (final brightness in <Brightness>[
-      Brightness.light,
-      Brightness.dark,
-    ]) {
+    for (final brightness in <Brightness>[Brightness.light, Brightness.dark]) {
       await _pumpNowPlaying(
         tester,
         container,
@@ -463,17 +444,11 @@ void main() {
         indicatorFinder,
       );
       expect(
-        find.ancestor(
-          of: indicatorFinder,
-          matching: find.byType(FilledButton),
-        ),
+        find.ancestor(of: indicatorFinder, matching: find.byType(FilledButton)),
         findsOneWidget,
       );
       final colors = Theme.of(tester.element(indicatorFinder)).colorScheme;
-      expect(
-        indicator.color,
-        colors.onPrimary,
-      );
+      expect(indicator.color, colors.onPrimary);
       expect(
         _contrastRatio(indicator.color!, colors.primary),
         greaterThanOrEqualTo(3),
@@ -634,10 +609,7 @@ void main() {
         findsNothing,
       );
       expect(
-        find.ancestor(
-          of: panel,
-          matching: find.byType(FractionalTranslation),
-        ),
+        find.ancestor(of: panel, matching: find.byType(FractionalTranslation)),
         findsNothing,
       );
 
@@ -700,9 +672,7 @@ void main() {
             equalizerProvider.overrideWith(
               () => FakeEqController(
                 initial: EqState(
-                  configuration: EqConfiguration.flat().copyWith(
-                    enabled: true,
-                  ),
+                  configuration: EqConfiguration.flat().copyWith(enabled: true),
                   presets: const [],
                   selectedPresetId: 'builtin:bass',
                 ),

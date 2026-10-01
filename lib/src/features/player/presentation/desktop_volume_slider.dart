@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A desktop volume slider with a floating percentage tooltip that tracks the
 /// thumb position while the user is dragging.
@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// thumb. It appears on interaction and fades out smoothly when the user
 /// releases the slider.
 class DesktopVolumeSlider extends StatefulWidget {
-  const DesktopVolumeSlider({
+  const new({
     super.key,
     required this.volume,
     required this.onChanged,
@@ -214,9 +214,6 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
     if (widget.expanded) {
       return control;
     }
-    return SizedBox(
-      width: sliderWidth,
-      child: control,
-    );
+    return SizedBox(width: sliderWidth, child: control);
   }
 }

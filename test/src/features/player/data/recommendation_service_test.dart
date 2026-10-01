@@ -11,7 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
-class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
+class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 void main() {
   Song song(String id, String artist, {String? recording}) => Song(
@@ -83,9 +83,7 @@ void main() {
 
       final result = await container
           .read(recommendationServiceProvider)
-          .serverMix(
-            'seed',
-          );
+          .serverMix('seed');
       expect(result.issue, RecommendationIssue.empty);
       verifyNever(
         () => api.getInstantMix(
@@ -97,47 +95,42 @@ void main() {
     },
   );
 
-  test(
-    'server mix uses the original standard endpoint when version 2 is unsupported',
-    () async {
-      final api = _MockSubsonicApiClient();
-      when(
-        () => api.getSimilarSongs2(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenThrow(
-        const SubsonicNotFoundException(message: 'Unsupported endpoint'),
-      );
-      when(
-        () => api.getLegacySimilarSongs(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) async => <Song>[song('fallback', 'Artist')]);
-      final container = ProviderContainer(
-        overrides: [subsonicApiProvider.overrideWithValue(api)],
-      );
-      addTearDown(container.dispose);
+  test('server mix uses the original standard endpoint when version 2 is unsupported', () async {
+    final api = _MockSubsonicApiClient();
+    when(
+      () => api.getSimilarSongs2(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenThrow(
+      const SubsonicNotFoundException(message: 'Unsupported endpoint'),
+    );
+    when(
+      () => api.getLegacySimilarSongs(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => <Song>[song('fallback', 'Artist')]);
+    final container = ProviderContainer(
+      overrides: [subsonicApiProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
 
-      final result = await container
-          .read(recommendationServiceProvider)
-          .serverMix(
-            'seed',
-          );
-      expect(result.songs.single.id, 'fallback');
-      expect(result.source, RecommendationSource.server);
-      verifyNever(
-        () => api.getInstantMix(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      );
-    },
-  );
+    final result = await container
+        .read(recommendationServiceProvider)
+        .serverMix('seed');
+    expect(result.songs.single.id, 'fallback');
+    expect(result.source, RecommendationSource.server);
+    verifyNever(
+      () => api.getInstantMix(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    );
+  });
 
   test('Navidrome instant mix is the last fallback', () async {
     final api = _MockSubsonicApiClient();
@@ -194,9 +187,10 @@ void main() {
       addTearDown(container.dispose);
       final service = container.read(recommendationServiceProvider);
 
-      Future<Set<String>> ids() async => (await service.eligibleLibrary(
-        const RadioFilters(),
-      )).map((song) => song.id).toSet();
+      Future<Set<String>> ids() async =>
+          (await service.eligibleLibrary(const RadioFilters()))
+              .map((song) => song.id)
+              .toSet();
 
       expect(await ids(), <String>{'song-1', 'song-2'});
       expect(await ids(), <String>{'song-1', 'song-2'});

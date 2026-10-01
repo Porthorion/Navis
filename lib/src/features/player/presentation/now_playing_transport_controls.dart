@@ -1,7 +1,7 @@
 part of 'now_playing_screen.dart';
 
 class _TransportControls extends ConsumerWidget {
-  const _TransportControls({
+  const new({
     required this.playback,
     required this.isExternalSource,
     this.isRadio = false,

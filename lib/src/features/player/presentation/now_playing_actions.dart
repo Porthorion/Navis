@@ -1,7 +1,7 @@
 part of 'now_playing_screen.dart';
 
 class _ActionRow extends ConsumerStatefulWidget {
-  const _ActionRow({
+  const new({
     this.song,
     this.songId,
     this.isLiked = false,
@@ -162,7 +162,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
 /// It sits where Shuffle used to be; Shuffle now lives in the queue header
 /// because it reorders the queue rather than controlling the current track.
 class _NowPlayingMixButton extends ConsumerWidget {
-  const _NowPlayingMixButton({required this.songId, this.compact = false});
+  const new({required this.songId, this.compact = false});
 
   static const Key buttonKey = ValueKey<String>('nowPlayingMixButton');
 
@@ -228,7 +228,7 @@ class _NowPlayingMixButton extends ConsumerWidget {
 }
 
 class _NowPlayingActionButton extends StatelessWidget {
-  const _NowPlayingActionButton({
+  const new({
     required this.icon,
     required this.label,
     this.onTap,

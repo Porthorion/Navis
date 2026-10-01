@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -16,7 +16,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class SyncSettingsScreen extends ConsumerWidget {
-  const SyncSettingsScreen({super.key});
+  const new({super.key});
 
   /// Supported interval choices in minutes. 0 = manual only.
   static const List<int> _intervalChoices = [0, 15, 30, 60, 120, 360, 720];
@@ -476,9 +476,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                               _intervalChoices.contains(currentInterval)
                               ? currentInterval
                               : 60,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                          ),
+                          decoration: const InputDecoration(isDense: true),
                           items: _intervalChoices
                               .map(
                                 (minutes) => DropdownMenuItem<int>(
@@ -846,7 +844,7 @@ class SyncSettingsScreen extends ConsumerWidget {
 }
 
 class _DesktopSyncStatusMetrics extends StatelessWidget {
-  const _DesktopSyncStatusMetrics({
+  const new({
     required this.l10n,
     this.plan,
     this.pendingWork,
@@ -903,10 +901,7 @@ class _DesktopSyncStatusMetrics extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 3),
-                        Text(
-                          metric.value,
-                          style: textTheme.bodyMedium,
-                        ),
+                        Text(metric.value, style: textTheme.bodyMedium),
                       ],
                     ),
                   ),
@@ -920,21 +915,14 @@ class _DesktopSyncStatusMetrics extends StatelessWidget {
 }
 
 class _DestructiveOperation {
-  const _DestructiveOperation({
-    required this.summary,
-    required this.occurredAt,
-  });
+  const new({required this.summary, required this.occurredAt});
 
   final String summary;
   final DateTime occurredAt;
 }
 
 class _OperationCounts {
-  const _OperationCounts({
-    required this.artists,
-    required this.albums,
-    required this.songs,
-  });
+  const new({required this.artists, required this.albums, required this.songs});
 
   final int artists;
   final int albums;
@@ -945,7 +933,7 @@ class _OperationCounts {
 
 /// Entry point for the unavailable-items review list with a live count.
 class UnavailableReviewEntry extends ConsumerWidget {
-  const UnavailableReviewEntry({super.key, required this.serverId});
+  const new({super.key, required this.serverId});
 
   final int? serverId;
 

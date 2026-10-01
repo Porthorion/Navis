@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
@@ -13,7 +13,7 @@ Future<void> showPlaybackRecoverySheet(BuildContext context) {
 }
 
 class _PlaybackRecoverySheet extends ConsumerStatefulWidget {
-  const _PlaybackRecoverySheet();
+  const new();
 
   @override
   ConsumerState<_PlaybackRecoverySheet> createState() =>
@@ -70,9 +70,9 @@ class _PlaybackRecoverySheetState
     } on Object {
       if (mounted) {
         setState(
-          () => _error = AppLocalizations.of(
-            context,
-          )!.playbackRecoveryActionFailed,
+          () =>
+              _error = AppLocalizations.of(context)!
+                  .playbackRecoveryActionFailed,
         );
       }
     } finally {
@@ -131,9 +131,8 @@ class _PlaybackRecoverySheetState
                 child: Text(l10n.playbackRecoveryResetCache),
               ),
               TextButton(
-                onPressed: () => _run(
-                  () => recovery.signOut(wipeLocalData: false),
-                ),
+                onPressed: () =>
+                    _run(() => recovery.signOut(wipeLocalData: false)),
                 child: Text(l10n.serverSettingsSignOutKeepData),
               ),
               TextButton(
@@ -145,9 +144,7 @@ class _PlaybackRecoverySheetState
                   )) {
                     return;
                   }
-                  await _run(
-                    () => recovery.signOut(wipeLocalData: true),
-                  );
+                  await _run(() => recovery.signOut(wipeLocalData: true));
                 },
                 child: Text(l10n.serverSettingsSignOutWipeData),
               ),
@@ -156,9 +153,8 @@ class _PlaybackRecoverySheetState
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.error),
               ),
             ],
           ],

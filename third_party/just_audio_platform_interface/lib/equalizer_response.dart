@@ -6,14 +6,6 @@ import 'equalizer.dart';
 class EqualizerBiquad {
   const EqualizerBiquad(this.b0, this.b1, this.b2, this.a1, this.a2);
 
-  static const identity = EqualizerBiquad(1, 0, 0, 0, 0);
-
-  final double b0;
-  final double b1;
-  final double b2;
-  final double a1;
-  final double a2;
-
   factory EqualizerBiquad.forFilter(
       EqualizerFilterMessage filter, double sampleRate) {
     if (!filter.enabled || (filter.usesGain && filter.gainDb == 0)) {
@@ -75,6 +67,14 @@ class EqualizerBiquad {
     };
     return EqualizerBiquad(b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0);
   }
+
+  static const identity = EqualizerBiquad(1, 0, 0, 0, 0);
+
+  final double b0;
+  final double b1;
+  final double b2;
+  final double a1;
+  final double a2;
 
   double decibelsAt(double frequency, double sampleRate) {
     final w = 2 * math.pi * frequency / sampleRate;

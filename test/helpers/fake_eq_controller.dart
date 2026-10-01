@@ -7,7 +7,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 /// It records the controller calls made by the UI and applies their visible
 /// effect to state, without storage or native audio.
 class FakeEqController extends EqController {
-  FakeEqController({this.initial});
+  new({this.initial});
 
   final EqState? initial;
   final calls = <String>[];

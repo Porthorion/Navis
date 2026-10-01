@@ -13,7 +13,7 @@ double stepAdjustment(double value, int hundredths) =>
 
 @immutable
 class PlaybackAdjustments {
-  const PlaybackAdjustments({
+  const new({
     this.speed = 1,
     double pitchSemitones = 0,
     this.lockPitchToSpeed = false,
@@ -65,12 +65,11 @@ class PlaybackAdjustments {
 /// Inclusive selectable hundredths; absent endpoints remain unbounded.
 @immutable
 class AdjustmentRange {
-  const AdjustmentRange({this.minimum, this.maximum});
-  factory AdjustmentRange.inward(double? minimum, double? maximum) =>
-      AdjustmentRange(
-        minimum: minimum == null ? null : (minimum * 100 - 1e-9).ceil() / 100,
-        maximum: maximum == null ? null : (maximum * 100 + 1e-9).floor() / 100,
-      );
+  const new({this.minimum, this.maximum});
+  factory inward(double? minimum, double? maximum) => AdjustmentRange(
+    minimum: minimum == null ? null : (minimum * 100 - 1e-9).ceil() / 100,
+    maximum: maximum == null ? null : (maximum * 100 + 1e-9).floor() / 100,
+  );
 
   final double? minimum;
   final double? maximum;
@@ -90,11 +89,7 @@ class AdjustmentRange {
 
 @immutable
 class PlaybackPreset {
-  const PlaybackPreset({
-    required this.id,
-    required this.name,
-    required this.values,
-  });
+  const new({required this.id, required this.name, required this.values});
 
   static const noneId = 'none';
 
@@ -153,7 +148,7 @@ class PlaybackPreset {
 /// Limits describe the initialized audio backend, never the visible ruler.
 @immutable
 class PlaybackAdjustmentCapabilities {
-  const PlaybackAdjustmentCapabilities({
+  const new({
     this.pitchSupported = false,
     this.minimumSpeed,
     this.maximumSpeed,

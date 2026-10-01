@@ -76,15 +76,9 @@ void main() {
       ).isValid,
       isFalse,
     );
-    expect(
-      EqConfiguration.flat().copyWith(filters: const []).isValid,
-      isFalse,
-    );
+    expect(EqConfiguration.flat().copyWith(filters: const []).isValid, isFalse);
     expect(const EqFilter(frequencyHz: 1000, q: 0).isValid, isFalse);
-    expect(
-      const EqFilter(frequencyHz: double.infinity).isValid,
-      isFalse,
-    );
+    expect(const EqFilter(frequencyHz: double.infinity).isValid, isFalse);
   });
 
   test('sample-rate limits apply to the complete enabled profile', () {

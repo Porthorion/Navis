@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 
 /// Keeps identified tracks visible when source preparation cannot queue them.
 class QueueUnavailableTracks extends ConsumerWidget {
-  const QueueUnavailableTracks({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -30,10 +30,7 @@ class _FakeCredentialStore implements SecureCredentialStore {
 }
 
 class _ThrowingCredentialStore implements SecureCredentialStore {
-  _ThrowingCredentialStore({
-    this.throwOnRead = false,
-    this.throwOnClear = false,
-  });
+  new({this.throwOnRead = false, this.throwOnClear = false});
 
   final bool throwOnRead;
   final bool throwOnClear;
@@ -124,47 +121,39 @@ void main() {
       await database.close();
     });
 
-    test(
-      'save writes drift metadata and secure password',
-      () async {
-        await repository.save(
-          const ServerConfigModel(
-            name: 'example.com',
-            url: 'https://example.com',
-            username: 'alice',
-            password: 'secret',
-            apiVersion: '1.16.1',
-          ),
-        );
+    test('save writes drift metadata and secure password', () async {
+      await repository.save(
+        const ServerConfigModel(
+          name: 'example.com',
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+      );
 
-        final row = await database.serverDao.getActiveServer();
-        expect(row?.url, 'https://example.com');
-        expect(row?.username, 'alice');
-        expect(credentials.password, 'secret');
-      },
-      skip: !sqliteAvailable,
-    );
+      final row = await database.serverDao.getActiveServer();
+      expect(row?.url, 'https://example.com');
+      expect(row?.username, 'alice');
+      expect(credentials.password, 'secret');
+    }, skip: !sqliteAvailable);
 
-    test(
-      'getActiveServer combines drift row with secure password',
-      () async {
-        await database.serverDao.saveServer(
-          ServerConfigTableCompanion.insert(
-            name: Value('example.com'),
-            url: 'https://example.com',
-            username: 'alice',
-            apiVersion: '1.16.1',
-          ),
-        );
-        credentials.password = 'secret';
+    test('getActiveServer combines drift row with secure password', () async {
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          name: Value('example.com'),
+          url: 'https://example.com',
+          username: 'alice',
+          apiVersion: '1.16.1',
+        ),
+      );
+      credentials.password = 'secret';
 
-        final config = await repository.getActiveServer();
-        expect(config, isNotNull);
-        expect(config?.password, 'secret');
-        expect(config?.username, 'alice');
-      },
-      skip: !sqliteAvailable,
-    );
+      final config = await repository.getActiveServer();
+      expect(config, isNotNull);
+      expect(config?.password, 'secret');
+      expect(config?.username, 'alice');
+    }, skip: !sqliteAvailable);
 
     test(
       'missing secure password signs out without deleting retained profile',
@@ -211,19 +200,15 @@ void main() {
       expect(credentials.clearCalls, 1);
     }, skip: !sqliteAvailable);
 
-    test(
-      'getActiveServer tolerates secure credential clear failure',
-      () async {
-        repository = ServerConfigRepository(
-          database,
-          credentials: _ThrowingCredentialStore(throwOnClear: true),
-        );
+    test('getActiveServer tolerates secure credential clear failure', () async {
+      repository = ServerConfigRepository(
+        database,
+        credentials: _ThrowingCredentialStore(throwOnClear: true),
+      );
 
-        final config = await repository.getActiveServer();
-        expect(config, isNull);
-      },
-      skip: !sqliteAvailable,
-    );
+      final config = await repository.getActiveServer();
+      expect(config, isNull);
+    }, skip: !sqliteAvailable);
 
     test(
       'getActiveServer signs out retained row when secure read fails',
@@ -275,37 +260,33 @@ void main() {
       expect(difference!.inSeconds.abs(), lessThanOrEqualTo(1));
     }, skip: !sqliteAvailable);
 
-    test(
-      'updateSyncTimestamps updates last full sync timestamp',
-      () async {
-        await repository.save(
-          const ServerConfigModel(
-            name: 'example.com',
-            url: 'https://example.com',
-            username: 'alice',
-            password: 'secret',
-            apiVersion: '1.16.1',
-          ),
-        );
-        final syncedAt = DateTime.now();
-        final fullSyncedAt = syncedAt.subtract(const Duration(minutes: 1));
+    test('updateSyncTimestamps updates last full sync timestamp', () async {
+      await repository.save(
+        const ServerConfigModel(
+          name: 'example.com',
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final syncedAt = DateTime.now();
+      final fullSyncedAt = syncedAt.subtract(const Duration(minutes: 1));
 
-        await repository.updateSyncTimestamps(
-          lastSynced: syncedAt,
-          lastFullSyncedAt: fullSyncedAt,
-        );
-        final after = await repository.getActiveServer();
+      await repository.updateSyncTimestamps(
+        lastSynced: syncedAt,
+        lastFullSyncedAt: fullSyncedAt,
+      );
+      final after = await repository.getActiveServer();
 
-        expect(after, isNotNull);
-        expect(after?.lastSynced, isNotNull);
-        expect(after?.lastFullSyncedAt, isNotNull);
-        expect(
-          after?.lastFullSyncedAt?.difference(fullSyncedAt).inSeconds.abs(),
-          lessThanOrEqualTo(1),
-        );
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(after, isNotNull);
+      expect(after?.lastSynced, isNotNull);
+      expect(after?.lastFullSyncedAt, isNotNull);
+      expect(
+        after?.lastFullSyncedAt?.difference(fullSyncedAt).inSeconds.abs(),
+        lessThanOrEqualTo(1),
+      );
+    }, skip: !sqliteAvailable);
 
     test(
       'same-profile reauthentication preserves identity and sync state',

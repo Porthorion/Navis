@@ -4,7 +4,7 @@ import 'package:navis/src/utils/app_logger.dart';
 
 /// Handles notification channel setup and runtime permission requests.
 class NotificationBootstrap {
-  NotificationBootstrap._();
+  new _();
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();

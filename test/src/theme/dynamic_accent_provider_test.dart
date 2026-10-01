@@ -31,9 +31,7 @@ void main() {
             const AsyncData(AppSettingsModel.defaults()),
           ),
           colorSchemeSeedProvider.overrideWith((_) => 0xFF123456),
-          dynamicAccentSeedColorProvider.overrideWith(
-            (_) async => 0xFFABCDEF,
-          ),
+          dynamicAccentSeedColorProvider.overrideWith((_) async => 0xFFABCDEF),
         ],
       );
       addTearDown(container.dispose);

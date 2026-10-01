@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 
 class SyncLeaseLostException implements Exception {
-  const SyncLeaseLostException();
+  const new();
 }
 
 /// Opaque lease ownership carried only by a sync execution's async work.
 /// Ordinary playback, UI edits, and database migrations remain outside it.
 class SyncWriteFence {
-  const SyncWriteFence({
+  const new({
     required this.serverId,
     required this.ownerToken,
     required this.now,

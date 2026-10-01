@@ -67,60 +67,40 @@ List<String> navisQueueSourceIds(
 class NavisAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler
     implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
-  NavisAudioHandler({
-    required LibraryDao libraryDao,
-    required PlaylistDao playlistDao,
-    required PlayQueueDao playQueueDao,
-    required MatchFlowDao matchFlowDao,
-    required HistoryDao historyDao,
-    required PlaybackSourceResolver sourceResolver,
-    required SubsonicApiClient? Function() readApiClient,
-    required RollingCacheManager rollingCacheManager,
-    required int Function() readRollingCacheBudgetBytes,
-    required ScrobbleService scrobbleService,
-    required ListenBrainzFeedbackService listenBrainzFeedbackService,
-    required PlaybackRuntimeSettings Function() readRuntimeSettings,
-    required StarSyncDao starSyncDao,
+  new({
+    required this._libraryDao,
+    required this._playlistDao,
+    required this._playQueueDao,
+    required this._matchFlowDao,
+    required this._historyDao,
+    required this._sourceResolver,
+    required this._readApiClient,
+    required this._rollingCacheManager,
+    required this._readRollingCacheBudgetBytes,
+    required this._scrobbleService,
+    required this._listenBrainzFeedbackService,
+    required this._readRuntimeSettings,
+    required this._starSyncDao,
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
-    void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
-    Future<bool> Function(bool autoPlay)? startPersonalRadio,
+    this._reportRollingCacheActivity,
+    this._startPersonalRadio,
     Future<void> Function(String)? startPreferredMix,
     Future<void> Function(String)? togglePreferredMix,
     AudioPlayer? player,
-    PlaybackAdjustmentCapabilities? adjustmentCapabilities,
+    this._adjustmentCapabilities,
     EqCapabilities? equalizerCapabilities,
-    AudioPlayer Function()? crossfadePlayerFactory,
-    AudioPlayer Function()? playerFactory,
-    NavisQueueWindow queueWindow = const NavisQueueWindow(),
-    NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+    this._crossfadePlayerFactory,
+    this._playerFactory,
+    this._queueWindow = const NavisQueueWindow(),
+    this._timeouts = const NavisPlaybackTimeouts(),
     math.Random? shuffleRandom,
-  }) : _queueWindow = queueWindow,
-       _shuffleRandom = shuffleRandom ?? math.Random(),
-       _timeouts = timeouts,
-       _playerFactory = playerFactory,
-       _adjustmentCapabilities = adjustmentCapabilities,
+  }) : _shuffleRandom = shuffleRandom ?? math.Random(),
        _injectedEqualizerCapabilities = equalizerCapabilities,
-       _crossfadePlayerFactory = crossfadePlayerFactory,
-       _libraryDao = libraryDao,
-       _playlistDao = playlistDao,
-       _playQueueDao = playQueueDao,
-       _matchFlowDao = matchFlowDao,
-       _historyDao = historyDao,
-       _sourceResolver = sourceResolver,
-       _readApiClient = readApiClient,
-       _rollingCacheManager = rollingCacheManager,
-       _readRollingCacheBudgetBytes = readRollingCacheBudgetBytes,
-       _scrobbleService = scrobbleService,
-       _listenBrainzFeedbackService = listenBrainzFeedbackService,
-       _readRuntimeSettings = readRuntimeSettings,
-       _starSyncDao = starSyncDao,
        _userVolume = initialVolume.isFinite
            ? initialVolume.clamp(0.0, 1.0)
            : 1.0,
        _reportNetworkUsage = reportNetworkUsage,
-       _reportRollingCacheActivity = reportRollingCacheActivity,
-       _startPersonalRadio = startPersonalRadio,
        _preferredMixCallback = startPreferredMix,
        _preferredMixToggleCallback = togglePreferredMix,
        _artCache = _isAndroidRuntime
@@ -508,9 +488,7 @@ class NavisAudioHandler extends BaseAudioHandler
   ]) => _autoMediaTreeService.getChildren(parentMediaId, options);
 
   @override
-  ValueStream<Map<String, dynamic>> subscribeToChildren(
-    String parentMediaId,
-  ) =>
+  ValueStream<Map<String, dynamic>> subscribeToChildren(String parentMediaId) =>
       _androidAutoBrowseNotifier.streamFor(parentMediaId) ??
       super.subscribeToChildren(parentMediaId);
 
@@ -608,9 +586,7 @@ class NavisAudioHandler extends BaseAudioHandler
         final albums = await _libraryDao.watchLikedAlbums().first;
         final allSongs = <SongsTableData>[];
         for (final album in albums) {
-          allSongs.addAll(
-            await _libraryDao.watchSongsByAlbum(album.id).first,
-          );
+          allSongs.addAll(await _libraryDao.watchSongsByAlbum(album.id).first);
         }
         if (allSongs.isEmpty) return false;
         await replaceQueueWithData(allSongs, autoPlay: autoPlay);
@@ -686,9 +662,7 @@ class NavisAudioHandler extends BaseAudioHandler
             _libraryDao.watchAllStarredSongs().first,
           AutoMediaContextType.recent =>
             _historyDao.watchRecentlyPlayedSongs(limit: 50).first,
-          _ => Future<List<SongsTableData>>.value(
-            const <SongsTableData>[],
-          ),
+          _ => Future<List<SongsTableData>>.value(const <SongsTableData>[]),
         };
         if (contextualSongs.isNotEmpty) {
           final startIndex = contextualSongs.indexWhere(
@@ -763,9 +737,7 @@ class NavisAudioHandler extends BaseAudioHandler
             .first;
         final allSongs = <SongsTableData>[];
         for (final album in albums) {
-          allSongs.addAll(
-            await _libraryDao.watchSongsByAlbum(album.id).first,
-          );
+          allSongs.addAll(await _libraryDao.watchSongsByAlbum(album.id).first);
         }
         if (allSongs.isEmpty) return false;
         await replaceQueueWithData(allSongs, autoPlay: autoPlay);
@@ -1056,9 +1028,7 @@ class NavisAudioHandler extends BaseAudioHandler
       'coverArtId=$coverArtId uri=${artUri.scheme}://${artUri.host}${artUri.path}',
     );
     final localPath = await _artCache!.getOrFetch(coverArtId, artUri);
-    AppLogger.debug(
-      '_updateArtCacheFile: result for $coverArtId → $localPath',
-    );
+    AppLogger.debug('_updateArtCacheFile: result for $coverArtId → $localPath');
     if (localPath == null) return;
 
     // Inject artCacheFile into a copy of [item]'s extras, preserving all
@@ -1177,9 +1147,8 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _restoreSavedQueue({OperationToken? token}) async {
     try {
       _queueRestoreOutcome = 'loading';
-      await _restoreQueueFromDisk(
-        token: token,
-      ).timeout(const Duration(seconds: 10));
+      await _restoreQueueFromDisk(token: token)
+          .timeout(const Duration(seconds: 10));
     } on TimeoutException catch (error, stackTrace) {
       _queueRestoreOutcome = 'timeout';
       // Keep the saved queue: large queues restore their current item
@@ -1428,11 +1397,8 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _continuingIntoDeferredTail = true;
     unawaited(
-      playFromIndex(
-        wrap ? 0 : _deferredHead.length + _queueItems.length,
-      ).whenComplete(
-        () => _continuingIntoDeferredTail = false,
-      ),
+      playFromIndex(wrap ? 0 : _deferredHead.length + _queueItems.length)
+          .whenComplete(() => _continuingIntoDeferredTail = false),
     );
   }
 
@@ -1871,9 +1837,7 @@ class NavisAudioHandler extends BaseAudioHandler
       try {
         await inactiveDeck
             .setLoopMode(previousLoopMode)
-            .timeout(
-              _playerResetTimeout,
-            );
+            .timeout(_playerResetTimeout);
         await _applyAdjustmentsToPlayer(
           inactiveDeck,
           _appliedAdjustments,
@@ -2075,9 +2039,7 @@ class NavisAudioHandler extends BaseAudioHandler
         if (event.type == AudioInterruptionType.duck) {
           if (!_isDucked) {
             _isDucked = true;
-            unawaited(
-              _player.setVolume((_userVolume * 2 / 5).clamp(0, 1)),
-            );
+            unawaited(_player.setVolume((_userVolume * 2 / 5).clamp(0, 1)));
           }
           return;
         }
@@ -2564,52 +2526,47 @@ class NavisAudioHandler extends BaseAudioHandler
     final finalizeAtMs = fadeDurationMs;
     final startTime = DateTime.now();
     _crossfadeFadeTimer?.cancel();
-    _crossfadeFadeTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (timer) {
-        if (!_isCrossfadeSessionActive(sessionToken, nextIndex) ||
-            !identical(_crossfadePlayer, cfPlayer)) {
-          timer.cancel();
-          return;
-        }
-        if (_crossfadeHandoffInProgress) {
-          timer.cancel();
-          return;
-        }
+    _crossfadeFadeTimer = Timer.periodic(const Duration(milliseconds: 50), (
+      timer,
+    ) {
+      if (!_isCrossfadeSessionActive(sessionToken, nextIndex) ||
+          !identical(_crossfadePlayer, cfPlayer)) {
+        timer.cancel();
+        return;
+      }
+      if (_crossfadeHandoffInProgress) {
+        timer.cancel();
+        return;
+      }
 
-        final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-        final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
 
-        // If the main player is ducked, respect that by scaling the
-        // outgoing volume relative to the duck level.
-        final outgoingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
-        final incomingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+      // If the main player is ducked, respect that by scaling the
+      // outgoing volume relative to the duck level.
+      final outgoingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+      final incomingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+      unawaited(
+        _player.setVolume((outgoingBase * (1.0 - progress)).clamp(0.0, 1.0)),
+      );
+      unawaited(cfPlayer.setVolume((incomingBase * progress).clamp(0.0, 1.0)));
+
+      if (elapsed >= finalizeAtMs || progress >= 1.0) {
+        timer.cancel();
+        AppLogger.debug(
+          'Cross-fade fade loop reached finalize point: '
+          'elapsed=${elapsed}ms finalizeAt=${finalizeAtMs}ms '
+          '(target=$nextIndex token=$sessionToken).',
+        );
         unawaited(
-          _player.setVolume(
-            (outgoingBase * (1.0 - progress)).clamp(0.0, 1.0),
+          _finalizeCrossfadeAfterFade(
+            nextIndex: nextIndex,
+            sessionToken: sessionToken,
+            cfPlayer: cfPlayer,
           ),
         );
-        unawaited(
-          cfPlayer.setVolume((incomingBase * progress).clamp(0.0, 1.0)),
-        );
-
-        if (elapsed >= finalizeAtMs || progress >= 1.0) {
-          timer.cancel();
-          AppLogger.debug(
-            'Cross-fade fade loop reached finalize point: '
-            'elapsed=${elapsed}ms finalizeAt=${finalizeAtMs}ms '
-            '(target=$nextIndex token=$sessionToken).',
-          );
-          unawaited(
-            _finalizeCrossfadeAfterFade(
-              nextIndex: nextIndex,
-              sessionToken: sessionToken,
-              cfPlayer: cfPlayer,
-            ),
-          );
-        }
-      },
-    );
+      }
+    });
   }
 
   Future<void> _finalizeCrossfadeAfterFade({
@@ -2729,9 +2686,7 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       _applyReplayGainVolume(forceDuringCrossfade: true);
     } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Cross-fade completion failed: $error\n$stackTrace',
-      );
+      AppLogger.warning('Cross-fade completion failed: $error\n$stackTrace');
       _emitCrossfadeMetric(
         transitionId: transitionId,
         targetIndex: handoffTargetIndex,
@@ -3003,10 +2958,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final startIndex = (queueState?.currentIndex ?? 0)
-        .clamp(
-          0,
-          math.max(0, queuedSongs.length - 1),
-        )
+        .clamp(0, math.max(0, queuedSongs.length - 1))
         .toInt();
     _shuffleEnabled = queueState?.shuffleMode == schema.ShuffleMode.all;
     _originalOrder = null;
@@ -3230,9 +3182,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final recentSongs = await _historyDao
-        .watchRecentlyPlayedSongs(
-          limit: 50,
-        )
+        .watchRecentlyPlayedSongs(limit: 50)
         .first;
     source = navisChooseAutoResumeSource(
       hasActiveQueue: false,
@@ -3323,9 +3273,7 @@ class NavisAudioHandler extends BaseAudioHandler
             song: song,
             resolvedSource: resolvedSource,
             cacheFilePath: cacheFilePath,
-          ).whenComplete(
-            () => _completeRollingCacheActivity(cacheFilePath),
-          ),
+          ).whenComplete(() => _completeRollingCacheActivity(cacheFilePath)),
         );
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -3412,10 +3360,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) async {
     List<_PreparedQueueItem> prepared;
     try {
-      prepared = await _prepareQueueItems(
-        songs,
-        preferLockCaching: true,
-      );
+      prepared = await _prepareQueueItems(songs, preferLockCaching: true);
     } on PlaybackSourceUnavailableException {
       rethrow;
     } on Object catch (error, stackTrace) {
@@ -3424,10 +3369,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'Retrying with direct-stream sources. '
         '$error\n$stackTrace',
       );
-      prepared = await _prepareQueueItems(
-        songs,
-        preferLockCaching: false,
-      );
+      prepared = await _prepareQueueItems(songs, preferLockCaching: false);
     }
 
     if (prepared.isEmpty) {
@@ -3478,10 +3420,7 @@ class NavisAudioHandler extends BaseAudioHandler
           '$error\n$stackTrace',
         );
       }
-      prepared = await _prepareQueueItems(
-        songs,
-        preferLockCaching: false,
-      );
+      prepared = await _prepareQueueItems(songs, preferLockCaching: false);
       try {
         await _applyPreparedQueue(
           prepared,
@@ -3588,10 +3527,7 @@ class NavisAudioHandler extends BaseAudioHandler
       rethrow;
     } on Object catch (error, stackTrace) {
       if (!effectivePreferLockCaching) rethrow;
-      _markSongLockCachingBypassed(
-        song.id,
-        reason: 'source resolution failed',
-      );
+      _markSongLockCachingBypassed(song.id, reason: 'source resolution failed');
       AppLogger.warning(
         'Source resolution failed for song=${song.id} '
         'with lock-cached preference. Falling back to direct stream. '
@@ -3771,10 +3707,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'Phase 1 lock-cached queue apply failed for song=${startSong.id}. '
         'Retrying with direct stream. $error\n$stackTrace',
       );
-      startItem = await _prepareSingleItem(
-        startSong,
-        preferLockCaching: false,
-      );
+      startItem = await _prepareSingleItem(startSong, preferLockCaching: false);
       _queueItems
         ..clear()
         ..add(startItem.mediaItem);
@@ -3867,9 +3800,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueFillResolveMs = 0;
     _queueFillNativeMs = 0;
     _queueFillBatches = 0;
-    final preparedByIndex = <int, _PreparedQueueItem>{
-      clampedIndex: startItem,
-    };
+    final preparedByIndex = <int, _PreparedQueueItem>{clampedIndex: startItem};
     final skippedSongIds = <String>[];
 
     AppLogger.debug(
@@ -3999,13 +3930,10 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     if (persist) {
-      await _persistSafely(
-        () {
-          fillTimings['persistStartMs'] = fillWatch.elapsedMilliseconds;
-          return _persistQueueState(includeQueueItems: true);
-        },
-        context: 'queue replacement (phase 2)',
-      );
+      await _persistSafely(() {
+        fillTimings['persistStartMs'] = fillWatch.elapsedMilliseconds;
+        return _persistQueueState(includeQueueItems: true);
+      }, context: 'queue replacement (phase 2)');
     }
     fillTimings['persistMs'] = fillWatch.elapsedMilliseconds;
   }
@@ -4568,9 +4496,8 @@ class NavisAudioHandler extends BaseAudioHandler
     final hasExternalSource = songs.any((song) => song.isExternal);
     final hasRetiredIdentity =
         !hasExternalSource &&
-        Iterable<int>.generate(
-          songs.length,
-        ).any((index) => canonicalIds[index] != songs[index].id);
+        Iterable<int>.generate(songs.length)
+            .any((index) => canonicalIds[index] != songs[index].id);
     if (hasRetiredIdentity) {
       final canonicalSongs = await _libraryDao.getSongsByIds(canonicalIds);
       if (!_isActiveLoadGeneration(admittedGeneration)) return;
@@ -4986,7 +4913,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required int notBefore,
     math.Random? random,
   }) async {
-    var result = const QueueBatchEditResult();
+    const result = QueueBatchEditResult();
     if (songs.isEmpty) return result;
     await _enqueueQueueEdit((token) async {
       if (_queueItems.isEmpty) return;
@@ -4997,10 +4924,7 @@ class NavisAudioHandler extends BaseAudioHandler
       // tail with one native call, so a merge costs O(1) native operations
       // however many songs arrive, and refills release them again.
       final current = _player.currentIndex ?? 0;
-      final mergeFrom = math.max(
-        notBefore - _deferredHead.length,
-        current + 3,
-      );
+      final mergeFrom = math.max(notBefore - _deferredHead.length, current + 3);
       if (mergeFrom < _queueItems.length) {
         await _deferMaterialisedFrom(mergeFrom);
       }
@@ -5044,10 +4968,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     final moved = _queueItems.sublist(from);
     _queueItems.removeRange(from, end);
-    _deferredTail.insertAll(
-      0,
-      moved.map(_deferredEntryForItem),
-    );
+    _deferredTail.insertAll(0, moved.map(_deferredEntryForItem));
     if (deckInSync) {
       try {
         await inactiveDeck.removeAudioSourceRange(from, end);
@@ -5146,10 +5067,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> playNext(
-    List<String> songIds, {
-    bool expandMatchFlows = true,
-  }) {
+  Future<void> playNext(List<String> songIds, {bool expandMatchFlows = true}) {
     return _enqueueQueueEdit((token) async {
       final expanded = (await _expandMatchFlowIds(
         songIds,
@@ -5982,9 +5900,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'shuffleMode': snapshot.shuffleMode.name,
       'repeatMode': snapshot.repeatMode.name,
       'sourceKind': _currentSourceKind,
-      'lockCachingBypassed': songId != null
-          ? _lockCachingBypassedSongIds.contains(songId)
-          : false,
+      'lockCachingBypassed':
+          songId != null && _lockCachingBypassedSongIds.contains(songId),
       'lockCachingBypassedSongIds': _lockCachingBypassedSongIds.toList(
         growable: false,
       ),
@@ -6290,11 +6207,7 @@ class NavisAudioHandler extends BaseAudioHandler
               preparedMetadata.mediaItem?.id == rebuildIds[index]) {
             confirmSelection();
           }
-          await _persistLogicalQueue(
-            rebuildIds,
-            index,
-            generation: generation,
-          );
+          await _persistLogicalQueue(rebuildIds, index, generation: generation);
           if (startItem != null && songs.length > 1) {
             await _replaceQueuePhase2(
               songs: songs,
@@ -6383,11 +6296,7 @@ class NavisAudioHandler extends BaseAudioHandler
         if (!_isActiveLoadGeneration(generation)) return;
         _navigationTimeoutCount++;
         _navigationIntent.confirm(decision.revision);
-        _completeQueueLoad(
-          generation,
-          loadingSongId: targetId,
-          failed: true,
-        );
+        _completeQueueLoad(generation, loadingSongId: targetId, failed: true);
         // The timed-out player was retired, so it cannot keep playing the
         // selected song. Rebuild the logical queue at the next playable entry
         // instead of leaving a full-looking queue backed by an idle player.
@@ -6423,11 +6332,7 @@ class NavisAudioHandler extends BaseAudioHandler
         final restore = farJumpRestore;
         if (restore != null) await _restoreQueueAfterFailedJump(restore);
         _navigationIntent.confirm(decision.revision);
-        _completeQueueLoad(
-          generation,
-          loadingSongId: targetId,
-          failed: true,
-        );
+        _completeQueueLoad(generation, loadingSongId: targetId, failed: true);
         _emitLoadFailure(
           operation: context,
           message: 'Could not change to the selected track.',
@@ -6539,9 +6444,8 @@ class NavisAudioHandler extends BaseAudioHandler
     final logicalIds = _logicalQueueIds;
     final keepHistory =
         newCurrent == current &&
-        Iterable<int>.generate(
-          current,
-        ).every((i) => logicalIds[i] == before[i].id);
+        Iterable<int>.generate(current)
+            .every((i) => logicalIds[i] == before[i].id);
     // Everything after the current song leaves the player and waits in the
     // tail in its new order.
     final end = _queueItems.length;
@@ -6790,8 +6694,9 @@ class NavisAudioHandler extends BaseAudioHandler
           active = _player;
           inactive = _crossfadePlayer;
           await _applyAdjustmentsToPlayer(active, values);
-          if (inactive != null)
+          if (inactive != null) {
             await _applyAdjustmentsToPlayer(inactive, values);
+          }
         } while (!identical(active, _player) ||
             !identical(inactive, _crossfadePlayer));
         _appliedAdjustments = values;
@@ -6803,8 +6708,9 @@ class NavisAudioHandler extends BaseAudioHandler
         try {
           await _applyAdjustmentsToPlayer(_player, previous);
           final inactive = _crossfadePlayer;
-          if (inactive != null)
+          if (inactive != null) {
             await _applyAdjustmentsToPlayer(inactive, previous);
+          }
         } on Object catch (error, stackTrace) {
           AppLogger.warning(
             'Playback adjustment rollback failed: $error\n$stackTrace',
@@ -7269,11 +7175,7 @@ class NavisAudioHandler extends BaseAudioHandler
     try {
       await _historyDao.addPlayHistory(songId);
     } on Object catch (error, stackTrace) {
-      AppLogger.error(
-        'Failed to record play history',
-        error,
-        stackTrace,
-      );
+      AppLogger.error('Failed to record play history', error, stackTrace);
     }
   }
 
@@ -7448,9 +7350,9 @@ class NavisAudioHandler extends BaseAudioHandler
               .toUtc()
               .difference(startedAt)
               .inMilliseconds,
-          'lockCachingBypassed': _snapshot.currentSongId == null
-              ? false
-              : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+          'lockCachingBypassed':
+              !(_snapshot.currentSongId == null) &&
+              _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
         });
         return;
       }
@@ -7483,9 +7385,9 @@ class NavisAudioHandler extends BaseAudioHandler
             .toUtc()
             .difference(startedAt)
             .inMilliseconds,
-        'lockCachingBypassed': _snapshot.currentSongId == null
-            ? false
-            : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+        'lockCachingBypassed':
+            !(_snapshot.currentSongId == null) &&
+            _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
       });
       return;
     }
@@ -7514,9 +7416,9 @@ class NavisAudioHandler extends BaseAudioHandler
             .toUtc()
             .difference(startedAt)
             .inMilliseconds,
-        'lockCachingBypassed': _snapshot.currentSongId == null
-            ? false
-            : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+        'lockCachingBypassed':
+            !(_snapshot.currentSongId == null) &&
+            _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
       });
       return;
     }
@@ -7573,9 +7475,9 @@ class NavisAudioHandler extends BaseAudioHandler
       'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
       'afterSourceKind': _currentSourceKind,
       'elapsedMs': DateTime.now().toUtc().difference(startedAt).inMilliseconds,
-      'lockCachingBypassed': _snapshot.currentSongId == null
-          ? false
-          : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+      'lockCachingBypassed':
+          !(_snapshot.currentSongId == null) &&
+          _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
     });
   }
 
@@ -7673,9 +7575,9 @@ class NavisAudioHandler extends BaseAudioHandler
       return false;
     }
 
-    final orderedSongs = (await _rowsForDeferredEntries(
-      _logicalQueueEntries(),
-    )).nonNulls.toList(growable: false);
+    final orderedSongs = (await _rowsForDeferredEntries(_logicalQueueEntries()))
+        .nonNulls
+        .toList(growable: false);
     if (orderedSongs.length != queueSongIds.length) {
       AppLogger.warning(
         'Seek recovery could not rebuild the full queue from the local songs '
@@ -8237,10 +8139,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> syncSongLikedState(String songId, {required bool liked}) =>
       _syncSongLikedState(songId, liked: liked);
 
-  Future<void> _syncSongLikedState(
-    String songId, {
-    required bool liked,
-  }) async {
+  Future<void> _syncSongLikedState(String songId, {required bool liked}) async {
     await _ready;
     var updated = false;
     for (var i = 0; i < _queueItems.length; i++) {
@@ -8465,10 +8364,7 @@ class NavisAudioHandler extends BaseAudioHandler
           id: 'radio:$stationId',
           title: stationName,
           artist: stationName,
-          extras: <String, Object?>{
-            'isRadio': true,
-            'streamUrl': streamUrl,
-          },
+          extras: <String, Object?>{'isRadio': true, 'streamUrl': streamUrl},
         );
 
         try {
@@ -8476,10 +8372,7 @@ class NavisAudioHandler extends BaseAudioHandler
             generation: generation,
             operation: 'radio source apply',
             action: () => _player.setAudioSource(
-              AudioSource.uri(
-                Uri.parse(streamUrl),
-                tag: radioMediaItem,
-              ),
+              AudioSource.uri(Uri.parse(streamUrl), tag: radioMediaItem),
             ),
             timeout: _playerLoadTimeout,
           );
@@ -8594,11 +8487,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) {
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {
     final current = _radioStation;
     if (current == null) {
       return;

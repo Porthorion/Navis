@@ -122,14 +122,10 @@ bool _looksLikeSubsonicErrorDocument(List<int> bytes) {
   return sample.contains('subsonic-response') && sample.contains('failed');
 }
 
-enum CoverArtLoadPriority {
-  background,
-  visible,
-  critical,
-}
+enum CoverArtLoadPriority { background, visible, critical }
 
 class CoverArtLoadCanceledException implements Exception {
-  const CoverArtLoadCanceledException(this.key);
+  const new(this.key);
 
   final String key;
 
@@ -141,7 +137,7 @@ class CoverArtLoadCanceledException implements Exception {
 /// not an image (a Subsonic XML error, a proxy login page, or HTML). The
 /// bytes are rejected before the cache manager can persist them.
 class CoverArtInvalidResponseException implements Exception {
-  const CoverArtInvalidResponseException(this.contentType);
+  const new(this.contentType);
 
   final String contentType;
 
@@ -151,7 +147,7 @@ class CoverArtInvalidResponseException implements Exception {
 }
 
 class CoverArtLoadInterest {
-  CoverArtLoadInterest._(this._onDispose);
+  new _(this._onDispose);
 
   final void Function() _onDispose;
   var _disposed = false;
@@ -166,7 +162,7 @@ class CoverArtLoadInterest {
 }
 
 class CoverArtLoadLease {
-  CoverArtLoadLease._(this._onRelease);
+  new _(this._onRelease);
 
   final void Function() _onRelease;
   var _released = false;
@@ -181,7 +177,7 @@ class CoverArtLoadLease {
 }
 
 class CoverArtLoadCoordinator {
-  CoverArtLoadCoordinator({
+  new({
     this.maxActiveDownloads = _coverArtMaxConnectionsPerHost,
     this.criticalReserve = 1,
   }) : assert(maxActiveDownloads > 0, 'maxActiveDownloads must be positive'),
@@ -207,10 +203,7 @@ class CoverArtLoadCoordinator {
     String key,
     CoverArtLoadPriority priority,
   ) {
-    final counts = _interests.putIfAbsent(
-      key,
-      _CoverArtInterestCounts.new,
-    );
+    final counts = _interests.putIfAbsent(key, _CoverArtInterestCounts.new);
     counts.increment(priority);
     _updateQueuedPriority(key);
     _pump();
@@ -299,9 +292,8 @@ class CoverArtLoadCoordinator {
 
   _ScheduledCoverArtRequest? _nextAdmissibleRequest() {
     _queued.sort((a, b) {
-      final priorityCompare = _priorityRank(
-        b.priority,
-      ).compareTo(_priorityRank(a.priority));
+      final priorityCompare = _priorityRank(b.priority)
+          .compareTo(_priorityRank(a.priority));
       if (priorityCompare != 0) {
         return priorityCompare;
       }
@@ -398,7 +390,7 @@ class _CoverArtInterestCounts {
 }
 
 class _ScheduledCoverArtRequest {
-  _ScheduledCoverArtRequest({
+  new({
     required this.key,
     required this.sequence,
     required this.priority,
@@ -431,18 +423,14 @@ class _ScheduledCoverArtRequest {
 /// A 15-second connection timeout prevents a hung TCP handshake from
 /// permanently occupying one of the four download slots.
 class CoverArtHttpFileService implements FileService {
-  CoverArtHttpFileService({
+  new({
     CoverArtLoadCoordinator? loadCoordinator,
-    NetworkUsageReporter? reportNetworkUsage,
+    this._reportNetworkUsage,
     this.onMissingCover,
-    Duration connectionTimeout = const Duration(seconds: 15),
-    Duration responseTimeout = const Duration(seconds: 20),
-    Duration bodyReadTimeout = const Duration(seconds: 20),
-  }) : _loadCoordinator = loadCoordinator ?? CoverArtLoadCoordinator(),
-       _reportNetworkUsage = reportNetworkUsage,
-       _connectionTimeout = connectionTimeout,
-       _responseTimeout = responseTimeout,
-       _bodyReadTimeout = bodyReadTimeout;
+    this._connectionTimeout = const Duration(seconds: 15),
+    this._responseTimeout = const Duration(seconds: 20),
+    this._bodyReadTimeout = const Duration(seconds: 20),
+  }) : _loadCoordinator = loadCoordinator ?? CoverArtLoadCoordinator();
 
   late HttpClient _client = _createClient();
   final CoverArtLoadCoordinator _loadCoordinator;
@@ -520,10 +508,7 @@ class CoverArtHttpFileService implements FileService {
         } on Object {
           // The rejection itself must not be masked by a drain failure.
         }
-        throw CoverArtFetchException(
-          category,
-          statusCode: response.statusCode,
-        );
+        throw CoverArtFetchException(category, statusCode: response.statusCode);
       }
       if ((response.statusCode == HttpStatus.ok ||
               response.statusCode == HttpStatus.accepted) &&
@@ -634,10 +619,7 @@ class CoverArtHttpFileService implements FileService {
     final id = uri.queryParameters['id'];
     final size = uri.queryParameters['size'];
     return uri.replace(
-      queryParameters: <String, String>{
-        'id': ?id,
-        'size': ?size,
-      },
+      queryParameters: <String, String>{'id': ?id, 'size': ?size},
     );
   }
 
@@ -652,20 +634,16 @@ class CoverArtHttpFileService implements FileService {
 }
 
 class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
-  _CoverArtHttpFileServiceResponse(
+  new(
     this._response, {
-    required Duration bodyReadTimeout,
-    required Uri diagnosticUri,
-    required void Function() onTimeout,
-    required void Function() onDone,
-    required void Function(int bytes) onBytesRead,
+    required this._bodyReadTimeout,
+    required this._diagnosticUri,
+    required this._onTimeout,
+    required this._onDone,
+    required this._onBytesRead,
     this.coverArtId,
     this.onMissingCover,
-  }) : _bodyReadTimeout = bodyReadTimeout,
-       _diagnosticUri = diagnosticUri,
-       _onTimeout = onTimeout,
-       _onDone = onDone,
-       _onBytesRead = onBytesRead {
+  }) {
     if (!_expectsConsumedBody) {
       _releaseOnce();
       unawaited(_discardBody());

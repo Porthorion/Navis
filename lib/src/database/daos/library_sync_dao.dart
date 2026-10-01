@@ -23,7 +23,7 @@ part 'library_sync_dao.g.dart';
 
 /// The redacted record exposed by settings and the diagnostics API.
 class LibrarySyncRunHistoryEntry {
-  const LibrarySyncRunHistoryEntry({
+  const new({
     required this.requestId,
     required this.attemptId,
     required this.startedAt,
@@ -72,7 +72,7 @@ class LibrarySyncRunHistoryEntry {
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncDaoMixin {
-  LibrarySyncDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const int _runQueued = 0;
   static const int _runRunning = 1;
@@ -916,10 +916,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<LibrarySyncOperationLedgerTableData>>
-  getRecentOperationLedgerEntries(
-    int serverId, {
-    int limit = 50,
-  }) {
+  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
     final safeLimit = limit.clamp(1, 50);
     return (select(librarySyncOperationLedgerTable)
           ..where((table) => table.serverId.equals(serverId))
@@ -936,10 +933,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   /// The Settings screen uses this rather than controller state so a catalog
   /// change remains explainable after an app restart or a later no-op check.
   Stream<List<LibrarySyncOperationLedgerTableData>>
-  watchRecentOperationLedgerEntries(
-    int serverId, {
-    int limit = 50,
-  }) {
+  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
     final safeLimit = limit.clamp(1, 50);
     return (select(librarySyncOperationLedgerTable)
           ..where((table) => table.serverId.equals(serverId))
@@ -1086,19 +1080,18 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 table.status.equals('awaitingConfirmation'),
           ))
           .go();
-      await (update(librarySyncStateTable)..where(
-            (table) => table.serverId.equals(serverId),
-          ))
-          .write(
-            const LibrarySyncStateTableCompanion(
-              candidateGeneration: Value(null),
-              candidateStatus: Value(null),
-              candidateStartedAt: Value(null),
-              candidateCarriedForwardCount: Value(0),
-              deletionCandidateFingerprint: Value(null),
-              deletionCandidateCount: Value(0),
-            ),
-          );
+      await (update(
+        librarySyncStateTable,
+      )..where((table) => table.serverId.equals(serverId))).write(
+        const LibrarySyncStateTableCompanion(
+          candidateGeneration: Value(null),
+          candidateStatus: Value(null),
+          candidateStartedAt: Value(null),
+          candidateCarriedForwardCount: Value(0),
+          deletionCandidateFingerprint: Value(null),
+          deletionCandidateCount: Value(0),
+        ),
+      );
       return true;
     });
   }
@@ -1137,9 +1130,8 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         .go();
   }
 
-  Future<Map<String, Set<String>>> getLocalStarMutationsSince(
-    DateTime since,
-  ) => getLocalMutationsSince(since, operation: 'star');
+  Future<Map<String, Set<String>>> getLocalStarMutationsSince(DateTime since) =>
+      getLocalMutationsSince(since, operation: 'star');
 
   Future<Map<String, Set<String>>> getLocalMutationsSince(
     DateTime since, {
@@ -1166,11 +1158,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   Future<void> pruneLocalStarMutationsBefore(
     DateTime cutoff, {
     Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) => pruneLocalMutationsBefore(
-    cutoff,
-    operation: 'star',
-    exclude: exclude,
-  );
+  }) => pruneLocalMutationsBefore(cutoff, operation: 'star', exclude: exclude);
 
   Future<void> pruneLocalMutationsBefore(
     DateTime cutoff, {
@@ -1429,9 +1417,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       ..addColumns([countExpression])
       ..where(
         librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(
-              const <String>['queued', 'running', 'failed'],
-            ),
+            librarySyncWorkTable.status.isIn(const <String>[
+              'queued',
+              'running',
+              'failed',
+            ]),
       );
     final row = await query.getSingle();
     return row.read(countExpression) ?? 0;
@@ -1445,9 +1435,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       ..addColumns([countExpression])
       ..where(
         librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(
-              const <String>['queued', 'running', 'failed'],
-            ),
+            librarySyncWorkTable.status.isIn(const <String>[
+              'queued',
+              'running',
+              'failed',
+            ]),
       );
     return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
   }
@@ -1496,10 +1488,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> completeRunningCatalogWork(
-    int serverId, {
-    DateTime? now,
-  }) {
+  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) {
     return (update(librarySyncWorkTable)..where(
           (table) =>
               table.serverId.equals(serverId) &
@@ -1674,17 +1663,16 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     if (!tokenChanged) {
       return;
     }
-    await (update(libraryScanObservationTable)..where(
-          (table) => table.serverId.equals(serverId),
-        ))
-        .write(
-          LibraryScanObservationTableCompanion(
-            scanSupported: const Value(true),
-            observedToken: Value(token),
-            observedAt: Value(now),
-            pendingReconciliation: const Value(true),
-          ),
-        );
+    await (update(
+      libraryScanObservationTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibraryScanObservationTableCompanion(
+        scanSupported: const Value(true),
+        observedToken: Value(token),
+        observedAt: Value(now),
+        pendingReconciliation: const Value(true),
+      ),
+    );
   }
 
   /// Closes the reconciliation window for [token] after a catalog snapshot
@@ -1755,19 +1743,18 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       await into(libraryRecoveryReviewTable).insert(companion);
       return;
     }
-    await (update(libraryRecoveryReviewTable)..where(
-          (table) => table.id.equals(existing.id),
-        ))
-        .write(
-          LibraryRecoveryReviewTableCompanion(
-            savedTitle: Value(savedTitle),
-            savedSubtitle: Value(savedSubtitle),
-            reason: Value(reason),
-            evidenceGeneration: Value(evidenceGeneration),
-            candidateJson: Value(candidateJson),
-            updatedAt: Value(now),
-          ),
-        );
+    await (update(
+      libraryRecoveryReviewTable,
+    )..where((table) => table.id.equals(existing.id))).write(
+      LibraryRecoveryReviewTableCompanion(
+        savedTitle: Value(savedTitle),
+        savedSubtitle: Value(savedSubtitle),
+        reason: Value(reason),
+        evidenceGeneration: Value(evidenceGeneration),
+        candidateJson: Value(candidateJson),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   /// Bulk-creates review entries for retained unavailable rows.
@@ -1853,14 +1840,13 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required int id,
     required String disposition,
   }) async {
-    await (update(libraryRecoveryReviewTable)..where(
-          (table) => table.id.equals(id),
-        ))
-        .write(
-          LibraryRecoveryReviewTableCompanion(
-            disposition: Value(disposition),
-            updatedAt: Value(DateTime.now()),
-          ),
-        );
+    await (update(
+      libraryRecoveryReviewTable,
+    )..where((table) => table.id.equals(id))).write(
+      LibraryRecoveryReviewTableCompanion(
+        disposition: Value(disposition),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 }

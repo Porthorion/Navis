@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -41,7 +41,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
-  const AlbumDetailScreen({
+  const new({
     required this.albumId,
     this.likedOnly = false,
     this.openingHeroTag,
@@ -153,9 +153,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   subtitle: l10n.albumDetailNotFoundSubtitle,
                   icon: Icons.album_outlined,
                   action: OutlinedButton.icon(
-                    key: const ValueKey<String>(
-                      'album-detail-back-to-library',
-                    ),
+                    key: const ValueKey<String>('album-detail-back-to-library'),
                     onPressed: () => NavService.returnToLibrary(context, ref),
                     icon: const Icon(Icons.library_music_outlined),
                     label: Text(l10n.detailUnavailableBackToLibrary),
@@ -392,9 +390,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       Icons.album_outlined,
                                       size: 16,
                                     ),
-                                    label: Text(
-                                      l10n.albumDetailMusicBrainz,
-                                    ),
+                                    label: Text(l10n.albumDetailMusicBrainz),
                                     onPressed: () => unawaited(
                                       _openExternalLink(
                                         'https://musicbrainz.org/release-group/${info.musicBrainzId}',
@@ -490,9 +486,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         maxLines: 3,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      SizedBox(
-                                        height: compactDesktop ? 8 : 10,
-                                      ),
+                                      SizedBox(height: compactDesktop ? 8 : 10),
                                       // Artist, then Year · Count · Duration
                                       Wrap(
                                         crossAxisAlignment:
@@ -743,10 +737,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ),
                             onShuffle: filteredSongs.isEmpty
                                 ? null
-                                : () => _queueAlbum(
-                                    filteredSongs,
-                                    shuffle: true,
-                                  ),
+                                : () =>
+                                      _queueAlbum(filteredSongs, shuffle: true),
                           ),
                           _RatingButton(
                             rating: albumRating,
@@ -770,9 +762,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           ),
                           _albumFilterButton(outlined: false),
                           IconButton(
-                            tooltip: MaterialLocalizations.of(
-                              context,
-                            ).showMenuTooltip,
+                            tooltip: MaterialLocalizations.of(context)
+                                .showMenuTooltip,
                             icon: const Icon(Icons.more_vert),
                             onPressed: () => unawaited(
                               _showMobileAlbumContextMenu(
@@ -1027,9 +1018,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     systemOverlayStyle: SystemUiOverlayStyle.light,
                     leading: _buildAnimatedNavButton(
                       icon: Icons.arrow_back,
-                      tooltip: MaterialLocalizations.of(
-                        context,
-                      ).backButtonTooltip,
+                      tooltip: MaterialLocalizations.of(context)
+                          .backButtonTooltip,
                       onPressed: () =>
                           NavService.back(context, fallback: AppRoutes.library),
                     ),
@@ -1219,9 +1209,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               ),
                               _albumFilterButton(outlined: false),
                               IconButton(
-                                tooltip: MaterialLocalizations.of(
-                                  context,
-                                ).showMenuTooltip,
+                                tooltip: MaterialLocalizations.of(context)
+                                    .showMenuTooltip,
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => unawaited(
                                   _showMobileAlbumContextMenu(
@@ -1250,12 +1239,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             }
 
                             return Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                0,
-                                12,
-                                12,
-                              ),
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                               child: Card(
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
@@ -1332,13 +1316,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   tracksSliver,
                   if (ref.watch(audioMuseAvailableProvider))
                     SliverToBoxAdapter(
-                      child: _AudioMuseSimilarAlbums(
-                        albumId: widget.albumId,
-                      ),
+                      child: _AudioMuseSimilarAlbums(albumId: widget.albumId),
                     ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 16),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
                 ],
               );
             },
@@ -1407,10 +1387,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  void _queueAlbum(
-    List<SongsTableData> songs, {
-    required bool shuffle,
-  }) {
+  void _queueAlbum(List<SongsTableData> songs, {required bool shuffle}) {
     if (songs.isEmpty) {
       return;
     }
@@ -1477,10 +1454,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  Future<void> _showSongActions(
-    SongsTableData song, {
-    Offset? anchor,
-  }) async {
+  Future<void> _showSongActions(SongsTableData song, {Offset? anchor}) async {
     if (anchor != null && isDesktopRuntime) {
       await _showDesktopSongActions(song, anchor: anchor);
       return;
@@ -1612,11 +1586,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     title: Text(l10n.librarySongMenuAddToPlaylist),
                     onTap: () {
                       Navigator.of(context).pop();
-                      showAddToPlaylistSheet(
-                        this.context,
-                        ref,
-                        [song.id],
-                      );
+                      showAddToPlaylistSheet(this.context, ref, [song.id]);
                     },
                   ),
                   Consumer(
@@ -1996,9 +1966,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     required TextStyle? dimStyle,
   }) {
     if (artists.isEmpty) {
-      final fallbackLabel = AppLocalizations.of(
-        context,
-      )!.albumDetailUnknownArtist;
+      final fallbackLabel = AppLocalizations.of(context)!
+          .albumDetailUnknownArtist;
       return [Text(fallbackLabel, style: dimStyle)];
     }
     final widgets = <Widget>[];
@@ -2236,9 +2205,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 : l10n.actionLike,
                           ),
                           onTap: () {
-                            unawaited(
-                              _toggleStar(isStarred: currentlyStarred),
-                            );
+                            unawaited(_toggleStar(isStarred: currentlyStarred));
                           },
                         );
                       },
@@ -2324,9 +2291,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           title: Text(l10n.albumDetailDownloadAction),
                           onTap: () {
                             Navigator.of(sheetContext).pop();
-                            unawaited(
-                              _downloadAlbumSongs(context),
-                            );
+                            unawaited(_downloadAlbumSongs(context));
                           },
                         );
                       },
@@ -2434,7 +2399,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 }
 
 class _AudioMuseSimilarAlbums extends ConsumerWidget {
-  const _AudioMuseSimilarAlbums({required this.albumId});
+  const new({required this.albumId});
 
   final String albumId;
 
@@ -2497,7 +2462,7 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
 /// A single button replaces an always-visible filter row; a badge shows how
 /// many filters are active so a shortened track list is never unexplained.
 class _AlbumFilterButton extends StatelessWidget {
-  const _AlbumFilterButton({
+  const new({
     required this.likedOnly,
     required this.downloadedOnly,
     required this.onLikedOnlyChanged,
@@ -2569,7 +2534,7 @@ class _AlbumFilterButton extends StatelessWidget {
 const double _kRatingHeight = 40;
 
 class _RatingButton extends StatefulWidget {
-  const _RatingButton({
+  const new({
     required this.rating,
     required this.onChanged,
     this.loading = false,
@@ -2617,10 +2582,11 @@ class _RatingButtonState extends State<_RatingButton>
 
   void _collapse() {
     _ctrl.reverse().then((_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _hovered = 0;
         });
+      }
     });
   }
 
@@ -2832,7 +2798,7 @@ class _RatingButtonState extends State<_RatingButton>
 // ── Render-item types for disc-grouped track lists ─────────────────────────
 
 class _RemoteAlbumTracksLoading extends StatelessWidget {
-  const _RemoteAlbumTracksLoading();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -2870,7 +2836,7 @@ enum _AlbumSongContextAction {
 }
 
 class _AlbumSongMoreButton extends StatefulWidget {
-  const _AlbumSongMoreButton({required this.onPressed});
+  const new({required this.onPressed});
 
   final ValueChanged<Offset?> onPressed;
 
@@ -2899,16 +2865,16 @@ class _AlbumSongMoreButtonState extends State<_AlbumSongMoreButton> {
 }
 
 sealed class _AlbumRenderItem {
-  const _AlbumRenderItem();
+  const new();
 }
 
 final class _DiscHeader extends _AlbumRenderItem {
-  const _DiscHeader({required this.discNumber, required this.isFirst});
+  const new({required this.discNumber, required this.isFirst});
   final int discNumber;
   final bool isFirst;
 }
 
 final class _SongItem extends _AlbumRenderItem {
-  const _SongItem({required this.song});
+  const new({required this.song});
   final SongsTableData song;
 }

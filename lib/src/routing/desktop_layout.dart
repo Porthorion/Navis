@@ -4,11 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// Desktop width buckets used by desktop adaptive UI composition.
-enum DesktopLayoutClass {
-  compactDesktop,
-  standardDesktop,
-  ultraWideDesktop,
-}
+enum DesktopLayoutClass { compactDesktop, standardDesktop, ultraWideDesktop }
 
 /// Smallest logical viewport that can present the full desktop workspace.
 const Size kDesktopViewMinimumSize = Size(800, 600);
@@ -34,22 +30,14 @@ bool supportsMiniPlayer(Size viewportSize) {
 }
 
 /// Shared width buckets for non-desktop (phone/tablet) adaptive UI.
-enum AdaptiveLayoutClass {
-  phoneCompact,
-  tabletMedium,
-  tabletExpanded,
-}
+enum AdaptiveLayoutClass { phoneCompact, tabletMedium, tabletExpanded }
 
 /// Shell composition buckets for non-desktop adaptive UI.
-enum AdaptiveShellMode {
-  phoneBottomNav,
-  standardRail,
-  compactWideLandscape,
-}
+enum AdaptiveShellMode { phoneBottomNav, standardRail, compactWideLandscape }
 
 /// Shared adaptive context resolved once and consumed by shell composition.
 class AdaptiveContext {
-  const AdaptiveContext({
+  const new({
     required this.desktopRuntime,
     required this.desktopWide,
     required this.desktopLayoutClass,
@@ -109,7 +97,7 @@ class AdaptiveContext {
 /// This keeps focus traversal, keyboard dismissal precedence, and pointer
 /// affordance behavior deterministic across desktop and tablet widths.
 class AdaptiveInputPolicy {
-  const AdaptiveInputPolicy({
+  const new({
     required this.enableDeterministicTraversal,
     required this.enableEscapeOverlayPriority,
     required this.enableDesktopPointerAffordances,
@@ -145,11 +133,7 @@ class AdaptiveInputPolicy {
 
 /// Provides a shared [AdaptiveContext] to descendants.
 class AdaptiveContextScope extends InheritedWidget {
-  const AdaptiveContextScope({
-    required this.adaptiveContext,
-    required super.child,
-    super.key,
-  });
+  const new({required this.adaptiveContext, required super.child, super.key});
 
   final AdaptiveContext adaptiveContext;
 
@@ -167,11 +151,7 @@ class AdaptiveContextScope extends InheritedWidget {
 
 /// Provides a shared [AdaptiveInputPolicy] to descendants.
 class AdaptiveInputPolicyScope extends InheritedWidget {
-  const AdaptiveInputPolicyScope({
-    required this.policy,
-    required super.child,
-    super.key,
-  });
+  const new({required this.policy, required super.child, super.key});
 
   final AdaptiveInputPolicy policy;
 
@@ -193,11 +173,7 @@ class AdaptiveInputPolicyScope extends InheritedWidget {
 /// persistent rail already has labels, while still providing a compact header
 /// whenever the rail is icon-only.
 class DesktopNavigationPresentationScope extends InheritedWidget {
-  const DesktopNavigationPresentationScope({
-    required this.iconsOnly,
-    required super.child,
-    super.key,
-  });
+  const new({required this.iconsOnly, required super.child, super.key});
 
   final bool iconsOnly;
 

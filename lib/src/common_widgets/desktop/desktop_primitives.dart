@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class DesktopFrame extends StatelessWidget {
-  const DesktopFrame({
+  const new({
     required this.layoutClass,
     required this.child,
     super.key,
@@ -24,7 +24,7 @@ class DesktopFrame extends StatelessWidget {
 }
 
 class DesktopPanel extends StatelessWidget {
-  const DesktopPanel({
+  const new({
     required this.child,
     super.key,
     this.padding = const EdgeInsets.all(16),
@@ -44,16 +44,13 @@ class DesktopPanel extends StatelessWidget {
       elevation: tokens.panelElevation,
       borderRadius: BorderRadius.circular(tokens.panelRadius),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: padding,
-        child: child,
-      ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
 
 class DesktopSectionHeader extends StatelessWidget {
-  const DesktopSectionHeader({
+  const new({
     required this.title,
     super.key,
     this.subtitle,
@@ -97,7 +94,7 @@ class DesktopSectionHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );
@@ -105,7 +102,7 @@ class DesktopSectionHeader extends StatelessWidget {
 }
 
 class DesktopListRow extends ConsumerWidget {
-  const DesktopListRow({
+  const new({
     required this.title,
     super.key,
     this.leading,
@@ -190,9 +187,7 @@ class DesktopListRow extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                  ),
+                                  ?.copyWith(color: colors.onSurfaceVariant),
                             ),
                       ),
                   ],

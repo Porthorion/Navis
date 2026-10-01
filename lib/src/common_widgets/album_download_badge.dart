@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class AlbumDownloadBadge extends ConsumerWidget {
-  const AlbumDownloadBadge({required this.albumId, super.key});
+  const new({required this.albumId, super.key});
 
   final String albumId;
 
@@ -60,7 +60,7 @@ class AlbumDownloadBadge extends ConsumerWidget {
 }
 
 class _CompletedAlbumBadge extends StatelessWidget {
-  const _CompletedAlbumBadge();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -73,18 +73,14 @@ class _CompletedAlbumBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(
-          Icons.check,
-          size: 16,
-          color: theme.colorScheme.secondary,
-        ),
+        child: Icon(Icons.check, size: 16, color: theme.colorScheme.secondary),
       ),
     );
   }
 }
 
 class _PartialAlbumBadge extends StatelessWidget {
-  const _PartialAlbumBadge({
+  const new({
     required this.downloadedTrackCount,
     required this.totalTrackCount,
   });

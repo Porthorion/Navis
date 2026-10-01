@@ -8,7 +8,7 @@ part 'album.g.dart';
 @freezed
 abstract class Album with _$Album {
   @JsonSerializable(explicitToJson: true)
-  const factory Album({
+  const factory({
     required String id,
     required String name,
     String? artist,
@@ -36,5 +36,5 @@ abstract class Album with _$Album {
     @Default(<Song>[]) List<Song> songs,
   }) = _Album;
 
-  factory Album.fromJson(Map<String, dynamic> json) => _$AlbumFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$AlbumFromJson(json);
 }

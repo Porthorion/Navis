@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
 abstract class LibrarySyncNotifier {
-  const LibrarySyncNotifier();
+  const new();
 
   Future<void> showProgress(LibrarySyncState state);
   Future<void> dismissProgress();
@@ -13,7 +13,7 @@ abstract class LibrarySyncNotifier {
 }
 
 class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
-  const SystemLibrarySyncNotifier();
+  const new();
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();

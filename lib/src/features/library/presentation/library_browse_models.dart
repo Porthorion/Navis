@@ -3,7 +3,7 @@ import 'package:navis/src/database/navis_database.dart';
 enum AlbumViewMode { standard, byYear }
 
 class AlbumYearSection {
-  const AlbumYearSection({
+  const new({
     required this.title,
     required this.decadeStart,
     required this.albums,
@@ -19,7 +19,7 @@ class AlbumYearSection {
 }
 
 class AlbumTileDownloadState {
-  const AlbumTileDownloadState({
+  const new({
     required this.fullyDownloaded,
     required this.downloadedTrackCount,
     required this.totalTrackCount,
@@ -27,7 +27,7 @@ class AlbumTileDownloadState {
     required this.progress,
   });
 
-  const AlbumTileDownloadState.idle()
+  const new idle()
     : fullyDownloaded = false,
       downloadedTrackCount = 0,
       totalTrackCount = 0,

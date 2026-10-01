@@ -6,7 +6,7 @@ import 'package:navis/src/database/daos/eq_dao.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
 class EqStoredState {
-  EqStoredState({
+  new({
     required this.configuration,
     required List<EqPreset> presets,
     this.workspaces = const {},
@@ -26,7 +26,7 @@ class EqStoredState {
 }
 
 class EqRepository {
-  EqRepository(this._dao);
+  new(this._dao);
 
   final EqDao _dao;
 

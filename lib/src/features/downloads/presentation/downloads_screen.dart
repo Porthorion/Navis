@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -33,7 +33,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
-  const DownloadsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
@@ -122,7 +122,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
 }
 
 class _DownloadsDesktopCommandStrip extends StatelessWidget {
-  const _DownloadsDesktopCommandStrip({
+  const new({
     required this.controller,
     required this.searchController,
     required this.showSearch,
@@ -166,9 +166,8 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               l10n.downloadsTitle,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(width: 24),
             Expanded(
@@ -216,7 +215,7 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _QueueTab extends ConsumerWidget {
-  const _QueueTab({required this.query, required this.onClearQuery});
+  const new({required this.query, required this.onClearQuery});
 
   final String query;
   final VoidCallback onClearQuery;
@@ -353,7 +352,7 @@ class _QueueTab extends ConsumerWidget {
 }
 
 class _QueueItemTile extends ConsumerWidget {
-  const _QueueItemTile({required this.item});
+  const new({required this.item});
 
   final DownloadQueueTableData item;
 
@@ -378,9 +377,8 @@ class _QueueItemTile extends ConsumerWidget {
     final tile = ListTile(
       selected: isSelected,
       selectedColor: Theme.of(context).colorScheme.primary,
-      selectedTileColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.08),
+      selectedTileColor: Theme.of(context).colorScheme.primary
+          .withValues(alpha: 0.08),
       leading: ArtworkPlaybackMarker(
         state: playbackState,
         child: SizedBox(
@@ -397,9 +395,9 @@ class _QueueItemTile extends ConsumerWidget {
                 )
               : Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Icon(Icons.music_note),
@@ -463,7 +461,7 @@ class _QueueItemTile extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _DownloadedTab extends ConsumerWidget {
-  const _DownloadedTab({required this.query, required this.onClearQuery});
+  const new({required this.query, required this.onClearQuery});
 
   final String query;
   final VoidCallback onClearQuery;
@@ -521,8 +519,9 @@ class _DownloadedTab extends ConsumerWidget {
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: filtered.length + 1,
                   itemBuilder: (context, index) {
-                    if (index == 0)
+                    if (index == 0) {
                       return const AdaptiveTrackHeader(actionExtent: 48);
+                    }
                     final track = filtered[index - 1];
                     return _DownloadedTrackTile(
                       track: track,
@@ -545,7 +544,7 @@ class _DownloadedTab extends ConsumerWidget {
 }
 
 class _DownloadedTrackTile extends ConsumerWidget {
-  const _DownloadedTrackTile({
+  const new({
     required this.track,
     required this.allTracks,
     required this.trackIndex,
@@ -592,9 +591,9 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 )
               : Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Icon(Icons.music_note),
@@ -637,10 +636,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
             ),
             child: tile,
           );
-    return SongPlaybackSemantics(
-      state: playbackState,
-      child: interactiveTile,
-    );
+    return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
   }
 
   Future<void> _confirmAndDelete(
@@ -904,7 +900,7 @@ enum _DownloadedTrackAction {
 // ---------------------------------------------------------------------------
 
 class _DownloadSettingsTab extends ConsumerStatefulWidget {
-  const _DownloadSettingsTab();
+  const new();
 
   @override
   ConsumerState<_DownloadSettingsTab> createState() =>
@@ -1124,9 +1120,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       if (!mounted) return;
       showAppNotice(
         context,
-        message: AppLocalizations.of(
-          context,
-        )!.downloadsRescanImported(automatic.importedCount),
+        message: AppLocalizations.of(context)!
+            .downloadsRescanImported(automatic.importedCount),
         level: AppNoticeLevel.success,
       );
     } on Object catch (error, stackTrace) {
@@ -1171,9 +1166,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       if (!mounted) return;
       showAppNotice(
         context,
-        message: AppLocalizations.of(
-          context,
-        )!.downloadsManualImported(result.importedCount),
+        message: AppLocalizations.of(context)!
+            .downloadsManualImported(result.importedCount),
         level: AppNoticeLevel.success,
       );
     } on Object catch (error, stackTrace) {
@@ -1317,7 +1311,7 @@ final Map<String, Future<AndroidSafTree>> _safFolderDetails =
     <String, Future<AndroidSafTree>>{};
 
 class _CustomFolderLabel extends StatelessWidget {
-  const _CustomFolderLabel({required this.path});
+  const new({required this.path});
 
   final String? path;
 
@@ -1347,7 +1341,7 @@ class _CustomFolderLabel extends StatelessWidget {
 }
 
 class _ManualMatchingCount extends StatelessWidget {
-  const _ManualMatchingCount({required this.count, required this.enabled});
+  const new({required this.count, required this.enabled});
 
   final int count;
   final bool enabled;
@@ -1383,7 +1377,7 @@ class _ManualMatchingCount extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _DownloadsSearchBar extends StatelessWidget {
-  const _DownloadsSearchBar({
+  const new({
     required this.controller,
     required this.hint,
     required this.onChanged,

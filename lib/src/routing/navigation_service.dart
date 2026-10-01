@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,10 +23,7 @@ import 'package:navis/src/routing/navigation_history_provider.dart';
 /// Compact mobile landscape preserves its shared-artwork Hero.
 @immutable
 class AlbumDetailRouteRequest {
-  const AlbumDetailRouteRequest({
-    this.openingHeroTag,
-    this.fadeOnly = false,
-  });
+  const new({this.openingHeroTag, this.fadeOnly = false});
 
   final String? openingHeroTag;
   final bool fadeOnly;
@@ -356,10 +353,7 @@ abstract final class NavService {
   ///
   /// Every page back button uses this. When the page has no history (a deep
   /// link or a restored location), [fallback] is shown instead.
-  static void back(
-    BuildContext context, {
-    String fallback = AppRoutes.home,
-  }) {
+  static void back(BuildContext context, {String fallback = AppRoutes.home}) {
     dismissKeyboard(context);
     _backWith(GoRouter.of(context), fallback: fallback);
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -72,10 +72,7 @@ void main() {
     for (final step in transitions) {
       tester.view.physicalSize = step.size;
       await tester.pumpAndSettle();
-      expect(
-        find.byType(DesktopFrame),
-        findsNothing,
-      );
+      expect(find.byType(DesktopFrame), findsNothing);
       expect(
         find.byType(AppBar),
         step.desktopWorkspace || step.size == const Size(599, 1000)
@@ -98,9 +95,7 @@ void main() {
 
   testWidgets(
     'does not show separate Listen Together or External Services entries',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -9,7 +9,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// A grid-friendly artist card with a configurable shape avatar and the artist
 /// name centered below. Suitable for use inside a `SliverGrid`.
 class ArtistGridCard extends ConsumerWidget {
-  const ArtistGridCard({
+  const new({
     required this.artist,
     super.key,
     this.onTap,

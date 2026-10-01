@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 class StarButton extends StatefulWidget {
-  const StarButton({
+  const new({
     required this.isStarred,
     super.key,
     this.onPressed,

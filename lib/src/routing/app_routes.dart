@@ -15,7 +15,7 @@ enum ShellBranch {
   search(AppRoutes.search),
   settings(AppRoutes.settings);
 
-  const ShellBranch(this.rootLocation);
+  new(this.rootLocation);
 
   /// The branch's root location.
   final String rootLocation;
@@ -39,7 +39,7 @@ enum SettingsPage {
   shortcuts(AppRoutes.settingsShortcutsSegment),
   unavailableItems(AppRoutes.settingsUnavailableItemsSegment);
 
-  const SettingsPage(this.segment);
+  new(this.segment);
 
   final String segment;
 

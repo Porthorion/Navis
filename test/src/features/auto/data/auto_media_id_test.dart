@@ -184,9 +184,7 @@ void main() {
     test('accepts prefixed song browse IDs', () {
       expect(AutoMediaId.songIdFrom('song/s1'), 's1');
       expect(
-        AutoMediaId.songIdFrom(
-          'song/s1?context=playlist&contextId=playlist-1',
-        ),
+        AutoMediaId.songIdFrom('song/s1?context=playlist&contextId=playlist-1'),
         's1',
       );
     });

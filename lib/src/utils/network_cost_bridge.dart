@@ -6,9 +6,8 @@ import 'package:flutter/services.dart';
 /// Returns `null` when the platform cannot report metering (desktop fallbacks
 /// and unsupported builds). Callers combine this with [NetworkType].
 class NetworkCostBridge {
-  NetworkCostBridge({
-    MethodChannel? channel,
-  }) : _channel = channel ?? const MethodChannel('com.navis.app/network_cost');
+  new({MethodChannel? channel})
+    : _channel = channel ?? const MethodChannel('com.navis.app/network_cost');
 
   final MethodChannel _channel;
 

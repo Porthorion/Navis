@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
@@ -10,7 +10,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// same hierarchy for phones and narrow panes. Actions wrap onto further
 /// rows with even spacing instead of overflowing.
 class EntityActionBar extends StatelessWidget {
-  const EntityActionBar({
+  const new({
     super.key,
     this.onPlay,
     this.onShuffle,
@@ -91,7 +91,7 @@ class EntityActionBar extends StatelessWidget {
 /// [EntityActionBar]: outlined with a label, or an outlined icon when
 /// [compact].
 class EntitySecondaryAction extends StatelessWidget {
-  const EntitySecondaryAction({
+  const new({
     required this.icon,
     required this.label,
     required this.onPressed,

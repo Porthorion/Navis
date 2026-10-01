@@ -29,16 +29,21 @@ $InternetRadioStationCopyWith<InternetRadioStation> get copyWith => _$InternetRa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InternetRadioStation&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.homePageUrl, homePageUrl) || other.homePageUrl == homePageUrl));
+  final _this = this as InternetRadioStation;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InternetRadioStation&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.streamUrl, _this.streamUrl) || other.streamUrl == _this.streamUrl)&&(identical(other.homePageUrl, _this.homePageUrl) || other.homePageUrl == _this.homePageUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,streamUrl,homePageUrl);
+int get hashCode {
+  final _this = this as InternetRadioStation;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.streamUrl,_this.homePageUrl);
+}
 
 @override
 String toString() {
-  return 'InternetRadioStation(id: $id, name: $name, streamUrl: $streamUrl, homePageUrl: $homePageUrl)';
+  final _this = this as InternetRadioStation;
+  return 'InternetRadioStation(id: ${_this.id}, name: ${_this.name}, streamUrl: ${_this.streamUrl}, homePageUrl: ${_this.homePageUrl})';
 }
 
 
@@ -234,16 +239,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InternetRadioStation&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.homePageUrl, homePageUrl) || other.homePageUrl == homePageUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InternetRadioStation&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.homePageUrl, homePageUrl) || other.homePageUrl == homePageUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,streamUrl,homePageUrl);
+int get hashCode {
+    return Object.hash(runtimeType,id,name,streamUrl,homePageUrl);
+}
 
 @override
 String toString() {
-  return 'InternetRadioStation(id: $id, name: $name, streamUrl: $streamUrl, homePageUrl: $homePageUrl)';
+    return 'InternetRadioStation(id: $id, name: $name, streamUrl: $streamUrl, homePageUrl: $homePageUrl)';
 }
 
 

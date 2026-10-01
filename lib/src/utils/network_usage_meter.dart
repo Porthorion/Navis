@@ -21,13 +21,13 @@ enum NetworkUsageCategory {
   updates('updates'),
   otherApi('other_api');
 
-  const NetworkUsageCategory(this.key);
+  new(this.key);
 
   final String key;
 }
 
 class NetworkUsageSessionTotal {
-  const NetworkUsageSessionTotal({
+  const new({
     required this.category,
     required this.networkType,
     required this.bytes,
@@ -41,13 +41,11 @@ class NetworkUsageSessionTotal {
 }
 
 class NetworkUsageMeter {
-  NetworkUsageMeter({
-    required NetworkUsageDao dao,
-    required NetworkType Function() readNetworkType,
+  new({
+    required this._dao,
+    required this._readNetworkType,
     DateTime Function()? now,
-  }) : _dao = dao,
-       _readNetworkType = readNetworkType,
-       _now = now ?? DateTime.now;
+  }) : _now = now ?? DateTime.now;
 
   static const retention = Duration(days: 30);
 

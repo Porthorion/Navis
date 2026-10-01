@@ -22,33 +22,31 @@ void main() {
       await database.close();
     });
 
-    test(
-      'normalizes retired group listening settings to disabled',
-      () async {
-        final settings = const AppSettingsModel.defaults().copyWith(
-          groupListeningEnabled: true,
-          voyageServerUrl: 'https://voyage.example.com',
-          voyageDisplayName: 'Living Room',
-          voyageDeviceLabel: 'Pixel Tablet',
-          voyageAutoFollowHost: false,
-        );
+    test('normalizes retired group listening settings to disabled', () async {
+      final settings = const AppSettingsModel.defaults().copyWith(
+        groupListeningEnabled: true,
+        voyageServerUrl: 'https://voyage.example.com',
+        voyageDisplayName: 'Living Room',
+        voyageDeviceLabel: 'Pixel Tablet',
+        voyageAutoFollowHost: false,
+      );
 
-        await repository.saveSettings(settings);
-        final saved = await repository.getSettings();
+      await repository.saveSettings(settings);
+      final saved = await repository.getSettings();
 
-        expect(saved.groupListeningEnabled, isFalse);
-        expect(saved.voyageServerUrl, isNull);
-        expect(saved.voyageDisplayName, isNull);
-        expect(saved.voyageDeviceLabel, isNull);
-        expect(
-          saved.voyageAutoFollowHost,
-          AppSettingsDao.defaultVoyageAutoFollowHost,
-        );
-        expect(saved.lastFmApiKey, isNull);
+      expect(saved.groupListeningEnabled, isFalse);
+      expect(saved.voyageServerUrl, isNull);
+      expect(saved.voyageDisplayName, isNull);
+      expect(saved.voyageDeviceLabel, isNull);
+      expect(
+        saved.voyageAutoFollowHost,
+        AppSettingsDao.defaultVoyageAutoFollowHost,
+      );
+      expect(saved.lastFmApiKey, isNull);
 
-        final row = await database
-            .customSelect(
-              '''
+      final row = await database
+          .customSelect(
+            '''
 SELECT group_listening_enabled,
        voyage_server_url,
        voyage_display_name,
@@ -57,19 +55,15 @@ SELECT group_listening_enabled,
 FROM app_settings
 WHERE id = ?;
 ''',
-              variables: [
-                Variable.withInt(AppSettingsDao.primarySettingsId),
-              ],
-            )
-            .getSingle();
-        expect(row.read<int>('group_listening_enabled'), 0);
-        expect(row.readNullable<String>('voyage_server_url'), isNull);
-        expect(row.readNullable<String>('voyage_display_name'), isNull);
-        expect(row.readNullable<String>('voyage_device_label'), isNull);
-        expect(row.readNullable<String>('custom_voyage_servers'), isNull);
-      },
-      skip: !sqliteAvailable,
-    );
+            variables: [Variable.withInt(AppSettingsDao.primarySettingsId)],
+          )
+          .getSingle();
+      expect(row.read<int>('group_listening_enabled'), 0);
+      expect(row.readNullable<String>('voyage_server_url'), isNull);
+      expect(row.readNullable<String>('voyage_display_name'), isNull);
+      expect(row.readNullable<String>('voyage_device_label'), isNull);
+      expect(row.readNullable<String>('custom_voyage_servers'), isNull);
+    }, skip: !sqliteAvailable);
 
     test(
       'maps stale raw Voyage settings as retired and clears on save',
@@ -111,9 +105,7 @@ SELECT group_listening_enabled,
 FROM app_settings
 WHERE id = ?;
 ''',
-              variables: [
-                Variable.withInt(AppSettingsDao.primarySettingsId),
-              ],
+              variables: [Variable.withInt(AppSettingsDao.primarySettingsId)],
             )
             .getSingle();
         expect(row.read<int>('group_listening_enabled'), 0);
@@ -127,9 +119,7 @@ WHERE id = ?;
 
     test('persists cached playback preference', () async {
       await repository.saveSettings(
-        const AppSettingsModel.defaults().copyWith(
-          cachedPlaybackFirst: true,
-        ),
+        const AppSettingsModel.defaults().copyWith(cachedPlaybackFirst: true),
       );
 
       final saved = await repository.getSettings();

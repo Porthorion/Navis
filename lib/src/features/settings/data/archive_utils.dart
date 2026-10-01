@@ -8,15 +8,9 @@ class ArchiveUtils {
   /// Extracts a `.tar.gz` file to [destDir] (Linux).
   ///
   /// Uses `tar -xzf`. Throws a [ProcessException] on failure.
-  static Future<void> extractTarGz(
-    String tarPath,
-    String destDir,
-  ) async {
+  static Future<void> extractTarGz(String tarPath, String destDir) async {
     await Directory(destDir).create(recursive: true);
-    final result = await Process.run(
-      'tar',
-      ['-xzf', tarPath, '-C', destDir],
-    );
+    final result = await Process.run('tar', ['-xzf', tarPath, '-C', destDir]);
     if (result.exitCode != 0) {
       throw ProcessException(
         'tar',
@@ -31,15 +25,9 @@ class ArchiveUtils {
   ///
   /// Uses `ditto -xk` which preserves macOS resource forks and extended
   /// attributes. Throws a [ProcessException] on failure.
-  static Future<void> extractZipMacos(
-    String zipPath,
-    String destDir,
-  ) async {
+  static Future<void> extractZipMacos(String zipPath, String destDir) async {
     await Directory(destDir).create(recursive: true);
-    final result = await Process.run(
-      'ditto',
-      ['-xk', zipPath, destDir],
-    );
+    final result = await Process.run('ditto', ['-xk', zipPath, destDir]);
     if (result.exitCode != 0) {
       throw ProcessException(
         'ditto',
@@ -54,10 +42,7 @@ class ArchiveUtils {
   ///
   /// Uses `powershell.exe Expand-Archive`. Throws a [ProcessException] on
   /// failure.
-  static Future<void> extractZipWindows(
-    String zipPath,
-    String destDir,
-  ) async {
+  static Future<void> extractZipWindows(String zipPath, String destDir) async {
     await Directory(destDir).create(recursive: true);
     final result = await Process.run('powershell.exe', [
       '-NoProfile',
@@ -81,9 +66,7 @@ class ArchiveUtils {
   /// Creates a temporary probe file and immediately deletes it.
   static bool isDirectoryWritable(String dirPath) {
     try {
-      final probe = File(
-        '$dirPath${Platform.pathSeparator}.navis_write_test',
-      );
+      final probe = File('$dirPath${Platform.pathSeparator}.navis_write_test');
       probe.writeAsStringSync('');
       probe.deleteSync();
       return true;

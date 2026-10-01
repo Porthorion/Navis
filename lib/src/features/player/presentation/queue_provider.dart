@@ -33,14 +33,14 @@ void resetPlaybackActionErrors(Ref ref) {
 }
 
 class PlaybackActionError {
-  const PlaybackActionError({required this.error, this.action});
+  const new({required this.error, this.action});
   final Object error;
   final String? action;
 }
 
 /// The queue entries that were observed after a recommendation commit.
 class RecommendationQueueResult {
-  const RecommendationQueueResult(this.insertedIds);
+  const new(this.insertedIds);
 
   final List<String> insertedIds;
 
@@ -271,8 +271,7 @@ class QueueController extends Notifier<List<String>> {
       return;
     }
     final selectedSong = songs[startIndex.clamp(0, songs.length - 1)];
-    final PlaybackStartupObserver? startupObserver =
-        handler is PlaybackStartupObserver
+    final startupObserver = handler is PlaybackStartupObserver
         ? handler as PlaybackStartupObserver
         : null;
     final startupAttempt = startupObserver?.beginPlaybackSelection(
@@ -664,10 +663,7 @@ class QueueController extends Notifier<List<String>> {
 
   static const int _lyricsPrewarmWindow = 3;
 
-  void _prewarmLyricsForIds(
-    Iterable<String> ids, {
-    String? priorityId,
-  }) {
+  void _prewarmLyricsForIds(Iterable<String> ids, {String? priorityId}) {
     final normalized = _normalizeSongIds(ids);
     if (normalized.isEmpty) {
       return;
@@ -719,10 +715,7 @@ class QueueController extends Notifier<List<String>> {
 
   /// Fire-and-forget wrapper: runs [action] and routes errors to
   /// [playbackActionErrorProvider] instead of throwing.
-  void fireAndForget(
-    Future<void> Function() action, {
-    String? label,
-  }) {
+  void fireAndForget(Future<void> Function() action, {String? label}) {
     unawaited(
       Future<void>(() async {
         try {

@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 class HeroCoverArt extends StatelessWidget {
-  const HeroCoverArt({
+  const new({
     required this.coverArtId,
     required this.heroTag,
     super.key,
@@ -229,11 +229,7 @@ abstract final class _HeroChromeRegistry {
 
 /// Fades source-card metadata after its matching Hero has landed on return.
 class HeroRouteChrome extends StatefulWidget {
-  const HeroRouteChrome({
-    this.heroTag,
-    required this.child,
-    super.key,
-  });
+  const new({this.heroTag, required this.child, super.key});
 
   final String? heroTag;
   final Widget child;

@@ -9,9 +9,8 @@ import 'package:navis/src/utils/app_logger.dart';
 /// LockCachingAudioSource is not seekable under libmpv's local proxy, so
 /// desktop plays via HTTPS direct stream and fills the rolling cache here.
 class RollingCacheSidecarDownloader {
-  RollingCacheSidecarDownloader({
-    HttpClient Function()? httpClientFactory,
-  }) : _httpClientFactory = httpClientFactory ?? HttpClient.new;
+  new({HttpClient Function()? httpClientFactory})
+    : _httpClientFactory = httpClientFactory ?? HttpClient.new;
 
   final HttpClient Function() _httpClientFactory;
   HttpClient? _activeClient;

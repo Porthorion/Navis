@@ -9,10 +9,7 @@ import 'package:flutter/widgets.dart';
 /// can leave its Dart entrypoint waiting indefinitely, so audio bootstrap must
 /// remain independent from this gate.
 class AndroidUiBootstrapGate {
-  AndroidUiBootstrapGate({
-    required this.startUi,
-    required this.onError,
-  });
+  new({required this.startUi, required this.onError});
 
   final FutureOr<void> Function() startUi;
   final void Function(Object error, StackTrace stackTrace) onError;

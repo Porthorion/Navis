@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +22,7 @@ import 'package:navis/src/routing/app_routes.dart';
 
 /// Displays app version, open-source licenses, and repository links.
 class AboutScreen extends ConsumerStatefulWidget {
-  const AboutScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<AboutScreen> createState() => _AboutScreenState();
@@ -202,11 +202,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     }
 
     if (info.downloadUrl != null) {
-      await showUpdateDialog(
-        context,
-        info,
-        updateService: updateService,
-      );
+      await showUpdateDialog(context, info, updateService: updateService);
       return;
     }
 
@@ -271,10 +267,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             data: (totals) {
               if (totals.isEmpty) {
                 return <Widget>[
-                  ListTile(
-                    title: Text(l10n.aboutDataUsageEmpty),
-                    dense: true,
-                  ),
+                  ListTile(title: Text(l10n.aboutDataUsageEmpty), dense: true),
                 ];
               }
               return totals
@@ -292,10 +285,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                   .toList(growable: false);
             },
             loading: () => const <Widget>[
-              ListTile(
-                dense: true,
-                title: LinearProgressIndicator(),
-              ),
+              ListTile(dense: true, title: LinearProgressIndicator()),
             ],
             error: (_, _) => <Widget>[
               ListTile(
@@ -413,7 +403,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
 }
 
 class _AboutIdentity extends StatelessWidget {
-  const _AboutIdentity({required this.version, required this.alignStart});
+  const new({required this.version, required this.alignStart});
 
   final String version;
   final bool alignStart;
@@ -421,10 +411,7 @@ class _AboutIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final title = Text(
-      'Navis',
-      style: theme.textTheme.headlineMedium,
-    );
+    final title = Text('Navis', style: theme.textTheme.headlineMedium);
     final versionLabel = Text(
       '${AppLocalizations.of(context)!.aboutVersion} $version',
       style: theme.textTheme.bodyMedium?.copyWith(
@@ -462,7 +449,7 @@ class _AboutIdentity extends StatelessWidget {
 }
 
 class _AboutInformation extends ConsumerWidget {
-  const _AboutInformation({required this.onShowLicenses});
+  const new({required this.onShowLicenses});
 
   final VoidCallback onShowLicenses;
 
@@ -499,7 +486,7 @@ class _AboutInformation extends ConsumerWidget {
 }
 
 class _AboutUpdates extends StatelessWidget {
-  const _AboutUpdates({
+  const new({
     required this.visible,
     required this.settings,
     required this.update,

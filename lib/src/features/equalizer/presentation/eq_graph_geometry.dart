@@ -5,19 +5,18 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
 /// Maps authored EQ parameters independently of output attenuation.
 class EqGraphGeometry {
-  const EqGraphGeometry(this.plot, {this.limit = 24});
+  const new(this.plot, {this.limit = 24});
 
   /// Places the plot inside a canvas, leaving room for the axis labels.
-  factory EqGraphGeometry.inside(Size canvas, {double limit = 24}) =>
-      EqGraphGeometry(
-        Rect.fromLTWH(
-          plotInsets.left,
-          plotInsets.top,
-          math.max(1, canvas.width - plotInsets.horizontal),
-          math.max(1, canvas.height - plotInsets.vertical),
-        ),
-        limit: limit,
-      );
+  factory inside(Size canvas, {double limit = 24}) => EqGraphGeometry(
+    Rect.fromLTWH(
+      plotInsets.left,
+      plotInsets.top,
+      math.max(1, canvas.width - plotInsets.horizontal),
+      math.max(1, canvas.height - plotInsets.vertical),
+    ),
+    limit: limit,
+  );
 
   static const plotInsets = EdgeInsets.fromLTRB(32, 10, 10, 22);
 

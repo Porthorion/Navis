@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -13,8 +13,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 class _StaticRequiredRebuildController
     extends RequiredLibraryRebuildController {
-  _StaticRequiredRebuildController(this.initial)
-    : super(RequiredLibraryRebuildReason.initialLogin);
+  new(this.initial) : super(RequiredLibraryRebuildReason.initialLogin);
 
   final RequiredLibraryRebuildState initial;
   int retryCalls = 0;
@@ -35,7 +34,7 @@ class _StaticRequiredRebuildController
 }
 
 class _StaticLibrarySyncController extends LibrarySyncController {
-  _StaticLibrarySyncController(this.initial);
+  new(this.initial);
 
   final LibrarySyncState initial;
 
@@ -86,10 +85,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('requiredSyncRetry')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('requiredSyncSignOut')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('requiredSyncRetry')));
     await tester.pump();

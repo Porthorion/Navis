@@ -1,10 +1,7 @@
 part of 'library_screen.dart';
 
 class _TypeFilterBadge extends StatelessWidget {
-  const _TypeFilterBadge({
-    required this.query,
-    required this.onClear,
-  });
+  const new({required this.query, required this.onClear});
 
   final String query;
   final VoidCallback onClear;
@@ -51,11 +48,7 @@ class _TypeFilterBadge extends StatelessWidget {
 }
 
 class _SyncStatusBanner extends StatefulWidget {
-  const _SyncStatusBanner({
-    required this.syncState,
-    required this.onRetry,
-    this.onCancel,
-  });
+  const new({required this.syncState, required this.onRetry, this.onCancel});
 
   final LibrarySyncState syncState;
   final Future<void> Function() onRetry;
@@ -67,9 +60,7 @@ class _SyncStatusBanner extends StatefulWidget {
   );
   static const Key cancelKey = ValueKey<String>('library-sync-status-cancel');
   static const Key retryKey = ValueKey<String>('library-sync-status-retry');
-  static const Key dismissKey = ValueKey<String>(
-    'library-sync-status-dismiss',
-  );
+  static const Key dismissKey = ValueKey<String>('library-sync-status-dismiss');
   static const Key backlogKey = ValueKey<String>('library-sync-status-backlog');
 
   @override
@@ -289,11 +280,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
     return const SizedBox.shrink();
   }
 
-  String _runningLabel(
-    AppLocalizations l10n,
-    int? total,
-    int processed,
-  ) {
+  String _runningLabel(AppLocalizations l10n, int? total, int processed) {
     final syncState = widget.syncState;
     final pending = syncState.pendingHydrationCount ?? 0;
     if (syncState.metadataReady &&
@@ -340,7 +327,7 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
 }
 
 class _SectionRail extends StatelessWidget {
-  const _SectionRail({
+  const new({
     required this.labels,
     required this.activeLabel,
     required this.onLabelSelected,
@@ -377,14 +364,8 @@ class _SectionRail extends StatelessWidget {
             }
             final normalized = ((dy / constraints.maxHeight) * labels.length)
                 .clamp(0, labels.length - 0.0001);
-            final index = normalized.floor().clamp(
-              0,
-              labels.length - 1,
-            );
-            onLabelSelected(
-              labels[index],
-              animate: false,
-            );
+            final index = normalized.floor().clamp(0, labels.length - 1);
+            onLabelSelected(labels[index], animate: false);
           }
 
           return Listener(
@@ -412,10 +393,8 @@ class _SectionRail extends StatelessWidget {
                           child: Text(
                             label,
                             key: label == activeLabel ? activeLabelKey : null,
-                            style:
-                                Theme.of(
-                                  context,
-                                ).textTheme.labelSmall?.copyWith(
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
                                   color: label == activeLabel
                                       ? Theme.of(context).colorScheme.primary
                                       : null,
@@ -438,10 +417,7 @@ class _SectionRail extends StatelessWidget {
 }
 
 class _RailOverlay extends StatelessWidget {
-  const _RailOverlay({
-    required this.overlayKey,
-    required this.label,
-  });
+  const new({required this.overlayKey, required this.label});
 
   final Key overlayKey;
   final String label;
@@ -454,18 +430,15 @@ class _RailOverlay extends StatelessWidget {
           child: DecoratedBox(
             key: overlayKey,
             decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHigh.withValues(alpha: 0.92),
+              color: Theme.of(context).colorScheme.surfaceContainerHigh
+                  .withValues(alpha: 0.92),
               borderRadius: NavisRadius.mdAll,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               child: Text(
                 label,
-                style: Theme.of(
-                  context,
-                ).textTheme.headlineMedium,
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
           ),
@@ -477,11 +450,11 @@ class _RailOverlay extends StatelessWidget {
 
 @immutable
 class _ArtistListItem {
-  const _ArtistListItem._({required this.letter, this.artist});
+  const new _({required this.letter, this.artist});
 
-  const _ArtistListItem.header(String letter) : this._(letter: letter);
+  const new header(String letter) : this._(letter: letter);
 
-  const _ArtistListItem.artist(String letter, ArtistsTableData artist)
+  const new artist(String letter, ArtistsTableData artist)
     : this._(letter: letter, artist: artist);
 
   final String letter;
@@ -489,13 +462,13 @@ class _ArtistListItem {
 }
 
 class _YearListItem {
-  _YearListItem.header({
+  new header({
     required this.label,
     required this.isUnknownYear,
     this.decadeStart,
   }) : albums = const [];
 
-  _YearListItem.albumRow(AlbumsTableData left, [AlbumsTableData? right])
+  new albumRow(AlbumsTableData left, [AlbumsTableData? right])
     : label = '',
       isUnknownYear = false,
       decadeStart = null,
@@ -510,7 +483,7 @@ class _YearListItem {
 }
 
 class _SortFilterRow<T> extends StatelessWidget {
-  const _SortFilterRow({
+  const new({
     required this.sortLabel,
     required this.sortValue,
     required this.sortItems,
@@ -615,7 +588,7 @@ class _SortFilterRow<T> extends StatelessWidget {
 }
 
 class _LoadingListPlaceholder extends StatelessWidget {
-  const _LoadingListPlaceholder();
+  const new();
 
   @override
   Widget build(BuildContext context) {

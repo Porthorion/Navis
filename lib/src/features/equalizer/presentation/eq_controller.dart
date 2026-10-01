@@ -25,7 +25,7 @@ final eqCapabilitiesProvider = Provider<EqCapabilities>((ref) {
 const _keep = Object();
 
 class EqState {
-  EqState({
+  new({
     required this.configuration,
     required List<EqPreset> presets,
     this.selectedPresetId,
@@ -931,14 +931,14 @@ final equalizerProvider = AsyncNotifierProvider<EqController, EqState>(
 );
 
 class _GraphEdit {
-  const _GraphEdit(this.token, this.workspaceId, this.start);
+  const new(this.token, this.workspaceId, this.start);
   final int token;
   final String workspaceId;
   final EqConfiguration start;
 }
 
 class _AudioPreview {
-  _AudioPreview(this.configuration, this.token, this.revision);
+  new(this.configuration, this.token, this.revision);
   final EqConfiguration configuration;
   final int token;
   final int revision;

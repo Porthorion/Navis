@@ -8,7 +8,7 @@ const int currentOnboardingVersion = 1;
 /// The Onboarding screen uses this for both Finish and Skip; clone-only
 /// diagnostics use the same operation to exercise the post-onboarding route.
 class OnboardingCompletionService {
-  const OnboardingCompletionService(this._complete);
+  const new(this._complete);
 
   final Future<void> Function() _complete;
 

@@ -6,7 +6,7 @@ part 'song.g.dart';
 @freezed
 abstract class Song with _$Song {
   @JsonSerializable(explicitToJson: true)
-  const factory Song({
+  const factory({
     required String id,
     required String title,
     String? album,
@@ -32,7 +32,7 @@ abstract class Song with _$Song {
     ReplayGain? replayGain,
   }) = _Song;
 
-  factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
 }
 
 Object? _readSampleRateJson(Map<dynamic, dynamic> json, String _) {
@@ -42,13 +42,12 @@ Object? _readSampleRateJson(Map<dynamic, dynamic> json, String _) {
 /// ReplayGain metadata from the OpenSubsonic API.
 @freezed
 abstract class ReplayGain with _$ReplayGain {
-  const factory ReplayGain({
+  const factory({
     double? trackGain,
     double? albumGain,
     double? trackPeak,
     double? albumPeak,
   }) = _ReplayGain;
 
-  factory ReplayGain.fromJson(Map<String, dynamic> json) =>
-      _$ReplayGainFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$ReplayGainFromJson(json);
 }

@@ -171,15 +171,12 @@ void main() {
         albumId: 'album-old',
       );
 
-      final summary =
-          await EntityIdentityReconciler(
-            database,
-          ).reconcile(
-            serverId: serverId,
-            generation: 1,
-            songAliases: const [],
-            provisionalSongs: const [],
-          );
+      final summary = await EntityIdentityReconciler(database).reconcile(
+        serverId: serverId,
+        generation: 1,
+        songAliases: const [],
+        provisionalSongs: const [],
+      );
 
       expect(summary.albumAliases, 1);
       expect(summary.albumRestoredLikes, 1);
@@ -191,7 +188,7 @@ void main() {
       expect(song!.albumId, 'album-new');
       final aliasRows = await database
           .customSelect(
-            "SELECT old_id, new_id FROM entity_identity_aliases "
+            'SELECT old_id, new_id FROM entity_identity_aliases '
             "WHERE entity_type = 'album';",
           )
           .get();
@@ -233,10 +230,8 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases =
-          await SongIdentityReconciler(
-            database.songIdentityDao,
-          ).reconcileCanonicalSongs([
+      final aliases = await SongIdentityReconciler(database.songIdentityDao)
+          .reconcileCanonicalSongs([
             (await database.libraryDao.getSongById('song-new'))!,
           ]);
 
@@ -292,10 +287,8 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases =
-          await SongIdentityReconciler(
-            database.songIdentityDao,
-          ).reconcileCanonicalSongs([
+      final aliases = await SongIdentityReconciler(database.songIdentityDao)
+          .reconcileCanonicalSongs([
             (await database.libraryDao.getSongById('song-a'))!,
             (await database.libraryDao.getSongById('song-b'))!,
           ]);
@@ -321,53 +314,47 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'a name conflict between the evidence target and the old album defers to review',
-    () async {
-      final serverId = await saveServer();
-      await seedProvisionalAlbum(
-        'album-old',
-        name: 'Old Name',
-        starred: DateTime.utc(2026, 9, 4),
-      );
-      await seedCandidateAlbum('album-new', name: 'Different Album');
-      await seedCanonicalSong(
-        'song-new',
-        title: 'Track',
-        albumId: 'album-new',
-        recordingMbid: 'rec-1',
-      );
-      await seedProvisionalSong(
-        'song-old',
-        title: 'Track',
-        albumId: 'album-old',
-        recordingMbid: 'rec-1',
-      );
-      final provisionalBefore = await database.songIdentityDao
-          .getProvisionalSongs();
-      final aliases =
-          await SongIdentityReconciler(
-            database.songIdentityDao,
-          ).reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-new'))!,
-          ]);
+  test('a name conflict between the evidence target and the old album defers to review', () async {
+    final serverId = await saveServer();
+    await seedProvisionalAlbum(
+      'album-old',
+      name: 'Old Name',
+      starred: DateTime.utc(2026, 9, 4),
+    );
+    await seedCandidateAlbum('album-new', name: 'Different Album');
+    await seedCanonicalSong(
+      'song-new',
+      title: 'Track',
+      albumId: 'album-new',
+      recordingMbid: 'rec-1',
+    );
+    await seedProvisionalSong(
+      'song-old',
+      title: 'Track',
+      albumId: 'album-old',
+      recordingMbid: 'rec-1',
+    );
+    final provisionalBefore = await database.songIdentityDao
+        .getProvisionalSongs();
+    final aliases = await SongIdentityReconciler(database.songIdentityDao)
+        .reconcileCanonicalSongs([
+          (await database.libraryDao.getSongById('song-new'))!,
+        ]);
 
-      final summary = await EntityIdentityReconciler(database).reconcile(
-        serverId: serverId,
-        generation: 1,
-        songAliases: aliases.aliases,
-        provisionalSongs: provisionalBefore,
-      );
+    final summary = await EntityIdentityReconciler(database).reconcile(
+      serverId: serverId,
+      generation: 1,
+      songAliases: aliases.aliases,
+      provisionalSongs: provisionalBefore,
+    );
 
-      expect(summary.albumAliases, 0);
-      expect(summary.reviewCount, 1);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
-      expect(review.single.reason, 'ambiguousMatch');
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(summary.albumAliases, 0);
+    expect(summary.reviewCount, 1);
+    final review = await database.librarySyncDao.getPendingRecoveryReview(
+      serverId,
+    );
+    expect(review.single.reason, 'ambiguousMatch');
+  }, skip: !sqliteAvailable);
 
   test(
     'an owned album without evidence becomes a missingFromCatalog review entry',
@@ -379,15 +366,12 @@ void main() {
         starred: DateTime.utc(2026, 9, 2),
       );
 
-      final summary =
-          await EntityIdentityReconciler(
-            database,
-          ).reconcile(
-            serverId: serverId,
-            generation: 1,
-            songAliases: const [],
-            provisionalSongs: const [],
-          );
+      final summary = await EntityIdentityReconciler(database).reconcile(
+        serverId: serverId,
+        generation: 1,
+        songAliases: const [],
+        provisionalSongs: const [],
+      );
 
       expect(summary.albumAliases, 0);
       expect(summary.reviewCount, 1);
@@ -402,30 +386,23 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'an unowned album without evidence is not reviewed',
-    () async {
-      final serverId = await saveServer();
-      await seedProvisionalAlbum('album-ephemeral');
+  test('an unowned album without evidence is not reviewed', () async {
+    final serverId = await saveServer();
+    await seedProvisionalAlbum('album-ephemeral');
 
-      final summary =
-          await EntityIdentityReconciler(
-            database,
-          ).reconcile(
-            serverId: serverId,
-            generation: 1,
-            songAliases: const [],
-            provisionalSongs: const [],
-          );
+    final summary = await EntityIdentityReconciler(database).reconcile(
+      serverId: serverId,
+      generation: 1,
+      songAliases: const [],
+      provisionalSongs: const [],
+    );
 
-      expect(summary.reviewCount, 0);
-      expect(
-        await database.librarySyncDao.getPendingRecoveryReview(serverId),
-        isEmpty,
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(summary.reviewCount, 0);
+    expect(
+      await database.librarySyncDao.getPendingRecoveryReview(serverId),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'duplicate release MBIDs in the snapshot produce a conflictingMbid review',
@@ -439,15 +416,12 @@ void main() {
       await seedCandidateAlbum('album-copy-a', releaseMbid: 'rel-dup');
       await seedCandidateAlbum('album-copy-b', releaseMbid: 'rel-dup');
 
-      final summary =
-          await EntityIdentityReconciler(
-            database,
-          ).reconcile(
-            serverId: serverId,
-            generation: 1,
-            songAliases: const [],
-            provisionalSongs: const [],
-          );
+      final summary = await EntityIdentityReconciler(database).reconcile(
+        serverId: serverId,
+        generation: 1,
+        songAliases: const [],
+        provisionalSongs: const [],
+      );
 
       expect(summary.albumAliases, 0);
       final review = await database.librarySyncDao.getPendingRecoveryReview(
@@ -458,63 +432,57 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'an artist remaps through song membership, moves albums, and queues the restored like',
-    () async {
-      final serverId = await saveServer();
-      final starredAt = DateTime.utc(2026, 9, 3);
-      await seedProvisionalArtist('artist-old', starred: starredAt);
-      await seedCandidateArtist('artist-new', name: 'Artist');
-      await seedProvisionalAlbum('album-old', artistId: 'artist-old');
-      await seedCanonicalSong(
-        'song-new',
-        title: 'Track',
-        artistId: 'artist-new',
-        recordingMbid: 'rec-1',
-      );
-      await seedProvisionalSong(
-        'song-old',
-        title: 'Track',
-        artistId: 'artist-old',
-        recordingMbid: 'rec-1',
-      );
-      final provisionalBefore = await database.songIdentityDao
-          .getProvisionalSongs();
-      final aliases =
-          await SongIdentityReconciler(
-            database.songIdentityDao,
-          ).reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-new'))!,
-          ]);
+  test('an artist remaps through song membership, moves albums, and queues the restored like', () async {
+    final serverId = await saveServer();
+    final starredAt = DateTime.utc(2026, 9, 3);
+    await seedProvisionalArtist('artist-old', starred: starredAt);
+    await seedCandidateArtist('artist-new', name: 'Artist');
+    await seedProvisionalAlbum('album-old', artistId: 'artist-old');
+    await seedCanonicalSong(
+      'song-new',
+      title: 'Track',
+      artistId: 'artist-new',
+      recordingMbid: 'rec-1',
+    );
+    await seedProvisionalSong(
+      'song-old',
+      title: 'Track',
+      artistId: 'artist-old',
+      recordingMbid: 'rec-1',
+    );
+    final provisionalBefore = await database.songIdentityDao
+        .getProvisionalSongs();
+    final aliases = await SongIdentityReconciler(database.songIdentityDao)
+        .reconcileCanonicalSongs([
+          (await database.libraryDao.getSongById('song-new'))!,
+        ]);
 
-      final summary = await EntityIdentityReconciler(database).reconcile(
-        serverId: serverId,
-        generation: 1,
-        songAliases: aliases.aliases,
-        provisionalSongs: provisionalBefore,
-      );
+    final summary = await EntityIdentityReconciler(database).reconcile(
+      serverId: serverId,
+      generation: 1,
+      songAliases: aliases.aliases,
+      provisionalSongs: provisionalBefore,
+    );
 
-      expect(summary.artistAliases, 1);
-      expect(summary.artistRestoredLikes, 1);
-      expect(await database.libraryDao.getArtistById('artist-old'), isNull);
-      final artist = await database.libraryDao.getArtistById('artist-new');
-      expect(artist!.starred!.isAtSameMomentAs(starredAt), isTrue);
-      // The retained album follows its artist.
-      final album = await database.libraryDao.getAlbumById('album-old');
-      expect(album!.artistId, 'artist-new');
-      final pending = await database.starSyncDao.getPendingActions();
-      expect(
-        pending.where(
-          (action) =>
-              action.itemType == 'artist' &&
-              action.itemId == 'artist-new' &&
-              action.operation == 'star',
-        ),
-        isNotEmpty,
-      );
-    },
-    skip: !sqliteAvailable,
-  );
+    expect(summary.artistAliases, 1);
+    expect(summary.artistRestoredLikes, 1);
+    expect(await database.libraryDao.getArtistById('artist-old'), isNull);
+    final artist = await database.libraryDao.getArtistById('artist-new');
+    expect(artist!.starred!.isAtSameMomentAs(starredAt), isTrue);
+    // The retained album follows its artist.
+    final album = await database.libraryDao.getAlbumById('album-old');
+    expect(album!.artistId, 'artist-new');
+    final pending = await database.starSyncDao.getPendingActions();
+    expect(
+      pending.where(
+        (action) =>
+            action.itemType == 'artist' &&
+            action.itemId == 'artist-new' &&
+            action.operation == 'star',
+      ),
+      isNotEmpty,
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'an in-snapshot provisional artist is skipped rather than remapped',
@@ -523,29 +491,20 @@ void main() {
       // A lightweight parent row (e.g. created from playback) whose ID the
       // snapshot still carries: the promotion upsert refreshes it in place.
       await database.libraryDao.upsertProvisionalArtists([
-        ArtistsTableCompanion.insert(
-          id: 'artist-same',
-          name: 'Artist',
-        ),
+        ArtistsTableCompanion.insert(id: 'artist-same', name: 'Artist'),
       ]);
       await seedCandidateArtist('artist-same', name: 'Artist');
 
-      final summary =
-          await EntityIdentityReconciler(
-            database,
-          ).reconcile(
-            serverId: serverId,
-            generation: 1,
-            songAliases: const [],
-            provisionalSongs: const [],
-          );
+      final summary = await EntityIdentityReconciler(database).reconcile(
+        serverId: serverId,
+        generation: 1,
+        songAliases: const [],
+        provisionalSongs: const [],
+      );
 
       expect(summary.artistAliases, 0);
       expect(summary.reviewCount, 0);
-      expect(
-        await database.libraryDao.getArtistById('artist-same'),
-        isNotNull,
-      );
+      expect(await database.libraryDao.getArtistById('artist-same'), isNotNull);
     },
     skip: !sqliteAvailable,
   );

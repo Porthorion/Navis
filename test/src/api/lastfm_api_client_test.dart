@@ -3,15 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 
-class _MockDio extends Mock implements Dio {}
+class _MockDio extends Mock implements Dio;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() {
-    registerFallbackValue(
-      RequestOptions(path: '/'),
-    );
+    registerFallbackValue(RequestOptions(path: '/'));
   });
 
   test('parses track.getSimilar payload into recommendations', () async {
@@ -197,46 +195,43 @@ void main() {
     expect(tracks.last.title, 'We Will Rock You');
   });
 
-  test(
-    'getArtistTopTracks: returns empty list when @attr.artist '
-    'does not match requested artist',
-    () async {
-      final dio = _MockDio();
-      when(
-        () => dio.get<Map<String, dynamic>>(
-          any(),
-          queryParameters: any(named: 'queryParameters'),
-        ),
-      ).thenAnswer(
-        (_) async => Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(path: '/2.0'),
-          statusCode: 200,
-          // Last.fm autocorrected "Pokelawls" → "Aurora" — should be rejected.
-          data: <String, dynamic>{
-            'toptracks': <String, dynamic>{
-              '@attr': <String, dynamic>{'artist': 'Aurora'},
-              'track': <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'name': 'Runaway',
-                  'listeners': '1000000',
-                  '@attr': <String, dynamic>{'rank': '1'},
-                  'artist': <String, dynamic>{'name': 'Aurora'},
-                },
-              ],
-            },
+  test('getArtistTopTracks: returns empty list when @attr.artist '
+      'does not match requested artist', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/2.0'),
+        statusCode: 200,
+        // Last.fm autocorrected "Pokelawls" → "Aurora" — should be rejected.
+        data: <String, dynamic>{
+          'toptracks': <String, dynamic>{
+            '@attr': <String, dynamic>{'artist': 'Aurora'},
+            'track': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'name': 'Runaway',
+                'listeners': '1000000',
+                '@attr': <String, dynamic>{'rank': '1'},
+                'artist': <String, dynamic>{'name': 'Aurora'},
+              },
+            ],
           },
-        ),
-      );
+        },
+      ),
+    );
 
-      final client = LastFmApiClient(apiKey: 'key', dio: dio);
-      final tracks = await client.getArtistTopTracks(
-        artist: 'Pokelawls',
-        limit: 10,
-      );
+    final client = LastFmApiClient(apiKey: 'key', dio: dio);
+    final tracks = await client.getArtistTopTracks(
+      artist: 'Pokelawls',
+      limit: 10,
+    );
 
-      expect(tracks, isEmpty);
-    },
-  );
+    expect(tracks, isEmpty);
+  });
 
   test(
     'getArtistTopTracks: returns empty list on artist-not-found API error',
@@ -251,10 +246,7 @@ void main() {
         (_) async => Response<Map<String, dynamic>>(
           requestOptions: RequestOptions(path: '/2.0'),
           statusCode: 200,
-          data: <String, dynamic>{
-            'error': 6,
-            'message': 'Artist not found',
-          },
+          data: <String, dynamic>{'error': 6, 'message': 'Artist not found'},
         ),
       );
 
@@ -268,47 +260,41 @@ void main() {
     },
   );
 
-  test(
-    'getArtistTopTracks: accepts minor name differences '
-    '(case and punctuation)',
-    () async {
-      final dio = _MockDio();
-      when(
-        () => dio.get<Map<String, dynamic>>(
-          any(),
-          queryParameters: any(named: 'queryParameters'),
-        ),
-      ).thenAnswer(
-        (_) async => Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(path: '/2.0'),
-          statusCode: 200,
-          // Last.fm returns "AC/DC" but library stores "AC DC" — still valid.
-          data: <String, dynamic>{
-            'toptracks': <String, dynamic>{
-              '@attr': <String, dynamic>{'artist': 'AC/DC'},
-              'track': <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'name': 'Highway to Hell',
-                  'listeners': '3000000',
-                  '@attr': <String, dynamic>{'rank': '1'},
-                  'artist': <String, dynamic>{'name': 'AC/DC'},
-                },
-              ],
-            },
+  test('getArtistTopTracks: accepts minor name differences '
+      '(case and punctuation)', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/2.0'),
+        statusCode: 200,
+        // Last.fm returns "AC/DC" but library stores "AC DC" — still valid.
+        data: <String, dynamic>{
+          'toptracks': <String, dynamic>{
+            '@attr': <String, dynamic>{'artist': 'AC/DC'},
+            'track': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'name': 'Highway to Hell',
+                'listeners': '3000000',
+                '@attr': <String, dynamic>{'rank': '1'},
+                'artist': <String, dynamic>{'name': 'AC/DC'},
+              },
+            ],
           },
-        ),
-      );
+        },
+      ),
+    );
 
-      final client = LastFmApiClient(apiKey: 'key', dio: dio);
-      final tracks = await client.getArtistTopTracks(
-        artist: 'AC DC',
-        limit: 10,
-      );
+    final client = LastFmApiClient(apiKey: 'key', dio: dio);
+    final tracks = await client.getArtistTopTracks(artist: 'AC DC', limit: 10);
 
-      expect(tracks, hasLength(1));
-      expect(tracks.first.title, 'Highway to Hell');
-    },
-  );
+    expect(tracks, hasLength(1));
+    expect(tracks.first.title, 'Highway to Hell');
+  });
 
   test(
     'getArtistTopTracks: filters out tracks attributed to a different artist',

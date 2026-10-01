@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -27,7 +27,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
-  const PlaylistDetailScreen({required this.playlistId, super.key});
+  const new({required this.playlistId, super.key});
 
   final String playlistId;
 
@@ -105,24 +105,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           error: (error, _) => ErrorState(
             title: l10n.playlistDetailLoadError,
-            onRetry: () => ref.invalidate(
-              playlistDetailSyncProvider(widget.playlistId),
-            ),
+            onRetry: () =>
+                ref.invalidate(playlistDetailSyncProvider(widget.playlistId)),
           ),
         );
       },
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.playlistDetailLoadError,
-        onRetry: () => ref.invalidate(
-          playlistDetailSyncProvider(widget.playlistId),
-        ),
+        onRetry: () =>
+            ref.invalidate(playlistDetailSyncProvider(widget.playlistId)),
       ),
     );
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.playlistDetailTitle),
-        actions: <Widget>[],
+        actions: const <Widget>[],
       ),
       body: desktopMode
           ? DesktopFrame(
@@ -190,9 +188,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               children: <Widget>[
                                 Text(
                                   playlist.name,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.headlineMedium,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -389,11 +387,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           ? DesktopSongActions(
                               song: song,
                               keyPrefix: 'playlist-song',
-                              onMore: (anchor) => _showSongActions(
-                                song,
-                                index,
-                                anchor: anchor,
-                              ),
+                              onMore: (anchor) =>
+                                  _showSongActions(song, index, anchor: anchor),
                             )
                           : Row(
                               mainAxisSize: MainAxisSize.min,
@@ -456,10 +451,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
-  void _queuePlaylist(
-    List<SongsTableData> songs, {
-    required bool shuffle,
-  }) {
+  void _queuePlaylist(List<SongsTableData> songs, {required bool shuffle}) {
     if (songs.isEmpty) return;
 
     final songsToQueue = List<SongsTableData>.of(songs);
@@ -577,15 +569,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
   }
 
-  void _showSongActions(
-    SongsTableData song,
-    int songIndex, {
-    Offset? anchor,
-  }) {
+  void _showSongActions(SongsTableData song, int songIndex, {Offset? anchor}) {
     if (anchor != null && isDesktopRuntime) {
-      unawaited(
-        _showDesktopSongActions(song, songIndex, anchor: anchor),
-      );
+      unawaited(_showDesktopSongActions(song, songIndex, anchor: anchor));
       return;
     }
     final l10n = AppLocalizations.of(context)!;
@@ -643,7 +629,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     );
                 // Optimistic success feedback.
                 showAppNotice(
-                  this.context,
+                  context,
                   message: l10n.librarySongAddedToQueue(song.title),
                   level: AppNoticeLevel.success,
                 );
@@ -662,7 +648,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     );
                 // Optimistic success feedback.
                 showAppNotice(
-                  this.context,
+                  context,
                   message: l10n.librarySongPlayNextQueued(song.title),
                   level: AppNoticeLevel.success,
                 );

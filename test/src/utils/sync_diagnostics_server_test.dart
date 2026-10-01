@@ -6,7 +6,7 @@ import 'dart:io';
 import 'dart:ui' show FrameTiming;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -341,9 +341,8 @@ void main() {
       final handler = _MockPlaybackHandler();
       var nextCalls = 0;
       var previousCalls = 0;
-      when(() => handler.loadFailureStream).thenAnswer(
-        (_) => const Stream<PlaybackLoadFailure>.empty(),
-      );
+      when(() => handler.loadFailureStream)
+          .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
       when(handler.waitUntilReady).thenAnswer((_) async {});
       when(handler.skipToNext).thenAnswer((_) async {
         nextCalls++;
@@ -579,10 +578,7 @@ void main() {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
 
-    final unauthorized = await _request(
-      fixture.port,
-      '/v1/health',
-    );
+    final unauthorized = await _request(fixture.port, '/v1/health');
     expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
     final authorized = await _request(
@@ -626,9 +622,7 @@ void main() {
     () async {
       final database = createTestDatabase();
       final container = ProviderContainer(
-        overrides: [
-          navisDatabaseProvider.overrideWith((ref) => database),
-        ],
+        overrides: [navisDatabaseProvider.overrideWith((ref) => database)],
       );
       final published = <Map<String, Object?>>[];
       var clearCount = 0;
@@ -771,10 +765,11 @@ void main() {
     expect(status.body, containsPair('nextRetryAt', isNull));
     expect(status.body, containsPair('deletionCandidateCount', 0));
     expect(status.body, containsPair('durableOperations', isEmpty));
-    expect(
-      status.body['catalog'],
-      <String, int>{'artists': 0, 'albums': 0, 'songs': 0},
-    );
+    expect(status.body['catalog'], <String, int>{
+      'artists': 0,
+      'albums': 0,
+      'songs': 0,
+    });
 
     engine.complete();
     await Future<void>.delayed(Duration.zero);
@@ -897,15 +892,12 @@ void main() {
         token: fixture.token,
       );
       expect(present.statusCode, HttpStatus.ok);
-      expect(
-        present.body,
-        <String, Object?>{
-          'id': 'album-1',
-          'exists': true,
-          'songsHydrated': true,
-          'songCount': 1,
-        },
-      );
+      expect(present.body, <String, Object?>{
+        'id': 'album-1',
+        'exists': true,
+        'songsHydrated': true,
+        'songCount': 1,
+      });
       expect(jsonEncode(present.body), isNot(contains('Album title')));
 
       final absent = await _request(
@@ -913,10 +905,7 @@ void main() {
         '/v1/library/album?id=absent',
         token: fixture.token,
       );
-      expect(
-        absent.body,
-        <String, Object?>{'id': 'absent', 'exists': false},
-      );
+      expect(absent.body, <String, Object?>{'id': 'absent', 'exists': false});
     },
   );
 
@@ -1222,352 +1211,340 @@ void main() {
     },
   );
 
-  test(
-    'presentation endpoints use the authenticated clone control plane',
-    () async {
-      final presentation = _MockPresentationController();
-      final navigationDriver = _MockDiagnosticsNavigationDriver();
-      when(() => navigationDriver.resolves(any())).thenAnswer(
-        (invocation) => !(invocation.positionalArguments.single as String)
-            .startsWith('/missing'),
-      );
-      var location = '/';
-      when(() => navigationDriver.location).thenAnswer((_) => location);
-      when(() => navigationDriver.go(any())).thenAnswer((invocation) {
-        final requested = invocation.positionalArguments.single as String;
-        location = requested == '/redirect' ? '/target' : requested;
-      });
-      when(() => presentation.status).thenReturn(
-        const DiagnosticsPresentationStatus(
-          logicalWidth: 1280,
-          logicalHeight: 720,
-          devicePixelRatio: 1.5,
-          screenshotReady: true,
-        ),
-      );
-      when(() => presentation.appReady).thenReturn(true);
-      when(presentation.waitForFrame).thenAnswer((_) async {});
-      when(presentation.dismissPopupRoutes).thenAnswer((_) async {});
-      when(presentation.systemBack).thenAnswer((_) async {});
-      when(
-        () => presentation.tapNavigationDestination(any()),
-      ).thenAnswer((_) async {});
-      when(
-        () => presentation.capture(label: any(named: 'label')),
-      ).thenAnswer(
-        (_) async => const DiagnosticsScreenshot(
-          artifact: 'screenshots/capture.png',
-          logicalWidth: 1280,
-          logicalHeight: 720,
-          pixelWidth: 1280,
-          pixelHeight: 720,
-          pixelRatio: 1,
-          byteCount: 42,
-          sha256Digest: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-        ),
-      );
-      final fixture = await _startFixture(
-        SyncDiagnosticsMode.clone,
-        presentationController: presentation,
-        navigationDriver: navigationDriver,
-      );
-      addTearDown(fixture.close);
+  test('presentation endpoints use the authenticated clone control plane', () async {
+    final presentation = _MockPresentationController();
+    final navigationDriver = _MockDiagnosticsNavigationDriver();
+    when(() => navigationDriver.resolves(any())).thenAnswer(
+      (invocation) => !(invocation.positionalArguments.single as String)
+          .startsWith('/missing'),
+    );
+    var location = '/';
+    when(() => navigationDriver.location).thenAnswer((_) => location);
+    when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+      final requested = invocation.positionalArguments.single as String;
+      location = requested == '/redirect' ? '/target' : requested;
+    });
+    when(() => presentation.status).thenReturn(
+      const DiagnosticsPresentationStatus(
+        logicalWidth: 1280,
+        logicalHeight: 720,
+        devicePixelRatio: 1.5,
+        screenshotReady: true,
+      ),
+    );
+    when(() => presentation.appReady).thenReturn(true);
+    when(presentation.waitForFrame).thenAnswer((_) async {});
+    when(presentation.dismissPopupRoutes).thenAnswer((_) async {});
+    when(presentation.systemBack).thenAnswer((_) async {});
+    when(() => presentation.tapNavigationDestination(any()))
+        .thenAnswer((_) async {});
+    when(() => presentation.capture(label: any(named: 'label'))).thenAnswer(
+      (_) async => const DiagnosticsScreenshot(
+        artifact: 'screenshots/capture.png',
+        logicalWidth: 1280,
+        logicalHeight: 720,
+        pixelWidth: 1280,
+        pixelHeight: 720,
+        pixelRatio: 1,
+        byteCount: 42,
+        sha256Digest:
+            '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      ),
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+      navigationDriver: navigationDriver,
+    );
+    addTearDown(fixture.close);
 
-      for (final unauthorized in <(String, String)>[
-        ('POST', '/v1/presentation/tooltip'),
-        ('GET', '/v1/presentation/window'),
-        ('POST', '/v1/presentation/window'),
-        ('GET', '/v1/presentation/status'),
-        ('POST', '/v1/presentation/navigate'),
-        ('POST', '/v1/presentation/dismiss-popup'),
-        ('POST', '/v1/presentation/onboarding/complete'),
-        ('GET', '/v1/presentation/home-warmup'),
-        ('POST', '/v1/presentation/library-filter'),
-        ('POST', '/v1/presentation/notice'),
-        ('POST', '/v1/presentation/search'),
-        ('POST', '/v1/presentation/search/play'),
-      ]) {
-        final response = await _request(
-          fixture.port,
-          unauthorized.$2,
-          method: unauthorized.$1,
+    for (final unauthorized in <(String, String)>[
+      ('POST', '/v1/presentation/tooltip'),
+      ('GET', '/v1/presentation/window'),
+      ('POST', '/v1/presentation/window'),
+      ('GET', '/v1/presentation/status'),
+      ('POST', '/v1/presentation/navigate'),
+      ('POST', '/v1/presentation/dismiss-popup'),
+      ('POST', '/v1/presentation/onboarding/complete'),
+      ('GET', '/v1/presentation/home-warmup'),
+      ('POST', '/v1/presentation/library-filter'),
+      ('POST', '/v1/presentation/notice'),
+      ('POST', '/v1/presentation/search'),
+      ('POST', '/v1/presentation/search/play'),
+    ]) {
+      final response = await _request(
+        fixture.port,
+        unauthorized.$2,
+        method: unauthorized.$1,
+      );
+      expect(response.statusCode, HttpStatus.unauthorized);
+    }
+
+    final dismissed = await _request(
+      fixture.port,
+      '/v1/presentation/dismiss-popup',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(dismissed.statusCode, HttpStatus.ok);
+    verify(presentation.dismissPopupRoutes).called(1);
+
+    final status = await _request(
+      fixture.port,
+      '/v1/presentation/status',
+      token: fixture.token,
+    );
+    expect(status.statusCode, HttpStatus.ok);
+    expect(status.body['route'], '/');
+    expect(status.body['appReady'], isTrue);
+    expect(status.body['screenshotReady'], isTrue);
+
+    fixture.container.read(homeOnboardingWarmupTrackerProvider).recordTargets(
+      const <HomeArtworkWarmupTarget>[
+        HomeArtworkWarmupTarget(coverArtId: 'private-cover-a', size: 600),
+        HomeArtworkWarmupTarget(coverArtId: 'private-cover-b', size: 160),
+      ],
+    );
+    fixture.container
+        .read(homeOnboardingWarmupTrackerProvider)
+        .recordReady(
+          const HomeArtworkWarmupTarget(
+            coverArtId: 'private-cover-a',
+            size: 600,
+          ),
         );
-        expect(response.statusCode, HttpStatus.unauthorized);
-      }
+    final warmupStatus = await _request(
+      fixture.port,
+      '/v1/presentation/home-warmup',
+      token: fixture.token,
+    );
+    expect(warmupStatus.statusCode, HttpStatus.ok);
+    expect(warmupStatus.body, <String, Object?>{
+      'targetCount': 2,
+      'readyCount': 1,
+    });
+    expect(jsonEncode(warmupStatus.body), isNot(contains('private-cover')));
 
-      final dismissed = await _request(
-        fixture.port,
-        '/v1/presentation/dismiss-popup',
-        method: 'POST',
-        token: fixture.token,
-      );
-      expect(dismissed.statusCode, HttpStatus.ok);
-      verify(presentation.dismissPopupRoutes).called(1);
+    final completeOnboarding = await _request(
+      fixture.port,
+      '/v1/presentation/onboarding/complete',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(completeOnboarding.statusCode, HttpStatus.ok);
+    expect(completeOnboarding.body['actualLocation'], '/');
 
-      final status = await _request(
-        fixture.port,
-        '/v1/presentation/status',
-        token: fixture.token,
-      );
-      expect(status.statusCode, HttpStatus.ok);
-      expect(status.body['route'], '/');
-      expect(status.body['appReady'], isTrue);
-      expect(status.body['screenshotReady'], isTrue);
+    final invalidNavigation = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': 'https://example.com'},
+    );
+    expect(invalidNavigation.statusCode, HttpStatus.badRequest);
 
-      fixture.container.read(homeOnboardingWarmupTrackerProvider).recordTargets(
-        const <HomeArtworkWarmupTarget>[
-          HomeArtworkWarmupTarget(coverArtId: 'private-cover-a', size: 600),
-          HomeArtworkWarmupTarget(coverArtId: 'private-cover-b', size: 160),
-        ],
-      );
-      fixture.container
-          .read(homeOnboardingWarmupTrackerProvider)
-          .recordReady(
-            const HomeArtworkWarmupTarget(
-              coverArtId: 'private-cover-a',
-              size: 600,
-            ),
-          );
-      final warmupStatus = await _request(
-        fixture.port,
-        '/v1/presentation/home-warmup',
-        token: fixture.token,
-      );
-      expect(warmupStatus.statusCode, HttpStatus.ok);
-      expect(
-        warmupStatus.body,
-        <String, Object?>{'targetCount': 2, 'readyCount': 1},
-      );
-      expect(jsonEncode(warmupStatus.body), isNot(contains('private-cover')));
+    final nonStringNavigation = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': 42},
+    );
+    expect(nonStringNavigation.statusCode, HttpStatus.badRequest);
 
-      final completeOnboarding = await _request(
-        fixture.port,
-        '/v1/presentation/onboarding/complete',
-        method: 'POST',
-        token: fixture.token,
-      );
-      expect(completeOnboarding.statusCode, HttpStatus.ok);
-      expect(completeOnboarding.body['actualLocation'], '/');
+    final navigation = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': '/target'},
+    );
+    expect(navigation.statusCode, HttpStatus.ok);
+    expect(navigation.body['requestedLocation'], '/target');
+    expect(navigation.body['actualLocation'], '/target');
+    verify(presentation.waitForFrame).called(2);
 
-      final invalidNavigation = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': 'https://example.com'},
-      );
-      expect(invalidNavigation.statusCode, HttpStatus.badRequest);
+    final redirected = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': '/redirect'},
+    );
+    expect(redirected.statusCode, HttpStatus.ok);
+    expect(redirected.body['actualLocation'], '/target');
+    expect(redirected.body['redirected'], isTrue);
 
-      final nonStringNavigation = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': 42},
-      );
-      expect(nonStringNavigation.statusCode, HttpStatus.badRequest);
+    final likedNavigation = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': '/library#liked'},
+    );
+    expect(likedNavigation.statusCode, HttpStatus.ok);
+    // The older fragment form is accepted and normalised to the section URL.
+    expect(likedNavigation.body['actualLocation'], '/library?section=liked');
+    expect(
+      fixture.container.read(librarySectionProvider),
+      LibrarySection.liked,
+    );
 
-      final navigation = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': '/target'},
-      );
-      expect(navigation.statusCode, HttpStatus.ok);
-      expect(navigation.body['requestedLocation'], '/target');
-      expect(navigation.body['actualLocation'], '/target');
-      verify(presentation.waitForFrame).called(2);
+    final unknownRoute = await _request(
+      fixture.port,
+      '/v1/presentation/navigate',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'location': '/missing/page'},
+    );
+    expect(unknownRoute.statusCode, HttpStatus.badRequest);
+    expect(
+      likedNavigation.body['actualLocation'],
+      '/library?section=liked',
+      reason: 'a rejected location must not navigate',
+    );
 
-      final redirected = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': '/redirect'},
-      );
-      expect(redirected.statusCode, HttpStatus.ok);
-      expect(redirected.body['actualLocation'], '/target');
-      expect(redirected.body['redirected'], isTrue);
+    final back = await _request(
+      fixture.port,
+      '/v1/presentation/system-back',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{},
+    );
+    expect(back.statusCode, HttpStatus.ok);
+    expect(back.body['location'], isA<String>());
+    verify(presentation.systemBack).called(1);
 
-      final likedNavigation = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': '/library#liked'},
-      );
-      expect(likedNavigation.statusCode, HttpStatus.ok);
-      // The older fragment form is accepted and normalised to the section URL.
-      expect(
-        likedNavigation.body['actualLocation'],
-        '/library?section=liked',
-      );
-      expect(
-        fixture.container.read(librarySectionProvider),
-        LibrarySection.liked,
-      );
+    final tab = await _request(
+      fixture.port,
+      '/v1/presentation/tab',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'branch': 'settings'},
+    );
+    expect(tab.statusCode, HttpStatus.ok);
+    verify(() => presentation.tapNavigationDestination(3)).called(1);
 
-      final unknownRoute = await _request(
-        fixture.port,
-        '/v1/presentation/navigate',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'location': '/missing/page'},
-      );
-      expect(unknownRoute.statusCode, HttpStatus.badRequest);
-      expect(
-        likedNavigation.body['actualLocation'],
-        '/library?section=liked',
-        reason: 'a rejected location must not navigate',
-      );
+    final badTab = await _request(
+      fixture.port,
+      '/v1/presentation/tab',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'branch': 'radio'},
+    );
+    expect(badTab.statusCode, HttpStatus.badRequest);
 
-      final back = await _request(
-        fixture.port,
-        '/v1/presentation/system-back',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{},
-      );
-      expect(back.statusCode, HttpStatus.ok);
-      expect(back.body['location'], isA<String>());
-      verify(presentation.systemBack).called(1);
+    final invalidLibraryFilter = await _request(
+      fixture.port,
+      '/v1/presentation/library-filter',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'query': ''},
+    );
+    expect(invalidLibraryFilter.statusCode, HttpStatus.badRequest);
 
-      final tab = await _request(
-        fixture.port,
-        '/v1/presentation/tab',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'branch': 'settings'},
-      );
-      expect(tab.statusCode, HttpStatus.ok);
-      verify(() => presentation.tapNavigationDestination(3)).called(1);
+    final libraryFilter = await _request(
+      fixture.port,
+      '/v1/presentation/library-filter',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'query': 'no-match'},
+    );
+    expect(libraryFilter.statusCode, HttpStatus.ok);
+    expect(libraryFilter.body['query'], 'no-match');
+    expect(libraryFilter.body['section'], 'liked');
+    expect(
+      fixture.container.read(libraryTypeFilterDiagnosticsProvider),
+      'no-match',
+    );
 
-      final badTab = await _request(
-        fixture.port,
-        '/v1/presentation/tab',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'branch': 'radio'},
-      );
-      expect(badTab.statusCode, HttpStatus.badRequest);
+    final invalidNotice = await _request(
+      fixture.port,
+      '/v1/presentation/notice',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{
+        'message': 'Could not save album.',
+        'level': 'unknown',
+      },
+    );
+    expect(invalidNotice.statusCode, HttpStatus.badRequest);
 
-      final invalidLibraryFilter = await _request(
-        fixture.port,
-        '/v1/presentation/library-filter',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'query': ''},
-      );
-      expect(invalidLibraryFilter.statusCode, HttpStatus.badRequest);
+    final notice = await _request(
+      fixture.port,
+      '/v1/presentation/notice',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{
+        'message': 'Could not save album.',
+        'level': 'error',
+      },
+    );
+    expect(notice.statusCode, HttpStatus.ok);
+    expect(notice.body['level'], 'error');
+    expect(notice.body['messageLength'], 21);
+    expect(
+      fixture.container.read(appNoticeDiagnosticsProvider)?.level,
+      AppNoticeLevel.error,
+    );
 
-      final libraryFilter = await _request(
-        fixture.port,
-        '/v1/presentation/library-filter',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'query': 'no-match'},
-      );
-      expect(libraryFilter.statusCode, HttpStatus.ok);
-      expect(libraryFilter.body['query'], 'no-match');
-      expect(libraryFilter.body['section'], 'liked');
-      expect(
-        fixture.container.read(libraryTypeFilterDiagnosticsProvider),
-        'no-match',
-      );
+    final overlay = await _request(
+      fixture.port,
+      '/v1/presentation/player-overlay',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'surface': 'queue', 'visible': true},
+    );
+    expect(overlay.statusCode, HttpStatus.ok);
+    expect(overlay.body['visible'], isTrue);
 
-      final invalidNotice = await _request(
-        fixture.port,
-        '/v1/presentation/notice',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{
-          'message': 'Could not save album.',
-          'level': 'unknown',
-        },
-      );
-      expect(invalidNotice.statusCode, HttpStatus.badRequest);
+    final nowPlaying = await _request(
+      fixture.port,
+      '/v1/presentation/player-overlay',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'surface': 'nowPlaying', 'visible': true},
+    );
+    expect(nowPlaying.statusCode, HttpStatus.ok);
+    expect(nowPlaying.body['visible'], isTrue);
+    expect(nowPlaying.body['desktopNowPlayingVisible'], isTrue);
+    expect(
+      fixture.container.read(desktopNowPlayingDiagnosticsProvider),
+      isTrue,
+    );
 
-      final notice = await _request(
-        fixture.port,
-        '/v1/presentation/notice',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{
-          'message': 'Could not save album.',
-          'level': 'error',
-        },
-      );
-      expect(notice.statusCode, HttpStatus.ok);
-      expect(notice.body['level'], 'error');
-      expect(notice.body['messageLength'], 21);
-      expect(
-        fixture.container.read(appNoticeDiagnosticsProvider)?.level,
-        AppNoticeLevel.error,
-      );
+    when(() => presentation.capture(label: 'Bad Label'))
+        .thenThrow(const FormatException('invalid label'));
+    final invalidScreenshot = await _request(
+      fixture.port,
+      '/v1/presentation/screenshot',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'label': 'Bad Label'},
+    );
+    expect(invalidScreenshot.statusCode, HttpStatus.badRequest);
 
-      final overlay = await _request(
-        fixture.port,
-        '/v1/presentation/player-overlay',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'surface': 'queue', 'visible': true},
-      );
-      expect(overlay.statusCode, HttpStatus.ok);
-      expect(overlay.body['visible'], isTrue);
+    final nonStringScreenshot = await _request(
+      fixture.port,
+      '/v1/presentation/screenshot',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'label': <String>[]},
+    );
+    expect(nonStringScreenshot.statusCode, HttpStatus.badRequest);
 
-      final nowPlaying = await _request(
-        fixture.port,
-        '/v1/presentation/player-overlay',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{
-          'surface': 'nowPlaying',
-          'visible': true,
-        },
-      );
-      expect(nowPlaying.statusCode, HttpStatus.ok);
-      expect(nowPlaying.body['visible'], isTrue);
-      expect(nowPlaying.body['desktopNowPlayingVisible'], isTrue);
-      expect(
-        fixture.container.read(desktopNowPlayingDiagnosticsProvider),
-        isTrue,
-      );
-
-      when(
-        () => presentation.capture(label: 'Bad Label'),
-      ).thenThrow(const FormatException('invalid label'));
-      final invalidScreenshot = await _request(
-        fixture.port,
-        '/v1/presentation/screenshot',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'label': 'Bad Label'},
-      );
-      expect(invalidScreenshot.statusCode, HttpStatus.badRequest);
-
-      final nonStringScreenshot = await _request(
-        fixture.port,
-        '/v1/presentation/screenshot',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'label': <String>[]},
-      );
-      expect(nonStringScreenshot.statusCode, HttpStatus.badRequest);
-
-      final screenshot = await _request(
-        fixture.port,
-        '/v1/presentation/screenshot',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'label': 'target'},
-      );
-      expect(screenshot.statusCode, HttpStatus.created);
-      expect(screenshot.body['artifact'], 'screenshots/capture.png');
-      expect(screenshot.body['sha256'], hasLength(64));
-      verify(() => presentation.capture(label: 'target')).called(1);
-    },
-  );
+    final screenshot = await _request(
+      fixture.port,
+      '/v1/presentation/screenshot',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'label': 'target'},
+    );
+    expect(screenshot.statusCode, HttpStatus.created);
+    expect(screenshot.body['artifact'], 'screenshots/capture.png');
+    expect(screenshot.body['sha256'], hasLength(64));
+    verify(() => presentation.capture(label: 'target')).called(1);
+  });
 
   test(
     'presentation endpoints reject primary mode and missing surfaces',
@@ -1704,12 +1681,10 @@ void main() {
 
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();
-    when(() => presentation.hoverTooltip(target: 'lyrics')).thenAnswer(
-      (_) async => true,
-    );
-    when(() => presentation.hoverTooltip(target: null)).thenAnswer(
-      (_) async => false,
-    );
+    when(() => presentation.hoverTooltip(target: 'lyrics'))
+        .thenAnswer((_) async => true);
+    when(() => presentation.hoverTooltip(target: null))
+        .thenAnswer((_) async => false);
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
       presentationController: presentation,
@@ -1854,9 +1829,7 @@ void main() {
       expect(invalid.statusCode, HttpStatus.badRequest);
 
       expect(
-        fixture.container.read(
-          songPlaybackIndicatorStateProvider('song-1'),
-        ),
+        fixture.container.read(songPlaybackIndicatorStateProvider('song-1')),
         SongPlaybackIndicatorState.current,
       );
       final current = await _request(
@@ -1924,9 +1897,8 @@ void main() {
     () async {
       final handler = _MockPlaybackHandler();
       var handlerVolume = 1.0;
-      when(() => handler.loadFailureStream).thenAnswer(
-        (_) => const Stream<PlaybackLoadFailure>.empty(),
-      );
+      when(() => handler.loadFailureStream)
+          .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
       when(handler.waitUntilReady).thenAnswer((_) async {});
       when(() => handler.setVolume(any())).thenAnswer((invocation) async {
         handlerVolume = invocation.positionalArguments.single as double;
@@ -1944,10 +1916,7 @@ void main() {
       addTearDown(fixture.close);
       fixture.container
           .read(playbackVolumeProvider.notifier)
-          .hydrate(
-            volume: 1,
-            lastAudibleVolume: 1,
-          );
+          .hydrate(volume: 1, lastAudibleVolume: 1);
 
       final invalid = await _request(
         fixture.port,
@@ -1994,9 +1963,8 @@ void main() {
 
   test('primary certification observes volume but rejects mutation', () async {
     final handler = _MockPlaybackHandler();
-    when(() => handler.loadFailureStream).thenAnswer(
-      (_) => const Stream<PlaybackLoadFailure>.empty(),
-    );
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
     when(handler.waitUntilReady).thenAnswer((_) async {});
     when(handler.collectPlaybackDiagnostics).thenReturn(<String, Object?>{
       'userVolume': 1.0,
@@ -2059,18 +2027,14 @@ void main() {
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['songCount'], 20);
       expect(response.body['songOffset'], 0);
-      expect(
-        response.body['resultCounts'],
-        <String, Object?>{'artists': 1, 'albums': 1, 'songs': 1},
-      );
+      expect(response.body['resultCounts'], <String, Object?>{
+        'artists': 1,
+        'albums': 1,
+        'songs': 1,
+      });
       final records = response.body['records'] as List<dynamic>;
       expect(records, hasLength(3));
-      expect(
-        records,
-        contains(
-          containsPair('source', 'remote'),
-        ),
-      );
+      expect(records, contains(containsPair('source', 'remote')));
       final local = records.cast<Map<String, dynamic>>().singleWhere(
         (record) => record['id'] == 'server-artist',
       );
@@ -2093,64 +2057,55 @@ void main() {
     },
   );
 
-  test(
-    'presentation search drives production providers and returns ranked sources',
-    () async {
-      var location = '/';
-      final navigationDriver = _MockDiagnosticsNavigationDriver();
-      when(() => navigationDriver.resolves(any())).thenAnswer(
-        (invocation) => !(invocation.positionalArguments.single as String)
-            .startsWith('/missing'),
-      );
-      when(() => navigationDriver.location).thenAnswer((_) => location);
-      when(() => navigationDriver.go(any())).thenAnswer((invocation) {
-        location = invocation.positionalArguments.single as String;
-      });
-      final presentation = _MockPresentationController();
-      when(presentation.waitForFrame).thenAnswer((_) async {});
-      final fixture = await _startFixture(
-        SyncDiagnosticsMode.clone,
-        api: _SourceAuditApiClient(),
-        navigationDriver: navigationDriver,
-        presentationController: presentation,
-      );
-      addTearDown(fixture.close);
-      await fixture.database.libraryDao.upsertArtists(
-        <ArtistsTableCompanion>[
-          ArtistsTableCompanion.insert(
-            id: 'server-prefix',
-            name: 'Aurora Local',
-          ),
-        ],
-      );
+  test('presentation search drives production providers and returns ranked sources', () async {
+    var location = '/';
+    final navigationDriver = _MockDiagnosticsNavigationDriver();
+    when(() => navigationDriver.resolves(any())).thenAnswer(
+      (invocation) => !(invocation.positionalArguments.single as String)
+          .startsWith('/missing'),
+    );
+    when(() => navigationDriver.location).thenAnswer((_) => location);
+    when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+      location = invocation.positionalArguments.single as String;
+    });
+    final presentation = _MockPresentationController();
+    when(presentation.waitForFrame).thenAnswer((_) async {});
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      api: _SourceAuditApiClient(),
+      navigationDriver: navigationDriver,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+    await fixture.database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+      ArtistsTableCompanion.insert(id: 'server-prefix', name: 'Aurora Local'),
+    ]);
 
-      final response = await _request(
-        fixture.port,
-        '/v1/presentation/search',
-        method: 'POST',
-        token: fixture.token,
-        body: const <String, Object?>{'query': 'Aurora'},
-      );
+    final response = await _request(
+      fixture.port,
+      '/v1/presentation/search',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'query': 'Aurora'},
+    );
 
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.body['route'], '/search');
-      final artists = (response.body['artists'] as List<dynamic>)
-          .cast<Map<String, dynamic>>();
-      expect(
-        artists.map((record) => record['id']),
-        <String>['remote-exact', 'server-prefix', 'remote-prefix'],
-      );
-      expect(artists.first['relevance'], 'exact');
-      expect(artists.first['source'], 'remote');
-      expect(artists[1]['source'], 'onServer');
-      expect(
-        artists.expand((record) => record.keys),
-        everyElement(
-          isIn(<String>['id', 'source', 'relevance']),
-        ),
-      );
-    },
-  );
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body['route'], '/search');
+    final artists = (response.body['artists'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+    expect(artists.map((record) => record['id']), <String>[
+      'remote-exact',
+      'server-prefix',
+      'remote-prefix',
+    ]);
+    expect(artists.first['relevance'], 'exact');
+    expect(artists.first['source'], 'remote');
+    expect(artists[1]['source'], 'onServer');
+    expect(
+      artists.expand((record) => record.keys),
+      everyElement(isIn(<String>['id', 'source', 'relevance'])),
+    );
+  });
 
   test(
     'presentation search result playback uses the production queue path',
@@ -2168,13 +2123,11 @@ void main() {
       final presentation = _MockPresentationController();
       when(presentation.waitForFrame).thenAnswer((_) async {});
       final handler = _MockPlaybackHandler();
-      when(() => handler.loadFailureStream).thenAnswer(
-        (_) => const Stream<PlaybackLoadFailure>.empty(),
-      );
+      when(() => handler.loadFailureStream)
+          .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
       when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
-      when(() => handler.snapshotStream).thenAnswer(
-        (_) => const Stream<PlaybackSnapshot>.empty(),
-      );
+      when(() => handler.snapshotStream)
+          .thenAnswer((_) => const Stream<PlaybackSnapshot>.empty());
       when(
         () => handler.replaceQueueWithData(
           any(),
@@ -2313,13 +2266,13 @@ Future<_DiagnosticsFixture> _startFixture(
   );
 }
 
-class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler {}
+class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler;
 
 class _MockPresentationController extends Mock
-    implements DiagnosticsPresentationController {}
+    implements DiagnosticsPresentationController;
 
 class _MockDiagnosticsNavigationDriver extends Mock
-    implements DiagnosticsNavigationDriver {}
+    implements DiagnosticsNavigationDriver;
 
 class _TargetProgressSyncEngine extends LibrarySyncEngine {
   final Completer<LibrarySyncState> _completion = Completer<LibrarySyncState>();
@@ -2430,7 +2383,7 @@ class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
 }
 
 class _SourceAuditApiClient extends SubsonicApiClient {
-  _SourceAuditApiClient()
+  new()
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -2462,21 +2415,11 @@ class _SourceAuditApiClient extends SubsonicApiClient {
     }
     return const SearchResult3(
       artists: <Artist>[
-        Artist(
-          id: 'server-artist',
-          name: 'Local Artist',
-          isExternal: false,
-        ),
+        Artist(id: 'server-artist', name: 'Local Artist', isExternal: false),
       ],
-      albums: <Album>[
-        Album(id: 'ext-deezer-album-1', name: 'Remote Album'),
-      ],
+      albums: <Album>[Album(id: 'ext-deezer-album-1', name: 'Remote Album')],
       songs: <Song>[
-        Song(
-          id: 'provider-song-1',
-          title: 'Remote Song',
-          isExternal: true,
-        ),
+        Song(id: 'provider-song-1', title: 'Remote Song', isExternal: true),
       ],
     );
   }
@@ -2514,7 +2457,7 @@ Future<_Response> _request(
 }
 
 class _DiagnosticsFixture {
-  _DiagnosticsFixture({
+  new({
     required this.server,
     required this.container,
     required this.database,
@@ -2544,7 +2487,7 @@ class _DiagnosticsFixture {
 }
 
 class _Response {
-  const _Response({required this.statusCode, required this.body});
+  const new({required this.statusCode, required this.body});
 
   final int statusCode;
   final Map<String, dynamic> body;

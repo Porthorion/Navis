@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -49,9 +49,7 @@ void main() {
   group('SearchScreen focus behavior', () {
     testWidgets(
       'focus request focuses the search bar when player is collapsed',
-      (
-        tester,
-      ) async {
+      (tester) async {
         if (!sqliteAvailable) {
           return;
         }
@@ -114,9 +112,7 @@ void main() {
 
       expect(
         tester
-            .widget<IconButton>(
-              find.widgetWithIcon(IconButton, Icons.close),
-            )
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.close))
             .tooltip,
         'Clear search',
       );

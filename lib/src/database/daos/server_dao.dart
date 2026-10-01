@@ -6,7 +6,7 @@ part 'server_dao.g.dart';
 
 @DriftAccessor(tables: [ServerConfigTable])
 class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
-  ServerDao(super.db);
+  new(super.db);
 
   Stream<ServerConfigTableData?> watchActiveServer() {
     final query = select(serverConfigTable)
@@ -44,15 +44,13 @@ class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
   }
 
   Future<void> markSignedOut() {
-    return update(serverConfigTable).write(
-      const ServerConfigTableCompanion(isAuthenticated: Value(false)),
-    );
+    return update(serverConfigTable)
+        .write(const ServerConfigTableCompanion(isAuthenticated: Value(false)));
   }
 
   Future<void> updateLastSynced(DateTime value) {
-    return update(serverConfigTable).write(
-      ServerConfigTableCompanion(lastSynced: Value(value)),
-    );
+    return update(serverConfigTable)
+        .write(ServerConfigTableCompanion(lastSynced: Value(value)));
   }
 
   Future<void> updateSyncTimestamps({
@@ -65,17 +63,12 @@ class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
           ? const Value.absent()
           : Value(lastFullSynced),
     );
-    return update(serverConfigTable).write(
-      companion,
-    );
+    return update(serverConfigTable).write(companion);
   }
 
   Future<void> updateCapabilities(String? value) {
-    return update(serverConfigTable).write(
-      ServerConfigTableCompanion(
-        capabilities: Value(value),
-      ),
-    );
+    return update(serverConfigTable)
+        .write(ServerConfigTableCompanion(capabilities: Value(value)));
   }
 
   Future<void> clearSyncTimestamps() {

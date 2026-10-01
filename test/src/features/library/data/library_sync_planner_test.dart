@@ -10,14 +10,11 @@ void main() {
     final album = LibrarySyncTarget.album(sharedId);
     final playlist = LibrarySyncTarget.playlist(sharedId);
 
-    expect(
-      <String>{
-        librarySyncTargetWorkKey(artist),
-        librarySyncTargetWorkKey(album),
-        librarySyncTargetWorkKey(playlist),
-      },
-      hasLength(3),
-    );
+    expect(<String>{
+      librarySyncTargetWorkKey(artist),
+      librarySyncTargetWorkKey(album),
+      librarySyncTargetWorkKey(playlist),
+    }, hasLength(3));
     expect(
       librarySyncTargetEntityIdFromWorkKey(
         LibrarySyncTargetKind.playlist,
@@ -144,9 +141,7 @@ void main() {
   });
 
   test('unchanged fresh domains produce a true no-op', () {
-    final plan = planner.plan(
-      context(due: false, indexChanged: false),
-    );
+    final plan = planner.plan(context(due: false, indexChanged: false));
     expect(plan.kind, LibrarySyncPlanKind.probe);
     expect(plan.shouldExecute, isFalse);
   });
@@ -213,25 +208,18 @@ void main() {
   );
 
   test('explainable index change selects bounded delta reconciliation', () {
-    final plan = planner.plan(
-      context(indexChanged: true, explainable: true),
-    );
+    final plan = planner.plan(context(indexChanged: true, explainable: true));
     expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
   });
 
   test('unexplained or regressing change selects a catalog snapshot', () {
-    final plan = planner.plan(
-      context(indexChanged: true, explainable: false),
-    );
+    final plan = planner.plan(context(indexChanged: true, explainable: false));
     expect(plan.kind, LibrarySyncPlanKind.catalogSnapshot);
   });
 
   test('unsupported indexes select only a due compatibility partition', () {
     final plan = planner.plan(
-      context(
-        indexes: SyncCapabilityMode.unsupported,
-        auditDue: true,
-      ),
+      context(indexes: SyncCapabilityMode.unsupported, auditDue: true),
     );
     expect(plan.kind, LibrarySyncPlanKind.compatibilityAudit);
   });
@@ -258,10 +246,7 @@ void main() {
 
   test('metered wifi follows the same automatic probe guard', () {
     final plan = planner.plan(
-      context(
-        networkType: NetworkType.wifi,
-        restrictsBackgroundSync: true,
-      ),
+      context(networkType: NetworkType.wifi, restrictsBackgroundSync: true),
     );
     expect(plan.kind, LibrarySyncPlanKind.probe);
     expect(plan.reason, 'cellularProbeOnly');
@@ -291,9 +276,7 @@ void main() {
   });
 
   test('automatic repair waits for foreground idle unmetered safety', () {
-    final plan = planner.plan(
-      context(repairRequired: true, playing: true),
-    );
+    final plan = planner.plan(context(repairRequired: true, playing: true));
     expect(plan.kind, LibrarySyncPlanKind.fullRepair);
     expect(plan.deferred, isTrue);
   });

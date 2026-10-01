@@ -1,10 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Shell-managed player surfaces ordered from bottom to top.
-enum PlayerOverlayRoute {
-  nowPlaying,
-  queue,
-}
+enum PlayerOverlayRoute { nowPlaying, queue }
 
 /// Controls the stack of player surfaces shown above the main shell content.
 ///

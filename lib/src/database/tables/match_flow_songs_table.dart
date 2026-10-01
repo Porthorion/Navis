@@ -5,11 +5,8 @@ class MatchFlowSongsTable extends Table {
   @override
   String get tableName => 'match_flow_songs';
 
-  TextColumn get flowId => text().references(
-    MatchFlowsTable,
-    #id,
-    onDelete: KeyAction.cascade,
-  )();
+  TextColumn get flowId =>
+      text().references(MatchFlowsTable, #id, onDelete: KeyAction.cascade)();
 
   TextColumn get songId => text()();
 

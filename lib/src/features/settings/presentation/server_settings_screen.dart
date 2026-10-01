@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +22,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
-  const ServerSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<ServerSettingsScreen> createState() =>
@@ -272,9 +272,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         const SizedBox(height: 8),
 
                         if (desktopMode &&
-                            resolveAdaptiveContextFor(
-                                  context,
-                                ).desktopLayoutClass !=
+                            resolveAdaptiveContextFor(context)
+                                    .desktopLayoutClass !=
                                 DesktopLayoutClass.compactDesktop)
                           Row(
                             key: const ValueKey<String>(
@@ -675,7 +674,7 @@ enum _SignOutAction { keepData, wipeData }
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const new({required this.title});
 
   final String title;
 
@@ -696,7 +695,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ServerInfoRow extends StatelessWidget {
-  const _ServerInfoRow({required this.label, required this.value});
+  const new({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -715,9 +714,7 @@ class _ServerInfoRow extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          Expanded(
-            child: Text(value, style: theme.textTheme.bodyMedium),
-          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );
@@ -729,7 +726,7 @@ class _ServerInfoRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LastFmCard extends StatelessWidget {
-  const _LastFmCard({
+  const new({
     required this.settings,
     required this.isBundled,
     required this.isSaving,
@@ -906,7 +903,7 @@ class _LastFmCard extends StatelessWidget {
 }
 
 class _ListenBrainzCard extends StatelessWidget {
-  const _ListenBrainzCard({
+  const new({
     required this.settings,
     required this.isBusy,
     required this.obscureToken,
@@ -1025,9 +1022,7 @@ class _ListenBrainzCard extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.verified_outlined),
-                    label: Text(
-                      l10n.configurationListenBrainzValidateAndSave,
-                    ),
+                    label: Text(l10n.configurationListenBrainzValidateAndSave),
                   ),
                 TextButton.icon(
                   onPressed: onOpenTokenSettings,

@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 /// not a POSIX path, so all interaction with it must stay behind this bridge.
 /// Calls are unavailable on non-Android platforms.
 class AndroidSafStorage {
-  const AndroidSafStorage();
+  const new();
 
   static const MethodChannel _channel = MethodChannel(
     'com.navis.app/permanent_download_storage',
@@ -59,9 +59,7 @@ class AndroidSafStorage {
         .whereType<Map<Object?, Object?>>()
         .map(
           (value) => AndroidSafDocument.fromMap(
-            value.map<String, dynamic>(
-              (key, item) => MapEntry('$key', item),
-            ),
+            value.map<String, dynamic>((key, item) => MapEntry('$key', item)),
           ),
         )
         .toList(growable: false);
@@ -74,10 +72,10 @@ class AndroidSafStorage {
     required String treeUri,
     required String relativePath,
   }) => _invoke(
-    () => _channel.invokeMethod<String>(
-      'findDocument',
-      <String, Object?>{'treeUri': treeUri, 'relativePath': relativePath},
-    ),
+    () => _channel.invokeMethod<String>('findDocument', <String, Object?>{
+      'treeUri': treeUri,
+      'relativePath': relativePath,
+    }),
     'Could not read the selected Android folder.',
   );
 
@@ -85,10 +83,9 @@ class AndroidSafStorage {
   /// filesystem path. This keeps parser/SQLite libraries off `content://`.
   Future<File> materialize(String uri) async {
     final path = await _invoke(
-      () => _channel.invokeMethod<String>(
-        'materialize',
-        <String, Object?>{'uri': uri},
-      ),
+      () => _channel.invokeMethod<String>('materialize', <String, Object?>{
+        'uri': uri,
+      }),
       'Could not read the selected document.',
     );
     if (path == null || path.isEmpty) {
@@ -120,16 +117,13 @@ class AndroidSafStorage {
     bool replace = true,
   }) async {
     final uri = await _invoke(
-      () => _channel.invokeMethod<String>(
-        'writeFromFile',
-        <String, Object?>{
-          'treeUri': treeUri,
-          'relativePath': relativePath,
-          'sourcePath': source.path,
-          'mimeType': mimeType,
-          'replace': replace,
-        },
-      ),
+      () => _channel.invokeMethod<String>('writeFromFile', <String, Object?>{
+        'treeUri': treeUri,
+        'relativePath': relativePath,
+        'sourcePath': source.path,
+        'mimeType': mimeType,
+        'replace': replace,
+      }),
       'Could not write into the selected folder.',
     );
     if (uri == null || uri.isEmpty) {
@@ -150,10 +144,9 @@ class AndroidSafStorage {
 
   Future<bool> exists(String uri) async {
     return await _invoke<bool?>(
-          () => _channel.invokeMethod<bool>(
-            'exists',
-            <String, Object?>{'uri': uri},
-          ),
+          () => _channel.invokeMethod<bool>('exists', <String, Object?>{
+            'uri': uri,
+          }),
           'Could not check the selected document.',
         ) ??
         false;
@@ -173,13 +166,10 @@ class AndroidSafStorage {
     required String treeUri,
     required String documentUri,
   }) async =>
-      await _channel.invokeMethod<bool>(
-        'isDescendant',
-        <String, Object?>{
-          'treeUri': treeUri,
-          'documentUri': documentUri,
-        },
-      ) ??
+      await _channel.invokeMethod<bool>('isDescendant', <String, Object?>{
+        'treeUri': treeUri,
+        'documentUri': documentUri,
+      }) ??
       false;
 
   /// Returns the profile-sidecar-only deterministic tree used by Android
@@ -207,7 +197,7 @@ class AndroidSafStorage {
 }
 
 class AndroidSafTree {
-  const AndroidSafTree({
+  const new({
     required this.uri,
     required this.displayName,
     required this.canRead,
@@ -215,7 +205,7 @@ class AndroidSafTree {
     required this.canReplace,
   });
 
-  factory AndroidSafTree.fromMap(Map<String, dynamic> map) => AndroidSafTree(
+  factory fromMap(Map<String, dynamic> map) => AndroidSafTree(
     uri: map['uri'] as String,
     displayName: map['displayName'] as String? ?? 'Selected folder',
     canRead: map['canRead'] == true,
@@ -231,7 +221,7 @@ class AndroidSafTree {
 }
 
 class AndroidSafDocument {
-  const AndroidSafDocument({
+  const new({
     required this.uri,
     required this.relativePath,
     required this.displayName,
@@ -239,14 +229,13 @@ class AndroidSafDocument {
     required this.mimeType,
   });
 
-  factory AndroidSafDocument.fromMap(Map<String, dynamic> map) =>
-      AndroidSafDocument(
-        uri: map['uri'] as String,
-        relativePath: map['relativePath'] as String,
-        displayName: map['displayName'] as String,
-        size: (map['size'] as num?)?.toInt() ?? 0,
-        mimeType: map['mimeType'] as String?,
-      );
+  factory fromMap(Map<String, dynamic> map) => AndroidSafDocument(
+    uri: map['uri'] as String,
+    relativePath: map['relativePath'] as String,
+    displayName: map['displayName'] as String,
+    size: (map['size'] as num?)?.toInt() ?? 0,
+    mimeType: map['mimeType'] as String?,
+  );
 
   final String uri;
   final String relativePath;

@@ -6,7 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 
 /// Outcome of album/artist identity reconciliation during promotion.
 class EntityIdentityReconciliationSummary {
-  EntityIdentityReconciliationSummary({
+  new({
     this.albumAliases = 0,
     this.artistAliases = 0,
     this.albumRestoredLikes = 0,
@@ -35,7 +35,7 @@ class EntityIdentityReconciliationSummary {
 /// Runs inside the promotion transaction so a crash cannot leave aliases and
 /// row moves half-applied.
 class EntityIdentityReconciler {
-  const EntityIdentityReconciler(this._database);
+  const new(this._database);
 
   final NavisDatabase _database;
 
@@ -384,7 +384,7 @@ class EntityIdentityReconciler {
 }
 
 class _EntityDecision {
-  const _EntityDecision({
+  const new({
     this.targetId,
     this.matchReason,
     this.reviewReason,

@@ -346,9 +346,7 @@ final networkUsageTotalProvider = StreamProvider.family<NetworkUsageTotal, int>(
     return ref
         .watch(navisDatabaseProvider)
         .networkUsageDao
-        .watchTotalSince(
-          since,
-        );
+        .watchTotalSince(since);
   },
 );
 
@@ -358,7 +356,7 @@ final networkUsageSessionTotalsProvider =
     });
 
 class StreamingQuality {
-  const StreamingQuality({required this.label, this.maxBitRate, this.format});
+  const new({required this.label, this.maxBitRate, this.format});
 
   final String label;
   final int? maxBitRate;
@@ -559,7 +557,7 @@ final lastFmApiKeyProvider = Provider<String>((ref) {
     if (_syncDiagnosticsMode == 'clone' &&
         _syncDiagnosticsLastFmKeyFile.isNotEmpty) {
       try {
-        final path = _syncDiagnosticsLastFmKeyFile;
+        const path = _syncDiagnosticsLastFmKeyFile;
         if (FileSystemEntity.typeSync(path, followLinks: false) !=
             FileSystemEntityType.file) {
           return '';
@@ -737,8 +735,9 @@ final annotationSyncDispatcherProvider = Provider<AnnotationSyncDispatcher>((
             ) ||
             uri?.scheme != 'http' ||
             !const {'127.0.0.1', '::1'}.contains(uri?.host) ||
-            config.username != 'diagnostics')
+            config.username != 'diagnostics') {
           return null;
+        }
       }
       return '${config.id}|${config.url}|${config.username}';
     },
@@ -746,8 +745,9 @@ final annotationSyncDispatcherProvider = Provider<AnnotationSyncDispatcher>((
   );
   // Isolated diagnostics never transmit copied user annotations to a server.
   if (!const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') ||
-      const bool.fromEnvironment('NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE'))
+      const bool.fromEnvironment('NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE')) {
     dispatcher.start();
+  }
   ref.onDispose(dispatcher.dispose);
   return dispatcher;
 });
@@ -792,9 +792,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         .then<void>(
           (_) {},
           onError: (Object error) {
-            AppLogger.info(
-              'Connectivity unknown before queue restore: $error',
-            );
+            AppLogger.info('Connectivity unknown before queue restore: $error');
           },
         );
     AppSettingsModel? hydratedSettings;
@@ -881,9 +879,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       startPersonalRadio: (autoPlay) async =>
           (await ref
                   .read(personalRadioProvider.notifier)
-                  .start(
-                    autoPlay: autoPlay,
-                  ))
+                  .start(autoPlay: autoPlay))
               .succeeded,
       startPreferredMix: (seedId) async {
         final settings = await ref
@@ -1017,7 +1013,7 @@ enum AudioBootstrapStatus { initializing, ready, failed }
 enum PlaybackUnavailableReason { initializing, startupFailed, unavailable }
 
 class PlaybackUnavailableException implements Exception {
-  const PlaybackUnavailableException({required this.reason, this.message});
+  const new({required this.reason, this.message});
 
   final PlaybackUnavailableReason reason;
   final String? message;
@@ -1027,7 +1023,7 @@ class PlaybackUnavailableException implements Exception {
 }
 
 class AudioBootstrapState {
-  const AudioBootstrapState({
+  const new({
     required this.status,
     this.handler,
     this.errorMessage,
@@ -1037,39 +1033,32 @@ class AudioBootstrapState {
     this.recoveredFromTimeout = false,
   });
 
-  const AudioBootstrapState.initializing({int attempt = 0})
+  const new initializing({this.attempt = 0})
     : status = AudioBootstrapStatus.initializing,
       handler = null,
       errorMessage = null,
-      attempt = attempt,
       elapsedMs = null,
       timedOut = false,
       recoveredFromTimeout = false;
 
-  const AudioBootstrapState.ready(
+  const new ready(
     NavisPlaybackHandler readyHandler, {
-    int attempt = 0,
-    int? elapsedMs,
-    bool recoveredFromTimeout = false,
+    this.attempt = 0,
+    this.elapsedMs,
+    this.recoveredFromTimeout = false,
   }) : status = AudioBootstrapStatus.ready,
        handler = readyHandler,
        errorMessage = null,
-       attempt = attempt,
-       elapsedMs = elapsedMs,
-       timedOut = false,
-       recoveredFromTimeout = recoveredFromTimeout;
+       timedOut = false;
 
-  const AudioBootstrapState.failed(
+  const new failed(
     String failureMessage, {
-    int attempt = 0,
-    int? elapsedMs,
-    bool timedOut = false,
+    this.attempt = 0,
+    this.elapsedMs,
+    this.timedOut = false,
   }) : status = AudioBootstrapStatus.failed,
        handler = null,
        errorMessage = failureMessage,
-       attempt = attempt,
-       elapsedMs = elapsedMs,
-       timedOut = timedOut,
        recoveredFromTimeout = false;
 
   final AudioBootstrapStatus status;
@@ -1316,14 +1305,14 @@ final audioBootstrapControllerProvider =
     );
 
 class AlbumWithSongs {
-  const AlbumWithSongs({required this.album, required this.songs});
+  const new({required this.album, required this.songs});
 
   final AlbumsTableData album;
   final List<SongsTableData> songs;
 }
 
 class ArtistAlbumSections {
-  const ArtistAlbumSections({
+  const new({
     this.albums = const <AlbumsTableData>[],
     this.featuredIn = const <AlbumsTableData>[],
   });
@@ -1345,10 +1334,7 @@ final likedArtistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
 });
 
 final artistByIdProvider = StreamProvider.autoDispose
-    .family<ArtistsTableData?, String>((
-      ref,
-      artistId,
-    ) {
+    .family<ArtistsTableData?, String>((ref, artistId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchArtistById(artistId);
     });
@@ -1436,10 +1422,7 @@ final likedAlbumCountProvider = StreamProvider<int>((ref) {
 // Each page request (limit 60, 120, ...) is its own instance; auto-dispose
 // frees earlier limits once the grid watches the next one.
 final pagedAlbumsProvider = StreamProvider.autoDispose
-    .family<List<AlbumsTableData>, AlbumPageRequest>((
-      ref,
-      request,
-    ) {
+    .family<List<AlbumsTableData>, AlbumPageRequest>((ref, request) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchAlbumsPage(sort: request.sort, limit: request.limit);
     });
@@ -1512,10 +1495,7 @@ final songsBySortProvider =
 // Per-song and per-list families are auto-disposed: rows are created while
 // scrolling long lists, and each instance holds a live database watch.
 final songByIdProvider = StreamProvider.autoDispose
-    .family<SongsTableData?, String>((
-      ref,
-      songId,
-    ) {
+    .family<SongsTableData?, String>((ref, songId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchSongById(songId);
     });
@@ -1597,10 +1577,7 @@ AlbumTileDownloadState albumTileDownloadStateFromSummary(
     downloadedTrackCount: downloaded,
     totalTrackCount: total,
     queued: summary.queued,
-    progress: ((downloaded + summary.inFlightProgress) / total).clamp(
-      0.0,
-      1.0,
-    ),
+    progress: ((downloaded + summary.inFlightProgress) / total).clamp(0.0, 1.0),
   );
 }
 
@@ -1749,9 +1726,7 @@ final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
   yield* handler.snapshotStream;
 });
 
-final transportVisualCueProvider = StreamProvider<TransportVisualCue>((
-  ref,
-) {
+final transportVisualCueProvider = StreamProvider<TransportVisualCue>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {
     return const Stream<TransportVisualCue>.empty();
@@ -1830,9 +1805,7 @@ final playbackPositionProvider = StreamProvider<Duration>((ref) {
 final playbackBufferStateProvider = StreamProvider<PlaybackBufferState>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {
-    return Stream<PlaybackBufferState>.value(
-      const PlaybackBufferState.idle(),
-    );
+    return Stream<PlaybackBufferState>.value(const PlaybackBufferState.idle());
   }
   return Stream<PlaybackBufferState>.multi((controller) {
     controller.add(handler.bufferState);
@@ -1875,10 +1848,7 @@ class PlaybackVolumeController extends Notifier<double> {
   bool get hydrated => _hydrated;
   bool get persistenceEnabled => _persistenceEnabled;
 
-  double hydrate({
-    required double volume,
-    required double lastAudibleVolume,
-  }) {
+  double hydrate({required double volume, required double lastAudibleVolume}) {
     if (_hydrated || !persistenceEnabled) {
       return state;
     }
@@ -1901,9 +1871,7 @@ class PlaybackVolumeController extends Notifier<double> {
     final handler = ref.read(audioHandlerProvider);
     await handler?.setVolume(state);
     if (persistImmediately) {
-      await _persistCurrentVolume(
-        throwOnFailure: throwOnPersistenceFailure,
-      );
+      await _persistCurrentVolume(throwOnFailure: throwOnPersistenceFailure);
     } else {
       _schedulePersistence();
     }
@@ -1921,9 +1889,7 @@ class PlaybackVolumeController extends Notifier<double> {
     state = resolved;
     final handler = ref.read(audioHandlerProvider);
     await handler?.setVolume(state);
-    await _persistCurrentVolume(
-      throwOnFailure: throwOnPersistenceFailure,
-    );
+    await _persistCurrentVolume(throwOnFailure: throwOnPersistenceFailure);
     return state;
   }
 
@@ -2160,7 +2126,7 @@ final downloadQueueProvider = StreamProvider<List<DownloadQueueTableData>>((
 });
 
 class CacheStats {
-  const CacheStats({required this.trackCount, required this.totalBytes});
+  const new({required this.trackCount, required this.totalBytes});
 
   final int trackCount;
   final int totalBytes;
@@ -2606,11 +2572,7 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
 
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
-  return UpdateService(
-    networkUsageReporter: ({required category, required bytes, operation}) {
-      meter.record(category: category, bytes: bytes, operation: operation);
-    },
-  );
+  return UpdateService(networkUsageReporter: meter.record);
 });
 
 /// Checks whether a newer Navis release is available on Forgejo.

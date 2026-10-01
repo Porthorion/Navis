@@ -1,7 +1,7 @@
 part of 'home_screen.dart';
 
 class _RandomHeroShimmer extends StatelessWidget {
-  const _RandomHeroShimmer({
+  const new({
     required this.desktopMode,
     required this.adaptiveLayoutClass,
     this.density = _HomeSectionDensity.comfortable,
@@ -67,7 +67,7 @@ class _RandomHeroShimmer extends StatelessWidget {
 }
 
 class _CarouselShimmer extends StatelessWidget {
-  const _CarouselShimmer({
+  const new({
     required this.compactWideLandscapeMode,
     this.density = _HomeSectionDensity.comfortable,
   });
@@ -93,13 +93,8 @@ class _CarouselShimmer extends StatelessWidget {
             width: cardSize,
             child: Card(
               clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: NavisRadius.mdAll,
-              ),
-              child: ShimmerPlaceholder(
-                height: cardSize,
-                width: cardSize,
-              ),
+              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+              child: ShimmerPlaceholder(height: cardSize, width: cardSize),
             ),
           );
         },
@@ -109,9 +104,7 @@ class _CarouselShimmer extends StatelessWidget {
 }
 
 class _ListShimmer extends StatelessWidget {
-  const _ListShimmer({
-    this.density = _HomeSectionDensity.comfortable,
-  });
+  const new({this.density = _HomeSectionDensity.comfortable});
 
   final _HomeSectionDensity density;
 
@@ -138,7 +131,7 @@ class _ListShimmer extends StatelessWidget {
 }
 
 class _UpdateBanner extends ConsumerWidget {
-  const _UpdateBanner();
+  const new();
 
   Future<void> _handleUpdateAction(
     BuildContext context,
@@ -165,11 +158,7 @@ class _UpdateBanner extends ConsumerWidget {
     }
 
     if (info.downloadUrl != null) {
-      await showUpdateDialog(
-        context,
-        info,
-        updateService: updateService,
-      );
+      await showUpdateDialog(context, info, updateService: updateService);
       return;
     }
 
@@ -221,20 +210,14 @@ class _UpdateBanner extends ConsumerWidget {
 }
 
 class _ListenBrainzArtwork extends StatelessWidget {
-  const _ListenBrainzArtwork({
-    required this.playlist,
-    required this.size,
-  });
+  const new({required this.playlist, required this.size});
 
   final ListenBrainzDiscoverPlaylist playlist;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    return ListenBrainzPlaylistArtwork(
-      playlist: playlist,
-      size: size,
-    );
+    return ListenBrainzPlaylistArtwork(playlist: playlist, size: size);
   }
 }
 
@@ -252,7 +235,7 @@ Future<void> _showListenBrainzDiscoverDetail(
 }
 
 class _ListenBrainzRecommendationTile extends ConsumerWidget {
-  const _ListenBrainzRecommendationTile({
+  const new({
     required this.recommendation,
     required this.index,
     required this.onPlay,

@@ -14,10 +14,7 @@ Widget _remoteLoadingPlayPauseIcon({
     final dimension = size ?? 22.0;
     return SizedBox.square(
       dimension: dimension,
-      child: CircularProgressIndicator(
-        color: loadingColor,
-        strokeWidth: 2.4,
-      ),
+      child: CircularProgressIndicator(color: loadingColor, strokeWidth: 2.4),
     );
   }
   return Icon(
@@ -27,7 +24,7 @@ Widget _remoteLoadingPlayPauseIcon({
 }
 
 class _RailMiniPlayer extends ConsumerStatefulWidget {
-  const _RailMiniPlayer({
+  const new({
     required this.playback,
     required this.onOpenPlayer,
     this.songTitle,
@@ -181,48 +178,23 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      canNavigateTitle
-                                          ? GestureDetector(
-                                              behavior: HitTestBehavior.opaque,
-                                              onTap: () => unawaited(
-                                                NormalPlaybackMetadataNavigator.goToTitle(
-                                                  context,
-                                                  ref,
-                                                  title: widget.songTitle,
-                                                  albumId: widget.albumId,
-                                                  artistId: widget.artistId,
-                                                  artistName: widget.songArtist,
-                                                ),
-                                              ),
-                                              child: MouseRegion(
-                                                cursor:
-                                                    SystemMouseCursors.click,
-                                                child: Text(
-                                                  widget.songTitle!,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  softWrap: false,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        color: cs.primary,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 17,
-                                                        height: 1.15,
-                                                      ),
-                                                ),
-                                              ),
-                                            )
-                                          : Text(
-                                              (widget.songTitle == null ||
-                                                      widget.songTitle!
-                                                          .trim()
-                                                          .isEmpty)
-                                                  ? l10n.miniPlayerUnknownTrack
-                                                  : widget.songTitle!,
+                                      if (canNavigateTitle)
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => unawaited(
+                                            NormalPlaybackMetadataNavigator.goToTitle(
+                                              context,
+                                              ref,
+                                              title: widget.songTitle,
+                                              albumId: widget.albumId,
+                                              artistId: widget.artistId,
+                                              artistName: widget.songArtist,
+                                            ),
+                                          ),
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: Text(
+                                              widget.songTitle!,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               softWrap: false,
@@ -230,48 +202,54 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                   .textTheme
                                                   .bodyMedium
                                                   ?.copyWith(
+                                                    color: cs.primary,
                                                     fontWeight: FontWeight.w700,
                                                     fontSize: 17,
                                                     height: 1.15,
                                                   ),
                                             ),
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          (widget.songTitle == null ||
+                                                  widget.songTitle!
+                                                      .trim()
+                                                      .isEmpty)
+                                              ? l10n.miniPlayerUnknownTrack
+                                              : widget.songTitle!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          softWrap: false,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 17,
+                                                height: 1.15,
+                                              ),
+                                        ),
                                       if (widget.isExternalSource)
                                         const RemoteSourceIndicator(
                                           variant: RemoteSourceIndicatorVariant
                                               .inline,
                                         ),
                                       const SizedBox(height: 1),
-                                      canNavigateArtist
-                                          ? GestureDetector(
-                                              behavior: HitTestBehavior.opaque,
-                                              onTap: () => unawaited(
-                                                NormalPlaybackMetadataNavigator.goToArtist(
-                                                  context,
-                                                  ref,
-                                                  artistId: widget.artistId,
-                                                  artistName: widget.songArtist,
-                                                ),
-                                              ),
-                                              child: MouseRegion(
-                                                cursor:
-                                                    SystemMouseCursors.click,
-                                                child: Text(
-                                                  artistDisplay,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: cs.primary,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                ),
-                                              ),
-                                            )
-                                          : Text(
+                                      if (canNavigateArtist)
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => unawaited(
+                                            NormalPlaybackMetadataNavigator.goToArtist(
+                                              context,
+                                              ref,
+                                              artistId: widget.artistId,
+                                              artistName: widget.songArtist,
+                                            ),
+                                          ),
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: Text(
                                               artistDisplay,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -279,9 +257,24 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                   .textTheme
                                                   .bodySmall
                                                   ?.copyWith(
-                                                    color: cs.onSurfaceVariant,
+                                                    color: cs.primary,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                             ),
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          artistDisplay,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: cs.onSurfaceVariant,
+                                              ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -554,7 +547,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
 }
 
 class _MiniPlayerStrip extends ConsumerStatefulWidget {
-  const _MiniPlayerStrip({
+  const new({
     required this.playback,
     required this.onTap,
     this.flattenWideStyle = false,
@@ -1070,10 +1063,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
 /// The mini players' thin progress bar. It alone watches the playback
 /// position, so position ticks repaint the bar rather than the player.
 class _LivePlaybackProgressBar extends ConsumerWidget {
-  const _LivePlaybackProgressBar({
-    required this.playback,
-    required this.isRadio,
-  });
+  const new({required this.playback, required this.isRadio});
 
   final PlaybackSnapshot playback;
   final bool isRadio;
@@ -1110,11 +1100,7 @@ class _LivePlaybackProgressBar extends ConsumerWidget {
 
 /// Small square cover art for a radio station in the mini player.
 class _MiniRadioArt extends StatelessWidget {
-  const _MiniRadioArt({
-    required this.artUrl,
-    required this.colorScheme,
-    this.size = 48,
-  });
+  const new({required this.artUrl, required this.colorScheme, this.size = 48});
 
   final String? artUrl;
   final ColorScheme colorScheme;
@@ -1154,11 +1140,7 @@ class _MiniRadioArt extends StatelessWidget {
 
 /// Remote/non-library fallback cover art in the mini player.
 class _MiniRemoteArt extends StatelessWidget {
-  const _MiniRemoteArt({
-    required this.artUrl,
-    required this.colorScheme,
-    this.size = 48,
-  });
+  const new({required this.artUrl, required this.colorScheme, this.size = 48});
 
   final String? artUrl;
   final ColorScheme colorScheme;

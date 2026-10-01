@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _QueueOverlay extends StatefulWidget {
-  const _QueueOverlay({
+  const new({
     super.key,
     required this.onDismiss,
     this.fullscreen = false,

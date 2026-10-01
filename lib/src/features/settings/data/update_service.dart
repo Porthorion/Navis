@@ -16,11 +16,7 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Handles downloading a Forgejo release artifact and applying it.
 class UpdateService {
-  UpdateService({
-    Dio? dio,
-    NetworkUsageReporter? networkUsageReporter,
-  }) : _dio = dio ?? Dio(),
-       _networkUsageReporter = networkUsageReporter;
+  new({Dio? dio, this._networkUsageReporter}) : _dio = dio ?? Dio();
 
   final Dio _dio;
   final NetworkUsageReporter? _networkUsageReporter;
@@ -222,11 +218,10 @@ class UpdateService {
   // ---- Windows installer ----------------------------------------------------
 
   Future<void> _applyWindowsInstaller(String exePath) async {
-    await Process.start(
-      exePath,
-      ['/SILENT', '/CLOSEAPPLICATIONS'],
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start(exePath, [
+      '/SILENT',
+      '/CLOSEAPPLICATIONS',
+    ], mode: ProcessStartMode.detached);
     exit(0);
   }
 
@@ -249,11 +244,7 @@ class UpdateService {
     );
 
     AppLogger.info('Launching Windows updater script: $script');
-    await Process.start(
-      'cmd',
-      ['/c', script],
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start('cmd', ['/c', script], mode: ProcessStartMode.detached);
     exit(0);
   }
 
@@ -263,7 +254,7 @@ class UpdateService {
     // Resolve the .app bundle path: walk up from the executable to the
     // first ancestor that ends with ".app".
     final exe = Platform.resolvedExecutable;
-    String appBundlePath = exe;
+    var appBundlePath = exe;
     while (appBundlePath.isNotEmpty && !appBundlePath.endsWith('.app')) {
       appBundlePath = p.dirname(appBundlePath);
     }
@@ -357,9 +348,7 @@ class UpdateService {
       await for (final entity in exeDir.list()) {
         if (entity is Directory &&
             p.basename(entity.path).endsWith('.backup')) {
-          AppLogger.info(
-            'Removing leftover backup dir: ${entity.path}',
-          );
+          AppLogger.info('Removing leftover backup dir: ${entity.path}');
           await entity.delete(recursive: true);
         }
       }
@@ -372,9 +361,7 @@ class UpdateService {
       await for (final entity in tmpDir.list()) {
         if (entity is Directory &&
             p.basename(entity.path).startsWith('navis_update_staging_')) {
-          AppLogger.info(
-            'Removing leftover staging dir: ${entity.path}',
-          );
+          AppLogger.info('Removing leftover staging dir: ${entity.path}');
           await entity.delete(recursive: true);
         }
       }

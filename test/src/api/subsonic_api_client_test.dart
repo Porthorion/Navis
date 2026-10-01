@@ -8,9 +8,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/models/server_capabilities.dart';
 
 void main() {
-  SubsonicApiClient createClient({
-    required Dio dio,
-  }) {
+  SubsonicApiClient createClient({required Dio dio}) {
     return SubsonicApiClient(
       baseUrl: 'https://example.com',
       authConfig: const SubsonicAuthConfig(
@@ -771,10 +769,7 @@ void main() {
         ),
       );
 
-      await expectLater(
-        client.ping(),
-        throwsA(isA<SubsonicAuthException>()),
-      );
+      await expectLater(client.ping(), throwsA(isA<SubsonicAuthException>()));
     });
 
     test(

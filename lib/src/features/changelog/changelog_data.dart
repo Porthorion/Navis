@@ -9,7 +9,7 @@
 /// [ChangelogVersion.highlights] and, optionally, a [ChangelogVersion.codename]
 /// and [ChangelogVersion.iconAsset].
 class ChangelogVersion {
-  const ChangelogVersion({
+  const new({
     required this.version,
     required this.entries,
     this.released,
@@ -81,7 +81,7 @@ class ChangelogVersion {
 }
 
 class ChangelogEntry {
-  const ChangelogEntry(this.text, {this.type = ChangelogEntryType.improvement});
+  const new(this.text, {this.type = ChangelogEntryType.improvement});
 
   final String text;
   final ChangelogEntryType type;
@@ -91,11 +91,7 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 
 /// A headline change of a major release.
 class ChangelogHighlight {
-  const ChangelogHighlight({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
+  const new({required this.icon, required this.title, required this.body});
 
   final ChangelogHighlightIcon icon;
 
@@ -160,7 +156,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Desktop now has Back and Forward: buttons at the top of the sidebar, Alt+Left/Right (Cmd+[ and Cmd+] on macOS) and the mouse side buttons. They remember each tab\'s pages, work from the moment Navis opens, and never jump you to a different tab\'s copy of a page',
+        "Desktop now has Back and Forward: buttons at the top of the sidebar, Alt+Left/Right (Cmd+[ and Cmd+] on macOS) and the mouse side buttons. They remember each tab's pages, work from the moment Navis opens, and never jump you to a different tab's copy of a page",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -599,7 +595,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'You Might Like on phones shows whole, uncropped square covers in a swipeable cover flow, with the title, artist, year, song count and why it was picked beneath, a Play button on the focused cover, and a soft wash of the cover\'s colours behind it. On desktop the track list gains the same reason line and Play and Shuffle buttons',
+        "You Might Like on phones shows whole, uncropped square covers in a swipeable cover flow, with the title, artist, year, song count and why it was picked beneath, a Play button on the focused cover, and a soft wash of the cover's colours behind it. On desktop the track list gains the same reason line and Play and Shuffle buttons",
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -611,7 +607,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'The You Might Like colour wash is now a smooth gradient drawn from each cover\'s colours, so it no longer looks pixelated on wide displays, and it blends between picks. In song lists, the Remote badge sits beside the title instead of on its own line, so remote songs line up with the rest',
+        "The You Might Like colour wash is now a smooth gradient drawn from each cover's colours, so it no longer looks pixelated on wide displays, and it blends between picks. In song lists, the Remote badge sits beside the title instead of on its own line, so remote songs line up with the rest",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -623,7 +619,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'On wide Home layouts the You Might Like arrows sit beside the cover strip instead of covering the track list\'s menus',
+        "On wide Home layouts the You Might Like arrows sit beside the cover strip instead of covering the track list's menus",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -725,9 +721,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
     ],
-    specialThanks: [
-      'To AJDxB for giving me the on-boarding page idea.',
-    ],
+    specialThanks: ['To AJDxB for giving me the on-boarding page idea.'],
   ),
   ChangelogVersion(
     version: '1.2.10',
@@ -2070,7 +2064,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Android Auto: Search tab for finding music directly from your car\'s head unit',
+        "Android Auto: Search tab for finding music directly from your car's head unit",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -2171,7 +2165,7 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       // New
       ChangelogEntry(
-        'Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car\'s head unit',
+        "Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car's head unit",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -2289,11 +2283,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Added What\'s New page in About settings showing what changed in the current version',
+        "Added What's New page in About settings showing what changed in the current version",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'App now shows a What\'s New summary on first launch after an update',
+        "App now shows a What's New summary on first launch after an update",
         type: ChangelogEntryType.newFeature,
       ),
       // Improved

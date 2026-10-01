@@ -17,13 +17,7 @@ final libraryScrollToTopRequestProvider =
       _LibraryScrollToTopNotifier.new,
     );
 
-enum LibrarySection {
-  albums,
-  liked,
-  artists,
-  playlists,
-  radio,
-}
+enum LibrarySection { albums, liked, artists, playlists, radio }
 
 const List<LibrarySection> defaultLibraryPageOrder = <LibrarySection>[
   LibrarySection.albums,
@@ -128,7 +122,7 @@ final libraryTypeFilterDiagnosticsProvider =
 
 /// Clone-only diagnostics command, consumed by the mounted Albums or Liked scroll view.
 class LibraryScrollDiagnosticsRequest {
-  LibraryScrollDiagnosticsRequest(this.pixels);
+  new(this.pixels);
   final double pixels;
   final completed = Completer<double>();
 }

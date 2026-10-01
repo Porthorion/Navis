@@ -16,7 +16,7 @@ abstract final class LibraryCandidateApplyState {
 }
 
 class CandidateApplyCounts {
-  const CandidateApplyCounts({
+  const new({
     required this.changed,
     required this.unchanged,
     required this.unclassified,
@@ -39,7 +39,7 @@ class CandidateApplyCounts {
 )
 class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncCandidateDaoMixin {
-  LibrarySyncCandidateDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const _candidateWritePageSize = 384;
   static const _candidateCleanupPageSize = 512;
@@ -566,9 +566,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }
@@ -585,9 +583,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }
@@ -604,9 +600,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.generation.equals(generation) &
                 table.applyState.isNull(),
           )
-          ..orderBy([
-            (table) => OrderingTerm.asc(table.id),
-          ])
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
           ..limit(limit))
         .get();
   }

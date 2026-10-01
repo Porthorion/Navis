@@ -11,8 +11,7 @@ import 'package:navis/src/features/player/presentation/personal_radio_notifier.d
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-class _MockRecommendationService extends Mock
-    implements RecommendationService {}
+class _MockRecommendationService extends Mock implements RecommendationService;
 
 class _SnapshotController extends Notifier<PlaybackSnapshot> {
   @override
@@ -35,7 +34,7 @@ class _SnapshotController extends Notifier<PlaybackSnapshot> {
 }
 
 class _QueueController extends QueueController {
-  _QueueController(this.onReplace);
+  new(this.onReplace);
 
   final void Function(List<String>) onReplace;
   int replacementCount = 0;
@@ -67,9 +66,7 @@ void main() {
     late final ProviderContainer container;
     container = ProviderContainer(
       overrides: [
-        playerStateProvider.overrideWith(
-          (ref) => ref.watch(snapshotProvider),
-        ),
+        playerStateProvider.overrideWith((ref) => ref.watch(snapshotProvider)),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWithValue(null),
         recommendationServiceProvider.overrideWithValue(service),

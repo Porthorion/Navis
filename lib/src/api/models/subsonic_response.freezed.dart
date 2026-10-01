@@ -29,16 +29,21 @@ $SubsonicErrorResponseCopyWith<SubsonicErrorResponse> get copyWith => _$Subsonic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubsonicErrorResponse&&(identical(other.code, code) || other.code == code)&&(identical(other.message, message) || other.message == message));
+  final _this = this as SubsonicErrorResponse;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubsonicErrorResponse&&(identical(other.code, _this.code) || other.code == _this.code)&&(identical(other.message, _this.message) || other.message == _this.message));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,code,message);
+int get hashCode {
+  final _this = this as SubsonicErrorResponse;
+  return Object.hash(runtimeType,_this.code,_this.message);
+}
 
 @override
 String toString() {
-  return 'SubsonicErrorResponse(code: $code, message: $message)';
+  final _this = this as SubsonicErrorResponse;
+  return 'SubsonicErrorResponse(code: ${_this.code}, message: ${_this.message})';
 }
 
 
@@ -230,16 +235,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubsonicErrorResponse&&(identical(other.code, code) || other.code == code)&&(identical(other.message, message) || other.message == message));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubsonicErrorResponse&&(identical(other.code, code) || other.code == code)&&(identical(other.message, message) || other.message == message));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,code,message);
+int get hashCode {
+    return Object.hash(runtimeType,code,message);
+}
 
 @override
 String toString() {
-  return 'SubsonicErrorResponse(code: $code, message: $message)';
+    return 'SubsonicErrorResponse(code: $code, message: $message)';
 }
 
 
@@ -295,16 +302,21 @@ $SubsonicResponseCopyWith<T, SubsonicResponse<T>> get copyWith => _$SubsonicResp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubsonicResponse<T>&&(identical(other.status, status) || other.status == status)&&(identical(other.version, version) || other.version == version)&&(identical(other.type, type) || other.type == type)&&(identical(other.serverVersion, serverVersion) || other.serverVersion == serverVersion)&&(identical(other.openSubsonic, openSubsonic) || other.openSubsonic == openSubsonic)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.data, data));
+  final _this = this as SubsonicResponse<T>;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubsonicResponse<T>&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.serverVersion, _this.serverVersion) || other.serverVersion == _this.serverVersion)&&(identical(other.openSubsonic, _this.openSubsonic) || other.openSubsonic == _this.openSubsonic)&&(identical(other.error, _this.error) || other.error == _this.error)&&const DeepCollectionEquality().equals(other.data, _this.data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,status,version,type,serverVersion,openSubsonic,error,const DeepCollectionEquality().hash(data));
+int get hashCode {
+  final _this = this as SubsonicResponse<T>;
+  return Object.hash(runtimeType,_this.status,_this.version,_this.type,_this.serverVersion,_this.openSubsonic,_this.error,const DeepCollectionEquality().hash(_this.data));
+}
 
 @override
 String toString() {
-  return 'SubsonicResponse<$T>(status: $status, version: $version, type: $type, serverVersion: $serverVersion, openSubsonic: $openSubsonic, error: $error, data: $data)';
+  final _this = this as SubsonicResponse<T>;
+  return 'SubsonicResponse<$T>(status: ${_this.status}, version: ${_this.version}, type: ${_this.type}, serverVersion: ${_this.serverVersion}, openSubsonic: ${_this.openSubsonic}, error: ${_this.error}, data: ${_this.data})';
 }
 
 
@@ -518,16 +530,18 @@ Map<String, dynamic> toJson(Object? Function(T) toJsonT) {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubsonicResponse<T>&&(identical(other.status, status) || other.status == status)&&(identical(other.version, version) || other.version == version)&&(identical(other.type, type) || other.type == type)&&(identical(other.serverVersion, serverVersion) || other.serverVersion == serverVersion)&&(identical(other.openSubsonic, openSubsonic) || other.openSubsonic == openSubsonic)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.data, data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubsonicResponse<T>&&(identical(other.status, status) || other.status == status)&&(identical(other.version, version) || other.version == version)&&(identical(other.type, type) || other.type == type)&&(identical(other.serverVersion, serverVersion) || other.serverVersion == serverVersion)&&(identical(other.openSubsonic, openSubsonic) || other.openSubsonic == openSubsonic)&&(identical(other.error, error) || other.error == error)&&const DeepCollectionEquality().equals(other.data, data));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,status,version,type,serverVersion,openSubsonic,error,const DeepCollectionEquality().hash(data));
+int get hashCode {
+    return Object.hash(runtimeType,status,version,type,serverVersion,openSubsonic,error,const DeepCollectionEquality().hash(data));
+}
 
 @override
 String toString() {
-  return 'SubsonicResponse<$T>(status: $status, version: $version, type: $type, serverVersion: $serverVersion, openSubsonic: $openSubsonic, error: $error, data: $data)';
+    return 'SubsonicResponse<$T>(status: $status, version: $version, type: $type, serverVersion: $serverVersion, openSubsonic: $openSubsonic, error: $error, data: $data)';
 }
 
 

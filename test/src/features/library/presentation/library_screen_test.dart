@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +36,7 @@ import '../../../../helpers/test_theme.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
-  _FakeLibrarySyncController(
+  new(
     this._initialState, {
     this.onSyncNow,
     this.onCancel,
@@ -230,9 +230,8 @@ Widget _buildLibraryScreen({
               builder: (context) => textScaler == null
                   ? const LibraryScreen()
                   : MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        textScaler: textScaler,
-                      ),
+                      data: MediaQuery.of(context)
+                          .copyWith(textScaler: textScaler),
                       child: const LibraryScreen(),
                     ),
             ),
@@ -267,9 +266,8 @@ Widget _buildLibraryScreenRouter({
           ),
           GoRoute(
             path: 'library/playlists/:playlistId',
-            builder: (context, state) => Text(
-              'Playlist detail ${state.pathParameters['playlistId']}',
-            ),
+            builder: (context, state) =>
+                Text('Playlist detail ${state.pathParameters['playlistId']}'),
           ),
         ],
       ),
@@ -808,10 +806,7 @@ void main() {
         expect(find.text('Albums'), findsOneWidget);
         expect(find.text('Downloaded'), findsOneWidget);
         expect(find.text('Recently Added'), findsOneWidget);
-        final downloadedFilter = find.widgetWithText(
-          FilterChip,
-          'Downloaded',
-        );
+        final downloadedFilter = find.widgetWithText(FilterChip, 'Downloaded');
         final sortDropdown = find.byKey(
           const ValueKey<String>('libraryAlbumSortControl'),
         );
@@ -917,9 +912,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'renders two tabs and switches between local data lists',
-      (
-        tester,
-      ) async {
+      (tester) async {
         var syncNowCalls = 0;
         await _pumpLibraryScreen(
           tester,
@@ -943,19 +936,17 @@ void main() {
             ),
             albumCountProvider.overrideWithValue(const AsyncData(1)),
             pagedAlbumsProvider.overrideWith(
-              (ref, request) => Stream.value(
-                const <AlbumsTableData>[
-                  AlbumsTableData(
-                    isProvisional: false,
-                    isExternal: false,
-                    id: 'album-1',
-                    name: 'Album 1',
-                    artistName: 'Artist 1',
-                    songsHydrated: true,
-                    artists: <ArtistRef>[],
-                  ),
-                ],
-              ),
+              (ref, request) => Stream.value(const <AlbumsTableData>[
+                AlbumsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'album-1',
+                  name: 'Album 1',
+                  artistName: 'Artist 1',
+                  songsHydrated: true,
+                  artists: <ArtistRef>[],
+                ),
+              ]),
             ),
           ],
         );
@@ -1043,9 +1034,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'shows error state and retry action triggers syncNow',
-      (
-        tester,
-      ) async {
+      (tester) async {
         var syncNowCalls = 0;
         await _pumpLibraryScreen(
           tester,
@@ -1127,9 +1116,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'sync banner shows a live song-index reference without a progress bar',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpLibraryScreen(
           tester,
           settle: false,
@@ -1174,9 +1161,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'sync banner shows metadata-ready hydration progress',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpLibraryScreen(
           tester,
           overrides: [
@@ -1350,91 +1335,87 @@ void main() {
       },
     );
 
-    _testWidgetsWithCleanup(
-      'running sync status strip exposes cancel action',
-      (tester) async {
-        var cancelCalls = 0;
-        await _pumpLibraryScreen(
-          tester,
-          overrides: [
-            librarySyncControllerProvider.overrideWith(
-              () => _FakeLibrarySyncController(
-                const LibrarySyncState(
-                  status: LibrarySyncStatus.running,
-                  stage: LibrarySyncStage.preparing,
-                ),
-                onCancel: () => cancelCalls++,
+    _testWidgetsWithCleanup('running sync status strip exposes cancel action', (
+      tester,
+    ) async {
+      var cancelCalls = 0;
+      await _pumpLibraryScreen(
+        tester,
+        overrides: [
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              const LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: LibrarySyncStage.preparing,
               ),
+              onCancel: () => cancelCalls++,
             ),
-            artistsProvider.overrideWithValue(
-              const AsyncData(<ArtistsTableData>[]),
-            ),
-            albumCountProvider.overrideWithValue(const AsyncData(0)),
-            pagedAlbumsProvider.overrideWith(
-              (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-          ],
-          settle: false,
-        );
+          ),
+          artistsProvider.overrideWithValue(
+            const AsyncData(<ArtistsTableData>[]),
+          ),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+        settle: false,
+      );
 
-        await tester.tap(
-          find.byKey(const ValueKey<String>('library-sync-status-cancel')),
-        );
-        expect(cancelCalls, 1);
-      },
-    );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('library-sync-status-cancel')),
+      );
+      expect(cancelCalls, 1);
+    });
 
-    _testWidgetsWithCleanup(
-      'failed sync status strip exposes retry action',
-      (tester) async {
-        var retryCalls = 0;
-        await _pumpLibraryScreen(
-          tester,
-          overrides: [
-            librarySyncControllerProvider.overrideWith(
-              () => _FakeLibrarySyncController(
-                const LibrarySyncState(
-                  status: LibrarySyncStatus.failed,
-                  stage: LibrarySyncStage.completed,
-                  errorMessage: 'Connection lost',
-                ),
-                onSyncNow: () => retryCalls++,
+    _testWidgetsWithCleanup('failed sync status strip exposes retry action', (
+      tester,
+    ) async {
+      var retryCalls = 0;
+      await _pumpLibraryScreen(
+        tester,
+        overrides: [
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              const LibrarySyncState(
+                status: LibrarySyncStatus.failed,
+                stage: LibrarySyncStage.completed,
+                errorMessage: 'Connection lost',
               ),
+              onSyncNow: () => retryCalls++,
             ),
-            artistsProvider.overrideWithValue(
-              const AsyncData(<ArtistsTableData>[]),
-            ),
-            albumCountProvider.overrideWithValue(const AsyncData(0)),
-            pagedAlbumsProvider.overrideWith(
-              (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-          ],
-        );
+          ),
+          artistsProvider.overrideWithValue(
+            const AsyncData(<ArtistsTableData>[]),
+          ),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+      );
 
-        expect(find.text('Last sync failed'), findsOneWidget);
-        expect(find.text('Connection lost'), findsOneWidget);
-        await tester.tap(
-          find.byKey(const ValueKey<String>('library-sync-status-retry')),
-        );
-        await tester.pump();
-        expect(retryCalls, 1);
+      expect(find.text('Last sync failed'), findsOneWidget);
+      expect(find.text('Connection lost'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey<String>('library-sync-status-retry')),
+      );
+      await tester.pump();
+      expect(retryCalls, 1);
 
-        await tester.tap(
-          find.byKey(const ValueKey<String>('library-sync-status-dismiss')),
-        );
-        await tester.pump();
-        expect(
-          find.byKey(const ValueKey<String>('library-sync-status-banner')),
-          findsNothing,
-        );
-      },
-    );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('library-sync-status-dismiss')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey<String>('library-sync-status-banner')),
+        findsNothing,
+      );
+    });
 
     _testWidgetsWithCleanup(
       'artist alphabet rail drag jumps to later sections',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
@@ -1469,10 +1450,7 @@ void main() {
         final railSize = tester.getSize(rail);
         final railCenterX = railTopLeft.dx + (railSize.width / 2);
         final start = Offset(railCenterX, railTopLeft.dy + 4);
-        final end = Offset(
-          railCenterX,
-          railTopLeft.dy + railSize.height - 4,
-        );
+        final end = Offset(railCenterX, railTopLeft.dy + railSize.height - 4);
 
         final gesture = await tester.startGesture(start);
         await gesture.moveTo(end);
@@ -1489,9 +1467,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'artist alphabet rail shows scrub overlay while dragging',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 10; i++)
             ArtistsTableData(
@@ -1543,9 +1519,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'artist alphabet rail only shows available artist initials',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final artists = <ArtistsTableData>[
           const ArtistsTableData(
             isProvisional: false,
@@ -1630,9 +1604,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'tapping an artist rail letter jumps to its section',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
@@ -1816,24 +1788,22 @@ void main() {
               ),
               playlistSyncProvider.overrideWith((ref) async {}),
               playlistLibraryItemsProvider.overrideWithValue(
-                AsyncData<List<PlaylistLibraryItem>>(
-                  <PlaylistLibraryItem>[
-                    PlaylistLibraryItem.virtual(
-                      _virtualPlaylist(
-                        identifier: 'jams',
-                        title: 'Weekly Jams',
-                        sourcePatch: 'weekly-jams',
-                      ),
+                AsyncData<List<PlaylistLibraryItem>>(<PlaylistLibraryItem>[
+                  PlaylistLibraryItem.virtual(
+                    _virtualPlaylist(
+                      identifier: 'jams',
+                      title: 'Weekly Jams',
+                      sourcePatch: 'weekly-jams',
                     ),
-                    const PlaylistLibraryItem.normal(
-                      PlaylistsTableData(
-                        id: 'server-mix',
-                        name: 'Server Mix',
-                        songCount: 3,
-                      ),
+                  ),
+                  const PlaylistLibraryItem.normal(
+                    PlaylistsTableData(
+                      id: 'server-mix',
+                      name: 'Server Mix',
+                      songCount: 3,
                     ),
-                  ],
-                ),
+                  ),
+                ]),
               ),
             ],
           ),
@@ -1876,23 +1846,21 @@ void main() {
               ),
               playlistSyncProvider.overrideWith((ref) async {}),
               playlistLibraryItemsProvider.overrideWithValue(
-                AsyncData<List<PlaylistLibraryItem>>(
-                  <PlaylistLibraryItem>[
-                    PlaylistLibraryItem.virtual(
-                      _virtualPlaylist(
-                        identifier: 'exploration',
-                        title: 'Weekly Exploration',
-                        sourcePatch: 'weekly-exploration',
-                        coverArts: const <String>[
-                          'cover-1',
-                          'cover-2',
-                          'cover-3',
-                          'cover-4',
-                        ],
-                      ),
+                AsyncData<List<PlaylistLibraryItem>>(<PlaylistLibraryItem>[
+                  PlaylistLibraryItem.virtual(
+                    _virtualPlaylist(
+                      identifier: 'exploration',
+                      title: 'Weekly Exploration',
+                      sourcePatch: 'weekly-exploration',
+                      coverArts: const <String>[
+                        'cover-1',
+                        'cover-2',
+                        'cover-3',
+                        'cover-4',
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ]),
               ),
             ],
           ),
@@ -1960,52 +1928,49 @@ void main() {
       },
     );
 
-    _testWidgetsWithCleanup(
-      'playlists tab keeps ListenBrainz rows read-only',
-      (tester) async {
-        await tester.pumpWidget(
-          _buildLibraryScreenRouter(
-            showPlaylistsPage: true,
-            overrides: [
-              librarySyncControllerProvider.overrideWith(
-                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
-              ),
-              albumCountProvider.overrideWithValue(const AsyncData(0)),
-              pagedAlbumsProvider.overrideWith(
-                (ref, request) => Stream.value(const <AlbumsTableData>[]),
-              ),
-              artistsProvider.overrideWithValue(
-                const AsyncData(<ArtistsTableData>[]),
-              ),
-              playlistSyncProvider.overrideWith((ref) async {}),
-              playlistLibraryItemsProvider.overrideWithValue(
-                AsyncData<List<PlaylistLibraryItem>>(
-                  <PlaylistLibraryItem>[
-                    PlaylistLibraryItem.virtual(
-                      _virtualPlaylist(
-                        identifier: 'jams',
-                        title: 'Weekly Jams',
-                        sourcePatch: 'weekly-jams',
-                      ),
-                    ),
-                  ],
+    _testWidgetsWithCleanup('playlists tab keeps ListenBrainz rows read-only', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildLibraryScreenRouter(
+          showPlaylistsPage: true,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            playlistSyncProvider.overrideWith((ref) async {}),
+            playlistLibraryItemsProvider.overrideWithValue(
+              AsyncData<List<PlaylistLibraryItem>>(<PlaylistLibraryItem>[
+                PlaylistLibraryItem.virtual(
+                  _virtualPlaylist(
+                    identifier: 'jams',
+                    title: 'Weekly Jams',
+                    sourcePatch: 'weekly-jams',
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
+              ]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Playlists'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Playlists'));
+      await tester.pumpAndSettle();
 
-        await tester.longPress(find.text('Weekly Jams'));
-        await tester.pumpAndSettle();
+      await tester.longPress(find.text('Weekly Jams'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Rename playlist'), findsNothing);
-        expect(find.text('Delete playlist?'), findsNothing);
-      },
-    );
+      expect(find.text('Rename playlist'), findsNothing);
+      expect(find.text('Delete playlist?'), findsNothing);
+    });
 
     _testWidgetsWithCleanup(
       'playlists tab navigates ListenBrainz rows to detail',
@@ -2026,17 +1991,15 @@ void main() {
               ),
               playlistSyncProvider.overrideWith((ref) async {}),
               playlistLibraryItemsProvider.overrideWithValue(
-                AsyncData<List<PlaylistLibraryItem>>(
-                  <PlaylistLibraryItem>[
-                    PlaylistLibraryItem.virtual(
-                      _virtualPlaylist(
-                        identifier: 'jams',
-                        title: 'Weekly Jams',
-                        sourcePatch: 'weekly-jams',
-                      ),
+                AsyncData<List<PlaylistLibraryItem>>(<PlaylistLibraryItem>[
+                  PlaylistLibraryItem.virtual(
+                    _virtualPlaylist(
+                      identifier: 'jams',
+                      title: 'Weekly Jams',
+                      sourcePatch: 'weekly-jams',
                     ),
-                  ],
-                ),
+                  ),
+                ]),
               ),
             ],
           ),
@@ -2057,9 +2020,7 @@ void main() {
       'removing radio tab while selected clamps tab index without crashing',
       (tester) async {
         final showRadioToggleProvider =
-            NotifierProvider<_ShowRadioToggle, bool>(
-              _ShowRadioToggle.new,
-            );
+            NotifierProvider<_ShowRadioToggle, bool>(_ShowRadioToggle.new);
         final container = ProviderContainer(
           overrides: withTestDatabase(
             _testDatabase,
@@ -2121,9 +2082,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'opening Liked reads local data without requesting stale synchronization',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final staleTargetRequests = <LibrarySyncTarget>[];
         setAdaptiveTestViewport(tester, const Size(700, 1200));
         await _pumpLibraryScreen(
@@ -2181,9 +2140,8 @@ void main() {
         );
         expect(
           tester.widget<IconButton>(compactMoreButton).tooltip,
-          MaterialLocalizations.of(
-            tester.element(compactMoreButton),
-          ).showMenuTooltip,
+          MaterialLocalizations.of(tester.element(compactMoreButton))
+              .showMenuTooltip,
         );
 
         tester.view.physicalSize = const Size(1200, 1200);
@@ -2199,10 +2157,7 @@ void main() {
           ),
           matching: find.byType(IconButton),
         );
-        expect(
-          tester.widget<IconButton>(desktopMoreButton).tooltip,
-          'More',
-        );
+        expect(tester.widget<IconButton>(desktopMoreButton).tooltip, 'More');
         await tester.tap(desktopMoreButton);
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.text('Play now'), findsOneWidget);
@@ -2214,9 +2169,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'liked tab play renders and queues songs from liked albums only',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpLibraryScreen(
           tester,
           overrides: [
@@ -2294,9 +2247,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'liked song tap queues combined deduplicated liked playback list',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpLibraryScreen(
           tester,
           overrides: [
@@ -2376,10 +2327,11 @@ void main() {
         );
         final queueSpy =
             container.read(queueProvider.notifier) as _QueueSpyController;
-        expect(
-          queueSpy.lastReplaceIds,
-          <String>['liked-song-1', 'shared-song', 'album-only-song'],
-        );
+        expect(queueSpy.lastReplaceIds, <String>[
+          'liked-song-1',
+          'shared-song',
+          'album-only-song',
+        ]);
         expect(queueSpy.lastStartIndex, 1);
         expect(queueSpy.lastAutoPlay, isTrue);
       },
@@ -2387,9 +2339,7 @@ void main() {
 
     _testWidgetsWithCleanup(
       'liked shuffle respects downloaded-only filtering for liked album tracks',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await _pumpLibraryScreen(
           tester,
           overrides: [
@@ -2415,12 +2365,10 @@ void main() {
               const AsyncData(<String>{'downloaded-album-song'}),
             ),
             downloadedContentIdsProvider.overrideWithValue(
-              const AsyncData(
-                (
-                  albumIds: <String>{'liked-album-filter'},
-                  artistIds: <String>{},
-                ),
-              ),
+              const AsyncData((
+                albumIds: <String>{'liked-album-filter'},
+                artistIds: <String>{},
+              )),
             ),
             likedAlbumsRecentProvider.overrideWithValue(
               AsyncData(<AlbumsTableData>[

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The different smart queue mood profiles available.
 ///
@@ -8,33 +8,21 @@ import 'package:flutter/material.dart';
 enum SmartQueueProfile {
   /// Consistent mood — re-seeds from the **original** seed track every refill,
   /// producing a cohesive listening session with minimal sonic drift.
-  steadyVibes(
-    icon: Icons.spa_outlined,
-    color: Color(0xFF7C4DFF),
-  ),
+  steadyVibes(icon: Icons.spa_outlined, color: Color(0xFF7C4DFF)),
 
   /// Maximum diversity — re-seeds from the **last queued** track and skips
   /// tracks whose artist is already in the queue, broadening discovery.
-  discoveryMix(
-    icon: Icons.explore_outlined,
-    color: Color(0xFF00BFA5),
-  ),
+  discoveryMix(icon: Icons.explore_outlined, color: Color(0xFF00BFA5)),
 
   /// Same-artist focus — keeps results that share an artist with the seed
   /// or recent queue, deepening the listener's immersion in a style.
-  deepDive(
-    icon: Icons.scuba_diving,
-    color: Color(0xFF2979FF),
-  ),
+  deepDive(icon: Icons.scuba_diving, color: Color(0xFF2979FF)),
 
   /// Chain-seeding — every refill uses the most-recently-queued track as the
   /// new seed, letting the mood gradually evolve over time.
-  energyFlow(
-    icon: Icons.electric_bolt_outlined,
-    color: Color(0xFFFF6D00),
-  );
+  energyFlow(icon: Icons.electric_bolt_outlined, color: Color(0xFFFF6D00));
 
-  const SmartQueueProfile({required this.icon, required this.color});
+  new({required this.icon, required this.color});
 
   /// Default Material icon for this profile.
   final IconData icon;
@@ -55,7 +43,7 @@ enum SmartQueueError {
 /// Immutable state for the Smart Queue notifier.
 @immutable
 class SmartQueueState {
-  const SmartQueueState({
+  const new({
     this.active = false,
     this.profile,
     this.seedSongId,
@@ -65,7 +53,7 @@ class SmartQueueState {
     this.queuedArtists = const <String>{},
   });
 
-  const SmartQueueState.inactive()
+  const new inactive()
     : active = false,
       profile = null,
       seedSongId = null,

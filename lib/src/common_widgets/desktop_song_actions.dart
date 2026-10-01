@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -21,7 +21,7 @@ import 'package:navis/src/utils/format_utils.dart';
 /// metadata readable and retains the complete action set in More. Remote rows
 /// intentionally have no local-server actions.
 class DesktopSongActions extends ConsumerWidget {
-  DesktopSongActions({
+  new({
     required SongsTableData song,
     super.key,
     this.includeDuration = false,
@@ -32,7 +32,7 @@ class DesktopSongActions extends ConsumerWidget {
        isExternal = song.isExternal,
        duration = song.duration;
 
-  const DesktopSongActions.forSongId({
+  const new forSongId({
     required this.songId,
     required this.isExternal,
     required this.onMore,
@@ -180,10 +180,7 @@ class DesktopSongActions extends ConsumerWidget {
 /// Tracks keyboard focus inside the actions so a focused control is never
 /// dimmed, then tells [_ActionEmphasis] children whether to stay quiet.
 class _QuietUntilEmphasized extends StatefulWidget {
-  const _QuietUntilEmphasized({
-    required this.rowEmphasized,
-    required this.child,
-  });
+  const new({required this.rowEmphasized, required this.child});
 
   final bool rowEmphasized;
   final Widget child;
@@ -208,7 +205,7 @@ class _QuietUntilEmphasizedState extends State<_QuietUntilEmphasized> {
 }
 
 class _ActionEmphasisScope extends InheritedWidget {
-  const _ActionEmphasisScope({required this.emphasized, required super.child});
+  const new({required this.emphasized, required super.child});
 
   final bool emphasized;
 
@@ -220,7 +217,7 @@ class _ActionEmphasisScope extends InheritedWidget {
 /// Dims a row action until its row is emphasized, unless [keep] marks it as
 /// showing meaningful state (liked, downloaded or downloading).
 class _ActionEmphasis extends StatelessWidget {
-  const _ActionEmphasis({required this.keep, required this.child});
+  const new({required this.keep, required this.child});
 
   static const double _quietOpacity = 0.35;
 

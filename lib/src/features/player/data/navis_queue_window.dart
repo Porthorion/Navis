@@ -8,7 +8,7 @@ part of 'navis_audio_handler.dart';
 /// window" in docs/architecture.md.
 @immutable
 class NavisQueueWindow {
-  const NavisQueueWindow({
+  const new({
     this.deferThreshold = 256,
     this.ahead = 32,
     this.lowWater = 12,
@@ -47,7 +47,7 @@ class NavisQueueWindow {
 
 /// The queue as it was before a far jump replaced it.
 class _QueueRestorePoint {
-  const _QueueRestorePoint({
+  const new({
     required this.head,
     required this.items,
     required this.tail,
@@ -67,7 +67,7 @@ class _QueueRestorePoint {
 /// A queued song that has not been handed to the native player yet.
 @immutable
 class _DeferredQueueEntry {
-  const _DeferredQueueEntry(this.id, [this.song]);
+  const new(this.id, [this.song]);
 
   final String id;
 

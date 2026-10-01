@@ -37,7 +37,7 @@ const int _kResolutionParallelism = 4;
 /// A Last.fm top track enriched with an optional locally-resolved
 /// [Song] from the user's Subsonic library.
 class ResolvedArtistTopTrack {
-  const ResolvedArtistTopTrack({
+  const new({
     required this.rank,
     required this.title,
     required this.artist,
@@ -74,121 +74,108 @@ class ResolvedArtistTopTrack {
 ///
 /// Keyed by the artist's display name as stored in the Subsonic library.
 final artistTopTracksRawProvider = FutureProvider.autoDispose
-    .family<List<LastFmArtistTopTrack>, String>(
-      (ref, artistName) async {
-        // Keep resolved data alive for 5 minutes after the last listener
-        // drops — prevents the section from re-fetching every time it scrolls
-        // in or out of view on the artist detail page (issue #31).
-        Timer? disposeTimer;
-        final keepAliveLink = ref.keepAlive();
-        ref.onCancel(() {
-          disposeTimer = Timer(
-            const Duration(minutes: 5),
-            keepAliveLink.close,
-          );
-        });
-        ref.onResume(() {
-          disposeTimer?.cancel();
-          disposeTimer = null;
-        });
-        ref.onDispose(() => disposeTimer?.cancel());
+    .family<List<LastFmArtistTopTrack>, String>((ref, artistName) async {
+      // Keep resolved data alive for 5 minutes after the last listener
+      // drops — prevents the section from re-fetching every time it scrolls
+      // in or out of view on the artist detail page (issue #31).
+      Timer? disposeTimer;
+      final keepAliveLink = ref.keepAlive();
+      ref.onCancel(() {
+        disposeTimer = Timer(const Duration(minutes: 5), keepAliveLink.close);
+      });
+      ref.onResume(() {
+        disposeTimer?.cancel();
+        disposeTimer = null;
+      });
+      ref.onDispose(() => disposeTimer?.cancel());
 
-        final usePresentationFixture = ref.watch(
-          syncDiagnosticsOverridesProvider.select(
-            (overrides) => overrides.artistTopTracksPresentationFixture,
+      final usePresentationFixture = ref.watch(
+        syncDiagnosticsOverridesProvider.select(
+          (overrides) => overrides.artistTopTracksPresentationFixture,
+        ),
+      );
+      if (usePresentationFixture) {
+        return const <LastFmArtistTopTrack>[
+          LastFmArtistTopTrack(
+            rank: 1,
+            title: 'North Star',
+            artist: 'Navis demo artist',
+            listeners: 482910,
           ),
-        );
-        if (usePresentationFixture) {
-          return const <LastFmArtistTopTrack>[
-            LastFmArtistTopTrack(
-              rank: 1,
-              title: 'North Star',
-              artist: 'Navis demo artist',
-              listeners: 482910,
-            ),
-            LastFmArtistTopTrack(
-              rank: 2,
-              title: 'Afterglow',
-              artist: 'Navis demo artist',
-              listeners: 318745,
-            ),
-            LastFmArtistTopTrack(
-              rank: 3,
-              title: 'Blue Hour',
-              artist: 'Navis demo artist',
-              listeners: 245180,
-            ),
-            LastFmArtistTopTrack(
-              rank: 4,
-              title: 'Slow Motion',
-              artist: 'Navis demo artist',
-              listeners: 198352,
-            ),
-          ];
-        }
+          LastFmArtistTopTrack(
+            rank: 2,
+            title: 'Afterglow',
+            artist: 'Navis demo artist',
+            listeners: 318745,
+          ),
+          LastFmArtistTopTrack(
+            rank: 3,
+            title: 'Blue Hour',
+            artist: 'Navis demo artist',
+            listeners: 245180,
+          ),
+          LastFmArtistTopTrack(
+            rank: 4,
+            title: 'Slow Motion',
+            artist: 'Navis demo artist',
+            listeners: 198352,
+          ),
+        ];
+      }
 
-        final hasKey = ref.watch(hasLastFmApiKeyProvider);
-        if (!hasKey) return const [];
+      final hasKey = ref.watch(hasLastFmApiKeyProvider);
+      if (!hasKey) return const [];
 
-        final trimmedArtist = artistName.trim();
-        if (trimmedArtist.isEmpty) return const [];
+      final trimmedArtist = artistName.trim();
+      if (trimmedArtist.isEmpty) return const [];
 
-        // 1. Try the rolling 24-hour disk cache first.
-        final cached = await LastFmArtistCache.readCache(
-          trimmedArtist,
-          limit: kArtistTopTracksPlaylistMax,
-        );
-        if (cached != null && cached.isNotEmpty) {
-          return cached;
-        }
+      // 1. Try the rolling 24-hour disk cache first.
+      final cached = await LastFmArtistCache.readCache(
+        trimmedArtist,
+        limit: kArtistTopTracksPlaylistMax,
+      );
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
 
-        // 2. Fetch from Last.fm.
-        final client = ref.read(lastFmApiClientProvider);
-        if (client == null) return const [];
-        final fetched = await client.getArtistTopTracks(
-          artist: trimmedArtist,
-          limit: kArtistTopTracksPlaylistMax,
-        );
-        if (fetched.isEmpty) return const [];
-        await LastFmArtistCache.writeCache(
-          trimmedArtist,
-          fetched,
-          limit: kArtistTopTracksPlaylistMax,
-        );
-        return fetched;
-      },
-    );
+      // 2. Fetch from Last.fm.
+      final client = ref.read(lastFmApiClientProvider);
+      if (client == null) return const [];
+      final fetched = await client.getArtistTopTracks(
+        artist: trimmedArtist,
+        limit: kArtistTopTracksPlaylistMax,
+      );
+      if (fetched.isEmpty) return const [];
+      await LastFmArtistCache.writeCache(
+        trimmedArtist,
+        fetched,
+        limit: kArtistTopTracksPlaylistMax,
+      );
+      return fetched;
+    });
 
 final artistTopTracksProvider = FutureProvider.autoDispose
-    .family<List<ResolvedArtistTopTrack>, String>(
-      (ref, artistName) async {
-        final resolvedTracks = await ref.watch(
-          _artistTopTracksResolvedAllProvider(artistName).future,
-        );
-        return resolvedTracks
-            .take(kArtistTopTracksSectionMax)
-            .toList(growable: false);
-      },
-    );
+    .family<List<ResolvedArtistTopTrack>, String>((ref, artistName) async {
+      final resolvedTracks = await ref.watch(
+        _artistTopTracksResolvedAllProvider(artistName).future,
+      );
+      return resolvedTracks
+          .take(kArtistTopTracksSectionMax)
+          .toList(growable: false);
+    });
 
 final artistTopTracksPlaylistProvider = FutureProvider.autoDispose
-    .family<List<ResolvedArtistTopTrack>, String>(
-      (ref, artistName) async {
-        return ref.watch(
-          _artistTopTracksResolvedAllProvider(artistName).future,
-        );
-      },
-    );
+    .family<List<ResolvedArtistTopTrack>, String>((ref, artistName) async {
+      return ref.watch(_artistTopTracksResolvedAllProvider(artistName).future);
+    });
 
 final _artistTopTracksResolvedAllProvider = FutureProvider.autoDispose
-    .family<List<ResolvedArtistTopTrack>, String>(
-      (ref, artistName) async {
-        final rawTracks = await ref.watch(
-          artistTopTracksRawProvider(artistName).future,
-        );
-        return _resolveArtistTopTracks(ref, artistName, rawTracks);
-      },
-    );
+    .family<List<ResolvedArtistTopTrack>, String>((ref, artistName) async {
+      final rawTracks = await ref.watch(
+        artistTopTracksRawProvider(artistName).future,
+      );
+      return _resolveArtistTopTracks(ref, artistName, rawTracks);
+    });
 
 Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
   Ref ref,
@@ -307,10 +294,7 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
 // Matching helpers (also used by widgets for live fallback resolution).
 // ---------------------------------------------------------------------------
 
-ResolvedArtistTopTrack _resolvedTrack(
-  LastFmArtistTopTrack track,
-  Song? song,
-) {
+ResolvedArtistTopTrack _resolvedTrack(LastFmArtistTopTrack track, Song? song) {
   return ResolvedArtistTopTrack(
     rank: track.rank,
     title: track.title,
@@ -321,10 +305,7 @@ ResolvedArtistTopTrack _resolvedTrack(
 }
 
 TrackMatchQuery _artistTopTrackMatchQuery(LastFmArtistTopTrack track) {
-  return TrackMatchQuery(
-    title: track.title,
-    artist: track.artist,
-  );
+  return TrackMatchQuery(title: track.title, artist: track.artist);
 }
 
 Song? pickBestArtistTopTrackMatch({

@@ -208,7 +208,7 @@ void main() {
       );
       final api = client(dio);
       final budget = scope();
-      await budget.run(() => api.getPlaylists());
+      await budget.run(api.getPlaylists);
       expect(budget.requestCount, 1);
       expect(budget.byteCount, greaterThan(0));
       final bytes = budget.byteCount;
@@ -217,7 +217,7 @@ void main() {
       expect(budget.byteCount, bytes);
       final tiny = scope(bytes: 8);
       await expectLater(
-        tiny.run(() => api.getPlaylists()),
+        tiny.run(api.getPlaylists),
         throwsA(isA<SubsonicSyncLimitException>()),
       );
       expect(tiny.stopped?.reason, 'byteBudget');

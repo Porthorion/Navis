@@ -88,9 +88,8 @@ class LibrarySyncStateTable extends Table {
 
   TextColumn get androidWorkState => text().nullable()();
 
-  IntColumn get androidWorkAttemptCount => integer().withDefault(
-    const Constant(0),
-  )();
+  IntColumn get androidWorkAttemptCount =>
+      integer().withDefault(const Constant(0))();
 
   DateTimeColumn get androidWorkerStartedAt => dateTime().nullable()();
 

@@ -24,13 +24,12 @@ import '../../../../helpers/test_database.dart';
 
 class _OnlineReachability extends ServerReachabilityController {
   @override
-  ServerReachabilityState build() => const ServerReachabilityState(
-    status: ServerReachabilityStatus.online,
-  );
+  ServerReachabilityState build() =>
+      const ServerReachabilityState(status: ServerReachabilityStatus.online);
 }
 
 class _ControlledSync extends LibrarySyncController {
-  _ControlledSync(this.result, {this.beforeResult});
+  new(this.result, {this.beforeResult});
 
   LibrarySyncState result;
   final Future<void> Function()? beforeResult;
@@ -40,9 +39,8 @@ class _ControlledSync extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool allowMeteredBroadOverride = false,
-  }) => _run();
+  Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) =>
+      _run();
 
   @override
   Future<LibrarySyncState> forceFullSync({

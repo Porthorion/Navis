@@ -7,7 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
 
-class _Dio extends Mock implements Dio {}
+class _Dio extends Mock implements Dio;
 
 void main() {
   setUpAll(() => registerFallbackValue(Options()));

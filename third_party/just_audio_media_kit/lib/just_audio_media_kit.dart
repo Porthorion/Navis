@@ -134,7 +134,7 @@ class JustAudioMediaKit extends JustAudioPlatform {
 
     if (!_players.containsKey(request.id)) {
       throw PlatformException(
-          code: 'error', message: 'Player ${request.id} doesn\'t exist.');
+          code: 'error', message: "Player ${request.id} doesn't exist.");
     }
 
     final future = _players[request.id]!.release();

@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -99,9 +99,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final initialPrimary = Theme.of(
-      tester.element(find.byType(Scaffold)),
-    ).colorScheme.primary;
+    final initialPrimary = Theme.of(tester.element(find.byType(Scaffold)))
+        .colorScheme
+        .primary;
     await tester.tap(find.text('Light'));
     await tester.pumpAndSettle();
     expect(

@@ -31,9 +31,7 @@ void main() {
     );
     expect(
       manifest,
-      contains(
-        'android:name="com.google.android.gms.car.application.theme"',
-      ),
+      contains('android:name="com.google.android.gms.car.application.theme"'),
     );
     expect(automotiveDesc, contains('<uses name="media"'));
   });

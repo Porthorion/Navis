@@ -156,17 +156,13 @@ void main() {
   });
 
   test('readCache rejects entry when requested limit differs', () async {
-    await LastFmArtistCache.writeCache(
-      'Queen',
-      [
-        const LastFmArtistTopTrack(
-          rank: 1,
-          title: 'Bohemian Rhapsody',
-          artist: 'Queen',
-        ),
-      ],
-      limit: 10,
-    );
+    await LastFmArtistCache.writeCache('Queen', [
+      const LastFmArtistTopTrack(
+        rank: 1,
+        title: 'Bohemian Rhapsody',
+        artist: 'Queen',
+      ),
+    ], limit: 10);
 
     final result = await LastFmArtistCache.readCache('Queen', limit: 50);
     expect(result, isNull);
@@ -235,45 +231,42 @@ void main() {
     expect(two!.first.title, 'Song B');
   });
 
-  test(
-    'previously-colliding artists now get distinct cache keys',
-    () async {
-      // "Artist-One" and "Artist One" used to both map to "artist_one" with
-      // the old regex-based sanitiser.  With SHA-256 hashing they should be
-      // completely distinct.
-      final hashA = sha256
-          .convert(utf8.encode('artist-one'))
-          .toString()
-          .substring(0, 16);
-      final hashB = sha256
-          .convert(utf8.encode('artist one'))
-          .toString()
-          .substring(0, 16);
-      expect(hashA, isNot(equals(hashB)));
+  test('previously-colliding artists now get distinct cache keys', () async {
+    // "Artist-One" and "Artist One" used to both map to "artist_one" with
+    // the old regex-based sanitiser.  With SHA-256 hashing they should be
+    // completely distinct.
+    final hashA = sha256
+        .convert(utf8.encode('artist-one'))
+        .toString()
+        .substring(0, 16);
+    final hashB = sha256
+        .convert(utf8.encode('artist one'))
+        .toString()
+        .substring(0, 16);
+    expect(hashA, isNot(equals(hashB)));
 
-      await LastFmArtistCache.writeCache('Artist-One', [
-        const LastFmArtistTopTrack(
-          rank: 1,
-          title: 'Dash Song',
-          artist: 'Artist-One',
-        ),
-      ]);
-      await LastFmArtistCache.writeCache('Artist One', [
-        const LastFmArtistTopTrack(
-          rank: 1,
-          title: 'Space Song',
-          artist: 'Artist One',
-        ),
-      ]);
+    await LastFmArtistCache.writeCache('Artist-One', [
+      const LastFmArtistTopTrack(
+        rank: 1,
+        title: 'Dash Song',
+        artist: 'Artist-One',
+      ),
+    ]);
+    await LastFmArtistCache.writeCache('Artist One', [
+      const LastFmArtistTopTrack(
+        rank: 1,
+        title: 'Space Song',
+        artist: 'Artist One',
+      ),
+    ]);
 
-      final dash = await LastFmArtistCache.readCache('Artist-One');
-      final space = await LastFmArtistCache.readCache('Artist One');
-      expect(dash, isNotNull);
-      expect(space, isNotNull);
-      expect(dash!.first.title, 'Dash Song');
-      expect(space!.first.title, 'Space Song');
-    },
-  );
+    final dash = await LastFmArtistCache.readCache('Artist-One');
+    final space = await LastFmArtistCache.readCache('Artist One');
+    expect(dash, isNotNull);
+    expect(space, isNotNull);
+    expect(dash!.first.title, 'Dash Song');
+    expect(space!.first.title, 'Space Song');
+  });
 
   // ---------------------------------------------------------------------------
   // Empty tracks not cached

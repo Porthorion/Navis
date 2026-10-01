@@ -36,31 +36,27 @@ enum LibrarySyncTargetKind {
 }
 
 class LibrarySyncTarget {
-  const LibrarySyncTarget(this.kind, {this.entityId});
+  const new(this.kind, {this.entityId});
 
-  const LibrarySyncTarget.catalog()
-    : kind = LibrarySyncTargetKind.catalog,
-      entityId = null;
+  const new catalog() : kind = LibrarySyncTargetKind.catalog, entityId = null;
 
-  const LibrarySyncTarget.artist(String id)
+  const new artist(String id)
     : kind = LibrarySyncTargetKind.artist,
       entityId = id;
 
-  const LibrarySyncTarget.album(String id)
+  const new album(String id)
     : kind = LibrarySyncTargetKind.album,
       entityId = id;
 
-  const LibrarySyncTarget.playlist(String id)
+  const new playlist(String id)
     : kind = LibrarySyncTargetKind.playlist,
       entityId = id;
 
-  const LibrarySyncTarget.playlistHeaders()
+  const new playlistHeaders()
     : kind = LibrarySyncTargetKind.playlistHeaders,
       entityId = null;
 
-  const LibrarySyncTarget.starred()
-    : kind = LibrarySyncTargetKind.starred,
-      entityId = null;
+  const new starred() : kind = LibrarySyncTargetKind.starred, entityId = null;
 
   final LibrarySyncTargetKind kind;
   final String? entityId;
@@ -93,7 +89,7 @@ String librarySyncTargetEntityIdFromWorkKey(
 }
 
 class LibrarySyncRequest {
-  const LibrarySyncRequest({
+  const new({
     required this.trigger,
     required this.intent,
     this.target = const LibrarySyncTarget.catalog(),
@@ -102,11 +98,11 @@ class LibrarySyncRequest {
     this.caller = LibrarySyncRequestCaller.unspecified,
   });
 
-  const LibrarySyncRequest.automatic({
+  const new automatic({
     LibrarySyncTrigger trigger = LibrarySyncTrigger.interval,
   }) : this(trigger: trigger, intent: LibrarySyncIntent.automatic);
 
-  const LibrarySyncRequest.checkForUpdates({
+  const new checkForUpdates({
     bool allowMeteredBroadOverride = false,
     bool allowMeteredLimitedDiscovery = true,
   }) : this(
@@ -117,23 +113,21 @@ class LibrarySyncRequest {
          caller: LibrarySyncRequestCaller.manualCatalogCheck,
        );
 
-  const LibrarySyncRequest.repair({
-    bool allowMeteredBroadOverride = false,
-  }) : this(
-         trigger: LibrarySyncTrigger.user,
-         intent: LibrarySyncIntent.repair,
-         allowMeteredBroadOverride: allowMeteredBroadOverride,
-         caller: LibrarySyncRequestCaller.repairLibrary,
-       );
+  const new repair({bool allowMeteredBroadOverride = false})
+    : this(
+        trigger: LibrarySyncTrigger.user,
+        intent: LibrarySyncIntent.repair,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+        caller: LibrarySyncRequestCaller.repairLibrary,
+      );
 
-  const LibrarySyncRequest.cacheReset({
-    bool allowMeteredBroadOverride = false,
-  }) : this(
-         trigger: LibrarySyncTrigger.user,
-         intent: LibrarySyncIntent.repair,
-         allowMeteredBroadOverride: allowMeteredBroadOverride,
-         caller: LibrarySyncRequestCaller.cacheReset,
-       );
+  const new cacheReset({bool allowMeteredBroadOverride = false})
+    : this(
+        trigger: LibrarySyncTrigger.user,
+        intent: LibrarySyncIntent.repair,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+        caller: LibrarySyncRequestCaller.cacheReset,
+      );
 
   final LibrarySyncTrigger trigger;
   final LibrarySyncIntent intent;
@@ -177,7 +171,7 @@ enum LibrarySyncPlanKind {
 }
 
 class LibrarySyncPlan {
-  const LibrarySyncPlan({
+  const new({
     required this.kind,
     required this.reason,
     this.shouldExecute = true,

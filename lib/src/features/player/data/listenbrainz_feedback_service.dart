@@ -9,26 +9,20 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 class ListenBrainzFeedbackCredentials {
-  const ListenBrainzFeedbackCredentials({required this.userToken});
+  const new({required this.userToken});
 
   final String userToken;
 }
 
 class ListenBrainzFeedbackService {
-  ListenBrainzFeedbackService({
-    required ListenBrainzFeedbackDao dao,
-    required LibraryDao libraryDao,
-    required Future<ListenBrainzFeedbackCredentials?> Function()
-    readCredentials,
-    required ListenBrainzApiClient Function() createClient,
-    required bool Function() readReachable,
-    void Function()? onInvalidToken,
-  }) : _dao = dao,
-       _libraryDao = libraryDao,
-       _readCredentials = readCredentials,
-       _createClient = createClient,
-       _readReachable = readReachable,
-       _onInvalidToken = onInvalidToken;
+  new({
+    required this._dao,
+    required this._libraryDao,
+    required this._readCredentials,
+    required this._createClient,
+    required this._readReachable,
+    this._onInvalidToken,
+  });
 
   final ListenBrainzFeedbackDao _dao;
   final LibraryDao _libraryDao;

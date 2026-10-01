@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -31,12 +31,7 @@ Future<void> showSongContextMenu(
   Offset? anchor,
 }) async {
   if (anchor != null && isDesktopRuntime) {
-    await _showDesktopSongContextMenu(
-      context,
-      ref,
-      song,
-      anchor: anchor,
-    );
+    await _showDesktopSongContextMenu(context, ref, song, anchor: anchor);
     return;
   }
 
@@ -65,9 +60,8 @@ Future<void> showSongContextMenu(
           final isServerActionUnavailable =
               !isServerAddressableSongId(song.id) ||
               song.serverDeletedAt != null;
-          final disabledColor = Theme.of(
-            context,
-          ).colorScheme.onSurface.withValues(alpha: 0.38);
+          final disabledColor = Theme.of(context).colorScheme.onSurface
+              .withValues(alpha: 0.38);
 
           final maxHeight = MediaQuery.of(sheetContext).size.height * 0.85;
           return SafeArea(
@@ -150,9 +144,7 @@ Future<void> showSongContextMenu(
                       leading: Icon(
                         isLiked ? Icons.favorite : Icons.favorite_border,
                       ),
-                      title: Text(
-                        isLiked ? l10n.actionLiked : l10n.actionLike,
-                      ),
+                      title: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
                       onTap: () {
                         if (isServerActionUnavailable) {
                           showAppNotice(
@@ -201,11 +193,9 @@ Future<void> showSongContextMenu(
                               compact: true,
                               onChanged: (next) {
                                 unawaited(
-                                  setSongRating(
-                                    song.id,
-                                    next,
-                                    ref,
-                                  ).catchError((_) {
+                                  setSongRating(song.id, next, ref).catchError((
+                                    _,
+                                  ) {
                                     if (context.mounted) {
                                       showAppNotice(
                                         context,
@@ -486,11 +476,7 @@ Future<void> _downloadSongFromMenu(
   if (choice == null || !context.mounted) return;
   final service = ref.read(downloadServiceProvider);
   unawaited(
-    service.enqueueSong(
-      songId,
-      quality: choice.quality,
-      format: choice.format,
-    ),
+    service.enqueueSong(songId, quality: choice.quality, format: choice.format),
   );
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context)!;

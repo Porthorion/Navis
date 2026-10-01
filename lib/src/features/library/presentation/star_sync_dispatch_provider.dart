@@ -17,8 +17,9 @@ class StarSyncDispatchController extends Notifier<int> {
   @override
   int build() {
     if (const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
-        !const bool.fromEnvironment('NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE'))
+        !const bool.fromEnvironment('NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE')) {
       return 0;
+    }
     final dispatcher = ref.watch(annotationSyncDispatcherProvider);
     ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
       previous,

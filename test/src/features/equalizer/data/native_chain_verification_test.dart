@@ -3,9 +3,9 @@ import 'package:just_audio_media_kit/src/set_property_io.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _Player extends Mock implements Player {}
+class _Player extends Mock implements Player;
 
-class _NativePlayer extends Mock implements NativePlayer {}
+class _NativePlayer extends Mock implements NativePlayer;
 
 void main() {
   const expected =

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
@@ -8,7 +8,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// releases (patches leave the slot empty so they sit under their major),
 /// the release's name and its date and size.
 class ChangelogReleaseRow extends StatelessWidget {
-  const ChangelogReleaseRow({
+  const new({
     required this.version,
     required this.onTap,
     super.key,

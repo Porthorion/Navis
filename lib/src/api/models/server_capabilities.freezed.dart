@@ -29,16 +29,21 @@ $OpenSubsonicExtensionCopyWith<OpenSubsonicExtension> get copyWith => _$OpenSubs
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is OpenSubsonicExtension&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.versions, versions));
+  final _this = this as OpenSubsonicExtension;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OpenSubsonicExtension&&(identical(other.name, _this.name) || other.name == _this.name)&&const DeepCollectionEquality().equals(other.versions, _this.versions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,const DeepCollectionEquality().hash(versions));
+int get hashCode {
+  final _this = this as OpenSubsonicExtension;
+  return Object.hash(runtimeType,_this.name,const DeepCollectionEquality().hash(_this.versions));
+}
 
 @override
 String toString() {
-  return 'OpenSubsonicExtension(name: $name, versions: $versions)';
+  final _this = this as OpenSubsonicExtension;
+  return 'OpenSubsonicExtension(name: ${_this.name}, versions: ${_this.versions})';
 }
 
 
@@ -236,16 +241,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OpenSubsonicExtension&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other._versions, _versions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _OpenSubsonicExtension&&(identical(other.name, name) || other.name == name)&&const DeepCollectionEquality().equals(other.versions, _versions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,const DeepCollectionEquality().hash(_versions));
+int get hashCode {
+    return Object.hash(runtimeType,name,const DeepCollectionEquality().hash(_versions));
+}
 
 @override
 String toString() {
-  return 'OpenSubsonicExtension(name: $name, versions: $versions)';
+    return 'OpenSubsonicExtension(name: $name, versions: $versions)';
 }
 
 
@@ -301,16 +308,21 @@ $ServerCapabilitiesCopyWith<ServerCapabilities> get copyWith => _$ServerCapabili
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerCapabilities&&const DeepCollectionEquality().equals(other.extensions, extensions));
+  final _this = this as ServerCapabilities;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerCapabilities&&const DeepCollectionEquality().equals(other.extensions, _this.extensions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(extensions));
+int get hashCode {
+  final _this = this as ServerCapabilities;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.extensions));
+}
 
 @override
 String toString() {
-  return 'ServerCapabilities(extensions: $extensions)';
+  final _this = this as ServerCapabilities;
+  return 'ServerCapabilities(extensions: ${_this.extensions})';
 }
 
 
@@ -506,16 +518,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerCapabilities&&const DeepCollectionEquality().equals(other._extensions, _extensions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerCapabilities&&const DeepCollectionEquality().equals(other.extensions, _extensions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_extensions));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_extensions));
+}
 
 @override
 String toString() {
-  return 'ServerCapabilities(extensions: $extensions)';
+    return 'ServerCapabilities(extensions: $extensions)';
 }
 
 

@@ -36,11 +36,7 @@ enum SyncRunIntent {
 
 /// A user grant for metered network work. Unmetered access is a network
 /// condition, not a grant, so it is deliberately not represented here.
-enum SyncNetworkGrant {
-  none,
-  boundedMeteredDiscovery,
-  broadMeteredOnce,
-}
+enum SyncNetworkGrant { none, boundedMeteredDiscovery, broadMeteredOnce }
 
 /// A single executor path. The executor receives this plan directly and must
 /// never infer intent from legacy boolean flags.
@@ -100,7 +96,7 @@ enum SyncSafeReason {
 
 /// Immutable network and endpoint limits resolved once by the scheduler.
 class SyncExecutionBudget {
-  const SyncExecutionBudget({
+  const new({
     required this.allowedEndpoints,
     required this.maxNewestPages,
     required this.maxAlbumHydrations,
@@ -125,7 +121,7 @@ class SyncExecutionBudget {
 /// execution. The compatibility adapter below is the only bridge from the
 /// previous [LibrarySyncRequest] shape.
 class SyncRunRequest {
-  const SyncRunRequest({
+  const new({
     required this.contractVersion,
     required this.origin,
     required this.intent,
@@ -166,7 +162,7 @@ class SyncRunRequest {
 }
 
 class SyncExecutionPlan {
-  const SyncExecutionPlan({
+  const new({
     required this.request,
     required this.kind,
     required this.budget,
@@ -180,7 +176,7 @@ class SyncExecutionPlan {
 }
 
 class SyncRunOutcome {
-  const SyncRunOutcome({
+  const new({
     required this.kind,
     required this.reason,
     this.requestCount = 0,

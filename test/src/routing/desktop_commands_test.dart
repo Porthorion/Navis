@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -15,9 +15,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: TextField(focusNode: focusNode),
-        ),
+        home: Scaffold(body: TextField(focusNode: focusNode)),
       ),
     );
 
@@ -163,9 +161,7 @@ void main() {
             defaultDesktopShortcutBindings(),
           )
           ..[DesktopCommandAction.openQuickSearch] =
-              const DesktopShortcutBinding(
-                key: LogicalKeyboardKey.keyP,
-              );
+              const DesktopShortcutBinding(key: LogicalKeyboardKey.keyP);
 
     final encoded = encodeDesktopShortcutBindings(updated);
     final decoded = decodeDesktopShortcutBindings(encoded);
@@ -239,39 +235,36 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   });
 
-  testWidgets(
-    'transport commands are blocked when typing in a text field',
-    (tester) async {
-      final focusNode = FocusNode();
-      addTearDown(focusNode.dispose);
+  testWidgets('transport commands are blocked when typing in a text field', (
+    tester,
+  ) async {
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: TextField(focusNode: focusNode),
-          ),
-        ),
-      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TextField(focusNode: focusNode)),
+      ),
+    );
 
-      focusNode.requestFocus();
-      await tester.pump();
+    focusNode.requestFocus();
+    await tester.pump();
 
-      // Transport commands should be blocked.
-      expect(
-        isTextSensitiveDesktopCommand(DesktopCommandAction.playPause) &&
-            desktopCommandBlockedByTextInput(),
-        isTrue,
-      );
-      // Non-transport commands should not be blocked.
-      expect(
-        isTextSensitiveDesktopCommand(DesktopCommandAction.toggleQueue) ||
-            desktopCommandBlockedByTextInput(),
-        isTrue, // blocked by text, but not text-sensitive
-      );
-      expect(
-        isTextSensitiveDesktopCommand(DesktopCommandAction.toggleQueue),
-        isFalse,
-      );
-    },
-  );
+    // Transport commands should be blocked.
+    expect(
+      isTextSensitiveDesktopCommand(DesktopCommandAction.playPause) &&
+          desktopCommandBlockedByTextInput(),
+      isTrue,
+    );
+    // Non-transport commands should not be blocked.
+    expect(
+      isTextSensitiveDesktopCommand(DesktopCommandAction.toggleQueue) ||
+          desktopCommandBlockedByTextInput(),
+      isTrue, // blocked by text, but not text-sensitive
+    );
+    expect(
+      isTextSensitiveDesktopCommand(DesktopCommandAction.toggleQueue),
+      isFalse,
+    );
+  });
 }

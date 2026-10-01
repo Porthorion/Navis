@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -8,7 +8,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 /// When [tintWithAccent] is true the icon is colorised with [tintColor] or
 /// the theme's Navis brand accent (useful for the About screen).
 class NavisIcon extends StatelessWidget {
-  const NavisIcon({
+  const new({
     super.key,
     this.size = 64,
     this.tintWithAccent = false,

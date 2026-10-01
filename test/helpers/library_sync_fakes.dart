@@ -73,9 +73,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     activeRequestsCancelled = true;
     final completer = albumCompleter;
     if (completer != null && !completer.isCompleted) {
-      completer.completeError(
-        const SubsonicConnectionException('cancelled'),
-      );
+      completer.completeError(const SubsonicConnectionException('cancelled'));
     }
   }
 

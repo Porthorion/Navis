@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -27,10 +27,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
 class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
-  const ArtistTopTracksPlaylistDetailScreen({
-    required this.artistId,
-    super.key,
-  });
+  const new({required this.artistId, super.key});
 
   final String artistId;
 
@@ -79,9 +76,8 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
           loading: () => const ShimmerListPage(count: 8),
           error: (error, _) => ErrorState(
             title: l10n.artistTopTracksPlaylistErrorTitle,
-            onRetry: () => ref.invalidate(
-              artistTopTracksPlaylistProvider(artist.name),
-            ),
+            onRetry: () =>
+                ref.invalidate(artistTopTracksPlaylistProvider(artist.name)),
           ),
         );
       },
@@ -108,7 +104,7 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
 }
 
 class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
-  const _ArtistTopTracksPlaylistContent({
+  const new({
     required this.artistName,
     required this.imageUrl,
     required this.tracks,
@@ -171,11 +167,7 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                             onDownload: resolvedSongs.isEmpty
                                 ? null
                                 : () => unawaited(
-                                    _downloadSongs(
-                                      context,
-                                      ref,
-                                      resolvedSongs,
-                                    ),
+                                    _downloadSongs(context, ref, resolvedSongs),
                                   ),
                           ),
                         ),
@@ -262,11 +254,7 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     );
   }
 
-  void _queueSongs(
-    WidgetRef ref,
-    List<Song> songs, {
-    bool shuffle = false,
-  }) {
+  void _queueSongs(WidgetRef ref, List<Song> songs, {bool shuffle = false}) {
     if (songs.isEmpty) return;
     final queueSongs = List<Song>.of(songs);
     if (shuffle) queueSongs.shuffle(Random());
@@ -296,16 +284,15 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadPlaylistQueued(
-        songs.length,
-      ),
+      message: AppLocalizations.of(context)!
+          .downloadPlaylistQueued(songs.length),
       level: AppNoticeLevel.success,
     );
   }
 }
 
 class _PlaylistHeaderText extends StatelessWidget {
-  const _PlaylistHeaderText({
+  const new({
     required this.artistName,
     required this.trackCount,
     required this.desktopMode,
@@ -365,7 +352,7 @@ class _PlaylistHeaderText extends StatelessWidget {
 }
 
 class _RankedTopTrackRow extends ConsumerWidget {
-  const _RankedTopTrackRow({required this.track});
+  const new({required this.track});
 
   final ResolvedArtistTopTrack track;
 
@@ -379,12 +366,9 @@ class _RankedTopTrackRow extends ConsumerWidget {
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(song.id));
     final isSelected = playbackState.isSelected;
-    final isRemote = song == null
-        ? false
-        : isExternalCatalogSource(
-            id: song.id,
-            apiIsExternal: song.isExternal,
-          );
+    final isRemote =
+        !(song == null) &&
+        isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal);
 
     final tile = AdaptiveTrackRow(
       title: track.title,
@@ -473,11 +457,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
     if (choice == null || !context.mounted) return;
     await ref
         .read(downloadServiceProvider)
-        .enqueueSong(
-          songId,
-          quality: choice.quality,
-          format: choice.format,
-        );
+        .enqueueSong(songId, quality: choice.quality, format: choice.format);
     if (!context.mounted) return;
     showAppNotice(
       context,

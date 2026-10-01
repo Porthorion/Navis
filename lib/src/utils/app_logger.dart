@@ -2,7 +2,7 @@ import 'package:logger/logger.dart';
 
 /// Minimal application logger used during bootstrap and early infrastructure.
 class AppLogger {
-  AppLogger._();
+  new _();
 
   static const bool _isReleaseMode = bool.fromEnvironment('dart.vm.product');
 

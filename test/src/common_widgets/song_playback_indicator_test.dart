@@ -1,6 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -273,17 +273,12 @@ Future<void> _pumpTile(
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        playerStateProvider.overrideWithValue(snapshot),
-      ],
+      overrides: [playerStateProvider.overrideWithValue(snapshot)],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: TrackListTile(
-            song: _song,
-            showAlbumArt: showAlbumArt,
-          ),
+          body: TrackListTile(song: _song, showAlbumArt: showAlbumArt),
         ),
       ),
     ),

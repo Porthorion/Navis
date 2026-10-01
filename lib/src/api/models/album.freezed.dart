@@ -35,16 +35,21 @@ $AlbumCopyWith<Album> get copyWith => _$AlbumCopyWithImpl<Album>(this as Album, 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other.artists, artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other.songs, songs));
+  final _this = this as Album;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Album&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.artist, _this.artist) || other.artist == _this.artist)&&(identical(other.artistId, _this.artistId) || other.artistId == _this.artistId)&&const DeepCollectionEquality().equals(other.artists, _this.artists)&&(identical(other.songCount, _this.songCount) || other.songCount == _this.songCount)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.year, _this.year) || other.year == _this.year)&&(identical(other.coverArt, _this.coverArt) || other.coverArt == _this.coverArt)&&(identical(other.starred, _this.starred) || other.starred == _this.starred)&&(identical(other.userRating, _this.userRating) || other.userRating == _this.userRating)&&(identical(other.playCount, _this.playCount) || other.playCount == _this.playCount)&&(identical(other.isExternal, _this.isExternal) || other.isExternal == _this.isExternal)&&(identical(other.musicBrainzId, _this.musicBrainzId) || other.musicBrainzId == _this.musicBrainzId)&&(identical(other.created, _this.created) || other.created == _this.created)&&const DeepCollectionEquality().equals(other.songs, _this.songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(artists),songCount,duration,year,coverArt,starred,userRating,playCount,isExternal,musicBrainzId,created,const DeepCollectionEquality().hash(songs));
+int get hashCode {
+  final _this = this as Album;
+  return Object.hash(runtimeType,_this.id,_this.name,_this.artist,_this.artistId,const DeepCollectionEquality().hash(_this.artists),_this.songCount,_this.duration,_this.year,_this.coverArt,_this.starred,_this.userRating,_this.playCount,_this.isExternal,_this.musicBrainzId,_this.created,const DeepCollectionEquality().hash(_this.songs));
+}
 
 @override
 String toString() {
-  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, isExternal: $isExternal, musicBrainzId: $musicBrainzId, created: $created, songs: $songs)';
+  final _this = this as Album;
+  return 'Album(id: ${_this.id}, name: ${_this.name}, artist: ${_this.artist}, artistId: ${_this.artistId}, artists: ${_this.artists}, songCount: ${_this.songCount}, duration: ${_this.duration}, year: ${_this.year}, coverArt: ${_this.coverArt}, starred: ${_this.starred}, userRating: ${_this.userRating}, playCount: ${_this.playCount}, isExternal: ${_this.isExternal}, musicBrainzId: ${_this.musicBrainzId}, created: ${_this.created}, songs: ${_this.songs})';
 }
 
 
@@ -284,16 +289,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other._artists, _artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other._songs, _songs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other.artists, _artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.musicBrainzId, musicBrainzId) || other.musicBrainzId == musicBrainzId)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other.songs, _songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(_artists),songCount,duration,year,coverArt,starred,userRating,playCount,isExternal,musicBrainzId,created,const DeepCollectionEquality().hash(_songs));
+int get hashCode {
+    return Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(_artists),songCount,duration,year,coverArt,starred,userRating,playCount,isExternal,musicBrainzId,created,const DeepCollectionEquality().hash(_songs));
+}
 
 @override
 String toString() {
-  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, isExternal: $isExternal, musicBrainzId: $musicBrainzId, created: $created, songs: $songs)';
+    return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, isExternal: $isExternal, musicBrainzId: $musicBrainzId, created: $created, songs: $songs)';
 }
 
 

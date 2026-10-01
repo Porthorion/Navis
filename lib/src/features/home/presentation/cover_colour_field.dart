@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -19,23 +19,19 @@ const int _kSampleSize = 24;
 /// colours, row-major from the top-left.
 @immutable
 class CoverColourField {
-  const CoverColourField(this.colors)
+  const new(this.colors)
     : assert(
         colors.length == kCoverColourGrid * kCoverColourGrid,
         'A colour field needs one colour per grid cell.',
       );
 
   /// Every cell the same colour; used when a cover has no usable art.
-  factory CoverColourField.uniform(Color color) => CoverColourField(
+  factory uniform(Color color) => CoverColourField(
     List<Color>.filled(kCoverColourGrid * kCoverColourGrid, color),
   );
 
   /// The field between [a] and [b] at [t], cell by cell.
-  factory CoverColourField.lerp(
-    CoverColourField a,
-    CoverColourField b,
-    double t,
-  ) {
+  factory lerp(CoverColourField a, CoverColourField b, double t) {
     return CoverColourField(<Color>[
       for (var i = 0; i < a.colors.length; i++)
         Color.lerp(a.colors[i], b.colors[i], t)!,
@@ -102,7 +98,7 @@ List<Color> averageColourGrid(
 /// Small least-recently-used cache so revisiting a cover reuses its field.
 @visibleForTesting
 class CoverColourFieldCache {
-  CoverColourFieldCache({this.capacity = 64});
+  new({this.capacity = 64});
 
   final int capacity;
   final LinkedHashMap<String, CoverColourField> _entries =
@@ -195,7 +191,7 @@ Future<ImageInfo?> _resolveImage(ImageProvider provider) {
 /// the field stays smooth at any size, unlike an upscaled image, and costs a
 /// single draw call. The mesh extends past the bounds so no edge is visible.
 class CoverColourFieldPainter extends CustomPainter {
-  const CoverColourFieldPainter(this.field);
+  const new(this.field);
 
   final CoverColourField field;
 

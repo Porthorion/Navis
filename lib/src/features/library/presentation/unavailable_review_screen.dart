@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Variable;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -38,7 +38,7 @@ final pendingUnavailableCountProvider = FutureProvider.autoDispose<int>((
 /// the remap transaction touches so the preview never promises more than the
 /// apply actually moves.
 class _ReferenceSummary {
-  const _ReferenceSummary({
+  const new({
     this.copies = 0,
     this.playlistEntries = 0,
     this.history = 0,
@@ -85,7 +85,7 @@ Future<_ReferenceSummary> _collectReferences(
           entry.oldId,
         ),
         pendingAnnotations: await count(
-          "SELECT COUNT(*) AS amount FROM star_sync_queue "
+          'SELECT COUNT(*) AS amount FROM star_sync_queue '
           "WHERE item_type = 'album' AND item_id = ?;",
           entry.oldId,
         ),
@@ -102,7 +102,7 @@ Future<_ReferenceSummary> _collectReferences(
       return _ReferenceSummary(
         followingSongs: songs + albums,
         pendingAnnotations: await count(
-          "SELECT COUNT(*) AS amount FROM star_sync_queue "
+          'SELECT COUNT(*) AS amount FROM star_sync_queue '
           "WHERE item_type = 'artist' AND item_id = ?;",
           entry.oldId,
         ),
@@ -110,7 +110,7 @@ Future<_ReferenceSummary> _collectReferences(
     default:
       return _ReferenceSummary(
         copies: await count(
-          "SELECT COUNT(*) AS amount FROM cached_tracks "
+          'SELECT COUNT(*) AS amount FROM cached_tracks '
           "WHERE song_id = ? AND download_status = 'complete';",
           entry.oldId,
         ),
@@ -127,7 +127,7 @@ Future<_ReferenceSummary> _collectReferences(
           entry.oldId,
         ),
         pendingAnnotations: await count(
-          "SELECT COUNT(*) AS amount FROM star_sync_queue "
+          'SELECT COUNT(*) AS amount FROM star_sync_queue '
           "WHERE item_type = 'song' AND item_id = ?;",
           entry.oldId,
         ),
@@ -136,7 +136,7 @@ Future<_ReferenceSummary> _collectReferences(
 }
 
 class UnavailableReviewScreen extends ConsumerStatefulWidget {
-  const UnavailableReviewScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<UnavailableReviewScreen> createState() =>
@@ -190,9 +190,7 @@ class _UnavailableReviewScreenState
         .setRecoveryReviewDisposition(id: entry.id, disposition: disposition);
   }
 
-  Future<void> _removeFromLiked(
-    LibraryRecoveryReviewTableData entry,
-  ) async {
+  Future<void> _removeFromLiked(LibraryRecoveryReviewTableData entry) async {
     final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
     if (serverId == null || entry.entityType != 'song') {
       return;
@@ -216,7 +214,7 @@ class _UnavailableReviewScreenState
 }
 
 class _ReviewCard extends ConsumerWidget {
-  const _ReviewCard({
+  const new({
     required this.entry,
     required this.onKeep,
     required this.onRemoveFromLiked,
@@ -355,7 +353,6 @@ class _ReviewCard extends ConsumerWidget {
             newId: selected.id,
           );
         }
-        break;
       case 'artist':
         final candidates = await database.libraryDao.searchArtistsLocal(
           title,
@@ -376,7 +373,6 @@ class _ReviewCard extends ConsumerWidget {
             newId: selected.id,
           );
         }
-        break;
       default:
         final candidates = await database.libraryDao.searchSongsLocal(
           title,
@@ -436,7 +432,6 @@ class _ReviewCard extends ConsumerWidget {
             newId: selected.id,
           );
         }
-        break;
       case 'artist':
         final candidates = (await database.libraryDao.getArtistsByIds(
           candidateIds,
@@ -456,7 +451,6 @@ class _ReviewCard extends ConsumerWidget {
             newId: selected.id,
           );
         }
-        break;
       default:
         final candidates = (await database.libraryDao.getSongsByIds(
           candidateIds,
@@ -590,14 +584,12 @@ class _ReviewCard extends ConsumerWidget {
             canonicalAlbumId: newId,
             matchReason: 'manualReview',
           );
-          break;
         case 'artist':
           await database.songIdentityDao.remapArtistIdentity(
             oldArtistId: entry.oldId,
             canonicalArtistId: newId,
             matchReason: 'manualReview',
           );
-          break;
         default:
           await database.songIdentityDao.remapSongIdentity(
             oldSongId: entry.oldId,
@@ -623,7 +615,7 @@ class _ReviewCard extends ConsumerWidget {
 }
 
 class _RelinkPreviewDialog extends StatelessWidget {
-  const _RelinkPreviewDialog({
+  const new({
     required this.entry,
     required this.newTitle,
     required this.newSubtitle,
@@ -702,9 +694,7 @@ class _RelinkPreviewDialog extends StatelessWidget {
               if (references.pendingAnnotations > 0)
                 _referenceRow(
                   context,
-                  l10n.unavailableReviewRefLikes(
-                    references.pendingAnnotations,
-                  ),
+                  l10n.unavailableReviewRefLikes(references.pendingAnnotations),
                 ),
               if (references.followingSongs > 0)
                 _referenceRow(

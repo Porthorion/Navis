@@ -2,7 +2,7 @@
 library;
 
 class HomeSectionIds {
-  HomeSectionIds._();
+  new _();
 
   static const String recentlyLikedAlbums = 'recently_liked_albums';
   static const String likedTracks = 'liked_tracks';

@@ -55,7 +55,7 @@ AppSettingsTableData? isolateCloneDownloadFolder(
 @DriftAccessor(tables: [AppSettingsTable])
 class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     with _$AppSettingsDaoMixin {
-  AppSettingsDao(super.db);
+  new(super.db);
 
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
@@ -981,10 +981,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> updateLastFmScrobblingState({
-    bool? enabled,
-    bool? connected,
-  }) {
+  Future<void> updateLastFmScrobblingState({bool? enabled, bool? connected}) {
     return (update(
       appSettingsTable,
     )..where((t) => t.id.equals(primarySettingsId))).write(

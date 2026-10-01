@@ -57,23 +57,23 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       (_, next) => _onServerConfigChanged(next),
     );
 
-    ref.listen<AsyncValue<List<ConnectivityResult>>>(
-      connectivityProvider,
-      (_, next) {
-        if (!_hasAuthenticatedSession || next.isLoading) {
-          return;
-        }
-        if (state.status == ServerReachabilityStatus.offline) {
-          state = state.copyWith(
-            status: ServerReachabilityStatus.checking,
-            consecutiveFailureCount: 0,
-            showRetryBanner: true,
-            clearErrorMessage: true,
-          );
-        }
-        unawaited(_checkReachability());
-      },
-    );
+    ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (
+      _,
+      next,
+    ) {
+      if (!_hasAuthenticatedSession || next.isLoading) {
+        return;
+      }
+      if (state.status == ServerReachabilityStatus.offline) {
+        state = state.copyWith(
+          status: ServerReachabilityStatus.checking,
+          consecutiveFailureCount: 0,
+          showRetryBanner: true,
+          clearErrorMessage: true,
+        );
+      }
+      unawaited(_checkReachability());
+    });
 
     return const ServerReachabilityState(
       status: ServerReachabilityStatus.checking,

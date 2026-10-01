@@ -5,7 +5,7 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 /// Compatibility wrapper for callers that still refer to the original route
 /// screen. All required library setup now uses the shared rebuild experience.
 class InitialServerSyncScreen extends StatelessWidget {
-  const InitialServerSyncScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const RequiredLibraryRebuildScreen(

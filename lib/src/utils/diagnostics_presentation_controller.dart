@@ -10,7 +10,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -21,11 +21,11 @@ import 'package:navis/src/features/downloads/presentation/downloads_screen.dart'
 import 'package:path/path.dart' as p;
 
 class DiagnosticsPresentationUnavailable implements Exception {
-  const DiagnosticsPresentationUnavailable();
+  const new();
 }
 
 class DiagnosticsPresentationStatus {
-  const DiagnosticsPresentationStatus({
+  const new({
     required this.logicalWidth,
     required this.logicalHeight,
     required this.devicePixelRatio,
@@ -46,7 +46,7 @@ class DiagnosticsPresentationStatus {
 }
 
 class DiagnosticsScreenshot {
-  const DiagnosticsScreenshot({
+  const new({
     required this.artifact,
     required this.logicalWidth,
     required this.logicalHeight,
@@ -80,10 +80,8 @@ class DiagnosticsScreenshot {
 }
 
 class DiagnosticsPresentationController {
-  DiagnosticsPresentationController({
-    required Directory artifactRoot,
-    this.frameWaiter,
-  }) : _artifactRoot = Directory(p.normalize(p.absolute(artifactRoot.path)));
+  new({required Directory artifactRoot, this.frameWaiter})
+    : _artifactRoot = Directory(p.normalize(p.absolute(artifactRoot.path)));
 
   static final RegExp _validLabel = RegExp(r'^[a-z0-9][a-z0-9_-]{0,47}$');
   static const double _capturePixelRatio = 1;
@@ -104,12 +102,7 @@ class DiagnosticsPresentationController {
     'dragFirstToLast',
   };
 
-  static const artistActions = {
-    'play',
-    'shuffle',
-    'cancel',
-    'queue',
-  };
+  static const artistActions = {'play', 'shuffle', 'cancel', 'queue'};
 
   Future<void> activateArtistControl({required String action}) async {
     if (!artistActions.contains(action)) throw const FormatException();
@@ -708,7 +701,7 @@ class DiagnosticsPresentationController {
   Future<void> tapNavigationDestination(int index) async {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    Element? target = _findElement(
+    var target = _findElement(
       root,
       (element) =>
           element.widget.key == ValueKey<String>('railNavTile-$index') ||
@@ -818,9 +811,7 @@ class DiagnosticsPresentationController {
 
   Future<DiagnosticsScreenshot> capture({required String label}) async {
     if (!isValidLabel(label)) {
-      throw const FormatException(
-        'label must match [a-z0-9][a-z0-9_-]{0,47}',
-      );
+      throw const FormatException('label must match [a-z0-9][a-z0-9_-]{0,47}');
     }
 
     await waitForFrame();
@@ -839,9 +830,7 @@ class DiagnosticsPresentationController {
         data.offsetInBytes,
         data.lengthInBytes,
       );
-      final screenshots = Directory(
-        p.join(_artifactRoot.path, 'screenshots'),
-      );
+      final screenshots = Directory(p.join(_artifactRoot.path, 'screenshots'));
       await screenshots.create(recursive: true);
       _setPosixMode(screenshots.path, '700');
 

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -18,7 +18,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// It never blocks Home. Opening or dismissing it records the running
 /// version as seen.
 class ChangelogDiscoveryCard extends ConsumerStatefulWidget {
-  const ChangelogDiscoveryCard({super.key});
+  const new({super.key});
 
   /// Highlights named before the rest are summarised as "and N more".
   static const int namedHighlights = 3;

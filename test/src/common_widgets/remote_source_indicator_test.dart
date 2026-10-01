@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -347,7 +347,7 @@ void main() {
 }
 
 class _IndicatorThemeSample extends StatelessWidget {
-  const _IndicatorThemeSample({required this.label, required this.theme});
+  const new({required this.label, required this.theme});
 
   final String label;
   final ThemeData theme;

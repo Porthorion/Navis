@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 class LrclibMatchCandidate {
-  const LrclibMatchCandidate({
+  const new({
     required this.artist,
     required this.title,
     this.album,
@@ -15,7 +15,7 @@ class LrclibMatchCandidate {
 }
 
 class LrclibMatchScore {
-  const LrclibMatchScore({required this.value});
+  const new({required this.value});
 
   final double value;
 

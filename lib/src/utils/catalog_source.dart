@@ -1,9 +1,6 @@
 enum CatalogSource { onServer, external }
 
-CatalogSource classifyCatalogSource({
-  required String id,
-  bool? apiIsExternal,
-}) {
+CatalogSource classifyCatalogSource({required String id, bool? apiIsExternal}) {
   if (apiIsExternal != null) {
     return apiIsExternal ? CatalogSource.external : CatalogSource.onServer;
   }
@@ -16,9 +13,6 @@ CatalogSource classifyCatalogSource({
       : CatalogSource.onServer;
 }
 
-bool isExternalCatalogSource({
-  required String id,
-  bool? apiIsExternal,
-}) =>
+bool isExternalCatalogSource({required String id, bool? apiIsExternal}) =>
     classifyCatalogSource(id: id, apiIsExternal: apiIsExternal) ==
     CatalogSource.external;

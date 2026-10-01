@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -26,10 +26,7 @@ void main() {
                 selectedIcon: Icon(Icons.library_music),
                 label: 'Library',
               ),
-              NavigationDestination(
-                icon: Icon(Icons.search),
-                label: 'Search',
-              ),
+              NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),

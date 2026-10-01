@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Shows a desktop popup menu with a lightweight scrim and root-overlay
@@ -96,10 +96,7 @@ Future<T?> showDesktopContextMenu<T>({
 }
 
 class _DesktopContextMenuHost {
-  const _DesktopContextMenuHost({
-    required this.overlayState,
-    required this.overlayBox,
-  });
+  const new({required this.overlayState, required this.overlayBox});
 
   final OverlayState overlayState;
   final RenderBox overlayBox;
@@ -132,10 +129,7 @@ _DesktopContextMenuHost? _findDesktopContextMenuHost(
   BuildContext context, {
   required bool useRootNavigator,
 }) {
-  final navigator = Navigator.maybeOf(
-    context,
-    rootNavigator: useRootNavigator,
-  );
+  final navigator = Navigator.maybeOf(context, rootNavigator: useRootNavigator);
   final overlayState = navigator?.overlay;
   final overlayBox = overlayState?.context.findRenderObject();
   if (overlayState != null &&

@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 class RatingWidget extends StatelessWidget {
-  const RatingWidget({
+  const new({
     required this.rating,
     required this.onChanged,
     super.key,
@@ -43,9 +43,6 @@ class RatingWidget extends StatelessWidget {
       );
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: stars,
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: stars);
   }
 }

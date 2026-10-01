@@ -13,17 +13,13 @@ import 'package:navis/src/utils/app_logger.dart';
 /// One network writer for local likes and ratings. Only acknowledgement of the
 /// current queue version removes it; every failure retains the user's intent.
 class AnnotationSyncDispatcher {
-  AnnotationSyncDispatcher({
-    required StarSyncDao dao,
-    required SubsonicApiClient? Function() readClient,
-    required Future<String?> Function() readAccountIdentity,
-    required bool Function() canConnect,
+  new({
+    required this._dao,
+    required this._readClient,
+    required this._readAccountIdentity,
+    required this._canConnect,
     DateTime Function()? now,
-  }) : _dao = dao,
-       _readClient = readClient,
-       _readAccountIdentity = readAccountIdentity,
-       _canConnect = canConnect,
-       _now = now ?? DateTime.now;
+  }) : _now = now ?? DateTime.now;
 
   final StarSyncDao _dao;
   final SubsonicApiClient? Function() _readClient;
@@ -140,17 +136,20 @@ class AnnotationSyncDispatcher {
         }
         if (_disposed ||
             !identical(client, _readClient()) ||
-            account != await _readAccountIdentity())
+            account != await _readAccountIdentity()) {
           return;
+        }
         if (!await _dao.withDispatchLease(owner, _now(), () async {
           await _dao.removeAction(entry.id);
-        }))
+        })) {
           return;
+        }
       } on Object catch (error) {
         if (_disposed ||
             !identical(client, _readClient()) ||
-            account != await _readAccountIdentity())
+            account != await _readAccountIdentity()) {
           return;
+        }
         final authentication = error is SubsonicAuthException;
         final delay = authentication
             ? const Duration(days: 1)
@@ -175,8 +174,9 @@ class AnnotationSyncDispatcher {
                 ? error.retryAt!
                 : _now().add(delay),
           ),
-        ))
+        )) {
           return;
+        }
         if (authentication || error is SubsonicConnectionException) return;
       } finally {
         if (identical(_cancelToken, token)) _cancelToken = null;

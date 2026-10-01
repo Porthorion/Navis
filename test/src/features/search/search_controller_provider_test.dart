@@ -18,7 +18,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
-  _StaticReachabilityController(this._state);
+  new(this._state);
 
   final ServerReachabilityState _state;
 
@@ -27,7 +27,7 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _FakeSearchApiClient extends SubsonicApiClient {
-  _FakeSearchApiClient(this._handler)
+  new(this._handler)
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -67,7 +67,7 @@ class _FakeSearchApiClient extends SubsonicApiClient {
 
 @immutable
 class _Search3Call {
-  const _Search3Call({
+  const new({
     required this.query,
     required this.artistCount,
     required this.albumCount,
@@ -218,10 +218,10 @@ void main() {
       );
       await _waitForEmissions(emissions, 2);
 
-      expect(
-        emissions.last.result.artists.map((artist) => artist.id),
-        <String>['local-artist', 'remote-artist'],
-      );
+      expect(emissions.last.result.artists.map((artist) => artist.id), <String>[
+        'local-artist',
+        'remote-artist',
+      ]);
       expect(emissions.last.isWaitingForApi, isFalse);
     });
 
@@ -320,10 +320,10 @@ void main() {
       container.read(searchQueryProvider.notifier).submit('Cache');
       await _waitForEmissions(emissions, 2);
 
-      expect(
-        emissions.last.result.artists.map((artist) => artist.id),
-        <String>['artist-local', 'artist-remote'],
-      );
+      expect(emissions.last.result.artists.map((artist) => artist.id), <String>[
+        'artist-local',
+        'artist-remote',
+      ]);
     });
 
     test(
@@ -347,11 +347,7 @@ void main() {
                   name: 'Aurora Remote',
                   isExternal: true,
                 ),
-                Artist(
-                  id: 'remote-exact',
-                  name: 'Aurora',
-                  isExternal: true,
-                ),
+                Artist(id: 'remote-exact', name: 'Aurora', isExternal: true),
               ],
             ),
           ),

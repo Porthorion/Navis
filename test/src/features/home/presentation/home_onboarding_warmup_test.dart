@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -58,17 +58,14 @@ void main() {
         },
       );
 
-      expect(
-        selected.map((candidate) => candidate.coverArtId),
-        <String>[
-          'newest',
-          'shared',
-          'liked-one',
-          'liked-two',
-          'liked-three',
-          'liked-four',
-        ],
-      );
+      expect(selected.map((candidate) => candidate.coverArtId), <String>[
+        'newest',
+        'shared',
+        'liked-one',
+        'liked-two',
+        'liked-three',
+        'liked-four',
+      ]);
       expect(selected[0].size, 600);
       expect(
         selected.skip(2).every((candidate) => candidate.size == 160),
@@ -99,9 +96,9 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
-            homeSectionOrderProvider.overrideWithValue(
-              const <String>[HomeSectionIds.randomAlbums],
-            ),
+            homeSectionOrderProvider.overrideWithValue(const <String>[
+              HomeSectionIds.randomAlbums,
+            ]),
             homeSectionsHiddenProvider.overrideWithValue(const <String>[]),
             homeLikedOnlyFilterProvider.overrideWith(
               _LikedOnlyHomeFilterController.new,

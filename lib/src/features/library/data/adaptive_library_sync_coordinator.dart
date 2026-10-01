@@ -17,32 +17,25 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
-  AdaptiveLibrarySyncCoordinator({
-    required LibrarySyncEngine executor,
-    required NavisDatabase database,
-    required ServerConfigRepository serverConfigRepository,
+  new({
+    required this._executor,
+    required this._database,
+    required this._serverConfigRepository,
     NetworkType? networkType,
-    SyncNetworkPolicy Function()? readSyncNetworkPolicy,
+    this._readSyncNetworkPolicy,
     required this.staleAfter,
-    required bool Function() readHasActivePlayback,
+    required this._readHasActivePlayback,
     bool Function()? readIsForeground,
     DateTime Function()? now,
-    LibrarySyncPlanner planner = const LibrarySyncPlanner(),
+    this._planner = const LibrarySyncPlanner(),
     String executionOwnerKind = 'foreground',
-    bool isBackgroundExecution = false,
+    this._isBackgroundExecution = false,
     Duration? executionLeaseTtl,
     Duration? executionLeaseHeartbeatInterval,
-  }) : _executor = executor,
-       _database = database,
-       _serverConfigRepository = serverConfigRepository,
-       _legacyNetworkType = networkType,
-       _readSyncNetworkPolicy = readSyncNetworkPolicy,
-       _readHasActivePlayback = readHasActivePlayback,
+  }) : _legacyNetworkType = networkType,
        _readIsForeground = readIsForeground ?? _alwaysForeground,
        _now = now ?? DateTime.now,
-       _planner = planner,
        _executionOwnerKind = _validateOwnerKind(executionOwnerKind),
-       _isBackgroundExecution = isBackgroundExecution,
        _executionLeaseTtl = executionLeaseTtl ?? _defaultExecutionLeaseTtl,
        _executionLeaseHeartbeatInterval =
            executionLeaseHeartbeatInterval ??
@@ -174,7 +167,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final type = _legacyNetworkType ?? NetworkType.other;
     return resolveSyncNetworkPolicy(
       networkType: type,
-      nativeMetered: type == NetworkType.cellular ? true : false,
+      nativeMetered: type == NetworkType.cellular,
       backgroundSyncUnmeteredOnly: true,
     );
   }
@@ -489,9 +482,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final isAuxiliary = _auxiliaryTargets.any(
       (target) => target.kind == request.target.kind,
     );
-    final auxiliaryDue = isAuxiliary
-        ? await _auxiliaryIsDue(serverId, request.target)
-        : false;
+    final auxiliaryDue =
+        isAuxiliary && await _auxiliaryIsDue(serverId, request.target);
     final auditInterval = persisted.conditionalIndexesMode == 'unsupported'
         ? const Duration(days: 1)
         : const Duration(days: 7);
@@ -625,11 +617,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         now: timestamp,
       );
     }
-    await _writePlanState(
-      serverId: serverId,
-      persisted: persisted,
-      plan: plan,
-    );
+    await _writePlanState(serverId: serverId, persisted: persisted, plan: plan);
 
     if (!plan.shouldExecute) {
       final state = LibrarySyncState(
@@ -767,12 +755,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     int? activeAttemptId;
     final startedAt = _now();
     final livePolicy = _syncPolicy;
-    if (!_workAllowed(
-      workClass,
-      livePolicy,
-      request,
-      planKind: plan.kind,
-    )) {
+    if (!_workAllowed(workClass, livePolicy, request, planKind: plan.kind)) {
       await _database.librarySyncDao.completeSyncRun(
         requestId: durableRunId,
         outcome: const SyncRunOutcome(
@@ -1103,9 +1086,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               lastCatalogSyncedAt: Value(
                 catalogUpdated ? completedAt : persisted.lastCatalogSyncedAt,
               ),
-              lastAuxiliarySyncedAt: Value(
-                auxiliaryCompletedAt,
-              ),
+              lastAuxiliarySyncedAt: Value(auxiliaryCompletedAt),
               failureStreak: Value(
                 circuitRelevant
                     ? failed
@@ -1616,9 +1597,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               ? 'reliable'
               : 'unknown',
         ),
-        bulkSearchMode: Value(
-          bulkQuery is String ? 'supported' : 'unknown',
-        ),
+        bulkSearchMode: Value(bulkQuery is String ? 'supported' : 'unknown'),
         bulkSearchQuery: Value(bulkQuery is String ? bulkQuery : null),
         catalogCursor: Value(cursor),
         catalogFingerprint: Value(
@@ -1668,9 +1647,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       final root = jsonDecode(raw);
       if (root is Map<String, dynamic> &&
           root['navis'] is Map<String, dynamic>) {
-        return Map<String, Object?>.from(
-          root['navis'] as Map<String, dynamic>,
-        );
+        return Map<String, Object?>.from(root['navis'] as Map<String, dynamic>);
       }
     } on FormatException {
       return const <String, Object?>{};

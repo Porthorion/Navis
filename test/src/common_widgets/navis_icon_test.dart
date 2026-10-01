@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
@@ -70,9 +70,7 @@ void main() {
           body: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
-              _LogoRegistrationSample(
-                background: Color(0xFFF4F4F4),
-              ),
+              _LogoRegistrationSample(background: Color(0xFFF4F4F4)),
               _LogoRegistrationSample(
                 background: Color(0xFF111111),
                 darkTheme: true,
@@ -96,11 +94,7 @@ void main() {
 }
 
 class _LogoRegistrationSample extends StatelessWidget {
-  const _LogoRegistrationSample({
-    required this.background,
-    this.darkTheme = false,
-    this.tintColor,
-  });
+  const new({required this.background, this.darkTheme = false, this.tintColor});
 
   final Color background;
   final bool darkTheme;

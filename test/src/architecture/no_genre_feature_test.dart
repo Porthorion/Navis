@@ -26,9 +26,7 @@ String _withoutGenreRemovalMigration(String source) {
     if (!source
         .substring(previousLineStart, start)
         .trimLeft()
-        .startsWith(
-          '///',
-        )) {
+        .startsWith('///')) {
       break;
     }
     start = previousLineStart;

@@ -6,7 +6,7 @@ part 'indexes.g.dart';
 
 @freezed
 abstract class Indexes with _$Indexes {
-  const factory Indexes({
+  const factory({
     @JsonKey(fromJson: _lastModifiedFromJson, toJson: _lastModifiedToJson)
     DateTime? lastModified,
     @Default(<IndexesIndex>[])
@@ -16,19 +16,17 @@ abstract class Indexes with _$Indexes {
     @Default(<Artist>[]) List<Artist> child,
   }) = _Indexes;
 
-  factory Indexes.fromJson(Map<String, dynamic> json) =>
-      _$IndexesFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$IndexesFromJson(json);
 }
 
 @freezed
 abstract class IndexesIndex with _$IndexesIndex {
-  const factory IndexesIndex({
+  const factory({
     String? name,
     @Default(<Artist>[]) @JsonKey(name: 'artist') List<Artist> artists,
   }) = _IndexesIndex;
 
-  factory IndexesIndex.fromJson(Map<String, dynamic> json) =>
-      _$IndexesIndexFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$IndexesIndexFromJson(json);
 }
 
 DateTime? _lastModifiedFromJson(Object? value) {

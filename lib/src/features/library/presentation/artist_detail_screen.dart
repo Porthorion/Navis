@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -33,7 +33,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
-  const ArtistDetailScreen({required this.artistId, super.key});
+  const new({required this.artistId, super.key});
 
   final String artistId;
 
@@ -337,9 +337,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 Builder(
                   builder: (buttonContext) => IconButton(
                     icon: const Icon(Icons.more_horiz),
-                    tooltip: MaterialLocalizations.of(
-                      buttonContext,
-                    ).showMenuTooltip,
+                    tooltip: MaterialLocalizations.of(buttonContext)
+                        .showMenuTooltip,
                     onPressed: () {
                       final renderObject = buttonContext.findRenderObject();
                       if (renderObject is! RenderBox) return;
@@ -374,7 +373,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 /// page's eventual silhouette visible so a cold deep link never reads as an
 /// empty page while the local library stream is connecting.
 class _ArtistDetailLoadingState extends StatelessWidget {
-  const _ArtistDetailLoadingState();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -448,10 +447,7 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 28, 16, 12),
-                  child: _ArtistDetailLoadingPlaceholder(
-                    height: 24,
-                    width: 92,
-                  ),
+                  child: _ArtistDetailLoadingPlaceholder(height: 24, width: 92),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -477,7 +473,7 @@ class _ArtistDetailLoadingState extends StatelessWidget {
 }
 
 class _ArtistDetailLoadingAlbumRow extends StatelessWidget {
-  const _ArtistDetailLoadingAlbumRow();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -501,10 +497,7 @@ class _ArtistDetailLoadingAlbumRow extends StatelessWidget {
 }
 
 class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
-  const _ArtistDetailLoadingPlaceholder({
-    required this.height,
-    this.width = double.infinity,
-  });
+  const new({required this.height, this.width = double.infinity});
 
   final double height;
   final double width;
@@ -525,7 +518,7 @@ class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
 /// the artist has a photo from the Last.fm / MusicBrainz metadata.
 /// Overlays the artist name and heart/star icon at the bottom of the image.
 class _ArtistImageHeader extends StatelessWidget {
-  const _ArtistImageHeader({
+  const new({
     required this.imageUrl,
     required this.artistName,
     required this.albumCount,
@@ -636,11 +629,8 @@ class _ArtistImageHeader extends StatelessWidget {
                           if (albumCount != null) ...<Widget>[
                             const SizedBox(height: 6),
                             Text(
-                              AppLocalizations.of(
-                                context,
-                              )!.artistCardAlbumCount(
-                                albumCount!,
-                              ),
+                              AppLocalizations.of(context)!
+                                  .artistCardAlbumCount(albumCount!),
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
                                     color: Colors.white.withValues(alpha: 0.82),
@@ -688,7 +678,7 @@ class _ArtistImageHeader extends StatelessWidget {
 
 /// Fallback header shown when there is no artist photo.
 class _ArtistNameHeader extends StatelessWidget {
-  const _ArtistNameHeader({
+  const new({
     required this.name,
     required this.albumCount,
     required this.isStarred,
@@ -781,7 +771,7 @@ class _ArtistNameHeader extends StatelessWidget {
 }
 
 class _ArtistInfoSection extends StatelessWidget {
-  const _ArtistInfoSection({required this.info, this.albumCount});
+  const new({required this.info, this.albumCount});
 
   final ArtistInfo info;
   final int? albumCount;
@@ -810,9 +800,8 @@ class _ArtistInfoSection extends StatelessWidget {
               info.biography!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.65,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.85),
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.85),
               ),
             ),
             const SizedBox(height: 16),
@@ -824,7 +813,7 @@ class _ArtistInfoSection extends StatelessWidget {
 }
 
 class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
-  const _ArtistTopTracksPlaylistCard({
+  const new({
     required this.artistId,
     required this.artistName,
     required this.imageUrl,
@@ -897,7 +886,7 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
 }
 
 class _ArtistAlbumSection extends ConsumerWidget {
-  const _ArtistAlbumSection({required this.title, required this.albums});
+  const new({required this.title, required this.albums});
 
   final String title;
   final List<AlbumsTableData> albums;
@@ -943,11 +932,7 @@ class _ArtistAlbumSection extends ConsumerWidget {
 }
 
 class _SimilarArtistEntry {
-  const _SimilarArtistEntry({
-    required this.id,
-    required this.name,
-    this.coverArt,
-  });
+  const new({required this.id, required this.name, this.coverArt});
 
   final String id;
   final String name;
@@ -955,10 +940,7 @@ class _SimilarArtistEntry {
 }
 
 class _SimilarArtistsSection extends ConsumerWidget {
-  const _SimilarArtistsSection({
-    required this.title,
-    required this.artists,
-  });
+  const new({required this.title, required this.artists});
 
   final String title;
   final List<_SimilarArtistEntry> artists;
@@ -990,9 +972,7 @@ class _SimilarArtistsSection extends ConsumerWidget {
               final maxVisible = crossAxisCount * 2;
               final visibleArtists = artists
                   .take(maxVisible)
-                  .toList(
-                    growable: false,
-                  );
+                  .toList(growable: false);
 
               return GridView.builder(
                 padding: EdgeInsets.symmetric(horizontal: inset),
@@ -1019,7 +999,7 @@ class _SimilarArtistsSection extends ConsumerWidget {
 }
 
 class _SimilarArtistCard extends ConsumerWidget {
-  const _SimilarArtistCard({required this.artist});
+  const new({required this.artist});
 
   final _SimilarArtistEntry artist;
 
@@ -1028,9 +1008,8 @@ class _SimilarArtistCard extends ConsumerWidget {
     return InkWell(
       borderRadius: NavisRadius.mdAll,
       onTap: () => NavService.openArtistDetail(context, ref, artist.id),
-      onLongPress: () => unawaited(
-        showArtistContextMenu(context, ref, artist.id),
-      ),
+      onLongPress: () =>
+          unawaited(showArtistContextMenu(context, ref, artist.id)),
       onSecondaryTapDown: (details) => unawaited(
         showArtistContextMenu(
           context,
@@ -1074,7 +1053,7 @@ class _SimilarArtistCard extends ConsumerWidget {
 /// AI-powered similar artists section, gated behind
 /// [audioMuseAvailableProvider]. Hidden when no recommendations are returned.
 class _AudioMuseSimilarArtists extends ConsumerWidget {
-  const _AudioMuseSimilarArtists({required this.artistId});
+  const new({required this.artistId});
 
   final String artistId;
 
@@ -1096,12 +1075,7 @@ class _AudioMuseSimilarArtists extends ConsumerWidget {
         return _SimilarArtistsSection(
           title: l10n.audioMuseSimilarArtists,
           artists: filteredRecs
-              .map(
-                (rec) => _SimilarArtistEntry(
-                  id: rec.id,
-                  name: rec.title,
-                ),
-              )
+              .map((rec) => _SimilarArtistEntry(id: rec.id, name: rec.title))
               .toList(growable: false),
         );
       },

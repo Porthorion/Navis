@@ -34393,7 +34393,9 @@ class $$ServerConfigTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ServerConfigTableTable, ServerConfigTableData>(
+                    table,
+                  ),
                   $$ServerConfigTableTableReferences(db, table, e),
                 ),
               )
@@ -36407,7 +36409,18 @@ class $$AppSettingsTableTableTableManager
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$AppSettingsTableTable, AppSettingsTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $AppSettingsTableTable,
+                    AppSettingsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -36602,7 +36615,16 @@ class $$EqPresetsTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$EqPresetsTableTable, EqPresetsTableData>(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $EqPresetsTableTable,
+                    EqPresetsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -36833,7 +36855,16 @@ class $$EqStateTableTableTableManager
                 legacyResetNotice: legacyResetNotice,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$EqStateTableTable, EqStateTableData>(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $EqStateTableTable,
+                    EqStateTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -37302,7 +37333,7 @@ class $$ArtistsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ArtistsTableTable, ArtistsTableData>(table),
                   $$ArtistsTableTableReferences(db, table, e),
                 ),
               )
@@ -38071,7 +38102,7 @@ class $$AlbumsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$AlbumsTableTable, AlbumsTableData>(table),
                   $$AlbumsTableTableReferences(db, table, e),
                 ),
               )
@@ -39411,7 +39442,7 @@ class $$SongsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$SongsTableTable, SongsTableData>(table),
                   $$SongsTableTableReferences(db, table, e),
                 ),
               )
@@ -39823,7 +39854,19 @@ class $$SongSearchTextTableTableTableManager
                 matchAlbum: matchAlbum,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SongSearchTextTableTable,
+                    SongSearchTextTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $SongSearchTextTableTable,
+                    SongSearchTextTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -40000,7 +40043,19 @@ class $$AlbumArtistIndexTableTableTableManager
                 artistKeys: artistKeys,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AlbumArtistIndexTableTable,
+                    AlbumArtistIndexTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $AlbumArtistIndexTableTable,
+                    AlbumArtistIndexTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -40281,7 +40336,19 @@ class $$AlbumInfoCacheTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AlbumInfoCacheTableTable,
+                    AlbumInfoCacheTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $AlbumInfoCacheTableTable,
+                    AlbumInfoCacheTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -40567,7 +40634,19 @@ class $$ExternalLyricsCacheTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ExternalLyricsCacheTableTable,
+                    ExternalLyricsCacheTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $ExternalLyricsCacheTableTable,
+                    ExternalLyricsCacheTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -40918,7 +40997,7 @@ class $$PlaylistsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$PlaylistsTableTable, PlaylistsTableData>(table),
                   $$PlaylistsTableTableReferences(db, table, e),
                 ),
               )
@@ -41276,7 +41355,9 @@ class $$PlaylistSongsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$PlaylistSongsTableTable, PlaylistSongsTableData>(
+                    table,
+                  ),
                   $$PlaylistSongsTableTableReferences(db, table, e),
                 ),
               )
@@ -41619,7 +41700,18 @@ class $$CachedTracksTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$CachedTracksTableTable, CachedTracksTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $CachedTracksTableTable,
+                    CachedTracksTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -41777,7 +41869,19 @@ class $$CacheSystemStateTableTableTableManager
                 cacheSystemVersion: cacheSystemVersion,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $CacheSystemStateTableTable,
+                    CacheSystemStateTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $CacheSystemStateTableTable,
+                    CacheSystemStateTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -42103,7 +42207,18 @@ class $$DownloadQueueTableTableTableManager
                 retryCount: retryCount,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$DownloadQueueTableTable, DownloadQueueTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $DownloadQueueTableTable,
+                    DownloadQueueTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -42338,7 +42453,9 @@ class $$PlayHistoryTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$PlayHistoryTableTable, PlayHistoryTableData>(
+                    table,
+                  ),
                   $$PlayHistoryTableTableReferences(db, table, e),
                 ),
               )
@@ -42533,7 +42650,19 @@ class $$RecentSearchesTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $RecentSearchesTableTable,
+                    RecentSearchesTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $RecentSearchesTableTable,
+                    RecentSearchesTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -42852,7 +42981,7 @@ class $$PlayQueueTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$PlayQueueTableTable, PlayQueueTableData>(table),
                   $$PlayQueueTableTableReferences(db, table, e),
                 ),
               )
@@ -43234,7 +43363,10 @@ class $$PlayQueueItemsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $PlayQueueItemsTableTable,
+                    PlayQueueItemsTableData
+                  >(table),
                   $$PlayQueueItemsTableTableReferences(db, table, e),
                 ),
               )
@@ -43573,7 +43705,9 @@ class $$MatchFlowsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$MatchFlowsTableTable, MatchFlowsTableData>(
+                    table,
+                  ),
                   $$MatchFlowsTableTableReferences(db, table, e),
                 ),
               )
@@ -43880,7 +44014,10 @@ class $$MatchFlowSongsTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $MatchFlowSongsTableTable,
+                    MatchFlowSongsTableData
+                  >(table),
                   $$MatchFlowSongsTableTableReferences(db, table, e),
                 ),
               )
@@ -44386,7 +44523,9 @@ class $$ScrobbleQueueTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ScrobbleQueueTableTable, ScrobbleQueueTableData>(
+                    table,
+                  ),
                   $$ScrobbleQueueTableTableReferences(db, table, e),
                 ),
               )
@@ -44707,7 +44846,18 @@ class $$StarSyncQueueTableTableTableManager
                 queuedAt: queuedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StarSyncQueueTableTable, StarSyncQueueTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $StarSyncQueueTableTable,
+                    StarSyncQueueTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -44884,7 +45034,19 @@ class $$AnnotationDispatchLeaseTableTableTableManager
                 expiresAt: expiresAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AnnotationDispatchLeaseTableTable,
+                    AnnotationDispatchLeaseTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $AnnotationDispatchLeaseTableTable,
+                    AnnotationDispatchLeaseTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -45300,7 +45462,10 @@ class $$ListenBrainzFeedbackQueueTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $ListenBrainzFeedbackQueueTableTable,
+                    ListenBrainzFeedbackQueueTableData
+                  >(table),
                   $$ListenBrainzFeedbackQueueTableTableReferences(db, table, e),
                 ),
               )
@@ -45669,7 +45834,19 @@ class $$ListenBrainzWeeklyCacheTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ListenBrainzWeeklyCacheTableTable,
+                    ListenBrainzWeeklyCacheTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $ListenBrainzWeeklyCacheTableTable,
+                    ListenBrainzWeeklyCacheTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -45920,7 +46097,18 @@ class $$NetworkUsageTableTableTableManager
                 occurredAt: occurredAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$NetworkUsageTableTable, NetworkUsageTableData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $NetworkUsageTableTable,
+                    NetworkUsageTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -46124,7 +46312,19 @@ class $$SongIdentityAliasesTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SongIdentityAliasesTableTable,
+                    SongIdentityAliasesTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $SongIdentityAliasesTableTable,
+                    SongIdentityAliasesTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -47289,7 +47489,10 @@ class $$LibrarySyncStateTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncStateTableTable,
+                    LibrarySyncStateTableData
+                  >(table),
                   $$LibrarySyncStateTableTableReferences(db, table, e),
                 ),
               )
@@ -47775,7 +47978,10 @@ class $$LibrarySyncWorkTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncWorkTableTable,
+                    LibrarySyncWorkTableData
+                  >(table),
                   $$LibrarySyncWorkTableTableReferences(db, table, e),
                 ),
               )
@@ -48112,7 +48318,19 @@ class $$LibrarySyncCandidateArtistsTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $LibrarySyncCandidateArtistsTableTable,
+                    LibrarySyncCandidateArtistsTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $LibrarySyncCandidateArtistsTableTable,
+                    LibrarySyncCandidateArtistsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -48654,7 +48872,19 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $LibrarySyncCandidateAlbumsTableTable,
+                    LibrarySyncCandidateAlbumsTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $LibrarySyncCandidateAlbumsTableTable,
+                    LibrarySyncCandidateAlbumsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -49315,7 +49545,19 @@ class $$LibrarySyncCandidateSongsTableTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $LibrarySyncCandidateSongsTableTable,
+                    LibrarySyncCandidateSongsTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $LibrarySyncCandidateSongsTableTable,
+                    LibrarySyncCandidateSongsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -49530,7 +49772,19 @@ class $$LibrarySyncLocalMutationsTableTableTableManager
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $LibrarySyncLocalMutationsTableTable,
+                    LibrarySyncLocalMutationsTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $LibrarySyncLocalMutationsTableTable,
+                    LibrarySyncLocalMutationsTableData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -49863,7 +50117,10 @@ class $$StarredAbsenceCandidatesTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $StarredAbsenceCandidatesTableTable,
+                    StarredAbsenceCandidatesTableData
+                  >(table),
                   $$StarredAbsenceCandidatesTableTableReferences(db, table, e),
                 ),
               )
@@ -50226,7 +50483,10 @@ class $$LibrarySyncOperationLedgerTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncOperationLedgerTableTable,
+                    LibrarySyncOperationLedgerTableData
+                  >(table),
                   $$LibrarySyncOperationLedgerTableTableReferences(
                     db,
                     table,
@@ -50593,7 +50853,10 @@ class $$LibrarySyncExecutionLeaseTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncExecutionLeaseTableTable,
+                    LibrarySyncExecutionLeaseTableData
+                  >(table),
                   $$LibrarySyncExecutionLeaseTableTableReferences(db, table, e),
                 ),
               )
@@ -51302,7 +51565,10 @@ class $$LibrarySyncRunRequestTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncRunRequestTableTable,
+                    LibrarySyncRunRequestTableData
+                  >(table),
                   $$LibrarySyncRunRequestTableTableReferences(db, table, e),
                 ),
               )
@@ -51831,7 +52097,10 @@ class $$LibrarySyncRunAttemptTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncRunAttemptTableTable,
+                    LibrarySyncRunAttemptTableData
+                  >(table),
                   $$LibrarySyncRunAttemptTableTableReferences(db, table, e),
                 ),
               )
@@ -52346,7 +52615,10 @@ class $$LibrarySyncRunOutcomeTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncRunOutcomeTableTable,
+                    LibrarySyncRunOutcomeTableData
+                  >(table),
                   $$LibrarySyncRunOutcomeTableTableReferences(db, table, e),
                 ),
               )
@@ -52728,7 +53000,10 @@ class $$LibrarySyncProviderProfileTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncProviderProfileTableTable,
+                    LibrarySyncProviderProfileTableData
+                  >(table),
                   $$LibrarySyncProviderProfileTableTableReferences(
                     db,
                     table,
@@ -53121,7 +53396,10 @@ class $$LibrarySyncRepairSessionTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibrarySyncRepairSessionTableTable,
+                    LibrarySyncRepairSessionTableData
+                  >(table),
                   $$LibrarySyncRepairSessionTableTableReferences(db, table, e),
                 ),
               )
@@ -53531,7 +53809,10 @@ class $$LibraryScanObservationTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibraryScanObservationTableTable,
+                    LibraryScanObservationTableData
+                  >(table),
                   $$LibraryScanObservationTableTableReferences(db, table, e),
                 ),
               )
@@ -54015,7 +54296,10 @@ class $$LibraryRecoveryReviewTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $LibraryRecoveryReviewTableTable,
+                    LibraryRecoveryReviewTableData
+                  >(table),
                   $$LibraryRecoveryReviewTableTableReferences(db, table, e),
                 ),
               )
@@ -54396,7 +54680,10 @@ class $$EntityIdentityAliasTableTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $EntityIdentityAliasTableTable,
+                    EntityIdentityAliasTableData
+                  >(table),
                   $$EntityIdentityAliasTableTableReferences(db, table, e),
                 ),
               )

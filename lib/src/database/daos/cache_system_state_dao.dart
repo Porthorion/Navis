@@ -7,7 +7,7 @@ part 'cache_system_state_dao.g.dart';
 @DriftAccessor(tables: [CacheSystemStateTable])
 class CacheSystemStateDao extends DatabaseAccessor<NavisDatabase>
     with _$CacheSystemStateDaoMixin {
-  CacheSystemStateDao(super.attachedDatabase);
+  new(super.attachedDatabase);
 
   static const int singletonId = 1;
 

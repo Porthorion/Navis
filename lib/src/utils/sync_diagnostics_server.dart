@@ -75,7 +75,7 @@ enum SyncDiagnosticsMode {
 }
 
 class SyncDiagnosticsServer {
-  SyncDiagnosticsServer({
+  new({
     required ProviderContainer container,
     required this.mode,
     required this.handshakePath,
@@ -399,11 +399,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _windowPresentationJson(),
-        );
+        await _respond(request, HttpStatus.ok, await _windowPresentationJson());
         return;
       }
       if (request.method == 'POST' && path == '/v1/presentation/window') {
@@ -470,11 +466,7 @@ class SyncDiagnosticsServer {
           );
         }
         await presentationController?.waitForFrame();
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _windowPresentationJson(),
-        );
+        await _respond(request, HttpStatus.ok, await _windowPresentationJson());
         return;
       }
       if (request.method == 'GET' && path == '/v1/presentation/status') {
@@ -595,8 +587,9 @@ class SyncDiagnosticsServer {
         final action = body['action'];
         if (body.length != 1 ||
             action is! String ||
-            !DiagnosticsPresentationController.trackActions.contains(action))
+            !DiagnosticsPresentationController.trackActions.contains(action)) {
           throw const FormatException();
+        }
         final presentation = presentationController;
         if (presentation == null) {
           await _presentationUnavailable(request);
@@ -670,8 +663,9 @@ class SyncDiagnosticsServer {
               enabled: autoAdvance,
             );
           }
-          if (artists is bool)
+          if (artists is bool) {
             await dao.updateShowArtistsPage(enabled: artists);
+          }
           if (radio is bool) await dao.updateShowRadioPage(enabled: radio);
           await presentationController?.waitForFrame();
         }
@@ -828,9 +822,7 @@ class SyncDiagnosticsServer {
           });
           return;
         }
-        final controller = _container.read(
-          playerOverlayStackProvider.notifier,
-        );
+        final controller = _container.read(playerOverlayStackProvider.notifier);
         final route = surface == 'queue'
             ? PlayerOverlayRoute.queue
             : PlayerOverlayRoute.nowPlaying;
@@ -1154,10 +1146,7 @@ class SyncDiagnosticsServer {
         final albums = await _container
             .read(navisDatabaseProvider)
             .libraryDao
-            .watchAlbumsPage(
-              sort: AlbumSortOrder.recentlyAdded,
-              limit: limit,
-            )
+            .watchAlbumsPage(sort: AlbumSortOrder.recentlyAdded, limit: limit)
             .first;
         // IDs and ordering evidence only: diagnostics must not expose the
         // user's private album metadata through its authenticated API.
@@ -1178,11 +1167,7 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/session/status') {
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _sessionStatusJson(),
-        );
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
       if (request.method == 'POST' && path == '/v1/session/connect') {
@@ -1396,9 +1381,7 @@ class SyncDiagnosticsServer {
                 const Duration(seconds: 1),
               ),
             );
-        await _respond(request, HttpStatus.ok, <String, Object?>{
-          'due': true,
-        });
+        await _respond(request, HttpStatus.ok, <String, Object?>{'due': true});
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
@@ -1565,10 +1548,7 @@ class SyncDiagnosticsServer {
             .diagnosticsFixtureTree();
         await _container
             .read(downloadServiceProvider)
-            .configureCustomDownloadFolder(
-              enabled: true,
-              path: fixtureTree,
-            );
+            .configureCustomDownloadFolder(enabled: true, path: fixtureTree);
         await _respond(request, HttpStatus.ok, await _safFixtureStatusJson());
         return;
       }
@@ -1580,9 +1560,7 @@ class SyncDiagnosticsServer {
         }
         await _container
             .read(downloadServiceProvider)
-            .configureCustomDownloadFolder(
-              enabled: false,
-            );
+            .configureCustomDownloadFolder(enabled: false);
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
       }
@@ -1843,20 +1821,22 @@ class SyncDiagnosticsServer {
                 enabled: body['enabled'] as bool,
               );
             case 'select':
-              if (preset != null)
+              if (preset != null) {
                 success = await controller.selectPreset(preset);
+              }
             case 'save':
               success = await controller.saveAs(body['name'] as String) != null;
             case 'update':
               success = await controller.updatePreset();
             case 'rename':
-              if (preset != null)
+              if (preset != null) {
                 success = await controller.rename(
                   preset,
                   body['name'] as String,
                 );
+              }
             case 'duplicate':
-              if (preset != null)
+              if (preset != null) {
                 success =
                     await controller.saveAs(
                       body['name'] as String,
@@ -1864,12 +1844,14 @@ class SyncDiagnosticsServer {
                       activate: false,
                     ) !=
                     null;
+              }
             case 'delete':
-              if (preset != null)
+              if (preset != null) {
                 success = await controller.deletePreset(
                   preset,
                   discardDrafts: body['discardDrafts'] == true,
                 );
+              }
             case 'restore':
               success = await controller.restorePreset(
                 EqPreset.fromJson(body['preset'] as Map<String, dynamic>),
@@ -2035,7 +2017,7 @@ class SyncDiagnosticsServer {
         );
         await _respond(request, HttpStatus.ok, {
           'status': 'visible',
-          if (interaction != null) 'profile': interaction,
+          'profile': ?interaction,
         });
         return;
       }
@@ -2116,11 +2098,7 @@ class SyncDiagnosticsServer {
           await _presentationUnavailable(request);
           return;
         }
-        await _respond(
-          request,
-          HttpStatus.ok,
-          _quickPanelState(presentation),
-        );
+        await _respond(request, HttpStatus.ok, _quickPanelState(presentation));
         return;
       }
       if (path == '/v1/presentation/system-back' && request.method == 'POST') {
@@ -2208,11 +2186,7 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/playback/volume') {
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _playbackVolumeStatus(),
-        );
+        await _respond(request, HttpStatus.ok, await _playbackVolumeStatus());
         return;
       }
       if (request.method == 'POST' && path == '/v1/playback/volume') {
@@ -2240,11 +2214,7 @@ class SyncDiagnosticsServer {
               persistImmediately: true,
               throwOnPersistenceFailure: true,
             );
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _playbackVolumeStatus(),
-        );
+        await _respond(request, HttpStatus.ok, await _playbackVolumeStatus());
         return;
       }
       if (request.method == 'POST' &&
@@ -2258,11 +2228,7 @@ class SyncDiagnosticsServer {
         await _container
             .read(playbackVolumeProvider.notifier)
             .toggleMute(throwOnPersistenceFailure: true);
-        await _respond(
-          request,
-          HttpStatus.ok,
-          await _playbackVolumeStatus(),
-        );
+        await _respond(request, HttpStatus.ok, await _playbackVolumeStatus());
         return;
       }
       if (request.method == 'POST' && path == '/v1/playback/start') {
@@ -2365,9 +2331,7 @@ class SyncDiagnosticsServer {
         }
         await _container
             .read(queueProvider.notifier)
-            .replaceWithTableData(
-              songs,
-            );
+            .replaceWithTableData(songs);
         await _respond(request, HttpStatus.accepted, <String, Object?>{
           'status': 'starting',
           'songIds': songIds,
@@ -2791,9 +2755,7 @@ class SyncDiagnosticsServer {
     final treeUri = await const AndroidSafStorage().diagnosticsFixtureTree();
     return _container
         .read(downloadServiceProvider)
-        .previewCustomDownloadFolder(
-          treeUri,
-        );
+        .previewCustomDownloadFolder(treeUri);
   }
 
   Map<String, Object?> _safPreviewJson(
@@ -3367,10 +3329,7 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.accepted, <String, Object?>{
       'songId': song.id,
       'source':
-          isExternalCatalogSource(
-            id: song.id,
-            apiIsExternal: song.isExternal,
-          )
+          isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal)
           ? 'remote'
           : 'onServer',
     });
@@ -3382,10 +3341,7 @@ class SyncDiagnosticsServer {
     required bool? apiIsExternal,
     required String query,
   }) {
-    final source = classifyCatalogSource(
-      id: id,
-      apiIsExternal: apiIsExternal,
-    );
+    final source = classifyCatalogSource(id: id, apiIsExternal: apiIsExternal);
     return <String, Object?>{
       'id': id,
       'source': source == CatalogSource.external ? 'remote' : 'onServer',
@@ -3412,10 +3368,7 @@ class SyncDiagnosticsServer {
       SongsTableData(:final isProvisional) => isProvisional,
       _ => false,
     };
-    final source = classifyCatalogSource(
-      id: id,
-      apiIsExternal: apiIsExternal,
-    );
+    final source = classifyCatalogSource(id: id, apiIsExternal: apiIsExternal);
     return <String, Object?>{
       'kind': kind,
       'id': id,
@@ -3473,14 +3426,16 @@ class SyncDiagnosticsServer {
     final dao = _container.read(navisDatabaseProvider).starSyncDao;
     if (field == 'starred') {
       final value = body['value'];
-      if (value is! bool || !const {'artist', 'album', 'song'}.contains(type))
+      if (value is! bool || !const {'artist', 'album', 'song'}.contains(type)) {
         throw const FormatException();
+      }
       await dao.setStarred(itemId: id, itemType: type, liked: value);
     } else if (field == 'rating') {
       final value = body['value'];
       if ((value != null && value is! int) ||
-          !const {'album', 'song'}.contains(type))
+          !const {'album', 'song'}.contains(type)) {
         throw const FormatException();
+      }
       await dao.setRating(
         itemId: id,
         itemType: type,
@@ -3565,9 +3520,7 @@ class SyncDiagnosticsServer {
       // These persisted statistics can predate the current incremental run.
       'promotionScope': 'lastCommittedCatalogPromotion',
       'promotionGeneration': persistedSync?.currentGeneration,
-      'promotion': _decodeSafeJson(
-        persistedSync?.lastPromotionDiagnosticsJson,
-      ),
+      'promotion': _decodeSafeJson(persistedSync?.lastPromotionDiagnosticsJson),
       'frames': _sampleSummary(_frameMicros),
       'frameBuild': _sampleSummary(_frameBuildMicros),
       'frameRaster': _sampleSummary(_frameRasterMicros),
@@ -3947,17 +3900,16 @@ class SyncDiagnosticsServer {
     final stopwatch = Stopwatch()..start();
     var lastEventLoopTickMicros = 0;
     var maximumEventLoopLagMicros = 0;
-    final eventLoopTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) {
-        final tickMicros = stopwatch.elapsedMicroseconds;
-        final lagMicros = tickMicros - lastEventLoopTickMicros - 50000;
-        if (lagMicros > maximumEventLoopLagMicros) {
-          maximumEventLoopLagMicros = lagMicros;
-        }
-        lastEventLoopTickMicros = tickMicros;
-      },
-    );
+    final eventLoopTimer = Timer.periodic(const Duration(milliseconds: 50), (
+      _,
+    ) {
+      final tickMicros = stopwatch.elapsedMicroseconds;
+      final lagMicros = tickMicros - lastEventLoopTickMicros - 50000;
+      if (lagMicros > maximumEventLoopLagMicros) {
+        maximumEventLoopLagMicros = lagMicros;
+      }
+      lastEventLoopTickMicros = tickMicros;
+    });
     try {
       await _container.read(navisDatabaseProvider).libraryDao.countArtists();
       final elapsed = stopwatch.elapsedMicroseconds;
@@ -4132,7 +4084,7 @@ abstract interface class DiagnosticsNavigationDriver {
 
 class ProviderDiagnosticsNavigationDriver
     implements DiagnosticsNavigationDriver {
-  const ProviderDiagnosticsNavigationDriver(this._router);
+  const new(this._router);
 
   final GoRouter Function() _router;
 

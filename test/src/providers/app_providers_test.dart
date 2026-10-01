@@ -32,11 +32,11 @@ import 'package:navis/src/utils/connectivity.dart';
 
 import '../../helpers/test_database.dart';
 
-class _MockSettingsRepository extends Mock implements SettingsRepository {}
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
-class _MockLrclibClient extends Mock implements LrclibClient {}
+class _MockLrclibClient extends Mock implements LrclibClient;
 
-class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
+class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 class _MutableServerConfigState
     extends Notifier<AsyncValue<ServerConfigModel?>> {
@@ -376,11 +376,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> stopRadio() async {}
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) {}
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {}
 
   @override
   void registerPreferredMixCallback(
@@ -440,10 +436,7 @@ void main() {
           ),
         ).called(1);
 
-        expect(
-          await controller.setVolume(0, persistImmediately: true),
-          0,
-        );
+        expect(await controller.setVolume(0, persistImmediately: true), 0);
         expect(controller.lastAudibleVolume, 0.37);
         verify(
           () => repository.saveDesktopPlaybackVolume(
@@ -713,24 +706,21 @@ void main() {
       },
     );
 
-    test(
-      'activeStreamingQualityProvider falls back to defaults when settings unavailable',
-      () async {
-        final container = ProviderContainer(
-          overrides: [
-            networkTypeProvider.overrideWith((_) => NetworkType.cellular),
-            appSettingsProvider.overrideWithValue(
-              const AsyncLoading<AppSettingsModel>(),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
+    test('activeStreamingQualityProvider falls back to defaults when settings unavailable', () async {
+      final container = ProviderContainer(
+        overrides: [
+          networkTypeProvider.overrideWith((_) => NetworkType.cellular),
+          appSettingsProvider.overrideWithValue(
+            const AsyncLoading<AppSettingsModel>(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-        final quality = container.read(activeStreamingQualityProvider);
-        expect(quality.maxBitRate, 192);
-        expect(quality.format, 'opus');
-      },
-    );
+      final quality = container.read(activeStreamingQualityProvider);
+      expect(quality.maxBitRate, 192);
+      expect(quality.format, 'opus');
+    });
 
     test(
       'visibleLibrarySectionsProvider applies custom order and visibility',
@@ -770,48 +760,39 @@ void main() {
       },
     );
 
-    test(
-      'artistsProvider streams rows from drift database',
-      () async {
-        final database = NavisDatabase(NativeDatabase.memory());
-        final artistsCompleter = Completer<List<ArtistsTableData>>();
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await database.close();
-        });
+    test('artistsProvider streams rows from drift database', () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      final artistsCompleter = Completer<List<ArtistsTableData>>();
+      final container = ProviderContainer(
+        overrides: [navisDatabaseProvider.overrideWithValue(database)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
 
-        final subscription = container
-            .listen<AsyncValue<List<ArtistsTableData>>>(
-              artistsProvider,
-              (_, next) {
-                next.whenData((artists) {
-                  if (artists.isNotEmpty && !artistsCompleter.isCompleted) {
-                    artistsCompleter.complete(artists);
-                  }
-                });
-              },
-              fireImmediately: true,
-            );
-        addTearDown(subscription.close);
+      final subscription = container.listen<AsyncValue<List<ArtistsTableData>>>(
+        artistsProvider,
+        (_, next) {
+          next.whenData((artists) {
+            if (artists.isNotEmpty && !artistsCompleter.isCompleted) {
+              artistsCompleter.complete(artists);
+            }
+          });
+        },
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
 
-        await database.libraryDao.replaceArtists(
-          <ArtistsTableCompanion>[
-            ArtistsTableCompanion.insert(id: 'a1', name: 'Artist 1'),
-          ],
-        );
+      await database.libraryDao.replaceArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'a1', name: 'Artist 1'),
+      ]);
 
-        final artists = await artistsCompleter.future.timeout(
-          const Duration(seconds: 5),
-        );
-        expect(artists.single.id, 'a1');
-      },
-      skip: !sqliteAvailable,
-    );
+      final artists = await artistsCompleter.future.timeout(
+        const Duration(seconds: 5),
+      );
+      expect(artists.single.id, 'a1');
+    }, skip: !sqliteAvailable);
 
     test('subsonicApiProvider builds client when server config exists', () {
       final database = createTestDatabase();
@@ -850,9 +831,7 @@ void main() {
           NotifierProvider<
             _MutableServerConfigState,
             AsyncValue<ServerConfigModel?>
-          >(
-            _MutableServerConfigState.new,
-          );
+          >(_MutableServerConfigState.new);
       final container = ProviderContainer(
         overrides: [
           navisDatabaseProvider.overrideWithValue(database),
@@ -988,9 +967,7 @@ void main() {
       );
 
       final container = ProviderContainer(
-        overrides: [
-          subsonicApiProvider.overrideWithValue(client),
-        ],
+        overrides: [subsonicApiProvider.overrideWithValue(client)],
       );
       addTearDown(container.dispose);
 
@@ -1029,16 +1006,18 @@ void main() {
       expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
 
       await container.read(queueProvider.notifier).playNext(' song-3 ');
-      expect(
-        handler.snapshot.queueSongIds,
-        <String>['song-1', 'song-3', 'song-2'],
-      );
+      expect(handler.snapshot.queueSongIds, <String>[
+        'song-1',
+        'song-3',
+        'song-2',
+      ]);
 
       await container.read(queueProvider.notifier).reorder(2, 1);
-      expect(
-        handler.snapshot.queueSongIds,
-        <String>['song-1', 'song-2', 'song-3'],
-      );
+      expect(handler.snapshot.queueSongIds, <String>[
+        'song-1',
+        'song-2',
+        'song-3',
+      ]);
 
       await container.read(queueProvider.notifier).clear();
       expect(handler.snapshot.queueSongIds, isEmpty);
@@ -1059,10 +1038,9 @@ void main() {
 
       expect(container.read<int>(regularQueueReplacementEpochProvider), 0);
 
-      await container.read(queueProvider.notifier).replace(
-        <String>['seed'],
-        notifyMixSessionReset: false,
-      );
+      await container.read(queueProvider.notifier).replace(<String>[
+        'seed',
+      ], notifyMixSessionReset: false);
       expect(container.read<int>(regularQueueReplacementEpochProvider), 0);
 
       await container.read(queueProvider.notifier).replace(<String>['new']);
@@ -1180,41 +1158,36 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'queueProvider clear retains playback adjustments',
-      () async {
-        final repository = _MockSettingsRepository();
-        final handler = _FakePlaybackHandler();
-        final container = ProviderContainer(
-          overrides: [
-            settingsRepositoryProvider.overrideWithValue(repository),
-            audioHandlerProvider.overrideWithValue(handler),
-            lyricsPrewarmProvider.overrideWithValue((_) async {}),
-            appSettingsProvider.overrideWithValue(
-              AsyncData(
-                const AppSettingsModel.defaults().copyWith(playbackSpeed: 1.5),
-              ),
+    test('queueProvider clear retains playback adjustments', () async {
+      final repository = _MockSettingsRepository();
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(playbackSpeed: 1.5),
             ),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await handler.dispose();
-        });
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
 
-        await container.read(queueProvider.notifier).replace(<String>[
-          'song-1',
-        ]);
-        await container.read(queueProvider.notifier).clear();
+      await container.read(queueProvider.notifier).replace(<String>['song-1']);
+      await container.read(queueProvider.notifier).clear();
 
-        expect(handler.snapshot.queueSongIds, isEmpty);
-        verifyNever(() => repository.saveSettings(any()));
-        expect(
-          container.read(appSettingsProvider).requireValue.playbackSpeed,
-          1.5,
-        );
-      },
-    );
+      expect(handler.snapshot.queueSongIds, isEmpty);
+      verifyNever(() => repository.saveSettings(any()));
+      expect(
+        container.read(appSettingsProvider).requireValue.playbackSpeed,
+        1.5,
+      );
+    });
 
     test(
       'queueProvider normalizes replace IDs and clamps start index',
@@ -1231,16 +1204,12 @@ void main() {
           await handler.dispose();
         });
 
-        await container
-            .read(
-              queueProvider.notifier,
-            )
-            .replace(<String>[
-              '  ',
-              ' song-1 ',
-              '',
-              'song-2  ',
-            ], startIndex: 99);
+        await container.read(queueProvider.notifier).replace(<String>[
+          '  ',
+          ' song-1 ',
+          '',
+          'song-2  ',
+        ], startIndex: 99);
 
         expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
         expect(handler.snapshot.currentIndex, 1);
@@ -1252,11 +1221,9 @@ void main() {
         ], startIndex: 0);
         expect(handler.snapshot.queueSongIds, isEmpty);
 
-        await container
-            .read(
-              queueProvider.notifier,
-            )
-            .replace(<String>[' song-4 '], startIndex: -5);
+        await container.read(queueProvider.notifier).replace(<String>[
+          ' song-4 ',
+        ], startIndex: -5);
         expect(handler.snapshot.queueSongIds, <String>['song-4']);
         expect(handler.snapshot.currentIndex, 0);
         expect(handler.snapshot.currentSongId, 'song-4');
@@ -1285,118 +1252,108 @@ void main() {
       expect(handler.snapshot.queueSongIds, <String>['song-1']);
     });
 
-    test(
-      'queueProvider playNextWithSongs persists songs and delegates to playNext',
-      () async {
-        final database = NavisDatabase(NativeDatabase.memory());
-        final handler = _FakePlaybackHandler();
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            audioHandlerProvider.overrideWithValue(handler),
-            lyricsPrewarmProvider.overrideWithValue((_) async {}),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await handler.dispose();
-          await database.close();
-        });
+    test('queueProvider playNextWithSongs persists songs and delegates to playNext', () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+        await database.close();
+      });
 
-        await container.read(queueProvider.notifier).replace(<String>[
-          'current',
-          'later',
-        ], startIndex: 0);
-        await container.read(queueProvider.notifier).playNextWithSongs(
-          const <Song>[
+      await container.read(queueProvider.notifier).replace(<String>[
+        'current',
+        'later',
+      ], startIndex: 0);
+      await container.read(queueProvider.notifier).playNextWithSongs(
+        const <Song>[
+          Song(
+            id: ' remote-1 ',
+            title: 'Remote 1',
+            artist: 'Remote Artist',
+            artistId: 'remote-artist',
+            album: 'Remote Album',
+            albumId: 'remote-album',
+          ),
+          Song(id: '   ', title: 'Blank ID'),
+          Song(id: 'remote-2', title: 'Remote 2'),
+        ],
+        expandMatchFlows: false,
+      );
+
+      expect(handler.playNextCalls, <List<String>>[
+        <String>['remote-1', 'remote-2'],
+      ]);
+      expect(handler.playNextExpandFlags, <bool>[false]);
+      expect(handler.snapshot.queueSongIds, <String>[
+        'current',
+        'remote-1',
+        'remote-2',
+        'later',
+      ]);
+
+      final persisted = await database.libraryDao.getSongsByIds(const <String>[
+        'remote-1',
+        'remote-2',
+      ]);
+      expect(persisted.map((song) => song.id), <String>[
+        'remote-1',
+        'remote-2',
+      ]);
+      expect(persisted.first.artistId, 'remote-artist');
+      expect(persisted.first.albumId, 'remote-album');
+    }, skip: !sqliteAvailable);
+
+    test('queueProvider appendMixTracks persists songs and delegates to addToQueue', () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      final handler = _FakePlaybackHandler();
+      await handler.replaceQueue(<String>['seed']);
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+        await database.close();
+      });
+
+      final inserted = await container
+          .read(queueProvider.notifier)
+          .appendMixTracks(const <Song>[
             Song(
-              id: ' remote-1 ',
-              title: 'Remote 1',
+              id: ' rec-1 ',
+              title: 'Recommendation 1',
               artist: 'Remote Artist',
               artistId: 'remote-artist',
               album: 'Remote Album',
               albumId: 'remote-album',
             ),
-            Song(id: '   ', title: 'Blank ID'),
-            Song(id: 'remote-2', title: 'Remote 2'),
-          ],
-          expandMatchFlows: false,
-        );
+          ], expandMatchFlows: false);
 
-        expect(handler.playNextCalls, <List<String>>[
-          <String>['remote-1', 'remote-2'],
-        ]);
-        expect(handler.playNextExpandFlags, <bool>[false]);
-        expect(
-          handler.snapshot.queueSongIds,
-          <String>['current', 'remote-1', 'remote-2', 'later'],
-        );
-
-        final persisted = await database.libraryDao.getSongsByIds(
-          const <String>['remote-1', 'remote-2'],
-        );
-        expect(persisted.map((song) => song.id), <String>[
-          'remote-1',
-          'remote-2',
-        ]);
-        expect(persisted.first.artistId, 'remote-artist');
-        expect(persisted.first.albumId, 'remote-album');
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'queueProvider appendMixTracks persists songs and delegates to addToQueue',
-      () async {
-        final database = NavisDatabase(NativeDatabase.memory());
-        final handler = _FakePlaybackHandler();
-        await handler.replaceQueue(<String>['seed']);
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            audioHandlerProvider.overrideWithValue(handler),
-            lyricsPrewarmProvider.overrideWithValue((_) async {}),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await handler.dispose();
-          await database.close();
-        });
-
-        final inserted = await container
-            .read(queueProvider.notifier)
-            .appendMixTracks(
-              const <Song>[
-                Song(
-                  id: ' rec-1 ',
-                  title: 'Recommendation 1',
-                  artist: 'Remote Artist',
-                  artistId: 'remote-artist',
-                  album: 'Remote Album',
-                  albumId: 'remote-album',
-                ),
-              ],
-              expandMatchFlows: false,
-            );
-
-        expect(inserted, 1);
-        expect(handler.addToQueueCalls, <List<String>>[
-          <String>['rec-1'],
-        ]);
-        expect(handler.addToQueueExpandFlags, <bool>[false]);
-        expect(handler.playNextCalls, isEmpty);
-        expect(handler.snapshot.queueSongIds, <String>['seed', 'rec-1']);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(inserted, 1);
+      expect(handler.addToQueueCalls, <List<String>>[
+        <String>['rec-1'],
+      ]);
+      expect(handler.addToQueueExpandFlags, <bool>[false]);
+      expect(handler.playNextCalls, isEmpty);
+      expect(handler.snapshot.queueSongIds, <String>['seed', 'rec-1']);
+    }, skip: !sqliteAvailable);
 
     test(
       'queueProvider throws explicit unavailable error when handler missing',
       () async {
-        final container = ProviderContainer(
-          overrides: [],
-        );
+        final container = ProviderContainer(overrides: []);
         addTearDown(container.dispose);
 
         await expectLater(
@@ -1412,34 +1369,31 @@ void main() {
       },
     );
 
-    test(
-      'audio bootstrap transitions to ready when handler initialization succeeds',
-      () async {
-        final handler = _FakePlaybackHandler();
-        final container = ProviderContainer(
-          overrides: [
-            audioHandlerInitializerProvider.overrideWithValue(() async {
-              return handler;
-            }),
-          ],
-        );
-        addTearDown(() async {
-          container.dispose();
-          await handler.dispose();
-        });
+    test('audio bootstrap transitions to ready when handler initialization succeeds', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerInitializerProvider.overrideWithValue(() async {
+            return handler;
+          }),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
 
-        await container.read(audioBootstrapControllerProvider.notifier).retry();
-        final bootstrap = container.read(audioBootstrapControllerProvider);
+      await container.read(audioBootstrapControllerProvider.notifier).retry();
+      final bootstrap = container.read(audioBootstrapControllerProvider);
 
-        expect(bootstrap.status, AudioBootstrapStatus.ready);
-        expect(bootstrap.handler, same(handler));
-        expect(bootstrap.attempt, 1);
-        expect(bootstrap.timedOut, isFalse);
-        expect(bootstrap.recoveredFromTimeout, isFalse);
-        expect(bootstrap.elapsedMs, isNotNull);
-        expect(container.read(audioHandlerStateProvider), same(handler));
-      },
-    );
+      expect(bootstrap.status, AudioBootstrapStatus.ready);
+      expect(bootstrap.handler, same(handler));
+      expect(bootstrap.attempt, 1);
+      expect(bootstrap.timedOut, isFalse);
+      expect(bootstrap.recoveredFromTimeout, isFalse);
+      expect(bootstrap.elapsedMs, isNotNull);
+      expect(container.read(audioHandlerStateProvider), same(handler));
+    });
 
     test('session reset waits for an in-flight audio bootstrap', () async {
       final initializer = Completer<NavisPlaybackHandler>();
@@ -1760,24 +1714,20 @@ void main() {
       () async {
         final database = NavisDatabase(NativeDatabase.memory());
         final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-          ],
+          overrides: [navisDatabaseProvider.overrideWithValue(database)],
         );
         addTearDown(() async {
           container.dispose();
           await database.close();
         });
 
-        await database.libraryDao.replaceAlbums(
-          <AlbumsTableCompanion>[
-            AlbumsTableCompanion.insert(
-              id: 'album-1',
-              name: 'Album 1',
-              songsHydrated: const Value(false),
-            ),
-          ],
-        );
+        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            songsHydrated: const Value(false),
+          ),
+        ]);
 
         final emittedCounts = <int>[];
         final completer = Completer<void>();
@@ -1997,9 +1947,8 @@ void main() {
           title: any(named: 'title'),
         ),
       ).thenThrow(DioException(requestOptions: RequestOptions()));
-      when(
-        () => api.getLyricsBySongId('song-1'),
-      ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+      when(() => api.getLyricsBySongId('song-1'))
+          .thenAnswer((_) async => const LyricsList(value: 'server lyric'));
       final container = ProviderContainer(
         overrides: [
           navisDatabaseProvider.overrideWithValue(database),
@@ -2067,9 +2016,8 @@ void main() {
       final database = await createLyricsDatabase();
       final lrclib = _MockLrclibClient();
       final api = _MockSubsonicApiClient();
-      when(
-        () => api.getLyricsBySongId('song-1'),
-      ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+      when(() => api.getLyricsBySongId('song-1'))
+          .thenAnswer((_) async => const LyricsList(value: 'server lyric'));
       final container = ProviderContainer(
         overrides: [
           navisDatabaseProvider.overrideWithValue(database),
@@ -2111,9 +2059,8 @@ void main() {
           source: LyricsSource.lrclibSynced.name,
           syncedLyrics: '[00:01.00]cached lrclib',
         );
-        when(
-          () => api.getLyricsBySongId('song-1'),
-        ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+        when(() => api.getLyricsBySongId('song-1'))
+            .thenAnswer((_) async => const LyricsList(value: 'server lyric'));
         final container = ProviderContainer(
           overrides: [
             navisDatabaseProvider.overrideWithValue(database),

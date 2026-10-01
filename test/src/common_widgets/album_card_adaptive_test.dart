@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -102,9 +102,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop hover Play is built only while hovered', (
-    tester,
-  ) async {
+  testWidgets('desktop hover Play is built only while hovered', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [

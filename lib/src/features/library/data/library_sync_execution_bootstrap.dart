@@ -12,7 +12,7 @@ import 'package:navis/src/utils/connectivity.dart';
 /// planner, engine, coordinator, durable queue, and execution lease cannot
 /// drift into separate implementations.
 class LibrarySyncExecutionBootstrap {
-  const LibrarySyncExecutionBootstrap._();
+  const new _();
 
   static AdaptiveLibrarySyncCoordinator createCoordinator({
     required SubsonicApiClient client,

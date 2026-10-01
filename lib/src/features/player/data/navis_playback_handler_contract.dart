@@ -11,7 +11,7 @@ abstract interface class PlaybackStartupObserver {
 /// A run of songs inserted contiguously at a logical queue index.
 @immutable
 class QueueInsertRun {
-  const QueueInsertRun(this.index, this.songs);
+  const new(this.index, this.songs);
 
   final int index;
   final List<SongsTableData> songs;
@@ -20,7 +20,7 @@ class QueueInsertRun {
 /// Outcome of a batched queue edit.
 @immutable
 class QueueBatchEditResult {
-  const QueueBatchEditResult({this.skippedSongIds = const <String>[]});
+  const new({this.skippedSongIds = const <String>[]});
 
   /// Songs that could not be queued because no playable source was found.
   final List<String> skippedSongIds;
@@ -154,11 +154,7 @@ abstract class NavisPlaybackHandler {
   Future<void> stopRadio();
 
   /// Update live metadata for the current radio station (from Azuracast / ICY).
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  });
+  void updateRadioMetadata({String? title, String? artist, String? artUrl});
 
   /// Register a callback that implements the user's preferred mix mode
   /// (SameVibes / Last.fm or legacy Subsonic Instant Mix) for Android Auto's
@@ -193,7 +189,7 @@ enum QueueDropReason {
 
 @immutable
 class QueueSongsDropped {
-  const QueueSongsDropped({required this.songIds, required this.reason});
+  const new({required this.songIds, required this.reason});
 
   final List<String> songIds;
   final QueueDropReason reason;
@@ -201,7 +197,7 @@ class QueueSongsDropped {
 
 @immutable
 class PlaybackLoadFailure {
-  const PlaybackLoadFailure({
+  const new({
     required this.operation,
     required this.message,
     this.songId,
@@ -215,7 +211,7 @@ class PlaybackLoadFailure {
 }
 
 class PlaybackRuntimeSettings {
-  const PlaybackRuntimeSettings({
+  const new({
     required this.gaplessEnabled,
     this.equalizer,
     required this.crossfadeEnabled,
@@ -230,7 +226,7 @@ class PlaybackRuntimeSettings {
     required this.matchFlowEnabled,
   });
 
-  const PlaybackRuntimeSettings.defaults()
+  const new defaults()
     : gaplessEnabled = true,
       equalizer = null,
       crossfadeEnabled = false,

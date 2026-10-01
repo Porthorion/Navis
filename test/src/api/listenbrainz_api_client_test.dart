@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 
-class _MockDio extends Mock implements Dio {}
+class _MockDio extends Mock implements Dio;
 
 void main() {
   setUpAll(() {
@@ -21,16 +21,12 @@ void main() {
     ).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/validate-token'),
-        data: <String, dynamic>{
-          'valid': true,
-          'user_name': 'alice',
-        },
+        data: <String, dynamic>{'valid': true, 'user_name': 'alice'},
       ),
     );
 
-    final details = await ListenBrainzApiClient(
-      dio: dio,
-    ).validateTokenDetails('token');
+    final details = await ListenBrainzApiClient(dio: dio)
+        .validateTokenDetails('token');
 
     expect(details.valid, isTrue);
     expect(details.userName, 'alice');
@@ -75,9 +71,8 @@ void main() {
       ),
     );
 
-    final playlists = await ListenBrainzApiClient(
-      dio: dio,
-    ).getRecommendationPlaylists(userName: 'alice', userToken: 'token');
+    final playlists = await ListenBrainzApiClient(dio: dio)
+        .getRecommendationPlaylists(userName: 'alice', userToken: 'token');
 
     expect(playlists, hasLength(1));
     expect(playlists.single.identifier, '11111111-1111-1111-1111-111111111111');
@@ -94,36 +89,33 @@ void main() {
         '/user/alice/playlists/createdfor',
         queryParameters: any(named: 'queryParameters'),
       ),
-    ).thenAnswer(
-      (invocation) async {
-        final params =
-            invocation.namedArguments[#queryParameters] as Map<String, Object?>;
-        expect(params['count'], 100);
-        expect(params['offset'], 0);
-        return Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(
-            path: '/user/alice/playlists/createdfor',
-          ),
-          data: <String, dynamic>{
-            'playlists': <String, dynamic>{
-              'playlist': <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'identifier': <String>[
-                    'https://musicbrainz.org/playlist/33333333-3333-3333-3333-333333333333',
-                  ],
-                  'title': 'Weekly Jams',
-                  'creator': 'ListenBrainz',
-                },
-              ],
-            },
+    ).thenAnswer((invocation) async {
+      final params =
+          invocation.namedArguments[#queryParameters] as Map<String, Object?>;
+      expect(params['count'], 100);
+      expect(params['offset'], 0);
+      return Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(
+          path: '/user/alice/playlists/createdfor',
+        ),
+        data: <String, dynamic>{
+          'playlists': <String, dynamic>{
+            'playlist': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'identifier': <String>[
+                  'https://musicbrainz.org/playlist/33333333-3333-3333-3333-333333333333',
+                ],
+                'title': 'Weekly Jams',
+                'creator': 'ListenBrainz',
+              },
+            ],
           },
-        );
-      },
-    );
+        },
+      );
+    });
 
-    final playlists = await ListenBrainzApiClient(
-      dio: dio,
-    ).getCreatedForPlaylists(userName: 'alice');
+    final playlists = await ListenBrainzApiClient(dio: dio)
+        .getCreatedForPlaylists(userName: 'alice');
 
     expect(playlists, hasLength(1));
     expect(playlists.single.identifier, '33333333-3333-3333-3333-333333333333');
@@ -140,33 +132,27 @@ void main() {
           queryParameters: any(named: 'queryParameters'),
           options: any(named: 'options'),
         ),
-      ).thenAnswer(
-        (invocation) async {
-          final options = invocation.namedArguments[#options] as Options;
-          expect(options.headers?['Authorization'], 'Token token');
-          return Response<Map<String, dynamic>>(
-            requestOptions: RequestOptions(
-              path: '/user/alice%20smith/playlists',
-            ),
-            data: <String, dynamic>{
-              'playlists': <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'identifier': <String>[
-                    'https://musicbrainz.org/playlist/44444444-4444-4444-4444-444444444444',
-                  ],
-                  'title': 'Weekly Exploration',
-                  'creator': 'ListenBrainz',
-                },
-              ],
-            },
-          );
-        },
-      );
+      ).thenAnswer((invocation) async {
+        final options = invocation.namedArguments[#options] as Options;
+        expect(options.headers?['Authorization'], 'Token token');
+        return Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/user/alice%20smith/playlists'),
+          data: <String, dynamic>{
+            'playlists': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'identifier': <String>[
+                  'https://musicbrainz.org/playlist/44444444-4444-4444-4444-444444444444',
+                ],
+                'title': 'Weekly Exploration',
+                'creator': 'ListenBrainz',
+              },
+            ],
+          },
+        );
+      });
 
-      final playlists = await ListenBrainzApiClient(dio: dio).getUserPlaylists(
-        userName: 'alice smith',
-        userToken: 'token',
-      );
+      final playlists = await ListenBrainzApiClient(dio: dio)
+          .getUserPlaylists(userName: 'alice smith', userToken: 'token');
 
       expect(playlists, hasLength(1));
       expect(
@@ -185,45 +171,42 @@ void main() {
         queryParameters: any(named: 'queryParameters'),
         options: any(named: 'options'),
       ),
-    ).thenAnswer(
-      (invocation) async {
-        final params =
-            invocation.namedArguments[#queryParameters] as Map<String, Object?>;
-        expect(params['fetch_metadata'], isTrue);
-        return Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(
-            path: '/playlist/11111111-1111-1111-1111-111111111111',
-          ),
-          data: <String, dynamic>{
-            'playlist': <String, dynamic>{
-              'identifier': 'https://musicbrainz.org/playlist/11111111-1111-1111-1111-111111111111',
-              'title': 'Weekly Exploration',
-              'track': <String, dynamic>{
-                'track': <Map<String, dynamic>>[
-                  <String, dynamic>{
-                    'title': 'Song A',
-                    'creator': 'Artist A',
-                    'album': 'Album A',
-                    'duration': 181000,
-                    'identifier': <String>[
-                      'https://musicbrainz.org/recording/22222222-2222-2222-2222-222222222222',
-                    ],
-                    'extension': <String, dynamic>{
-                      'https://musicbrainz.org/doc/jspf#track':
-                          <String, dynamic>{
-                            'additional_metadata': <String, dynamic>{
-                              'recording_msid': 'msid-1',
-                            },
-                          },
+    ).thenAnswer((invocation) async {
+      final params =
+          invocation.namedArguments[#queryParameters] as Map<String, Object?>;
+      expect(params['fetch_metadata'], isTrue);
+      return Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(
+          path: '/playlist/11111111-1111-1111-1111-111111111111',
+        ),
+        data: <String, dynamic>{
+          'playlist': <String, dynamic>{
+            'identifier': 'https://musicbrainz.org/playlist/11111111-1111-1111-1111-111111111111',
+            'title': 'Weekly Exploration',
+            'track': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'title': 'Song A',
+                  'creator': 'Artist A',
+                  'album': 'Album A',
+                  'duration': 181000,
+                  'identifier': <String>[
+                    'https://musicbrainz.org/recording/22222222-2222-2222-2222-222222222222',
+                  ],
+                  'extension': <String, dynamic>{
+                    'https://musicbrainz.org/doc/jspf#track': <String, dynamic>{
+                      'additional_metadata': <String, dynamic>{
+                        'recording_msid': 'msid-1',
+                      },
                     },
                   },
-                ],
-              },
+                },
+              ],
             },
           },
-        );
-      },
-    );
+        },
+      );
+    });
 
     final playlist = await ListenBrainzApiClient(
       dio: dio,

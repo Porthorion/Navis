@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -40,7 +40,7 @@ void main() {
 }
 
 class _PlaylistContextMenuPreview extends StatelessWidget {
-  const _PlaylistContextMenuPreview({required this.desktopMenu});
+  const new({required this.desktopMenu});
 
   final bool desktopMenu;
 
@@ -69,7 +69,7 @@ class _PlaylistContextMenuPreview extends StatelessWidget {
 }
 
 class _PlaylistRows extends StatelessWidget {
-  const _PlaylistRows();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +87,7 @@ class _PlaylistRows extends StatelessWidget {
 }
 
 class _TrackRow extends StatelessWidget {
-  const _TrackRow({required this.title, this.active = false});
+  const new({required this.title, this.active = false});
 
   final String title;
   final bool active;
@@ -118,7 +118,7 @@ class _TrackRow extends StatelessWidget {
 }
 
 class _ActionMenu extends StatelessWidget {
-  const _ActionMenu({required this.colors, required this.desktopMenu});
+  const new({required this.colors, required this.desktopMenu});
 
   final ColorScheme colors;
   final bool desktopMenu;
@@ -185,7 +185,7 @@ class _ActionMenu extends StatelessWidget {
 }
 
 class _ActionRow extends StatelessWidget {
-  const _ActionRow({
+  const new({
     required this.icon,
     required this.label,
     this.color,

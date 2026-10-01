@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +18,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class CacheSettingsScreen extends ConsumerStatefulWidget {
-  const CacheSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<CacheSettingsScreen> createState() =>
@@ -521,9 +521,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                               formatBytes(_coverArtStorageBytes!),
                             ),
                             style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ),
                       if (_coverArtMax != null) ...[
@@ -599,9 +597,9 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                             l10n.cacheSettingsCoverArtRestart,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                           ),
                         ),
@@ -664,7 +662,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 }
 
 class _RollingCacheActivity extends StatelessWidget {
-  const _RollingCacheActivity({required this.activity});
+  const new({required this.activity});
 
   final RollingCacheActivity activity;
 
@@ -705,7 +703,7 @@ class _RollingCacheActivity extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const new({required this.title});
 
   final String title;
 
@@ -725,7 +723,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _CacheStatsCard extends StatelessWidget {
-  const _CacheStatsCard({
+  const new({
     required this.usedBytes,
     required this.budgetBytes,
     required this.trackCount,

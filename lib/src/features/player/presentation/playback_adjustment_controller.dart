@@ -28,7 +28,7 @@ enum PlaybackAdjustmentFailure {
 }
 
 class PlaybackAdjustmentState {
-  PlaybackAdjustmentState({
+  new({
     this.values = const PlaybackAdjustments(),
     List<PlaybackPreset> presets = const [],
     this.selectedPresetId,

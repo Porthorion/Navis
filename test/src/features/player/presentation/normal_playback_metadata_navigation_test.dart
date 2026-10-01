@@ -21,41 +21,33 @@ void main() {
       await database.close();
     });
 
-    test(
-      'opens artist directly from song artist id',
-      () async {
-        await _seedLibrary(database);
+    test('opens artist directly from song artist id', () async {
+      await _seedLibrary(database);
 
-        final destination = await resolver.resolveArtist(
-          NormalPlaybackMetadataContext(song: _song(artistId: 'artist-1')),
-        );
+      final destination = await resolver.resolveArtist(
+        NormalPlaybackMetadataContext(song: _song(artistId: 'artist-1')),
+      );
 
-        expect(destination?.type, NormalPlaybackMetadataDestinationType.artist);
-        expect(destination?.id, 'artist-1');
-      },
-      skip: sqliteAvailable ? null : 'sqlite3 not available',
-    );
+      expect(destination?.type, NormalPlaybackMetadataDestinationType.artist);
+      expect(destination?.id, 'artist-1');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
-    test(
-      'opens album directly from media item album id',
-      () async {
-        await _seedLibrary(database);
+    test('opens album directly from media item album id', () async {
+      await _seedLibrary(database);
 
-        final destination = await resolver.resolveAlbum(
-          const NormalPlaybackMetadataContext(
-            mediaItem: MediaItem(
-              id: 'media-1',
-              title: 'Track',
-              extras: <String, dynamic>{'albumId': 'album-1'},
-            ),
+      final destination = await resolver.resolveAlbum(
+        const NormalPlaybackMetadataContext(
+          mediaItem: MediaItem(
+            id: 'media-1',
+            title: 'Track',
+            extras: <String, dynamic>{'albumId': 'album-1'},
           ),
-        );
+        ),
+      );
 
-        expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
-        expect(destination?.id, 'album-1');
-      },
-      skip: sqliteAvailable ? null : 'sqlite3 not available',
-    );
+      expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
+      expect(destination?.id, 'album-1');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
     test(
       'falls back to exact normalized artist name when id is missing',
@@ -122,40 +114,32 @@ void main() {
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
-    test(
-      'title tap opens current song album',
-      () async {
-        await _seedLibrary(database);
+    test('title tap opens current song album', () async {
+      await _seedLibrary(database);
 
-        final destination = await resolver.resolveTitle(
-          NormalPlaybackMetadataContext(
-            song: _song(albumId: 'album-1', title: 'Anything'),
-          ),
-        );
+      final destination = await resolver.resolveTitle(
+        NormalPlaybackMetadataContext(
+          song: _song(albumId: 'album-1', title: 'Anything'),
+        ),
+      );
 
-        expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
-        expect(destination?.id, 'album-1');
-      },
-      skip: sqliteAvailable ? null : 'sqlite3 not available',
-    );
+      expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
+      expect(destination?.id, 'album-1');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
-    test(
-      'title tap exact-matches cached song and opens its album',
-      () async {
-        await _seedLibrary(database);
+    test('title tap exact-matches cached song and opens its album', () async {
+      await _seedLibrary(database);
 
-        final destination = await resolver.resolveTitle(
-          const NormalPlaybackMetadataContext(
-            title: 'The Track',
-            artistName: 'The Artist',
-          ),
-        );
+      final destination = await resolver.resolveTitle(
+        const NormalPlaybackMetadataContext(
+          title: 'The Track',
+          artistName: 'The Artist',
+        ),
+      );
 
-        expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
-        expect(destination?.id, 'album-1');
-      },
-      skip: sqliteAvailable ? null : 'sqlite3 not available',
-    );
+      expect(destination?.type, NormalPlaybackMetadataDestinationType.album);
+      expect(destination?.id, 'album-1');
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
     test(
       'title tap falls back to song-filtered search when no album match exists',

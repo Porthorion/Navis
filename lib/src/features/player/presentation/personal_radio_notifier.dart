@@ -8,7 +8,7 @@ import 'package:navis/src/features/player/presentation/recommendation_session_co
 import 'package:navis/src/providers/app_providers.dart';
 
 class PersonalRadioState {
-  const PersonalRadioState({
+  const new({
     this.active = false,
     this.busy = false,
     this.issue = RecommendationIssue.none,
@@ -26,7 +26,7 @@ class PersonalRadioState {
 }
 
 class RadioStartResult {
-  const RadioStartResult({required this.insertedCount, required this.issue});
+  const new({required this.insertedCount, required this.issue});
 
   final int insertedCount;
   final RecommendationIssue issue;
@@ -50,15 +50,15 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     ref.listen<int>(regularQueueReplacementEpochProvider, (previous, next) {
       stop();
     });
-    ref.listen<RecommendationSessionStatus>(
-      recommendationSessionProvider,
-      (previous, next) {
-        final session = _session;
-        if (session != null && next.generation != session.generation) {
-          _clearLocalSession();
-        }
-      },
-    );
+    ref.listen<RecommendationSessionStatus>(recommendationSessionProvider, (
+      previous,
+      next,
+    ) {
+      final session = _session;
+      if (session != null && next.generation != session.generation) {
+        _clearLocalSession();
+      }
+    });
     ref.onDispose(() => _retryTimer?.cancel());
     return const PersonalRadioState();
   }
@@ -84,10 +84,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     var queueChangeAttempted = false;
     try {
       final snapshot = previousQueue;
-      final excluded = <String>{
-        ...snapshot.queueSongIds,
-        ..._recentGenerated,
-      };
+      final excluded = <String>{...snapshot.queueSongIds, ..._recentGenerated};
       final batch = await ref
           .read(recommendationServiceProvider)
           .personalRadio(
@@ -255,10 +252,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
     );
     try {
       final snapshot = ref.read(playerStateProvider);
-      final excluded = <String>{
-        ...snapshot.queueSongIds,
-        ..._recentGenerated,
-      };
+      final excluded = <String>{...snapshot.queueSongIds, ..._recentGenerated};
       final batch = await ref
           .read(recommendationServiceProvider)
           .personalRadio(

@@ -20,13 +20,11 @@ typedef LyricsLookupMetadata = ({
 });
 
 class LyricsResolver {
-  const LyricsResolver({
-    required LibraryDao libraryDao,
-    required LrclibClient lrclibClient,
-    required SubsonicApiClient? apiClient,
-  }) : _libraryDao = libraryDao,
-       _lrclibClient = lrclibClient,
-       _apiClient = apiClient;
+  const new({
+    required this._libraryDao,
+    required this._lrclibClient,
+    required this._apiClient,
+  });
 
   final LibraryDao _libraryDao;
   final LrclibClient _lrclibClient;

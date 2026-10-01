@@ -7,15 +7,14 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 /// Bounded, content-free attempt evidence. Checkpoints run in the owning sync
 /// zone, never in a nested transaction inherited from a progress callback.
 class SyncAttemptRecorder {
-  SyncAttemptRecorder({
+  new({
     required this.requestId,
     required this.attemptId,
     required this.scope,
-    required Future<void> Function(Map<String, Object?>) write,
+    required this._write,
     DateTime Function()? now,
     Duration checkpointInterval = const Duration(seconds: 5),
-  }) : _write = write,
-       _now = now ?? DateTime.now,
+  }) : _now = now ?? DateTime.now,
        _ownerZone = Zone.current {
     _startedAt = _now();
     _phaseStartedAt = _startedAt;
@@ -24,7 +23,8 @@ class SyncAttemptRecorder {
   }
 
   static const retainedPhases = 32;
-  final int requestId, attemptId;
+  final int requestId;
+  final int attemptId;
   final SyncRequestScope scope;
   final Future<void> Function(Map<String, Object?>) _write;
   final DateTime Function() _now;
@@ -42,7 +42,9 @@ class SyncAttemptRecorder {
   int _checkpointFailures = 0;
   late final Timer _timer;
   Future<void>? _drain;
-  bool _dirty = false, _closed = false, _complete = false;
+  bool _dirty = false;
+  bool _closed = false;
+  bool _complete = false;
 
   void observe(LibrarySyncState state) {
     if (_closed) return;

@@ -8,7 +8,7 @@ enum EqFilterType { peaking, lowShelf, highShelf, lowPass, highPass, notch }
 
 @immutable
 class EqFilter {
-  const EqFilter({
+  const new({
     this.type = EqFilterType.peaking,
     required this.frequencyHz,
     this.gainDb = 0,
@@ -89,7 +89,7 @@ class EqFilter {
 
 @immutable
 class EqConfiguration {
-  EqConfiguration({
+  new({
     this.enabled = false,
     this.mode = EqMode.simple,
     this.preampDb = 0,
@@ -97,24 +97,20 @@ class EqConfiguration {
     required List<EqFilter> filters,
   }) : filters = List.unmodifiable(filters);
 
-  factory EqConfiguration.flat({EqMode mode = EqMode.simple}) =>
-      EqConfiguration(
-        mode: mode,
-        filters: switch (mode) {
-          EqMode.simple =>
-            simpleFrequencies
-                .map((hz) => EqFilter(frequencyHz: hz, q: 0.67))
-                .toList(),
-          EqMode.tenBand => List.generate(
-            10,
-            (i) => EqFilter(
-              frequencyHz: 31.25 * math.pow(2, i),
-              q: math.sqrt(2),
-            ),
-          ),
-          EqMode.advanced || EqMode.importedFixed => const [],
-        },
-      );
+  factory flat({EqMode mode = EqMode.simple}) => EqConfiguration(
+    mode: mode,
+    filters: switch (mode) {
+      EqMode.simple =>
+        simpleFrequencies
+            .map((hz) => EqFilter(frequencyHz: hz, q: 0.67))
+            .toList(),
+      EqMode.tenBand => List.generate(
+        10,
+        (i) => EqFilter(frequencyHz: 31.25 * math.pow(2, i), q: math.sqrt(2)),
+      ),
+      EqMode.advanced || EqMode.importedFixed => const [],
+    },
+  );
 
   static const schemaVersion = 1;
   static const maximumFilters = 32;
@@ -240,7 +236,7 @@ class EqConfiguration {
 
 @immutable
 class EqSource {
-  const EqSource({
+  const new({
     required this.originalText,
     this.url,
     this.revision,
@@ -248,7 +244,7 @@ class EqSource {
     this.target,
   });
 
-  factory EqSource.fromJson(Map<String, dynamic> json) => EqSource(
+  factory fromJson(Map<String, dynamic> json) => EqSource(
     originalText: json['originalText'] as String,
     url: json['url'] as String?,
     revision: json['revision'] as String?,
@@ -273,7 +269,7 @@ class EqSource {
 
 @immutable
 class EqPreset {
-  const EqPreset({
+  const new({
     required this.id,
     required this.name,
     required this.configuration,
@@ -281,7 +277,7 @@ class EqPreset {
     this.builtIn = false,
   });
 
-  factory EqPreset.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     if (json['format'] != 'navis-eq' || json['version'] != 1) {
       throw const FormatException('Unsupported Navis EQ preset format.');
     }
@@ -362,7 +358,7 @@ class EqPreset {
 
 @immutable
 class EqCapabilities {
-  const EqCapabilities({required this.supported, this.reason});
+  const new({required this.supported, this.reason});
 
   static const unavailable = EqCapabilities(
     supported: false,
@@ -376,7 +372,7 @@ class EqCapabilities {
 
 @immutable
 class EqApplicationState {
-  const EqApplicationState({
+  const new({
     required this.desired,
     required this.applied,
     this.sampleRate,

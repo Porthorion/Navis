@@ -6,7 +6,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
@@ -93,7 +93,7 @@ part 'app_shell_desktop_lyrics_overlay.dart';
 part 'app_shell_desktop_mini_player.dart';
 
 class AppShell extends ConsumerStatefulWidget {
-  const AppShell({required this.navigationShell, super.key});
+  const new({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
@@ -689,9 +689,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final initialSyncWarning = ref.watch(
-      initialSyncCompletionWarningProvider,
-    );
+    final initialSyncWarning = ref.watch(initialSyncCompletionWarningProvider);
     if (initialSyncWarning) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !ref.read(initialSyncCompletionWarningProvider)) {
@@ -723,22 +721,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     // (Instant Mix / Instant Radio). Registered here because app_shell has
     // access to both the handler and the mix-mode providers, avoiding a
     // circular import in app_providers.dart.
-    void _registerPreferredMixCallback(NavisPlaybackHandler? handler) {
+    void registerPreferredMixCallback(NavisPlaybackHandler? handler) {
       if (handler == null) return;
 
       // Instant Radio: always activate (never toggle).
-      handler.registerPreferredMixCallback(
-        (seedSongId) async {
-          await activatePreferredMixModeFromContainer(
-            ref.container,
-            seedSongId: seedSongId,
-          );
-          if (ref.container.read(recommendationSessionProvider).insertedCount ==
-              0) {
-            throw StateError('Instant Mix did not insert playable tracks.');
-          }
-        },
-      );
+      handler.registerPreferredMixCallback((seedSongId) async {
+        await activatePreferredMixModeFromContainer(
+          ref.container,
+          seedSongId: seedSongId,
+        );
+        if (ref.container.read(recommendationSessionProvider).insertedCount ==
+            0) {
+          throw StateError('Instant Mix did not insert playable tracks.');
+        }
+      });
 
       // Instant Mix: toggle like the in-app player button.
       handler.registerPreferredMixToggleCallback(
@@ -749,10 +745,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
 
-    _registerPreferredMixCallback(ref.read(audioHandlerProvider));
+    registerPreferredMixCallback(ref.read(audioHandlerProvider));
     ref.listen<NavisPlaybackHandler?>(
       audioHandlerProvider,
-      (prev, next) => _registerPreferredMixCallback(next),
+      (prev, next) => registerPreferredMixCallback(next),
     );
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
@@ -948,9 +944,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final coverArtUrl = playback.isRadioMode
         ? null
         : currentMediaItem?.artUri?.toString();
-    final isExternalSource = playback.isRadioMode
-        ? false
-        : currentSongAsync.asData?.value?.isExternal ?? false;
+    final isExternalSource =
+        !playback.isRadioMode &&
+        (currentSongAsync.asData?.value?.isExternal ?? false);
     final nowPlayingArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : coverArtUrl;
@@ -976,7 +972,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final desktopNowPlayingDiagnosticsOverride = ref.watch(
       desktopNowPlayingDiagnosticsProvider,
     );
-    final bool showDesktopLyricsOverlay =
+    final showDesktopLyricsOverlay =
         desktopNowPlayingDiagnosticsOverride ?? isExpanded;
     final mediaPadding = MediaQuery.paddingOf(context);
     final mediaViewPadding = MediaQuery.viewPaddingOf(context);
@@ -1017,11 +1013,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         : mediaViewPadding.bottom;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
-    final isMiniPlayerMode = desktopRuntime
-        ? ref.watch(
-            desktopWindowControllerProvider.select((c) => c.isMiniPlayerMode),
-          )
-        : false;
+    final isMiniPlayerMode =
+        desktopRuntime &&
+        ref.watch(
+          desktopWindowControllerProvider.select((c) => c.isMiniPlayerMode),
+        );
     if (useDesktopShell && !isMiniPlayerMode) {
       _lastDesktopViewSize = mediaSize;
     }
@@ -1032,9 +1028,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final navbarStyle = desktopLayoutClass == DesktopLayoutClass.compactDesktop
         ? 'icons'
         : configuredNavbarStyle;
-    final navbarAutohide = desktopRuntime
-        ? ref.watch(desktopNavbarAutohideProvider)
-        : false;
+    final navbarAutohide =
+        desktopRuntime && ref.watch(desktopNavbarAutohideProvider);
     final desktopSidebarWidth = switch (navbarStyle) {
       'compact' => 220.0,
       'icons' => 64.0,
@@ -1401,9 +1396,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           await ref.read(audioHandlerProvider)?.skipToPrevious();
           return;
         case DesktopCommandAction.refreshLibrary:
-          unawaited(
-            ref.read(librarySyncControllerProvider.notifier).syncNow(),
-          );
+          unawaited(ref.read(librarySyncControllerProvider.notifier).syncNow());
           return;
         case DesktopCommandAction.forceRescanLibrary:
           unawaited(
@@ -1489,8 +1482,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               onPopInvokedWithResult: (didPop, _) {
                 // route. Navigator-owned modals above the shell should consume back
                 // without also mutating the shell state underneath.
-                if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true))
+                if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true)) {
                   return;
+                }
                 _handleShellBack();
               },
               child: AppNoticeScope(
@@ -1558,15 +1552,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                             queueOverlayKey: _queueOverlayKey,
                             showLyricsOverlay: showDesktopLyricsOverlay,
                             onToggleLyrics: _toggleDesktopLyricsOverlay,
-                            onSystemBack: () {
-                              _handleShellBack();
-                            },
+                            onSystemBack: _handleShellBack,
                             onToggleAutohide: () async {
                               final db = ref.read(navisDatabaseProvider);
                               await db.appSettingsDao
-                                  .updateDesktopNavbarAutohide(
-                                    !navbarAutohide,
-                                  );
+                                  .updateDesktopNavbarAutohide(!navbarAutohide);
                             },
                           ),
                         ),
@@ -1602,9 +1592,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           child: Row(
                             children: <Widget>[
                               Material(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerLow,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
                                 child: SafeArea(
                                   left: !useCompactWideLandscape,
                                   right: !useCompactWideLandscape,
@@ -1708,9 +1698,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     children: <Widget>[
                                       if (showOfflineBanner)
                                         Material(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.surfaceContainerHigh,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHigh,
                                           child: Padding(
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 16,
@@ -1720,12 +1710,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               children: <Widget>[
                                                 Icon(
                                                   Icons.cloud_off_outlined,
-                                                  color:
-                                                      Theme.of(
-                                                            context,
-                                                          )
-                                                          .colorScheme
-                                                          .onSurfaceVariant,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                                 const SizedBox(width: 10),
                                                 Expanded(
@@ -1910,9 +1897,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                   )
                                                                   .collapse(),
                                                               onBackInterceptorChanged:
-                                                                  (
-                                                                    handler,
-                                                                  ) {
+                                                                  (handler) {
                                                                     _nowPlayingBackInterceptor =
                                                                         handler;
                                                                   },
@@ -1948,9 +1933,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           children: <Widget>[
                             if (showOfflineBanner)
                               Material(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHigh,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHigh,
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -1960,18 +1945,18 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     children: <Widget>[
                                       Icon(
                                         Icons.cloud_off_outlined,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           offlineBannerText,
                                           style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                         ),
                                       ),
@@ -2024,9 +2009,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 // so the Now Playing screen isn't squished.
                                 NavService.dismissKeyboard(context);
                                 ref
-                                    .read(
-                                      playerOverlayStackProvider.notifier,
-                                    )
+                                    .read(playerOverlayStackProvider.notifier)
                                     .expand();
                               },
                               onCollapse: () => ref
@@ -2070,9 +2053,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   onShowQueue: () =>
                                       NavService.showQueue(context, ref),
                                   onCollapse: () => ref
-                                      .read(
-                                        playerOverlayStackProvider.notifier,
-                                      )
+                                      .read(playerOverlayStackProvider.notifier)
                                       .collapse(),
                                   onBackInterceptorChanged: (handler) {
                                     _nowPlayingBackInterceptor = handler;
@@ -2214,7 +2195,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 /// the queue order is unchanged.
 @immutable
 class _ShellPlayback {
-  const _ShellPlayback(this.snapshot);
+  const new(this.snapshot);
 
   final PlaybackSnapshot snapshot;
 
@@ -2259,7 +2240,7 @@ class _ShellPlayback {
 /// the small Mini Player window does not squeeze it. The widget structure is
 /// identical in both states so switching never remounts the workspace.
 class _HiddenWorkspaceLayer extends StatelessWidget {
-  const _HiddenWorkspaceLayer({
+  const new({
     required this.hidden,
     required this.desktopViewSize,
     required this.child,

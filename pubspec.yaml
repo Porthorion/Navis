@@ -83,6 +83,8 @@ dev_dependencies:
   very_good_analysis: ^11.0.0
   flutter_launcher_icons: ^0.14.4
 
+  media_kit: any
+  fake_async: any
 dependency_overrides:
   just_audio_platform_interface:
     path: third_party/just_audio_platform_interface

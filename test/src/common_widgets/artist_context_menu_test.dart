@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' hide Column;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -136,11 +136,8 @@ void main() {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 ElevatedButton(
-                  onPressed: () => showArtistContextMenu(
-                    context,
-                    ref,
-                    'artist-1',
-                  ),
+                  onPressed: () =>
+                      showArtistContextMenu(context, ref, 'artist-1'),
                   child: const Text('Artist actions'),
                 ),
                 ElevatedButton(
@@ -164,7 +161,7 @@ void main() {
       final playTile = tester.widget<ListTile>(
         find.widgetWithText(ListTile, 'Play'),
       );
-      if (playTile.enabled == true) break;
+      if (playTile.enabled) break;
       await tester.pump(const Duration(milliseconds: 25));
     }
 
@@ -185,8 +182,9 @@ void main() {
         _,
         next,
       ) {
-        if (next.stage == ArtistPlaybackStage.completed && !done.isCompleted)
+        if (next.stage == ArtistPlaybackStage.completed && !done.isCompleted) {
           done.complete();
+        }
       }, fireImmediately: true);
       await done.future.timeout(const Duration(seconds: 5));
       subscription.close();

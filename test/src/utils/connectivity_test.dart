@@ -21,18 +21,18 @@ void main() {
         NetworkType.wifi,
       );
       expect(
-        resolveNetworkType(
-          const <ConnectivityResult>[ConnectivityResult.ethernet],
-        ),
+        resolveNetworkType(const <ConnectivityResult>[
+          ConnectivityResult.ethernet,
+        ]),
         NetworkType.wifi,
       );
     });
 
     test('maps mobile to cellular', () {
       expect(
-        resolveNetworkType(
-          const <ConnectivityResult>[ConnectivityResult.mobile],
-        ),
+        resolveNetworkType(const <ConnectivityResult>[
+          ConnectivityResult.mobile,
+        ]),
         NetworkType.cellular,
       );
     });

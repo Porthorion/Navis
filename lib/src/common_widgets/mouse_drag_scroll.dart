@@ -8,7 +8,7 @@ import 'package:flutter/widgets.dart';
 /// also turn mouse drags into scrolls over sliders, selectable text,
 /// reorderable lists and the equalizer graph.
 class MouseDragScroll extends StatelessWidget {
-  const MouseDragScroll({required this.child, super.key});
+  const new({required this.child, super.key});
 
   final Widget child;
 

@@ -43,7 +43,7 @@ enum PermanentDownloadMatchOrigin {
 }
 
 class PermanentDownloadImportItem {
-  const PermanentDownloadImportItem({
+  const new({
     required this.relativePath,
     required this.fileSize,
     required this.format,
@@ -71,10 +71,7 @@ class PermanentDownloadImportItem {
 }
 
 class PermanentDownloadImportPreview {
-  const PermanentDownloadImportPreview({
-    required this.rootPath,
-    required this.items,
-  });
+  const new({required this.rootPath, required this.items});
 
   final String rootPath;
   final List<PermanentDownloadImportItem> items;
@@ -127,10 +124,7 @@ class PermanentDownloadImportPreview {
 }
 
 class PermanentDownloadImportResult {
-  const PermanentDownloadImportResult({
-    required this.importedCount,
-    required this.skippedCount,
-  });
+  const new({required this.importedCount, required this.skippedCount});
 
   final int importedCount;
   final int skippedCount;
@@ -140,14 +134,11 @@ class PermanentDownloadImportResult {
 /// deleting them. The SQLite sidecar is authoritative for future imports;
 /// legacy folders fall back to deterministic local-catalog matching.
 class PermanentDownloadImportService {
-  PermanentDownloadImportService({
-    required CacheDao cacheDao,
-    required LibraryDao libraryDao,
-    required String? Function() readProfileIdentity,
-  }) : _cacheDao = cacheDao,
-       _libraryDao = libraryDao,
-       _readProfileIdentity = readProfileIdentity,
-       _mediaIdentity = PermanentDownloadMediaIdentity();
+  new({
+    required this._cacheDao,
+    required this._libraryDao,
+    required this._readProfileIdentity,
+  }) : _mediaIdentity = PermanentDownloadMediaIdentity();
 
   final CacheDao _cacheDao;
   final LibraryDao _libraryDao;
@@ -630,7 +621,7 @@ class PermanentDownloadImportService {
         skippedCount: skipped,
       );
     } on Object {
-      if (manifest.autocommit == false) manifest.execute('ROLLBACK');
+      if (!manifest.autocommit) manifest.execute('ROLLBACK');
       rethrow;
     } finally {
       manifest.close();
@@ -960,10 +951,10 @@ class PermanentDownloadImportService {
     // replaces that row with the portable key.
     db.execute(
       Platform.isWindows
-          ? "DELETE FROM download_records WHERE relative_path <> ?1 AND "
-                "lower(replace(relative_path, '\\', '/')) = lower(?1)"
-          : "DELETE FROM download_records WHERE relative_path <> ?1 AND "
-                "replace(relative_path, '\\', '/') = ?1",
+          ? 'DELETE FROM download_records WHERE relative_path <> ?1 AND '
+                r"lower(replace(relative_path, '\', '/')) = lower(?1)"
+          : 'DELETE FROM download_records WHERE relative_path <> ?1 AND '
+                r"replace(relative_path, '\', '/') = ?1",
       <Object?>[record.relativePath],
     );
     db.execute(
@@ -984,7 +975,7 @@ class PermanentDownloadImportService {
 }
 
 class _ManifestRecord {
-  const _ManifestRecord({
+  const new({
     required this.relativePath,
     required this.songId,
     required this.profileFingerprint,
@@ -1002,7 +993,7 @@ class _ManifestRecord {
 }
 
 class _DownloadMatchResult {
-  const _DownloadMatchResult({
+  const new({
     required this.candidates,
     required this.title,
     required this.artist,
@@ -1023,7 +1014,7 @@ class _DownloadMatchResult {
 /// titles in any script match (the former ASCII-only form dropped Arabic,
 /// CJK, and accented letters).
 class _DownloadMatchIndex {
-  _DownloadMatchIndex(this._dao);
+  new(this._dao);
 
   final LibraryDao _dao;
   final Map<

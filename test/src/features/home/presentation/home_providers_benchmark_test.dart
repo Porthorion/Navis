@@ -19,9 +19,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 import '../../../../helpers/test_database.dart';
 
 class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
-  _BenchmarkListenBrainzApiClient({
-    required this.playlist,
-  });
+  new({required this.playlist});
 
   final ListenBrainzPlaylist playlist;
 
@@ -52,7 +50,7 @@ class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
 
 class _BenchmarkExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
-  const _BenchmarkExternalScrobbleCredentialStore();
+  const new();
 
   @override
   Future<void> clearListenBrainzToken() async {}
@@ -72,7 +70,7 @@ void main() {
 
       print('Populating database with 10,000 songs...');
       final songsToInsert = <SongsTableCompanion>[];
-      for (int i = 0; i < 10000; i++) {
+      for (var i = 0; i < 10000; i++) {
         songsToInsert.add(
           SongsTableCompanion.insert(
             id: 'song-$i',
@@ -87,7 +85,7 @@ void main() {
 
       // Create 50 target tracks, most with mismatched names to trigger the fallback
       final targetTracks = <ListenBrainzPlaylistTrack>[];
-      for (int i = 0; i < 50; i++) {
+      for (var i = 0; i < 50; i++) {
         targetTracks.add(
           ListenBrainzPlaylistTrack(
             title: 'Song Title $i slightly mismatched',

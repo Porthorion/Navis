@@ -8,13 +8,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PermanentDownloadPathResolver {
-  PermanentDownloadPathResolver({
-    required bool Function() readCustomDownloadFolderEnabled,
-    required String? Function() readCustomDownloadFolderPath,
+  new({
+    required this._readCustomDownloadFolderEnabled,
+    required this._readCustomDownloadFolderPath,
     Future<Directory> Function()? readApplicationSupportDirectory,
-  }) : _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
-       _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
-       _readApplicationSupportDirectory =
+  }) : _readApplicationSupportDirectory =
            readApplicationSupportDirectory ?? getApplicationSupportDirectory;
 
   static const String unknownArtistDirectory = 'Unknown Artist';

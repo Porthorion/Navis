@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 
 /// Compact connection state shared by ListenBrainz setup surfaces.
 class ListenBrainzConnectionStatus extends StatelessWidget {
-  const ListenBrainzConnectionStatus({
+  const new({
     super.key,
     required this.settings,
     required this.onUpdate,
@@ -21,10 +21,7 @@ class ListenBrainzConnectionStatus extends StatelessWidget {
     final account = settings.listenBrainzUserName;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        Icons.check_circle_outline,
-        color: colorScheme.primary,
-      ),
+      leading: Icon(Icons.check_circle_outline, color: colorScheme.primary),
       title: const Text('ListenBrainz connected'),
       subtitle: Text(
         account == null

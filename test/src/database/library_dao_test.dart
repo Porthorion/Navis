@@ -311,113 +311,95 @@ void main() {
       expect(song.userRating, 4);
     });
 
-    test(
-      'deleteArtistsByIds removes a large stale artist batch',
-      () async {
-        await database.libraryDao.upsertArtists(
-          List<ArtistsTableCompanion>.generate(
-            501,
-            (index) => ArtistsTableCompanion.insert(
-              id: 'stale-artist-$index',
-              name: 'Stale Artist $index',
-            ),
-            growable: false,
+    test('deleteArtistsByIds removes a large stale artist batch', () async {
+      await database.libraryDao.upsertArtists(
+        List<ArtistsTableCompanion>.generate(
+          501,
+          (index) => ArtistsTableCompanion.insert(
+            id: 'stale-artist-$index',
+            name: 'Stale Artist $index',
           ),
-        );
+          growable: false,
+        ),
+      );
 
-        await database.libraryDao.deleteArtistsByIds(
-          List<String>.generate(501, (index) => 'stale-artist-$index'),
-        );
+      await database.libraryDao.deleteArtistsByIds(
+        List<String>.generate(501, (index) => 'stale-artist-$index'),
+      );
 
-        expect(await database.libraryDao.countArtists(), 0);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(await database.libraryDao.countArtists(), 0);
+    }, skip: !sqliteAvailable);
 
-    test(
-      'removeServerSongsForPromotion batches stale rows and keeps permanent downloads',
-      () async {
-        final tempDir = Directory.systemTemp.createTempSync(
-          'navis_library_dao_',
-        );
-        addTearDown(() {
-          if (tempDir.existsSync()) {
-            tempDir.deleteSync(recursive: true);
-          }
-        });
-        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
-          ArtistsTableCompanion.insert(id: 'stale-artist', name: 'Stale'),
-        ]);
-        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'stale-album',
-            name: 'Stale',
+    test('removeServerSongsForPromotion batches stale rows and keeps permanent downloads', () async {
+      final tempDir = Directory.systemTemp.createTempSync('navis_library_dao_');
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'stale-artist', name: 'Stale'),
+      ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'stale-album',
+          name: 'Stale',
+          artistId: const Value('stale-artist'),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs(
+        List<SongsTableCompanion>.generate(
+          501,
+          (index) => SongsTableCompanion.insert(
+            id: 'stale-song-$index',
+            title: 'Stale Song $index',
+            albumId: const Value('stale-album'),
             artistId: const Value('stale-artist'),
           ),
-        ]);
-        await database.libraryDao.upsertSongs(
-          List<SongsTableCompanion>.generate(
-            501,
-            (index) => SongsTableCompanion.insert(
-              id: 'stale-song-$index',
-              title: 'Stale Song $index',
-              albumId: const Value('stale-album'),
-              artistId: const Value('stale-artist'),
-            ),
-            growable: false,
-          ),
-        );
-        final permanentFile = File(p.join(tempDir.path, 'permanent.mp3'));
-        final rollingFile = File(p.join(tempDir.path, 'rolling.mp3'));
-        await permanentFile.writeAsBytes(<int>[1]);
-        await rollingFile.writeAsBytes(<int>[2]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'stale-song-0',
-            filePath: permanentFile.path,
-            fileSize: 1,
-            format: 'mp3',
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'stale-song-500',
-            filePath: rollingFile.path,
-            fileSize: 1,
-            format: 'mp3',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
+          growable: false,
+        ),
+      );
+      final permanentFile = File(p.join(tempDir.path, 'permanent.mp3'));
+      final rollingFile = File(p.join(tempDir.path, 'rolling.mp3'));
+      await permanentFile.writeAsBytes(<int>[1]);
+      await rollingFile.writeAsBytes(<int>[2]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'stale-song-0',
+          filePath: permanentFile.path,
+          fileSize: 1,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'stale-song-500',
+          filePath: rollingFile.path,
+          fileSize: 1,
+          format: 'mp3',
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
 
-        final deferredFiles = await database.libraryDao
-            .removeServerSongsForPromotion(
-              await database.select(database.songsTable).get(),
-            );
+      final deferredFiles = await database.libraryDao
+          .removeServerSongsForPromotion(
+            await database.select(database.songsTable).get(),
+          );
 
-        final preserved = await database.libraryDao.getSongById(
-          'stale-song-0',
-        );
-        expect(preserved?.serverDeletedAt, isNotNull);
-        expect(preserved?.albumId, isNull);
-        expect(await database.libraryDao.getSongById('stale-song-500'), isNull);
-        expect(
-          await database.cacheDao.getCachedTrack('stale-song-0'),
-          isNotNull,
-        );
-        expect(
-          await database.cacheDao.getCachedTrack('stale-song-500'),
-          isNull,
-        );
-        expect(deferredFiles, contains(rollingFile.path));
-        expect(await database.select(database.songsTable).get(), hasLength(1));
-      },
-      skip: !sqliteAvailable,
-    );
+      final preserved = await database.libraryDao.getSongById('stale-song-0');
+      expect(preserved?.serverDeletedAt, isNotNull);
+      expect(preserved?.albumId, isNull);
+      expect(await database.libraryDao.getSongById('stale-song-500'), isNull);
+      expect(await database.cacheDao.getCachedTrack('stale-song-0'), isNotNull);
+      expect(await database.cacheDao.getCachedTrack('stale-song-500'), isNull);
+      expect(deferredFiles, contains(rollingFile.path));
+      expect(await database.select(database.songsTable).get(), hasLength(1));
+    }, skip: !sqliteAvailable);
 
     test(
       'watchSongsFromLikedAlbums returns liked album tracks in stable order',
@@ -469,10 +451,11 @@ void main() {
         final songs = await database.libraryDao
             .watchSongsFromLikedAlbums()
             .first;
-        expect(
-          songs.map((song) => song.id),
-          <String>['newer-track-1', 'newer-track-2', 'older-track-1'],
-        );
+        expect(songs.map((song) => song.id), <String>[
+          'newer-track-1',
+          'newer-track-2',
+          'older-track-1',
+        ]);
       },
       skip: !sqliteAvailable,
     );
@@ -507,9 +490,8 @@ void main() {
           'album-old',
         ]);
         expect(
-          (await database.libraryDao.getAlbumById(
-            'album-old',
-          ))?.serverCreatedAt?.toUtc(),
+          (await database.libraryDao.getAlbumById('album-old'))?.serverCreatedAt
+              ?.toUtc(),
           created,
         );
       },
@@ -591,10 +573,11 @@ void main() {
             .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
             .first;
 
-        expect(
-          albums.map((album) => album.id),
-          <String>['unknown', 'ranked', 'dated'],
-        );
+        expect(albums.map((album) => album.id), <String>[
+          'unknown',
+          'ranked',
+          'dated',
+        ]);
         expect(
           (await database.libraryDao.getAlbumById('ranked'))?.recentlyAddedRank,
           isNull,
@@ -603,115 +586,107 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'watchArtistAlbumBuckets keeps primary albums separate from featured appearances',
-      () async {
-        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
-          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
-          ArtistsTableCompanion.insert(id: 'artist-2', name: 'Artist 2'),
-        ]);
+    test('watchArtistAlbumBuckets keeps primary albums separate from featured appearances', () async {
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ArtistsTableCompanion.insert(id: 'artist-2', name: 'Artist 2'),
+      ]);
 
-        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-primary',
-            name: 'Primary Album',
-            artistId: const Value('artist-1'),
-            artistName: const Value('Artist 1'),
-            artists: const Value(<ArtistRef>[
-              ArtistRef(id: 'artist-1', name: 'Artist 1'),
-            ]),
-          ),
-          AlbumsTableCompanion.insert(
-            id: 'album-collab-primary',
-            name: 'Collab Album',
-            artistId: const Value('artist-1'),
-            artistName: const Value('Artist 1'),
-            artists: const Value(<ArtistRef>[
-              ArtistRef(id: 'artist-1', name: 'Artist 1'),
-              ArtistRef(id: 'artist-2', name: 'Artist 2'),
-            ]),
-          ),
-          AlbumsTableCompanion.insert(
-            id: 'album-featured-credit',
-            name: 'Featured Credit Album',
-            artistId: const Value('artist-2'),
-            artistName: const Value('Artist 2'),
-            artists: const Value(<ArtistRef>[
-              ArtistRef(id: 'artist-2', name: 'Artist 2'),
-              ArtistRef(id: 'artist-1', name: 'Artist 1'),
-            ]),
-          ),
-          AlbumsTableCompanion.insert(
-            id: 'album-featured-song',
-            name: 'Featured Song Album',
-            artistId: const Value('artist-2'),
-            artistName: const Value('Artist 2'),
-            artists: const Value(<ArtistRef>[
-              ArtistRef(id: 'artist-2', name: 'Artist 2'),
-            ]),
-          ),
-        ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-primary',
+          name: 'Primary Album',
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist 1'),
+          artists: const Value(<ArtistRef>[
+            ArtistRef(id: 'artist-1', name: 'Artist 1'),
+          ]),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-collab-primary',
+          name: 'Collab Album',
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist 1'),
+          artists: const Value(<ArtistRef>[
+            ArtistRef(id: 'artist-1', name: 'Artist 1'),
+            ArtistRef(id: 'artist-2', name: 'Artist 2'),
+          ]),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-featured-credit',
+          name: 'Featured Credit Album',
+          artistId: const Value('artist-2'),
+          artistName: const Value('Artist 2'),
+          artists: const Value(<ArtistRef>[
+            ArtistRef(id: 'artist-2', name: 'Artist 2'),
+            ArtistRef(id: 'artist-1', name: 'Artist 1'),
+          ]),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-featured-song',
+          name: 'Featured Song Album',
+          artistId: const Value('artist-2'),
+          artistName: const Value('Artist 2'),
+          artists: const Value(<ArtistRef>[
+            ArtistRef(id: 'artist-2', name: 'Artist 2'),
+          ]),
+        ),
+      ]);
 
-        await database.libraryDao.replaceSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(
-            id: 'song-featured-credit',
-            title: 'Featured Credit Song',
-            albumId: const Value('album-featured-credit'),
-            artistId: const Value('artist-1'),
-            artistName: const Value('Artist 1'),
-          ),
-          SongsTableCompanion.insert(
-            id: 'song-featured-song',
-            title: 'Featured Song',
-            albumId: const Value('album-featured-song'),
-            artistId: const Value('artist-1'),
-            artistName: const Value('Artist 1'),
-          ),
-        ]);
+      await database.libraryDao.replaceSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-featured-credit',
+          title: 'Featured Credit Song',
+          albumId: const Value('album-featured-credit'),
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist 1'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-featured-song',
+          title: 'Featured Song',
+          albumId: const Value('album-featured-song'),
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist 1'),
+        ),
+      ]);
 
-        final buckets = await database.libraryDao
-            .watchArtistAlbumBuckets('artist-1')
-            .firstWhere(
-              (value) =>
-                  value.primaryAlbums.length == 2 &&
-                  value.featuredInAlbums.length == 2,
-            );
+      final buckets = await database.libraryDao
+          .watchArtistAlbumBuckets('artist-1')
+          .firstWhere(
+            (value) =>
+                value.primaryAlbums.length == 2 &&
+                value.featuredInAlbums.length == 2,
+          );
 
-        expect(
-          buckets.primaryAlbums.map((album) => album.id),
-          <String>['album-collab-primary', 'album-primary'],
-        );
-        expect(
-          buckets.featuredInAlbums.map((album) => album.id),
-          <String>['album-featured-credit', 'album-featured-song'],
-        );
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(buckets.primaryAlbums.map((album) => album.id), <String>[
+        'album-collab-primary',
+        'album-primary',
+      ]);
+      expect(buckets.featuredInAlbums.map((album) => album.id), <String>[
+        'album-featured-credit',
+        'album-featured-song',
+      ]);
+    }, skip: !sqliteAvailable);
 
     test(
       'replaceSongsForAlbumsChunk replaces targeted album songs atomically',
       () async {
-        await database.libraryDao.replaceAlbums(
-          <AlbumsTableCompanion>[
-            AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
-            AlbumsTableCompanion.insert(id: 'album-2', name: 'Album 2'),
-          ],
-        );
-        await database.libraryDao.replaceSongs(
-          <SongsTableCompanion>[
-            SongsTableCompanion.insert(
-              id: 'old-song-1',
-              title: 'Old Song 1',
-              albumId: const Value('album-1'),
-            ),
-            SongsTableCompanion.insert(
-              id: 'old-song-2',
-              title: 'Old Song 2',
-              albumId: const Value('album-2'),
-            ),
-          ],
-        );
+        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
+          AlbumsTableCompanion.insert(id: 'album-2', name: 'Album 2'),
+        ]);
+        await database.libraryDao.replaceSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'old-song-1',
+            title: 'Old Song 1',
+            albumId: const Value('album-1'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'old-song-2',
+            title: 'Old Song 2',
+            albumId: const Value('album-2'),
+          ),
+        ]);
 
         final chunk = <String, List<SongsTableCompanion>>{
           'album-1': <SongsTableCompanion>[
@@ -744,251 +719,220 @@ void main() {
           'new-song-2',
           'new-song-3',
         });
-        expect(
-          songs.where((song) => song.albumId == 'album-1').length,
-          1,
-        );
-        expect(
-          songs.where((song) => song.albumId == 'album-2').length,
-          2,
-        );
+        expect(songs.where((song) => song.albumId == 'album-1').length, 1);
+        expect(songs.where((song) => song.albumId == 'album-2').length, 2);
       },
       skip: !sqliteAvailable,
     );
 
-    test(
-      'reconcileSongsForAlbumsChunk preserves complete permanent downloads as local-only',
-      () async {
-        final tempDir = Directory.systemTemp.createTempSync(
-          'navis_library_dao_',
-        );
-        addTearDown(() {
-          if (tempDir.existsSync()) {
-            tempDir.deleteSync(recursive: true);
-          }
-        });
+    test('reconcileSongsForAlbumsChunk preserves complete permanent downloads as local-only', () async {
+      final tempDir = Directory.systemTemp.createTempSync('navis_library_dao_');
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
 
-        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
-          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
-        ]);
-        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
-        ]);
-        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(
-            id: 'deleted-song',
-            title: 'Downloaded Deleted Song',
-            albumId: const Value('album-1'),
-            artistId: const Value('artist-1'),
-            artistName: const Value('Artist 1'),
-            albumName: const Value('Album 1'),
-          ),
-        ]);
-        final audioFile = File(p.join(tempDir.path, 'deleted-song.mp3'));
-        await audioFile.writeAsBytes(<int>[1, 2, 3]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'deleted-song',
-            filePath: audioFile.path,
-            fileSize: 3,
-            format: 'mp3',
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+      ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
+      ]);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'deleted-song',
+          title: 'Downloaded Deleted Song',
+          albumId: const Value('album-1'),
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist 1'),
+          albumName: const Value('Album 1'),
+        ),
+      ]);
+      final audioFile = File(p.join(tempDir.path, 'deleted-song.mp3'));
+      await audioFile.writeAsBytes(<int>[1, 2, 3]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'deleted-song',
+          filePath: audioFile.path,
+          fileSize: 3,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
 
-        await database.libraryDao.reconcileSongsForAlbumsChunk(
-          const <String, List<SongsTableCompanion>>{'album-1': []},
-        );
+      await database.libraryDao.reconcileSongsForAlbumsChunk(
+        const <String, List<SongsTableCompanion>>{'album-1': []},
+      );
 
-        final allRows = await database.select(database.songsTable).get();
-        expect(allRows, hasLength(1));
-        expect(allRows.single.id, 'deleted-song');
-        expect(allRows.single.albumId, isNull);
-        expect(allRows.single.artistId, isNull);
-        expect(allRows.single.serverDeletedAt, isNotNull);
-        expect(
-          await database.libraryDao.watchSongsByAlbum('album-1').first,
-          isEmpty,
-        );
-        expect(
-          await database.libraryDao.watchSongsSorted(SongSortOrder.name).first,
-          isEmpty,
-        );
-        expect(
-          await database.cacheDao.getCachedTrack('deleted-song'),
-          isNotNull,
-        );
+      final allRows = await database.select(database.songsTable).get();
+      expect(allRows, hasLength(1));
+      expect(allRows.single.id, 'deleted-song');
+      expect(allRows.single.albumId, isNull);
+      expect(allRows.single.artistId, isNull);
+      expect(allRows.single.serverDeletedAt, isNotNull);
+      expect(
+        await database.libraryDao.watchSongsByAlbum('album-1').first,
+        isEmpty,
+      );
+      expect(
+        await database.libraryDao.watchSongsSorted(SongSortOrder.name).first,
+        isEmpty,
+      );
+      expect(await database.cacheDao.getCachedTrack('deleted-song'), isNotNull);
 
-        await database.libraryDao.reconcileSongsForAlbumsChunk(
-          <String, List<SongsTableCompanion>>{
-            'album-1': <SongsTableCompanion>[
-              SongsTableCompanion.insert(
-                id: 'deleted-song',
-                title: 'Downloaded Deleted Song',
-                albumId: const Value('album-1'),
-              ),
-            ],
-          },
-        );
+      await database.libraryDao.reconcileSongsForAlbumsChunk(
+        <String, List<SongsTableCompanion>>{
+          'album-1': <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'deleted-song',
+              title: 'Downloaded Deleted Song',
+              albumId: const Value('album-1'),
+            ),
+          ],
+        },
+      );
 
-        final restored = await database.libraryDao.getSongById('deleted-song');
-        expect(restored?.albumId, 'album-1');
-        expect(restored?.serverDeletedAt, isNull);
-      },
-      skip: !sqliteAvailable,
-    );
+      final restored = await database.libraryDao.getSongById('deleted-song');
+      expect(restored?.albumId, 'album-1');
+      expect(restored?.serverDeletedAt, isNull);
+    }, skip: !sqliteAvailable);
 
-    test(
-      'reconcileSongsForAlbumsChunk retains owned stale state as confirmed missing',
-      () async {
-        final tempDir = Directory.systemTemp.createTempSync(
-          'navis_library_dao_',
-        );
-        addTearDown(() {
-          if (tempDir.existsSync()) {
-            tempDir.deleteSync(recursive: true);
-          }
-        });
+    test('reconcileSongsForAlbumsChunk retains owned stale state as confirmed missing', () async {
+      final tempDir = Directory.systemTemp.createTempSync('navis_library_dao_');
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
 
-        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
-        ]);
-        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(
-            id: 'stale-song',
-            title: 'Stale Song',
-            albumId: const Value('album-1'),
-          ),
-        ]);
-        final audioFile = File(p.join(tempDir.path, 'stale-song.mp3'));
-        await audioFile.writeAsBytes(<int>[1, 2, 3]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'stale-song',
-            filePath: audioFile.path,
-            fileSize: 3,
-            format: 'mp3',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-        await database.downloadQueueDao.enqueue(
-          DownloadQueueTableCompanion.insert(
-            songId: const Value('stale-song'),
-            status: DownloadStatus.queued,
-            addedAt: DateTime.now(),
-          ),
-        );
-        await database.libraryDao.upsertExternalLyricsCache(
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
+      ]);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'stale-song',
+          title: 'Stale Song',
+          albumId: const Value('album-1'),
+        ),
+      ]);
+      final audioFile = File(p.join(tempDir.path, 'stale-song.mp3'));
+      await audioFile.writeAsBytes(<int>[1, 2, 3]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
           songId: 'stale-song',
-          source: 'test',
-          plainLyrics: 'lyrics',
-        );
-        await database
-            .into(database.matchFlowsTable)
-            .insert(
-              MatchFlowsTableCompanion.insert(
-                id: 'flow-1',
-                name: 'Flow 1',
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now(),
-              ),
-            );
-        await database
-            .into(database.matchFlowSongsTable)
-            .insert(
-              MatchFlowSongsTableCompanion.insert(
-                flowId: 'flow-1',
-                songId: 'stale-song',
-                sortOrder: 0,
-                addedAt: DateTime.now(),
-              ),
-            );
+          filePath: audioFile.path,
+          fileSize: 3,
+          format: 'mp3',
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('stale-song'),
+          status: DownloadStatus.queued,
+          addedAt: DateTime.now(),
+        ),
+      );
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'stale-song',
+        source: 'test',
+        plainLyrics: 'lyrics',
+      );
+      await database
+          .into(database.matchFlowsTable)
+          .insert(
+            MatchFlowsTableCompanion.insert(
+              id: 'flow-1',
+              name: 'Flow 1',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+      await database
+          .into(database.matchFlowSongsTable)
+          .insert(
+            MatchFlowSongsTableCompanion.insert(
+              flowId: 'flow-1',
+              songId: 'stale-song',
+              sortOrder: 0,
+              addedAt: DateTime.now(),
+            ),
+          );
 
-        await database.libraryDao.reconcileSongsForAlbumsChunk(
-          const <String, List<SongsTableCompanion>>{'album-1': []},
-        );
+      await database.libraryDao.reconcileSongsForAlbumsChunk(
+        const <String, List<SongsTableCompanion>>{'album-1': []},
+      );
 
-        // Download ownership and match-flow references keep the row alive as
-        // confirmed-missing so recovery review can still relink it.
-        final retained = await database.libraryDao.getSongById('stale-song');
-        expect(retained, isNotNull);
-        expect(retained!.serverDeletedAt, isNotNull);
-        expect(
-          retained.catalogAvailability,
-          CatalogAvailability.confirmedMissing.name,
-        );
-        expect(retained.albumId, isNull);
-        expect(
-          await database.cacheDao.getCachedTrack('stale-song'),
-          isNotNull,
-        );
-        expect(
-          await database.downloadQueueDao.watchQueue().first,
-          isNotEmpty,
-        );
-        expect(
-          await database.libraryDao.getExternalLyricsCache('stale-song'),
-          isNotNull,
-        );
-        expect(
-          await database.select(database.matchFlowSongsTable).get(),
-          isNotEmpty,
-        );
-        expect(audioFile.existsSync(), isTrue);
-      },
-      skip: !sqliteAvailable,
-    );
+      // Download ownership and match-flow references keep the row alive as
+      // confirmed-missing so recovery review can still relink it.
+      final retained = await database.libraryDao.getSongById('stale-song');
+      expect(retained, isNotNull);
+      expect(retained!.serverDeletedAt, isNotNull);
+      expect(
+        retained.catalogAvailability,
+        CatalogAvailability.confirmedMissing.name,
+      );
+      expect(retained.albumId, isNull);
+      expect(await database.cacheDao.getCachedTrack('stale-song'), isNotNull);
+      expect(await database.downloadQueueDao.watchQueue().first, isNotEmpty);
+      expect(
+        await database.libraryDao.getExternalLyricsCache('stale-song'),
+        isNotNull,
+      );
+      expect(
+        await database.select(database.matchFlowSongsTable).get(),
+        isNotEmpty,
+      );
+      expect(audioFile.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
 
-    test(
-      'reconcileSongsForAlbumsChunk deletes unowned stale rows',
-      () async {
-        final tempDir = Directory.systemTemp.createTempSync(
-          'navis_library_dao_unowned_',
-        );
-        addTearDown(() {
-          if (tempDir.existsSync()) {
-            tempDir.deleteSync(recursive: true);
-          }
-        });
+    test('reconcileSongsForAlbumsChunk deletes unowned stale rows', () async {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'navis_library_dao_unowned_',
+      );
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
 
-        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(id: 'album-2', name: 'Album 2'),
-        ]);
-        final audioFile = File(p.join(tempDir.path, 'plain-song.mp3'));
-        await audioFile.writeAsBytes(<int>[1, 2, 3]);
-        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(
-            id: 'plain-song',
-            title: 'Plain Song',
-            albumId: const Value('album-2'),
-          ),
-        ]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'plain-song',
-            filePath: audioFile.path,
-            fileSize: 3,
-            format: 'mp3',
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(id: 'album-2', name: 'Album 2'),
+      ]);
+      final audioFile = File(p.join(tempDir.path, 'plain-song.mp3'));
+      await audioFile.writeAsBytes(<int>[1, 2, 3]);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'plain-song',
+          title: 'Plain Song',
+          albumId: const Value('album-2'),
+        ),
+      ]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'plain-song',
+          filePath: audioFile.path,
+          fileSize: 3,
+          format: 'mp3',
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
 
-        await database.libraryDao.reconcileSongsForAlbumsChunk(
-          const <String, List<SongsTableCompanion>>{'album-2': []},
-        );
+      await database.libraryDao.reconcileSongsForAlbumsChunk(
+        const <String, List<SongsTableCompanion>>{'album-2': []},
+      );
 
-        expect(await database.libraryDao.getSongById('plain-song'), isNull);
-        expect(await database.cacheDao.getCachedTrack('plain-song'), isNull);
-        expect(audioFile.existsSync(), isFalse);
-      },
-      skip: !sqliteAvailable,
-    );
+      expect(await database.libraryDao.getSongById('plain-song'), isNull);
+      expect(await database.cacheDao.getCachedTrack('plain-song'), isNull);
+      expect(audioFile.existsSync(), isFalse);
+    }, skip: !sqliteAvailable);
 
     test('bumpCoverArtRevisions targets only listed entities', () async {
       await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
@@ -1027,117 +971,104 @@ void main() {
       expect(album!.coverArtRevision, 1);
     }, skip: !sqliteAvailable);
 
-    test(
-      'bulk selection keeps suspected rows and confirmed rows with local copies',
-      () async {
-        Future<void> setAvailability(
-          String songId, {
-          String? availability,
-          bool serverDeleted = false,
-          DateTime? starred,
-        }) async {
-          await (database.update(
-            database.songsTable,
-          )..where((t) => t.id.equals(songId))).write(
-            SongsTableCompanion(
-              catalogAvailability: Value(availability),
-              serverDeletedAt: serverDeleted
-                  ? Value(DateTime.utc(2026, 9, 6))
-                  : const Value.absent(),
-              starred: starred == null ? const Value.absent() : Value(starred),
-            ),
-          );
-        }
-
-        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(id: 'song-present', title: 'Present'),
-          SongsTableCompanion.insert(id: 'song-suspect', title: 'Suspect'),
-          SongsTableCompanion.insert(id: 'song-gone', title: 'Gone'),
-          SongsTableCompanion.insert(id: 'song-kept', title: 'Kept'),
-        ]);
-        // A favorite absent from the validated catalog with no local copy:
-        // excluded from bulk selection.
-        await setAvailability(
-          'song-gone',
-          availability: 'confirmedMissing',
-          serverDeleted: true,
-          starred: DateTime.utc(2026, 9, 1),
-        );
-        // A favorite absent from the catalog but holding a complete local
-        // copy stays selectable; offline copies remain playable.
-        await setAvailability(
-          'song-kept',
-          availability: 'confirmedMissing',
-          serverDeleted: true,
-          starred: DateTime.utc(2026, 9, 1),
-        );
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: 'song-kept',
-            filePath: '/tmp/song-kept.audio',
-            fileSize: 1024,
-            format: 'mp3',
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
+    test('bulk selection keeps suspected rows and confirmed rows with local copies', () async {
+      Future<void> setAvailability(
+        String songId, {
+        String? availability,
+        bool serverDeleted = false,
+        DateTime? starred,
+      }) async {
+        await (database.update(
+          database.songsTable,
+        )..where((t) => t.id.equals(songId))).write(
+          SongsTableCompanion(
+            catalogAvailability: Value(availability),
+            serverDeletedAt: serverDeleted
+                ? Value(DateTime.utc(2026, 9, 6))
+                : const Value.absent(),
+            starred: starred == null ? const Value.absent() : Value(starred),
           ),
         );
+      }
 
-        final selectable = await database.libraryDao.getAllStarredSongs();
-        expect(
-          selectable.map((song) => song.id).toSet(),
-          <String>{'song-kept'},
-        );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-present', title: 'Present'),
+        SongsTableCompanion.insert(id: 'song-suspect', title: 'Suspect'),
+        SongsTableCompanion.insert(id: 'song-gone', title: 'Gone'),
+        SongsTableCompanion.insert(id: 'song-kept', title: 'Kept'),
+      ]);
+      // A favorite absent from the validated catalog with no local copy:
+      // excluded from bulk selection.
+      await setAvailability(
+        'song-gone',
+        availability: 'confirmedMissing',
+        serverDeleted: true,
+        starred: DateTime.utc(2026, 9, 1),
+      );
+      // A favorite absent from the catalog but holding a complete local
+      // copy stays selectable; offline copies remain playable.
+      await setAvailability(
+        'song-kept',
+        availability: 'confirmedMissing',
+        serverDeleted: true,
+        starred: DateTime.utc(2026, 9, 1),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-kept',
+          filePath: '/tmp/song-kept.audio',
+          fileSize: 1024,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
 
-        // Suspicion is recorded only on rows still reading as present.
-        await database.libraryDao.markSongsSuspectedMissing(<String>[
-          'song-present',
-          'song-gone',
-          'missing-id',
-        ]);
-        expect(
-          (await database.libraryDao.getSongById('song-present'))!
-              .catalogAvailability,
-          'suspectedMissing',
-        );
-        expect(
-          (await database.libraryDao.getSongById('song-gone'))!
-              .catalogAvailability,
-          'confirmedMissing',
-        );
-      },
-      skip: !sqliteAvailable,
-    );
+      final selectable = await database.libraryDao.getAllStarredSongs();
+      expect(selectable.map((song) => song.id).toSet(), <String>{'song-kept'});
 
-    test(
-      'markAlbumsSongsHydratedByIds updates only targeted albums',
-      () async {
-        await database.libraryDao.replaceAlbums(
-          <AlbumsTableCompanion>[
-            AlbumsTableCompanion.insert(
-              id: 'album-1',
-              name: 'Album 1',
-              songsHydrated: const Value(false),
-            ),
-            AlbumsTableCompanion.insert(
-              id: 'album-2',
-              name: 'Album 2',
-              songsHydrated: const Value(false),
-            ),
-          ],
-        );
+      // Suspicion is recorded only on rows still reading as present.
+      await database.libraryDao.markSongsSuspectedMissing(<String>[
+        'song-present',
+        'song-gone',
+        'missing-id',
+      ]);
+      expect(
+        (await database.libraryDao.getSongById('song-present'))!
+            .catalogAvailability,
+        'suspectedMissing',
+      );
+      expect(
+        (await database.libraryDao.getSongById('song-gone'))!
+            .catalogAvailability,
+        'confirmedMissing',
+      );
+    }, skip: !sqliteAvailable);
 
-        await database.libraryDao.markAlbumsSongsHydratedByIds(
-          const <String>['album-1'],
-        );
+    test('markAlbumsSongsHydratedByIds updates only targeted albums', () async {
+      await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Album 1',
+          songsHydrated: const Value(false),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-2',
+          name: 'Album 2',
+          songsHydrated: const Value(false),
+        ),
+      ]);
 
-        final rows = await database.select(database.albumsTable).get();
-        final byId = {for (final row in rows) row.id: row};
-        expect(byId['album-1']?.songsHydrated, isTrue);
-        expect(byId['album-2']?.songsHydrated, isFalse);
-      },
-      skip: !sqliteAvailable,
-    );
+      await database.libraryDao.markAlbumsSongsHydratedByIds(const <String>[
+        'album-1',
+      ]);
+
+      final rows = await database.select(database.albumsTable).get();
+      final byId = {for (final row in rows) row.id: row};
+      expect(byId['album-1']?.songsHydrated, isTrue);
+      expect(byId['album-2']?.songsHydrated, isFalse);
+    }, skip: !sqliteAvailable);
 
     test(
       'getSongsByIds chunks requests beyond the SQLite variable limit',
@@ -1252,11 +1183,9 @@ void main() {
         await insertSong('never-played', 'Delta', null);
         // upsertSongs intentionally clears deletion evidence on writes, so
         // mark the row deleted directly to exercise the query filter.
-        await (database.update(
-          database.songsTable,
-        )..where((table) => table.id.equals('deleted'))).write(
-          SongsTableCompanion(serverDeletedAt: Value(DateTime.now())),
-        );
+        await (database.update(database.songsTable)
+              ..where((table) => table.id.equals('deleted')))
+            .write(SongsTableCompanion(serverDeletedAt: Value(DateTime.now())));
 
         await database
             .into(database.playHistoryTable)
@@ -1329,11 +1258,9 @@ void main() {
         ]);
         // upsertAlbums normalizes rows to the committed catalog, so mark the
         // provisional row directly to exercise the query filter.
-        await (database.update(
-          database.albumsTable,
-        )..where((table) => table.id.equals('album-provisional'))).write(
-          const AlbumsTableCompanion(isProvisional: Value(true)),
-        );
+        await (database.update(database.albumsTable)
+              ..where((table) => table.id.equals('album-provisional')))
+            .write(const AlbumsTableCompanion(isProvisional: Value(true)));
         expect(await currentCount(), 2);
 
         await database.libraryDao.markAlbumSongsHydrated('album-watch-a');

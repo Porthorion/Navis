@@ -6,7 +6,7 @@ part 'artist_info.g.dart';
 
 @freezed
 abstract class ArtistInfo with _$ArtistInfo {
-  const factory ArtistInfo({
+  const factory({
     String? biography,
     String? musicBrainzId,
     String? lastFmUrl,
@@ -16,6 +16,5 @@ abstract class ArtistInfo with _$ArtistInfo {
     @Default(<Artist>[]) List<Artist> similarArtists,
   }) = _ArtistInfo;
 
-  factory ArtistInfo.fromJson(Map<String, dynamic> json) =>
-      _$ArtistInfoFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$ArtistInfoFromJson(json);
 }

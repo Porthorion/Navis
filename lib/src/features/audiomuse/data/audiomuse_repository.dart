@@ -10,7 +10,7 @@ import 'package:navis/src/utils/app_logger.dart';
 /// so the UI can gracefully degrade when AudioMuse is unavailable or errors
 /// occur.
 class AudioMuseRepository {
-  AudioMuseRepository(this._client);
+  new(this._client);
 
   final AudioMuseApiClient _client;
 

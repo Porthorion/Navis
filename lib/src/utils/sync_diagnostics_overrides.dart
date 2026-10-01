@@ -7,7 +7,7 @@ import 'package:navis/src/utils/connectivity.dart';
 /// Runtime overrides used by the Linux sync diagnostics API (clone mode only).
 @immutable
 class SyncDiagnosticsOverrides {
-  const SyncDiagnosticsOverrides({
+  const new({
     this.networkType,
     this.nativeMetered,
     this.backgroundSyncUnmeteredOnly,
@@ -155,10 +155,7 @@ class SyncDiagnosticsOverridesController
   }
 
   void patch(Map<String, Object?> json) {
-    final merged = <String, Object?>{
-      ...state.toJson(),
-      ...json,
-    };
+    final merged = <String, Object?>{...state.toJson(), ...json};
     if (json.containsKey('networkType') && json['networkType'] == null) {
       merged.remove('networkType');
     }
@@ -193,9 +190,7 @@ final syncDiagnosticsOverridesProvider =
     NotifierProvider<
       SyncDiagnosticsOverridesController,
       SyncDiagnosticsOverrides
-    >(
-      SyncDiagnosticsOverridesController.new,
-    );
+    >(SyncDiagnosticsOverridesController.new);
 
 /// Clone-diagnostics-only override for the desktop Now Playing surface.
 ///
@@ -225,11 +220,7 @@ final desktopNowPlayingDiagnosticsProvider =
 /// modifying the user's queue, or relying on server timing.
 @immutable
 class TransportMotionPresentationFixture {
-  const TransportMotionPresentationFixture({
-    required this.playback,
-    required this.sequence,
-    this.cue,
-  });
+  const new({required this.playback, required this.sequence, this.cue});
 
   final PlaybackSnapshot playback;
   final int sequence;

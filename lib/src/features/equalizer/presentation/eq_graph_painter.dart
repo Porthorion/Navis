@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
@@ -8,7 +8,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart
 
 /// Response samples calculated once per configuration change, never in paint.
 class EqGraphSamples {
-  EqGraphSamples(EqConfiguration configuration, double rate, int? selected) {
+  new(EqConfiguration configuration, double rate, int? selected) {
     if (!configuration.supportsSampleRate(rate)) return;
     final response = EqResponse(configuration, sampleRate: rate);
     final frequencies = <double>{
@@ -57,7 +57,7 @@ String eqSignedGain(double db) {
 /// Paints the calculated response. Selection is conveyed by fill, size and
 /// contrast rather than hue, so it stays legible in monochrome themes.
 class EqGraphPainter extends CustomPainter {
-  EqGraphPainter({
+  new({
     required this.samples,
     required this.configuration,
     required this.geometry,

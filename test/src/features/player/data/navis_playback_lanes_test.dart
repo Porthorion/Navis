@@ -43,9 +43,8 @@ void main() {
 
       // Cancelled callers settle even while the old backend call is blocked.
       await first.timeout(const Duration(seconds: 1));
-      await Future.wait(replacements.take(99)).timeout(
-        const Duration(seconds: 1),
-      );
+      await Future.wait(replacements.take(99))
+          .timeout(const Duration(seconds: 1));
       expect(executed, isEmpty);
 
       release.complete();

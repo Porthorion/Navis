@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -113,10 +113,7 @@ void main() {
     await pumpAppearance(tester);
 
     final defaultDecoration = chipDecoration(tester, 'default');
-    expect(
-      (defaultDecoration.border! as Border).top.width,
-      3,
-    );
+    expect((defaultDecoration.border! as Border).top.width, 3);
 
     final orangeValue = Colors.orange.toARGB32();
     final orangeKey = 'preset-$orangeValue';
@@ -207,18 +204,12 @@ void main() {
 
     expect(customWarmFinder, findsOneWidget);
     expect(
-      find.byKey(
-        ValueKey<String>(
-          'customColorBadge-custom-$customWarm',
-        ),
-      ),
+      find.byKey(ValueKey<String>('customColorBadge-custom-$customWarm')),
       findsOneWidget,
     );
     expect(
       find.byKey(
-        ValueKey<String>(
-          'customColorBadge-custom-${Colors.orange.toARGB32()}',
-        ),
+        ValueKey<String>('customColorBadge-custom-${Colors.orange.toARGB32()}'),
       ),
       findsNothing,
     );
@@ -236,9 +227,8 @@ void main() {
     );
     expect(
       find.bySemanticsLabel(
-        lookupAppLocalizations(
-          const Locale('en'),
-        ).appearanceColorCustomSemantics('Custom: Coral'),
+        lookupAppLocalizations(const Locale('en'))
+            .appearanceColorCustomSemantics('Custom: Coral'),
       ),
       findsOneWidget,
     );
@@ -286,10 +276,7 @@ void main() {
       find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
       findsOneWidget,
     );
-    expect(
-      find.text(l10n.appearanceColorSchemeDynamicSub),
-      findsOneWidget,
-    );
+    expect(find.text(l10n.appearanceColorSchemeDynamicSub), findsOneWidget);
   });
 
   testWidgets('artwork choices wrap and save on a phone with large text', (

@@ -12,17 +12,12 @@ const String listenBrainzWeeklyJamsVirtualPlaylistId =
     'virtual:listenbrainz:weekly-jams';
 
 class PlaylistLibraryItem {
-  const PlaylistLibraryItem._({
-    this.playlist,
-    this.virtualPlaylist,
-  });
+  const new _({this.playlist, this.virtualPlaylist});
 
-  const PlaylistLibraryItem.normal(PlaylistsTableData playlist)
-    : this._(playlist: playlist);
+  const new normal(PlaylistsTableData playlist) : this._(playlist: playlist);
 
-  const PlaylistLibraryItem.virtual(
-    ListenBrainzDiscoverPlaylist virtualPlaylist,
-  ) : this._(virtualPlaylist: virtualPlaylist);
+  const new virtual(ListenBrainzDiscoverPlaylist virtualPlaylist)
+    : this._(virtualPlaylist: virtualPlaylist);
 
   final PlaylistsTableData? playlist;
   final ListenBrainzDiscoverPlaylist? virtualPlaylist;
@@ -120,20 +115,14 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
 
 /// Watches songs for a given playlist from the local DB.
 final playlistSongsProvider = StreamProvider.autoDispose
-    .family<List<SongsTableData>, String>((
-      ref,
-      playlistId,
-    ) {
+    .family<List<SongsTableData>, String>((ref, playlistId) {
       final db = ref.watch(navisDatabaseProvider);
       return db.playlistDao.watchPlaylistSongs(playlistId);
     });
 
 /// Watches a single playlist's metadata.
 final playlistByIdProvider = StreamProvider.autoDispose
-    .family<PlaylistsTableData?, String>((
-      ref,
-      playlistId,
-    ) {
+    .family<PlaylistsTableData?, String>((ref, playlistId) {
       final db = ref.watch(navisDatabaseProvider);
       final query = db.select(db.playlistsTable)
         ..where((t) => t.id.equals(playlistId));

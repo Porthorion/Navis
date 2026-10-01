@@ -16,15 +16,13 @@ void main() {
     tempDirectory = await Directory.systemTemp.createTemp(
       'navis_provisional_library_test_',
     );
-    await database.libraryDao.upsertProvisionalArtists(
-      <ArtistsTableCompanion>[
-        ArtistsTableCompanion.insert(
-          id: 'remote-artist',
-          name: 'Remote Artist',
-          isExternal: const Value(true),
-        ),
-      ],
-    );
+    await database.libraryDao.upsertProvisionalArtists(<ArtistsTableCompanion>[
+      ArtistsTableCompanion.insert(
+        id: 'remote-artist',
+        name: 'Remote Artist',
+        isExternal: const Value(true),
+      ),
+    ]);
     await database.libraryDao.upsertProvisionalAlbums(<AlbumsTableCompanion>[
       AlbumsTableCompanion.insert(
         id: 'remote-album',
@@ -86,7 +84,7 @@ void main() {
         dryRun: true,
       );
       expect(preview, {'artists': 1, 'albums': 1, 'songs': 1});
-      expect((await database.libraryDao.getAllAlbums()), hasLength(1));
+      expect(await database.libraryDao.getAllAlbums(), hasLength(1));
       final applied = await database.libraryDao.repairExternalSourceEvidence(
         artistIds: ['remote-artist'],
         albumIds: ['remote-album'],
@@ -169,13 +167,11 @@ void main() {
       expect(collected.albums, 1);
       expect(collected.artists, 1);
       expect(await database.libraryDao.getSongById('remote-song'), isNull);
-      final lyrics = await database.customSelect(
-        '''
+      final lyrics = await database.customSelect('''
             SELECT COUNT(*) AS count
             FROM external_lyrics_cache
             WHERE song_id = 'remote-song';
-            ''',
-      ).getSingle();
+            ''').getSingle();
       expect(lyrics.read<int>('count'), 0);
     },
   );
@@ -185,10 +181,7 @@ void main() {
       SongsTableCompanion.insert(id: 'canonical-song', title: 'Canonical'),
     ]);
     await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
-      SongsTableCompanion.insert(
-        id: 'canonical-song',
-        title: 'Search Stub',
-      ),
+      SongsTableCompanion.insert(id: 'canonical-song', title: 'Search Stub'),
     ]);
 
     final row = await database.libraryDao.getSongById('canonical-song');
@@ -204,12 +197,10 @@ void main() {
       await database.customStatement(
         "INSERT INTO playlists (id, name) VALUES ('playlist', 'Playlist');",
       );
-      await database.customStatement(
-        '''
+      await database.customStatement('''
         INSERT INTO playlist_songs (playlist_id, song_id, sort_order)
         VALUES ('playlist', 'remote-song', 0);
-        ''',
-      );
+        ''');
       await database.customStatement(
         '''
         INSERT INTO play_queue (
@@ -223,12 +214,10 @@ void main() {
         ''',
         <Object?>[now],
       );
-      await database.customStatement(
-        '''
+      await database.customStatement('''
         INSERT INTO play_queue_items (queue_id, song_id, sort_order)
         VALUES (1, 'remote-song', 0);
-        ''',
-      );
+        ''');
 
       await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
         ArtistsTableCompanion.insert(
@@ -259,9 +248,8 @@ void main() {
       ]);
 
       expect(
-        (await database.libraryDao.getArtistById(
-          'remote-artist',
-        ))?.isProvisional,
+        (await database.libraryDao.getArtistById('remote-artist'))
+            ?.isProvisional,
         isFalse,
       );
       expect(
@@ -269,9 +257,7 @@ void main() {
         isFalse,
       );
       expect(
-        (await database.libraryDao.getAlbumById(
-          'remote-album',
-        ))?.isProvisional,
+        (await database.libraryDao.getAlbumById('remote-album'))?.isProvisional,
         isFalse,
       );
       final song = await database.libraryDao.getSongById('remote-song');
@@ -279,13 +265,10 @@ void main() {
       expect(song?.isExternal, isFalse);
       expect(song?.title, 'Canonical Song');
 
-      for (final table in <String>[
-        'playlist_songs',
-        'play_queue_items',
-      ]) {
+      for (final table in <String>['playlist_songs', 'play_queue_items']) {
         final row = await database
             .customSelect(
-              "SELECT COUNT(*) AS count FROM $table "
+              'SELECT COUNT(*) AS count FROM $table '
               "WHERE song_id = 'remote-song';",
             )
             .getSingle();

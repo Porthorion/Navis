@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 
 import '../../helpers/test_theme.dart';
 
 class _SheetHarness extends StatefulWidget {
-  const _SheetHarness({
+  const new({
     required this.expandCalls,
     required this.collapseCalls,
     required this.progress,

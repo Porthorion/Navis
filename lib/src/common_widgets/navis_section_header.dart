@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 
 /// Heading for a content section, with an optional "See all" link or other
@@ -7,7 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 /// Every shelf, list and grid heading uses this widget so section titles have
 /// the same scale, weight, alignment and semantics throughout the app.
 class NavisSectionHeader extends StatelessWidget {
-  const NavisSectionHeader({
+  const new({
     required this.title,
     super.key,
     this.onSeeAll,

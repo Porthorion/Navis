@@ -1,7 +1,7 @@
 part of 'app_shell.dart';
 
 class _DesktopWorkspace extends StatefulWidget {
-  const _DesktopWorkspace({
+  const new({
     required this.desktopLayoutClass,
     required this.sidebarWidth,
     required this.navbarStyle,

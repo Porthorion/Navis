@@ -3,17 +3,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-enum SleepTimerMode {
-  off,
-  duration,
-  endOfTrack,
-}
+enum SleepTimerMode { off, duration, endOfTrack }
 
 class SleepTimerState {
-  const SleepTimerState({
-    this.mode = SleepTimerMode.off,
-    this.remaining = Duration.zero,
-  });
+  const new({this.mode = SleepTimerMode.off, this.remaining = Duration.zero});
 
   final SleepTimerMode mode;
   final Duration remaining;
@@ -36,10 +29,7 @@ class SleepTimerController extends Notifier<SleepTimerState> {
   void setDuration(Duration duration) {
     _cancelTimer();
     _restoreVolume();
-    state = SleepTimerState(
-      mode: SleepTimerMode.duration,
-      remaining: duration,
-    );
+    state = SleepTimerState(mode: SleepTimerMode.duration, remaining: duration);
     _startTicker();
   }
 
@@ -77,9 +67,7 @@ class SleepTimerController extends Notifier<SleepTimerState> {
         final fraction = remaining.inSeconds / _fadeDuration.inSeconds;
         final handler = ref.read(audioHandlerProvider);
         final userVolume = ref.read(playbackVolumeProvider);
-        handler?.setVolume(
-          (userVolume * fraction).clamp(0.0, 1.0),
-        );
+        handler?.setVolume((userVolume * fraction).clamp(0.0, 1.0));
       }
 
       state = SleepTimerState(

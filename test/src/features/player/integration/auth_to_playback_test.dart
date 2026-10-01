@@ -217,11 +217,7 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {}
 
   @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-  }) {}
+  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {}
 
   @override
   void registerPreferredMixCallback(
@@ -236,80 +232,74 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test(
-    'authenticated context can persist remote song fixture and trigger playback queue',
-    () async {
-      final db = createTestDatabase();
-      addTearDown(db.close);
+  test('authenticated context can persist remote song fixture and trigger playback queue', () async {
+    final db = createTestDatabase();
+    addTearDown(db.close);
 
-      final handler = _RecordingPlaybackHandler();
-      final container = ProviderContainer(
-        overrides: [
-          ...withTestDatabase(db),
-          networkTypeProvider.overrideWith((_) => NetworkType.wifi),
-          audioHandlerProvider.overrideWithValue(handler),
-          lyricsPrewarmProvider.overrideWithValue((_) async {}),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
+    final handler = _RecordingPlaybackHandler();
+    final container = ProviderContainer(
+      overrides: [
+        ...withTestDatabase(db),
+        networkTypeProvider.overrideWith((_) => NetworkType.wifi),
+        audioHandlerProvider.overrideWithValue(handler),
+        lyricsPrewarmProvider.overrideWithValue((_) async {}),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
             ),
           ),
-        ],
-      );
-      addTearDown(container.dispose);
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      final api = container.read(subsonicApiProvider);
-      expect(api, isNotNull);
+    final api = container.read(subsonicApiProvider);
+    expect(api, isNotNull);
 
-      final fixtureSong = Song(
-        id: 'remote-song-1',
-        title: 'Fixture Song',
-        album: 'Fixture Album',
-        albumId: 'fixture-album-1',
-        artist: 'Fixture Artist',
-        artistId: 'fixture-artist-1',
-        track: 1,
-        duration: 180,
-        coverArt: 'cover-1',
-        bitRate: 320,
-        suffix: 'mp3',
-        contentType: 'audio/mpeg',
-        size: 1,
-        isExternal: true,
-      );
+    final fixtureSong = Song(
+      id: 'remote-song-1',
+      title: 'Fixture Song',
+      album: 'Fixture Album',
+      albumId: 'fixture-album-1',
+      artist: 'Fixture Artist',
+      artistId: 'fixture-artist-1',
+      track: 1,
+      duration: 180,
+      coverArt: 'cover-1',
+      bitRate: 320,
+      suffix: 'mp3',
+      contentType: 'audio/mpeg',
+      size: 1,
+      isExternal: true,
+    );
 
-      final queue = container.read(queueProvider.notifier);
-      await queue.replaceWithSongs(
-        <Song>[fixtureSong],
-        expandMatchFlows: false,
-      );
+    final queue = container.read(queueProvider.notifier);
+    await queue.replaceWithSongs(<Song>[fixtureSong], expandMatchFlows: false);
 
-      expect(handler.replaceQueueCalls, 1);
-      expect(handler.replaceQueueWithDataCalls, 1);
-      expect(handler.playCalls, 0);
-      expect(handler.lastQueue, <String>['remote-song-1']);
-      expect(handler.lastExpandMatchFlows, isFalse);
+    expect(handler.replaceQueueCalls, 1);
+    expect(handler.replaceQueueWithDataCalls, 1);
+    expect(handler.playCalls, 0);
+    expect(handler.lastQueue, <String>['remote-song-1']);
+    expect(handler.lastExpandMatchFlows, isFalse);
 
-      final persisted = await db.libraryDao.getSongsByIds(
-        const <String>['remote-song-1'],
-      );
-      expect(persisted, isNotEmpty);
-      expect(persisted.first.title, 'Fixture Song');
-      expect(persisted.first.isExternal, isTrue);
-      expect(persisted.first.isProvisional, isTrue);
-      final album = await db.libraryDao.getAlbumById('fixture-album-1');
-      final artist = await db.libraryDao.getArtistById('fixture-artist-1');
-      expect(album?.isExternal, isTrue);
-      expect(album?.isProvisional, isTrue);
-      expect(artist?.isExternal, isTrue);
-      expect(artist?.isProvisional, isTrue);
-    },
-  );
+    final persisted = await db.libraryDao.getSongsByIds(const <String>[
+      'remote-song-1',
+    ]);
+    expect(persisted, isNotEmpty);
+    expect(persisted.first.title, 'Fixture Song');
+    expect(persisted.first.isExternal, isTrue);
+    expect(persisted.first.isProvisional, isTrue);
+    final album = await db.libraryDao.getAlbumById('fixture-album-1');
+    final artist = await db.libraryDao.getArtistById('fixture-artist-1');
+    expect(album?.isExternal, isTrue);
+    expect(album?.isProvisional, isTrue);
+    expect(artist?.isExternal, isTrue);
+    expect(artist?.isProvisional, isTrue);
+  });
 
   test('queue replacement forwards match-flow expansion opt-out', () async {
     final db = createTestDatabase();

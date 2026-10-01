@@ -10,9 +10,7 @@ import 'package:navis/src/providers/app_providers.dart';
 final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
   const backing = FlutterSecureCredentialStore();
   const diagnosticsEnabled = bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS');
-  const diagnosticsMode = String.fromEnvironment(
-    'NAVIS_SYNC_DIAGNOSTICS_MODE',
-  );
+  const diagnosticsMode = String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE');
   if (diagnosticsEnabled && diagnosticsMode == 'clone') {
     // An explicitly isolated Android sidecar can exercise the real headless
     // worker, which reads platform secure storage in another Flutter engine.

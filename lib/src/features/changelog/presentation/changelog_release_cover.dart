@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -10,11 +10,7 @@ import 'package:navis/src/providers/app_providers.dart';
 /// bundled. Otherwise, or when the asset fails to load, it is a typographic
 /// cover: the version set large on the accent colour.
 class ChangelogReleaseCover extends ConsumerWidget {
-  const ChangelogReleaseCover({
-    required this.version,
-    required this.size,
-    super.key,
-  });
+  const new({required this.version, required this.size, super.key});
 
   final ChangelogVersion version;
   final double size;
@@ -62,7 +58,7 @@ class ChangelogReleaseCover extends ConsumerWidget {
 }
 
 class _TypographicCover extends StatelessWidget {
-  const _TypographicCover({required this.version, required this.size});
+  const new({required this.version, required this.size});
 
   final ChangelogVersion version;
   final double size;

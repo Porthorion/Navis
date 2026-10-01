@@ -11,7 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/test_database.dart';
 
 class _QueueHandler extends Mock implements NavisPlaybackHandler {
-  _QueueHandler(this.insertCount);
+  new(this.insertCount);
 
   final int insertCount;
   final List<String> ids = <String>['existing'];

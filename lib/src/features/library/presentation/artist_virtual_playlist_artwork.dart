@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 
 class ArtistVirtualPlaylistArtwork extends StatefulWidget {
-  const ArtistVirtualPlaylistArtwork({
+  const new({
     required this.coverArtIds,
     required this.size,
     this.imageUrl,
@@ -144,10 +144,7 @@ class _ArtistVirtualPlaylistArtworkState
 }
 
 class _ArtworkPlaceholder extends StatelessWidget {
-  const _ArtworkPlaceholder({
-    required this.size,
-    required this.borderRadius,
-  });
+  const new({required this.size, required this.borderRadius});
 
   final double size;
   final double borderRadius;

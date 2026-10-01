@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -26,7 +26,7 @@ String formatPlaybackAdjustments(
     '${l10n.playbackSpeedMultiplierValue(formatAdjustmentNumber(values.speed, signed: false))} · ${l10n.playbackPitchSemitonesValue(formatAdjustmentNumber(values.pitchSemitones, approximate: !values.lockPitchToSpeed))}${values.lockPitchToSpeed ? ' · ${l10n.playbackPitchLock}' : ''}';
 
 class PlaybackAdjustmentSummary extends ConsumerWidget {
-  const PlaybackAdjustmentSummary({super.key});
+  const new({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final values = ref.watch(playbackAdjustmentsProvider).asData?.value.values;
@@ -49,7 +49,7 @@ String formatCompactAdjustmentNumber(double value) {
 }
 
 class PlaybackAdjustmentPanel extends ConsumerStatefulWidget {
-  const PlaybackAdjustmentPanel({
+  const new({
     this.onClose,
     this.showHeader = true,
     this.showResetAction = true,
@@ -147,9 +147,8 @@ class _PlaybackAdjustmentPanelState
                   if (widget.onClose != null)
                     IconButton(
                       key: const ValueKey('playbackAdjustmentClose'),
-                      tooltip: MaterialLocalizations.of(
-                        context,
-                      ).closeButtonTooltip,
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
                       onPressed: widget.onClose,
                       icon: const Icon(Icons.close),
                     ),
@@ -240,21 +239,18 @@ class _PlaybackAdjustmentPanelState
             if (data.failure != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  switch (data.failure!) {
-                    PlaybackAdjustmentFailure.unsupported =>
-                      l10n.playbackAdjustmentUnsupported,
-                    PlaybackAdjustmentFailure.lockUnsupported =>
-                      l10n.playbackPitchLockUnsupportedRange,
-                    PlaybackAdjustmentFailure.application =>
-                      l10n.playbackAdjustmentApplyFailure,
-                    PlaybackAdjustmentFailure.persistence =>
-                      l10n.playbackAdjustmentSaveFailure,
-                    PlaybackAdjustmentFailure.name =>
-                      l10n.playbackPresetNameInvalid,
-                  },
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                child: Text(switch (data.failure!) {
+                  PlaybackAdjustmentFailure.unsupported =>
+                    l10n.playbackAdjustmentUnsupported,
+                  PlaybackAdjustmentFailure.lockUnsupported =>
+                    l10n.playbackPitchLockUnsupportedRange,
+                  PlaybackAdjustmentFailure.application =>
+                    l10n.playbackAdjustmentApplyFailure,
+                  PlaybackAdjustmentFailure.persistence =>
+                    l10n.playbackAdjustmentSaveFailure,
+                  PlaybackAdjustmentFailure.name =>
+                    l10n.playbackPresetNameInvalid,
+                }, style: TextStyle(color: theme.colorScheme.error)),
               ),
             if (data.failure == PlaybackAdjustmentFailure.persistence)
               TextButton(
@@ -473,9 +469,7 @@ class _PlaybackAdjustmentPanelState
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Flexible(
-                  child: Text(label, style: theme.textTheme.titleSmall),
-                ),
+                Flexible(child: Text(label, style: theme.textTheme.titleSmall)),
                 if (linked) ...[
                   const SizedBox(width: 6),
                   // Pitch is driven by speed: say so on the heading rather
@@ -721,7 +715,7 @@ class _PlaybackAdjustmentPanelState
 }
 
 class _AdjustmentInputDialog extends StatefulWidget {
-  const _AdjustmentInputDialog({
+  const new({
     required this.title,
     required this.initialText,
     required this.numeric,
@@ -805,7 +799,7 @@ class _AdjustmentInputDialogState extends State<_AdjustmentInputDialog> {
 
 /// An icon stepper that repeats while held and reports when input ends.
 class _RepeatingStepButton extends StatefulWidget {
-  const _RepeatingStepButton({
+  const new({
     required this.icon,
     required this.tooltip,
     required this.enabled,

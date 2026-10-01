@@ -53,22 +53,15 @@ void main() {
       await database.matchFlowDao.addSong(flowId, 'master-a');
       await database.matchFlowDao.addSong(flowId, 'child-b');
       await database.matchFlowDao.addSong(flowId, 'child-c');
-      await database.matchFlowDao.reorderSong(
-        flowId,
-        'child-c',
-        newIndex: 1,
-      );
+      await database.matchFlowDao.reorderSong(flowId, 'child-c', newIndex: 1);
       await database.matchFlowDao.removeSong(flowId, 'child-b');
 
       final flow = (await database.matchFlowDao.getFlowsWithSongs()).single;
-      expect(
-        flow.songs.map((entry) => entry.link.songId),
-        <String>['master-a', 'child-c'],
-      );
-      expect(
-        flow.songs.map((entry) => entry.link.sortOrder),
-        <int>[0, 1],
-      );
+      expect(flow.songs.map((entry) => entry.link.songId), <String>[
+        'master-a',
+        'child-c',
+      ]);
+      expect(flow.songs.map((entry) => entry.link.sortOrder), <int>[0, 1]);
     });
 
     test('rejects duplicate songs inside the same flow', () async {
@@ -117,11 +110,8 @@ void main() {
         await database.matchFlowDao.addSong(first, 'master-x');
 
         expect(
-          () => database.matchFlowDao.reorderSong(
-            first,
-            'master-x',
-            newIndex: 0,
-          ),
+          () =>
+              database.matchFlowDao.reorderSong(first, 'master-x', newIndex: 0),
           throwsA(
             isA<MatchFlowException>().having(
               (error) => error.failure,
@@ -149,17 +139,14 @@ void main() {
         enabled: true,
       );
 
-      expect(
-        result.songIds,
-        <String>[
-          'plain-p',
-          'master-a',
-          'child-b',
-          'child-c',
-          'master-x',
-          'child-y',
-        ],
-      );
+      expect(result.songIds, <String>[
+        'plain-p',
+        'master-a',
+        'child-b',
+        'child-c',
+        'master-x',
+        'child-y',
+      ]);
       expect(result.startIndex, 4);
     });
 
@@ -208,12 +195,7 @@ void main() {
 Future<void> _seedSongs(NavisDatabase database, List<String> ids) {
   return database.libraryDao.upsertSongs(
     ids
-        .map(
-          (id) => SongsTableCompanion.insert(
-            id: id,
-            title: id,
-          ),
-        )
+        .map((id) => SongsTableCompanion.insert(id: id, title: id))
         .toList(growable: false),
   );
 }

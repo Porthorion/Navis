@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,9 +29,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(
-      find.byKey(
-        const ValueKey<String>('desktopShortcut-openQuickSearch'),
-      ),
+      find.byKey(const ValueKey<String>('desktopShortcut-openQuickSearch')),
     );
     await tester.pump();
 
@@ -47,10 +45,7 @@ void main() {
       container.read(
         desktopShortcutBindingsProvider,
       )[DesktopCommandAction.openQuickSearch],
-      const DesktopShortcutBinding(
-        key: LogicalKeyboardKey.keyP,
-        shift: true,
-      ),
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.keyP, shift: true),
     );
   });
 
@@ -76,9 +71,7 @@ void main() {
     )[DesktopCommandAction.openQuickSearch];
 
     await tester.tap(
-      find.byKey(
-        const ValueKey<String>('desktopShortcut-openQuickSearch'),
-      ),
+      find.byKey(const ValueKey<String>('desktopShortcut-openQuickSearch')),
     );
     await tester.pump();
 

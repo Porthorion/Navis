@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 /// Result of the download quality picker dialog.
 class DownloadQualityChoice {
-  const DownloadQualityChoice({this.quality, this.format});
+  const new({this.quality, this.format});
 
   /// Null means original quality (use download.view).
   final String? quality;
@@ -69,9 +69,7 @@ Future<DownloadQualityChoice?> showDownloadQualitySheet(
     return showDialog<DownloadQualityChoice>(
       context: context,
       useRootNavigator: true,
-      builder: (ctx) => Dialog(
-        child: SizedBox(width: 440, child: picker(ctx)),
-      ),
+      builder: (ctx) => Dialog(child: SizedBox(width: 440, child: picker(ctx))),
     );
   }
   return showModalBottomSheet<DownloadQualityChoice>(

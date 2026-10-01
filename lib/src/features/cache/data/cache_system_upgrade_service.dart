@@ -4,7 +4,7 @@ import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 /// Requires existing profiles to clear data from the retired library cache
 /// before using the current rolling-cache contract.
 class CacheSystemUpgradeService {
-  CacheSystemUpgradeService({
+  new({
     required this.database,
     required this.cacheResetService,
     required this.triggerFullLibraryScan,

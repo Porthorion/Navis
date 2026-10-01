@@ -51,21 +51,15 @@ void _logAndroidAutoCallback(String message) {
 /// reads library data.  Playback actions (`playFromMediaId`, etc.) remain in
 /// `NavisAudioHandler`.
 class AutoMediaTreeService {
-  AutoMediaTreeService({
-    required LibraryDao libraryDao,
-    required PlaylistDao playlistDao,
-    required PlayQueueDao playQueueDao,
-    required HistoryDao historyDao,
-    required SubsonicApiClient? Function() readApiClient,
+  new({
+    required this._libraryDao,
+    required this._playlistDao,
+    required this._playQueueDao,
+    required this._historyDao,
+    required this._readApiClient,
     Future<Set<String>> Function()? readDownloadedSongIds,
-    Duration remoteSearchTimeout = _kRemoteSearchTimeout,
-  }) : _libraryDao = libraryDao,
-       _playlistDao = playlistDao,
-       _playQueueDao = playQueueDao,
-       _historyDao = historyDao,
-       _readApiClient = readApiClient,
-       _remoteSearchTimeout = remoteSearchTimeout,
-       _readDownloadedSongIds =
+    this._remoteSearchTimeout = _kRemoteSearchTimeout,
+  }) : _readDownloadedSongIds =
            readDownloadedSongIds ?? (() async => const <String>{});
 
   final LibraryDao _libraryDao;
@@ -191,9 +185,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.albums, 'No albums')
         : items;
@@ -273,9 +265,7 @@ class AutoMediaTreeService {
             contextId: AutoMediaRoot.likedSongs,
           ),
         )
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.likedSongs, 'No liked songs')
         : items;
@@ -286,9 +276,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty
         ? _emptyItems(AutoMediaRoot.likedAlbums, 'No liked albums')
         : items;
@@ -407,9 +395,7 @@ class AutoMediaTreeService {
     final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     return items.isEmpty ? _emptyItems('artist/$artistId', 'No albums') : items;
   }
 
@@ -487,10 +473,7 @@ class AutoMediaTreeService {
     final songs = await _libraryDao.getSongsByIds([songId]);
     if (songs.isEmpty) return null;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    return _songToMediaItem(
-      songs.first,
-      downloadedSongIds: downloadedSongIds,
-    );
+    return _songToMediaItem(songs.first, downloadedSongIds: downloadedSongIds);
   }
 
   Future<MediaItem?> _getAlbumMediaItem(String albumId) async {
@@ -934,14 +917,14 @@ class AutoMediaTreeService {
 }
 
 class _SearchFocus {
-  const _SearchFocus({
+  const new({
     this.includeArtists = true,
     this.includeAlbums = true,
     this.includePlaylists = true,
     this.includeSongs = true,
   });
 
-  factory _SearchFocus.fromExtras(Map<String, dynamic>? extras) {
+  factory fromExtras(Map<String, dynamic>? extras) {
     final focus = extras?[AndroidAutoConstants.mediaFocusKey];
     return switch (focus) {
       AndroidAutoConstants.mediaFocusArtist => const _SearchFocus(

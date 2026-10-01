@@ -5,7 +5,7 @@ part 'album_info.g.dart';
 
 @freezed
 abstract class AlbumInfo with _$AlbumInfo {
-  const factory AlbumInfo({
+  const factory({
     String? notes,
     String? musicBrainzId,
     String? lastFmUrl,
@@ -14,6 +14,5 @@ abstract class AlbumInfo with _$AlbumInfo {
     String? largeImageUrl,
   }) = _AlbumInfo;
 
-  factory AlbumInfo.fromJson(Map<String, dynamic> json) =>
-      _$AlbumInfoFromJson(json);
+  factory fromJson(Map<String, dynamic> json) => _$AlbumInfoFromJson(json);
 }

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
@@ -9,7 +9,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
 class DesktopWindowSettingsScreen extends ConsumerWidget {
-  const DesktopWindowSettingsScreen({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,9 +93,8 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
                 ),
                 value: windowController.miniAlwaysOnTop,
                 onChanged: windowController.supportsMiniAlwaysOnTop
-                    ? (value) => unawaited(
-                        windowController.setMiniAlwaysOnTop(value),
-                      )
+                    ? (value) =>
+                          unawaited(windowController.setMiniAlwaysOnTop(value))
                     : null,
               ),
             ],

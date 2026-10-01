@@ -4,7 +4,7 @@ import 'package:navis/src/utils/connectivity.dart';
 enum SyncCapabilityMode { unknown, reliable, unsupported }
 
 class LibrarySyncPlannerContext {
-  const LibrarySyncPlannerContext({
+  const new({
     required this.request,
     required this.networkType,
     required this.restrictsBackgroundSync,
@@ -45,7 +45,7 @@ class LibrarySyncPlannerContext {
 }
 
 class LibrarySyncPlanner {
-  const LibrarySyncPlanner();
+  const new();
 
   LibrarySyncPlan plan(LibrarySyncPlannerContext context) {
     final request = context.request;

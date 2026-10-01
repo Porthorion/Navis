@@ -10,10 +10,7 @@ abstract class SecureCredentialStore {
 }
 
 class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
-  CloneDiagnosticsCredentialStore(
-    this._backing, {
-    String credentialPath = '',
-  }) : _credentialPath = credentialPath;
+  new(this._backing, {this._credentialPath = ''});
 
   final SecureCredentialStore _backing;
   final String _credentialPath;
@@ -57,9 +54,7 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
 }
 
 class FlutterSecureCredentialStore implements SecureCredentialStore {
-  const FlutterSecureCredentialStore({
-    FlutterSecureStorage storage = const FlutterSecureStorage(),
-  }) : _storage = storage;
+  const new({this._storage = const FlutterSecureStorage()});
 
   static const _passwordKey = 'navis.auth.active_server.password';
   static String? _sessionPasswordFallback;

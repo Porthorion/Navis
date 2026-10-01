@@ -1,11 +1,7 @@
-enum ServerReachabilityStatus {
-  checking,
-  online,
-  offline,
-}
+enum ServerReachabilityStatus { checking, online, offline }
 
 class ServerReachabilityState {
-  const ServerReachabilityState({
+  const new({
     required this.status,
     this.lastCheckedAt,
     this.lastOnlineAt,

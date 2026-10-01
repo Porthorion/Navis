@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -49,7 +49,7 @@ void main() {
 }
 
 class _CardBasedLibraryWorkspace extends StatelessWidget {
-  const _CardBasedLibraryWorkspace();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +77,7 @@ class _CardBasedLibraryWorkspace extends StatelessWidget {
 }
 
 class _IntegratedLibraryWorkspace extends StatelessWidget {
-  const _IntegratedLibraryWorkspace();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -121,17 +121,13 @@ class _IntegratedLibraryWorkspace extends StatelessWidget {
                         Text(
                           'Library',
                           style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(width: 12),
                         Text(
                           'Albums',
                           style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
+                              ?.copyWith(color: colors.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -158,7 +154,7 @@ class _IntegratedLibraryWorkspace extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({required this.child});
+  const new({required this.child});
 
   final Widget child;
 
@@ -174,7 +170,7 @@ class _Panel extends StatelessWidget {
 }
 
 class _LibraryRows extends StatelessWidget {
-  const _LibraryRows({required this.color, super.key});
+  const new({required this.color, super.key});
 
   final Color color;
 
