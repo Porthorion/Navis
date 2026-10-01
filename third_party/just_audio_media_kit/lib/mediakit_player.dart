@@ -35,6 +35,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // subprocess's argv and be requested again. Navis never needs the hook.
     unawaited(setProperty(_player, 'ytdl', 'no'));
 
+    // Navis: stream URLs carry the account's salt and token, so the server
+    // certificate must be checked before they are sent.
+    if (JustAudioMediaKit.tlsVerify) {
+      unawaited(setProperty(_player, 'tls-verify', 'yes'));
+    }
+
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');
     }

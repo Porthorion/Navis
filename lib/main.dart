@@ -205,6 +205,12 @@ void _initializeDesktopAudioBackend() {
 
   try {
     JustAudioMediaKit.title = 'Navis';
+    // libmpv up to 0.41 opens https streams without checking the server
+    // certificate. The Linux system mpv and the pinned Windows build use the
+    // system certificate store; macOS's bundled mpv 0.36 (Mbed TLS) is not
+    // verified to find it yet, so it stays as before until that build is
+    // replaced.
+    JustAudioMediaKit.tlsVerify = Platform.isLinux || Platform.isWindows;
     // An isolated diagnostics run can capture its own native PCM without
     // changing the user's default output or routing other applications.
     const diagnosticsAudioDevice = String.fromEnvironment(

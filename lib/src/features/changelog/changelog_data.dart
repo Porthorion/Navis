@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On Linux and Windows, Navis now checks your server\'s HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, a song that fails to stream is no longer handed to yt-dlp when it is installed, so your server sign-in details are not passed to another program or sent to your server a second time',
         type: ChangelogEntryType.fix,
       ),

@@ -57,6 +57,14 @@ FORGEJO_TOKEN="<personal-access-token-with-write:release>"
 
 ---
 
+## Known security gap: stream certificates
+
+The bundled macOS libmpv (mpv 0.36, Mbed TLS) does not verify HTTPS server
+certificates, and Navis leaves `tls-verify` off there because that build's
+certificate source has not been verified. Linux and Windows verify. Resolve
+this together with replacing the macOS libmpv (see
+`docs/audits/dependency-audit-2026-10-01.md`) before a public macOS release.
+
 ## Code Signing
 
 ### Why signing matters

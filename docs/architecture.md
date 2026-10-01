@@ -1552,7 +1552,15 @@ fails to open, such as a 404 stream, through a yt-dlp or youtube-dl found on
 and is requested again. media_kit 1.2.6 exposes no option for this, so the
 vendored adapter sets `ytdl=no` on every player beside `force-seekable`; a
 libmpv built without Lua has no hook and ignores the property.
-`tool/stream_open_diagnostics.py` guards this at runtime.
+mpv releases up to 0.41 also open https streams without checking the server
+certificate (`tls-verify` defaults to off), so a man in the middle could read
+the token. `main.dart` sets `JustAudioMediaKit.tlsVerify` on Linux and
+Windows and the adapter then sets `tls-verify=yes` on every player; libmpv
+uses the system certificate store, and Navis's own API client already
+refuses certificates the system does not trust. macOS's bundled mpv 0.36
+(Mbed TLS) is left as before until that build is replaced, because its
+certificate source has not been verified.
+`tool/stream_open_diagnostics.py` guards both at runtime.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a

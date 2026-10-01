@@ -55,6 +55,14 @@ class JustAudioMediaKit extends JustAudioPlatform {
   /// [the related issue](https://github.com/Pato05/just_audio_media_kit/issues/11) for more information
   static bool prefetchPlaylist = false;
 
+  /// Navis: verifies HTTPS server certificates via libmpv's
+  /// [`--tls-verify`](https://mpv.io/manual/stable/#options-tls-verify).
+  ///
+  /// mpv releases up to 0.41 default it to off, so an `https` stream would
+  /// otherwise be opened without checking who answers. Leave it unset where
+  /// the bundled libmpv cannot find the system certificates.
+  static bool tlsVerify = false;
+
   static final _logger = Logger('JustAudioMediaKit');
   final _players = HashMap<String, MediaKitPlayer>();
 

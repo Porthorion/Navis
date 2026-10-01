@@ -67,7 +67,7 @@ The current watch list is intentionally retained:
 | --- | --- | --- |
 | `scrollable_positioned_list` | Exact indexed Library and Lyrics navigation | Retain. Re-evaluate for SDK incompatibility, an indexed-navigation defect, or a maintained replacement that preserves variable-height scrolling, position reporting, and existing tests. |
 | `visibility_detector` | Defers cover-art work until visible | Retain. Re-evaluate for SDK incompatibility, rendering/lifecycle defect, security issue, or replacement that preserves coalesced visibility semantics. |
-| `just_audio_media_kit` (vendored) | Desktop libmpv backend with Navis force-seekable and ytdl-hook-off (`ytdl=no`) patches | Keep Navis ownership. Rebase only after upstream review and prove direct-stream seeking, cache behavior, MPRIS, Windows SMTC, that a failed stream never reaches yt-dlp (`tool/stream_open_diagnostics.py`), and that a failed stream's mpv error still reaches stdout through the app's redacting `print` zone. Drop the ytdl patch only if media_kit gains an equivalent option. |
+| `just_audio_media_kit` (vendored) | Desktop libmpv backend with Navis force-seekable, ytdl-hook-off (`ytdl=no`) and certificate-check (`tls-verify`, Linux and Windows) patches | Keep Navis ownership. Rebase only after upstream review and prove direct-stream seeking, cache behavior, MPRIS, Windows SMTC, that a failed stream never reaches yt-dlp and an untrusted certificate is refused (`tool/stream_open_diagnostics.py`), and that a failed stream's mpv error still reaches stdout through the app's redacting `print` zone. Drop the ytdl patch only if media_kit gains an equivalent option. |
 
 ## Validation and release gate
 
