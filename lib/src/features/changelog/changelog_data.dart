@@ -160,7 +160,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'The changelog is easier to read: each major release opens with a banner of its highlights, changes are grouped into New, Improved and Fixed with filters, long fix lists fold away, and older releases sit on a timeline you can expand; on desktop, releases are listed beside the one you are reading. After an update, Home shows a compact “Check out” card with the release’s highlights instead of a long description',
+        'The changelog now reads like an album page: each major release has its own cover, name and highlights, changes are grouped into New, Improved and Fixed tabs, long fix lists fold away, and earlier releases are listed below (beside it on desktop). After an update, Home shows a compact “Check out” row with the release’s cover and highlights',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(

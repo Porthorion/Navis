@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_entry_tile.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
-/// A release's entries grouped into New, Improved and Fixed sections, with
-/// type filters, fixes collapsed past [collapsedFixCount] and the release's
-/// Special Thanks.
+/// Every change in a release: tabs for All, New, Improved and Fixed (the
+/// same control as Library's), plain paragraphs under plain subheadings,
+/// fixes folded past [collapsedFixCount], then the release's thanks.
 class ChangelogReleaseDetails extends StatefulWidget {
   const ChangelogReleaseDetails({required this.version, super.key});
 
@@ -21,17 +22,38 @@ class ChangelogReleaseDetails extends StatefulWidget {
       _ChangelogReleaseDetailsState();
 }
 
-class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails> {
-  ChangelogEntryType? _filter;
+class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails>
+    with TickerProviderStateMixin {
+  late List<ChangelogEntryType> _types = _presentTypes();
+  late TabController _tabs = _createController();
   bool _showAllFixes = false;
+
+  List<ChangelogEntryType> _presentTypes() => <ChangelogEntryType>[
+    for (final type in changelogSectionOrder)
+      if (widget.version.countOf(type) > 0) type,
+  ];
+
+  TabController _createController() {
+    final controller = TabController(length: _types.length + 1, vsync: this);
+    controller.addListener(() => setState(() {}));
+    return controller;
+  }
 
   @override
   void didUpdateWidget(covariant ChangelogReleaseDetails oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.version.version != widget.version.version) {
-      _filter = null;
+      _tabs.dispose();
+      _types = _presentTypes();
+      _tabs = _createController();
       _showAllFixes = false;
     }
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   @override
@@ -39,39 +61,44 @@ class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final version = widget.version;
-    final presentTypes = <ChangelogEntryType>[
-      for (final type in changelogSectionOrder)
-        if (version.countOf(type) > 0) type,
-    ];
-    final visibleTypes = _filter == null
-        ? presentTypes
-        : <ChangelogEntryType>[_filter!];
+    final showTabs = _types.length > 1;
+    final selected = showTabs && _tabs.index > 0
+        ? _types[_tabs.index - 1]
+        : null;
+    final visibleTypes = selected == null
+        ? _types
+        : <ChangelogEntryType>[selected];
+
+    Widget tabLabel(String label, int count) => Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(label),
+          const SizedBox(width: 6),
+          Text(
+            '$count',
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (presentTypes.length > 1)
+        NavisSectionHeader(title: l10n.changelogAllChanges, compact: true),
+        if (showTabs)
           Padding(
-            padding: const EdgeInsets.only(bottom: NavisSpace.xs),
-            child: Wrap(
-              spacing: NavisSpace.xs,
-              runSpacing: NavisSpace.xs,
-              children: <Widget>[
-                ChoiceChip(
-                  key: const ValueKey<String>('changelogFilter-all'),
-                  label: Text(l10n.changelogFilterAll),
-                  selected: _filter == null,
-                  onSelected: (_) => setState(() => _filter = null),
-                ),
-                for (final type in presentTypes)
-                  ChoiceChip(
-                    key: ValueKey<String>('changelogFilter-${type.name}'),
-                    label: Text(entryLabel(type, l10n)),
-                    selected: _filter == type,
-                    onSelected: (_) => setState(
-                      () => _filter = _filter == type ? null : type,
-                    ),
-                  ),
+            padding: const EdgeInsets.only(top: NavisSpace.xxs),
+            child: TabBar(
+              key: const ValueKey<String>('changelogTypeTabs'),
+              controller: _tabs,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: <Widget>[
+                tabLabel(l10n.changelogFilterAll, version.entries.length),
+                for (final type in _types)
+                  tabLabel(entryLabel(type, l10n), version.countOf(type)),
               ],
             ),
           ),
@@ -81,56 +108,26 @@ class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails> {
               'changelogSection-${version.version}-${type.name}',
             ),
             type: type,
+            // A single-type view needs no subheading.
+            showHeading: visibleTypes.length > 1,
             entries: version.entries.where((e) => e.type == type).toList(),
             // A filtered view shows everything it asked for.
             collapse:
                 type == ChangelogEntryType.fix &&
-                _filter == null &&
+                selected == null &&
                 !_showAllFixes,
             expanded: _showAllFixes,
             onToggle: () => setState(() => _showAllFixes = !_showAllFixes),
           ),
-        if (version.specialThanks.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: NavisSpace.md),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: NavisRadius.lgAll,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(NavisSpace.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.favorite_outline_rounded,
-                          size: 18,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: NavisSpace.xs),
-                        Text(
-                          l10n.changelogSpecialThanks,
-                          style: theme.textTheme.titleSmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: NavisSpace.xs),
-                    for (final thankYou in version.specialThanks)
-                      Padding(
-                        padding: const EdgeInsets.only(top: NavisSpace.xxs),
-                        child: Text(
-                          thankYou,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+        if (version.specialThanks.isNotEmpty) ...<Widget>[
+          const SizedBox(height: NavisSpace.lg),
+          Text(l10n.changelogSpecialThanks, style: theme.textTheme.titleSmall),
+          for (final thankYou in version.specialThanks)
+            Padding(
+              padding: const EdgeInsets.only(top: NavisSpace.xs),
+              child: Text(thankYou, style: theme.textTheme.bodyMedium),
             ),
-          ),
+        ],
       ],
     );
   }
@@ -139,6 +136,7 @@ class _ChangelogReleaseDetailsState extends State<ChangelogReleaseDetails> {
 class _EntrySection extends StatelessWidget {
   const _EntrySection({
     required this.type,
+    required this.showHeading,
     required this.entries,
     required this.collapse,
     required this.expanded,
@@ -147,6 +145,7 @@ class _EntrySection extends StatelessWidget {
   });
 
   final ChangelogEntryType type;
+  final bool showHeading;
   final List<ChangelogEntry> entries;
   final bool collapse;
   final bool expanded;
@@ -156,7 +155,6 @@ class _EntrySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final color = entryColor(type, theme.colorScheme);
     const limit = ChangelogReleaseDetails.collapsedFixCount;
     final canCollapse =
         type == ChangelogEntryType.fix && entries.length > limit;
@@ -165,48 +163,38 @@ class _EntrySection extends StatelessWidget {
         : entries;
 
     return Padding(
-      padding: const EdgeInsets.only(top: NavisSpace.sm),
+      padding: const EdgeInsets.only(top: NavisSpace.md),
       child: AnimatedSize(
         duration: MotionPolicy.of(context).surface,
         alignment: Alignment.topCenter,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Semantics(
-              header: true,
-              child: Row(
-                children: <Widget>[
-                  Icon(entryIcon(type), size: 18, color: color),
-                  const SizedBox(width: NavisSpace.xs),
-                  Text(
-                    entryLabel(type, l10n),
-                    style: theme.textTheme.titleSmall,
-                  ),
-                  const SizedBox(width: NavisSpace.xs),
-                  Text(
-                    '${entries.length}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            if (showHeading)
+              Semantics(
+                header: true,
+                child: Text(
+                  entryLabel(type, l10n),
+                  style: theme.textTheme.titleSmall,
+                ),
               ),
-            ),
-            const SizedBox(height: NavisSpace.xxs),
             for (final entry in shown) ChangelogEntryTile(entry: entry),
             if (canCollapse && (collapse || expanded))
-              TextButton.icon(
-                key: const ValueKey<String>('changelogToggleFixes'),
-                onPressed: onToggle,
-                icon: Icon(
-                  collapse
-                      ? Icons.expand_more_rounded
-                      : Icons.expand_less_rounded,
-                ),
-                label: Text(
-                  collapse
-                      ? l10n.changelogShowAllFixes(entries.length - limit)
-                      : l10n.changelogShowFewerFixes,
+              Padding(
+                padding: const EdgeInsets.only(top: NavisSpace.xxs),
+                child: TextButton(
+                  key: const ValueKey<String>('changelogToggleFixes'),
+                  onPressed: onToggle,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: NavisSpace.xs,
+                    ),
+                  ),
+                  child: Text(
+                    collapse
+                        ? l10n.changelogShowAllFixes(entries.length - limit)
+                        : l10n.changelogShowFewerFixes,
+                  ),
                 ),
               ),
           ],

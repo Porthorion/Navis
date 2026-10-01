@@ -3083,15 +3083,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String changelogDiscoveryMore(int count) {
-    return '+$count';
-  }
-
-  @override
   String get changelogEmpty => 'No Changelog Entries Yet.';
-
-  @override
-  String get changelogMajorRelease => 'Major release';
 
   @override
   String get changelogEntryTypeNew => 'New';
@@ -3104,39 +3096,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changelogFilterAll => 'All';
-
-  @override
-  String changelogNewCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count new',
-      one: '1 new',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String changelogImprovedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count improved',
-      one: '1 improved',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String changelogFixedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count fixes',
-      one: '1 fix',
-    );
-    return '$_temp0';
-  }
 
   @override
   String changelogChangeCount(int count) {
@@ -3181,6 +3140,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changelogHighlights => 'Highlights';
+
+  @override
+  String get changelogAllChanges => 'All changes';
+
+  @override
+  String changelogDiscoveryAndMore(String list, int count) {
+    return '$list and $count more';
+  }
 
   @override
   String get aboutLicenses => 'Open-source licenses';

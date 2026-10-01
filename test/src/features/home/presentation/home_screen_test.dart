@@ -884,8 +884,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Check out 9.9 “Aurora”'), findsOneWidget);
-    expect(find.text('Equalizer'), findsOneWidget);
-    expect(find.text('+1'), findsOneWidget);
+    // One plain line names the highlights instead of a row of chips.
+    expect(
+      find.text('Equalizer, Speed and pitch, AutoEQ and 1 more'),
+      findsOneWidget,
+    );
+    expect(find.text('+1'), findsNothing);
     // The card carries badges only, never the release's description.
     expect(find.text(_majorRelease.entries.first.text), findsNothing);
     await expectLater(
@@ -932,8 +936,8 @@ void main() {
       ],
     );
 
-    expect(find.text('Updated to 9.9.1'), findsOneWidget);
-    expect(find.text('1 improved · 2 fixes'), findsOneWidget);
+    expect(find.text('Updated to Navis 9.9.1'), findsOneWidget);
+    expect(find.text('3 changes'), findsOneWidget);
     await expectLater(
       find.byType(HomeScreen),
       matchesGoldenFile('goldens/home_changelog_discovery_patch_card.png'),

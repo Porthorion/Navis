@@ -5357,23 +5357,11 @@ abstract class AppLocalizations {
   /// **'Updated to {version}'**
   String changelogDiscoveryUpdatedTo(String version);
 
-  /// No description provided for @changelogDiscoveryMore.
-  ///
-  /// In en, this message translates to:
-  /// **'+{count}'**
-  String changelogDiscoveryMore(int count);
-
   /// No description provided for @changelogEmpty.
   ///
   /// In en, this message translates to:
   /// **'No Changelog Entries Yet.'**
   String get changelogEmpty;
-
-  /// No description provided for @changelogMajorRelease.
-  ///
-  /// In en, this message translates to:
-  /// **'Major release'**
-  String get changelogMajorRelease;
 
   /// No description provided for @changelogEntryTypeNew.
   ///
@@ -5398,24 +5386,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All'**
   String get changelogFilterAll;
-
-  /// No description provided for @changelogNewCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 new} other{{count} new}}'**
-  String changelogNewCount(int count);
-
-  /// No description provided for @changelogImprovedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 improved} other{{count} improved}}'**
-  String changelogImprovedCount(int count);
-
-  /// No description provided for @changelogFixedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 fix} other{{count} fixes}}'**
-  String changelogFixedCount(int count);
 
   /// No description provided for @changelogChangeCount.
   ///
@@ -5464,6 +5434,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Highlights'**
   String get changelogHighlights;
+
+  /// No description provided for @changelogAllChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'All changes'**
+  String get changelogAllChanges;
+
+  /// No description provided for @changelogDiscoveryAndMore.
+  ///
+  /// In en, this message translates to:
+  /// **'{list} and {count} more'**
+  String changelogDiscoveryAndMore(String list, int count);
 
   /// No description provided for @aboutLicenses.
   ///

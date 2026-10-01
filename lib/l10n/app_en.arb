@@ -1419,36 +1419,11 @@
       "version": { "type": "String" }
     }
   },
-  "changelogDiscoveryMore": "+{count}",
-  "@changelogDiscoveryMore": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "changelogEmpty": "No Changelog Entries Yet.",
-  "changelogMajorRelease": "Major release",
   "changelogEntryTypeNew": "New",
   "changelogEntryTypeImproved": "Improved",
   "changelogEntryTypeFixed": "Fixed",
   "changelogFilterAll": "All",
-  "changelogNewCount": "{count, plural, =1{1 new} other{{count} new}}",
-  "@changelogNewCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "changelogImprovedCount": "{count, plural, =1{1 improved} other{{count} improved}}",
-  "@changelogImprovedCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "changelogFixedCount": "{count, plural, =1{1 fix} other{{count} fixes}}",
-  "@changelogFixedCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "changelogChangeCount": "{count, plural, =1{1 change} other{{count} changes}}",
   "@changelogChangeCount": {
     "placeholders": {
@@ -1478,6 +1453,14 @@
     }
   },
   "changelogHighlights": "Highlights",
+  "changelogAllChanges": "All changes",
+  "changelogDiscoveryAndMore": "{list} and {count} more",
+  "@changelogDiscoveryAndMore": {
+    "placeholders": {
+      "list": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "privacyTitle": "Privacy",

@@ -1,7 +1,8 @@
-# Release icons
+# Release covers
 
-Optional icons for major releases, shown centred in the changelog banner and
-on the Home "What's New" card. Reference one from
+Optional cover art for major releases. It is shown like album art beside the
+release's name in the changelog, in the release list, and on the Home
+"What's New" card. Reference one from
 `lib/src/features/changelog/changelog_data.dart`:
 
 ```dart
@@ -13,9 +14,10 @@ ChangelogVersion(
 )
 ```
 
-- SVG or PNG. Square artwork with transparent padding works best; it is drawn
-  at about 56% of a 40–76 dp circle.
-- A release without an icon, or whose file fails to load, shows a sparkles
-  icon instead.
+- SVG or PNG. It is drawn inside a square cover (48–208 dp) with about 18%
+  padding on each side, on a neutral surface, following the user's cover
+  shape setting.
+- A release without one, or whose file fails to load, gets a typographic
+  cover instead: its version ("1.4") set large on the accent colour.
 - `test/src/features/changelog/changelog_data_test.dart` fails if a referenced
   file does not exist.

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
-import 'package:navis/src/features/changelog/presentation/changelog_release_icon.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 const _seed = Color(0xFF6750A4);
+
+final _overrides = [coverArtShapeProvider.overrideWithValue('rounded')];
 
 List<ChangelogEntry> _entries(ChangelogEntryType type, int count, String p) =>
     <ChangelogEntry>[
@@ -95,36 +99,36 @@ Future<void> _pump(
     );
   }
   await tester.pumpWidget(
-    MaterialApp(
-      theme: brightness == Brightness.light
-          ? buildLightTheme(_seed)
-          : buildDarkTheme(_seed),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: screen,
+    ProviderScope(
+      overrides: _overrides,
+      child: MaterialApp(
+        theme: brightness == Brightness.light
+            ? buildLightTheme(_seed)
+            : buildDarkTheme(_seed),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: screen,
+      ),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('a major release opens with its banner and highlights', (
-    tester,
-  ) async {
+  testWidgets('a major release opens like an album', (tester) async {
     await _pump(tester, initialVersion: '9.9.0');
 
     expect(
-      find.byKey(const ValueKey<String>('changelogReleaseHero-9.9.0')),
+      find.byKey(const ValueKey<String>('changelogReleaseHeader-9.9.0')),
       findsOneWidget,
     );
     expect(find.text('Aurora'), findsOneWidget);
-    expect(find.text('Version 9.9'), findsOneWidget);
+    expect(find.text('Navis 9.9'), findsOneWidget);
+    expect(find.text('Sep 20, 2026 • 13 changes'), findsOneWidget);
     expect(find.text('Equalizer'), findsOneWidget);
-    expect(find.text('2 new'), findsOneWidget);
-    expect(find.text('8 fixes'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey<String>('changelogReleaseIconFallback')),
-      findsOneWidget,
+      find.byKey(const ValueKey<String>('changelogTypographicCover')),
+      findsWidgets,
     );
     await expectLater(
       find.byType(ChangelogScreen),
@@ -132,14 +136,13 @@ void main() {
     );
   });
 
-  testWidgets('the newest patch shows a compact header and its major', (
+  testWidgets('the newest patch shows its header and its major', (
     tester,
   ) async {
     await _pump(tester, brightness: Brightness.dark);
 
-    expect(find.byType(ChangelogReleaseIcon), findsNothing);
-    expect(find.text('Version 9.9.1'), findsOneWidget);
-    expect(find.text('Part of 9.9 “Aurora”'), findsOneWidget);
+    expect(find.text('Navis 9.9.1'), findsOneWidget);
+    expect(find.text('Part of Navis 9.9 “Aurora”'), findsOneWidget);
     expect(find.text('Earlier releases'), findsOneWidget);
     await expectLater(
       find.byType(ChangelogScreen),
@@ -155,7 +158,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey<String>('changelogReleaseHero-9.9.0')),
+      find.byKey(const ValueKey<String>('changelogReleaseHeader-9.9.0')),
       findsOneWidget,
     );
     expect(find.text('Releases'), findsOneWidget);
@@ -178,32 +181,38 @@ void main() {
     expect(find.text('Show fewer fixes'), findsOneWidget);
   });
 
-  testWidgets('type filters show one section at a time', (tester) async {
+  testWidgets('type tabs show one kind of change at a time', (tester) async {
     await _pump(tester, initialVersion: '9.9.0', size: const Size(390, 3000));
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('changelogFilter-newFeature')),
-    );
+    await tester.tap(find.widgetWithText(Tab, 'New'));
     await tester.pumpAndSettle();
     expect(find.text('New thing 1'), findsOneWidget);
     expect(find.text('Better thing 1'), findsNothing);
     expect(find.text('Fixed thing 1'), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey<String>('changelogFilter-fix')));
+    // The tab bar scrolls; bring the last tab into view first.
+    final fixedTab = find.widgetWithText(Tab, 'Fixed');
+    await tester.ensureVisible(fixedTab);
+    await tester.pumpAndSettle();
+    await tester.tap(fixedTab);
     await tester.pumpAndSettle();
     // A filtered view is never collapsed.
     expect(find.text('Fixed thing 8'), findsOneWidget);
     expect(find.text('New thing 1'), findsNothing);
   });
 
-  testWidgets('timeline releases expand in place', (tester) async {
+  testWidgets('tapping an earlier release shows it', (tester) async {
     await _pump(tester, size: const Size(390, 3000));
 
     expect(find.text('Older fix 1'), findsNothing);
     await tester.tap(
-      find.byKey(const ValueKey<String>('changelogTimelineTile-9.8.3')),
+      find.byKey(const ValueKey<String>('changelogReleaseRow-9.8.3')),
     );
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('changelogReleaseHeader-9.8.3')),
+      findsOneWidget,
+    );
     expect(find.text('Older fix 1'), findsOneWidget);
   });
 
@@ -221,12 +230,19 @@ void main() {
       find.byKey(const ValueKey<String>('changelogVersionRail')),
       findsOneWidget,
     );
-    expect(find.text('Version 9.9.1'), findsOneWidget);
+    expect(find.text('Navis 9.9.1'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey<String>('changelogRail-9.9.0')));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('changelogVersionRail')),
+        matching: find.byKey(
+          const ValueKey<String>('changelogReleaseRow-9.9.0'),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey<String>('changelogReleaseHero-9.9.0')),
+      find.byKey(const ValueKey<String>('changelogReleaseHeader-9.9.0')),
       findsOneWidget,
     );
     await expectLater(
@@ -235,25 +251,31 @@ void main() {
     );
   });
 
-  testWidgets('a missing release icon falls back to sparkles', (tester) async {
+  testWidgets('a missing release icon falls back to the typographic cover', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: ChangelogReleaseIcon(
-            version: ChangelogVersion(
-              version: '9.9.0',
-              entries: <ChangelogEntry>[],
-              iconAsset: 'assets/changelog/does-not-exist.png',
+      ProviderScope(
+        overrides: _overrides,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: ChangelogReleaseCover(
+              version: ChangelogVersion(
+                version: '9.9.0',
+                entries: <ChangelogEntry>[],
+                iconAsset: 'assets/changelog/does-not-exist.png',
+              ),
+              size: 112,
             ),
-            size: 48,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey<String>('changelogReleaseIconFallback')),
+      find.byKey(const ValueKey<String>('changelogTypographicCover')),
       findsOneWidget,
     );
+    expect(find.text('9.9'), findsOneWidget);
   });
 }

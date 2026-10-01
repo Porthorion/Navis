@@ -221,3 +221,13 @@ Split into focused files; all use `NavisSpace`, `NavisRadius`, `TextTheme` slots
    - Inspect the PNGs: hero legibility, chip wrapping at 360 dp, the desktop two-pane layout, and the Home card height.
    - Dismiss, then clean restart, and confirm the card stays dismissed.
 4. Review the full diff. Commit the goldens in their own commit, per the design-foundation decision.
+
+## Addendum (2026-10-01): superseded presentation
+
+The data model, provider range logic, single-source release notes and Home
+discovery behaviour above still apply. The presentation (centred hero,
+highlight cards, chips, sparkles fallback, timeline) was replaced by an
+album-style layout after a review against AI-generated-UI tells. See
+`docs/architecture.md` → *Changelog and What's New* and the audit's
+"Follow-up: removing the generic look".
+
