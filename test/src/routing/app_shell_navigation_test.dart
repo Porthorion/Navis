@@ -2258,6 +2258,54 @@ void main() {
     },
   );
 
+  testWidgets(
+    'the sidebar highlights a Library section only on the Library page',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          showRadioPageProvider.overrideWithValue(true),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      FontWeight? albumsWeight() => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const ValueKey('railLibrarySection-albums')),
+              matching: find.byType(Text),
+            ),
+          )
+          .style
+          ?.fontWeight;
+
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+      expect(albumsWeight(), FontWeight.w700);
+
+      final router = container.read(appRouterProvider);
+      router.go(AppRoutes.album('missing-album'));
+      // The album page keeps a loading animation running.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(albumsWeight(), FontWeight.w500);
+
+      router.go(AppRoutes.library);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(albumsWeight(), FontWeight.w700);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('tight vertical rail falls back to tabbed library navigation', (
     tester,
   ) async {

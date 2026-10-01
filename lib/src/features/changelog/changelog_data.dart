@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On desktop, the sidebar no longer shows a Library section such as Radio as selected while you are on an album or artist page',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'When Navis asks you to sign in again to the same server, the server address and username are already filled in',
         type: ChangelogEntryType.improvement,
       ),

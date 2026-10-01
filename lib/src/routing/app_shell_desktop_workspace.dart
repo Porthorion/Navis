@@ -66,7 +66,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final bool showLibrarySubNavigation;
   final ValueNotifier<bool> librarySectionsFit;
   final bool allowScrollableRail;
-  final LibrarySection selectedLibrarySection;
+  final LibrarySection? selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final VoidCallback onOpenPlayer;
