@@ -6,13 +6,24 @@ import 'dart:async';
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
 const subsonicCredentialQueryParameters = {'u', 't', 's', 'p', 'apiKey'};
 
-/// A credential parameter anywhere in free text, after a literal or
-/// percent-encoded `?` or `&`, up to the next parameter, fragment, whitespace,
-/// or quote.
+/// Whether [uri] carries a Subsonic credential query parameter, and so must
+/// not be handed to another process (media sessions, MPRIS, SMTC).
+bool uriCarriesCredentials(Uri uri) {
+  final keys = uri.queryParameters.keys.map((key) => key.toLowerCase());
+  return keys.any(
+    (key) => subsonicCredentialQueryParameters.any(
+      (parameter) => parameter.toLowerCase() == key,
+    ),
+  );
+}
+
+/// A credential parameter anywhere in free text, after a literal, HTML-escaped
+/// (`&amp;`), percent-encoded or double percent-encoded `?` or `&`, up to the
+/// next parameter, fragment, whitespace, or quote.
 final _credentialQueryParameter = RegExp(
-  '((?:[?&]|%3F|%26)'
+  '((?:[?&]|&amp;|%3F|%26|%253F|%2526)'
   '(?:${subsonicCredentialQueryParameters.map(RegExp.escape).join('|')})'
-  r'''(?:=|%3D))(?:(?!%26)[^&#\s"'<>])+''',
+  r'''(?:=|%3D|%253D))(?:(?!%26|%2526)[^&#\s"'<>])+''',
   caseSensitive: false,
 );
 
@@ -36,3 +47,19 @@ R runWithCredentialRedactedPrint<R>(R Function() body) => runZoned(
         parent.print(zone, redactCredentialQueryParameters(line)),
   ),
 );
+
+/// Reports an error that no zone or `Future` handled, with credential query
+/// parameters redacted, and marks it handled.
+///
+/// Install it as `PlatformDispatcher.instance.onError`. The line keeps the
+/// engine's `Unhandled Exception:` wording, which diagnostics runs search
+/// their logs for. Without it the engine
+/// prints such errors itself, outside every zone's `print`, so an
+/// `HttpException` or `DioException` that quotes a stream or API URL would
+/// reach the terminal and system log with the account token.
+bool reportUncaughtErrorRedacted(Object error, StackTrace stackTrace) {
+  print(
+    redactCredentialQueryParameters('Unhandled Exception: $error\n$stackTrace'),
+  );
+  return true;
+}

@@ -63,6 +63,26 @@ phone-side integration evidence; it does not certify projection rendering,
 Google Assistant, trusted installer visibility, or a real vehicle. Use only
 a disposable Dev fixture, never a normal listening profile.
 
+`NavisMediaSessionArtworkTest` reads what any MediaController client (Android
+Auto included) can see from a signed-in sidecar that is playing a song with
+cover art: every session metadata value and the icon URIs of the root and
+first-level browse items. It fails on any `u`, `t`, `s`, `p` or `apiKey`
+query parameter or Subsonic `/rest/` URL, requires the session cover to be
+`content://<package>.artwork/…` (served by `NavisArtworkProvider`), and
+requires at least one such content URI. It is opt-in:
+
+```bash
+cd android
+./gradlew :auto_test_client:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.navisTargetPackage=<sidecar package> \
+  -Pandroid.testInstrumentationRunnerArguments.navisArtworkCheck=true \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.navis.app.autotestclient.NavisMediaSessionArtworkTest
+```
+
+On 2026-10-02 it passed against a 1.4.0 profile sidecar upgraded in place
+from 1.3.1 and failed against 1.3.1 itself, which published the
+token-bearing `getCoverArt.view` URL as the session cover.
+
 Google's [DHU guide](https://developer.android.com/training/cars/testing/dhu)
 requires the full Google Android Auto app and head-unit server. An ADB socket
 connection is not a successful projection session: require protocol negotiation,

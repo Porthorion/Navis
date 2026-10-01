@@ -163,7 +163,8 @@ class _RequiredLibraryRebuildScreenState
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (rebuild.errorMessage case final error?) ...<Widget>[
+                  if (_failureDetail(l10n, rebuild)
+                      case final error?) ...<Widget>[
                     const SizedBox(height: 12),
                     Text(
                       error,
@@ -213,6 +214,25 @@ class _RequiredLibraryRebuildScreenState
     );
   }
 
+  /// The server's own explanation, or why the rebuild could not finish when
+  /// that is more than "it did not complete" (which the status already says).
+  String? _failureDetail(
+    AppLocalizations l10n,
+    RequiredLibraryRebuildState rebuild,
+  ) {
+    if (rebuild.status != RequiredLibraryRebuildStatus.failed) return null;
+    return rebuild.errorMessage ??
+        switch (rebuild.failure) {
+          RequiredLibraryRebuildFailure.cacheResetFailed =>
+            l10n.requiredSyncFailureCacheReset,
+          RequiredLibraryRebuildFailure.cacheRenewalPending =>
+            l10n.requiredSyncFailureCacheRenewal,
+          RequiredLibraryRebuildFailure.signOutFailed =>
+            l10n.requiredSyncFailureSignOut,
+          RequiredLibraryRebuildFailure.incomplete || null => null,
+        };
+  }
+
   String _statusText(
     AppLocalizations l10n,
     RequiredLibraryRebuildState rebuild,
@@ -225,7 +245,10 @@ class _RequiredLibraryRebuildScreenState
         l10n.initialSyncMobileDataRequired,
       RequiredLibraryRebuildStatus.clearingCache =>
         l10n.requiredSyncClearingCache,
-      RequiredLibraryRebuildStatus.failed => l10n.requiredSyncRebuildFailed,
+      RequiredLibraryRebuildStatus.failed =>
+        widget.reason == RequiredLibraryRebuildReason.initialLogin
+            ? l10n.initialSyncFailed
+            : l10n.requiredSyncRebuildFailed,
       RequiredLibraryRebuildStatus.cancelling => l10n.initialSyncCancelling,
       RequiredLibraryRebuildStatus.complete => l10n.initialSyncComplete,
       RequiredLibraryRebuildStatus.idle => l10n.requiredSyncStagePreparing,

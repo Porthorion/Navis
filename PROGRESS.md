@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-21
+Last updated: 2026-10-02
 
 ---
 
@@ -123,7 +123,11 @@ Last updated: 2026-08-21
   app-owned screenshots, and a clean-restart retest; the reviewed Dev APK was
   installed on the connected Android device without clearing its profile.)
 
-- [ ] Windows SMTC owned-adapter validation — partial: 2026-08-17
+- [x] Windows SMTC owned-adapter validation — 2026-10-01: the authenticated
+  two-song GMTC control scenario (`tool/windows_smtc_diagnostics.ps1`,
+  including the strict paused five-second seek) passed on the Windows 11 VM;
+  see `docs/audits/windows-review-2026-10-01.md` and
+  `Dependency_Upgrade_Plan.md`. Earlier status, 2026-08-17
   (implemented the local Rust/WinRT manual-SMTC adapter, ordered bridge state
   publication, stable `com.navis.app.navis` AppUserModelID, safe artwork/event
   handling, and the isolated `tool/windows_smtc_diagnostics.ps1` GMTC suite.
@@ -1047,14 +1051,9 @@ Last updated: 2026-08-21
 
 ## Blockers
 
-- **Repository analyzer informational baseline** — 2026-08-11 (the final
-  `tool/check.sh` format and code-generation stages passed, but its analyzer
-  exits non-zero on 496 existing informational diagnostics despite
-  `--no-fatal-infos`. The completed sync/cache certification has no analyzer
-  errors or warnings. Next action: address or explicitly baseline the
-  repository-wide informational diagnostics in a separately scoped quality
-  gate change.)
-- **AGP 9 / built-in Kotlin — `audio_session` 0.2.3** — 2026-06-27 (error: plugin applies unconditional `kotlin-android`; no migrated release on pub.dev; track https://github.com/ryanheise/audio_session/issues/175; next action: upgrade to AGP 9.0.1 + Gradle 9.1 only after upstream publishes built-in Kotlin support)
+None open. Resolved 2026-10-01: the analyzer informational baseline
+(`tool/check.sh` passes as a whole) and the AGP 9 / `audio_session` blocker
+(Android now builds with AGP 9.3.1, Gradle 9.5.0 and `audio_session` 0.2.4).
 
 ---
 

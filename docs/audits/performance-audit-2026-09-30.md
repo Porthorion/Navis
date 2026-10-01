@@ -169,8 +169,10 @@ and idle playback are unchanged.
 
 ## Known limits
 
-- Restoring at, or jumping to, a far queue index still materialises every
-  song before it (fast start first, the rest in the background).
+- ~~Restoring at, or jumping to, a far queue index still materialises every
+  song before it.~~ Resolved later in 1.4.0: a far jump or restore
+  materialises only a window around the target (`docs/architecture.md`,
+  queue window).
 - Stale artist releases hydrate one at a time under the coordinator's single
   execution lease (about 1 s per release on this server once the UI is no
   longer saturated); hydration no longer affects frame pacing.

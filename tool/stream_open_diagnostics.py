@@ -13,11 +13,15 @@ then:
 2. plays an ordinary uncached song and requires advancing playback;
 3. opens Library > Radio, starts the fixture's Azuracast-style ICY station
    through the station card, requires advancing playback and a now-playing
-   poll, captures an app-owned screenshot, and stops the station.
+   poll, captures an app-owned screenshot, and stops the station;
+4. starts a second station whose stream is served over HTTPS with a
+   throw-away self-signed certificate. libmpv must refuse the certificate
+   (`tls-verify`): the TLS server sees the connection attempt, no request
+   completes, and the station never plays.
 
 Results are written to build/stream-open-diagnostics/<timestamp>/report.json;
 the exit status is 1 when any check fails. Requires ffmpeg (with an MP3
-encoder) to make the radio stream.
+encoder) to make the radio stream and openssl for the test certificate.
 """
 
 import json
@@ -25,6 +29,7 @@ import os
 import pathlib
 import re
 import shutil
+import ssl
 import stat
 import subprocess
 import threading
@@ -56,12 +61,16 @@ MISSING = song('stream-missing', 'Missing Stream', 1)
 PLAYABLE = song('stream-playable', 'Playable Stream', 2)
 SONGS = [MISSING, PLAYABLE]
 STATION = 'fixture'
+PLAIN_RADIO = 'Plain Radio'
+SECURE_RADIO = 'Secure Radio'
 NOW_PLAYING = {'title': 'Fixture Broadcast', 'artist': 'Fixture Radio'}
 ICY_METAINT = 8192
 LAST_MODIFIED = 1790000000000
 
 requests = []
 radio_streams = []
+secure_attempts = []
+secure_requests = []
 stopping = threading.Event()
 
 
@@ -84,6 +93,7 @@ def icy_block(title):
 class Handler(fixture.Handler):
     audio = b''
     base = ''
+    secure_base = ''
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -104,9 +114,11 @@ class Handler(fixture.Handler):
         if endpoint == 'getInternetRadioStations':
             return self._json(fixture._root(internetRadioStations={
                 'internetRadioStation': [{
-                    'id': 'stream-radio', 'name': 'Fixture Radio',
+                    'id': 'stream-radio', 'name': PLAIN_RADIO,
                     'streamUrl': f'{self.base}/listen/{STATION}/radio.mp3',
-                    'homePageUrl': f'{self.base}/public/{STATION}'}]}))
+                    'homePageUrl': f'{self.base}/public/{STATION}'}, {
+                    'id': 'stream-radio-secure', 'name': SECURE_RADIO,
+                    'streamUrl': f'{self.secure_base}/listen/{STATION}/radio.mp3'}]}))
         if endpoint == 'getArtists':
             return self._json(fixture._root(artists={'lastModified': LAST_MODIFIED, 'index': index}))
         if endpoint == 'getIndexes':
@@ -154,6 +166,46 @@ class Handler(fixture.Handler):
                     time.sleep(ahead)
         except (BrokenPipeError, ConnectionResetError):
             return
+
+
+class SecureHandler(Handler):
+    """Serves the radio stream over TLS; any request that arrives means
+    the client accepted the self-signed certificate."""
+
+    def do_GET(self):
+        secure_requests.append(urlparse(self.path).path)
+        return super().do_GET()
+
+
+class SecureServer(ThreadingHTTPServer):
+    def __init__(self, address, handler, context):
+        super().__init__(address, handler)
+        self.context = context
+
+    def get_request(self):
+        connection, address = self.socket.accept()
+        secure_attempts.append({'at': time.time()})
+        try:
+            return self.context.wrap_socket(connection, server_side=True), address
+        except (ssl.SSLError, OSError) as error:
+            secure_attempts[-1]['error'] = type(error).__name__
+            connection.close()
+            raise
+
+
+def make_self_signed(output):
+    """A certificate no trust store knows, for 127.0.0.1 only."""
+    if shutil.which('openssl') is None:
+        raise RuntimeError('openssl is required to make the test certificate')
+    key, cert = output / 'tls-key.pem', output / 'tls-cert.pem'
+    subprocess.run(
+        ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+         '-keyout', str(key), '-out', str(cert), '-days', '1',
+         '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'],
+        check=True, capture_output=True)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    return context
 
 
 def make_ytdl_stand_in(output):
@@ -208,6 +260,11 @@ def main():
     server.daemon_threads = True
     Handler.base = f'http://127.0.0.1:{server.server_port}'
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    secure_server = SecureServer(('127.0.0.1', 0), SecureHandler,
+                                 make_self_signed(output))
+    secure_server.daemon_threads = True
+    Handler.secure_base = f'https://127.0.0.1:{secure_server.server_port}'
+    threading.Thread(target=secure_server.serve_forever, daemon=True).start()
 
     defines = dict(
         NAVIS_UPDATE_CHANNEL='dev', NAVIS_APP_ID_SUFFIX='.dev',
@@ -301,6 +358,21 @@ def main():
         # 3. Azuracast-style ICY internet radio.
         api('/v1/presentation/navigate', {'location': '/library?section=radio'})
 
+        def show_only(name):
+            # The type-to-filter query puts the named station first.
+            wait_until(lambda: (lambda r: r if r else None)(
+                filter_stations(name)), 60, f'the {name} card')
+
+        def filter_stations(name):
+            try:
+                return api('/v1/presentation/library-filter', {'query': name})
+            except ApiError as error:
+                if error.status == 503:
+                    return None
+                raise
+
+        show_only(PLAIN_RADIO)
+
         def start_station():
             try:
                 return api('/v1/presentation/library-action',
@@ -327,6 +399,27 @@ def main():
         checks['radioStops'] = bool(wait_until(
             lambda: not api('/v1/session/status')['activity']['radio'], 30,
             'radio to stop'))
+
+        # 4. A station served over HTTPS with a certificate no one trusts.
+        show_only(SECURE_RADIO)
+        wait_until(start_station, 60, 'the secure radio station card')
+        wait_until(lambda: secure_attempts, 30, 'a connection to the TLS server')
+        time.sleep(6)
+        secure_status = api('/v1/playback/status')
+        details['untrustedTls'] = {
+            'connectionAttempts': secure_attempts,
+            'completedRequests': secure_requests,
+            'playing': secure_status.get('playing'),
+            'positionMs': secure_status.get('playerPositionMs'),
+        }
+        checks['untrustedTlsAttempted'] = bool(secure_attempts)
+        checks['untrustedTlsRefused'] = not secure_requests
+        checks['untrustedTlsNotPlaying'] = not (
+            secure_status.get('playing')
+            and secure_status.get('playerPositionMs', 0) > 0)
+        if api('/v1/session/status')['activity']['radio']:
+            api('/v1/presentation/library-action',
+                {'action': 'toggleFirstRadioStation'})
         checks['noYtdlInvocationAtEnd'] = not invocations()
     except Exception as error:  # noqa: BLE001 - reported below
         failure = f'{type(error).__name__}: {error}'
@@ -339,6 +432,7 @@ def main():
         stopping.set()
         log.close()
         server.shutdown()
+        secure_server.shutdown()
 
     passed = failure is None and checks and all(checks.values())
     report = {'status': 'passed' if passed else 'failed', 'failure': failure,

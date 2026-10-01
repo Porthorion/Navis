@@ -274,8 +274,9 @@ Evidence collected on 2026-09-28/29:
 
 Physical Android listening, Bluetooth/OEM route behavior, audio interruptions,
 and device latency remain unverified here. Emulator tests do not substitute for
-those checks. Windows/macOS require native runtime evidence before enabling
-EQ. Device discovery and automatic preset association remain the explicitly
+those checks. Windows EQ is enabled and verified on the Windows 11 VM with the
+pinned libmpv (`docs/audits/windows-review-2026-10-01.md`); macOS still
+requires native runtime evidence before enabling EQ. Device discovery and automatic preset association remain the explicitly
 optional follow-up; stable preset IDs are ready for it. Convolution and dense
 GraphicEQ support remain outside the accepted first release.
 

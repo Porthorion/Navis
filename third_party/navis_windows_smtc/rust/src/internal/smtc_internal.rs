@@ -12,7 +12,7 @@ use windows::{
         SystemMediaTransportControlsButtonPressedEventArgs,
         SystemMediaTransportControlsTimelineProperties,
     },
-    Storage::Streams::RandomAccessStreamReference,
+    Storage::{StorageFile, Streams::RandomAccessStreamReference},
 };
 
 use super::{
@@ -39,6 +39,26 @@ fn artwork_uri(thumbnail: &HSTRING) -> Option<Foundation::Uri> {
         return None;
     }
     Foundation::Uri::CreateUri(&HSTRING::from(value)).ok()
+}
+
+/// A local cover file, given as an absolute Windows path. Navis passes its
+/// cached cover file so Windows never receives the credential-bearing cover
+/// URL; unpackaged apps cannot use `file://` URIs for SMTC thumbnails.
+fn artwork_file_path(thumbnail: &HSTRING) -> Option<std::path::PathBuf> {
+    let path = std::path::PathBuf::from(thumbnail.to_string_lossy());
+    (path.is_absolute() && path.is_file()).then_some(path)
+}
+
+fn artwork_reference(thumbnail: &HSTRING) -> Option<RandomAccessStreamReference> {
+    if let Some(uri) = artwork_uri(thumbnail) {
+        return RandomAccessStreamReference::CreateFromUri(&uri).ok();
+    }
+    let path = artwork_file_path(thumbnail)?;
+    let file = StorageFile::GetFileFromPathAsync(&HSTRING::from(path.as_os_str()))
+        .ok()?
+        .join()
+        .ok()?;
+    RandomAccessStreamReference::CreateFromFile(&file).ok()
 }
 
 fn playback_position_ms(position: Foundation::TimeSpan) -> i64 {
@@ -90,10 +110,8 @@ impl SMTCInternal {
             music_properties.SetAlbumArtist(&album_artist)?;
         }
         if let Some(thumbnail) = metadata.h_thumbnail() {
-            if let Some(uri) = artwork_uri(&thumbnail) {
-                if let Ok(reference) = RandomAccessStreamReference::CreateFromUri(&uri) {
-                    updater.SetThumbnail(&reference)?;
-                }
+            if let Some(reference) = artwork_reference(&thumbnail) {
+                updater.SetThumbnail(&reference)?;
             }
         }
         updater.Update()?;
@@ -296,7 +314,7 @@ impl Drop for SMTCInternal {
 
 #[cfg(test)]
 mod tests {
-    use super::{artwork_uri, playback_position_ms, Subscriptions};
+    use super::{artwork_file_path, artwork_uri, playback_position_ms, Subscriptions};
     use std::time::Duration;
     use windows::core::HSTRING;
     use windows::Foundation::TimeSpan;
@@ -320,6 +338,19 @@ mod tests {
     #[test]
     fn invalid_artwork_uri_is_skipped() {
         assert!(artwork_uri(&HSTRING::from("file:///not-safe-for-smtc.jpg")).is_none());
+    }
+
+    #[test]
+    fn artwork_file_must_be_an_existing_absolute_path() {
+        assert!(artwork_file_path(&HSTRING::from("file:///not-safe-for-smtc.jpg")).is_none());
+        assert!(artwork_file_path(&HSTRING::from("relative\\cover.jpg")).is_none());
+        let file = std::env::temp_dir().join("navis_smtc_artwork_test.jpg");
+        std::fs::write(&file, [0xFFu8, 0xD8, 0xFF]).unwrap();
+        assert_eq!(
+            artwork_file_path(&HSTRING::from(file.as_os_str())),
+            Some(file.clone())
+        );
+        std::fs::remove_file(file).unwrap();
     }
 
     #[test]

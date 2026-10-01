@@ -1,4 +1,5 @@
-/// Local artwork cache for Android Auto / AAOS now-playing background art.
+/// Local cover art cache for the system media controls (Android media
+/// session and Android Auto, Linux MPRIS, Windows SMTC).
 ///
 /// Downloads the cover art URL via dart:io HttpClient and returns the
 /// local file path so `NavisAudioHandler._updateArtCacheFile` can inject it
@@ -9,10 +10,10 @@
 /// `METADATA_KEY_ALBUM_ART` + `METADATA_KEY_DISPLAY_ICON` so the AAOS
 /// now-playing screen and home-screen widget can display the album art.
 ///
-/// The original HTTP artUri is kept on the MediaItem so that
-/// `METADATA_KEY_DISPLAY_ICON_URI` in the MediaSession remains an HTTP URL
-/// that Android Auto (running in a separate OS process) can fetch.  A plain
-/// `file://` internal-storage path would be inaccessible to AAOS's process.
+/// The same file is the system's cover elsewhere: Android publishes it as
+/// `content://<package>.artwork/cover/<key>` (`NavisArtworkProvider`, see
+/// `AndroidSystemArt`), and the Linux MPRIS and Windows SMTC bridges publish
+/// the file, so the token-bearing Subsonic cover URL never leaves the app.
 library;
 
 import 'dart:async';
@@ -24,6 +25,14 @@ import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
   new({this._reportNetworkUsage});
+
+  /// The file-name key of [coverArtId]'s cached file
+  /// (`<temporary dir>/navis_art_<key>.jpg`). Android's
+  /// `NavisArtworkProvider` serves `content://<package>.artwork/cover/<key>`
+  /// from the same file and accepts only keys of this form.
+  static String fileKey(String coverArtId) =>
+      coverArtId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
 
@@ -68,9 +77,9 @@ class PlaybackArtCache {
   Future<String?> _fetch(String coverArtId, Uri artUri) async {
     try {
       final cacheDir = await getTemporaryDirectory();
-      // Sanitise coverArtId for use as a file name component.
-      final safeName = coverArtId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
-      final file = File('${cacheDir.path}/navis_art_$safeName.jpg');
+      final file = File(
+        '${cacheDir.path}/navis_art_${fileKey(coverArtId)}.jpg',
+      );
 
       // Reuse a previously downloaded file if it is non-empty and already
       // on disk (persists across app sessions so art is immediately available

@@ -96,6 +96,55 @@ void main() {
     expect(setup.cancelCalls, 1);
   });
 
+  testWidgets('a failed first setup says so once, in setup wording', (
+    tester,
+  ) async {
+    final setup = _StaticRequiredRebuildController(
+      const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.failed,
+        failure: RequiredLibraryRebuildFailure.incomplete,
+      ),
+    );
+
+    await tester.pumpWidget(_testApp(setup: setup));
+    await tester.pump();
+
+    expect(find.text('Your library could not be set up.'), findsOneWidget);
+    expect(find.textContaining('rebuild'), findsNothing);
+    expect(find.byKey(const ValueKey('requiredSyncRetry')), findsOneWidget);
+  });
+
+  testWidgets('a failed setup shows the server explanation', (tester) async {
+    await tester.pumpWidget(
+      _testApp(
+        setup: _StaticRequiredRebuildController(
+          const RequiredLibraryRebuildState(
+            status: RequiredLibraryRebuildStatus.failed,
+            failure: RequiredLibraryRebuildFailure.incomplete,
+            errorMessage: 'The server is rebuilding its index.',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('The server is rebuilding its index.'), findsOneWidget);
+  });
+
+  testWidgets('a setup that could not sign out says so', (tester) async {
+    await tester.pumpWidget(
+      _testApp(
+        setup: _StaticRequiredRebuildController(
+          const RequiredLibraryRebuildState(
+            status: RequiredLibraryRebuildStatus.failed,
+            failure: RequiredLibraryRebuildFailure.signOutFailed,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Signing out did not finish. Try again.'), findsOneWidget);
+  });
+
   testWidgets('metered setup requires explicit mobile-data consent', (
     tester,
   ) async {

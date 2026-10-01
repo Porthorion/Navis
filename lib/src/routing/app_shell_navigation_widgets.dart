@@ -115,7 +115,10 @@ class _RailSidebar extends ConsumerWidget {
   final ValueChanged<int> onDestinationSelected;
   final bool showLibrarySubNavigation;
   final bool allowScrollableRail;
-  final LibrarySection selectedLibrarySection;
+
+  /// The Library section to highlight; null on Library detail pages, where
+  /// only the Library destination is selected.
+  final LibrarySection? selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final bool showPlayer;

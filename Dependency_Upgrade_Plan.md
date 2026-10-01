@@ -1083,5 +1083,7 @@ Flutter 3.47.5 (profile build with the locked windows-rs 0.62 crate,
 `windows_smtc_diagnostics.ps1` including the strict paused five-second seek,
 EQ regression 14/14, queue/shuffle parity 17/17, schema 89 migration of the
 fixture profile, app-owned screenshots). Android was not rebuilt or run in
-this port.
+this port; it was on 2026-10-01 during the release test (profile sidecar on
+an API 37 emulator: in-place upgrade from 1.3.1, schema 89, cold-start queue
+restore, route tour, Now Playing and Queue back order).
 

@@ -66,6 +66,11 @@ SONG = {
     "created": "2026-01-01T00:00:00Z",
 }
 ARTIST_ALBUMS = [ALBUM]
+# Every album getAlbum can return. getArtist may list fewer (the manual
+# discovery fixture's partial artist response), but the server still has them.
+ALL_ALBUMS = [ALBUM]
+# Song ids of albums whose single song is not "<album id>-song".
+ALBUM_SONG_IDS = {}
 INDEX_LAST_MODIFIED = 1780000000000
 FAILURE_FLAG = ""
 PARTIAL_ALBUM_FLAG = ""
@@ -80,7 +85,8 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
     cover with its bounded newest-album discovery: the artist collection is
     unchanged, but an already-known artist has received a new album.
     """
-    global ALBUM, ARTIST, ARTIST_ALBUMS, INDEX_LAST_MODIFIED, SONG
+    global ALBUM, ALL_ALBUMS, ALBUM_SONG_IDS, ARTIST, ARTIST_ALBUMS
+    global INDEX_LAST_MODIFIED, SONG
     ARTIST = {
         "id": "fixture-existing-artist",
         "name": "Fixture Existing Artist",
@@ -126,10 +132,13 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
         "created": "2026-08-01T00:00:00Z",
     }
     ARTIST_ALBUMS = [ALBUM] if omit_existing_artist_album else [existing_album, ALBUM]
+    ALL_ALBUMS = [existing_album, ALBUM]
+    # The diagnostics clone seeds the existing album with this song.
+    ALBUM_SONG_IDS = {existing_album["id"]: "fixture-existing-song"}
 
 
 def _configure_partial_album_fixture():
-    global ARTIST, ARTIST_ALBUMS
+    global ALL_ALBUMS, ARTIST, ARTIST_ALBUMS
     ARTIST = {**ARTIST, "albumCount": 2}
     ARTIST_ALBUMS = [
         ALBUM,
@@ -140,6 +149,7 @@ def _configure_partial_album_fixture():
             "songCount": 2,
         },
     ]
+    ALL_ALBUMS = ARTIST_ALBUMS
 
 
 def _root(**content):
@@ -247,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         if endpoint == "getAlbum":
             time.sleep(0.8)
             album_id = query.get("id", [""])[0]
-            album = next((item for item in ARTIST_ALBUMS if item["id"] == album_id), None)
+            album = next((item for item in ALL_ALBUMS if item["id"] == album_id), None)
             if album is None:
                 self._json(_root(status="failed", error={"code": 70, "message": "Album not found"}))
                 return
@@ -263,7 +273,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             song = SONG if album_id == ALBUM["id"] else {
-                **SONG, "id": f"{album_id}-song", "albumId": album_id, "album": album["name"],
+                **SONG, "id": ALBUM_SONG_IDS.get(album_id, f"{album_id}-song"),
+                "albumId": album_id, "album": album["name"],
             }
             songs = [song]
             if album_id == PARTIAL_ALBUM_ID and not os.path.exists(PARTIAL_ALBUM_FLAG):

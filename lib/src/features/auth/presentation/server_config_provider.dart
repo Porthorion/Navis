@@ -33,6 +33,13 @@ final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
   return backing;
 });
 
+/// The server profile kept on this device, signed in or not (address and
+/// username; never the password). Login offers it after a keep-data sign-out
+/// or when the saved password can no longer be read.
+final retainedServerProvider = FutureProvider.autoDispose<ServerConfigModel?>(
+  (ref) => ref.watch(serverConfigRepositoryProvider).getRetainedServer(),
+);
+
 final serverConfigRepositoryProvider = Provider<ServerConfigRepository>((ref) {
   final database = ref.watch(navisDatabaseProvider);
   final credentials = ref.watch(secureCredentialStoreProvider);

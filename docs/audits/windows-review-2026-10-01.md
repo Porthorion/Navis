@@ -91,7 +91,8 @@ section below, and `docs/release-windows.md#bundled-libmpv`.
    - accept that size;
    - build a slim libmpv with only the audio filters Navis uses;
    - keep EQ unavailable on Windows.
-   Nothing was changed.
+   Decided the same day: Navis ships the full pinned libmpv with EQ enabled
+   (see "Windows EQ verification" below and `docs/release-windows.md`).
 2. **Track matching (C5).** On the 57,318-song library, matching 50 tracks
    takes 450 to 550 ms, and 448 ms of that is the artist containment scan. An
    indexed rewrite gave nothing. A real gain needs an indexed artist-key table
@@ -120,6 +121,9 @@ section below, and `docs/release-windows.md#bundled-libmpv`.
   circuit, so the target-lane gate now checks the retry against that rule.
 - On an Android cold start where the session is not ready yet, the queue
   restore is deferred (`deferred_auth`) and only retried when Play is pressed.
+  Fixed in `ba9bcd2f`: the deferred restore retries on its own once the
+  handler and the Subsonic client are ready (verified on an emulator
+  2026-10-01, including an in-place upgrade from 1.3.1).
 
 ## Windows EQ verification (after the decision)
 

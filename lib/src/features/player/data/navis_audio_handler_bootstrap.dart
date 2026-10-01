@@ -136,26 +136,44 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
     // The system (notification, lock screen, Bluetooth, Android Auto,
     // CarPlay) sees real listening time; the app keeps the track-time handler.
     initFuture =
-        AudioService.init(
-          builder: () => RealTimeProjectionAudioHandler(createBaseHandler()),
-          config: AudioServiceConfig(
-            androidNotificationChannelId: 'playback',
-            androidNotificationChannelName: 'Playback',
-            androidNotificationIcon: 'drawable/ic_stat_navis_light',
-            androidNotificationOngoing: false,
-            androidStopForegroundOnPause: false,
-            androidBrowsableRootExtras: const <String, dynamic>{
-              AndroidAutoConstants.contentStyleSupportedKey: true,
-              AndroidAutoConstants.contentStyleBrowsableHintKey:
-                  AndroidAutoConstants.contentStyleGrid,
-              AndroidAutoConstants.contentStylePlayableHintKey:
-                  AndroidAutoConstants.contentStyleList,
-              AndroidAutoConstants.searchSupportedKey: true,
-            },
-          ),
-        ).then<NavisPlaybackHandler>(
-          (handler) => handler.inner as NavisPlaybackHandler,
-        );
+        (_isAndroidRuntime
+                ? PackageInfo.fromPlatform().then((info) => info.packageName)
+                : Future<String?>.value())
+            .then(
+              (packageName) => AudioService.init(
+                builder: () {
+                  final base = createBaseHandler();
+                  return RealTimeProjectionAudioHandler(
+                    base,
+                    // The manifest's NavisArtworkProvider authority.
+                    systemArt: packageName == null
+                        ? null
+                        : AndroidSystemArt(
+                            authority: '$packageName.artwork',
+                            fetch: base.cacheSystemArtwork,
+                          ),
+                  );
+                },
+                config: AudioServiceConfig(
+                  androidNotificationChannelId: 'playback',
+                  androidNotificationChannelName: 'Playback',
+                  androidNotificationIcon: 'drawable/ic_stat_navis_light',
+                  androidNotificationOngoing: false,
+                  androidStopForegroundOnPause: false,
+                  androidBrowsableRootExtras: const <String, dynamic>{
+                    AndroidAutoConstants.contentStyleSupportedKey: true,
+                    AndroidAutoConstants.contentStyleBrowsableHintKey:
+                        AndroidAutoConstants.contentStyleGrid,
+                    AndroidAutoConstants.contentStylePlayableHintKey:
+                        AndroidAutoConstants.contentStyleList,
+                    AndroidAutoConstants.searchSupportedKey: true,
+                  },
+                ),
+              ),
+            )
+            .then<NavisPlaybackHandler>(
+              (handler) => handler.inner as NavisPlaybackHandler,
+            );
   }
 
   final cache = _NavisAudioHandlerInitCacheEntry(initFuture);

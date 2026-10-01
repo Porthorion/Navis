@@ -957,6 +957,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
     final visibleLibrarySections = ref.watch(visibleLibrarySectionsProvider);
     final selectedLibrarySection = ref.watch(librarySectionProvider);
+    // The remembered section is highlighted only on the Library page itself;
+    // on an album or artist under Library only Library is selected.
+    final highlightedLibrarySection =
+        GoRouter.of(context).state.uri.path == AppRoutes.library
+        ? selectedLibrarySection
+        : null;
     final hasPlayerOverlay = ref.watch(
       playerOverlayStackProvider.select((stack) => stack.isNotEmpty),
     );
@@ -1533,7 +1539,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             onDestinationSelected: onDestinationSelected,
                             showLibrarySubNavigation: showLibrarySubNavigation,
                             librarySectionsFit: _librarySectionsFitSidebar,
-                            selectedLibrarySection: selectedLibrarySection,
+                            selectedLibrarySection: highlightedLibrarySection,
                             visibleLibrarySections: visibleLibrarySections,
                             onLibrarySectionSelected: onLibrarySectionSelected,
                             allowScrollableRail: allowScrollableRail,
@@ -1636,7 +1642,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               librarySectionsFit:
                                                   _librarySectionsFitSidebar,
                                               selectedLibrarySection:
-                                                  selectedLibrarySection,
+                                                  highlightedLibrarySection,
                                               visibleLibrarySections:
                                                   visibleLibrarySections,
                                               onLibrarySectionSelected:
@@ -2101,6 +2107,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                       AppNoticeHost(
                         controller: _appNoticeController,
                         topOffset: appNoticeTopOffset,
+                        // Desktop pages put their titles and actions at the
+                        // top; rest notices above the player bar instead.
+                        bottomOffset: useDesktopShell && !isMiniPlayerMode
+                            ? DesktopPlaybackProgress.playerHeight(context) + 12
+                            : null,
                       ),
                     ],
                   ),

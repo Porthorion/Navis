@@ -156,7 +156,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Shuffling a large artist with crossfade on no longer plays a different song than the one shown, and the queue no longer collapses to one song when a stream stalls and cannot be reloaded',
+        'Shuffling a large artist with crossfade on no longer plays a different song than the one shown, the queue no longer collapses to one song when a stream stalls (even while a long queue is still loading), and a song whose crossfade could not be prepared fades normally again the next time it plays',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -173,6 +173,46 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Equalizer page no longer cuts off the preamp level or fixed values in mid-sized desktop windows',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On desktop, the sidebar no longer shows a Library section such as Radio as selected while you are on an album or artist page',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Right after signing in, Navis no longer shows "Server unreachable. Retrying every 30s." for up to half a minute while it is still connecting',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'When Navis asks you to sign in again to the same server, the server address and username are already filled in',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Sync Settings reads more naturally: counts say "1 artist" or "2 artists" instead of "artist(s)", large numbers are grouped (63,733), and internal library-update details are described in plain words',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'When first-time library setup cannot finish, the screen now says so once, in setup wording, and shows the server\'s own explanation when it gives one',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'On desktop, notices such as "Your library is ready" now appear above the player bar instead of covering page titles and buttons',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Pages that cannot load something from your server, such as Radio on a server without internet radio, now show why straight away instead of loading for about 40 seconds and asking the server again ten times',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Your server sign-in details are no longer shared with other apps through the media controls: the lock screen, notification, Android Auto, Linux media controls and Windows media overlay now get cover art from Navis itself instead of a server address that included your token',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On Linux and Windows, Navis now checks your server\'s HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -224,7 +264,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Sync Settings now always shows when the next automatic check is due, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
+        'Sync Settings now always shows when the next automatic check is due, in your local time, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

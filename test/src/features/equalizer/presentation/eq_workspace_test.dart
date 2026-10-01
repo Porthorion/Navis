@@ -97,7 +97,22 @@ void main() {
     expect(tile('frequency').onPressed, isNull);
     expect(tile('q').onPressed, isNull);
     expect(tile('gain').onPressed, isNotNull);
-    expect(find.textContaining('Fixed', findRichText: true), findsNWidgets(2));
+    // Narrow tiles leave out the "Fixed" text; the lock icon (and the
+    // semantics label, checked below) still mark both fixed values.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('eq-input-frequency')),
+        matching: find.byIcon(Icons.lock_outline),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('eq-input-q')),
+        matching: find.byIcon(Icons.lock_outline),
+      ),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('eq-graph-q')), findsNothing);
     await container
         .read(equalizerProvider.notifier)

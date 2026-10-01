@@ -16,6 +16,7 @@ import 'package:navis/src/features/cache/presentation/library_cache_reset_provid
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -47,6 +48,9 @@ Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
 
 Future<void> _runNavis() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Errors nothing handled would otherwise be printed by the engine itself,
+  // outside the redacting zone.
+  PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
   LicenseRegistry.addLicense(_bundledFontLicenses);
 
   _initializeDesktopAudioBackend();
@@ -156,6 +160,7 @@ ProviderContainer _createRootProviderContainer({
   var remainingInjectedBootstrapFailures =
       _diagnosticsAudioBootstrapFailureAttempts;
   return ProviderContainer(
+    retry: navisProviderRetry,
     observers: [
       if (_syncDiagnosticsRuntimeEnabled) _diagnosticsProviderCounter,
     ],
@@ -205,6 +210,12 @@ void _initializeDesktopAudioBackend() {
 
   try {
     JustAudioMediaKit.title = 'Navis';
+    // libmpv up to 0.41 opens https streams without checking the server
+    // certificate. The Linux system mpv and the pinned Windows build use the
+    // system certificate store; macOS's bundled mpv 0.36 (Mbed TLS) is not
+    // verified to find it yet, so it stays as before until that build is
+    // replaced.
+    JustAudioMediaKit.tlsVerify = Platform.isLinux || Platform.isWindows;
     // An isolated diagnostics run can capture its own native PCM without
     // changing the user's default output or routing other applications.
     const diagnosticsAudioDevice = String.fromEnvironment(

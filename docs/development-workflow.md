@@ -384,7 +384,11 @@ request, a `/api/nowplaying/fixture` poll and a clean stop. The stand-in records
 its argv with `u`, `p`, `s` and `t` values redacted; the
 `radio-playing` screenshot should show the fixture's now-playing text. Results
 go to `build/stream-open-diagnostics/<timestamp>/report.json`, with exit status
-1 on any failed check. The radio stream needs `ffmpeg` with an MP3 encoder.
+1 on any failed check. Last, it starts a second station whose stream is
+served over HTTPS with a throw-away self-signed certificate and requires that
+the TLS server sees the connection, that no request completes (libmpv refuses
+the certificate) and that the station never plays. The radio stream needs
+`ffmpeg` with an MP3 encoder and the certificate needs `openssl`.
 
 ### Artist playback diagnostics
 
@@ -644,7 +648,10 @@ Authentication lifecycle work uses:
 The script creates isolated database/cache profiles, uses the authenticated
 `/v1/session/*` API to create a first-sync state through
 `ServerDataResetService`, exercises offline recovery, captures app-owned setup
-screenshots, waits for safe promotion, verifies a clean restart, starts real
+screenshots (each waits for the setup screen's own controller state from
+`GET /v1/presentation/library-rebuild?reason=initial-login`; the retry after
+the failed state presses that screen's Retry through
+`POST /v1/presentation/library-rebuild`), waits for safe promotion, verifies a clean restart, starts real
 playback, and signs out through `SessionLifecycleService`. A second clone
 verifies initial-sync cancellation and restart at login. The clones use a
 deterministic loopback Subsonic fixture and a mode-600 fixture credential file;

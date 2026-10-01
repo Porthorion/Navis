@@ -15,6 +15,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
@@ -72,7 +73,7 @@ class _HeadlessBackgroundSyncRunner {
   }
 
   Future<Map<String, Object?>> _run(_BackgroundWorkerCommand command) async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(retry: navisProviderRetry);
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
     BackgroundNetworkPolicyTracker? policyTracker;

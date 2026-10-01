@@ -303,6 +303,17 @@ search.
   session-scoped and is force-closed during logout
 - **Explicit disposal**: Audio handler and cache managers have explicit cleanup
 
+**Retry policy.** Both the root container (`main.dart`) and the Android
+background worker's container use `navisProviderRetry`
+(`lib/src/providers/provider_retry.dart`) instead of Riverpod 3's default,
+which retries any failed provider ten times over about 40 seconds and reports
+each attempt as loading. Only failures that can pass on their own (a dropped
+connection, `SubsonicConnectionException`, a socket or timeout error, or
+HTTP 429/502/503/504/530) are retried, three times within about 1.4 seconds;
+an error the server returned, such as an unsupported endpoint, reaches the
+error state at once. Nested `ProviderScope`s inherit the policy; tests that
+build their own containers keep Riverpod's default unless they pass it.
+
 ### Authentication, initial catalog, and teardown
 
 Navis retains one local server/account profile. Its stable identity is the
@@ -1552,7 +1563,15 @@ fails to open, such as a 404 stream, through a yt-dlp or youtube-dl found on
 and is requested again. media_kit 1.2.6 exposes no option for this, so the
 vendored adapter sets `ytdl=no` on every player beside `force-seekable`; a
 libmpv built without Lua has no hook and ignores the property.
-`tool/stream_open_diagnostics.py` guards this at runtime.
+mpv releases up to 0.41 also open https streams without checking the server
+certificate (`tls-verify` defaults to off), so a man in the middle could read
+the token. `main.dart` sets `JustAudioMediaKit.tlsVerify` on Linux and
+Windows and the adapter then sets `tls-verify=yes` on every player; libmpv
+uses the system certificate store, and Navis's own API client already
+refuses certificates the system does not trust. macOS's bundled mpv 0.36
+(Mbed TLS) is left as before until that build is replaced, because its
+certificate source has not been verified.
+`tool/stream_open_diagnostics.py` guards both at runtime.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a
@@ -1663,7 +1682,14 @@ even if a newer transport command (pause, another seek) arrives; only the
 seek correction and resume yield to it. When the song cannot be reloaded (a
 stream that times out again leaves both players rebuilt empty) the queue
 lists are put back rather than left cut down to that song, and the stall
-path then skips to the next song by its logical index. Navigation to a song
+path then skips to the next song by its logical index. A recovery while a
+queue replacement is still filling (the player and the queue lists hold only
+part of the queue) reads the pending queue's rows before it cancels the fill;
+when they cannot all be read, the fill keeps running and nothing is reloaded.
+Whatever happens afterwards, the whole pending queue is put back, with the
+songs around the current one as deferred entries, so a recovery never leaves
+the queue cut down to the song that stalled. Diagnostics record the outcome
+`reloaded` only when the player was rebuilt (otherwise `notRebuilt`). Navigation to a song
 the player should hold rebuilds the player around it, like a far jump, when
 the player no longer holds the materialised queue.
 
@@ -1807,14 +1833,35 @@ direct-stream URL, including the replayable `t`/`s` token pair. `main()`
 therefore runs the app inside `runWithCredentialRedactedPrint`
 (`lib/src/utils/credential_redaction.dart`). Every `print` in the main isolate,
 including the adapter's, `debugPrint`, and `AppLogger` output, has the values of
-the `u`, `t`, `s`, `p`, and `apiKey` query parameters (literal or
-percent-encoded) replaced with `REDACTED` before it reaches stdout or the
-system journal, in every build mode. `SubsonicLoggingInterceptor` redacts the
+the `u`, `t`, `s`, `p`, and `apiKey` query parameters (literal, HTML-escaped,
+percent-encoded or double percent-encoded) replaced with `REDACTED` before it
+reaches stdout or the system journal, in every build mode. Errors nothing
+handled would otherwise be printed by the engine outside the zone, so
+`PlatformDispatcher.instance.onError` is `reportUncaughtErrorRedacted`, which
+prints them redacted with the engine's `Unhandled Exception:` wording.
+`SubsonicLoggingInterceptor` redacts the
 same parameter set from request logs. The zone covers console output only: code
 that puts a URL into diagnostics responses or persisted records must still
 reduce it itself, as `_diagnosticMediaReference` does. Native writes to stderr
 and other isolates are outside the zone; libmpv leaves its own terminal output
 off for embedding clients.
+
+Other processes never receive a credential-bearing URL either. The stream URL
+is not a `MediaItem` extra (audio_service copies every String extra into the
+Android session metadata); the desktop sidecar cache keeps it in the handler.
+Cover art reaches the system as a local file: `PlaybackArtCache` caches the
+current cover on Android, Linux and Windows (`artCacheFile` extra), MPRIS
+publishes it as `file://` and SMTC loads it with `StorageFile`; an artwork URL
+is published only when it carries no credentials (radio art,
+`uriCarriesCredentials`). On Android, `RealTimeProjectionAudioHandler` maps
+every credential-bearing `artUri` it publishes (metadata, the queue window,
+browse, search and `getMediaItem` results) through `AndroidSystemArt` to
+`content://<applicationId>.artwork/cover/<key>`, served read-only by the
+exported `NavisArtworkProvider` from the same cache, which Android Auto can
+open from its own process. Browse lists wait up to 1.5 s for their covers to
+download (six at a time); a cover not cached yet appears the next time the
+list is shown, and queue entries show art once it has been cached. The app
+itself keeps the HTTP `artUri`.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
@@ -1841,7 +1888,8 @@ the queue at the hand-over; otherwise the fade is cancelled and the active
 player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
 starts while a queue load is in progress, and a song whose transition could
 not be prepared ends gaplessly instead of reloading the deck on every
-position tick. In-place refreshes of a queued song
+position tick; once another entry plays (or any queue command runs), that
+song's transition is tried again the next time it plays. In-place refreshes of a queued song
 (artwork, liked state, canonical id) do not count as queue changes
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`

@@ -222,6 +222,9 @@ class _EqBandStripState extends State<EqBandStrip> {
 }
 
 /// A labelled value that opens exact entry, or explains why it is fixed.
+/// The tile width below which the value's "Fixed" text is left out.
+const double _fixedTextMinWidth = 124;
+
 class EqParameterTile extends StatelessWidget {
   const new({
     required this.parameter,
@@ -300,34 +303,49 @@ class EqParameterTile extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               )
             else
-              Text.rich(
-                TextSpan(
-                  children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final readout = EqParameter.readout(parameter, value);
+                  final unitText = unit.isEmpty ? '' : ' $unit';
+                  final fixedText = fixed ? ' · ${l10n.eqFixed}' : '';
+                  // A narrow tile drops the "Fixed" text rather than cut the
+                  // value; the lock icon beside the label still says it.
+                  final showFixedText =
+                      fixed &&
+                      constraints.maxWidth >=
+                          _fixedTextMinWidth *
+                              MediaQuery.textScalerOf(context).scale(1);
+                  return Text.rich(
                     TextSpan(
-                      text: EqParameter.readout(parameter, value),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        color: editable ? colors.onSurface : null,
-                      ),
+                      children: [
+                        TextSpan(
+                          text: readout,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: editable ? colors.onSurface : null,
+                          ),
+                        ),
+                        if (unitText.isNotEmpty)
+                          TextSpan(
+                            text: unitText,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        if (showFixedText)
+                          TextSpan(
+                            text: fixedText,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.outline,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (unit.isNotEmpty)
-                      TextSpan(
-                        text: ' $unit',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    if (fixed)
-                      TextSpan(
-                        text: ' · ${l10n.eqFixed}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.outline,
-                        ),
-                      ),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                    semanticsLabel: '$readout$unitText$fixedText',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  );
+                },
               ),
           ],
         ),

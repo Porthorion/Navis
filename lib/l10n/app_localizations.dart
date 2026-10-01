@@ -325,7 +325,7 @@ abstract class AppLocalizations {
   /// No description provided for @initialSyncFailed.
   ///
   /// In en, this message translates to:
-  /// **'Initial sync could not complete.'**
+  /// **'Your library could not be set up.'**
   String get initialSyncFailed;
 
   /// No description provided for @initialSyncCancelling.
@@ -387,6 +387,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Library rebuild could not complete.'**
   String get requiredSyncRebuildFailed;
+
+  /// No description provided for @requiredSyncFailureCacheReset.
+  ///
+  /// In en, this message translates to:
+  /// **'The library cache could not be cleared.'**
+  String get requiredSyncFailureCacheReset;
+
+  /// No description provided for @requiredSyncFailureCacheRenewal.
+  ///
+  /// In en, this message translates to:
+  /// **'The library cache still needs to be renewed.'**
+  String get requiredSyncFailureCacheRenewal;
+
+  /// No description provided for @requiredSyncFailureSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing out did not finish. Try again.'**
+  String get requiredSyncFailureSignOut;
 
   /// No description provided for @requiredSyncSignOut.
   ///
@@ -1057,8 +1075,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsPendingWorkValue.
   ///
   /// In en, this message translates to:
-  /// **'{count} task(s) pending'**
-  String syncSettingsPendingWorkValue(Object count);
+  /// **'{count, plural, =1{1 task pending} other{{count} tasks pending}}'**
+  String syncSettingsPendingWorkValue(int count);
 
   /// No description provided for @syncSettingsCatalogUpdateLabel.
   ///
@@ -1081,8 +1099,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsLastRunValue.
   ///
   /// In en, this message translates to:
-  /// **'{requests} request(s) • {bytes}'**
-  String syncSettingsLastRunValue(Object requests, Object bytes);
+  /// **'{requests, plural, =1{1 request} other{{requests} requests}} • {bytes}'**
+  String syncSettingsLastRunValue(int requests, String bytes);
 
   /// No description provided for @syncSettingsLastCheckedLabel.
   ///
@@ -1177,21 +1195,21 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsCatalogPromotionRemovalSummary.
   ///
   /// In en, this message translates to:
-  /// **'Catalog promotion removed {artists} artist(s), {albums} album(s), and {songs} song(s).'**
+  /// **'The last library update removed {artists, plural, =1{1 artist} other{{artists} artists}}, {albums, plural, =1{1 album} other{{albums} albums}} and {songs, plural, =1{1 song} other{{songs} songs}}.'**
   String syncSettingsCatalogPromotionRemovalSummary(
-    Object artists,
-    Object albums,
-    Object songs,
+    int artists,
+    int albums,
+    int songs,
   );
 
   /// No description provided for @syncSettingsStarredReconciliationRemovalSummary.
   ///
   /// In en, this message translates to:
-  /// **'Confirmed server update removed {artists} artist(s), {albums} album(s), and {songs} song(s) from Liked.'**
+  /// **'Removed from Liked after the server confirmed the change: {artists, plural, =1{1 artist} other{{artists} artists}}, {albums, plural, =1{1 album} other{{albums} albums}} and {songs, plural, =1{1 song} other{{songs} songs}}.'**
   String syncSettingsStarredReconciliationRemovalSummary(
-    Object artists,
-    Object albums,
-    Object songs,
+    int artists,
+    int albums,
+    int songs,
   );
 
   /// No description provided for @syncSettingsDegradation.
@@ -1209,8 +1227,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsPendingWork.
   ///
   /// In en, this message translates to:
-  /// **'{count} resumable task(s) pending'**
-  String syncSettingsPendingWork(Object count);
+  /// **'{count, plural, =1{1 resumable task pending} other{{count} resumable tasks pending}}'**
+  String syncSettingsPendingWork(int count);
 
   /// No description provided for @librarySyncBacklogBanner.
   ///
@@ -1221,14 +1239,14 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsCandidate.
   ///
   /// In en, this message translates to:
-  /// **'Candidate generation {generation}: {status}'**
-  String syncSettingsCandidate(Object generation, Object status);
+  /// **'Prepared library update: {status}'**
+  String syncSettingsCandidate(String status);
 
   /// No description provided for @syncSettingsCarriedForward.
   ///
   /// In en, this message translates to:
-  /// **'{count} unavailable album(s) kept from the previous catalog'**
-  String syncSettingsCarriedForward(Object count);
+  /// **'{count, plural, =1{1 unavailable album kept from the previous catalog} other{{count} unavailable albums kept from the previous catalog}}'**
+  String syncSettingsCarriedForward(int count);
 
   /// No description provided for @syncSettingsApplyDuration.
   ///
@@ -1239,8 +1257,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsUsage.
   ///
   /// In en, this message translates to:
-  /// **'Last run: {requests} request(s) • {bytes}'**
-  String syncSettingsUsage(Object requests, Object bytes);
+  /// **'Last run: {requests, plural, =1{1 request} other{{requests} requests}} • {bytes}'**
+  String syncSettingsUsage(int requests, String bytes);
 
   /// No description provided for @syncSettingsCheckForUpdates.
   ///
@@ -1269,8 +1287,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRemainingVerification.
   ///
   /// In en, this message translates to:
-  /// **'{count} artists remain to verify'**
-  String syncSettingsRemainingVerification(Object count);
+  /// **'{count, plural, =1{1 artist remains to verify} other{{count} artists remain to verify}}'**
+  String syncSettingsRemainingVerification(int count);
 
   /// No description provided for @syncSettingsIdentitySummary.
   ///
@@ -1299,8 +1317,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsIntervalHours.
   ///
   /// In en, this message translates to:
-  /// **'Every {hours} hour(s)'**
-  String syncSettingsIntervalHours(Object hours);
+  /// **'{hours, plural, =1{Every hour} other{Every {hours} hours}}'**
+  String syncSettingsIntervalHours(int hours);
 
   /// No description provided for @syncSettingsIntervalDescription.
   ///
@@ -1359,8 +1377,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRepairDeletionConfirmationPending.
   ///
   /// In en, this message translates to:
-  /// **'{count} server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.'**
-  String syncSettingsRepairDeletionConfirmationPending(Object count);
+  /// **'{count, plural, =1{1 item the server no longer has is waiting for your confirmation before Navis removes it from the local library.} other{{count} items the server no longer has are waiting for your confirmation before Navis removes them from the local library.}}'**
+  String syncSettingsRepairDeletionConfirmationPending(int count);
 
   /// No description provided for @syncSettingsRepairDeletionConfirmationTitle.
   ///
@@ -1371,8 +1389,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRepairDeletionConfirmationBody.
   ///
   /// In en, this message translates to:
-  /// **'The server no longer reports {count} item(s). Applying this repair will remove them from Navis\'s local library. Downloads and cached audio are kept.'**
-  String syncSettingsRepairDeletionConfirmationBody(Object count);
+  /// **'{count, plural, =1{The server no longer reports 1 item. Applying this repair will remove it from Navis\'s local library.} other{The server no longer reports {count} items. Applying this repair will remove them from Navis\'s local library.}} Downloads and cached audio are kept.'**
+  String syncSettingsRepairDeletionConfirmationBody(int count);
 
   /// No description provided for @syncSettingsRepairDeletionConfirmationAction.
   ///
@@ -2421,7 +2439,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsCapabilitiesCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} extension(s)'**
+  /// **'{count, plural, =1{1 extension} other{{count} extensions}}'**
   String serverSettingsCapabilitiesCount(int count);
 
   /// No description provided for @serverSettingsUnknownValue.
@@ -6098,7 +6116,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsPrecacheSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Done — cached {total} album art image(s).'**
+  /// **'Done — cached {total, plural, =1{1 album art image} other{{total} album art images}}.'**
   String cacheSettingsPrecacheSuccess(int total);
 
   /// No description provided for @serverSettingsSignOutConfirmTitle.

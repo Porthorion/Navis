@@ -155,7 +155,7 @@ void main() {
     expect(find.text('Last Library Change'), findsOneWidget);
     expect(
       find.text(
-        'Catalog promotion removed 3 artist(s), 4 album(s), and 5 song(s).',
+        'The last library update removed 3 artists, 4 albums and 5 songs.',
       ),
       findsOneWidget,
     );
@@ -365,9 +365,9 @@ void main() {
       find.text('Strategy: targeted hydration — resume targeted hydration'),
       findsOneWidget,
     );
-    expect(find.text('49 resumable task(s) pending'), findsOneWidget);
+    expect(find.text('49 resumable tasks pending'), findsOneWidget);
     expect(find.text('Catalog applied in 235 ms'), findsOneWidget);
-    expect(find.text('Last run: 2 request(s) • 29.0 KB'), findsOneWidget);
+    expect(find.text('Last run: 2 requests • 29.0 KB'), findsOneWidget);
     expect(find.text('Sync Plan'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -478,6 +478,83 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('shows sync deadlines in local time', (tester) async {
+    final lastSynced = DateTime(2026, 2, 20);
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final router = GoRouter(
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) =>
+              const Scaffold(body: Text('Required library rebuild')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+                lastSynced: lastSynced,
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.idle,
+                stage: LibrarySyncStage.idle,
+                lastSyncedAt: lastSynced,
+                nextAutomaticCheckAt: DateTime.utc(2026, 2, 20, 12),
+              ),
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp.router(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(SyncSettingsScreen));
+    final material = MaterialLocalizations.of(context);
+    final local = DateTime.utc(2026, 2, 20, 12).toLocal();
+    expect(
+      find.text(
+        '${material.formatFullDate(local)} '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(local))}',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows redacted Android background schedule state', (
@@ -790,7 +867,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('531 server-missing item(s) are waiting'),
+      find.textContaining('531 items the server no longer has are waiting'),
       findsOneWidget,
     );
     await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -809,7 +886,7 @@ void main() {
 
     expect(find.text('Confirm Library Repair'), findsOneWidget);
     expect(
-      find.textContaining('server no longer reports 531 item(s)'),
+      find.textContaining('server no longer reports 531 items'),
       findsOneWidget,
     );
     expect(router.routeInformationProvider.value.uri.path, '/');

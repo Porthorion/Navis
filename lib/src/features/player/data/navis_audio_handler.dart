@@ -29,6 +29,8 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/features/player/data/android_system_art.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
@@ -103,7 +105,9 @@ class NavisAudioHandler extends BaseAudioHandler
        _reportNetworkUsage = reportNetworkUsage,
        _preferredMixCallback = startPreferredMix,
        _preferredMixToggleCallback = togglePreferredMix,
-       _artCache = _isAndroidRuntime
+       // A local cover file for the system media controls: Android's
+       // bitmap, and MPRIS and SMTC art without the credential-bearing URL.
+       _artCache = _isAndroidRuntime || _isLinuxRuntime || _isWindowsRuntime
            ? PlaybackArtCache(reportNetworkUsage: reportNetworkUsage)
            : null {
     final runtime = _readRuntimeSettings();
@@ -325,6 +329,11 @@ class NavisAudioHandler extends BaseAudioHandler
       RollingCacheSidecarDownloader();
   final Map<String, SongsTableData> _sidecarSongsById =
       <String, SongsTableData>{};
+
+  /// The credential-bearing stream URL of each song in [_sidecarSongsById].
+  /// Kept here, not in [MediaItem.extras], which audio_service publishes to
+  /// the platform media session.
+  final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   Timer? _seekBufferingRecoveryTimer;
@@ -915,8 +924,13 @@ class NavisAudioHandler extends BaseAudioHandler
     _syncSidecarRollingCache(item);
   }
 
-  void _rememberSidecarSong(SongsTableData song) {
+  void _rememberSidecarSong(SongsTableData song, Uri? streamUri) {
     _sidecarSongsById[song.id] = song;
+    if (streamUri == null) {
+      _sidecarStreamUris.remove(song.id);
+    } else {
+      _sidecarStreamUris[song.id] = streamUri;
+    }
   }
 
   void _syncSidecarRollingCache(MediaItem? item) {
@@ -929,21 +943,12 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
     final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
-    final streamUriRaw = item.extras?['streamUri'] as String?;
+    final song = _sidecarSongsById[item.id];
+    final streamUri = _sidecarStreamUris[item.id];
     if (sidecarPath == null ||
         sidecarPath.isEmpty ||
-        streamUriRaw == null ||
-        streamUriRaw.isEmpty) {
-      unawaited(_sidecarDownloader.cancel());
-      return;
-    }
-    final song = _sidecarSongsById[item.id];
-    if (song == null) {
-      unawaited(_sidecarDownloader.cancel());
-      return;
-    }
-    final streamUri = Uri.tryParse(streamUriRaw);
-    if (streamUri == null) {
+        song == null ||
+        streamUri == null) {
       unawaited(_sidecarDownloader.cancel());
       return;
     }
@@ -985,24 +990,27 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  /// Caches [coverArtId]'s cover from [artUri] for the system media
+  /// controls and returns the local file, or `null` when there is no cache
+  /// on this platform or the download fails.
+  Future<String?> cacheSystemArtwork(String coverArtId, Uri artUri) =>
+      _artCache?.getOrFetch(coverArtId, artUri) ?? Future<String?>.value();
+
   /// Downloads the cover art for [trigger] to a local file and re-emits the
   /// current [MediaItem] with `artCacheFile` injected into
   /// [MediaItem.extras].
   ///
   /// ## Why extras, not artUri
   ///
-  /// A previous approach replaced [MediaItem.artUri] with a `file://` URI.
-  /// That caused Java's `createMediaMetadata` to write the raw file path into
-  /// `METADATA_KEY_DISPLAY_ICON_URI`.  Android Auto runs in a *separate OS
-  /// process* and cannot read another app's internal cache directory via a
-  /// plain `file://` URI, so it silently dropped the art.
+  /// The app keeps the HTTP [MediaItem.artUri]. The system never sees it:
+  /// on Android, [RealTimeProjectionAudioHandler] publishes a
+  /// `content://<package>.artwork/cover/<key>` URI served by
+  /// `NavisArtworkProvider` from this same cache file (Android Auto runs in
+  /// a separate process and cannot read a plain `file://` path), and the
+  /// Linux MPRIS and Windows SMTC bridges publish the file itself. The
+  /// Subsonic cover URL carries the account token, so it must not leave the
+  /// app.
   ///
-  /// By keeping the original HTTP artUri (which AAOS can fetch cross-process)
-  /// and injecting `artCacheFile` into [MediaItem.extras], we get the best of
-  /// both worlds:
-  ///
-  /// * `METADATA_KEY_DISPLAY_ICON_URI` stays as the HTTP URL → AAOS can load
-  ///   art from the network whenever it wants.
   /// * Java's `AudioService.setMetadata` reads `extras["artCacheFile"]`,
   ///   decodes the local JPEG with `BitmapFactory.decodeFile`, and stores the
   ///   result in `METADATA_KEY_ALBUM_ART` + `METADATA_KEY_DISPLAY_ICON` →
@@ -1231,6 +1239,7 @@ class NavisAudioHandler extends BaseAudioHandler
     bool navigation = false,
   }) {
     _clearQueueReplacementMetadataAnchor();
+    _crossfadeFailedFrom = null;
     // The user's command replaces any startup queue still waiting to restore.
     if (_queueRestoreOutcome == 'deferred_auth') {
       _queueRestoreOutcome = 'superseded';
@@ -2194,6 +2203,14 @@ class NavisAudioHandler extends BaseAudioHandler
         anchor: _queueReplacementMetadataAnchor,
       );
       final item = resolved.mediaItem;
+      final failedFade = _crossfadeFailedFrom;
+      if (failedFade != null &&
+          (failedFade.index != resolved.currentIndex ||
+              failedFade.songId != item?.id)) {
+        // Another entry plays: its transition, and this one's next time,
+        // may be prepared again.
+        _crossfadeFailedFrom = null;
+      }
       if (item != null) {
         _setCurrentMediaItem(item);
       } else if (_queueItems.isEmpty ||
@@ -3630,7 +3647,7 @@ class NavisAudioHandler extends BaseAudioHandler
       startupTrace?.markOnce('sourceResolutionComplete');
     }
     if (source.sidecarCacheFilePath != null) {
-      _rememberSidecarSong(song);
+      _rememberSidecarSong(song, source.uri ?? source.lockCachingStreamUri);
     }
     _rememberRemoteRow(song);
     return _PreparedQueueItem(
@@ -5659,6 +5676,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _checkQueueWorkCurrent(token, generation);
       await _sidecarDownloader.cancel();
       _sidecarSongsById.clear();
+      _sidecarStreamUris.clear();
       _rollingCacheActivities.clear();
       _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
       await _clearQueueInternal(persist: true, generation: generation);
@@ -7756,14 +7774,31 @@ class NavisAudioHandler extends BaseAudioHandler
     String reason = 'seek recovery — switched to direct stream',
     _PreparedQueueItem? preparedStart,
   }) async {
-    final expectedIndex = _resolveCurrentQueueMetadata().currentIndex;
-    if (expectedIndex == null ||
-        expectedIndex < 0 ||
-        expectedIndex >= _queueItems.length ||
-        _logicalQueueIds.isEmpty) {
-      return false;
+    final metadata = _resolveCurrentQueueMetadata();
+    // While a queue replacement is still filling, the player and the queue
+    // lists hold only part of the queue; the whole order is the pending
+    // logical queue.
+    final pendingIds = _pendingLogicalQueueSongIds;
+    final String currentSongId;
+    var pendingIndex = -1;
+    MediaItem? pendingCurrentItem;
+    if (pendingIds != null) {
+      pendingCurrentItem = metadata.mediaItem;
+      final songId = pendingCurrentItem?.id;
+      if (songId == null) return false;
+      pendingIndex = _locateQueueTarget(songId, metadata.currentIndex ?? 0);
+      if (pendingIndex < 0) return false;
+      currentSongId = songId;
+    } else {
+      final expectedIndex = metadata.currentIndex;
+      if (expectedIndex == null ||
+          expectedIndex < 0 ||
+          expectedIndex >= _queueItems.length ||
+          _logicalQueueIds.isEmpty) {
+        return false;
+      }
+      currentSongId = _queueItems[expectedIndex].id;
     }
-    final currentSongId = _queueItems[expectedIndex].id;
 
     // Prefer a one-shot direct-stream rebuild for this seek. Do not permanently
     // bypass lock-caching for the song: desktop now uses sidecar caching with
@@ -7771,6 +7806,28 @@ class NavisAudioHandler extends BaseAudioHandler
     token.checkCancelled();
     if (!_isCurrentTransportIntent(transportGeneration)) {
       return false;
+    }
+    // Superseding cancels the fill, so read its rows first: without all of
+    // them the fill must keep running rather than leave a partial queue.
+    List<SongsTableData>? pendingRows;
+    if (pendingIds != null) {
+      final rows =
+          _pendingLogicalQueueSongs ??
+          await _libraryDao.getSongsByIds(pendingIds);
+      token.checkCancelled();
+      if (!identical(_pendingLogicalQueueSongIds, pendingIds) ||
+          !_isCurrentTransportIntent(transportGeneration)) {
+        // The fill completed or a newer command replaced the queue meanwhile.
+        return false;
+      }
+      if (rows.length != pendingIds.length) {
+        AppLogger.warning(
+          'Seek recovery could not read the queue that is still loading. '
+          'Skipping direct-stream fallback.',
+        );
+        return false;
+      }
+      pendingRows = rows;
     }
     // A fade would hand over to a deck that still holds the failing source.
     _cancelCrossfade();
@@ -7781,44 +7838,86 @@ class NavisAudioHandler extends BaseAudioHandler
       navigation: true,
     );
     var rebuilt = false;
+    _QueueRestorePoint? pendingRestore;
     _recoveryStage = 'waiting for lane';
     try {
       await _queueLane.navigate((queueToken) async {
         _checkQueueWorkCurrent(queueToken, queueGeneration);
         _recoveryStage = 'reading queue';
-        final materialisedIndex = _resolveCurrentQueueMetadata().currentIndex;
-        if (materialisedIndex == null ||
-            materialisedIndex < 0 ||
-            materialisedIndex >= _queueItems.length ||
-            _queueItems[materialisedIndex].id != currentSongId) {
-          // The song changed while edits ran; there is nothing to recover.
-          return;
-        }
-        final currentIndex = materialisedIndex + _deferredHead.length;
-        // The logical queue, so the deferred head and tail survive.
-        final queueSongIds = _logicalQueueIds;
-        final orderedSongs = (await _rowsForDeferredEntries(
-          _logicalQueueEntries(),
-        )).nonNulls.toList(growable: false);
-        _checkQueueWorkCurrent(queueToken, queueGeneration);
-        if (orderedSongs.length != queueSongIds.length) {
-          AppLogger.warning(
-            'Seek recovery could not rebuild the full queue from the local '
-            'songs table. Skipping direct-stream fallback.',
-          );
-          return;
-        }
-        final restore = _QueueRestorePoint(
-          head: List<_DeferredQueueEntry>.of(_deferredHead),
-          items: List<MediaItem>.of(_queueItems),
-          tail: List<_DeferredQueueEntry>.of(_deferredTail),
-          capture: (
-            index: _player.currentIndex,
-            position: _player.position,
-            playing: _player.playing,
-          ),
-          missing: const <String>[],
+        final capture = (
+          index: _player.currentIndex,
+          position: _player.position,
+          playing: _player.playing,
         );
+        final List<String> queueSongIds;
+        final List<SongsTableData> orderedSongs;
+        final int currentIndex;
+        final _QueueRestorePoint restore;
+        final fillRows = pendingRows;
+        if (fillRows != null) {
+          // The interrupted fill's queue, including edits that ran before
+          // this work. Restoring it keeps every song even if the reload
+          // fails: the songs around the current one wait as deferred entries,
+          // like a released long queue.
+          final ids = _logicalQueueIds;
+          final rows = listEquals(ids, pendingIds)
+              ? fillRows
+              : await _libraryDao.getSongsByIds(ids);
+          _checkQueueWorkCurrent(queueToken, queueGeneration);
+          final index = _locateQueueTarget(currentSongId, pendingIndex);
+          if (index < 0 || rows.length != ids.length) {
+            // An edit removed the song, or a row is missing: keep the queue
+            // without reloading.
+            pendingRestore = _pendingQueueRestorePoint(
+              ids,
+              <SongsTableData>[...fillRows, ...rows],
+              pendingCurrentItem!,
+              index,
+              capture,
+            );
+            return;
+          }
+          queueSongIds = ids;
+          orderedSongs = rows;
+          currentIndex = index;
+          restore = _pendingQueueRestorePoint(
+            ids,
+            rows,
+            pendingCurrentItem!,
+            index,
+            capture,
+          );
+        } else {
+          final materialisedIndex = _resolveCurrentQueueMetadata().currentIndex;
+          if (materialisedIndex == null ||
+              materialisedIndex < 0 ||
+              materialisedIndex >= _queueItems.length ||
+              _queueItems[materialisedIndex].id != currentSongId) {
+            // The song changed while edits ran; there is nothing to recover.
+            return;
+          }
+          currentIndex = materialisedIndex + _deferredHead.length;
+          // The logical queue, so the deferred head and tail survive.
+          queueSongIds = _logicalQueueIds;
+          orderedSongs = (await _rowsForDeferredEntries(_logicalQueueEntries()))
+              .nonNulls
+              .toList(growable: false);
+          _checkQueueWorkCurrent(queueToken, queueGeneration);
+          if (orderedSongs.length != queueSongIds.length) {
+            AppLogger.warning(
+              'Seek recovery could not rebuild the full queue from the local '
+              'songs table. Skipping direct-stream fallback.',
+            );
+            return;
+          }
+          restore = _QueueRestorePoint(
+            head: List<_DeferredQueueEntry>.of(_deferredHead),
+            items: List<MediaItem>.of(_queueItems),
+            tail: List<_DeferredQueueEntry>.of(_deferredTail),
+            capture: capture,
+            missing: const <String>[],
+          );
+        }
         if (orderedSongs.length > 1) {
           _pendingLogicalQueueSongIds = List<String>.unmodifiable(queueSongIds);
           _pendingLogicalQueueSongs = orderedSongs;
@@ -7910,6 +8009,13 @@ class NavisAudioHandler extends BaseAudioHandler
       // Superseded before the reload, or nothing to recover: a superseding
       // command owns the load; otherwise the old queue is still in place.
       _recoveryStage = 'not rebuilt';
+      final restoreFill = pendingRestore;
+      if (restoreFill != null && _isActiveLoadGeneration(queueGeneration)) {
+        // This work cancelled the fill, so the queue lists still hold only
+        // part of it: put the whole queue back before completing the load.
+        _restoreQueueLists(restoreFill);
+        _afterQueueEdit(context: 'seek recovery skipped');
+      }
       _completeQueueLoad(queueGeneration);
       return false;
     }
@@ -7930,6 +8036,47 @@ class NavisAudioHandler extends BaseAudioHandler
       unawaited(_player.play());
     }
     return true;
+  }
+
+  /// A restore point for a queue that is still loading: [current] stays
+  /// materialised and every other song in [ids] waits as a deferred entry,
+  /// keeping the rows of remote songs from [rows].
+  _QueueRestorePoint _pendingQueueRestorePoint(
+    List<String> ids,
+    List<SongsTableData> rows,
+    MediaItem current,
+    int currentIndex,
+    ({int? index, Duration position, bool playing}) capture,
+  ) {
+    final rowsById = <String, SongsTableData>{
+      for (final row in rows) row.id: row,
+    };
+    _DeferredQueueEntry entry(String id) {
+      final row = rowsById[id];
+      return row == null ? _DeferredQueueEntry(id) : _deferredEntryFor(row);
+    }
+
+    if (currentIndex < 0) {
+      // The current song is no longer queued: keep the rest as the tail.
+      return _QueueRestorePoint(
+        head: const <_DeferredQueueEntry>[],
+        items: <MediaItem>[current],
+        tail: <_DeferredQueueEntry>[for (final id in ids) entry(id)],
+        capture: capture,
+        missing: const <String>[],
+      );
+    }
+    return _QueueRestorePoint(
+      head: <_DeferredQueueEntry>[
+        for (final id in ids.take(currentIndex)) entry(id),
+      ],
+      items: <MediaItem>[current],
+      tail: <_DeferredQueueEntry>[
+        for (final id in ids.skip(currentIndex + 1)) entry(id),
+      ],
+      capture: capture,
+      missing: const <String>[],
+    );
   }
 
   void _syncRemotePlaybackStallWatchdog() {
@@ -8088,7 +8235,7 @@ class NavisAudioHandler extends BaseAudioHandler
       if (isRetry) {
         try {
           final recoveryToken = OperationToken();
-          await _rebuildQueueForSeekRecovery(
+          final rebuilt = await _rebuildQueueForSeekRecovery(
             position,
             autoPlay: autoPlay,
             token: recoveryToken,
@@ -8101,7 +8248,7 @@ class NavisAudioHandler extends BaseAudioHandler
             'requestedPositionMs': position.inMilliseconds,
             'songId': songId,
             'reason': reason,
-            'outcome': 'reloaded',
+            'outcome': rebuilt ? 'reloaded' : 'notRebuilt',
           });
           return;
         } on Object catch (rebuildError, rebuildStackTrace) {
@@ -8478,6 +8625,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _radioMetadataService.dispose();
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
+    _sidecarStreamUris.clear();
     await _interruptionSubscription?.cancel();
     await _becomingNoisySubscription?.cancel();
     await _queueEmissionCounter?.cancel();
