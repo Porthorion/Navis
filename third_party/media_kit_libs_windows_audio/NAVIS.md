@@ -9,8 +9,9 @@ FFmpeg fixes.
 Changes from upstream, all in `windows/CMakeLists.txt`:
 
 - `LIBMPV`, `LIBMPV_URL` and `LIBMPV_SHA256` name the pinned shinchiro
-  `mpv-dev-x86_64` archive, mirrored on the Navis Forgejo release
-  `third-party-binaries` (provenance in that release's `SOURCES.md`).
+  `mpv-dev-x86_64` archive, mirrored in a release of the separate
+  `khalifa/navis-third-party` Forgejo repository (provenance in that
+  release's `SOURCES.md`).
 - The archive is verified with SHA-256 (upstream used MD5), and a failed
   download is deleted.
 - The archive is extracted to a folder named after it, so changing the pin

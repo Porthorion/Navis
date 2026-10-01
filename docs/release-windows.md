@@ -30,10 +30,12 @@ portable zip is 66.2 MB. It also verifies TLS certificates (mpv's newer
 default), using the Windows certificate store, so streaming accepts exactly
 the servers Navis's API client accepts.
 
-The build downloads the pinned archive from the Forgejo release
-`third-party-binaries`, verifies its SHA-256, and extracts it into a folder
-named after the archive. Upstream prunes old daily releases, so the mirror
-keeps old Navis versions buildable.
+The build downloads the pinned archive from a release of the separate
+[`khalifa/navis-third-party`](https://git.porthorion.com/khalifa/navis-third-party)
+repository, verifies its SHA-256, and extracts it into a folder named after
+the archive. Upstream prunes old daily releases, so the mirror keeps old Navis
+versions buildable. The mirror must not be a release of the Navis repository:
+the app's update check reads that repository's releases.
 
 To update the pin:
 
@@ -41,10 +43,12 @@ To update the pin:
    releases. Use the plain x86_64 build, not `-v3` (that one needs AVX2).
 2. Check that its SHA-256 matches the digest GitHub shows for the asset, and
    that it contains `libmpv-2.dll` and `include/mpv/*.h`.
-3. Upload it to the `third-party-binaries` release and add its entry
-   (upstream URL, release, SHA-256, mpv and FFmpeg versions, license) to the
-   release's `SOURCES.md`. Keep the older files for older Navis versions.
-4. Set `LIBMPV` and `LIBMPV_SHA256` in
+3. Create a release named after it in `khalifa/navis-third-party` (tag
+   `libmpv-windows-x86_64-<date>`) and attach the archive with a `SOURCES.md`
+   giving its upstream URL, release, SHA-256, mpv and FFmpeg versions and
+   license. Upload through the API: the web form rejects `.7z` files. Keep the
+   older releases for older Navis versions.
+4. Set `LIBMPV`, `LIBMPV_URL` and `LIBMPV_SHA256` in
    `third_party/media_kit_libs_windows_audio/windows/CMakeLists.txt`.
 5. Build a profile bundle and check that the EQ page is available and that
    EQ, speed and pitch, gapless playback and seeking work. Look for `af`

@@ -63,14 +63,16 @@ endfunction()
 # (release 20261001: mpv v0.41.0-1092-g3186d369f, FFmpeg with libavformat
 # 63.7.100). media_kit's own minimal build (2023-09-24, from an archived repo)
 # lacks the libavfilter "volume" and "biquad" filters the equalizer needs and
-# no longer receives FFmpeg fixes. The archive is mirrored on the Navis Forgejo
-# release "third-party-binaries" (upstream prunes old releases); SOURCES.md
-# there records its provenance. To update, see docs/release-windows.md.
+# no longer receives FFmpeg fixes. The archive is mirrored in a release of the
+# separate khalifa/navis-third-party repository (upstream prunes old releases,
+# and releases in the Navis repository would show up in the app's update
+# check); SOURCES.md there records its provenance. To update, see
+# docs/release-windows.md.
 #   Upstream: https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261001
 set(LIBMPV "mpv-dev-x86_64-20261001-git-3186d369f9.7z")
 
 # Download URL & SHA-256 of the libmpv archive.
-set(LIBMPV_URL "https://git.porthorion.com/khalifa/Navis/releases/download/third-party-binaries/${LIBMPV}")
+set(LIBMPV_URL "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-windows-x86_64-20261001/${LIBMPV}")
 set(LIBMPV_SHA256 "de0aa24a39e27b07d9f663616f8d09c91586c7328d8c33fbfbc8e3888c35d89c")
 
 # Download location of the libmpv archive.
