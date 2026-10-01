@@ -210,14 +210,23 @@ First-login and logout ownership are exercised separately with:
 ```bash
 ./tool/auth_lifecycle_diagnostics.sh clone
 ./tool/auth_lifecycle_diagnostics.sh partial
+./tool/auth_lifecycle_diagnostics.sh existing-catalog
 ```
 
 This clone-only Linux profile gate covers the `/initial-sync` route, offline
 recovery and app-owned screenshots, safe catalog promotion and restart,
-playback-to-sign-out teardown, queue/activity cleanup, and setup cancellation.
+playback-to-sign-out teardown, queue/activity cleanup, and setup cancellation,
+including a new sign-in in the same process after a cancel.
 The `partial` mode separately proves that a committed catalog with only
 incomplete album details opens Home, retains its incomplete state across a
 clean restart, and later hydrates the missing tracks through automatic sync.
+The `existing-catalog` mode proves that keep-data sign-out and sign-in returns
+a completed profile to Home. It also proves that a wipe sign-out or a
+cancelled setup followed by a new sign-in starts a fresh setup in the same
+process, and that an interrupted first setup with an already promoted catalog
+leaves `/initial-sync` through a full scan instead of repeating incremental
+discovery. The `partial` mode also repeats manual cache reset and Repair
+Library in one process.
 It uses a deterministic loopback Subsonic fixture and isolated credential file;
 it never reads device third-party credentials or enables personalized Last.fm
 or ListenBrainz discovery, and it must never be run in primary-certification

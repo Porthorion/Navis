@@ -312,6 +312,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Full-screen library setup and rebuilds now start fresh every time: after Cancel and sign out, signing in again no longer stays stuck on "Cancelling and signing out", signing in again after removing data sets the library up again, and a second Repair Library or cache reset in the same session actually runs instead of returning straight to Home. If signing out from setup fails, the screen offers Retry instead of staying on "Cancelling"',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Signing in again after an interrupted first library setup no longer leaves the full-screen setup retrying forever: Retry now rescans the whole library, so setup finishes, or opens Home with any albums the server reports incompletely continuing in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Choosing a speed chip, preset or Reset now sweeps the speed and pitch rulers with haptic ticks every time; previously only the first choice animated with ticks',
         type: ChangelogEntryType.fix,
       ),

@@ -52,17 +52,65 @@ final initialSyncCompletionWarningProvider =
       InitialSyncCompletionWarningController.new,
     );
 
+/// Runs the catalog pass for first setup.
+///
+/// Without a committed catalog the planner already schedules its first-catalog
+/// snapshot. Once a catalog exists (for example after an interrupted setup
+/// followed by a keep-data sign-out and sign-in) the same request plans
+/// bounded incremental discovery instead. That pass never publishes a catalog
+/// and stops at its per-run budgets, so it cannot produce the completion or
+/// usable-partial evidence first setup requires, and every retry would stay on
+/// the full-screen route. Setup then runs the explicit full scan used by cache
+/// upgrade, which publishes the catalog in its own run.
+Future<LibrarySyncState> runInitialCatalogSync(
+  Ref ref, {
+  required bool allowMeteredBroadOverride,
+}) async {
+  final config = ref.read(serverConfigStateProvider).asData?.value;
+  final serverId = config?.id;
+  final hasCommittedCatalog =
+      config?.lastSynced != null ||
+      (serverId != null &&
+          (await ref
+                      .read(navisDatabaseProvider)
+                      .librarySyncDao
+                      .getOrCreateState(serverId))
+                  .currentGeneration >
+              0);
+  final sync = ref.read(librarySyncControllerProvider.notifier);
+  return hasCommittedCatalog
+      ? sync.forceFullSync(allowMeteredBroadOverride: allowMeteredBroadOverride)
+      : sync.syncNow(allowMeteredBroadOverride: allowMeteredBroadOverride);
+}
+
 class InitialServerSyncController extends Notifier<InitialServerSyncState> {
   Future<void>? _inFlight;
+  int _inFlightEpoch = 0;
   int _epoch = 0;
 
   @override
   InitialServerSyncState build() {
+    // Setup belongs to one signed-in session, so signing out and in again in
+    // the same process starts over instead of inheriting a cancelled, failed
+    // or finished setup. Riverpod keeps this notifier across rebuilds; the
+    // epoch supersedes the previous session's runs.
+    ref.watch(
+      serverConfigStateProvider.select((config) {
+        final server = config.asData?.value;
+        return server == null ? null : (server.id, server.url, server.username);
+      }),
+    );
+    _epoch += 1;
     ref.listen<SessionRoutePhase>(sessionRoutePhaseProvider, (_, next) {
       if (next == SessionRoutePhase.initialSyncRequired &&
           (state.status == InitialServerSyncStatus.idle ||
               state.status == InitialServerSyncStatus.complete)) {
         unawaited(start());
+      } else if (next == SessionRoutePhase.ready &&
+          state.status == InitialServerSyncStatus.idle) {
+        state = const InitialServerSyncState(
+          status: InitialServerSyncStatus.complete,
+        );
       }
     });
     ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
@@ -96,10 +144,21 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
       _start(allowMeteredBroadOverride: true);
 
   Future<void> _start({required bool allowMeteredBroadOverride}) {
-    return _inFlight ??= _run(
-      allowMeteredBroadOverride: allowMeteredBroadOverride,
-    ).whenComplete(() => _inFlight = null);
+    if (!ref.mounted) return Future<void>.value();
+    final inFlight = _inFlight;
+    if (inFlight != null && _inFlightEpoch == _epoch) return inFlight;
+    _inFlightEpoch = _epoch;
+    late final Future<void> run;
+    run = _run(allowMeteredBroadOverride: allowMeteredBroadOverride)
+        .whenComplete(() {
+          if (identical(_inFlight, run)) _inFlight = null;
+        });
+    return _inFlight = run;
   }
+
+  /// Whether a run may still publish state: no cancellation or session change
+  /// superseded it.
+  bool _isCurrent(int runEpoch) => ref.mounted && runEpoch == _epoch;
 
   Future<void> _run({required bool allowMeteredBroadOverride}) async {
     final runEpoch = _epoch;
@@ -111,6 +170,9 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
       );
       return;
     }
+    // The phase listener starts setup once the session is known to need it;
+    // a completed profile must not run a setup pass while its phase loads.
+    if (phase == SessionRoutePhase.loading) return;
     final reachability = ref.read(serverReachabilityControllerProvider);
     final policy = ref.read(syncNetworkPolicyProvider);
     if (reachability.status != ServerReachabilityStatus.online ||
@@ -132,11 +194,12 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
     );
     late final LibrarySyncState result;
     try {
-      result = await ref
-          .read(librarySyncControllerProvider.notifier)
-          .syncNow(allowMeteredBroadOverride: allowMeteredBroadOverride);
+      result = await runInitialCatalogSync(
+        ref,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+      );
     } on Object catch (error) {
-      if (runEpoch == _epoch &&
+      if (_isCurrent(runEpoch) &&
           state.status != InitialServerSyncStatus.cancelling) {
         state = InitialServerSyncState(
           status: InitialServerSyncStatus.failed,
@@ -145,7 +208,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
       }
       return;
     }
-    if (runEpoch != _epoch ||
+    if (!_isCurrent(runEpoch) ||
         state.status == InitialServerSyncStatus.cancelling) {
       return;
     }
@@ -157,7 +220,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
           serverId: serverId,
           result: result,
         );
-    if (runEpoch != _epoch ||
+    if (!_isCurrent(runEpoch) ||
         state.status == InitialServerSyncStatus.cancelling) {
       return;
     }
@@ -193,8 +256,20 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
     // takes longer, but an empty first-sync profile can otherwise skip this
     // feedback entirely.
     await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!ref.mounted) return;
     await ref.read(signOutServiceProvider).signOut(wipeLocalData: true);
+    if (!ref.mounted) return;
     await ref.read(serverConfigProvider.notifier).refresh();
+    if (!ref.mounted) return;
     ref.invalidate(initialSyncRequiredProvider);
+    // A completed sign-out has already reset this controller for the next
+    // session. Sign-out steps fail softly, so a session can survive it; offer
+    // retry rather than leaving setup in `cancelling`.
+    if (state.status == InitialServerSyncStatus.cancelling) {
+      state = const InitialServerSyncState(
+        status: InitialServerSyncStatus.failed,
+        errorMessage: 'Sign-out did not complete. Try again.',
+      );
+    }
   }
 }
