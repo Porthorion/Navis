@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Pages that cannot load something from your server, such as Radio on a server without internet radio, now show why straight away instead of loading for about 40 seconds and asking the server again ten times',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Linux and Windows, Navis now checks your server\'s HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection',
         type: ChangelogEntryType.fix,
       ),

@@ -303,6 +303,17 @@ search.
   session-scoped and is force-closed during logout
 - **Explicit disposal**: Audio handler and cache managers have explicit cleanup
 
+**Retry policy.** Both the root container (`main.dart`) and the Android
+background worker's container use `navisProviderRetry`
+(`lib/src/providers/provider_retry.dart`) instead of Riverpod 3's default,
+which retries any failed provider ten times over about 40 seconds and reports
+each attempt as loading. Only failures that can pass on their own (a dropped
+connection, `SubsonicConnectionException`, a socket or timeout error, or
+HTTP 429/502/503/504/530) are retried, three times within about 1.4 seconds;
+an error the server returned, such as an unsupported endpoint, reaches the
+error state at once. Nested `ProviderScope`s inherit the policy; tests that
+build their own containers keep Riverpod's default unless they pass it.
+
 ### Authentication, initial catalog, and teardown
 
 Navis retains one local server/account profile. Its stable identity is the

@@ -16,6 +16,7 @@ import 'package:navis/src/features/cache/presentation/library_cache_reset_provid
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
@@ -156,6 +157,7 @@ ProviderContainer _createRootProviderContainer({
   var remainingInjectedBootstrapFailures =
       _diagnosticsAudioBootstrapFailureAttempts;
   return ProviderContainer(
+    retry: navisProviderRetry,
     observers: [
       if (_syncDiagnosticsRuntimeEnabled) _diagnosticsProviderCounter,
     ],
