@@ -391,6 +391,30 @@ Future<List<ListenBrainzDiscoverPlaylist>> _firstListenBrainzEmission(
   }
 }
 
+/// Waits until the Home stream has finished matching (and persisting) every
+/// playlist, so a test does not close the database under its writes.
+Future<void> _listenBrainzStreamSettled(ProviderContainer container) async {
+  final settled = Completer<void>();
+  final subscription = container
+      .listen<AsyncValue<List<ListenBrainzDiscoverPlaylist>>>(
+        listenBrainzDiscoverStreamProvider,
+        (previous, next) {
+          next.whenData((value) {
+            if (!settled.isCompleted &&
+                value.every((playlist) => playlist.matchingComplete)) {
+              settled.complete();
+            }
+          });
+        },
+        fireImmediately: true,
+      );
+  try {
+    await settled.future;
+  } finally {
+    subscription.close();
+  }
+}
+
 void main() {
   setUp(debugResetListenBrainzDiscoverSessionCacheForTests);
 
@@ -1350,6 +1374,9 @@ void main() {
     final finalResult = await container.read(
       listenBrainzDiscoverProvider.future,
     );
+
+    // The stream the first emission came from matches on its own.
+    await _listenBrainzStreamSettled(container);
 
     expect(first.every((playlist) => playlist.recommendations.isEmpty), isTrue);
     expect(finalResult.single.playableSongs.single.id, 'fresh-song');

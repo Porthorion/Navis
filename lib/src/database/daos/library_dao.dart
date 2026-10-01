@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
@@ -3646,21 +3647,70 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// built from these makes the same matches as one built from the whole
   /// library, without loading every song. Rows whose keys are stale are
   /// included and matched in Dart, and trigger an index refresh.
+  ///
+  /// The artist fallback depends only on the artist key, so it is tested
+  /// once per distinct key (a few thousand) instead of once per song, and the
+  /// matching songs are then read through the title and artist key indexes.
   Future<List<SongsTableData>> getTrackMatchCandidates(
     Iterable<({String title, String artist})> tracks,
   ) async {
-    final titleKeys = <String>{};
-    final artistKeys = <String>{};
-    for (final track in tracks) {
-      final title = normalizeMetadata(track.title);
-      if (title.isNotEmpty) titleKeys.add(title);
-      final artist = normalizeMetadata(track.artist);
-      if (artist.isNotEmpty) artistKeys.add(artist);
+    final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
+    final matchedArtists = <String>[];
+    if (artistKeys.isNotEmpty) {
+      final keys = await customSelect(
+        'SELECT DISTINCT match_artist AS a FROM song_search_text '
+        "WHERE match_artist <> ''",
+        readsFrom: {songSearchTextTable},
+      ).map((row) => row.read<String>('a')).get();
+      for (final key in keys) {
+        if (artistKeys.any(
+              (artist) => key.contains(artist) || artist.contains(key),
+            ) ||
+            key.split(' ').any(artistTokens.contains)) {
+          matchedArtists.add(key);
+        }
+      }
     }
-    final artistTokens = <String>{
-      for (final artist in artistKeys)
-        ...artist.split(' ').where((token) => token.length > 1),
-    };
+    final rows = await customSelect(
+      '''
+      SELECT songs.*,
+        t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL
+          AS index_stale
+      FROM songs
+      LEFT JOIN song_search_text t ON t.song_id = songs.id
+      WHERE songs.server_deleted_at IS NULL AND songs.is_provisional = 0
+        AND songs.id IN (
+          SELECT song_id FROM song_search_text
+          WHERE match_title IN (SELECT value FROM json_each(?))
+          UNION
+          SELECT song_id FROM song_search_text
+          WHERE match_artist IN (SELECT value FROM json_each(?))
+          UNION
+          SELECT songs.id FROM songs
+          LEFT JOIN song_search_text t ON t.song_id = songs.id
+          WHERE t.source IS NOT ($_songSearchSourceSql)
+            OR t.match_title IS NULL
+        )
+      ''',
+      variables: [
+        Variable<String>(jsonEncode(titleKeys.toList(growable: false))),
+        Variable<String>(jsonEncode(matchedArtists)),
+      ],
+      readsFrom: {songsTable, songSearchTextTable},
+    ).get();
+    if (rows.any((row) => row.read<bool>('index_stale'))) {
+      unawaited(scheduleSongSearchIndexRefresh());
+    }
+    return rows.map((row) => songsTable.map(row.data)).toList();
+  }
+
+  /// [getTrackMatchCandidates] as one scan that tests every song's artist
+  /// key in SQL; the reference its indexed lookup must agree with.
+  @visibleForTesting
+  Future<List<SongsTableData>> debugTrackMatchCandidatesByFullScan(
+    Iterable<({String title, String artist})> tracks,
+  ) async {
+    final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final conditions = <String>[
       't.source IS NOT ($_songSearchSourceSql)',
       't.match_title IS NULL',
@@ -3689,9 +3739,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     final rows = await customSelect(
       '''
-      SELECT songs.*,
-        t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL
-          AS index_stale
+      SELECT songs.*
       FROM songs
       LEFT JOIN song_search_text t ON t.song_id = songs.id
       WHERE songs.server_deleted_at IS NULL AND songs.is_provisional = 0
@@ -3700,10 +3748,31 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       variables: variables,
       readsFrom: {songsTable, songSearchTextTable},
     ).get();
-    if (rows.any((row) => row.read<bool>('index_stale'))) {
-      unawaited(scheduleSongSearchIndexRefresh());
-    }
     return rows.map((row) => songsTable.map(row.data)).toList();
+  }
+
+  static ({
+    Set<String> titleKeys,
+    Set<String> artistKeys,
+    Set<String> artistTokens,
+  })
+  _trackMatchKeys(Iterable<({String title, String artist})> tracks) {
+    final titleKeys = <String>{};
+    final artistKeys = <String>{};
+    for (final track in tracks) {
+      final title = normalizeMetadata(track.title);
+      if (title.isNotEmpty) titleKeys.add(title);
+      final artist = normalizeMetadata(track.artist);
+      if (artist.isNotEmpty) artistKeys.add(artist);
+    }
+    return (
+      titleKeys: titleKeys,
+      artistKeys: artistKeys,
+      artistTokens: <String>{
+        for (final artist in artistKeys)
+          ...artist.split(' ').where((token) => token.length > 1),
+      },
+    );
   }
 
   static const String _songSearchSourceSql =

@@ -2030,7 +2030,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
   share a word. A snapshot built from those makes the same matches as one
-  built from the whole library. Deferred maintenance normalizes in an isolate.
+  built from the whole library. The artist rules are tested once per distinct
+  `match_artist` key (indexed, like `match_title`), not once per song, and
+  the matching songs are read through the two key indexes;
+  `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
+  reference. Deferred maintenance normalizes in an isolate.
 - The artist page reads its albums through `album_artist_index`, a derived
   table of each album's artist keys (`i:<id>` for the album artist and each
   credit, `n:<normalized name>` for a name-only album artist and each credited

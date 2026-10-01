@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Artist top tracks and ListenBrainz playlists on Home find their songs in large libraries more than twice as fast, with the same matches as before',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
         type: ChangelogEntryType.fix,
       ),
