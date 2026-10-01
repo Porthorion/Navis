@@ -57,6 +57,19 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       (_, next) => _onServerConfigChanged(next),
     );
 
+    // The API client appears shortly after the session (its credentials are
+    // read asynchronously): check as soon as it exists rather than at the
+    // next retry, which kept "Server unreachable" up for up to 30 seconds
+    // after signing in.
+    ref.listen<PingServer?>(pingServerProvider, (previous, next) {
+      if (previous == null &&
+          next != null &&
+          _hasAuthenticatedSession &&
+          state.status != ServerReachabilityStatus.online) {
+        unawaited(_checkReachability());
+      }
+    });
+
     ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (
       _,
       next,
@@ -127,17 +140,13 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       return;
     }
     if (ping == null) {
-      final now = DateTime.now();
+      // No client for the session yet: nothing has been tried, so this is
+      // not "unreachable". The pingServerProvider listener checks once the
+      // client exists.
       state = state.copyWith(
-        status: ServerReachabilityStatus.offline,
-        lastCheckedAt: now,
-        lastErrorMessage: 'Missing authenticated session.',
-        consecutiveFailureCount: state.consecutiveFailureCount + 1,
-        showRetryBanner: _shouldShowRetryBanner(
-          state.consecutiveFailureCount + 1,
-        ),
+        status: ServerReachabilityStatus.checking,
+        clearErrorMessage: true,
       );
-      _scheduleRetryTimer();
       return;
     }
 

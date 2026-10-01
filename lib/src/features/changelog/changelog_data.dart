@@ -184,6 +184,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Right after signing in, Navis no longer shows "Server unreachable. Retrying every 30s." for up to half a minute while it is still connecting',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'When Navis asks you to sign in again to the same server, the server address and username are already filled in',
         type: ChangelogEntryType.improvement,
       ),
