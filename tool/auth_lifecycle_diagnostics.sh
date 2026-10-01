@@ -795,7 +795,9 @@ wait_for_rebuild_status 'clearingCache syncing' \
 capture_screenshot setup-running \
   "$OUTPUT_ROOT/setup-running-screenshot.json" \
   > "$OUTPUT_ROOT/setup-running-screenshot-path.txt"
-wait_for_rebuild_status complete "$OUTPUT_ROOT/setup-complete-screen.json" 14400
+# The controller is disposed once setup ends and the app leaves the screen.
+wait_for_rebuild_status 'complete inactive' \
+  "$OUTPUT_ROOT/setup-complete-screen.json" 14400
 wait_for_session ready '' "$OUTPUT_ROOT/setup-complete.json" 600
 capture_screenshot setup-complete-home \
   "$OUTPUT_ROOT/setup-complete-screenshot.json" \
