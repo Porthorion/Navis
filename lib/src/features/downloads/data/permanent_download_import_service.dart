@@ -148,7 +148,7 @@ class PermanentDownloadImportService {
 
   Future<PermanentDownloadImportPreview> preview(Directory root) async {
     if (_isSafTreeUri(root.path)) {
-      return _previewSaf(root.path);
+      return await _previewSaf(root.path);
     }
     final identity = await DownloadRootIdentity.resolve(root.path);
     final canonicalRoot = identity.canonicalRoot;
@@ -533,7 +533,7 @@ class PermanentDownloadImportService {
     bool includeRecognized = true,
   }) async {
     if (_isSafTreeUri(preview.rootPath)) {
-      return _commitSaf(
+      return await _commitSaf(
         preview,
         manualSongIds: manualSongIds,
         includeRecognized: includeRecognized,
@@ -558,6 +558,8 @@ class PermanentDownloadImportService {
           if (songId != null) {
             final file = File(identity.pathFor(item.relativePath));
             if (await file.exists()) {
+              // Keep metadata access asynchronous so storage latency cannot stall UI.
+              // ignore: avoid_slow_async_io
               final stat = await file.stat();
               _writeManifestRecord(
                 manifest,
@@ -589,6 +591,8 @@ class PermanentDownloadImportService {
           skipped++;
           continue;
         }
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         final stat = await file.stat();
         rows.add(
           CachedTracksTableCompanion.insert(
@@ -718,7 +722,7 @@ class PermanentDownloadImportService {
       // sqlite accepts repeated close poorly, so only close when still open.
       try {
         manifest.close();
-      } catch (_) {}
+      } on Object catch (_) {}
       await manifestFile.delete().catchError((_) => manifestFile);
     }
   }
@@ -815,7 +819,7 @@ class PermanentDownloadImportService {
     } finally {
       try {
         manifest.close();
-      } catch (_) {}
+      } on Object catch (_) {}
       await manifestFile.delete().catchError((_) => manifestFile);
     }
   }
@@ -905,7 +909,7 @@ class PermanentDownloadImportService {
     );
     db.execute('PRAGMA journal_mode=DELETE;');
     db.execute(
-      'CREATE TABLE IF NOT EXISTS download_records ('
+      'CREATE TABLE IF NOT EXISTS download_records ( '
       'relative_path TEXT PRIMARY KEY, song_id TEXT NOT NULL, '
       'profile_fingerprint TEXT NOT NULL, file_size INTEGER NOT NULL, '
       'format TEXT NOT NULL, updated_at INTEGER NOT NULL)',
@@ -917,7 +921,7 @@ class PermanentDownloadImportService {
     final db = sqlite3.open(file.path);
     db.execute('PRAGMA journal_mode=DELETE;');
     db.execute(
-      'CREATE TABLE IF NOT EXISTS download_records ('
+      'CREATE TABLE IF NOT EXISTS download_records ( '
       'relative_path TEXT PRIMARY KEY, song_id TEXT NOT NULL, '
       'profile_fingerprint TEXT NOT NULL, file_size INTEGER NOT NULL, '
       'format TEXT NOT NULL, updated_at INTEGER NOT NULL)',

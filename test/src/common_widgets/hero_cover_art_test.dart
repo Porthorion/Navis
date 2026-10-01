@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,11 +143,9 @@ class _HeroSourcePage extends StatelessWidget {
             GestureDetector(
               key: const Key('open-album'),
               onTap: () {
-                unawaited(
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const _HeroDestinationPage(),
-                    ),
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _HeroDestinationPage(),
                   ),
                 );
               },

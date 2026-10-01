@@ -14,6 +14,10 @@ class AndroidSafStorage {
     'com.navis.app/permanent_download_storage',
   );
 
+  static const MethodChannel _playbackChannel = MethodChannel(
+    'com.navis.app/permanent_download_playback',
+  );
+
   static bool get isSafLocator => Platform.isAndroid;
 
   Future<AndroidSafTree> inspectTree(String treeUri) async {
@@ -144,7 +148,7 @@ class AndroidSafStorage {
 
   Future<bool> exists(String uri) async {
     return await _invoke<bool?>(
-          () => _channel.invokeMethod<bool>('exists', <String, Object?>{
+          () => _playbackChannel.invokeMethod<bool>('exists', <String, Object?>{
             'uri': uri,
           }),
           'Could not check the selected document.',
@@ -184,6 +188,8 @@ class AndroidSafStorage {
     return uri;
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> diagnosticsFixtureSetReadDenied(bool denied) =>
       _channel.invokeMethod<void>(
         'diagnosticsFixtureSetReadDenied',
@@ -258,6 +264,8 @@ Future<bool> storedAudioExists({
   if (!isSaf) {
     try {
       final file = File(locator);
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       return await file.exists() && await file.length() > 0;
     } on FileSystemException {
       return false;

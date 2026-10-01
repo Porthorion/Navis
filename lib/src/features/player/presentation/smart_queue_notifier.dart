@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,7 +84,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
       // Determine the seed for this refill based on profile strategy.
       final seed = _chooseSeed(profile, next);
       if (seed != null) {
-        _refill(seed);
+        unawaited(_refill(seed));
       }
     }
   }

@@ -328,7 +328,7 @@ class _NavisMprisObject extends DBusObject {
   Duration _position = Duration.zero;
   bool _shuffleEnabled = false;
   String _loopStatus = 'None';
-  double _rate = 1.0;
+  double _rate = 1;
   NavisOsControlCapabilities _capabilities = NavisOsControlCapabilities.idle;
 
   /// Current track D-Bus object path; used to validate `SetPosition` calls.
@@ -473,6 +473,8 @@ class _NavisMprisObject extends DBusObject {
     );
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void updatePosition(Duration position) {
     _position = position;
   }
@@ -748,12 +750,12 @@ class _NavisMprisObject extends DBusObject {
         'Rate' => DBusGetPropertyResponse(DBusDouble(_rate)),
         'Shuffle' => DBusGetPropertyResponse(DBusBoolean(_shuffleEnabled)),
         'Metadata' => DBusGetPropertyResponse(_metadata),
-        'Volume' => DBusGetPropertyResponse(const DBusDouble(1.0)),
+        'Volume' => DBusGetPropertyResponse(const DBusDouble(1)),
         'Position' => DBusGetPropertyResponse(
           DBusInt64(_position.inMicroseconds),
         ),
         'MinimumRate' => DBusGetPropertyResponse(const DBusDouble(0.5)),
-        'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2.0)),
+        'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2)),
         'CanGoNext' => DBusGetPropertyResponse(
           DBusBoolean(_capabilities.canSkipNext),
         ),
@@ -827,10 +829,10 @@ class _NavisMprisObject extends DBusObject {
         'Rate': DBusDouble(_rate),
         'Shuffle': DBusBoolean(_shuffleEnabled),
         'Metadata': _metadata,
-        'Volume': const DBusDouble(1.0),
+        'Volume': const DBusDouble(1),
         'Position': DBusInt64(_position.inMicroseconds),
         'MinimumRate': const DBusDouble(0.5),
-        'MaximumRate': const DBusDouble(2.0),
+        'MaximumRate': const DBusDouble(2),
         'CanGoNext': DBusBoolean(_capabilities.canSkipNext),
         'CanGoPrevious': DBusBoolean(_capabilities.canSkipPrevious),
         'CanPlay': DBusBoolean(_capabilities.canPlay),

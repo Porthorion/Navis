@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -44,12 +46,14 @@ void main() {
                   if (desktopMenu) {
                     final renderBox =
                         buttonContext.findRenderObject()! as RenderBox;
-                    showDesktopContextMenu<String>(
-                      context: buttonContext,
-                      anchor: renderBox.localToGlobal(
-                        renderBox.size.center(Offset.zero),
+                    unawaited(
+                      showDesktopContextMenu<String>(
+                        context: buttonContext,
+                        anchor: renderBox.localToGlobal(
+                          renderBox.size.center(Offset.zero),
+                        ),
+                        items: actions,
                       ),
-                      items: actions,
                     );
                     return;
                   }

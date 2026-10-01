@@ -1377,13 +1377,20 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           allowedExtensions: ['txt', 'json'],
         );
         if (file != null) {
-          if (await file.length() > EqImportParser.maximumBytes) {
+          // Some platforms cannot report the size before reading, so the
+          // bytes read are checked as well.
+          final size = await file.length();
+          if (size != null && size > EqImportParser.maximumBytes) {
+            throw EqImportException(EqImportErrorCode.tooLarge);
+          }
+          final bytes = await file.readAsBytes();
+          if (bytes.length > EqImportParser.maximumBytes) {
             throw EqImportException(EqImportErrorCode.tooLarge);
           }
           // The contents decide the format and encoding; the file name is
           // only the suggested preset name.
           imported = EqImportParser().parseBytes(
-            await file.readAsBytes(),
+            bytes,
             id: 'preview',
             name: file.name.replaceAll(
               RegExp(r'\.(txt|json)$', caseSensitive: false),

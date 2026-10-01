@@ -63,8 +63,10 @@ class DesktopShortcutBinding {
   String formatLabel(TargetPlatform platform) {
     final isApple = platform == TargetPlatform.macOS;
     final parts = <String>[
-      if (primaryModifier) isApple ? 'Cmd' : 'Ctrl',
-      if (alt) isApple ? 'Option' : 'Alt',
+      if (primaryModifier)
+        if (isApple) 'Cmd' else 'Ctrl',
+      if (alt)
+        if (isApple) 'Option' else 'Alt',
       if (shift) 'Shift',
       _shortcutKeyLabel(key),
     ];

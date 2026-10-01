@@ -10,7 +10,7 @@ part 'play_queue_dao.g.dart';
 @DriftAccessor(tables: [PlayQueueTable, PlayQueueItemsTable, SongsTable])
 class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
     with _$PlayQueueDaoMixin {
-  new(super.db);
+  new(super.attachedDatabase);
 
   static const int primaryQueueId = 1;
 

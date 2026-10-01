@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -8,6 +12,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -30,26 +35,50 @@ Widget _buildWidget({
   return ProviderScope(
     overrides: overrides.cast(),
     child: MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
     ),
   );
 }
 
-Future<void> _disposeCacheManager(CacheManager manager) async {
-  await Future<void>.delayed(const Duration(milliseconds: 200));
-  try {
-    await manager.dispose();
-  } on Object {
-    // flutter_cache_manager can throw when disposed before its JSON repository
-    // has finished lazy initialization; these tests only need provider cleanup.
-  }
+Future<CacheManager> _createCacheManager(
+  WidgetTester tester,
+  CoverArtLoadCoordinator coordinator,
+) async {
+  // Repository I/O and persistence must drain outside fake time. Ensure open
+  // completes before the widget uses the manager or teardown closes it.
+  return (await tester.runAsync(() async {
+    final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
+    await manager.getFileFromCache('initialization-probe');
+    return manager;
+  }))!;
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory cacheDirectory;
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   setUpAll(() {
+    cacheDirectory = Directory.systemTemp.createTempSync(
+      'navis-cover-art-test-',
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathProviderChannel, (call) async {
+          if (call.method == 'getTemporaryDirectory' ||
+              call.method == 'getApplicationSupportDirectory') {
+            return cacheDirectory.path;
+          }
+          throw UnsupportedError(
+            'Unexpected path-provider call: ${call.method}',
+          );
+        });
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  });
+  tearDownAll(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathProviderChannel, null);
+    cacheDirectory.deleteSync(recursive: true);
   });
 
   group('CoverArtImage', () {
@@ -92,8 +121,8 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
-      addTearDown(() => _disposeCacheManager(manager));
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
 
       await tester.pumpWidget(
         _buildWidget(
@@ -131,8 +160,8 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
-      addTearDown(() => _disposeCacheManager(manager));
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
 
       await tester.pumpWidget(
         _buildWidget(
@@ -145,7 +174,7 @@ void main() {
             height: 100,
             width: 100,
             child: ListView(
-              cacheExtent: 400,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(400),
               children: const <Widget>[
                 SizedBox(height: 150),
                 CoverArtImage(
@@ -173,8 +202,8 @@ void main() {
       tester,
     ) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
-      addTearDown(() => _disposeCacheManager(manager));
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
 
       await tester.pumpWidget(
         _buildWidget(
@@ -187,7 +216,7 @@ void main() {
             height: 100,
             width: 100,
             child: ListView(
-              cacheExtent: 500,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(500),
               children: const <Widget>[
                 SizedBox(height: 350),
                 CoverArtImage(
@@ -213,8 +242,8 @@ void main() {
 
     testWidgets('critical images bypass viewport deferral', (tester) async {
       final coordinator = CoverArtLoadCoordinator();
-      final manager = createCoverArtCacheManager(loadCoordinator: coordinator);
-      addTearDown(() => _disposeCacheManager(manager));
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
 
       await tester.pumpWidget(
         _buildWidget(

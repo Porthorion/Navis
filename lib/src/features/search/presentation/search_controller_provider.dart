@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/routing/app_shell.dart';
+library;
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -61,10 +64,12 @@ final searchFilterProvider =
     );
 
 /// Whether the desktop quick-search overlay is currently visible.
-/// Updated by [_AppShellState] when the overlay opens / closes.
+/// Updated by [AppShell] when the overlay opens / closes.
 class QuickSearchOverlayVisibleNotifier extends Notifier<bool> {
   @override
   bool build() => false;
+
+  bool get visible => state;
 
   set visible(bool value) => state = value;
 }

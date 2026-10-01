@@ -2588,7 +2588,7 @@ void main() {
         // The compatible bulk index now completes but omits album-1, as a
         // capped global song index does. Its unchanged hydrated local songs
         // should be reused without another getAlbum call.
-        api..calls.clear();
+        api.calls.clear();
         final result = await tailEngine.forceFullSync();
 
         expect(result.status, LibrarySyncStatus.succeeded);

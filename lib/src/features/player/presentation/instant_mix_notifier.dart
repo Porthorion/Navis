@@ -153,8 +153,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       }
       final seedSongId = next.currentSongId ?? state.seedSongId;
       if (seedSongId != null) {
-        // ignore: discarded_futures
-        _refill(seedSongId);
+        unawaited(_refill(seedSongId));
       }
     }
   }

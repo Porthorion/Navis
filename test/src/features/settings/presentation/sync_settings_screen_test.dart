@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -55,7 +56,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
 
   @override
   Future<bool> discardAwaitingRepairCandidate() async {
-    return onDiscardRepairCandidate?.call() ?? false;
+    return await (onDiscardRepairCandidate?.call() ?? false);
   }
 
   @override
@@ -142,7 +143,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -204,7 +205,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -275,7 +276,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -352,7 +353,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -432,7 +433,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -538,7 +539,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -606,7 +607,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),
         ),
@@ -682,7 +683,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -780,7 +781,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),

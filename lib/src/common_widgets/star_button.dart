@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -74,7 +76,7 @@ class _StarButtonState extends State<StarButton>
   }
 
   void _handlePress() {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     widget.onPressed?.call();
   }
 

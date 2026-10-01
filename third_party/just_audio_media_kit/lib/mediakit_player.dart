@@ -12,7 +12,6 @@ import 'src/equalizer_chain.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
-
   MediaKitPlayer(super.id, {EqualizerConfigurationMessage? equalizer}) {
     _equalizer = equalizer;
     _player = Player(
@@ -40,8 +39,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         if (rate != _sampleRate) {
           _sampleRate = rate;
           if (_equalizer != null) {
-            unawaited(
-                _serializeAudio(_applyAudio).catchError((Object error) {
+            unawaited(_serializeAudio(_applyAudio).catchError((Object error) {
               _eqState = EqualizerStateMessage(
                   enabled: false,
                   sampleRate: _sampleRate,

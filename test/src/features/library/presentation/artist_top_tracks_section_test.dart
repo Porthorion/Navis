@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -79,7 +80,7 @@ Future<_QueueSpyController> _pumpTopTracksSection(
       ],
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(
           body: ArtistTopTracksSection(artistName: 'Test Artist'),
@@ -191,7 +192,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AdaptiveContextScope(
             adaptiveContext: resolveAdaptiveContext(

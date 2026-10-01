@@ -140,6 +140,7 @@ void main() {
         expect(diagnostics['pages'], greaterThan(0));
         // Generous wall-clock bound; the recorded numbers are the evidence.
         expect(watch.elapsed, lessThan(const Duration(minutes: 10)));
+        // This opt-in benchmark reports measured timings to its runner.
         // ignore: avoid_print
         print(
           'promotion measurement: songs=${counts.songs} '

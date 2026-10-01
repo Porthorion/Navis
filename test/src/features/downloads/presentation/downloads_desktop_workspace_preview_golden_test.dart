@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, bool commandStrip) =>
+  Future<void> pump(WidgetTester tester, {required bool commandStrip}) =>
       tester.pumpWidget(
         MaterialApp(
           theme: buildDarkTheme(Colors.deepPurple),
@@ -16,7 +16,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, commandStrip: false);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/downloads_desktop_workspace_before.png'),
@@ -28,7 +28,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(960, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, commandStrip: true);
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/downloads_desktop_workspace_after.png'),

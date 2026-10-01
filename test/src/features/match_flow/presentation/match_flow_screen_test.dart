@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -232,7 +233,7 @@ Widget _buildTestApp(
     ),
     child: MaterialApp(
       theme: testTheme(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: adaptiveContext == null
           ? const MatchFlowScreen()

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -210,7 +211,7 @@ Widget _buildLibraryScreen({
     ),
     child: MaterialApp(
       theme: testTheme(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       builder: adaptiveContext == null
           ? null
@@ -295,7 +296,7 @@ Widget _buildLibraryScreenRouter({
     ),
     child: MaterialApp.router(
       theme: testTheme(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
     ),
@@ -1679,7 +1680,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const LibraryScreen(),
           ),
@@ -1733,7 +1734,7 @@ void main() {
             container: container,
             child: MaterialApp(
               theme: testTheme(),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const LibraryScreen(),
             ),
@@ -2057,7 +2058,7 @@ void main() {
             container: container,
             child: MaterialApp(
               theme: testTheme(),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const LibraryScreen(),
             ),

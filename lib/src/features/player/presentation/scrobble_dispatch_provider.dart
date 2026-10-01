@@ -44,7 +44,7 @@ class ScrobbleDispatchController extends Notifier<int> {
       }
     });
 
-    Future<void>.microtask(service.flushDue);
+    unawaited(Future<void>.microtask(service.flushDue));
     return 0;
   }
 }

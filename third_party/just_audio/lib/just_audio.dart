@@ -62,7 +62,6 @@ JustAudioPlatform get _pluginPlatform {
 /// You must call [stop] or [dispose] to release the resources used by this
 /// player, including any temporary files created to cache assets.
 class AudioPlayer {
-
   /// Creates an [AudioPlayer].
   ///
   /// Apps requesting remote URLs should set the [userAgent] parameter which
@@ -1842,8 +1841,8 @@ class AudioPlayer {
 /// source, including an invalid or inaccessible URL, or an audio encoding that
 /// could not be understood.
 class PlayerException implements Exception {
-
   PlayerException(this.code, this.message, this.index);
+
   /// On iOS and macOS, maps to `NSError.code`. On Android, maps to
   /// `ExoPlaybackException.type`. On Web, maps to `MediaError.code`.
   final int code;
@@ -1863,7 +1862,6 @@ class PlayerException implements Exception {
 /// An error that occurs when one operation on the player has been interrupted
 /// (e.g. by another simultaneous operation).
 class PlayerInterruptedException implements Exception {
-
   PlayerInterruptedException(this.message);
   final String? message;
 
@@ -1873,9 +1871,9 @@ class PlayerInterruptedException implements Exception {
 
 /// Encapsulates the playback event and the playing state of the player.
 class PlayerEvent {
-
   PlayerEvent({PlaybackEvent? playbackEvent, this.playing = false})
       : playbackEvent = playbackEvent ?? PlaybackEvent();
+
   /// The current [PlaybackEvent]
   final PlaybackEvent playbackEvent;
 
@@ -1910,7 +1908,6 @@ class PlayerEvent {
 
 /// Encapsulates the playback state and current position of the player.
 class PlaybackEvent {
-
   PlaybackEvent({
     this.processingState = ProcessingState.idle,
     DateTime? updateTime,
@@ -1923,6 +1920,7 @@ class PlaybackEvent {
     this.errorCode,
     this.errorMessage,
   }) : updateTime = updateTime ?? DateTime.now();
+
   /// The current processing state.
   final ProcessingState processingState;
 
@@ -2045,8 +2043,8 @@ enum ProcessingState {
 /// you can check [playing] to determine whether the buffering occurred while
 /// the player was playing or while the player was paused.
 class PlayerState {
-
   PlayerState(this.playing, this.processingState);
+
   /// Whether the player will play when [processingState] is
   /// [ProcessingState.ready].
   final bool playing;
@@ -2069,7 +2067,6 @@ class PlayerState {
 }
 
 class IcyInfo {
-
   IcyInfo({required this.title, required this.url});
   final String? title;
   final String? url;
@@ -2094,7 +2091,6 @@ class IcyInfo {
 }
 
 class IcyHeaders {
-
   IcyHeaders({
     required this.bitrate,
     required this.genre,
@@ -2139,7 +2135,6 @@ class IcyHeaders {
 }
 
 class IcyMetadata {
-
   IcyMetadata({required this.info, required this.headers});
   final IcyInfo? info;
   final IcyHeaders? headers;
@@ -2167,7 +2162,6 @@ class IcyMetadata {
 /// `sequence.length`. If `sequence.length` is 0, then [currentIndex] is also
 /// 0.
 class SequenceState {
-
   SequenceState({
     required this.sequence,
     required int? currentIndex,
@@ -2226,12 +2220,12 @@ class SequenceState {
 
 /// Configuration options to use when loading audio from a source.
 class AudioLoadConfiguration {
-
   const AudioLoadConfiguration({
     this.darwinLoadControl,
     this.androidLoadControl,
     this.androidLivePlaybackSpeedControl,
   });
+
   /// Bufferring and loading options for iOS/macOS.
   final DarwinLoadControl? darwinLoadControl;
 
@@ -2251,13 +2245,13 @@ class AudioLoadConfiguration {
 
 /// Buffering and loading options for iOS/macOS.
 class DarwinLoadControl {
-
   const DarwinLoadControl({
     this.automaticallyWaitsToMinimizeStalling = true,
     this.preferredForwardBufferDuration,
     this.canUseNetworkResourcesForLiveStreamingWhilePaused = false,
     this.preferredPeakBitRate,
   });
+
   /// (iOS/macOS) Whether the player will wait for sufficient data to be
   /// buffered before starting playback to avoid the likelihood of stalling.
   final bool automaticallyWaitsToMinimizeStalling;
@@ -2287,7 +2281,6 @@ class DarwinLoadControl {
 
 /// Buffering and loading options for Android.
 class AndroidLoadControl {
-
   const AndroidLoadControl({
     this.minBufferDuration = const Duration(seconds: 50),
     this.maxBufferDuration = const Duration(seconds: 50),
@@ -2297,6 +2290,7 @@ class AndroidLoadControl {
     this.prioritizeTimeOverSizeThresholds = false,
     this.backBufferDuration = Duration.zero,
   });
+
   /// (Android) The minimum duration of audio that should be buffered ahead of
   /// the current position.
   final Duration minBufferDuration;
@@ -2337,7 +2331,6 @@ class AndroidLoadControl {
 
 /// Speed control for live streams on Android.
 class AndroidLivePlaybackSpeedControl {
-
   const AndroidLivePlaybackSpeedControl({
     this.fallbackMinPlaybackSpeed = 0.97,
     this.fallbackMaxPlaybackSpeed = 1.03,
@@ -2348,6 +2341,7 @@ class AndroidLivePlaybackSpeedControl {
         const Duration(milliseconds: 500),
     this.minPossibleLiveOffsetSmoothingFactor = 0.999,
   });
+
   /// (Android) The minimum playback speed to use when adjusting playback speed
   /// to approach the target live offset, if none is defined by the media.
   final double fallbackMinPlaybackSpeed;
@@ -2405,12 +2399,12 @@ enum AndroidAudioOffloadMode { disabled, enabled }
 /// audio offload only on device/OS combinations that you have tested and
 /// verified to work.
 class AndroidAudioOffloadPreferences {
-
   const AndroidAudioOffloadPreferences({
     this.audioOffloadMode = AndroidAudioOffloadMode.disabled,
     this.isGaplessSupportRequired = false,
     this.isSpeedChangeSupportRequired = false,
   });
+
   /// The preferred audio offload mode.
   final AndroidAudioOffloadMode audioOffloadMode;
 
@@ -2433,7 +2427,6 @@ class AndroidAudioOffloadPreferences {
 }
 
 class ProgressiveAudioSourceOptions {
-
   const ProgressiveAudioSourceOptions({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
@@ -2449,7 +2442,6 @@ class ProgressiveAudioSourceOptions {
 }
 
 class DarwinAssetOptions {
-
   const DarwinAssetOptions({this.preferPreciseDurationAndTiming = false});
   final bool preferPreciseDurationAndTiming;
 
@@ -2459,7 +2451,6 @@ class DarwinAssetOptions {
 }
 
 class AndroidExtractorOptions {
-
   const AndroidExtractorOptions({
     this.constantBitrateSeekingEnabled = true,
     this.constantBitrateSeekingAlwaysEnabled = false,
@@ -2564,8 +2555,8 @@ class _ProxyHttpServer {
 
 /// Encapsulates the start and end of an HTTP range request.
 class _HttpRangeRequest {
-
   _HttpRangeRequest(this.start, this.end);
+
   /// The starting byte position of the range request.
   final int start;
 
@@ -2592,8 +2583,8 @@ class _HttpRangeRequest {
 
 /// Encapsulates the range information in an HTTP range response.
 class _HttpRangeResponse {
-
   _HttpRangeResponse(this.start, this.end, this.fullLength);
+
   /// The starting byte position of the range.
   final int start;
 
@@ -2617,7 +2608,6 @@ class _HttpRangeResponse {
 /// using the subclasses of this class. The same [AudioSource] instance should
 /// not be used simultaneously by more than one [AudioPlayer].
 abstract class AudioSource {
-
   AudioSource({String? id}) : _id = id ?? _uuid.v4();
   final String _id;
   AudioPlayer? _player;
@@ -2723,7 +2713,6 @@ abstract class AudioSource {
 
 /// An [AudioSource] that can appear in a sequence.
 abstract class IndexedAudioSource extends AudioSource {
-
   IndexedAudioSource({this.tag, this.duration});
   final dynamic tag;
   Duration? duration;
@@ -2740,7 +2729,6 @@ abstract class IndexedAudioSource extends AudioSource {
 
 /// An abstract class representing audio sources that are loaded from a URI.
 abstract class UriAudioSource extends IndexedAudioSource {
-
   UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
       : super(tag: tag, duration: duration);
   final Uri uri;
@@ -2837,7 +2825,6 @@ abstract class UriAudioSource extends IndexedAudioSource {
 /// If headers are set, just_audio will create a cleartext local HTTP proxy on
 /// your device to forward HTTP requests with headers included.
 class ProgressiveAudioSource extends UriAudioSource {
-
   ProgressiveAudioSource(
     super.uri, {
     super.headers,
@@ -2916,7 +2903,6 @@ class HlsAudioSource extends UriAudioSource {
 ///
 /// NOTE: This is currently supported on Android only.
 class SilenceAudioSource extends IndexedAudioSource {
-
   SilenceAudioSource({
     dynamic tag,
     required Duration duration,
@@ -2941,7 +2927,6 @@ class SilenceAudioSource extends IndexedAudioSource {
 /// audio is playing.
 @Deprecated('Use AudioPlayer.setAudioSources instead')
 class ConcatenatingAudioSource extends AudioSource {
-
   /// Creates a [ConcatenatingAudioSorce] with the specified [children]. If
   /// [useLazyPreparation] is `true`, children will be loaded/buffered as late
   /// as possible before needed for playback (currently supported on Android,
@@ -3238,7 +3223,6 @@ class ConcatenatingAudioSource extends AudioSource {
 /// An [AudioSource] that clips the audio of a [UriAudioSource] between a
 /// certain start and end time.
 class ClippingAudioSource extends IndexedAudioSource {
-
   /// Creates an audio source that clips [child] to the range [start]..[end],
   /// where [start] and [end] default to the beginning and end of the original
   /// [child] source.
@@ -3279,7 +3263,6 @@ class ClippingAudioSource extends IndexedAudioSource {
 // loop an infinite number of times, use [AudioPlayer.setLoopMode].
 @Deprecated('Use List.filled(N, audioSource) instead')
 class LoopingAudioSource extends AudioSource {
-
   LoopingAudioSource({
     required this.child,
     required this.count,
@@ -3352,7 +3335,6 @@ abstract class StreamAudioSource extends IndexedAudioSource {
 /// The response for a [StreamAudioSource]. This API is experimental.
 @experimental
 class StreamAudioResponse {
-
   StreamAudioResponse({
     this.rangeRequestsSupported = true,
     required this.sourceLength,
@@ -3361,6 +3343,7 @@ class StreamAudioResponse {
     required this.stream,
     required this.contentType,
   });
+
   /// Indicates to the client whether or not range requests are supported for
   /// the requested media. If `true`, the client may make further requests
   /// specifying the `start` and possibly also the `end` parameters of the range
@@ -3392,7 +3375,6 @@ class StreamAudioResponse {
 /// access to the file system (e.g. web).
 @experimental
 class LockCachingAudioSource extends StreamAudioSource {
-
   /// Creates a [LockCachingAudioSource] to that provides [uri] to the player
   /// while simultaneously caching it to [cacheFile]. If no cache file is
   /// supplied, just_audio will allocate a cache file internally.
@@ -3731,8 +3713,8 @@ class _InProgressCacheResponse {
 
 /// Request parameters for a [StreamAudioSource].
 class _StreamingByteRangeRequest {
-
   _StreamingByteRangeRequest(this.start, this.end);
+
   /// The start of the range request.
   final int? start;
 
@@ -3979,7 +3961,6 @@ abstract class ShuffleOrder {
 /// The default implementation of [ShuffleOrder] which shuffles items with the
 /// currently playing item at the head of the order.
 class DefaultShuffleOrder extends ShuffleOrder {
-
   DefaultShuffleOrder({Random? random}) : _random = random ?? Random();
   final Random _random;
   @override
@@ -4045,7 +4026,6 @@ enum WebCrossOrigin { anonymous, useCredentials }
 /// The stand-in platform implementation to use when the player is in the idle
 /// state and the native platform is deallocated.
 class _IdleAudioPlayer extends AudioPlayerPlatform {
-
   _IdleAudioPlayer({
     required String id,
     required Stream<List<IndexedAudioSource>> sequenceStream,
@@ -4300,7 +4280,6 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
 /// Encapsulates the arguments passed to the current invocation of
 /// `AudioSource.setAudioSources`.
 class _PluginLoadRequest {
-
   _PluginLoadRequest({
     required this.audioSources,
     this.preload = true,
@@ -4335,7 +4314,6 @@ typedef _InitialSeekValues = ({int? index, Duration? position});
 
 /// THe pipeline of audio effects to be appliet to an [AudioPlayer].
 class AudioPipeline {
-
   AudioPipeline({
     List<AndroidAudioEffect>? androidAudioEffects,
     List<DarwinAudioEffect>? darwinAudioEffects,
@@ -4366,7 +4344,6 @@ class AudioPipeline {
 /// effect, in addition to being part of an [AudioPipeline] attached to an
 /// [AudioPlayer] you must also enable the effect via [setEnabled].
 abstract class AudioEffect {
-
   AudioEffect();
   AudioPlayer? _player;
   final _enabledSubject = BehaviorSubject.seeded(false);
@@ -4443,7 +4420,6 @@ class AndroidLoudnessEnhancer extends AudioEffect with AndroidAudioEffect {
 
 /// A frequency band within an [AndroidEqualizer].
 class AndroidEqualizerBand {
-
   AndroidEqualizerBand._({
     required AudioPlayer player,
     required this.index,
@@ -4504,12 +4480,12 @@ class AndroidEqualizerBand {
 
 /// The parameter values of an [AndroidEqualizer].
 class AndroidEqualizerParameters {
-
   AndroidEqualizerParameters({
     required this.minDecibels,
     required this.maxDecibels,
     required this.bands,
   });
+
   /// The minimum gain value supported by the equalizer.
   final double minDecibels;
 
@@ -4585,8 +4561,8 @@ extension _ValueStreamExtension<T> on ValueStream<T> {
 
 /// Information collected when a position discontinuity occurs.
 class PositionDiscontinuity {
-
   const PositionDiscontinuity(this.reason, this.previousEvent, this.event);
+
   /// The reason for the position discontinuity.
   final PositionDiscontinuityReason reason;
 

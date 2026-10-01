@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
@@ -81,7 +82,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (context) =>
           AppLocalizations.of(context)?.appName ?? 'Navis',
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
       theme: buildLightTheme(seedColor)
@@ -230,7 +231,7 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     unawaited(
       _ringController.forward().then<void>((_) async {
         await Future<void>.delayed(const Duration(milliseconds: 260));
-        if (mounted) unawaited(_exitController.forward());
+        if (mounted) _exitController.forward();
       }),
     );
   }

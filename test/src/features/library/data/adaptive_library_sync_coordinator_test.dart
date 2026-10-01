@@ -286,7 +286,7 @@ void main() {
     );
   });
 
-  tearDown(() async => database.close());
+  tearDown(() => database.close());
 
   test(
     'a promoted catalog task completes before remaining album hydration',

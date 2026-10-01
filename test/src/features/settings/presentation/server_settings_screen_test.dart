@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
@@ -89,10 +90,10 @@ class _FakeLastFmApiClient extends LastFmApiClient {
   new({
     this._validationResult = const LastFmApiKeyValidationResult(valid: true),
     super.apiKey = 'fake-key',
-    this._authToken = 'auth-token',
-    this._authTokenError,
     List<Object> sessionResults = const <Object>[],
-  }) : _sessionResults = List<Object>.of(sessionResults);
+  }) : _authToken = 'auth-token',
+       _authTokenError = null,
+       _sessionResults = List<Object>.of(sessionResults);
 
   final LastFmApiKeyValidationResult _validationResult;
   final String _authToken;
@@ -587,7 +588,7 @@ Widget _buildTestApp({
     overrides: overrides,
     child: MaterialApp(
       theme: testTheme(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       builder: textScaler == null
           ? null

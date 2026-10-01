@@ -594,7 +594,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
       return;
     }
     _expandedFromDrag = true;
-    HapticFeedback.selectionClick();
+    unawaited(HapticFeedback.selectionClick());
     widget.onTap();
   }
 
@@ -659,11 +659,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                 return;
               }
               if (velocity < 0) {
-                HapticFeedback.mediumImpact();
-                handler.skipToNext();
+                unawaited(HapticFeedback.mediumImpact());
+                unawaited(handler.skipToNext());
               } else {
-                HapticFeedback.mediumImpact();
-                handler.skipToPrevious();
+                unawaited(HapticFeedback.mediumImpact());
+                unawaited(handler.skipToPrevious());
               }
             },
       onVerticalDragStart: enableVerticalExpandGesture
@@ -764,8 +764,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               if (handler == null) {
                                 return;
                               }
-                              HapticFeedback.lightImpact();
-                              handler.skipToPrevious();
+                              unawaited(HapticFeedback.lightImpact());
+                              unawaited(handler.skipToPrevious());
                             },
                             icon: const Icon(
                               Icons.skip_previous_rounded,
@@ -809,8 +809,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               if (handler == null) {
                                 return;
                               }
-                              HapticFeedback.lightImpact();
-                              handler.skipToNext();
+                              unawaited(HapticFeedback.lightImpact());
+                              unawaited(handler.skipToNext());
                             },
                             icon: const Icon(Icons.skip_next_rounded, size: 28),
                           )
@@ -832,8 +832,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 ? l10n.actionLiked
                                 : l10n.actionLike,
                             onPressed: () {
-                              HapticFeedback.lightImpact();
-                              ref.read(audioHandlerProvider)?.toggleLike();
+                              unawaited(HapticFeedback.lightImpact());
+                              unawaited(
+                                ref.read(audioHandlerProvider)?.toggleLike(),
+                              );
                             },
                             icon: Icon(
                               playback.isCurrentSongLiked
@@ -939,8 +941,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   if (handler == null) {
                                     return;
                                   }
-                                  HapticFeedback.lightImpact();
-                                  handler.skipToPrevious();
+                                  unawaited(HapticFeedback.lightImpact());
+                                  unawaited(handler.skipToPrevious());
                                 },
                                 icon: const Icon(
                                   Icons.skip_previous_rounded,
@@ -994,8 +996,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   if (handler == null) {
                                     return;
                                   }
-                                  HapticFeedback.lightImpact();
-                                  handler.skipToNext();
+                                  unawaited(HapticFeedback.lightImpact());
+                                  unawaited(handler.skipToNext());
                                 },
                                 icon: const Icon(
                                   Icons.skip_next_rounded,
@@ -1029,8 +1031,12 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 ),
                                 padding: EdgeInsets.zero,
                                 onPressed: () {
-                                  HapticFeedback.lightImpact();
-                                  ref.read(audioHandlerProvider)?.toggleLike();
+                                  unawaited(HapticFeedback.lightImpact());
+                                  unawaited(
+                                    ref
+                                        .read(audioHandlerProvider)
+                                        ?.toggleLike(),
+                                  );
                                 },
                                 icon: Icon(
                                   playback.isCurrentSongLiked

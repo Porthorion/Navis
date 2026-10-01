@@ -98,7 +98,9 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test('resolves a permanent SAF document through its content URI', () async {
-      const channel = MethodChannel('com.navis.app/permanent_download_storage');
+      const channel = MethodChannel(
+        'com.navis.app/permanent_download_playback',
+      );
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             if (call.method == 'exists') return true;

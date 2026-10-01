@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -16,9 +17,15 @@ class _QueueSpyController extends QueueController {
   final List<String> ids;
   int removeCalls = 0;
   int playCalls = 0;
+  final reorderCalls = <(int, int)>[];
 
   @override
   List<String> build() => ids;
+
+  @override
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    reorderCalls.add((oldIndex, newIndex));
+  }
 
   @override
   Future<void> removeAt(int index) async {
@@ -92,7 +99,7 @@ Future<_QueueSpyController> _pumpQueueSheet(
         ),
       ],
       child: MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: textScaler == null
             ? null
@@ -110,6 +117,33 @@ Future<_QueueSpyController> _pumpQueueSheet(
 }
 
 void main() {
+  for (final (oldIndex, itemIndex, insertionIndex) in [
+    (0, 2, 3),
+    (2, 0, 0),
+    (1, 1, 1),
+  ]) {
+    testWidgets(
+      'queue item move $oldIndex to $itemIndex preserves handler indices',
+      (tester) async {
+        final queue = await _pumpQueueSheet(
+          tester,
+          snapshot: _pendingSnapshot.copyWith(
+            isLoading: false,
+            hasPendingLogicalQueue: false,
+            processingState: AudioProcessingState.ready,
+          ),
+        );
+        final list = tester.widget<ReorderableListView>(
+          find.byType(ReorderableListView),
+        );
+        list.onReorderItem!(oldIndex, itemIndex);
+        await tester.pump();
+        expect(queue.reorderCalls, [(oldIndex, insertionIndex)]);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('Queue close action has an explicit platform label', (
     tester,
   ) async {

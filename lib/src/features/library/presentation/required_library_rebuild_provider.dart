@@ -228,7 +228,7 @@ class RequiredLibraryRebuildController
     state = const RequiredLibraryRebuildState(
       status: RequiredLibraryRebuildStatus.syncing,
     );
-    return ref
+    return await ref
         .read(librarySyncControllerProvider.notifier)
         .resetCachesAndRebuildLibrary(allowMeteredBroadOverride: allowMetered);
   }
@@ -260,7 +260,7 @@ class RequiredLibraryRebuildController
     final database = ref.read(navisDatabaseProvider);
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     if (_reason == RequiredLibraryRebuildReason.initialLogin) {
-      return recordInitialCatalogReadiness(
+      return await recordInitialCatalogReadiness(
         database: database,
         serverId: serverId,
         result: result,

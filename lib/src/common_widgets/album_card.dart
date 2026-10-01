@@ -80,7 +80,7 @@ class AlbumCard extends ConsumerWidget {
             onLongPress: onLongPress == null
                 ? null
                 : () {
-                    HapticFeedback.mediumImpact();
+                    unawaited(HapticFeedback.mediumImpact());
                     onLongPress!();
                   },
             child: Stack(

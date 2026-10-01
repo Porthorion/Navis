@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -348,7 +349,7 @@ void main() {
 Widget _buildTestApp({bool desktopMode = false}) {
   return MaterialApp(
     theme: testTheme(),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: navisLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: desktopMode
         ? AdaptiveContextScope(

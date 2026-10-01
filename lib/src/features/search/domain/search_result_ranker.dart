@@ -95,9 +95,10 @@ SearchResult3 mergeAndRankSearchResults({
     return <T>[
       for (final localItem in localItems)
         if (seen.add(id(localItem)))
-          apiById[id(localItem)] == null
-              ? localItem
-              : mergeDuplicate(localItem, apiById[id(localItem)] as T),
+          if (apiById[id(localItem)] == null)
+            localItem
+          else
+            mergeDuplicate(localItem, apiById[id(localItem)] as T),
       ...apiItems.where((item) => seen.add(id(item))),
     ];
   }

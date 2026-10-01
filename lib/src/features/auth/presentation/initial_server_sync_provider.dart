@@ -84,7 +84,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
         unawaited(start());
       }
     });
-    Future<void>.microtask(start);
+    unawaited(Future<void>.microtask(start));
     return const InitialServerSyncState();
   }
 

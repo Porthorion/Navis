@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/utils/connectivity.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 

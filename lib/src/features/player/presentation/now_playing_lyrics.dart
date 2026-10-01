@@ -33,7 +33,7 @@ class _InlineLyrics extends ConsumerWidget {
             : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
-          handler?.seek(seekPosition);
+          unawaited(handler?.seek(seekPosition));
         },
       );
     }

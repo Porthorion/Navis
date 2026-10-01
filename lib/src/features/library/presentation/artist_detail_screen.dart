@@ -557,7 +557,7 @@ class _ArtistImageHeader extends StatelessWidget {
         //   ≥ 2.5  → Alignment(0,  0)  = center
         final displayRatio = availableWidth / headerHeight;
         final alignY = ((displayRatio - 1.5) / 1.0).clamp(0.0, 1.0) - 1.0;
-        final imageAlignment = Alignment(0.0, alignY);
+        final imageAlignment = Alignment(0, alignY);
 
         return SizedBox(
           height: headerHeight,
@@ -582,7 +582,7 @@ class _ArtistImageHeader extends StatelessWidget {
                       Color(0x00000000),
                       Color(0xF2000000),
                     ],
-                    stops: <double>[0.0, 0.35, 1.0],
+                    stops: <double>[0, 0.35, 1],
                   ),
                 ),
               ),
@@ -608,7 +608,7 @@ class _ArtistImageHeader extends StatelessWidget {
                                   ?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.0,
+                                    letterSpacing: -1,
                                     height: 1.05,
                                     fontSize: 64,
                                     shadows: const <Shadow>[
@@ -733,7 +733,7 @@ class _ArtistNameHeader extends StatelessWidget {
                     name,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -1.0,
+                      letterSpacing: -1,
                       fontSize: 56,
                     ),
                     maxLines: 1,

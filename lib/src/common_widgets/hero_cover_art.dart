@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -291,7 +289,7 @@ class _HeroRouteChromeState extends State<HeroRouteChrome>
 
   @override
   void revealAfterHeroFlight() {
-    unawaited(_returnFadeController.forward(from: 0));
+    _returnFadeController.forward(from: 0);
   }
 
   @override

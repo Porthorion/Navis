@@ -36,7 +36,7 @@ Future<void> navisBackgroundSyncEntrypoint() async {
         if (command == null) {
           return const <String, Object?>{'category': 'permanentFailure'};
         }
-        return runner.run(command);
+        return await runner.run(command);
       case 'cancel':
         await runner.cancel();
         return true;

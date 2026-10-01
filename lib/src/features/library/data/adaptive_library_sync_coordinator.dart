@@ -289,7 +289,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final config = await _serverConfigRepository.getActiveServer();
     final serverId = config?.id;
     if (config == null || serverId == null) {
-      return _executor.requestSync(
+      return await _executor.requestSync(
         requestInput,
         priorityAlbumIds: priorityAlbumIds,
         onProgress: onProgress,
@@ -712,15 +712,15 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
 
     if (cancellationGeneration != _cancellationGeneration) {
-      return cancelledBeforeExecution();
+      return await cancelledBeforeExecution();
     }
     final running = _inFlight;
     if (running != null) {
       await running;
       if (cancellationGeneration != _cancellationGeneration) {
-        return cancelledBeforeExecution();
+        return await cancelledBeforeExecution();
       }
-      return _requestSync(
+      return await _requestSync(
         request,
         priorityAlbumIds: priorityAlbumIds,
         onProgress: onProgress,
@@ -738,7 +738,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       onProgress: onProgress,
     );
     _inFlight = future;
-    return future.whenComplete(() => _inFlight = null);
+    return await future.whenComplete(() => _inFlight = null);
   }
 
   Future<LibrarySyncState> _executePlanned({
@@ -1602,7 +1602,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         catalogCursor: Value(cursor),
         catalogFingerprint: Value(
           navis['libraryIndexesFingerprint'] is String
-              ? navis['libraryIndexesFingerprint'] as String
+              ? navis['libraryIndexesFingerprint']! as String
               : null,
         ),
         averageLatencyMs: Value(result.averageLatencyMs),
@@ -1950,7 +1950,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final request = LibrarySyncRequest.checkForUpdates(
       allowMeteredBroadOverride: allowMeteredBroadOverride,
     );
-    return requestSync(
+    return await requestSync(
       request,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,

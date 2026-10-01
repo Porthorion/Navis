@@ -307,10 +307,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 // Section: wire_class
 
 class RustLibWire implements BaseWire {
-
   /// The symbols are looked up in [dynamicLibrary].
-  new(ffi.DynamicLibrary dynamicLibrary)
-    : _lookup = dynamicLibrary.lookup;
+  new(ffi.DynamicLibrary dynamicLibrary) : _lookup = dynamicLibrary.lookup;
   factory fromExternalLibrary(ExternalLibrary lib) =>
       RustLibWire(lib.ffiDynamicLibrary);
 

@@ -126,6 +126,8 @@ class LibrarySyncForegroundController extends Notifier<bool> {
   @override
   bool build() => true;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties, avoid_positional_boolean_parameters
   void setForeground(bool value) {
     state = value;
   }
@@ -292,13 +294,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _isForeground =
         lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
-    Future<void>.microtask(() {
-      if (ref.mounted) {
-        ref
-            .read(librarySyncForegroundProvider.notifier)
-            .setForeground(_isForeground);
-      }
-    });
+    unawaited(
+      Future<void>.microtask(() {
+        if (ref.mounted) {
+          ref
+              .read(librarySyncForegroundProvider.notifier)
+              .setForeground(_isForeground);
+        }
+      }),
+    );
     _lifecycleListener = AppLifecycleListener(
       onResume: _onAppResumed,
       onInactive: _onAppBackgrounded,
@@ -377,7 +381,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final intervalMinutes = ref.read(syncIntervalMinutesProvider);
     _schedulePeriodicSync(intervalMinutes);
 
-    Future<void>.microtask(_scheduleStartupSync);
+    unawaited(Future<void>.microtask(_scheduleStartupSync));
     return LibrarySyncState.idle(
       lastSyncedAt: serverConfig?.lastSynced,
       freshness: _readPersistedFreshness(serverConfig?.capabilitiesJson),
@@ -532,6 +536,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (automaticCheck != null) {
       await automaticCheck;
     }
+    // A catalog sync the controller started also writes after its engine run.
+    final catalogSync = _activeCatalogSync;
+    if (catalogSync != null) {
+      await catalogSync;
+    }
     await Future.wait(_automaticTimerArms.toList());
     _cancelPeriodicSync();
     if (ref.mounted) {
@@ -549,7 +558,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _joinOrStartTargetSync(
+    return await _joinOrStartTargetSync(
       target,
       () => _runRequest(
         engine,
@@ -569,7 +578,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _joinOrStartTargetSync(
+    return await _joinOrStartTargetSync(
       target,
       () => _runRequest(
         engine,
@@ -583,9 +592,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   void setVisibleAlbumIds(Iterable<String> albumIds) {
-    for (final albumId in albumIds) {
-      _addPriorityAlbum(albumId);
-    }
+    albumIds.forEach(_addPriorityAlbum);
   }
 
   void registerAlbumInteraction(String albumId) {
@@ -971,7 +978,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // no durable schedule to consult in that state, so retain the engine's
     // existing bootstrap semantics rather than suppressing initial sync.
     if (serverId == null) {
-      return _runSync(force: false, tolerateUnavailableEngine: true);
+      return await _runSync(force: false, tolerateUnavailableEngine: true);
     }
     final interval = ref.read(syncIntervalDurationProvider);
     if (interval == null || !ref.mounted) {
@@ -1075,7 +1082,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     bool allowMeteredBroadOverride = false,
     LibrarySyncRequestCaller caller = LibrarySyncRequestCaller.unspecified,
   }) async {
-    return _joinOrQueueCatalogSync(
+    return await _joinOrQueueCatalogSync(
       priority: forceFull
           ? 2
           : force
@@ -1118,7 +1125,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           completedAt: DateTime.now(),
         );
       }
-      return start();
+      return await start();
     }
 
     final task = active == null

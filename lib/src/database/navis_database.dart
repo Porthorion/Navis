@@ -803,7 +803,7 @@ class NavisDatabase extends _$NavisDatabase {
     // Legacy rows can share a sort index. Preserve every row in a stable order.
     await customStatement(
       'INSERT INTO playlist_songs (playlist_id, song_id, sort_order) '
-      'SELECT playlist_id, song_id, ROW_NUMBER() OVER ('
+      'SELECT playlist_id, song_id, ROW_NUMBER() OVER ( '
       'PARTITION BY playlist_id ORDER BY sort_order, song_id) - 1 FROM playlist_membership_v75',
     );
     await customStatement('DROP TABLE playlist_membership_v75');

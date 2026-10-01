@@ -462,7 +462,7 @@ class DownloadService {
       '(${songs.length} songs, quality=$quality, format=$format).',
     );
     final songIds = songs.map((s) => s.id).toList();
-    return _batchEnqueue(
+    return await _batchEnqueue(
       songIds: songIds,
       albumId: albumId,
       quality: quality,
@@ -480,7 +480,7 @@ class DownloadService {
     String? format,
   }) async {
     if (songIds.isEmpty) return 0;
-    return _batchEnqueue(
+    return await _batchEnqueue(
       songIds: songIds,
       playlistId: playlistId,
       quality: quality,
@@ -562,6 +562,8 @@ class DownloadService {
     if (track.cacheType == CacheType.permanent) return true;
 
     final file = File(track.filePath);
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await file.exists()) return false;
 
     final song = (await _libraryDao.getSongsByIds(<String>[songId]))
@@ -805,6 +807,8 @@ class DownloadService {
           );
         }
         // Register in cached_tracks as permanent.
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         final stat = await destFile.stat();
         _reportNetworkUsage?.call(
           category: NetworkUsageCategory.download,
@@ -995,6 +999,8 @@ class DownloadService {
 
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         : !await File(cached.filePath).exists()) {
       await _cacheDao.removeCachedTrack(songId);
       return false;
@@ -1100,6 +1106,8 @@ class DownloadService {
   Future<void> _cleanupOrphanedFiles() async {
     try {
       final permDir = await _permanentDirectory();
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (!await permDir.exists()) return;
 
       final knownEntries = await _cacheDao.getPermanentEntries();
@@ -1201,7 +1209,7 @@ class DownloadService {
       }
 
       AppLogger.info('DownloadService: Lyrics backfill complete.');
-    } catch (e) {
+    } on Object catch (e) {
       AppLogger.warning('DownloadService: Lyrics backfill error: $e');
     }
   }
@@ -1302,6 +1310,8 @@ class DownloadService {
         final source = _isSafRoot(entry.filePath)
             ? (temporary = await _safStorage.materialize(entry.filePath))
             : File(entry.filePath);
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (!await source.exists()) {
           continue;
         }
@@ -1411,6 +1421,8 @@ class DownloadService {
                 entry.filePath,
               ))
             : File(entry.filePath);
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (!await sourceFile.exists()) {
           if (materializedSource != null) {
             try {
@@ -1570,7 +1582,7 @@ class DownloadService {
     String? customDownloadFolderPath,
   }) async {
     if (song != null) {
-      return _permanentPathResolver.resolveSongPath(
+      return await _permanentPathResolver.resolveSongPath(
         song: song,
         extension: format,
         existingPath: existingPath,
@@ -1640,6 +1652,8 @@ class DownloadService {
     File destination, {
     bool missingIsOk = false,
   }) async {
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await source.exists()) {
       if (missingIsOk) {
         return;
@@ -1647,6 +1661,8 @@ class DownloadService {
       throw FileSystemException('Source file does not exist.', source.path);
     }
 
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (await destination.exists()) {
       // The same file reached through another spelling of its folder (a
       // link, junction or mapped drive): deleting the "destination" would

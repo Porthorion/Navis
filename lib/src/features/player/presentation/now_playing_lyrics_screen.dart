@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -68,7 +70,7 @@ class _LyricsContent extends ConsumerWidget {
             : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
-          handler?.seek(seekPosition);
+          unawaited(handler?.seek(seekPosition));
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),

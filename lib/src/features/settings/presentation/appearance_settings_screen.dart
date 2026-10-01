@@ -409,20 +409,21 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           jsonEncode(newOrder),
                         );
                       },
-                      onToggleVisibility: (sectionId, visible) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        final current = List<String>.from(sanitizedHidden);
-                        if (visible) {
-                          current.remove(sectionId);
-                        } else {
-                          if (!current.contains(sectionId)) {
-                            current.add(sectionId);
-                          }
-                        }
-                        await db.appSettingsDao.updateHomeSectionsHidden(
-                          current.isEmpty ? null : jsonEncode(current),
-                        );
-                      },
+                      onToggleVisibility:
+                          (sectionId, {required visible}) async {
+                            final db = ref.read(navisDatabaseProvider);
+                            final current = List<String>.from(sanitizedHidden);
+                            if (visible) {
+                              current.remove(sectionId);
+                            } else {
+                              if (!current.contains(sectionId)) {
+                                current.add(sectionId);
+                              }
+                            }
+                            await db.appSettingsDao.updateHomeSectionsHidden(
+                              current.isEmpty ? null : jsonEncode(current),
+                            );
+                          },
                     ),
                   ],
                 ),
@@ -451,7 +452,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                       ),
                     );
                   },
-                  onToggleVisibility: (section, visible) async {
+                  onToggleVisibility: (section, {required visible}) async {
                     final db = ref.read(navisDatabaseProvider);
                     switch (section) {
                       case LibrarySection.albums:
@@ -1622,7 +1623,8 @@ class _HomeSectionReorder extends StatefulWidget {
   final List<String> order;
   final List<String> hidden;
   final ValueChanged<List<String>> onReorder;
-  final void Function(String sectionId, bool visible) onToggleVisibility;
+  final void Function(String sectionId, {required bool visible})
+  onToggleVisibility;
 
   @override
   State<_HomeSectionReorder> createState() => _HomeSectionReorderState();
@@ -1680,9 +1682,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorder: (oldIndex, newIndex) {
+      onReorderItem: (oldIndex, newIndex) {
         setState(() {
-          if (newIndex > oldIndex) newIndex--;
           final item = _localOrder.removeAt(oldIndex);
           _localOrder.insert(newIndex, item);
         });
@@ -1709,7 +1710,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
             ),
             trailing: Switch(
               value: !isHidden,
-              onChanged: (visible) => widget.onToggleVisibility(id, visible),
+              onChanged: (visible) =>
+                  widget.onToggleVisibility(id, visible: visible),
             ),
           ),
         );
@@ -1729,7 +1731,8 @@ class _LibraryPageReorder extends StatefulWidget {
   final List<LibrarySection> order;
   final Set<LibrarySection> visibleSections;
   final ValueChanged<List<LibrarySection>> onReorder;
-  final void Function(LibrarySection section, bool visible) onToggleVisibility;
+  final void Function(LibrarySection section, {required bool visible})
+  onToggleVisibility;
 
   @override
   State<_LibraryPageReorder> createState() => _LibraryPageReorderState();
@@ -1782,9 +1785,8 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorder: (oldIndex, newIndex) {
+      onReorderItem: (oldIndex, newIndex) {
         setState(() {
-          if (newIndex > oldIndex) newIndex--;
           final item = _localOrder.removeAt(oldIndex);
           _localOrder.insert(newIndex, item);
         });
@@ -1814,7 +1816,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
             trailing: Switch(
               value: visible,
               onChanged: (enabled) =>
-                  widget.onToggleVisibility(section, enabled),
+                  widget.onToggleVisibility(section, visible: enabled),
             ),
           ),
         );

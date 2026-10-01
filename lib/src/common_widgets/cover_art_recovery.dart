@@ -159,7 +159,7 @@ class CoverArtRecoveryCoordinator {
         '$error\n$stackTrace',
       );
     } finally {
-      _pendingRefreshes.remove(coverArtId);
+      final _ = _pendingRefreshes.remove(coverArtId);
     }
   }
 }

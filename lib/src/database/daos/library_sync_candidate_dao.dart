@@ -399,7 +399,8 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                     librarySyncCandidateAlbumsTable.songsHydrated.equals(false),
               ))
             .getSingle();
-    return row.read(count) ?? 0;
+    final resolvedCount = row.read(count) ?? 0;
+    return resolvedCount;
   }
 
   Future<Set<String>> getArtistIds({
@@ -843,7 +844,8 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                       predicate,
                 ))
               .getSingle();
-      return row.read(count) ?? 0;
+      final resolvedCount = row.read(count) ?? 0;
+      return resolvedCount;
     }
 
     return CandidateApplyCounts(

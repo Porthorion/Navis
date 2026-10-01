@@ -60,6 +60,35 @@ class DesktopWindowStateRecord {
     this.miniAlwaysOnTop = false,
   });
 
+  factory fromJson(Object? raw) {
+    if (raw is! Map) return const DesktopWindowStateRecord.defaults();
+
+    final legacySnapshot = DesktopWindowSnapshot.fromJson(raw);
+    if (legacySnapshot != null && raw['version'] == null) {
+      return DesktopWindowStateRecord(
+        version: 1,
+        activeMode: DesktopWindowMode.desktop,
+        normalBounds: legacySnapshot,
+      );
+    }
+
+    final modeName = raw['activeMode'] as String?;
+    final mode = switch (modeName) {
+      'miniPlayer' || 'focusPlayer' => DesktopWindowMode.miniPlayer,
+      _ => DesktopWindowMode.desktop,
+    };
+    return DesktopWindowStateRecord(
+      version: (raw['version'] as num?)?.toInt() ?? 1,
+      activeMode: mode,
+      normalBounds: DesktopWindowSnapshot.fromJson(raw['normalBounds']),
+      normalWasMaximized: raw['normalWasMaximized'] as bool? ?? false,
+      miniBounds: DesktopWindowSnapshot.fromJson(
+        raw['miniBounds'] ?? raw['focusBounds'],
+      ),
+      miniAlwaysOnTop: raw['miniAlwaysOnTop'] as bool? ?? false,
+    );
+  }
+
   const new defaults()
     : version = currentVersion,
       activeMode = DesktopWindowMode.desktop,
@@ -103,35 +132,6 @@ class DesktopWindowStateRecord {
     'miniBounds': miniBounds?.toJson(),
     'miniAlwaysOnTop': miniAlwaysOnTop,
   };
-
-  static DesktopWindowStateRecord fromJson(Object? raw) {
-    if (raw is! Map) return const DesktopWindowStateRecord.defaults();
-
-    final legacySnapshot = DesktopWindowSnapshot.fromJson(raw);
-    if (legacySnapshot != null && raw['version'] == null) {
-      return DesktopWindowStateRecord(
-        version: 1,
-        activeMode: DesktopWindowMode.desktop,
-        normalBounds: legacySnapshot,
-      );
-    }
-
-    final modeName = raw['activeMode'] as String?;
-    final mode = switch (modeName) {
-      'miniPlayer' || 'focusPlayer' => DesktopWindowMode.miniPlayer,
-      _ => DesktopWindowMode.desktop,
-    };
-    return DesktopWindowStateRecord(
-      version: (raw['version'] as num?)?.toInt() ?? 1,
-      activeMode: mode,
-      normalBounds: DesktopWindowSnapshot.fromJson(raw['normalBounds']),
-      normalWasMaximized: raw['normalWasMaximized'] as bool? ?? false,
-      miniBounds: DesktopWindowSnapshot.fromJson(
-        raw['miniBounds'] ?? raw['focusBounds'],
-      ),
-      miniAlwaysOnTop: raw['miniAlwaysOnTop'] as bool? ?? false,
-    );
-  }
 }
 
 abstract class WindowManagerAdapter {
@@ -145,8 +145,14 @@ abstract class WindowManagerAdapter {
   Future<void> setMinimumSize(Size size);
   Future<void> setMaximumSize(Size size);
   Future<void> setAspectRatio(double aspectRatio);
+  // Match the positional window_manager backend method contract.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setResizable(bool resizable);
+  // Match the positional window_manager backend method contract.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setAlwaysOnTop(bool alwaysOnTop);
+  // Match the positional window_manager backend method contract.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setPreventClose(bool preventClose);
   Future<void> close();
   Future<void> setBounds(Rect bounds);
@@ -491,6 +497,8 @@ class DesktopWindowController extends ChangeNotifier
     notifyListeners();
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setMiniPlayerMode(bool enabled) async {
     if (!_desktopRuntime || _isApplyingMode) return;
     if (!enabled && !desktopViewAvailable) return;
@@ -524,6 +532,8 @@ class DesktopWindowController extends ChangeNotifier
 
   Future<void> toggleMiniPlayerMode() => setMiniPlayerMode(!isMiniPlayerMode);
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setMiniAlwaysOnTop(bool enabled) async {
     if (enabled && !supportsMiniAlwaysOnTop) {
       AppLogger.info(
@@ -721,6 +731,8 @@ class DesktopWindowController extends ChangeNotifier
   }
 
   Future<DesktopWindowStateRecord> _readStateRecord() async {
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (_stateFile.path.isEmpty || !await _stateFile.exists()) {
       return const DesktopWindowStateRecord.defaults();
     }

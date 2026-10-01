@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
@@ -411,7 +412,7 @@ Future<void> _pumpHomeWithSyncState(
         ],
       ),
       child: MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: testTheme(theme),
         builder: (ctx, child) => MediaQuery(
@@ -472,7 +473,7 @@ Future<void> _pumpHomeWithControllerOverride(
       ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -593,7 +594,7 @@ Future<void> _pumpRandomSectionHome(
       overrides: sectionOverrides,
       child: MaterialApp.router(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
@@ -635,7 +636,7 @@ Future<void> _pumpWeeklyDetail(
             ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -721,7 +722,7 @@ Future<void> _pumpHomeWithAppSettings(
       ),
       child: MaterialApp(
         theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx)
@@ -848,8 +849,13 @@ void main() {
     // Short labels on the title line; full wording in their tooltips.
     expect(find.text('Unclear match'), findsOneWidget);
     expect(find.text('Not on server'), findsOneWidget);
-    expect(find.byTooltip('Ambiguous match'), findsOneWidget);
-    expect(find.byTooltip('Not available on your server'), findsOneWidget);
+    // These tooltips exclude themselves from semantics, and find.byTooltip
+    // reads such messages only from package:flutter's Tooltip type.
+    Finder statusTooltip(String message) => find.byWidgetPredicate(
+      (widget) => widget is Tooltip && widget.message == message,
+    );
+    expect(statusTooltip('Ambiguous match'), findsOneWidget);
+    expect(statusTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
   });
@@ -1115,7 +1121,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             return MediaQuery(
@@ -1192,7 +1198,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
             data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -1497,7 +1503,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
               data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -1825,7 +1831,7 @@ void main() {
         ),
         child: MaterialApp(
           theme: testTheme(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: navisLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
             data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
@@ -2399,7 +2405,7 @@ void main() {
           ),
           child: MaterialApp(
             theme: testTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
               data: MediaQuery.of(ctx).copyWith(disableAnimations: false),

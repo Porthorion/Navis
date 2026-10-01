@@ -160,7 +160,7 @@ void main() {
 
     tearDown(() async {
       await database.close();
-      if (await tempDir.exists()) {
+      if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
       }
     });
@@ -667,5 +667,7 @@ void main() {
 }
 
 Future<Object?> _readJson(File file) async {
-  return file.existsSync() ? file.readAsString().then(jsonDecode) : null;
+  return await (file.existsSync()
+      ? file.readAsString().then(jsonDecode)
+      : null);
 }

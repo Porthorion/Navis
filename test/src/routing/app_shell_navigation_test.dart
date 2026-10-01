@@ -126,6 +126,8 @@ class _MutablePlaybackController extends Notifier<PlaybackSnapshot> {
   @override
   PlaybackSnapshot build() => _activePlayback;
 
+  PlaybackSnapshot get snapshot => state;
+
   set snapshot(PlaybackSnapshot value) => state = value;
 }
 

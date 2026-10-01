@@ -48,6 +48,8 @@ class ArchiveUtils {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
+      // This is one PowerShell command argument, split for readability.
+      // ignore: no_adjacent_strings_in_list
       'Expand-Archive -LiteralPath "${zipPath.replaceAll('"', '`"')}" '
           '-DestinationPath "${destDir.replaceAll('"', '`"')}" -Force',
     ]);
@@ -70,7 +72,7 @@ class ArchiveUtils {
       probe.writeAsStringSync('');
       probe.deleteSync();
       return true;
-    } catch (_) {
+    } on Object catch (_) {
       return false;
     }
   }

@@ -82,7 +82,8 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
       ..where(cachedTracksTable.cacheType.equals(CacheType.rolling.name))
       ..addColumns(<Expression<Object>>[aggregate]);
     final row = await query.getSingleOrNull();
-    return row?.read(aggregate) ?? 0;
+    final resolvedCount = row?.read(aggregate) ?? 0;
+    return resolvedCount;
   }
 
   Future<List<CachedTracksTableData>> getRollingEntriesOrderedByLastAccessed({

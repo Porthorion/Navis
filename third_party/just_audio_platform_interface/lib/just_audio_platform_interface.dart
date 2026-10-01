@@ -66,7 +66,6 @@ abstract class JustAudioPlatform extends PlatformInterface {
 /// `implements` this interface will be broken by newly added
 /// [AudioPlayerPlatform] methods.
 abstract class AudioPlayerPlatform {
-
   AudioPlayerPlatform(this.id);
   final String id;
 
@@ -301,7 +300,6 @@ class PlayerDataMessage {
 /// A playback event communicated from the platform implementation to the
 /// Flutter plugin.
 class PlaybackEventMessage {
-
   PlaybackEventMessage({
     required this.processingState,
     required this.updateTime,
@@ -359,7 +357,6 @@ enum ProcessingStateMessage {
 
 /// Icy metadata communicated from the platform implementation.
 class IcyMetadataMessage {
-
   IcyMetadataMessage({
     required this.info,
     required this.headers,
@@ -381,7 +378,6 @@ class IcyMetadataMessage {
 
 /// Icy info communicated from the platform implementation.
 class IcyInfoMessage {
-
   IcyInfoMessage({
     required this.title,
     required this.url,
@@ -395,7 +391,6 @@ class IcyInfoMessage {
 
 /// Icy headers communicated from the platform implementation.
 class IcyHeadersMessage {
-
   IcyHeadersMessage({
     required this.bitrate,
     required this.genre,
@@ -425,7 +420,6 @@ class IcyHeadersMessage {
 /// Information communicated to the platform implementation when creating a new
 /// player instance.
 class InitRequest {
-
   InitRequest({
     required this.id,
     this.audioLoadConfiguration,
@@ -467,7 +461,6 @@ class InitRequest {
 /// Information communicated to the platform implementation when disposing of a
 /// player instance.
 class DisposePlayerRequest {
-
   DisposePlayerRequest({required this.id});
   final String id;
 
@@ -501,7 +494,6 @@ class DisposeAllPlayersResponse {
 /// Information communicated to the platform implementation when loading an
 /// audio source.
 class LoadRequest {
-
   LoadRequest({
     required this.audioSourceMessage,
     this.initialPosition,
@@ -521,7 +513,6 @@ class LoadRequest {
 /// Information returned by the platform implementation after loading an audio
 /// source.
 class LoadResponse {
-
   LoadResponse({required this.duration});
   final Duration? duration;
 
@@ -557,7 +548,6 @@ class PauseResponse {
 /// Information communicated to the platform implementation when setting the
 /// volume.
 class SetVolumeRequest {
-
   SetVolumeRequest({required this.volume});
   final double volume;
 
@@ -576,7 +566,6 @@ class SetVolumeResponse {
 /// Information communicated to the platform implementation when setting the
 /// speed.
 class SetSpeedRequest {
-
   SetSpeedRequest({required this.speed});
   final double speed;
 
@@ -595,7 +584,6 @@ class SetSpeedResponse {
 /// Information communicated to the platform implementation when setting the
 /// pitch.
 class SetPitchRequest {
-
   SetPitchRequest({required this.pitch});
   final double pitch;
 
@@ -614,7 +602,6 @@ class SetPitchResponse {
 /// Information communicated to the platform implementation when setting the
 /// skipSilence.
 class SetSkipSilenceRequest {
-
   SetSkipSilenceRequest({required this.enabled});
   final bool enabled;
 
@@ -633,7 +620,6 @@ class SetSkipSilenceResponse {
 /// Information communicated to the platform implementation when setting the
 /// loop mode.
 class SetLoopModeRequest {
-
   SetLoopModeRequest({required this.loopMode});
   final LoopModeMessage loopMode;
 
@@ -655,7 +641,6 @@ enum LoopModeMessage { off, one, all }
 /// Information communicated to the platform implementation when setting the
 /// shuffle mode.
 class SetShuffleModeRequest {
-
   SetShuffleModeRequest({required this.shuffleMode});
   final ShuffleModeMessage shuffleMode;
 
@@ -677,7 +662,6 @@ enum ShuffleModeMessage { none, all }
 /// Information communicated to the platform implementation when setting the
 /// shuffle order.
 class SetShuffleOrderRequest {
-
   SetShuffleOrderRequest({required this.audioSourceMessage});
   final AudioSourceMessage audioSourceMessage;
 
@@ -696,7 +680,6 @@ class SetShuffleOrderResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetAutomaticallyWaitsToMinimizeStallingRequest {
-
   SetAutomaticallyWaitsToMinimizeStallingRequest({required this.enabled});
   final bool enabled;
 
@@ -716,7 +699,6 @@ class SetAutomaticallyWaitsToMinimizeStallingResponse {
 /// Information communicated to the platform implementation when setting the
 /// canUseNetworkResourcesForLiveStreamingWhilePaused option.
 class SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest {
-
   SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest(
       {required this.enabled});
   final bool enabled;
@@ -737,7 +719,6 @@ class SetCanUseNetworkResourcesForLiveStreamingWhilePausedResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetPreferredPeakBitRateRequest {
-
   SetPreferredPeakBitRateRequest({required this.bitRate});
   final double bitRate;
 
@@ -756,7 +737,6 @@ class SetPreferredPeakBitRateResponse {
 /// Information communicated to the platform implementation when setting the
 /// automaticallyWaitsToMinimizeStalling option.
 class SetAllowsExternalPlaybackRequest {
-
   SetAllowsExternalPlaybackRequest({required this.allowsExternalPlayback});
   final bool allowsExternalPlayback;
 
@@ -775,7 +755,6 @@ class SetAllowsExternalPlaybackResponse {
 /// Information communicated to the platform implementation when seeking to a
 /// position and index.
 class SeekRequest {
-
   SeekRequest({this.position, this.index});
   final Duration? position;
   final int? index;
@@ -795,7 +774,6 @@ class SeekResponse {
 /// Information communicated to the platform implementation when setting the
 /// Android audio attributes.
 class SetAndroidAudioAttributesRequest {
-
   SetAndroidAudioAttributesRequest({
     required this.contentType,
     required this.flags,
@@ -833,7 +811,6 @@ class DisposeResponse {
 /// Information communicated to the platform implementation when inserting audio
 /// sources into a concatenating audio source.
 class ConcatenatingInsertAllRequest {
-
   ConcatenatingInsertAllRequest({
     required this.id,
     required this.index,
@@ -863,7 +840,6 @@ class ConcatenatingInsertAllResponse {
 /// Information communicated to the platform implementation when removing audio
 /// sources from a concatenating audio source.
 class ConcatenatingRemoveRangeRequest {
-
   ConcatenatingRemoveRangeRequest({
     required this.id,
     required this.startIndex,
@@ -893,7 +869,6 @@ class ConcatenatingRemoveRangeResponse {
 /// Information communicated to the platform implementation when moving an audio
 /// source within a concatenating audio source.
 class ConcatenatingMoveRequest {
-
   ConcatenatingMoveRequest({
     required this.id,
     required this.currentIndex,
@@ -923,7 +898,6 @@ class ConcatenatingMoveResponse {
 /// Information communicated to the platform implementation when setting the
 /// audio load configuration options.
 class AudioLoadConfigurationMessage {
-
   const AudioLoadConfigurationMessage({
     required this.darwinLoadControl,
     required this.androidLoadControl,
@@ -942,13 +916,13 @@ class AudioLoadConfigurationMessage {
 }
 
 class DarwinLoadControlMessage {
-
   DarwinLoadControlMessage({
     required this.automaticallyWaitsToMinimizeStalling,
     required this.preferredForwardBufferDuration,
     required this.canUseNetworkResourcesForLiveStreamingWhilePaused,
     required this.preferredPeakBitRate,
   });
+
   /// (iOS/macOS) Whether the player will wait for sufficient data to be
   /// buffered before starting playback to avoid the likelihood of stalling.
   final bool automaticallyWaitsToMinimizeStalling;
@@ -978,7 +952,6 @@ class DarwinLoadControlMessage {
 }
 
 class AndroidLoadControlMessage {
-
   AndroidLoadControlMessage({
     required this.minBufferDuration,
     required this.maxBufferDuration,
@@ -988,6 +961,7 @@ class AndroidLoadControlMessage {
     required this.prioritizeTimeOverSizeThresholds,
     required this.backBufferDuration,
   });
+
   /// (Android) The minimum duration of audio that should be buffered ahead of
   /// the current position.
   final Duration minBufferDuration;
@@ -1027,7 +1001,6 @@ class AndroidLoadControlMessage {
 }
 
 class AndroidLivePlaybackSpeedControlMessage {
-
   AndroidLivePlaybackSpeedControlMessage({
     required this.fallbackMinPlaybackSpeed,
     required this.fallbackMaxPlaybackSpeed,
@@ -1037,6 +1010,7 @@ class AndroidLivePlaybackSpeedControlMessage {
     required this.targetLiveOffsetIncrementOnRebuffer,
     required this.minPossibleLiveOffsetSmoothingFactor,
   });
+
   /// (Android) The minimum playback speed to use when adjusting playback speed
   /// to approach the target live offset, if none is defined by the media.
   final double fallbackMinPlaybackSpeed;
@@ -1086,7 +1060,6 @@ enum AndroidAudioOffloadModeMessage { disabled, enabled }
 /// Information communicated to the platform implementation when setting the
 /// audio offload preferences.
 class AndroidAudioOffloadPreferencesMessage {
-
   AndroidAudioOffloadPreferencesMessage({
     required this.audioOffloadMode,
     required this.isGaplessSupportRequired,
@@ -1106,7 +1079,6 @@ class AndroidAudioOffloadPreferencesMessage {
 /// Progressive audio source options to be communicated with the platform
 /// implementation.
 class ProgressiveAudioSourceOptionsMessage {
-
   const ProgressiveAudioSourceOptionsMessage({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
@@ -1123,7 +1095,6 @@ class ProgressiveAudioSourceOptionsMessage {
 /// Options for loading audio assets on iOS/macOS to be communicated with the
 /// platform implementation.
 class DarwinAssetOptionsMessage {
-
   const DarwinAssetOptionsMessage({
     required this.preferPreciseDurationAndTiming,
   });
@@ -1137,7 +1108,6 @@ class DarwinAssetOptionsMessage {
 /// Options for extracting media files on Android to be communicated with the
 /// platform implementation.
 class AndroidExtractorOptionsMessage {
-
   const AndroidExtractorOptionsMessage({
     required this.constantBitrateSeekingEnabled,
     required this.constantBitrateSeekingAlwaysEnabled,
@@ -1158,7 +1128,6 @@ class AndroidExtractorOptionsMessage {
 /// Information about an audio source to be communicated with the platform
 /// implementation.
 abstract class AudioSourceMessage {
-
   AudioSourceMessage({required this.id});
   final String id;
 
@@ -1169,6 +1138,7 @@ abstract class AudioSourceMessage {
 /// platform implementation.
 abstract class IndexedAudioSourceMessage extends AudioSourceMessage {
   IndexedAudioSourceMessage({required super.id, this.tag});
+
   /// Since the tag type is unknown, this can only be used by platform
   /// implementations that pass by reference.
   final dynamic tag;
@@ -1177,7 +1147,6 @@ abstract class IndexedAudioSourceMessage extends AudioSourceMessage {
 /// Information about a URI audio source to be communicated with the platform
 /// implementation.
 abstract class UriAudioSourceMessage extends IndexedAudioSourceMessage {
-
   UriAudioSourceMessage({
     required super.id,
     required this.uri,
@@ -1191,7 +1160,6 @@ abstract class UriAudioSourceMessage extends IndexedAudioSourceMessage {
 /// Information about a progressive audio source to be communicated with the
 /// platform implementation.
 class ProgressiveAudioSourceMessage extends UriAudioSourceMessage {
-
   ProgressiveAudioSourceMessage({
     required super.id,
     required super.uri,
@@ -1252,7 +1220,6 @@ class HlsAudioSourceMessage extends UriAudioSourceMessage {
 /// Information about a silence audio source to be communicated with the
 /// platform implementation.
 class SilenceAudioSourceMessage extends IndexedAudioSourceMessage {
-
   SilenceAudioSourceMessage({
     required super.id,
     required this.duration,
@@ -1270,7 +1237,6 @@ class SilenceAudioSourceMessage extends IndexedAudioSourceMessage {
 /// Information about a concatenating audio source to be communicated with the
 /// platform implementation.
 class ConcatenatingAudioSourceMessage extends AudioSourceMessage {
-
   ConcatenatingAudioSourceMessage({
     required super.id,
     required this.children,
@@ -1294,7 +1260,6 @@ class ConcatenatingAudioSourceMessage extends AudioSourceMessage {
 /// Information about a clipping audio source to be communicated with the
 /// platform implementation.
 class ClippingAudioSourceMessage extends IndexedAudioSourceMessage {
-
   ClippingAudioSourceMessage({
     required super.id,
     required this.child,
@@ -1319,7 +1284,6 @@ class ClippingAudioSourceMessage extends IndexedAudioSourceMessage {
 /// Information about a looping audio source to be communicated with the
 /// platform implementation.
 class LoopingAudioSourceMessage extends AudioSourceMessage {
-
   LoopingAudioSourceMessage({
     required super.id,
     required this.child,
@@ -1340,7 +1304,6 @@ class LoopingAudioSourceMessage extends AudioSourceMessage {
 /// Information communicated to the platform implementation when setting the
 /// enabled status of an audio effect.
 class AudioEffectSetEnabledRequest {
-
   AudioEffectSetEnabledRequest({
     required this.type,
     required this.enabled,
@@ -1364,10 +1327,10 @@ class AudioEffectSetEnabledResponse {
 /// Information communicated to the platform implementation when setting the
 /// target gain on the loudness enhancer audio effect.
 class AndroidLoudnessEnhancerSetTargetGainRequest {
-
   AndroidLoudnessEnhancerSetTargetGainRequest({
     required this.targetGain,
   });
+
   /// The target gain in decibels.
   final double targetGain;
 
@@ -1395,7 +1358,6 @@ class AndroidEqualizerGetParametersRequest {
 /// Information communicated to the platform implementation after requesting the
 /// equalizer parameters.
 class AndroidEqualizerGetParametersResponse {
-
   AndroidEqualizerGetParametersResponse({required this.parameters});
   final AndroidEqualizerParametersMessage parameters;
 
@@ -1410,7 +1372,6 @@ class AndroidEqualizerGetParametersResponse {
 /// Information communicated to the platform implementation when setting the
 /// gain for an equalizer band.
 class AndroidEqualizerBandSetGainRequest {
-
   AndroidEqualizerBandSetGainRequest({
     required this.bandIndex,
     required this.gain,
@@ -1437,7 +1398,6 @@ class AndroidEqualizerBandSetGainResponse {
 /// Information about an audio effect to be communicated with the platform
 /// implementation.
 abstract class AudioEffectMessage {
-
   AudioEffectMessage({required this.enabled});
   final bool enabled;
 
@@ -1447,7 +1407,6 @@ abstract class AudioEffectMessage {
 /// Information about a loudness enhancer to be communicated with the platform
 /// implementation.
 class AndroidLoudnessEnhancerMessage extends AudioEffectMessage {
-
   AndroidLoudnessEnhancerMessage({
     required super.enabled,
     required this.targetGain,
@@ -1465,7 +1424,6 @@ class AndroidLoudnessEnhancerMessage extends AudioEffectMessage {
 /// Information about an equalizer band to be communicated with the platform
 /// implementation.
 class AndroidEqualizerBandMessage {
-
   AndroidEqualizerBandMessage({
     required this.index,
     required this.lowerFrequency,
@@ -1473,6 +1431,7 @@ class AndroidEqualizerBandMessage {
     required this.centerFrequency,
     required this.gain,
   });
+
   /// A zero-based index of the position of this band within its [AndroidEqualizer].
   final int index;
 
@@ -1509,7 +1468,6 @@ class AndroidEqualizerBandMessage {
 /// Information about the equalizer parameters to be communicated with the
 /// platform implementation.
 class AndroidEqualizerParametersMessage {
-
   AndroidEqualizerParametersMessage({
     required this.minDecibels,
     required this.maxDecibels,
@@ -1539,7 +1497,6 @@ class AndroidEqualizerParametersMessage {
 /// Information about the equalizer to be communicated with the platform
 /// implementation.
 class AndroidEqualizerMessage extends AudioEffectMessage {
-
   AndroidEqualizerMessage({
     required super.enabled,
     required this.parameters,
@@ -1555,7 +1512,6 @@ class AndroidEqualizerMessage extends AudioEffectMessage {
 }
 
 class SetWebCrossOriginRequest {
-
   SetWebCrossOriginRequest({required this.crossOrigin});
   final WebCrossOriginMessage? crossOrigin;
 }
@@ -1565,7 +1521,6 @@ class SetWebCrossOriginResponse {}
 enum WebCrossOriginMessage { anonymous, useCredentials }
 
 class SetWebSinkIdRequest {
-
   SetWebSinkIdRequest({required this.sinkId});
   final String sinkId;
 }

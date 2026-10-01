@@ -2708,7 +2708,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ids: {...serverIds, ...protectedIds},
     );
     final absentIds = localIds.difference(serverIds).difference(protectedIds);
-    return _database.librarySyncDao.observeStarredAbsences(
+    return await _database.librarySyncDao.observeStarredAbsences(
       serverId: serverId,
       entityType: entityType,
       ids: absentIds,
@@ -4100,7 +4100,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       // Verified candidate tracks include bulk snapshots, but never locally
       // carried-forward content. Refresh the evidence even for no-op diffs.
       await _database.customUpdate(
-        'UPDATE albums SET songs_verified_at = ? WHERE id IN ('
+        'UPDATE albums SET songs_verified_at = ? WHERE id IN ( '
         'SELECT id FROM library_sync_candidate_albums '
         'WHERE server_id = ? AND generation = ? '
         'AND songs_hydrated = 1 AND carried_forward = 0)',
@@ -4967,7 +4967,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       // rather than removing its local tree.
     });
 
-    if (interruptedPass != null) throw interruptedPass!;
+    if (interruptedPass != null) {
+      Error.throwWithStackTrace(interruptedPass!, StackTrace.current);
+    }
 
     // An unchanged artist index/header cannot prove track metadata freshness.
     // Reserve a bounded oldest-first slice on each eligible catalog pass.
@@ -5756,7 +5758,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         : _normalizeAlbumIds(restrictedAlbumIds);
     if (restricted != null) {
       if (candidateServerId != null && catalogGeneration != null) {
-        return _database.librarySyncCandidateDao.getPendingAlbumIds(
+        return await _database.librarySyncCandidateDao.getPendingAlbumIds(
           serverId: candidateServerId,
           generation: catalogGeneration,
           preferredIds: restricted,
@@ -5769,7 +5771,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       )).map((album) => album.id).toList(growable: false);
     }
     if (candidateServerId != null && catalogGeneration != null) {
-      return _database.librarySyncCandidateDao.getPendingAlbumIds(
+      return await _database.librarySyncCandidateDao.getPendingAlbumIds(
         serverId: candidateServerId,
         generation: catalogGeneration,
         preferredIds: prioritizedAlbumIds,

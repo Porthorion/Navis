@@ -101,7 +101,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     final albumError = albumErrors[id];
     if (albumError != null) {
       currentAlbumRequests--;
-      throw albumError;
+      Error.throwWithStackTrace(albumError, StackTrace.current);
     }
     if (albumDelay > Duration.zero) {
       await Future<void>.delayed(albumDelay);
@@ -147,7 +147,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     calls.add('getScanStatus');
     final onCall = onGetScanStatus;
     if (onCall != null) {
-      return onCall();
+      return await onCall();
     }
     if (scanStatusQueue.isNotEmpty) {
       return scanStatusQueue.removeAt(0);
@@ -163,7 +163,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     calls.add('getAlbumListPage:$offset:$size');
     final pageError = fastPathErrors[offset];
     if (pageError != null) {
-      throw pageError;
+      Error.throwWithStackTrace(pageError, StackTrace.current);
     }
     final error = throwOnFastPath;
     if (error != null) {
@@ -188,7 +188,7 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     }
     final artistError = artistErrors[id];
     if (artistError != null) {
-      throw artistError;
+      Error.throwWithStackTrace(artistError, StackTrace.current);
     }
     final artist = artistDetails[id];
     if (artist == null) {
@@ -202,11 +202,11 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
     calls.add('getArtists');
     final error = getArtistsError;
     if (error != null) {
-      throw error;
+      Error.throwWithStackTrace(error, StackTrace.current);
     }
     final completer = artistsCompleter;
     if (completer != null) {
-      return completer.future;
+      return await completer.future;
     }
     return artists;
   }

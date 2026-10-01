@@ -86,7 +86,7 @@ class _ArtistVirtualPlaylistArtworkState
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           transitionBuilder: (child, animation) {
-            final scale = Tween<double>(begin: 1.025, end: 1.0).animate(
+            final scale = Tween<double>(begin: 1.025, end: 1).animate(
               CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
             );
             return FadeTransition(

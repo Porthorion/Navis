@@ -71,7 +71,7 @@ class RadioMetadataService {
   void stop() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
-    _icySubscription?.cancel();
+    unawaited(_icySubscription?.cancel());
     _icySubscription = null;
     _activeStationId = null;
     _azuracastBaseUrl = null;

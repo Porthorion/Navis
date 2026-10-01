@@ -200,9 +200,9 @@ void main() {
       );
       tester
           .widget<SliverReorderableList>(find.byType(SliverReorderableList))
-          // This regression drives the existing production callback contract.
-          // ignore: deprecated_member_use
-          .onReorder!(0, 3);
+          // onReorderItem receives the index after removing the moved row:
+          // moving the first of three rows to the end is (0, 2).
+          .onReorderItem!(0, 2);
       await tester.pumpAndSettle();
       verify(
         () => api.replacePlaylistSongs(

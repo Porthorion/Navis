@@ -64,7 +64,7 @@ void main() {
     NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshotProvider,
   ) {
     late final ProviderContainer container;
-    container = ProviderContainer(
+    return container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotProvider)),
         audioHandlerProvider.overrideWithValue(null),
@@ -77,7 +77,6 @@ void main() {
         ),
       ],
     );
-    return container;
   }
 
   test('empty start preserves the previous queue', () async {

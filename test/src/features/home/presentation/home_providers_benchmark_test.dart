@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Value;
@@ -68,6 +66,8 @@ void main() {
     () async {
       final database = createTestDatabase();
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Populating database with 10,000 songs...');
       final songsToInsert = <SongsTableCompanion>[];
       for (var i = 0; i < 10000; i++) {
@@ -150,11 +150,15 @@ void main() {
         await database.close();
       });
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Starting matching resolution...');
       final stopwatch = Stopwatch()..start();
       final result = await container.read(listenBrainzDiscoverProvider.future);
       stopwatch.stop();
 
+      // Benchmark output is the measurement artifact for this opt-in test.
+      // ignore: avoid_print
       print('Matching resolved in: ${stopwatch.elapsedMilliseconds} ms');
       expect(result, isNotEmpty);
     },

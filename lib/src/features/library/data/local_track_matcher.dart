@@ -289,14 +289,14 @@ TrackMatchResult pickBestTrackMatch({
 }
 
 double trackMatchFieldScore(String expected, String actual) {
-  if (expected == actual) return 1.0;
+  if (expected == actual) return 1;
   if (expected.replaceAll(' ', '') == actual.replaceAll(' ', '')) {
     return 0.98;
   }
   if (expected.contains(actual) || actual.contains(expected)) return 0.88;
   final expectedTokens = expected.split(' ').where((t) => t.isNotEmpty).toSet();
   final actualTokens = actual.split(' ').where((t) => t.isNotEmpty).toSet();
-  if (expectedTokens.isEmpty || actualTokens.isEmpty) return 0.0;
+  if (expectedTokens.isEmpty || actualTokens.isEmpty) return 0;
   final overlap = expectedTokens.intersection(actualTokens).length;
   return overlap / math.max(expectedTokens.length, actualTokens.length);
 }

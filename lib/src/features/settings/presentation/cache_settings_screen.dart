@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
@@ -54,7 +56,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCurrentBudget();
+    unawaited(_loadCurrentBudget());
   }
 
   Future<void> _loadCurrentBudget() async {

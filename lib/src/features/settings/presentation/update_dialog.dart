@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart' as legacy;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -208,11 +209,19 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 160),
                 child: SingleChildScrollView(
-                  child: MarkdownBody(
-                    data: widget.info.releaseNotes!,
-                    styleSheet: MarkdownStyleSheet.fromTheme(theme)
-                        .copyWith(p: theme.textTheme.bodySmall),
-                    shrinkWrap: true,
+                  // flutter_markdown_plus still consumes legacy ThemeData.
+                  // Remove this bridge when its Material migration is released.
+                  // ignore: deprecated_member_use
+                  child: MaterialUiCompatibilityBridge(
+                    child: Builder(
+                      builder: (context) => MarkdownBody(
+                        data: widget.info.releaseNotes!,
+                        styleSheet: MarkdownStyleSheet.fromTheme(
+                          legacy.Theme.of(context),
+                        ).copyWith(p: theme.textTheme.bodySmall),
+                        shrinkWrap: true,
+                      ),
+                    ),
                   ),
                 ),
               ),

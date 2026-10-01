@@ -457,6 +457,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void _handleCompactWideQueueRequestChanged(VoidCallback? handler) {
     _compactWideQueueRequestHandler = handler;
   }

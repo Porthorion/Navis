@@ -4,6 +4,8 @@
 /// each entry has at minimum `id` and `name`. We model that as [ArtistRef]
 /// rather than reusing the full [Artist] type (which carries albumCount,
 /// coverArt, etc.) to keep the JSON mapping lightweight.
+///
+/// @docImport 'package:navis/src/api/models/artist.dart';
 library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';

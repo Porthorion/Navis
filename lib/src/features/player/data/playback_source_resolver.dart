@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -349,6 +352,8 @@ class PlaybackSourceResolver {
   Future<bool> _cachedLocatorExists(CachedTracksTableData track) =>
       _isSafLocator(track)
       ? _safStorage.exists(track.filePath)
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       : File(track.filePath).exists();
 
   Uri _cachedLocatorUri(CachedTracksTableData track) => _isSafLocator(track)

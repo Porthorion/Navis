@@ -79,9 +79,13 @@ class QueueSheet extends ConsumerWidget {
                   itemCount: queueIds.length,
                   onReorderStart: (_) => onReorderDragChanged?.call(true),
                   onReorderEnd: (_) => onReorderDragChanged?.call(false),
-                  onReorder: (oldIndex, newIndex) async {
+                  onReorderItem: (oldIndex, newIndex) async {
                     if (actionsDisabled) return;
-                    await ref.read(reorderQueueProvider)(oldIndex, newIndex);
+                    // The handler retains the insertion index before removal.
+                    await ref.read(reorderQueueProvider)(
+                      oldIndex,
+                      oldIndex < newIndex ? newIndex + 1 : newIndex,
+                    );
                   },
                   itemBuilder: (context, index) {
                     final songId = queueIds[index];

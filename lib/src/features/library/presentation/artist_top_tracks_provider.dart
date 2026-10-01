@@ -166,7 +166,9 @@ final artistTopTracksProvider = FutureProvider.autoDispose
 
 final artistTopTracksPlaylistProvider = FutureProvider.autoDispose
     .family<List<ResolvedArtistTopTrack>, String>((ref, artistName) async {
-      return ref.watch(_artistTopTracksResolvedAllProvider(artistName).future);
+      return await ref.watch(
+        _artistTopTracksResolvedAllProvider(artistName).future,
+      );
     });
 
 final _artistTopTracksResolvedAllProvider = FutureProvider.autoDispose
@@ -174,7 +176,7 @@ final _artistTopTracksResolvedAllProvider = FutureProvider.autoDispose
       final rawTracks = await ref.watch(
         artistTopTracksRawProvider(artistName).future,
       );
-      return _resolveArtistTopTracks(ref, artistName, rawTracks);
+      return await _resolveArtistTopTracks(ref, artistName, rawTracks);
     });
 
 Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(

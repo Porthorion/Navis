@@ -26,7 +26,7 @@ import 'package:path/path.dart' as path;
 
 /// Root-library entrypoint resolved by Android's headless FlutterEngine.
 ///
-/// [DartExecutor.DartEntrypoint] resolves a named function from the app's root
+/// `DartExecutor.DartEntrypoint` resolves a named function from the app's root
 /// library, so retaining the implementation only in a feature library is not
 /// sufficient for profile or release builds even when it has its own pragma.
 @pragma('vm:entry-point')

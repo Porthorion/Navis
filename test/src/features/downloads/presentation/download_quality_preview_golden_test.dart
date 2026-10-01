@@ -13,38 +13,40 @@ void main() {
       ListTile(title: Text('128 kbps')),
     ],
   );
-  Future<void> pump(WidgetTester tester, bool desktop) => tester.pumpWidget(
-    MaterialApp(
-      theme: buildDarkTheme(Colors.deepPurple),
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: Center(
-            child: FilledButton(
-              onPressed: () {
-                if (desktop) {
-                  showDialog<void>(
-                    context: context,
-                    builder: (_) =>
-                        Dialog(child: SizedBox(width: 440, child: content())),
-                  );
-                } else {
-                  showModalBottomSheet<void>(
-                    context: context,
-                    builder: (_) => content(),
-                  );
-                }
-              },
-              child: const Text('Choose quality'),
+  Future<void> pump(WidgetTester tester, {required bool desktop}) =>
+      tester.pumpWidget(
+        MaterialApp(
+          theme: buildDarkTheme(Colors.deepPurple),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () {
+                    if (desktop) {
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => Dialog(
+                          child: SizedBox(width: 440, child: content()),
+                        ),
+                      );
+                    } else {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        builder: (_) => content(),
+                      );
+                    }
+                  },
+                  child: const Text('Choose quality'),
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
   testWidgets('quality before sheet', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, false);
+    await pump(tester, desktop: false);
     await tester.tap(find.text('Choose quality'));
     await tester.pumpAndSettle();
     await expectLater(
@@ -55,7 +57,7 @@ void main() {
   testWidgets('quality after dialog', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pump(tester, true);
+    await pump(tester, desktop: true);
     await tester.tap(find.text('Choose quality'));
     await tester.pumpAndSettle();
     await expectLater(

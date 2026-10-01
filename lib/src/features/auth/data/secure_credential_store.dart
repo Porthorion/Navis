@@ -29,7 +29,7 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
     if (_didLoad) {
       return _password;
     }
-    return _loadFuture ??= _loadPassword();
+    return await (_loadFuture ??= _loadPassword());
   }
 
   @override

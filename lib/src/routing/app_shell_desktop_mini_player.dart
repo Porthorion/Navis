@@ -311,17 +311,13 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
           };
           unawaited(handler?.setRepeatMode(next));
         case _DesktopMiniPlayerAction.queue:
-          unawaited(
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const QueueScreen()),
-            ),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const QueueScreen()));
         case _DesktopMiniPlayerAction.lyrics:
-          unawaited(
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const NowPlayingLyricsScreen(),
-              ),
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const NowPlayingLyricsScreen(),
             ),
           );
       }
@@ -690,8 +686,8 @@ class _DesktopWindowTransitionGate extends ConsumerWidget {
         final compact = constraints.maxHeight < 500;
         final outerInset = compact ? 8.0 : 24.0;
         final innerInset = compact ? 14.0 : 24.0;
-        final availableHeight = math.max(
-          0.0,
+        final availableHeight = math.max<double>(
+          0,
           constraints.maxHeight - (outerInset * 2),
         );
 

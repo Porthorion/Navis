@@ -43,7 +43,7 @@ void main() {
   });
 
   tearDown(() async {
-    otherConnection.dispose();
+    otherConnection.close();
     await database.close();
     await directory.delete(recursive: true);
   });

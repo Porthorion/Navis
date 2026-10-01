@@ -27,7 +27,7 @@ class UpdateService {
   // Download
   // ---------------------------------------------------------------------------
 
-  /// Downloads the artifact from [info.downloadUrl] to the app's cache
+  /// Downloads the artifact from [UpdateInfo.downloadUrl] to the app's cache
   /// directory and reports progress via [onProgress] (0.0 – 1.0).
   ///
   /// Returns the absolute path to the downloaded file.
@@ -130,14 +130,17 @@ class UpdateService {
 
     final webUri = Uri.parse(AppConstants.playStoreListingUrl);
     if (await canLaunchUrl(webUri)) {
-      return launchUrl(webUri, mode: LaunchMode.externalApplication);
+      return await launchUrl(webUri, mode: LaunchMode.externalApplication);
     }
 
     final fallback = fallbackUrl?.trim();
     if (fallback != null && fallback.isNotEmpty) {
       final fallbackUri = Uri.parse(fallback);
       if (await canLaunchUrl(fallbackUri)) {
-        return launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+        return await launchUrl(
+          fallbackUri,
+          mode: LaunchMode.externalApplication,
+        );
       }
     }
     return false;
@@ -160,7 +163,7 @@ class UpdateService {
     try {
       final targetDir = _resolveTargetDir(mode);
       return ArchiveUtils.isDirectoryWritable(targetDir);
-    } catch (_) {
+    } on Object catch (_) {
       return false;
     }
   }
@@ -352,7 +355,7 @@ class UpdateService {
           await entity.delete(recursive: true);
         }
       }
-    } catch (_) {}
+    } on Object catch (_) {}
   }
 
   static Future<void> _cleanupStagingDirs() async {
@@ -365,7 +368,7 @@ class UpdateService {
           await entity.delete(recursive: true);
         }
       }
-    } catch (_) {}
+    } on Object catch (_) {}
   }
 
   // ---------------------------------------------------------------------------

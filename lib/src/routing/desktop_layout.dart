@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/routing/app_shell.dart';
+library;
+
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';

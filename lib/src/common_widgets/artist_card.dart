@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -74,7 +76,7 @@ class ArtistCard extends StatelessWidget {
       onLongPress: onLongPress == null
           ? null
           : () {
-              HapticFeedback.mediumImpact();
+              unawaited(HapticFeedback.mediumImpact());
               onLongPress!();
             },
     );

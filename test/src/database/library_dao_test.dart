@@ -224,7 +224,7 @@ void main() {
           }),
           throwsStateError,
         );
-        expect(await file.exists(), isTrue);
+        expect(file.existsSync(), isTrue);
         expect(await database.libraryDao.getSongById('s'), isNotNull);
         expect(
           await database.select(database.cachedTracksTable).get(),

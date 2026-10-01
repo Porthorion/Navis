@@ -74,6 +74,58 @@ void main() {
   });
 
   test(
+    'checks saved documents through the engine-owned playback channel',
+    () async {
+      const playback = MethodChannel(
+        'com.navis.app/permanent_download_playback',
+      );
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      var calls = 0;
+      messenger.setMockMethodCallHandler(playback, (call) async {
+        expect(call.method, 'exists');
+        expect(call.arguments['uri'], 'content://test/document/track');
+        calls++;
+        return true;
+      });
+      try {
+        expect(
+          await const AndroidSafStorage().exists(
+            'content://test/document/track',
+          ),
+          isTrue,
+        );
+        expect(calls, 1);
+        messenger.setMockMethodCallHandler(playback, (_) async => null);
+        expect(
+          await const AndroidSafStorage().exists(
+            'content://test/document/track',
+          ),
+          isFalse,
+        );
+        messenger.setMockMethodCallHandler(playback, (_) async {
+          throw PlatformException(
+            code: 'SAF_STORAGE_ERROR',
+            message: 'Read grant revoked',
+          );
+        });
+        await expectLater(
+          const AndroidSafStorage().exists('content://test/document/track'),
+          throwsA(
+            isA<FileSystemException>().having(
+              (error) => error.message,
+              'message',
+              'Read grant revoked',
+            ),
+          ),
+        );
+      } finally {
+        messenger.setMockMethodCallHandler(playback, null);
+      }
+    },
+  );
+
+  test(
     'normalizes Android provider failures to recoverable filesystem errors',
     () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

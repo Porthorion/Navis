@@ -443,6 +443,75 @@ void main() {
     );
 
     test(
+      'cancelAndWait drains an automatic check through persistence',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        final automaticResult = Completer<LibrarySyncState>();
+        final enteredEngine = Completer<void>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) {
+            enteredEngine.complete();
+            return automaticResult.future;
+          },
+          ({forceFull = false, onProgress}) async =>
+              const LibrarySyncState.idle(),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.offline,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(librarySyncControllerProvider.notifier);
+        final automatic = notifier.syncIfStale();
+        await enteredEngine.future;
+        var drained = false;
+        final cancellation = notifier.cancelAndWait().then(
+          (_) => drained = true,
+        );
+        await Future<void>.delayed(Duration.zero);
+        final completedBeforeEngine = drained;
+
+        automaticResult.complete(
+          LibrarySyncState(
+            status: LibrarySyncStatus.cancelled,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+        );
+        await cancellation;
+        expect(completedBeforeEngine, isFalse);
+        expect(drained, isTrue);
+        await automatic;
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(persisted.nextAutomaticCheckAt!.isAfter(DateTime.now()), isTrue);
+      },
+    );
+
+    test(
       'eligible user catalog work bypasses a fresh automatic deadline',
       () async {
         final database = createTestDatabase();
@@ -897,7 +966,7 @@ void main() {
               startedAt: DateTime.now(),
             ),
           );
-          return completer.future;
+          return await completer.future;
         },
       );
 
@@ -1001,7 +1070,7 @@ void main() {
               stage: LibrarySyncStage.collectingCandidate,
             ),
           );
-          return completer.future;
+          return await completer.future;
         },
       );
       final container = ProviderContainer(
@@ -1299,7 +1368,7 @@ void main() {
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           ),
-          ({forceFull = false, onProgress}) async => forceFull
+          ({forceFull = false, onProgress}) async => await (forceFull
               ? completer.future
               : const LibrarySyncState(
                   status: LibrarySyncStatus.succeeded,
@@ -1309,7 +1378,7 @@ void main() {
                   apiRequests: 9,
                   endpointRequests: {'getAlbum': 9},
                   lastRunBytes: 1024,
-                ),
+                )),
         );
         final container = ProviderContainer(
           overrides: [

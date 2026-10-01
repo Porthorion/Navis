@@ -192,9 +192,7 @@ class _EmbeddedNowPlayingPanelScaffoldState
         if (_reduceMotion) {
           _transitionController.value = 1;
         } else {
-          unawaited(
-            _transitionController.animateTo(1, curve: Curves.easeOutCubic),
-          );
+          _transitionController.animateTo(1, curve: Curves.easeOutCubic);
         }
       }
     });
@@ -268,12 +266,11 @@ class _EmbeddedNowPlayingPanelScaffoldState
       unawaited(_requestDismiss());
       return;
     }
-    unawaited(
-      _transitionController.animateTo(
-        1,
-        duration: MotionPolicy.of(context).surface,
-        curve: Curves.easeOutCubic,
-      ),
+
+    _transitionController.animateTo(
+      1,
+      duration: MotionPolicy.of(context).surface,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -292,12 +289,10 @@ class _EmbeddedNowPlayingPanelScaffoldState
       if (_reduceMotion) {
         _transitionController.value = 1;
       } else {
-        unawaited(
-          _transitionController.animateTo(
-            1,
-            duration: MotionPolicy.of(context).feedback,
-            curve: Curves.easeOut,
-          ),
+        _transitionController.animateTo(
+          1,
+          duration: MotionPolicy.of(context).feedback,
+          curve: Curves.easeOut,
         );
       }
       return false;
@@ -414,7 +409,7 @@ class _EmbeddedNowPlayingPanelScaffoldState
 /// Slides in from the bottom with 1:1 finger tracking on the drag-handle
 /// area, matching the gesture feel of [ExpandablePlayerSheet]. Dismisses via
 /// downward swipe, fling, or the back-arrow button. Scroll-integrated dismiss
-/// is also supported for panels whose [child] is a scrollable list.
+/// is also supported for panels whose [_CompactWideOverlaySheet.child] is a scrollable list.
 class _CompactWideOverlaySheet extends StatefulWidget {
   const new({
     required this.title,
@@ -464,7 +459,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
         if (_reduceMotion) {
           _controller.value = 1;
         } else {
-          unawaited(_controller.animateTo(1, curve: Curves.easeOutCubic));
+          _controller.animateTo(1, curve: Curves.easeOutCubic);
         }
       }
     });
@@ -510,7 +505,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     final size = context.size;
     if (size != null && size.height > 0) return size.height;
     final media = MediaQuery.maybeOf(context);
-    return media == null ? 1.0 : math.max(1.0, media.size.height);
+    return media == null ? 1.0 : math.max(1, media.size.height);
   }
 
   void _applyDragDelta(double delta) {
@@ -546,12 +541,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
       if (_controller.value < _CompactWideOverlaySheet._snapDismissThreshold) {
         _startDismiss();
       } else {
-        unawaited(
-          _controller.animateTo(
-            1,
-            duration: MotionPolicy.of(context).surface,
-            curve: Curves.easeOutCubic,
-          ),
+        _controller.animateTo(
+          1,
+          duration: MotionPolicy.of(context).surface,
+          curve: Curves.easeOutCubic,
         );
       }
     }
@@ -571,12 +564,11 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     }
     // Buttons, Back, and other programmatic closes should retrace the
     // entrance at a readable speed instead of disappearing in one tick.
-    unawaited(
-      _controller.animateBack(
-        0,
-        duration: _controller.reverseDuration,
-        curve: Curves.easeInCubic,
-      ),
+
+    _controller.animateBack(
+      0,
+      duration: _controller.reverseDuration,
+      curve: Curves.easeInCubic,
     );
   }
 
@@ -594,12 +586,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
       if (_reduceMotion) {
         _controller.value = 1;
       } else {
-        unawaited(
-          _controller.animateTo(
-            1,
-            duration: MotionPolicy.of(context).feedback,
-            curve: Curves.easeOut,
-          ),
+        _controller.animateTo(
+          1,
+          duration: MotionPolicy.of(context).feedback,
+          curve: Curves.easeOut,
         );
       }
       return false;

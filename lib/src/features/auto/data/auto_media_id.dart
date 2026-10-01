@@ -3,6 +3,8 @@
 /// All browse-tree nodes use a URI-like string that encodes the node type and
 /// identity so that [AutoMediaTreeService] can resolve children and playback
 /// targets from a single opaque ID.
+///
+/// @docImport 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 library;
 
 /// Well-known root node IDs.

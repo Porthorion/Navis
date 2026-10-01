@@ -21,6 +21,36 @@ class SyncDiagnosticsOverrides {
     this.artistTopTracksPresentationFixture = false,
   });
 
+  factory fromJson(Map<String, Object?> json) {
+    NetworkType? networkType;
+    final rawNetworkType = json['networkType'];
+    if (rawNetworkType is String) {
+      for (final type in NetworkType.values) {
+        if (type.name == rawNetworkType) {
+          networkType = type;
+          break;
+        }
+      }
+    }
+    return SyncDiagnosticsOverrides(
+      networkType: networkType,
+      nativeMetered: json['nativeMetered'] as bool?,
+      backgroundSyncUnmeteredOnly: json['backgroundSyncUnmeteredOnly'] as bool?,
+      automaticSyncAllowed: json['automaticSyncAllowed'] as bool?,
+      interactiveHydrationAllowed: json['interactiveHydrationAllowed'] as bool?,
+      meteredBudgetBytes: json['meteredBudgetBytes'] as int?,
+      requestReporting: json['requestReporting'] as bool? ?? false,
+      cachedListenBrainzPresentation:
+          json['cachedListenBrainzPresentation'] as bool? ?? false,
+      forceSearchRemoteFailure:
+          json['forceSearchRemoteFailure'] as bool? ?? false,
+      radioPresentationFixture:
+          json['radioPresentationFixture'] as bool? ?? false,
+      artistTopTracksPresentationFixture:
+          json['artistTopTracksPresentationFixture'] as bool? ?? false,
+    );
+  }
+
   final NetworkType? networkType;
   final bool? nativeMetered;
   final bool? backgroundSyncUnmeteredOnly;
@@ -95,36 +125,6 @@ class SyncDiagnosticsOverrides {
     'radioPresentationFixture': radioPresentationFixture,
     'artistTopTracksPresentationFixture': artistTopTracksPresentationFixture,
   };
-
-  static SyncDiagnosticsOverrides fromJson(Map<String, Object?> json) {
-    NetworkType? networkType;
-    final rawNetworkType = json['networkType'];
-    if (rawNetworkType is String) {
-      for (final type in NetworkType.values) {
-        if (type.name == rawNetworkType) {
-          networkType = type;
-          break;
-        }
-      }
-    }
-    return SyncDiagnosticsOverrides(
-      networkType: networkType,
-      nativeMetered: json['nativeMetered'] as bool?,
-      backgroundSyncUnmeteredOnly: json['backgroundSyncUnmeteredOnly'] as bool?,
-      automaticSyncAllowed: json['automaticSyncAllowed'] as bool?,
-      interactiveHydrationAllowed: json['interactiveHydrationAllowed'] as bool?,
-      meteredBudgetBytes: json['meteredBudgetBytes'] as int?,
-      requestReporting: json['requestReporting'] as bool? ?? false,
-      cachedListenBrainzPresentation:
-          json['cachedListenBrainzPresentation'] as bool? ?? false,
-      forceSearchRemoteFailure:
-          json['forceSearchRemoteFailure'] as bool? ?? false,
-      radioPresentationFixture:
-          json['radioPresentationFixture'] as bool? ?? false,
-      artistTopTracksPresentationFixture:
-          json['artistTopTracksPresentationFixture'] as bool? ?? false,
-    );
-  }
 }
 
 class SyncDiagnosticsOverridesController
@@ -150,6 +150,8 @@ class SyncDiagnosticsOverridesController
     };
   }
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void apply(SyncDiagnosticsOverrides overrides) {
     state = overrides;
   }
@@ -202,6 +204,8 @@ class DesktopNowPlayingDiagnosticsController extends Notifier<bool?> {
   @override
   bool? build() => null;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties, avoid_positional_boolean_parameters
   void setVisible(bool visible) => state = visible;
 
   void clear() => state = null;

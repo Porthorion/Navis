@@ -241,7 +241,7 @@ String _linuxDebArch() {
       if (machine == 'aarch64' || machine == 'arm64') return 'arm64';
       return machine;
     }
-  } catch (_) {}
+  } on Object catch (_) {}
   return 'amd64'; // safe default
 }
 

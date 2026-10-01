@@ -60,7 +60,7 @@ class _FakeServerConnectionService extends ServerConnectionService {
       throw error!;
     }
     if (completer != null) {
-      return completer!.future;
+      return await completer!.future;
     }
     return _result;
   }

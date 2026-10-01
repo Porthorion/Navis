@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/common_widgets/expandable_player_sheet.dart';
+library;
+
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -445,12 +448,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final activeArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : currentMediaItem?.artUri?.toString();
-    // ignore: unused_local_variable
-    final visualCacheKey = nowPlayingVisualCacheKeyFor(
-      brightness: brightness,
-      coverArtId: playback.isRadioMode ? null : song?.coverArt,
-      artUrl: activeArtUrl,
-    );
     final cachedTintColor = artTinted
         ? nowPlayingCachedTintColor(
             brightness: brightness,
@@ -477,16 +474,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           if (playback.isRadioMode) {
             final radioArtUrl = playback.radioStation?.nowPlayingArtUrl;
             if (radioArtUrl != null && radioArtUrl.trim().isNotEmpty) {
-              _extractArtColorFromUrl(radioArtUrl);
+              unawaited(_extractArtColorFromUrl(radioArtUrl));
             }
           } else {
             final coverArtId = song?.coverArt;
             if (coverArtId != null && coverArtId.trim().isNotEmpty) {
-              _extractArtColor(coverArtId);
+              unawaited(_extractArtColor(coverArtId));
             } else {
               final mediaArtUrl = currentMediaItem?.artUri?.toString();
               if (mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty) {
-                _extractArtColorFromUrl(mediaArtUrl);
+                unawaited(_extractArtColorFromUrl(mediaArtUrl));
               }
             }
           }
@@ -870,10 +867,12 @@ void _showNowPlayingSettingsSheet(
                     title: Text(l10n.nowPlayingLyrics),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      _openFullscreenLyricsRoute(
-                        context,
-                        fullscreenLyricsSongId,
-                        fullscreenLyricsTitle,
+                      unawaited(
+                        _openFullscreenLyricsRoute(
+                          context,
+                          fullscreenLyricsSongId,
+                          fullscreenLyricsTitle,
+                        ),
                       );
                     },
                   ),
@@ -917,7 +916,9 @@ void _showNowPlayingSettingsSheet(
                     title: Text(l10n.librarySongMenuAddToPlaylist),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      showAddToPlaylistSheet(context, ref, [song.id]);
+                      unawaited(
+                        showAddToPlaylistSheet(context, ref, [song.id]),
+                      );
                     },
                   ),
                 if (song != null &&
@@ -1820,27 +1821,31 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       }
     });
     _latchedArtworkMotion = _resolveArtworkMotion(playback);
+    Widget buildSongSwapTransition(Widget child, Animation<double> animation) =>
+        _songSwapMetadataTransitionBuilder(
+          child,
+          animation,
+          motion: _latchedArtworkMotion,
+        );
     final songSwapTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : (Widget child, Animation<double> animation) =>
-              _songSwapMetadataTransitionBuilder(
-                child,
-                animation,
-                motion: _latchedArtworkMotion,
-              );
+        : buildSongSwapTransition;
     final effectiveSongSwapArtDuration = motion.reduceMotion
         ? Duration.zero
         : _latchedArtworkMotion == _TrackArtworkMotion.automatic
         ? const Duration(milliseconds: 160)
         : const Duration(milliseconds: 220);
+    Widget buildSongSwapArtTransition(
+      Widget child,
+      Animation<double> animation,
+    ) => _songSwapArtTransitionBuilder(
+      child,
+      animation,
+      motion: _latchedArtworkMotion,
+    );
     final effectiveSongSwapArtTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : (Widget child, Animation<double> animation) =>
-              _songSwapArtTransitionBuilder(
-                child,
-                animation,
-                motion: _latchedArtworkMotion,
-              );
+        : buildSongSwapArtTransition;
     final artLyricsSwapDuration = motion.reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 220);
@@ -2409,7 +2414,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
                   ));
         final availableContentHeight = math.max(
-          0.0,
+          0,
           constraints.maxHeight - topInset - artToMetaGap - metadataBottomGap,
         );
         double artRegionHeight;
@@ -2435,8 +2440,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ? maxArtHeight
               : preferredArtHeight.clamp(minArtHeight, maxArtHeight);
         }
-        final metadataRegionHeight = math.max(
-          0.0,
+        final metadataRegionHeight = math.max<double>(
+          0,
           availableContentHeight - artRegionHeight,
         );
 

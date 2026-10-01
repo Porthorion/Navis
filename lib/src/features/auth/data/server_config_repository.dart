@@ -31,7 +31,7 @@ class ServerConfigRepository {
 
   Future<ServerConfigModel?> getActiveServer() async {
     final row = await _serverDao.getActiveServer();
-    return _mapRowToModel(row);
+    return await _mapRowToModel(row);
   }
 
   Future<ServerConfigModel?> getRetainedServer() async {

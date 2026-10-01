@@ -399,7 +399,7 @@ class SubsonicApiClient {
           cancelToken: cancelToken,
         );
       } on SubsonicNotFoundException {
-        return getInstantMix(
+        return await getInstantMix(
           seedSongId,
           count: count,
           cancelToken: cancelToken,
@@ -800,7 +800,7 @@ class SubsonicApiClient {
       }
       if (err.type == DioExceptionType.cancel &&
           err.error is SubsonicResponseBudgetExceededException) {
-        throw err.error as SubsonicResponseBudgetExceededException;
+        throw err.error! as SubsonicResponseBudgetExceededException;
       }
       throw _mapDioException(err);
     } finally {

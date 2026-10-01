@@ -431,11 +431,15 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     for (final path in losingPaths) {
       final file = File(path);
       try {
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (await file.exists()) {
           await file.delete();
           deletedPaths.add(path);
         }
         final sidecar = File('$path.mime');
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
         if (await sidecar.exists()) {
           await sidecar.delete();
         }
@@ -668,7 +672,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
 
   Future<ProvisionalGarbageCollectionResult>
   garbageCollectUnreferencedProvisionalMetadata() async {
-    return transaction(() async {
+    return await transaction(() async {
       final songs = await customUpdate(
         '''
         DELETE FROM songs
@@ -797,7 +801,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     }
     // SAF document URIs must be validated through the platform bridge;
     // File.exists() cannot see them.
-    return storedAudioExists(
+    return await storedAudioExists(
       locator: row.filePath,
       storageKind: row.storageKind,
     );

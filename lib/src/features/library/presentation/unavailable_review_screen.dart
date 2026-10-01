@@ -338,13 +338,14 @@ class _ReviewCard extends ConsumerWidget {
           title,
           limit: 25,
         );
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<AlbumsTableData>(
           context,
           candidates,
           (album) => album.name,
           (album) => album.artistName ?? '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -358,13 +359,14 @@ class _ReviewCard extends ConsumerWidget {
           title,
           limit: 25,
         );
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<ArtistsTableData>(
           context,
           candidates,
           (artist) => artist.name,
           (artist) => '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -388,13 +390,14 @@ class _ReviewCard extends ConsumerWidget {
           }
           return;
         }
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<SongsTableData>(
           context,
           candidates,
           (song) => song.title,
           (song) => song.artistName ?? '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -417,13 +420,14 @@ class _ReviewCard extends ConsumerWidget {
         final candidates = (await database.libraryDao.getAlbumsByIds(
           candidateIds,
         )).where((album) => album.id != entry.oldId).toList(growable: false);
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<AlbumsTableData>(
           context,
           candidates,
           (album) => album.name,
           (album) => album.artistName ?? '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -436,13 +440,14 @@ class _ReviewCard extends ConsumerWidget {
         final candidates = (await database.libraryDao.getArtistsByIds(
           candidateIds,
         )).where((artist) => artist.id != entry.oldId).toList(growable: false);
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<ArtistsTableData>(
           context,
           candidates,
           (artist) => artist.name,
           (artist) => '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -455,13 +460,14 @@ class _ReviewCard extends ConsumerWidget {
         final candidates = (await database.libraryDao.getSongsByIds(
           candidateIds,
         )).where((song) => song.id != entry.oldId).toList(growable: false);
+        if (!context.mounted) return;
         final selected = await _pickFromCandidates<SongsTableData>(
           context,
           candidates,
           (song) => song.title,
           (song) => song.artistName ?? '',
         );
-        if (selected != null) {
+        if (selected != null && context.mounted) {
           await _previewAndApply(
             context,
             ref,
@@ -492,7 +498,7 @@ class _ReviewCard extends ConsumerWidget {
     if (!context.mounted) {
       return null;
     }
-    return showModalBottomSheet<T>(
+    return await showModalBottomSheet<T>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: ListView.builder(

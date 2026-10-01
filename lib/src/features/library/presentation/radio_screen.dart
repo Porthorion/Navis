@@ -52,14 +52,16 @@ class RadioTabContent extends ConsumerWidget {
         }
       },
       child: stationsAsync.when(
-        data: (stations) {
-          final hasStations = stations.isNotEmpty;
-          if (typeFilterQuery.isNotEmpty) {
-            final query = typeFilterQuery.toLowerCase();
-            stations = stations
-                .where((s) => s.name.toLowerCase().contains(query))
-                .toList();
-          }
+        data: (allStations) {
+          final hasStations = allStations.isNotEmpty;
+          final query = typeFilterQuery.toLowerCase();
+          final stations = typeFilterQuery.isEmpty
+              ? allStations
+              : allStations
+                    .where(
+                      (station) => station.name.toLowerCase().contains(query),
+                    )
+                    .toList();
           if (stations.isEmpty) {
             final isFilteredEmpty = hasStations && typeFilterQuery.isNotEmpty;
             return ListView(

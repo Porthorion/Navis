@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -32,7 +33,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => Scaffold(
@@ -42,6 +43,8 @@ void main() {
                   context,
                   const UpdateInfo(
                     tagName: 'v1.2.6',
+                    releaseNotes:
+                        '**Stability fixes** for artwork and storage.',
                     htmlUrl: 'https://example.invalid/navis',
                     delivery: UpdateDelivery.forgejoSelfUpdate,
                     downloadUrl: 'https://example.invalid/navis.apk',
@@ -59,6 +62,8 @@ void main() {
 
     await tester.tap(find.text('Open update'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('Stability fixes'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.tap(find.text('Install'));
     await tester.pumpAndSettle();
 

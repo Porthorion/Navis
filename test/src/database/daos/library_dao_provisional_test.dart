@@ -96,7 +96,7 @@ void main() {
       expect(song.isExternal, isTrue);
       expect(song.userRating, 4);
       expect(song.albumId, 'remote-album');
-      expect(await audio.exists(), isTrue);
+      expect(audio.existsSync(), isTrue);
       expect(
         await database.libraryDao.searchCachedSongs('Remote Song'),
         hasLength(1),

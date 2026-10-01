@@ -52,6 +52,8 @@ class _PlaybackRecoveryService implements PlaybackRecoveryService {
   final Future<void> Function() _abortBootstrap;
   final Future<void> Function() _startBootstrapRetry;
   final void Function() _navigateToLibraryRebuild;
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   final Future<void> Function(bool wipeLocalData) _signOut;
   final Future<void> Function() _refreshServerConfig;
 

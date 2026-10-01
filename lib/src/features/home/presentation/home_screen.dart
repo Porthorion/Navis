@@ -4018,7 +4018,7 @@ class _ServerAlbumCard extends StatelessWidget {
             onLongPress: onLongPress == null
                 ? null
                 : () {
-                    HapticFeedback.mediumImpact();
+                    unawaited(HapticFeedback.mediumImpact());
                     onLongPress!();
                   },
             child: Stack(

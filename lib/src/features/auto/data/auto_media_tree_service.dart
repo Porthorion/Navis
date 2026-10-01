@@ -104,7 +104,7 @@ class AutoMediaTreeService {
   }
 
   Future<List<MediaItem>> _getChildrenImpl(String parentMediaId) async {
-    return switch (parentMediaId) {
+    return await (switch (parentMediaId) {
       AutoMediaRoot.root => _getRootChildren(),
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
@@ -119,7 +119,7 @@ class AutoMediaTreeService {
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
       AutoMediaRoot.downloads => _getDownloadedSongs(),
       _ => _getEntityChildren(parentMediaId),
-    };
+    });
   }
 
   Future<List<MediaItem>> _getRootChildren() async {
@@ -382,12 +382,12 @@ class AutoMediaTreeService {
       return _emptyItems(parentMediaId, 'No content');
     }
 
-    return switch (parsed.type) {
+    return await (switch (parsed.type) {
       AutoMediaIdType.artist => _getArtistAlbums(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumSongs(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistSongs(parsed.entityId!),
       _ => _emptyItems(parentMediaId, 'No content'),
-    };
+    });
   }
 
   Future<List<MediaItem>> _getArtistAlbums(String artistId) async {
@@ -457,16 +457,16 @@ class AutoMediaTreeService {
     final parsed = AutoMediaId.parse(mediaId);
     if (parsed == null) {
       final rawSongId = AutoMediaId.songIdFrom(mediaId);
-      return rawSongId == null ? null : _getSongMediaItem(rawSongId);
+      return await (rawSongId == null ? null : _getSongMediaItem(rawSongId));
     }
 
-    return switch (parsed.type) {
+    return await (switch (parsed.type) {
       AutoMediaIdType.song => _getSongMediaItem(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumMediaItem(parsed.entityId!),
       AutoMediaIdType.artist => _getArtistMediaItem(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistMediaItem(parsed.entityId!),
       _ => null,
-    };
+    });
   }
 
   Future<MediaItem?> _getSongMediaItem(String songId) async {
@@ -539,9 +539,9 @@ class AutoMediaTreeService {
     final focus = _SearchFocus.fromExtras(extras);
     final api = _readApiClient();
     if (api != null) {
-      return _searchViaApi(api, query, focus);
+      return await _searchViaApi(api, query, focus);
     }
-    return _searchLocalDb(query, focus);
+    return await _searchLocalDb(query, focus);
   }
 
   Future<List<MediaItem>> _searchViaApi(
@@ -581,7 +581,7 @@ class AutoMediaTreeService {
       AppLogger.debug(
         'Android Auto remote search unavailable; using local library.',
       );
-      return _searchLocalDb(query, focus);
+      return await _searchLocalDb(query, focus);
     }
   }
 

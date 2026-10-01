@@ -59,7 +59,7 @@ Future<bool> recordInitialCatalogReadiness({
       !isUsableIncompleteAlbumSyncRun(result)) {
     return false;
   }
-  return database.transaction(() async {
+  return await database.transaction(() async {
     final server = await database.serverDao.getActiveServer();
     if (server?.id != serverId) return false;
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);

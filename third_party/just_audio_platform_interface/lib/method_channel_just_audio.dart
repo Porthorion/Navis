@@ -33,7 +33,6 @@ class MethodChannelJustAudio extends JustAudioPlatform {
 
 /// An implementation of [AudioPlayerPlatform] that uses method channels.
 class MethodChannelAudioPlayer extends AudioPlayerPlatform {
-
   MethodChannelAudioPlayer(String id)
       : _channel = MethodChannel('com.ryanheise.just_audio.methods.$id'),
         super(id);

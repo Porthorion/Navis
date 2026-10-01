@@ -65,7 +65,7 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
 
   final cache = ref.watch(_dynamicAccentColorCacheProvider);
   final api = ref.watch(subsonicApiProvider);
-  return cache.resolve(
+  return await cache.resolve(
     source: source,
     api: api,
     cacheManager: ref.watch(coverArtCacheManagerProvider),

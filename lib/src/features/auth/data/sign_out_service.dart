@@ -29,6 +29,8 @@ class SessionTransitionController extends Notifier<SessionTransition> {
   @override
   SessionTransition build() => SessionTransition.idle;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void setTransition(SessionTransition value) => state = value;
 }
 
@@ -170,14 +172,14 @@ class SessionLifecycleService implements SignOutService {
       await attempt('clear pending download queue', () {
         return _database.downloadQueueDao.clearQueue();
       });
-      await attempt('clear pending star actions', () {
-        return _database.starSyncDao.clearAll();
+      await attempt('clear pending star actions', () async {
+        await _database.starSyncDao.clearAll();
       });
       await attempt('clear pending scrobbles', () {
         return _database.scrobbleDao.clearAll();
       });
-      await attempt('clear pending ListenBrainz feedback', () {
-        return _database.listenBrainzFeedbackDao.clearAll();
+      await attempt('clear pending ListenBrainz feedback', () async {
+        await _database.listenBrainzFeedbackDao.clearAll();
       });
       await attempt('clear sync candidates', () {
         return _database.librarySyncCandidateDao.clearAll();

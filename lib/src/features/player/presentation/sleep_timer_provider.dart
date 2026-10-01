@@ -67,7 +67,7 @@ class SleepTimerController extends Notifier<SleepTimerState> {
         final fraction = remaining.inSeconds / _fadeDuration.inSeconds;
         final handler = ref.read(audioHandlerProvider);
         final userVolume = ref.read(playbackVolumeProvider);
-        handler?.setVolume((userVolume * fraction).clamp(0.0, 1.0));
+        unawaited(handler?.setVolume((userVolume * fraction).clamp(0.0, 1.0)));
       }
 
       state = SleepTimerState(
@@ -85,15 +85,15 @@ class SleepTimerController extends Notifier<SleepTimerState> {
 
   void _restoreVolume() {
     final handler = ref.read(audioHandlerProvider);
-    handler?.setVolume(ref.read(playbackVolumeProvider));
+    unawaited(handler?.setVolume(ref.read(playbackVolumeProvider)));
   }
 
   void _pauseAndStop() {
     final handler = ref.read(audioHandlerProvider);
-    handler?.pause();
+    unawaited(handler?.pause());
     _cancelTimer();
     // Restore the user's chosen level without persisting the transient fade.
-    handler?.setVolume(ref.read(playbackVolumeProvider));
+    unawaited(handler?.setVolume(ref.read(playbackVolumeProvider)));
     state = const SleepTimerState();
   }
 }

@@ -156,6 +156,18 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'Downloaded songs in a custom Android folder now play when Android Auto starts Navis before the phone screen is opened',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Seeking from the Windows media controls lands at the chosen position instead of jumping to the end of the song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis is built on the latest Flutter hotfix and updated navigation, artwork, storage, database and Windows components, with their reliability and security fixes',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         "Desktop now has Back and Forward: buttons at the top of the sidebar, Alt+Left/Right (Cmd+[ and Cmd+] on macOS) and the mouse side buttons. They remember each tab's pages, work from the moment Navis opens, and never jump you to a different tab's copy of a page",
         type: ChangelogEntryType.newFeature,
       ),

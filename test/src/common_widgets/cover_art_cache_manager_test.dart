@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file/file.dart' as files;
+import 'package:file/local.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:drift/drift.dart' show Value;
@@ -14,7 +17,94 @@ import '../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements CacheManager;
 
+class _TestCacheFileSystem implements FileSystem {
+  new(this.directory);
+
+  final Directory directory;
+  final files.FileSystem _fileSystem = const LocalFileSystem();
+
+  @override
+  Future<files.File> createFile(String name) async =>
+      _fileSystem.file(_fileSystem.path.join(directory.path, name));
+}
+
+class _FailingCacheRepository extends JsonCacheInfoRepository {
+  new({required super.path});
+
+  @override
+  Future<CacheObject> insert(
+    CacheObject cacheObject, {
+    bool setTouchedToNow = true,
+  }) async => throw StateError('Metadata write failed');
+}
+
 void main() {
+  group('cover-art cache persistence', () {
+    late Directory directory;
+    late String metadataPath;
+    late _TestCacheFileSystem fileSystem;
+
+    setUp(() async {
+      directory = await Directory.systemTemp.createTemp(
+        'navis-art-persistence-',
+      );
+      metadataPath = directory.uri.resolve('metadata.json').toFilePath();
+      fileSystem = _TestCacheFileSystem(directory);
+    });
+    tearDown(() => directory.delete(recursive: true));
+
+    CacheManager createManager(CacheInfoRepository repository) => CacheManager(
+      Config('art-persistence-test', repo: repository, fileSystem: fileSystem),
+    );
+
+    test(
+      'metadata survives immediate close and reopen after putFile',
+      () async {
+        final manager = createManager(
+          JsonCacheInfoRepository(path: metadataPath),
+        );
+        await manager.putFile(
+          'https://example.com/cover',
+          Uint8List.fromList(<int>[1, 2, 3]),
+          key: 'cover-1:600',
+        );
+        await manager.dispose();
+
+        final reopened = createManager(
+          JsonCacheInfoRepository(path: metadataPath),
+        );
+        addTearDown(reopened.dispose);
+        final cached = await reopened.getFileFromCache('cover-1:600');
+        expect(cached, isNotNull);
+        expect(await cached!.file.readAsBytes(), <int>[1, 2, 3]);
+      },
+    );
+
+    for (final streamed in <bool>[false, true]) {
+      test(
+        '${streamed ? 'putFileStream' : 'putFile'} exposes metadata write failure',
+        () async {
+          final manager = createManager(
+            _FailingCacheRepository(path: metadataPath),
+          );
+          addTearDown(manager.dispose);
+          final operation = streamed
+              ? manager.putFileStream(
+                  'https://example.com/cover',
+                  Stream<List<int>>.value(<int>[1, 2, 3]),
+                  key: 'cover-1:600',
+                )
+              : manager.putFile(
+                  'https://example.com/cover',
+                  Uint8List.fromList(<int>[1, 2, 3]),
+                  key: 'cover-1:600',
+                );
+          await expectLater(operation, throwsStateError);
+        },
+      );
+    }
+  });
+
   group('coverArtImageCacheKey', () {
     test('uses stable cover-art ID and size instead of URL salt', () {
       expect(coverArtImageCacheKey(' cover-1 ', 600), 'cover-1:600');

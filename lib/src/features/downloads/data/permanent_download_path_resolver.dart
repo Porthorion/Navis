@@ -32,6 +32,8 @@ class PermanentDownloadPathResolver {
   Future<Directory> resolveDefaultRoot() async {
     final root = await _readApplicationSupportDirectory();
     final directory = Directory(p.join(root.path, 'audio', 'permanent'));
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
@@ -43,7 +45,7 @@ class PermanentDownloadPathResolver {
     String? customDownloadFolderPath,
   }) async {
     if (!customDownloadFolderEnabled) {
-      return resolveDefaultRoot();
+      return await resolveDefaultRoot();
     }
     final trimmed = customDownloadFolderPath?.trim();
     if (trimmed == null || trimmed.isEmpty) {
@@ -52,6 +54,8 @@ class PermanentDownloadPathResolver {
       );
     }
     final directory = Directory(trimmed);
+    // Keep metadata access asynchronous so storage latency cannot stall UI.
+    // ignore: avoid_slow_async_io
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }

@@ -477,7 +477,7 @@ void main() {
         'ALTER TABLE library_sync_state DROP COLUMN initial_catalog_usable_at',
       );
       raw.execute('PRAGMA user_version = 77');
-      raw.dispose();
+      raw.close();
       final migrated = createTestDatabase(file: file);
       addTearDown(() async {
         await migrated.close();
@@ -541,7 +541,7 @@ void main() {
       'ALTER TABLE library_sync_run_attempt DROP COLUMN telemetry_json',
     );
     raw.execute('PRAGMA user_version = 76');
-    raw.dispose();
+    raw.close();
     final migrated = createTestDatabase(file: file);
     addTearDown(() async {
       await migrated.close();
@@ -593,7 +593,7 @@ void main() {
       );
       raw.execute("INSERT INTO playlist_songs VALUES ('p','s',4)");
       raw.execute('PRAGMA user_version = 75');
-      raw.dispose();
+      raw.close();
       final migrated = createTestDatabase(file: file);
       addTearDown(() async {
         await migrated.close();
@@ -648,7 +648,7 @@ void main() {
       final raw = sqlite3.open(file.path);
       raw.execute('ALTER TABLE albums DROP COLUMN songs_verified_at');
       raw.execute('PRAGMA user_version = 74');
-      raw.dispose();
+      raw.close();
       final migrated = createTestDatabase(file: file);
       addTearDown(() async {
         await migrated.close();
@@ -684,7 +684,7 @@ void main() {
         raw.execute('ALTER TABLE star_sync_queue DROP COLUMN $column');
       }
       raw.execute('PRAGMA user_version = 73');
-      raw.dispose();
+      raw.close();
       final migrated = createTestDatabase(file: file);
       addTearDown(() async {
         await migrated.close();

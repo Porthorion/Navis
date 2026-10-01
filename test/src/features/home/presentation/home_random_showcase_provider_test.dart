@@ -36,6 +36,8 @@ class _MutableLibrarySyncController extends LibrarySyncController {
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
 
+  LibrarySyncState get value => state;
+
   set value(LibrarySyncState next) {
     state = next;
   }
@@ -191,7 +193,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   }) async {
     recommendationPlaylistCalls++;
     if (recommendationCompleter != null) {
-      return recommendationCompleter!.future;
+      return await recommendationCompleter!.future;
     }
     return recommendationPlaylists;
   }
@@ -205,7 +207,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
     detailStarts.add(playlistMbid);
     final detailCompleter = detailCompleters[playlistMbid];
     if (detailCompleter != null) {
-      return detailCompleter.future;
+      return await detailCompleter.future;
     }
     final allPlaylists = <ListenBrainzPlaylist>[
       ...playlists,

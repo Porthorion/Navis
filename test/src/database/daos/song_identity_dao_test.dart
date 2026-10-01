@@ -232,7 +232,7 @@ void main() {
       (await database.cacheDao.getCachedTrack('server-song'))?.filePath,
       cacheFile.path,
     );
-    expect(await cacheFile.exists(), isTrue);
+    expect(cacheFile.existsSync(), isTrue);
 
     for (final table in <String>[
       'download_queue',
@@ -296,8 +296,8 @@ void main() {
     final retained = await database.cacheDao.getCachedTrack('server-song');
     expect(retained?.cacheType, CacheType.permanent);
     expect(retained?.filePath, permanentFile.path);
-    expect(await permanentFile.exists(), isTrue);
-    expect(await remoteFile.exists(), isFalse);
+    expect(permanentFile.existsSync(), isTrue);
+    expect(remoteFile.existsSync(), isFalse);
   }, skip: !sqliteAvailable);
 
   test(
@@ -337,7 +337,7 @@ void main() {
         retainOldCacheFile: true,
       );
 
-      expect(await remoteFile.exists(), isTrue);
+      expect(remoteFile.existsSync(), isTrue);
       expect(
         (await database.cacheDao.getCachedTrack('server-song'))?.filePath,
         permanentFile.path,

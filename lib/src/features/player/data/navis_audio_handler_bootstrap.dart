@@ -84,6 +84,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
+  // Keep the existing method and callback call contract for callers.
+  // ignore: avoid_positional_boolean_parameters
   Future<bool> Function(bool autoPlay)? startPersonalRadio,
   Future<void> Function(String)? startPreferredMix,
   Future<void> Function(String)? togglePreferredMix,

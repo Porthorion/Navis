@@ -405,12 +405,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
 
-    unawaited(
-      controller.animateTo(
-        position.minScrollExtent,
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutCubic,
-      ),
+    controller.animateTo(
+      position.minScrollExtent,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -2494,13 +2492,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (targetContext == null) {
         return;
       }
-      unawaited(
-        Scrollable.ensureVisible(
-          targetContext,
-          duration: animate ? const Duration(milliseconds: 180) : Duration.zero,
-          curve: Curves.easeOut,
-          alignment: 0,
-        ),
+
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: animate ? const Duration(milliseconds: 180) : Duration.zero,
+        curve: Curves.easeOut,
+        alignment: 0,
       );
       return;
     }

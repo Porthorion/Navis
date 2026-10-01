@@ -114,9 +114,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                 level: AppNoticeLevel.error,
               )
             : () {
-                HapticFeedback.lightImpact();
+                unawaited(HapticFeedback.lightImpact());
                 final handler = ref.read(audioHandlerProvider);
-                handler?.toggleLike();
+                unawaited(handler?.toggleLike());
               },
       ),
       _NowPlayingActionButton(

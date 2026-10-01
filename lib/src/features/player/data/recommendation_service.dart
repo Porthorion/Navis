@@ -113,6 +113,8 @@ class RecommendationService {
             local.storageKind == 'androidSaf' ||
                 local.filePath.startsWith('content://')
             ? await saf.exists(local.filePath)
+            // Keep metadata access asynchronous so storage latency cannot stall UI.
+            // ignore: avoid_slow_async_io
             : await File(local.filePath).exists();
         if (!exists) continue;
       }
@@ -237,6 +239,8 @@ class RecommendationService {
     int count = 10,
     CancelToken? cancelToken,
   }) async {
+    var resolvedExcludedIds = excludedIds;
+
     final eligible = await eligibleLibrary(filters);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
@@ -248,18 +252,18 @@ class RecommendationService {
         .historyDao
         .watchPlayHistory(limit: 200)
         .first;
-    excludedIds = <String>{
+    resolvedExcludedIds = <String>{
       ...excludedIds,
       ...history.map((play) => play.songId),
     };
     final excludedRecordings = eligible
-        .where((song) => excludedIds.contains(song.id))
+        .where((song) => resolvedExcludedIds.contains(song.id))
         .map(_recordingRow)
         .toSet();
     var pool = eligible
         .where(
           (song) =>
-              !excludedIds.contains(song.id) &&
+              !resolvedExcludedIds.contains(song.id) &&
               !excludedRecordings.contains(_recordingRow(song)),
         )
         .toList();
@@ -273,7 +277,7 @@ class RecommendationService {
                 !hardRecordings.contains(_recordingRow(song)),
           )
           .toList();
-      excludedIds = hardExcluded;
+      resolvedExcludedIds = hardExcluded;
     }
     if (pool.isEmpty) {
       return const RecommendationBatch(
@@ -342,7 +346,7 @@ class RecommendationService {
       related: related,
       familiar: anchors.map(_toSong).toList(),
       shuffle: pool.map(_toSong).toList()..shuffle(_random),
-      excludedIds: excludedIds,
+      excludedIds: resolvedExcludedIds,
       count: count,
     );
     return RecommendationBatch(

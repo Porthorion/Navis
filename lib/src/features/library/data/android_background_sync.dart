@@ -35,7 +35,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('configurePeriodic', <String, Object>{
+    return await _invoke('configurePeriodic', <String, Object>{
       'profileKey': profileKey,
       'intervalMinutes': intervalMinutes,
       'unmeteredOnly': unmeteredOnly,
@@ -49,7 +49,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('enqueueCatchup', <String, Object>{
+    return await _invoke('enqueueCatchup', <String, Object>{
       'profileKey': profileKey,
       'unmeteredOnly': unmeteredOnly,
     });
@@ -61,7 +61,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('cancel', <String, Object>{'profileKey': profileKey});
+    return await _invoke('cancel', <String, Object>{'profileKey': profileKey});
   }
 
   Future<AndroidBackgroundScheduleObservation> status({
@@ -70,7 +70,7 @@ class AndroidBackgroundSyncScheduler {
     if (!_supported) {
       return const AndroidBackgroundScheduleObservation.unsupported();
     }
-    return _invoke('status', <String, Object>{'profileKey': profileKey});
+    return await _invoke('status', <String, Object>{'profileKey': profileKey});
   }
 
   Future<AndroidBackgroundScheduleObservation> _invoke(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,8 +75,12 @@ class QueueScreen extends ConsumerWidget {
               footer: const QueueUnavailableTracks(),
               padding: const EdgeInsets.only(bottom: 80),
               itemCount: queueIds.length,
-              onReorder: (oldIndex, newIndex) async {
-                await ref.read(reorderQueueProvider)(oldIndex, newIndex);
+              onReorderItem: (oldIndex, newIndex) async {
+                // The handler retains the insertion index before removal.
+                await ref.read(reorderQueueProvider)(
+                  oldIndex,
+                  oldIndex < newIndex ? newIndex + 1 : newIndex,
+                );
               },
               itemBuilder: (context, index) {
                 final songId = queueIds[index];
@@ -165,15 +171,17 @@ class QueueScreen extends ConsumerWidget {
       return;
     }
     final l10n = AppLocalizations.of(parentContext)!;
-    api.createPlaylist(name, songIds: queueIds).then((_) {
-      if (parentContext.mounted) {
-        showAppNotice(
-          parentContext,
-          message: l10n.queueSaveAsPlaylistSaved,
-          level: AppNoticeLevel.success,
-        );
-      }
-    });
+    unawaited(
+      api.createPlaylist(name, songIds: queueIds).then((_) {
+        if (parentContext.mounted) {
+          showAppNotice(
+            parentContext,
+            message: l10n.queueSaveAsPlaylistSaved,
+            level: AppNoticeLevel.success,
+          );
+        }
+      }),
+    );
   }
 }
 

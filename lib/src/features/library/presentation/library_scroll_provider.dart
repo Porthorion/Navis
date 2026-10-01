@@ -1,3 +1,6 @@
+/// @docImport 'package:navis/src/features/library/presentation/library_screen.dart';
+library;
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,6 +83,8 @@ class _LibrarySectionNotifier extends Notifier<LibrarySection> {
   @override
   LibrarySection build() => LibrarySection.albums;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void setSection(LibrarySection section) {
     state = section;
   }
@@ -97,6 +102,8 @@ class _LibraryTypeFilterActiveNotifier extends Notifier<bool> {
   @override
   bool build() => false;
 
+  bool get active => state;
+
   set active(bool value) => state = value;
 }
 
@@ -112,6 +119,8 @@ class LibraryTypeFilterDiagnosticsController extends Notifier<String?> {
   @override
   String? build() => null;
 
+  // Keep the existing method and callback call contract for callers.
+  // ignore: use_setters_to_change_properties
   void setQuery(String query) => state = query;
 }
 

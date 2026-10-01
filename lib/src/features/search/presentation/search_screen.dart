@@ -169,15 +169,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     // EditableText may collapse selection as focus is acquired, so apply
     // select-all after focus settles.
-    Future<void>.microtask(() {
-      if (!mounted) {
-        return;
-      }
-      _selectAllSearchTextIfPresent();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) {
+          return;
+        }
         _selectAllSearchTextIfPresent();
-      });
-    });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _selectAllSearchTextIfPresent();
+        });
+      }),
+    );
   }
 
   void _selectAllSearchTextIfPresent() {
@@ -1086,6 +1088,7 @@ class _SongResultsSection extends ConsumerWidget {
       );
       unawaited(
         result.then((value) {
+          if (!context.mounted) return;
           switch (value) {
             case 'play-next':
               ref
@@ -1119,7 +1122,7 @@ class _SongResultsSection extends ConsumerWidget {
               }
               return;
             case 'add-playlist':
-              showAddToPlaylistSheet(context, ref, [song.id]);
+              unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
               return;
             case 'instant-mix':
               unawaited(activatePreferredMixMode(ref, seedSongId: song.id));
@@ -1202,7 +1205,7 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.librarySongMenuAddToPlaylist),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                showAddToPlaylistSheet(context, ref, [song.id]);
+                unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
               },
             ),
             ListTile(

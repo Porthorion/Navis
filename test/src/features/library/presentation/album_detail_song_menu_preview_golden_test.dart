@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -14,20 +16,22 @@ void main() {
               child: FilledButton(
                 onPressed: () {
                   if (desktop) {
-                    showDesktopContextMenu<void>(
-                      context: context,
-                      anchor: const Offset(450, 180),
-                      items: const <PopupMenuEntry<void>>[
-                        PopupMenuItem<void>(child: Text('Play now')),
-                        PopupMenuItem<void>(child: Text('Add to Queue')),
-                        PopupMenuItem<void>(child: Text('Play next')),
-                        PopupMenuDivider(),
-                        PopupMenuItem<void>(child: Text('Like')),
-                        PopupMenuItem<void>(child: Text('Rate')),
-                        PopupMenuItem<void>(child: Text('Open artist')),
-                        PopupMenuItem<void>(child: Text('Add to playlist')),
-                        PopupMenuItem<void>(child: Text('Download')),
-                      ],
+                    unawaited(
+                      showDesktopContextMenu<void>(
+                        context: context,
+                        anchor: const Offset(450, 180),
+                        items: const <PopupMenuEntry<void>>[
+                          PopupMenuItem<void>(child: Text('Play now')),
+                          PopupMenuItem<void>(child: Text('Add to Queue')),
+                          PopupMenuItem<void>(child: Text('Play next')),
+                          PopupMenuDivider(),
+                          PopupMenuItem<void>(child: Text('Like')),
+                          PopupMenuItem<void>(child: Text('Rate')),
+                          PopupMenuItem<void>(child: Text('Open artist')),
+                          PopupMenuItem<void>(child: Text('Add to playlist')),
+                          PopupMenuItem<void>(child: Text('Download')),
+                        ],
+                      ),
                     );
                   } else {
                     showModalBottomSheet<void>(

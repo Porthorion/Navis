@@ -70,8 +70,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   // Scroll-driven animation for the mobile header.
   final ScrollController _scrollController = ScrollController();
-  double _headerProgress = 0.0; // 0 = art fully visible, 1 = fully collapsed
-  double _screenWidth = 0.0;
+  double _headerProgress = 0; // 0 = art fully visible, 1 = fully collapsed
+  double _screenWidth = 0;
 
   @override
   void initState() {
@@ -89,7 +89,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   void _onScroll() {
-    final maxScroll = max(1.0, _screenWidth - kToolbarHeight);
+    final maxScroll = max(1, _screenWidth - kToolbarHeight);
     final newProgress = (_scrollController.offset / maxScroll).clamp(0.0, 1.0);
     if ((newProgress - _headerProgress).abs() > 0.001) {
       setState(() => _headerProgress = newProgress);
@@ -1071,7 +1071,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     Colors.transparent,
                                     Theme.of(context).scaffoldBackgroundColor,
                                   ],
-                                  stops: const <double>[0.0, 0.60, 0.85],
+                                  stops: const <double>[0, 0.60, 0.85],
                                 ),
                               ),
                             ),
@@ -1525,7 +1525,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         onTap: () {
                           unawaited(
                             toggleSongStar(song.id, ref).catchError((_) {
-                              if (this.context.mounted) {
+                              if (mounted) {
                                 showAppNotice(
                                   this.context,
                                   message: l10n.albumDetailStarFailure,
@@ -1551,10 +1551,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         trailing: RatingWidget(
                           rating: rating,
                           compact: true,
-                          onChanged: (int next) {
+                          onChanged: (next) {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
-                                if (this.context.mounted) {
+                                if (mounted) {
                                   showAppNotice(
                                     this.context,
                                     message: l10n.ratingUpdateFailed,
@@ -1586,7 +1586,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     title: Text(l10n.librarySongMenuAddToPlaylist),
                     onTap: () {
                       Navigator.of(context).pop();
-                      showAddToPlaylistSheet(this.context, ref, [song.id]);
+                      unawaited(
+                        showAddToPlaylistSheet(this.context, ref, [song.id]),
+                      );
                     },
                   ),
                   Consumer(
@@ -2008,12 +2010,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final baseFontSize = baseStyle.fontSize ?? 32;
-        final minimumFontSize = max(22.0, baseFontSize * 0.48);
+        final minimumFontSize = max<double>(22, baseFontSize * 0.48);
         final textScaler = MediaQuery.textScalerOf(context);
         final direction = Directionality.of(context);
         final maxWidth = constraints.hasBoundedWidth && constraints.maxWidth > 0
             ? constraints.maxWidth
-            : max(0.0, MediaQuery.sizeOf(context).width - 32);
+            : max<double>(0, MediaQuery.sizeOf(context).width - 32);
 
         bool fitsAt(double fontSize) {
           final painter = TextPainter(
@@ -2455,7 +2457,7 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
 
 // ── Rating button ───────────────────────────────────────────────────────────
 
-/// Collapsed: an outlined button showing "[star] Rate" or "[star] n/5".
+/// Collapsed: an outlined button showing a star icon with "Rate" or "n/5".
 /// Expanded: an inline row of 5 tappable stars with hover-fill on desktop.
 /// Filters the album's track list to liked and/or downloaded songs.
 ///
@@ -2555,10 +2557,10 @@ class _RatingButtonState extends State<_RatingButton>
   late Animation<double> _anim;
 
   // Approximate pill widths (px). Collapsed fits star icon + "Rate"/"3/5".
-  static const double _kCollapsedWidth = 92.0;
-  static const double _kIconOnlyWidth = 48.0;
+  static const double _kCollapsedWidth = 92;
+  static const double _kIconOnlyWidth = 48;
   // 5 stars × 30px + close (28px) + horizontal padding (2×12) = 202px.
-  static const double _kExpandedWidth = 202.0;
+  static const double _kExpandedWidth = 202;
 
   @override
   void initState() {
@@ -2581,13 +2583,15 @@ class _RatingButtonState extends State<_RatingButton>
   }
 
   void _collapse() {
-    _ctrl.reverse().then((_) {
-      if (mounted) {
-        setState(() {
-          _hovered = 0;
-        });
-      }
-    });
+    unawaited(
+      _ctrl.reverse().then((_) {
+        if (mounted) {
+          setState(() {
+            _hovered = 0;
+          });
+        }
+      }),
+    );
   }
 
   void _confirm(int value) {

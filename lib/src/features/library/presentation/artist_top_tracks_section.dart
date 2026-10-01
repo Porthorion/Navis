@@ -475,7 +475,7 @@ class _TopTrackTile extends ConsumerWidget {
       onTap: enabled ? onTap : null,
       onLongPress: enabled && dbSong != null
           ? () {
-              HapticFeedback.mediumImpact();
+              unawaited(HapticFeedback.mediumImpact());
               unawaited(showSongContextMenu(context, ref, dbSong));
             }
           : null,

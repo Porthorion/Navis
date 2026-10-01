@@ -49,7 +49,7 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
       state = AsyncData(server);
     });
     ref.onDispose(() => _subscription?.cancel());
-    return repository.getActiveServer();
+    return await repository.getActiveServer();
   }
 
   Future<void> refresh() async {

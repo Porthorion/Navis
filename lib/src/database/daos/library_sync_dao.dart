@@ -125,7 +125,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: timestamp,
       ),
     );
-    return (select(
+    return await (select(
       librarySyncRunRequestTable,
     )..where((table) => table.id.equals(id))).getSingle();
   }
@@ -136,7 +136,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     DateTime? now,
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
-    return transaction(() async {
+    return await transaction(() async {
       await (update(
         librarySyncRunRequestTable,
       )..where((table) => table.id.equals(requestId))).write(
@@ -152,7 +152,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           startedAt: timestamp,
         ),
       );
-      return (select(
+      return await (select(
         librarySyncRunAttemptTable,
       )..where((table) => table.id.equals(id))).getSingle();
     });
@@ -714,7 +714,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final timestamp = now.toUtc();
     final expiry = timestamp.add(ttl);
-    return transaction(() async {
+    return await transaction(() async {
       await customStatement(
         '''
         INSERT INTO library_sync_execution_lease (
@@ -1185,7 +1185,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       LibrarySyncStateTableCompanion.insert(serverId: Value(serverId)),
       mode: InsertMode.insertOrIgnore,
     );
-    return (select(
+    return await (select(
       librarySyncStateTable,
     )..where((table) => table.serverId.equals(serverId))).getSingle();
   }
@@ -1243,6 +1243,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String? evidenceVersion,
     DateTime? now,
   }) {
+    var resolvedCheckpointJson = checkpointJson;
+    var shouldReactivateTerminal = reactivateTerminal;
+    var shouldReleaseCooldown = releaseCooldown;
+
     // The upsert below runs through customStatement, which bypasses drift's
     // automatic stream notifications. Report the table explicitly once the
     // transaction commits so watch queries see fresh enqueues.
@@ -1266,12 +1270,12 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         final previousCheckpoint = decode(previous?.checkpointJson);
         if (previous != null &&
             previousCheckpoint['evidenceVersion'] != evidenceVersion) {
-          reactivateTerminal = true;
-          releaseCooldown = true;
+          shouldReactivateTerminal = true;
+          shouldReleaseCooldown = true;
         }
-        checkpointJson = jsonEncode({
+        resolvedCheckpointJson = jsonEncode({
           ...previousCheckpoint,
-          ...decode(checkpointJson),
+          ...decode(resolvedCheckpointJson),
           'evidenceVersion': evidenceVersion,
         });
       }
@@ -1279,8 +1283,8 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       final normalizedClass = workClass == 'interactive'
           ? 'interactive'
           : 'background';
-      final reactivateTerminalValue = reactivateTerminal ? 1 : 0;
-      final releaseCooldownValue = releaseCooldown ? 1 : 0;
+      final reactivateTerminalValue = shouldReactivateTerminal ? 1 : 0;
+      final releaseCooldownValue = shouldReleaseCooldown ? 1 : 0;
       await customStatement(
         '''
         INSERT INTO library_sync_work (
@@ -1324,7 +1328,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           entityId,
           priority,
           normalizedClass,
-          checkpointJson,
+          resolvedCheckpointJson,
           timestamp.millisecondsSinceEpoch ~/ 1000,
           timestamp.millisecondsSinceEpoch ~/ 1000,
           reactivateTerminalValue,
@@ -1424,7 +1428,8 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             ]),
       );
     final row = await query.getSingle();
-    return row.read(countExpression) ?? 0;
+    final resolvedCount = row.read(countExpression) ?? 0;
+    return resolvedCount;
   }
 
   /// Live variant of [countPendingWork] so the UI can reflect backlog

@@ -339,7 +339,7 @@ class QueueController extends Notifier<List<String>> {
   /// Like [add], but accepts a [Song] API model object.
   Future<void> addWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
-    return add(song.id);
+    return await add(song.id);
   }
 
   /// Like [add], but accepts multiple [Song] API model objects and queues
@@ -391,7 +391,7 @@ class QueueController extends Notifier<List<String>> {
   /// Like [playNext], but accepts a [Song] API model object.
   Future<void> playNextWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
-    return playNext(song.id);
+    return await playNext(song.id);
   }
 
   /// Persists [Song] rows locally so [NavisAudioHandler] can resolve them.

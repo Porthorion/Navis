@@ -53,8 +53,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   void initState() {
     super.initState();
     // Trigger server sync for this playlist's songs
-    Future.microtask(
-      () => ref.invalidate(playlistDetailSyncProvider(widget.playlistId)),
+    unawaited(
+      Future.microtask(
+        () => ref.invalidate(playlistDetailSyncProvider(widget.playlistId)),
+      ),
     );
   }
 
@@ -365,7 +367,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
               sliver: SliverReorderableList(
-                onReorder: (oldIndex, newIndex) =>
+                onReorderItem: (oldIndex, newIndex) =>
                     unawaited(_reorderTrack(songs, oldIndex, newIndex)),
                 itemCount: songs.length,
                 itemBuilder: (context, index) {
@@ -523,8 +525,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     // Build the desired order locally.
     final reordered = songs.map((s) => s.id).toList();
     final songId = reordered.removeAt(oldIndex);
-    final insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    reordered.insert(insertAt, songId);
+    reordered.insert(newIndex, songId);
 
     try {
       await api.replacePlaylistSongs(
@@ -678,7 +679,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuAddToPlaylist),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                showAddToPlaylistSheet(context, ref, [song.id]);
+                unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
               },
             ),
             Consumer(

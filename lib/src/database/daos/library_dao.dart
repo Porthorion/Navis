@@ -172,7 +172,7 @@ class DownloadReconciliationSong {
 )
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
-  new(super.db);
+  new(super.attachedDatabase);
 
   static const _safeSqlVariableChunkSize = 500;
 
@@ -1740,13 +1740,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       final currentSongs = songsByAlbumId.values
           .expand((rows) => rows)
           .map((song) {
-            var canonical = song.copyWith(
+            final canonical = song.copyWith(
               serverDeletedAt: const Value(null),
               isProvisional: const Value(false),
               isExternal: const Value(false),
             );
-            canonical = guard.song(canonical);
-            return canonical;
+            return guard.song(canonical);
           })
           .toList(growable: false);
       if (currentSongs.isNotEmpty) {
@@ -2086,7 +2085,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// One-shot fetch of the current [starred] value for a single song.
+  /// One-shot fetch of the current `starred` value for a single song.
   Future<DateTime?> getSongStarred(String songId) async {
     final row = await (select(
       songsTable,
@@ -2308,7 +2307,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ..where(artistsTable.isProvisional.equals(false))
       ..addColumns([countExpression]);
     final row = await query.getSingle();
-    return row.read(countExpression) ?? 0;
+    final resolvedCount = row.read(countExpression) ?? 0;
+    return resolvedCount;
   }
 
   Future<LibraryCatalogCounts> getCatalogCounts() async {
@@ -3349,7 +3349,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       // Punctuation-only input matches nothing; it must not fall through to an
       // unrelated alphabetical list.
       if (query.trim().isNotEmpty) return const <SongsTableData>[];
-      return (select(songsTable)
+      return await (select(songsTable)
             ..where(
               (t) => includeLocalOnly
                   ? _searchableSongPredicate()
@@ -3841,7 +3841,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             albumsTable.isExternal.equals(false),
       );
     final row = await query.getSingle();
-    return row.read(countExpression) ?? 0;
+    final resolvedCount = row.read(countExpression) ?? 0;
+    return resolvedCount;
   }
 
   /// Live variant of [countPendingHydrationAlbums] so the UI can surface the

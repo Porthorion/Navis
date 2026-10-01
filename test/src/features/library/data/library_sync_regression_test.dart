@@ -27,9 +27,9 @@ class _AuditApi extends FakeLibrarySyncApi {
   Completer<StarredContent>? starredGate;
   @override
   Future<StarredContent> getStarredContent() async {
-    if (starredGate == null) return super.getStarredContent();
+    if (starredGate == null) return await super.getStarredContent();
     calls.add('getStarredContent');
-    return starredGate!.future;
+    return await starredGate!.future;
   }
 
   final Map<int, List<Album>> newestPages = {};
@@ -39,7 +39,9 @@ class _AuditApi extends FakeLibrarySyncApi {
     required int offset,
   }) async {
     calls.add('newest:$offset:$size');
-    if (newestError != null) throw newestError!;
+    if (newestError != null) {
+      Error.throwWithStackTrace(newestError!, StackTrace.current);
+    }
     return newestPages[offset] ?? const [];
   }
 }

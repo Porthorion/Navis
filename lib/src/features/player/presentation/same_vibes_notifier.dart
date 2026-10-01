@@ -1202,7 +1202,7 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
       return const <String, int?>{};
     }
     final dao = ref.read(navisDatabaseProvider).libraryDao;
-    return dao.getAlbumSongCountsByIds(albumIds);
+    return await dao.getAlbumSongCountsByIds(albumIds);
   };
 });
 

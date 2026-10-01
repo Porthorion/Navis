@@ -286,7 +286,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
 
   void _reorderSong(int oldIndex, int newIndex) {
     final flow = widget.flow;
-    final adjusted = oldIndex < newIndex ? newIndex - 1 : newIndex;
+    final adjusted = newIndex;
     final currentSongs = List<MatchFlowSongEntry>.of(
       _optimisticSongs ?? flow.songs,
     );
@@ -522,7 +522,7 @@ class _MatchFlowContents extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
                     itemCount: flow.songs.length,
-                    onReorder: onReorder,
+                    onReorderItem: onReorder,
                     proxyDecorator: (child, index, animation) {
                       return AnimatedBuilder(
                         animation: animation,

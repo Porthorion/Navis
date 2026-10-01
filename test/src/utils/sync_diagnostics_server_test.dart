@@ -1148,11 +1148,11 @@ void main() {
 
   test('handshake is removed when the diagnostics server closes', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
-    expect(await fixture.handshake.exists(), isTrue);
+    expect(fixture.handshake.existsSync(), isTrue);
 
     await fixture.close();
 
-    expect(await fixture.handshake.exists(), isFalse);
+    expect(fixture.handshake.existsSync(), isFalse);
   });
 
   test(

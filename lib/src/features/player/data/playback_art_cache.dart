@@ -77,6 +77,8 @@ class PlaybackArtCache {
       // without a network round-trip on subsequent plays).
       // A zero-byte file indicates a prior failed/partial download — delete
       // and re-download it.
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (await file.exists()) {
         final length = await file.length();
         if (length > 0) {

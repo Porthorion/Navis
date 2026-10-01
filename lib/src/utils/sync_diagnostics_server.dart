@@ -209,6 +209,8 @@ class SyncDiagnosticsServer {
       await clearer();
     } else {
       final file = File(handshakePath);
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
       if (await file.exists()) {
         await file.delete();
       }
@@ -2753,7 +2755,7 @@ class SyncDiagnosticsServer {
 
   Future<PermanentDownloadImportPreview> _safFixturePreview() async {
     final treeUri = await const AndroidSafStorage().diagnosticsFixtureTree();
-    return _container
+    return await _container
         .read(downloadServiceProvider)
         .previewCustomDownloadFolder(treeUri);
   }
@@ -3757,7 +3759,7 @@ class SyncDiagnosticsServer {
         ?.value
         ?.id;
     if (serverId == null) return [];
-    return _container
+    return await _container
         .read(navisDatabaseProvider)
         .librarySyncDao
         .getWorkSummary(serverId, DateTime.now());

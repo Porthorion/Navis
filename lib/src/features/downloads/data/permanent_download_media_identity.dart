@@ -18,7 +18,7 @@ class PermanentDownloadMediaIdentity {
 
   Future<Map<String, String>> read(File file) async {
     if (file.path.toLowerCase().endsWith('.flac')) {
-      return _readFlacMetadata(file);
+      return await _readFlacMetadata(file);
     }
     return const <String, String>{};
   }

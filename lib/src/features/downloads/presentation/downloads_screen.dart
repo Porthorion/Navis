@@ -298,7 +298,7 @@ class _QueueTab extends ConsumerWidget {
                             final dao = ref
                                 .read(navisDatabaseProvider)
                                 .downloadQueueDao;
-                            dao.retryAllFailed();
+                            unawaited(dao.retryAllFailed());
                           },
                           icon: const Icon(Icons.refresh),
                           label: Text(l10n.downloadsRetryAllFailed),
@@ -445,9 +445,9 @@ class _QueueItemTile extends ConsumerWidget {
         onPressed: () {
           final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
           if (isFailed) {
-            dao.updateStatus(item.id, DownloadStatus.queued);
+            unawaited(dao.updateStatus(item.id, DownloadStatus.queued));
           } else {
-            dao.remove(item.id);
+            unawaited(dao.remove(item.id));
           }
         },
       ),

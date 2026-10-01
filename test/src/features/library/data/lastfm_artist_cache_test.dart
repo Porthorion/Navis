@@ -19,7 +19,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           const MethodChannel('plugins.flutter.io/path_provider'),
-          (MethodCall methodCall) async {
+          (methodCall) async {
             if (methodCall.method == 'getApplicationSupportDirectory') {
               return tempDir.path;
             }

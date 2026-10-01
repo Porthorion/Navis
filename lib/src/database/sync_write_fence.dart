@@ -78,7 +78,7 @@ class SyncWriteFence {
 /// hidden candidate writes and transaction commits. A heartbeat alone cannot
 /// protect a request which returns after its lease has been replaced.
 class SyncWriteFenceInterceptor extends QueryInterceptor {
-  QueryExecutorUser? _user;
+  late QueryExecutorUser _user;
   final _fences = Expando<SyncWriteFence>();
   final _locked = Expando<bool>();
 
@@ -101,7 +101,7 @@ class SyncWriteFenceInterceptor extends QueryInterceptor {
     Future<T> Function(QueryExecutor executor) action,
   ) async {
     final fence = SyncWriteFence.current;
-    if (fence == null) return action(executor);
+    if (fence == null) return await action(executor);
     if (executor is TransactionExecutor) {
       if (_fences[executor] != null && !identical(_fences[executor], fence)) {
         throw const SyncLeaseLostException();
@@ -111,10 +111,10 @@ class SyncWriteFenceInterceptor extends QueryInterceptor {
         _fences[executor] = fence;
         _locked[executor] = true;
       }
-      return action(executor);
+      return await action(executor);
     }
     final transaction = executor.beginTransaction();
-    await transaction.ensureOpen(_user!);
+    await transaction.ensureOpen(_user);
     try {
       await fence.lockAndCheck(transaction);
       final result = await action(transaction);

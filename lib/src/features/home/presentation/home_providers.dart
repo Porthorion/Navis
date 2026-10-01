@@ -1714,7 +1714,11 @@ final homeRecentlyAddedProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(type: 'newest', size: 20, cancelToken: cancelToken);
+  return await api.getAlbumList2(
+    type: 'newest',
+    size: 20,
+    cancelToken: cancelToken,
+  );
 });
 
 /// Recently played **albums** derived from local play history.
@@ -1735,7 +1739,11 @@ final homeRandomAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(type: 'random', size: 20, cancelToken: cancelToken);
+  return await api.getAlbumList2(
+    type: 'random',
+    size: 20,
+    cancelToken: cancelToken,
+  );
 });
 
 /// Most played songs from local DB ordered by playCount (limit 5).
@@ -2532,7 +2540,7 @@ final homeFrequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getAlbumList2(
+  return await api.getAlbumList2(
     type: 'frequent',
     size: 20,
     cancelToken: cancelToken,

@@ -109,9 +109,11 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             version: version,
             onAutoCheckChanged: (value) {
               if (settings == null) return;
-              ref
-                  .read(settingsRepositoryProvider)
-                  .saveSettings(settings.copyWith(updateCheckEnabled: value));
+              unawaited(
+                ref
+                    .read(settingsRepositoryProvider)
+                    .saveSettings(settings.copyWith(updateCheckEnabled: value)),
+              );
             },
             onCheckNow: () {
               setState(() => _userTriggeredCheck = true);
@@ -342,20 +344,20 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) {
+    if (confirmed != true || !mounted || !context.mounted) {
       return;
     }
 
     try {
       await ref.read(networkUsageMeterProvider).clearAll();
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
       showAppNotice(
         context,
         message: l10n.aboutDataUsageResetComplete,
         level: AppNoticeLevel.info,
       );
     } on Object {
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
       showAppNotice(
         context,
         message: l10n.aboutDataUsageResetFailed,
