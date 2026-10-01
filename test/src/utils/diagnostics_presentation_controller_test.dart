@@ -313,7 +313,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'library actions invoke only onstage album and scoped shelf controls',
+    'library actions invoke only onstage album, radio and scoped shelf controls',
     (tester) async {
       final root = Directory.systemTemp.createTempSync(
         'navis_library_control_test_',
@@ -325,6 +325,7 @@ void main() {
       );
       var albums = 0;
       var pages = 0;
+      var stations = 0;
       var decoys = 0;
       await tester.pumpWidget(
         controller.wrap(
@@ -337,6 +338,22 @@ void main() {
                       key: const ValueKey('albumCardTapTarget'),
                       onTap: () => decoys++,
                       child: const Text('Hidden album'),
+                    ),
+                  ),
+                  Offstage(
+                    child: Card(
+                      key: const ValueKey('radioStation-hidden'),
+                      child: InkWell(
+                        onTap: () => decoys++,
+                        child: const Text('Hidden station'),
+                      ),
+                    ),
+                  ),
+                  Card(
+                    key: const ValueKey('radioStation-visible'),
+                    child: InkWell(
+                      onTap: () => stations++,
+                      child: const Text('Station'),
                     ),
                   ),
                   InkWell(
@@ -365,8 +382,12 @@ void main() {
       );
       await controller.activateLibraryControl(action: 'openFirstAlbum');
       await controller.activateLibraryControl(action: 'nextLikedAlbums');
+      await controller.activateLibraryControl(
+        action: 'toggleFirstRadioStation',
+      );
       expect(albums, 1);
       expect(pages, 1);
+      expect(stations, 1);
       expect(decoys, 0);
       await expectLater(
         controller.activateLibraryControl(action: 'arbitraryClick'),
@@ -375,10 +396,12 @@ void main() {
       await tester.pumpWidget(
         controller.wrap(const MaterialApp(home: SizedBox())),
       );
-      await expectLater(
-        controller.activateLibraryControl(action: 'nextLikedAlbums'),
-        throwsA(isA<DiagnosticsPresentationUnavailable>()),
-      );
+      for (final action in ['nextLikedAlbums', 'toggleFirstRadioStation']) {
+        await expectLater(
+          controller.activateLibraryControl(action: action),
+          throwsA(isA<DiagnosticsPresentationUnavailable>()),
+        );
+      }
       await tester.pumpWidget(const SizedBox());
     },
   );

@@ -164,6 +164,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On desktop, a song that fails to stream is no longer handed to yt-dlp when it is installed, so your server sign-in details are not passed to another program or sent to your server a second time',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Navis is built on the latest Flutter hotfix and updated navigation, artwork, storage, database and Windows components, with their reliability and security fixes',
         type: ChangelogEntryType.improvement,
       ),

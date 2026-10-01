@@ -7,6 +7,8 @@
 - Keep child order when inserting several sources before the end of the
   playlist; each child was moved to the same index, reversing the batch.
 - Emit one playback event per multi-source insert instead of two per child.
+- Disable libmpv's ytdl hook (`ytdl=no`), which handed any http(s) URL that
+  failed to open, credentials included, to a yt-dlp found on PATH.
 
 ## 2.1.0
 
