@@ -354,7 +354,7 @@ packages:
     source: hosted
     version: "0.3.1"
   fake_async:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: fake_async
       sha256: "5368f224a74523e8d2e7399ea1638b37aecfca824a3cc4dfdf77bf1fa905ac44"
@@ -859,7 +859,7 @@ packages:
     source: hosted
     version: "1.4.0"
   media_kit:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: media_kit
       sha256: ae9e79597500c7ad6083a3c7b7b7544ddabfceacce7ae5c9709b0ec16a5d6643

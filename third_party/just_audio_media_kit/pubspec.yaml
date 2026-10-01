@@ -19,3 +19,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+# Navis vendors the platform interface (it carries the equalizer messages);
+# resolving this package on its own must use the same copy as the app.
+dependency_overrides:
+  just_audio_platform_interface:
+    path: ../just_audio_platform_interface
