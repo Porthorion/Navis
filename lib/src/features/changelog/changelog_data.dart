@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The Equalizer page no longer cuts off the preamp level or fixed values in mid-sized desktop windows',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, the sidebar no longer shows a Library section such as Radio as selected while you are on an album or artist page',
         type: ChangelogEntryType.fix,
       ),

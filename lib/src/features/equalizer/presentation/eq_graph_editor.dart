@@ -447,7 +447,10 @@ class EqGraphEditorState extends State<EqGraphEditor> {
   }
 
   Widget _toolbar(BuildContext context, AppLocalizations l10n, double width) {
-    final roomy = width >= 560;
+    // Text buttons for Fit and Output only when the preamp label keeps its
+    // full "Preamp ±N dB" beside them (the desktop graph is about 590 px wide
+    // in a 1000 px window).
+    final roomy = width >= 680;
     final canFit = _samples.maximum > 24 || _limit > 24;
     final fitted = _limit > 24;
     void fit() => setState(() => _limit = fitted ? 24 : _samples.fittedLimit);
