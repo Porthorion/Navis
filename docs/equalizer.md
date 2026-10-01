@@ -23,7 +23,8 @@ workspace built from the existing theme, typography, and adaptive shell; see
 |---|---|
 | Android Media3 | Native PCM processing on both playback decks; emulator bridge/lifecycle checks and APK builds are covered |
 | Linux media-kit/libmpv | Native floating-point filter chain; actual captured output and clean restart are covered |
-| Windows/macOS media-kit | UI disabled pending platform-specific validation |
+| Windows media-kit/libmpv | The Linux filter chain, on the full libmpv Navis pins and bundles (see [Releasing for Windows](release-windows.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
+| macOS media-kit | UI disabled pending platform-specific validation |
 | Default Apple backend and web | UI disabled; processing is unavailable |
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter

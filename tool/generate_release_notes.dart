@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'The equalizer is now available on Windows, and Windows playback runs on a current mpv and FFmpeg instead of a 2023 build',
+        type: _EntryType.newFeature,
+      ),
+      _Entry(
         'The update check no longer offers repository releases that are not Navis versions as updates',
         type: _EntryType.fix,
       ),

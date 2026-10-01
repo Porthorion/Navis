@@ -13,6 +13,45 @@ machines, USB sticks, shared computers).
 
 ---
 
+## Bundled libmpv
+
+Windows playback runs on libmpv, which Navis bundles as `libmpv-2.dll`. The
+`media_kit_libs_windows_audio` package that provides it is vendored in
+`third_party/media_kit_libs_windows_audio/` (see its `NAVIS.md`): upstream's
+build is a minimal 2023-09-24 libmpv from an archived repository, without the
+FFmpeg `volume` and `biquad` filters the equalizer needs and without FFmpeg
+fixes since. Navis pins a full build from
+[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake)
+instead. It is GPL, like Navis.
+
+The full build costs size: at 1.4.0 the release bundle is 168.1 MB installed
+(`libmpv-2.dll` 120.9 MB, against 15.5 MB for media_kit's build) and the
+portable zip is 66.2 MB. It also verifies TLS certificates (mpv's newer
+default), using the Windows certificate store, so streaming accepts exactly
+the servers Navis's API client accepts.
+
+The build downloads the pinned archive from the Forgejo release
+`third-party-binaries`, verifies its SHA-256, and extracts it into a folder
+named after the archive. Upstream prunes old daily releases, so the mirror
+keeps old Navis versions buildable.
+
+To update the pin:
+
+1. Download the newest `mpv-dev-x86_64-<date>-git-<rev>.7z` from the upstream
+   releases. Use the plain x86_64 build, not `-v3` (that one needs AVX2).
+2. Check that its SHA-256 matches the digest GitHub shows for the asset, and
+   that it contains `libmpv-2.dll` and `include/mpv/*.h`.
+3. Upload it to the `third-party-binaries` release and add its entry
+   (upstream URL, release, SHA-256, mpv and FFmpeg versions, license) to the
+   release's `SOURCES.md`. Keep the older files for older Navis versions.
+4. Set `LIBMPV` and `LIBMPV_SHA256` in
+   `third_party/media_kit_libs_windows_audio/windows/CMakeLists.txt`.
+5. Build a profile bundle and check that the EQ page is available and that
+   EQ, speed and pitch, gapless playback and seeking work. Look for `af`
+   errors in the mpv log.
+
+---
+
 ## Platform Constraint
 
 Windows builds require a Windows host. On macOS or Linux, delegate to a remote Windows

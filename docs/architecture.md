@@ -1142,8 +1142,10 @@ none of them own persistent state or issue native commands directly. The root
 hydrates EQ before audio creation; general settings saves omit its fields.
 The handler applies typed configurations to both decks and reports desired
 versus applied status. Android uses the vendored just_audio Media3 PCM processor;
-Linux's tracked media-kit adapter owns a combined EQ/tempo chain. Unsupported
-backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
+Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
+(Windows on the pinned full libmpv, see [release-windows.md](release-windows.md#bundled-libmpv)).
+`navisEqualizerSupported()` decides availability for both the controller and the
+handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in
 [equalizer.md](equalizer.md).
 

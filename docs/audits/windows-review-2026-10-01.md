@@ -79,6 +79,11 @@ was verified, and what still needs a decision.
 
 ## Decisions for the product owner
 
+Decisions 1 to 3 were taken and implemented the same day: EQ on Windows with a
+pinned full libmpv, the indexed track-match lookup, and same-sync rebuild
+matching. Results are in `docs/sync-stability-validation.md`, the Windows
+section below, and `docs/release-windows.md#bundled-libmpv`.
+
 1. **Windows EQ.** The media_kit libmpv builds lack ffmpeg audio filters. A
    full libmpv build (shinchiro 2026-09-28) runs the Navis filter chain but
    installs 115.2 MB instead of 14.8 MB (about 26 MB more to download).
@@ -107,6 +112,28 @@ was verified, and what still needs a decision.
   shows "Scheduling…". Reproduced on the commit before these changes.
 - On an Android cold start where the session is not ready yet, the queue
   restore is deferred (`deferred_auth`) and only retried when Play is pressed.
+
+## Windows EQ verification (after the decision)
+
+On the Windows 11 VM at `bb4f0de6`, with the bundled 20261001 libmpv:
+
+- A standalone libmpv probe built the exact Navis chain
+  (`@navis_tempo:scaletempo`, `@navis_eq:lavfi=[volume,biquad…]`) and played
+  audio. The old 2023 DLL failed on the same chain.
+- In the app, through the diagnostics API: EQ is reported supported, and 14 of
+  14 checks passed with EQ applied and playback running. The checks covered
+  the Simple gains with preamp, the Bass and Vocal presets, 10-band, Advanced
+  (shelves, peaking, notch, high- and low-pass), four speed and pitch pairs,
+  a seek, automatic and manual track changes, and EQ off and back on. EQ
+  persisted across a restart and applied again on the next song.
+- Queue and shuffle parity with the 2,000-song window passed 17 of 17. A first
+  attempt timed out waiting at the 1,000 jump although the player had reached
+  it; the traced rerun passed every step.
+- `tool/windows_smtc_diagnostics.ps1` passed. EQ page screenshots were
+  inspected (Advanced and Bass boost, both applied).
+- HTTPS: a valid certificate streamed, and an expired one was refused.
+- The fixture streams at 22.05 kHz could not represent filters above
+  11 kHz, and Navis correctly reported that; the checks above used 44.1 kHz.
 
 ## Environment notes
 
