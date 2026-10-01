@@ -172,6 +172,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, a song that fails to stream is no longer handed to yt-dlp when it is installed, so your server sign-in details are not passed to another program or sent to your server a second time',
         type: ChangelogEntryType.fix,
       ),

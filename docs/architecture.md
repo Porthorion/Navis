@@ -1799,6 +1799,23 @@ The tracked desktop `just_audio_media_kit` adapter retires an old load waiter
 when a new source replaces it. Its queue insertion moves the actual appended
 index, keeping libmpv and just_audio playlist order aligned during rapid fill.
 
+The adapter also prints every libmpv log event it receives. media_kit 1.2.6
+accepts nothing quieter than `MPVLogLevel.error`, and it derives
+`player.stream.error`, which fails a load, from those same error lines, so the
+level cannot be lowered. An mpv `stream: Failed to open …` error quotes the full
+direct-stream URL, including the replayable `t`/`s` token pair. `main()`
+therefore runs the app inside `runWithCredentialRedactedPrint`
+(`lib/src/utils/credential_redaction.dart`). Every `print` in the main isolate,
+including the adapter's, `debugPrint`, and `AppLogger` output, has the values of
+the `u`, `t`, `s`, `p`, and `apiKey` query parameters (literal or
+percent-encoded) replaced with `REDACTED` before it reaches stdout or the
+system journal, in every build mode. `SubsonicLoggingInterceptor` redacts the
+same parameter set from request logs. The zone covers console output only: code
+that puts a URL into diagnostics responses or persisted records must still
+reduce it itself, as `_diagnosticMediaReference` does. Native writes to stderr
+and other isolates are outside the zone; libmpv leaves its own terminal output
+off for embedding clients.
+
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
 position from `positionStream`; Windows SMTC coalesces routine timeline updates
