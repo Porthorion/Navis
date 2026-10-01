@@ -66,7 +66,7 @@ actual repository commands, not invented ones:
 make gen                         # Freezed, JSON, Drift changes
 flutter test test/path/to/test.dart
 flutter analyze --no-fatal-infos
-dart format --set-exit-if-changed .
+./tool/dart_format.sh --check
 ./tool/check.sh
 ```
 

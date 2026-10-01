@@ -92,9 +92,15 @@ For Rust changes, use the SMTC workspace manifest and its tracked `Cargo.lock`.
 CargoKit passes `--locked` so a missing or stale workspace lock fails the build
 rather than resolving new versions implicitly. Regenerate that lock explicitly
 when upgrading Rust dependencies.
-For CargoKit changes, run `dart test` and `dart analyze` in its build-tool
-directory. Workspace-hash regression tests cover dependency-only artifact
-invalidation and reject stale member locks as the hash source.
+CargoKit's build tool (`third_party/navis_windows_smtc/cargokit/build_tool`)
+is vendored upstream glue in a standalone Dart package with its own SDK
+constraint, so the root gates neither analyze nor format it: from the
+repository root the formatter would apply the enclosing `navis_windows_smtc`
+language version instead of its own. For CargoKit changes, run
+`dart format --output=none --set-exit-if-changed .`, `dart analyze` and
+`dart test` in its build-tool directory after resolving it. Workspace-hash
+regression tests cover dependency-only artifact invalidation and reject stale
+member locks as the hash source.
 
 Run before each commit/PR:
 
@@ -107,7 +113,11 @@ Checks performed:
 - Native EQ response/PCM fixtures (`tool/equalizer_native_test.sh`), using an
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
-- Dart formatting (`dart format --set-exit-if-changed .`)
+- Dart formatting (`./tool/dart_format.sh --check`): `lib/`, `test/`,
+  `tool/` and the vendored `third_party/` path dependencies, which the root
+  package config resolves to their own language versions; CargoKit is
+  excluded as described above. The check never rewrites files; run
+  `./tool/dart_format.sh` (or `make format`) to apply what it reports
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)
 - migration and critical regression suites
