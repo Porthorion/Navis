@@ -1,6 +1,6 @@
 # Navis dependency upgrade plan
 
-Audit date: 2026-09-27. Status: **upgrades implemented; cold Android SAF fix, native tests, source gate and Android Dev release pass; latest Linux runtime follow-up is inconclusive**.
+Audit date: 2026-09-27. Status: **implemented and merged into dev on 2026-10-01** (see [Port onto dev](#port-onto-dev-2026-10-01)); Apple, physical Android arm64 and full head-unit projection remain unverified.
 
 This plan covers root Dart dependencies, their resolved transitive graph,
 owned packages, the Windows Rust workspace, Android libraries/tooling, and
@@ -1049,3 +1049,39 @@ and head-unit server. Navis continues to support phone projection, with no
 separate Navis head-unit APK. Apple checks are owner-deferred.
 See `docs/audits/dependency-upgrades-2026-09-27/android-headunit-emulator-evidence.json`
 and the updated source/artifact records.
+
+## Port onto dev (2026-10-01)
+
+The upgrade was implemented as uncommitted work on a base 85 commits behind
+dev, which had since gained the navigation overhaul, genre removal (schema
+89), Navis-owned shuffle, the windowed queue, the Windows EQ and its pinned
+libmpv. It was re-applied rather than merged:
+
+1. Manifests, Android/Windows/Rust tooling, the `navis_android_storage`
+   plugin, scripts and docs were taken from the upgrade and combined with dev
+   where both changed (vendored `just_audio`, the Windows libs package,
+   `check.sh`, the SMTC diagnostics script).
+2. The mechanical part (material_ui imports and very_good_analysis 11
+   automatic fixes, excluding the fixes found unsafe here) was run on dev's
+   current code.
+3. The upgrade's remaining hand-made code edits were extracted by running the
+   same mechanical step on its base and diffing against its result, then
+   applied with a three-way merge. Where dev had rewritten the code, dev's
+   version was kept.
+
+Not carried over: the media_kit playlist-order mapping and its adapter tests
+(superseded by Navis-owned shuffle, where mpv never shuffles) and lint-only
+edits in rewritten code. New on top: `onReorderItem` callers use the
+already-adjusted index, `PlatformFile.length()` may be null (the EQ import
+also checks the bytes read), and the sync drain also waits for an in-flight
+catalog sync.
+
+Validation at the port: `./tool/check.sh` (2,228 tests, one skip); Linux
+isolated clones of the real library (sync clone matrix with the schema 89
+migration, presentation, throughput 99.6 albums/s); the Windows 11 VM on
+Flutter 3.47.5 (profile build with the locked windows-rs 0.62 crate,
+`windows_smtc_diagnostics.ps1` including the strict paused five-second seek,
+EQ regression 14/14, queue/shuffle parity 17/17, schema 89 migration of the
+fixture profile, app-owned screenshots). Android was not rebuilt or run in
+this port.
+

@@ -8,6 +8,13 @@ vendors it and pins a SHA-256-verified shinchiro build (`mpv-dev-x86_64-20261001
 
 ## Summary
 
+**Update, same day:** the `codex/dependency-upgrades` work was ported onto dev
+and merged (see `Dependency_Upgrade_Plan.md`, "Port onto dev"). That resolves
+the items marked "Covered by codex" below: Flutter 3.47.5, the Android
+toolchain and wrapper checksum, the tracked SMTC `Cargo.lock` with current
+crates, and the Windows sqlite3 asset verification. The other findings stand.
+
+
 The Windows libmpv problem has an exact twin on macOS. `media_kit_libs_macos_audio` 1.1.4 (last published to pub
 2023-09-27) downloads, during `pod install`, libmpv-darwin-build **v0.6.0, published 2023-09-24**. That build contains
 FFmpeg 6.0, mpv 0.36.0, **Mbed TLS 3.4.1** (the TLS stack FFmpeg uses for every HTTPS stream on macOS) and libxml2
