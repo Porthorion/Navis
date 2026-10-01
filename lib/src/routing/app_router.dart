@@ -1,4 +1,5 @@
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,7 +32,9 @@ import 'package:navis/src/features/settings/presentation/server_settings_screen.
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/app_shell.dart';
+import 'package:navis/src/routing/route_not_found_screen.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -43,13 +46,19 @@ import 'package:navis/src/theme/motion_policy.dart';
 /// A Hero-driven route deliberately has no route-level transition: fading the
 /// whole destination also fades the Hero's landing artwork, which produces a
 /// visible brightness jump as Flutter hands the flight back to that widget.
-CustomTransitionPage<T> buildSlideFadePage<T>({
+///
+/// On iOS, routes without a Hero use [CupertinoPage] so the edge-swipe back
+/// gesture works; a custom transition page has no gesture.
+Page<T> buildSlideFadePage<T>({
   required BuildContext context,
   required LocalKey key,
   required Widget child,
   bool heroDriven = false,
   bool fadeOnly = false,
 }) {
+  if (!heroDriven && Theme.of(context).platform == TargetPlatform.iOS) {
+    return CupertinoPage<T>(key: key, child: child);
+  }
   final motion = MotionPolicy.of(context);
   return CustomTransitionPage<T>(
     key: key,
@@ -96,6 +105,10 @@ CustomTransitionPage<T> buildSlideFadePage<T>({
   );
 }
 
+/// Desktop-only Settings pages are not reachable on phones and tablets.
+String? _desktopOnlyRedirect(BuildContext context, GoRouterState state) =>
+    isDesktopRuntime ? null : AppRoutes.settings;
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Keep the router instance stable. A sync completion updates the server
   // configuration timestamp and briefly re-evaluates the session phase while
@@ -128,21 +141,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(cacheSystemUpgradeRequired.dispose);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: AppRoutes.login,
     refreshListenable: Listenable.merge(<Listenable>[
       sessionPhase,
       cacheSystemUpgradeRequired,
       onboardingRequired,
     ]),
+    errorBuilder: (context, state) => const RouteNotFoundScreen(),
     redirect: (context, state) {
-      final isLoginRoute = state.matchedLocation == '/login';
-      final isInitialSyncRoute = state.matchedLocation == '/initial-sync';
-      final isOnboardingRoute = state.matchedLocation == '/onboarding';
-      final isOnboardingReview = state.uri.queryParameters['review'] == '1';
+      final isLoginRoute = state.matchedLocation == AppRoutes.login;
+      final isInitialSyncRoute = state.matchedLocation == AppRoutes.initialSync;
+      final isOnboardingRoute = state.matchedLocation == AppRoutes.onboarding;
+      final isOnboardingReview =
+          state.uri.queryParameters[AppRoutes.onboardingReviewParam] == '1';
       final hasHomeWarmupEligibility =
           state.uri.queryParameters['homeWarmupEligible'] == '1';
       final isCacheUpgradeRoute =
-          state.matchedLocation == '/library-rebuild' &&
+          state.matchedLocation == AppRoutes.libraryRebuild &&
           state.uri.queryParameters['reason'] ==
               RequiredLibraryRebuildReason.cacheUpgrade.routeValue;
       if (sessionPhase.value == SessionRoutePhase.loading) {
@@ -150,7 +165,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (sessionPhase.value == SessionRoutePhase.unauthenticated) {
-        return isLoginRoute ? null : '/login';
+        return isLoginRoute ? null : AppRoutes.login;
       }
 
       if (cacheSystemUpgradeRequired.value == null) {
@@ -169,12 +184,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
       if (sessionPhase.value == SessionRoutePhase.initialSyncRequired) {
         if (onboardingRequired.value == null) {
-          return isInitialSyncRoute ? null : '/initial-sync';
+          return isInitialSyncRoute ? null : AppRoutes.initialSync;
         }
         final shouldCarryHomeWarmup = onboardingRequired.value == true;
         final target = shouldCarryHomeWarmup
-            ? '/initial-sync?homeWarmupEligible=1'
-            : '/initial-sync';
+            ? '${AppRoutes.initialSync}?homeWarmupEligible=1'
+            : AppRoutes.initialSync;
         return isInitialSyncRoute &&
                 hasHomeWarmupEligibility == shouldCarryHomeWarmup
             ? null
@@ -188,27 +203,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return null;
         }
         return hasHomeWarmupEligibility
-            ? '/onboarding?homeWarmup=1'
-            : '/onboarding';
+            ? '${AppRoutes.onboarding}?homeWarmup=1'
+            : AppRoutes.onboarding;
       }
 
       return switch (sessionPhase.value) {
         SessionRoutePhase.unauthenticated => null,
         SessionRoutePhase.initialSyncRequired =>
-          isInitialSyncRoute ? null : '/initial-sync',
+          isInitialSyncRoute ? null : AppRoutes.initialSync,
         SessionRoutePhase.ready =>
           (isLoginRoute ||
                   isInitialSyncRoute ||
                   (isOnboardingRoute && !isOnboardingReview))
-              ? '/'
+              ? AppRoutes.home
               : null,
         SessionRoutePhase.loading => null,
       };
     },
     routes: <RouteBase>[
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
-        path: '/initial-sync',
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.initialSync,
         builder: (context, state) => RequiredLibraryRebuildScreen(
           reason: RequiredLibraryRebuildReason.initialLogin,
           homeWarmupEligible:
@@ -216,20 +234,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/onboarding',
+        path: AppRoutes.onboarding,
         pageBuilder: (context, state) => buildSlideFadePage(
           context: context,
           key: state.pageKey,
           fadeOnly: true,
           child: OnboardingScreen(
-            reviewMode: state.uri.queryParameters['review'] == '1',
+            reviewMode:
+                state.uri.queryParameters[AppRoutes.onboardingReviewParam] ==
+                '1',
             homeWarmupAfterRebuild:
                 state.uri.queryParameters['homeWarmup'] == '1',
           ),
         ),
       ),
       GoRoute(
-        path: '/library-rebuild',
+        path: AppRoutes.libraryRebuild,
         builder: (context, state) {
           final reason = RequiredLibraryRebuildReason.parse(
             state.uri.queryParameters['reason'],
@@ -257,7 +277,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/',
+                path: AppRoutes.home,
                 builder: (context, state) => const HomeScreen(),
               ),
             ],
@@ -265,11 +285,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/library',
+                path: AppRoutes.library,
                 builder: (context, state) => const LibraryScreen(),
                 routes: <RouteBase>[
                   GoRoute(
-                    path: 'artists/:id',
+                    path: AppRoutes.artistSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -279,7 +299,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                     routes: <RouteBase>[
                       GoRoute(
-                        path: 'top-tracks',
+                        path: AppRoutes.artistTopTracksSegment,
                         pageBuilder: (context, state) => buildSlideFadePage(
                           context: context,
                           key: state.pageKey,
@@ -291,38 +311,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ],
                   ),
                   GoRoute(
-                    path: 'albums/:id',
+                    path: AppRoutes.albumSegment,
                     pageBuilder: (context, state) {
+                      // Links without a request (restored history entries,
+                      // diagnostics) use the calm composed-page fade.
                       final request = state.extra is AlbumDetailRouteRequest
                           ? state.extra! as AlbumDetailRouteRequest
-                          : null;
-                      // Accept the former string payload for restored routes
-                      // created before [AlbumDetailRouteRequest].
-                      final desktop = resolveAdaptiveContextFor(
-                        context,
-                      ).desktopRuntime;
-                      final openingHeroTag = desktop
-                          ? null
-                          : request?.openingHeroTag ??
-                                (state.extra is String
-                                    ? state.extra! as String
-                                    : null);
+                          : const AlbumDetailRouteRequest(fadeOnly: true);
                       return buildSlideFadePage(
                         context: context,
                         key: state.pageKey,
-                        heroDriven: openingHeroTag != null,
-                        fadeOnly: desktop || (request?.fadeOnly ?? false),
+                        heroDriven: request.openingHeroTag != null,
+                        fadeOnly: request.fadeOnly,
                         child: AlbumDetailScreen(
                           albumId: state.pathParameters['id']!,
-                          likedOnly:
-                              state.uri.queryParameters['likedOnly'] == '1',
-                          openingHeroTag: openingHeroTag,
+                          openingHeroTag: request.openingHeroTag,
                         ),
                       );
                     },
                   ),
                   GoRoute(
-                    path: 'playlists/:id',
+                    path: AppRoutes.playlistSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -332,7 +341,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'listenbrainz/:sourcePatch',
+                    path: AppRoutes.listenBrainzSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -342,7 +351,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'liked-artists',
+                    path: AppRoutes.likedArtistsSegment,
                     pageBuilder: (context, state) => buildSlideFadePage<void>(
                       context: context,
                       key: state.pageKey,
@@ -350,7 +359,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'liked-albums',
+                    path: AppRoutes.likedAlbumsSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -364,7 +373,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/search',
+                path: AppRoutes.search,
                 builder: (context, state) => const SearchScreen(),
               ),
             ],
@@ -372,11 +381,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/settings',
+                path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
                 routes: <RouteBase>[
                   GoRoute(
-                    path: 'server',
+                    path: AppRoutes.settingsServerSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -384,7 +393,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'unavailable-items',
+                    path: AppRoutes.settingsUnavailableItemsSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -392,7 +401,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'cache',
+                    path: AppRoutes.settingsCacheSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -400,23 +409,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'downloads',
+                    path: AppRoutes.settingsDownloadsSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
                       child: const DownloadsScreen(),
                     ),
                   ),
+                  for (final retired in AppRoutes.retiredSettingsSegments)
+                    GoRoute(
+                      path: retired,
+                      redirect: (context, state) =>
+                          SettingsPage.server.location,
+                    ),
                   GoRoute(
-                    path: 'group-listening',
-                    redirect: (context, state) => '/settings/server',
-                  ),
-                  GoRoute(
-                    path: 'external-services',
-                    redirect: (context, state) => '/settings/server',
-                  ),
-                  GoRoute(
-                    path: 'equalizer',
+                    path: AppRoutes.settingsEqualizerSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -424,7 +431,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'playback',
+                    path: AppRoutes.settingsPlaybackSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -432,7 +439,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                     routes: <RouteBase>[
                       GoRoute(
-                        path: 'match-flow',
+                        path: AppRoutes.matchFlowSegment,
                         pageBuilder: (context, state) => buildSlideFadePage(
                           context: context,
                           key: state.pageKey,
@@ -440,7 +447,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         ),
                         routes: <RouteBase>[
                           GoRoute(
-                            path: ':flowId/search',
+                            path: AppRoutes.matchFlowSearchSegment,
                             pageBuilder: (context, state) => buildSlideFadePage(
                               context: context,
                               key: state.pageKey,
@@ -454,7 +461,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ],
                   ),
                   GoRoute(
-                    path: 'sync',
+                    path: AppRoutes.settingsSyncSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -462,7 +469,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'appearance',
+                    path: AppRoutes.settingsAppearanceSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -470,7 +477,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'about',
+                    path: AppRoutes.settingsAboutSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -478,7 +485,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                     routes: [
                       GoRoute(
-                        path: 'changelog',
+                        path: AppRoutes.changelogSegment,
                         pageBuilder: (context, state) => buildSlideFadePage(
                           context: context,
                           key: state.pageKey,
@@ -489,7 +496,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         ),
                       ),
                       GoRoute(
-                        path: 'privacy',
+                        path: AppRoutes.privacySegment,
                         pageBuilder: (context, state) => buildSlideFadePage(
                           context: context,
                           key: state.pageKey,
@@ -499,7 +506,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ],
                   ),
                   GoRoute(
-                    path: 'desktop-window',
+                    path: AppRoutes.settingsDesktopWindowSegment,
+                    redirect: _desktopOnlyRedirect,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
@@ -507,7 +515,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
-                    path: 'shortcuts',
+                    path: AppRoutes.settingsShortcutsSegment,
+                    redirect: _desktopOnlyRedirect,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,

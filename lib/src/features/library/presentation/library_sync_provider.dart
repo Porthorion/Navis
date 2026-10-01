@@ -819,7 +819,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       nextRetryAt: persisted.nextEligibleAt,
       lastCatalogUpdatedAt: persisted.lastCatalogSyncedAt,
       lastAuxiliarySyncedAt: persisted.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: persisted.lastGenresSyncedAt,
       planKind: storedPlan.isEmpty ? state.planKind : storedPlan.first,
       planReason: persisted.lastPlanReason,
       pendingWorkCount: pending,

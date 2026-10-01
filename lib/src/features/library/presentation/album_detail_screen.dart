@@ -6,7 +6,6 @@ import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -39,6 +38,7 @@ import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
   const AlbumDetailScreen({
@@ -827,7 +827,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           tooltip: MaterialLocalizations.of(
                                             context,
                                           ).backButtonTooltip,
-                                          onPressed: () => context.pop(),
+                                          onPressed: () => NavService.back(
+                                            context,
+                                            fallback: AppRoutes.library,
+                                          ),
                                           icon: const Icon(Icons.arrow_back),
                                         ),
                                         const Spacer(),
@@ -1027,7 +1030,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       tooltip: MaterialLocalizations.of(
                         context,
                       ).backButtonTooltip,
-                      onPressed: () => context.pop(),
+                      onPressed: () =>
+                          NavService.back(context, fallback: AppRoutes.library),
                     ),
                     actions: <Widget>[
                       _buildAnimatedNavButton(

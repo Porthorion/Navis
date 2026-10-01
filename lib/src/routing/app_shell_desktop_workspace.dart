@@ -25,6 +25,7 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.isExternalSource,
     required this.onDestinationSelected,
     required this.showLibrarySubNavigation,
+    required this.librarySectionsFit,
     required this.allowScrollableRail,
     required this.selectedLibrarySection,
     required this.visibleLibrarySections,
@@ -63,6 +64,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final bool isExternalSource;
   final ValueChanged<int> onDestinationSelected;
   final bool showLibrarySubNavigation;
+  final ValueNotifier<bool> librarySectionsFit;
   final bool allowScrollableRail;
   final LibrarySection selectedLibrarySection;
   final List<LibrarySection> visibleLibrarySections;
@@ -209,6 +211,8 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               onOpenPlayer: widget.onOpenPlayer,
               navbarAutohide: widget.navbarAutohide,
               onToggleAutohide: widget.onToggleAutohide,
+              librarySectionsFit: widget.librarySectionsFit,
+              showHistoryControls: true,
             ),
           ),
         ),
@@ -398,7 +402,6 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                 ? widget.playback.radioStation?.nowPlayingArtUrl
                 : widget.coverArtUrl,
             isExternalSource: widget.isExternalSource,
-            onOpenPlayer: widget.onOpenPlayer,
             onToggleQueue: widget.onToggleQueue,
             queueToggleFocusNode: widget.queueToggleFocusNode,
             lyricsActive: widget.showLyricsOverlay,

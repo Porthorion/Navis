@@ -1542,23 +1542,6 @@ final albumRatingProvider = StreamProvider.family<int?, String>((ref, albumId) {
   return dao.watchAlbumRating(albumId);
 });
 
-final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchGenres();
-});
-
-final albumsByGenreProvider =
-    StreamProvider.family<List<AlbumsTableData>, String>((ref, genre) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchAlbumsByGenre(genre);
-    });
-
-final songsByGenreProvider =
-    StreamProvider.family<List<SongsTableData>, String>((ref, genre) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchSongsByGenre(genre);
-    });
-
 final songsByArtistProvider =
     StreamProvider.family<List<SongsTableData>, String>((ref, artistId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;

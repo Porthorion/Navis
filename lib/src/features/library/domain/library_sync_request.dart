@@ -24,6 +24,8 @@ enum LibrarySyncRequestCaller {
   cacheReset,
 }
 
+/// Persisted by index in `library_sync_run_request.target_kind`: only append
+/// new values. Schema 87 purged rows of the retired index 6.
 enum LibrarySyncTargetKind {
   catalog,
   artist,
@@ -31,7 +33,6 @@ enum LibrarySyncTargetKind {
   playlist,
   playlistHeaders,
   starred,
-  genres,
 }
 
 class LibrarySyncTarget {
@@ -59,10 +60,6 @@ class LibrarySyncTarget {
 
   const LibrarySyncTarget.starred()
     : kind = LibrarySyncTargetKind.starred,
-      entityId = null;
-
-  const LibrarySyncTarget.genres()
-    : kind = LibrarySyncTargetKind.genres,
       entityId = null;
 
   final LibrarySyncTargetKind kind;

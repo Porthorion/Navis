@@ -86,7 +86,7 @@ target.execute(
 )
 target.execute("UPDATE server_config SET name=?, url=?, username=?, api_version=?, capabilities=?, last_synced=?, last_full_synced=?, is_authenticated=1 WHERE id=?", ("Navis repair confirmation fixture", f"http://127.0.0.1:{fixture['port']}", "diagnostics", "1.16.1", json.dumps(capabilities, separators=(",", ":")), now, now, server_id))
 target.execute("INSERT OR IGNORE INTO library_sync_state (server_id) VALUES (?)", (server_id,))
-target.execute("UPDATE library_sync_state SET last_checked_at=?, last_catalog_synced_at=?, last_auxiliary_synced_at=?, last_genres_synced_at=?, candidate_generation=NULL, candidate_status=NULL, candidate_started_at=NULL, candidate_carried_forward_count=0, deletion_candidate_fingerprint=NULL, deletion_candidate_count=0, next_automatic_check_at=? WHERE server_id=?", (now, now, now, now, now + 3600, server_id))
+target.execute("UPDATE library_sync_state SET last_checked_at=?, last_catalog_synced_at=?, last_auxiliary_synced_at=?, candidate_generation=NULL, candidate_status=NULL, candidate_started_at=NULL, candidate_carried_forward_count=0, deletion_candidate_fingerprint=NULL, deletion_candidate_count=0, next_automatic_check_at=? WHERE server_id=?", (now, now, now, now + 3600, server_id))
 target.commit()
 assert target.execute("SELECT count(*) FROM albums").fetchone()[0] > 10
 assert target.execute("PRAGMA integrity_check").fetchone()[0] == "ok"

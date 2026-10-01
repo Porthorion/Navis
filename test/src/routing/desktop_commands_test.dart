@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,26 +73,47 @@ void main() {
     );
   });
 
-  test('desktop shortcut map can exclude escape binding', () {
-    final shortcuts = buildDesktopShortcutMap(
-      TargetPlatform.linux,
-      includeEscape: false,
+  test('history shortcuts follow platform browser conventions', () {
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    var bindings = defaultDesktopShortcutBindings();
+    expect(
+      bindings[DesktopCommandAction.navigateBack],
+      const DesktopShortcutBinding(
+        key: LogicalKeyboardKey.arrowLeft,
+        primaryModifier: false,
+        alt: true,
+      ),
     );
     expect(
-      shortcuts.containsKey(const SingleActivator(LogicalKeyboardKey.escape)),
-      isFalse,
+      bindings[DesktopCommandAction.navigateForward],
+      const DesktopShortcutBinding(
+        key: LogicalKeyboardKey.arrowRight,
+        primaryModifier: false,
+        alt: true,
+      ),
+    );
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    bindings = defaultDesktopShortcutBindings();
+    expect(
+      bindings[DesktopCommandAction.navigateBack],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketLeft),
+    );
+    expect(
+      bindings[DesktopCommandAction.navigateForward],
+      const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketRight),
     );
   });
 
-  test('desktop shortcut map includes default quick-search binding', () {
-    final shortcuts = buildDesktopShortcutMap(TargetPlatform.linux);
-    final hasQuickSearch = shortcuts.values.any(
-      (intent) =>
-          intent is DesktopCommandIntent &&
-          intent.action == DesktopCommandAction.openQuickSearch,
+  test('history shortcuts yield to text editing', () {
+    expect(
+      isTextSensitiveDesktopCommand(DesktopCommandAction.navigateBack),
+      isTrue,
     );
     expect(
-      hasQuickSearch,
+      isTextSensitiveDesktopCommand(DesktopCommandAction.navigateForward),
       isTrue,
     );
   });

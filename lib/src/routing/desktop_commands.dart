@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,9 @@ enum DesktopCommandAction {
   focusSearch,
   openQuickSearch,
   toggleQueue,
+
+  /// Escape: closes the top-most panel, overlay or dialog. The name predates
+  /// that behaviour and is kept because saved bindings are keyed by it.
   toggleNowPlaying,
   goHome,
   goLibrary,
@@ -26,6 +30,8 @@ enum DesktopCommandAction {
   speedUp,
   speedDown,
   speedReset,
+  navigateBack,
+  navigateForward,
 }
 
 @immutable
@@ -104,6 +110,8 @@ const List<DesktopCommandAction> configurableDesktopShortcutActions =
       DesktopCommandAction.goLibrary,
       DesktopCommandAction.goSearch,
       DesktopCommandAction.goSettings,
+      DesktopCommandAction.navigateBack,
+      DesktopCommandAction.navigateForward,
       DesktopCommandAction.refreshLibrary,
       DesktopCommandAction.forceRescanLibrary,
       DesktopCommandAction.speedUp,
@@ -137,6 +145,22 @@ defaultDesktopShortcutBindings() {
         DesktopCommandAction.goSettings: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.digit4,
         ),
+        // Browser conventions: Cmd+[ / Cmd+] on macOS, Alt+Left / Alt+Right
+        // elsewhere.
+        DesktopCommandAction.navigateBack: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketLeft)
+            : const DesktopShortcutBinding(
+                key: LogicalKeyboardKey.arrowLeft,
+                primaryModifier: false,
+                alt: true,
+              ),
+        DesktopCommandAction.navigateForward: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketRight)
+            : const DesktopShortcutBinding(
+                key: LogicalKeyboardKey.arrowRight,
+                primaryModifier: false,
+                alt: true,
+              ),
         DesktopCommandAction.refreshLibrary: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.keyR,
         ),
@@ -159,6 +183,8 @@ defaultDesktopShortcutBindings() {
     ),
   );
 }
+
+bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
 
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
 const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage();
@@ -398,16 +424,6 @@ final desktopShortcutBindingsProvider =
       Map<DesktopCommandAction, DesktopShortcutBinding?>
     >(DesktopShortcutBindingsNotifier.new);
 
-class DesktopCommandIntent extends Intent {
-  const DesktopCommandIntent(this.action);
-
-  final DesktopCommandAction action;
-}
-
-typedef DesktopCommandExecutor = FutureOr<void> Function(
-  DesktopCommandAction action,
-);
-
 bool desktopCommandBlockedByTextInput() {
   final focusNode = FocusManager.instance.primaryFocus;
   if (focusNode == null) {
@@ -424,44 +440,6 @@ bool desktopCommandBlockedByTextInput() {
   }
   // Walk up the tree to catch EditableText hosted inside composite widgets.
   return focusContext.findAncestorStateOfType<EditableTextState>() != null;
-}
-
-Map<ShortcutActivator, Intent> buildDesktopShortcutMap(
-  TargetPlatform platform, {
-  bool includeEscape = true,
-  Map<DesktopCommandAction, DesktopShortcutBinding?>? shortcutBindings,
-}) {
-  final shortcuts = <ShortcutActivator, Intent>{
-    const SingleActivator(LogicalKeyboardKey.space): const DesktopCommandIntent(
-      DesktopCommandAction.playPause,
-    ),
-    const SingleActivator(LogicalKeyboardKey.arrowRight):
-        const DesktopCommandIntent(DesktopCommandAction.nextTrack),
-    const SingleActivator(LogicalKeyboardKey.arrowLeft):
-        const DesktopCommandIntent(DesktopCommandAction.previousTrack),
-    SingleActivator(
-      LogicalKeyboardKey.period,
-      alt: true,
-      includeRepeats: false,
-    ): const DesktopCommandIntent(
-      DesktopCommandAction.nextTrack,
-    ),
-    SingleActivator(LogicalKeyboardKey.comma, alt: true, includeRepeats: false):
-        const DesktopCommandIntent(DesktopCommandAction.previousTrack),
-  };
-  final bindings = shortcutBindings ?? defaultDesktopShortcutBindings();
-  for (final entry in bindings.entries) {
-    final binding = entry.value;
-    if (binding == null) {
-      continue;
-    }
-    shortcuts[binding.toActivator(platform)] = DesktopCommandIntent(entry.key);
-  }
-  if (includeEscape) {
-    shortcuts[const SingleActivator(LogicalKeyboardKey.escape)] =
-        const DesktopCommandIntent(DesktopCommandAction.toggleNowPlaying);
-  }
-  return shortcuts;
 }
 
 bool _isBindingMatchForEvent(
@@ -565,5 +543,8 @@ DesktopCommandAction? matchAnyDesktopCommandForKeyEvent(
 bool isTextSensitiveDesktopCommand(DesktopCommandAction action) {
   return action == DesktopCommandAction.playPause ||
       action == DesktopCommandAction.nextTrack ||
-      action == DesktopCommandAction.previousTrack;
+      action == DesktopCommandAction.previousTrack ||
+      // Modified arrows move the caret by word in text fields.
+      action == DesktopCommandAction.navigateBack ||
+      action == DesktopCommandAction.navigateForward;
 }

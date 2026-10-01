@@ -57,6 +57,9 @@ flows and platform contracts.
   direct stream. Read the playback section of `docs/architecture.md` first.
 - Preserve the router's narrow auth refresh contract; do not rebuild it from
   broad/timestamped configuration state.
+- Navigate through `NavService` and build locations with `AppRoutes`
+  (`lib/src/routing/`); never write route strings or call GoRouter directly
+  from features. A source guard test enforces this.
 - Database changes require a stepwise migration, generated Drift output, and
   `test/src/database/migrations/navis_migration_test.dart` updates.
 - After Freezed, JSON, Drift table, or DAO changes run `make gen` and commit
@@ -67,6 +70,11 @@ flows and platform contracts.
   `tool/generate_release_notes.dart` renders.
 - Listen Together/Voyage is retired. Do not restore its networking, sessions,
   settings, queue sync, or visible UI without an explicit product decision.
+- Genres are not a Navis concept: no genre page, route, Library section, Home
+  shelf, search filter, Android Auto node, sync/scan input, catalog-change
+  signal, recommendation input or diagnostics field without an explicit
+  product decision. `test/src/architecture/no_genre_feature_test.dart`
+  enforces this for `lib/`.
 - Never commit credentials, put real values in examples, reset unrelated work,
   weaken tests/security, or silently make public breaking changes.
 

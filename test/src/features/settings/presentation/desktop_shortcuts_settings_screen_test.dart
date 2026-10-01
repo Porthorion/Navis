@@ -121,7 +121,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Customizable'), findsOneWidget);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     await expectLater(

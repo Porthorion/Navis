@@ -235,38 +235,6 @@ class SubsonicApiClient {
     return AlbumInfo.fromJson(_asMap(root['albumInfo2']));
   }
 
-  Future<List<Genre>> getGenres({CancelToken? cancelToken}) async {
-    final root = await _readRoot(
-      '/rest/getGenres.view',
-      cancelToken: cancelToken,
-    );
-    final rawGenres = _snapshotList(_snapshotNode(root, 'genres')['genre']);
-    final genres = <Genre>[];
-    for (final rawGenre in rawGenres) {
-      final rawName = rawGenre['value'] ?? rawGenre['name'];
-      if (rawName is! String) {
-        continue;
-      }
-      final name = rawName.trim();
-      if (name.isEmpty) {
-        continue;
-      }
-      genres.add(
-        Genre(
-          name: name,
-          songCount: _toInt(rawGenre['songCount']),
-          albumCount: _toInt(rawGenre['albumCount']),
-        ),
-      );
-    }
-    if (rawGenres.isNotEmpty && genres.isEmpty) {
-      throw const SubsonicIncompleteResponseException(
-        'Genre snapshot contained no valid names.',
-      );
-    }
-    return genres;
-  }
-
   Future<List<Album>> getAlbumList2({
     required String type,
     int size = 20,
@@ -323,20 +291,6 @@ class SubsonicApiClient {
     );
     return _asMapList(
       _asMap(root['randomSongs'])['song'],
-    ).map(Song.fromJson).toList(growable: false);
-  }
-
-  Future<List<Song>> getSongsByGenre({
-    required String genre,
-    CancelToken? cancelToken,
-  }) async {
-    final root = await _readRoot(
-      '/rest/getSongsByGenre.view',
-      query: {'genre': genre},
-      cancelToken: cancelToken,
-    );
-    return _asMapList(
-      _asMap(root['songsByGenre'])['song'],
     ).map(Song.fromJson).toList(growable: false);
   }
 

@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class DesktopShortcutsSettingsScreen extends ConsumerStatefulWidget {
   const DesktopShortcutsSettingsScreen({super.key});
@@ -205,9 +206,10 @@ class _DesktopShortcutsSettingsScreenState
           automaticallyImplyLeading: !desktopMode,
           leading: desktopMode
               ? IconButton(
-                  tooltip: l10n.syncSettingsBackToSettings,
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => NavService.returnToSettings(context, ref),
+                  onPressed: () =>
+                      NavService.back(context, fallback: AppRoutes.settings),
                 )
               : null,
           title: Text(l10n.settingsDesktopShortcutsTitle),
@@ -337,6 +339,8 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.speedUp => Icons.fast_forward_rounded,
       DesktopCommandAction.speedDown => Icons.slow_motion_video_rounded,
       DesktopCommandAction.speedReset => Icons.speed_rounded,
+      DesktopCommandAction.navigateBack => Icons.arrow_back_rounded,
+      DesktopCommandAction.navigateForward => Icons.arrow_forward_rounded,
     };
   }
 
@@ -366,6 +370,10 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.speedUp => l10n.desktopShortcutsSpeedUpTitle,
       DesktopCommandAction.speedDown => l10n.desktopShortcutsSpeedDownTitle,
       DesktopCommandAction.speedReset => l10n.desktopShortcutsSpeedResetTitle,
+      DesktopCommandAction.navigateBack =>
+        l10n.desktopShortcutsNavigateBackTitle,
+      DesktopCommandAction.navigateForward =>
+        l10n.desktopShortcutsNavigateForwardTitle,
     };
   }
 
@@ -403,6 +411,10 @@ class _DesktopShortcutsSettingsScreenState
         l10n.desktopShortcutsSpeedDownDescription,
       DesktopCommandAction.speedReset =>
         l10n.desktopShortcutsSpeedResetDescription,
+      DesktopCommandAction.navigateBack =>
+        l10n.desktopShortcutsNavigateBackDescription,
+      DesktopCommandAction.navigateForward =>
+        l10n.desktopShortcutsNavigateForwardDescription,
     };
   }
 }

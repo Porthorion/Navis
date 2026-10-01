@@ -29,6 +29,8 @@ import 'package:navis/src/features/downloads/presentation/manual_download_matchi
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
@@ -158,7 +160,8 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
               key: const ValueKey<String>('desktopDownloadsBackButton'),
               icon: const Icon(Icons.arrow_back),
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => unawaited(Navigator.of(context).maybePop()),
+              onPressed: () =>
+                  NavService.back(context, fallback: AppRoutes.settings),
             ),
             const SizedBox(width: 4),
             Text(

@@ -763,13 +763,13 @@ abstract class AppLocalizations {
   /// No description provided for @desktopShortcutsToggleNowPlayingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Toggle Now Playing'**
+  /// **'Close overlay'**
   String get desktopShortcutsToggleNowPlayingTitle;
 
   /// No description provided for @desktopShortcutsToggleNowPlayingDescription.
   ///
   /// In en, this message translates to:
-  /// **'Expand or collapse now playing'**
+  /// **'Close the top-most panel, overlay or dialog'**
   String get desktopShortcutsToggleNowPlayingDescription;
 
   /// No description provided for @desktopShortcutsPlayPauseTitle.
@@ -1120,12 +1120,6 @@ abstract class AppLocalizations {
   /// **'Starred and Playlist Headers'**
   String get syncSettingsLastAuxiliaryUpdateLabel;
 
-  /// No description provided for @syncSettingsLastGenresUpdateLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Genres'**
-  String get syncSettingsLastGenresUpdateLabel;
-
   /// No description provided for @syncSettingsLastLibraryChangeLabel.
   ///
   /// In en, this message translates to:
@@ -1137,12 +1131,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Android Background Sync'**
   String get syncSettingsAndroidBackgroundTitle;
-
-  /// No description provided for @syncSettingsBackToSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Back to Settings'**
-  String get syncSettingsBackToSettings;
 
   /// No description provided for @syncSettingsAndroidBackgroundDisabled.
   ///
@@ -2766,12 +2754,6 @@ abstract class AppLocalizations {
   /// **'Songs'**
   String get libraryTabSongs;
 
-  /// No description provided for @libraryTabGenres.
-  ///
-  /// In en, this message translates to:
-  /// **'Genres'**
-  String get libraryTabGenres;
-
   /// No description provided for @librarySyncRunning.
   ///
   /// In en, this message translates to:
@@ -2831,12 +2813,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Updating liked items'**
   String get librarySyncStageStarred;
-
-  /// No description provided for @librarySyncStageGenres.
-  ///
-  /// In en, this message translates to:
-  /// **'Fetching genres'**
-  String get librarySyncStageGenres;
 
   /// No description provided for @librarySyncStagePlaylists.
   ///
@@ -3053,30 +3029,6 @@ abstract class AppLocalizations {
   /// **'Sort Songs By'**
   String get librarySongsSortLabel;
 
-  /// No description provided for @libraryGenresEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Genres Found'**
-  String get libraryGenresEmptyTitle;
-
-  /// No description provided for @libraryGenresEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a sync to populate your library.'**
-  String get libraryGenresEmptySubtitle;
-
-  /// No description provided for @libraryGenresErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Genres'**
-  String get libraryGenresErrorTitle;
-
-  /// No description provided for @libraryGenresCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{albums} albums • {songs} songs'**
-  String libraryGenresCount(int albums, int songs);
-
   /// No description provided for @librarySortRecentlyAdded.
   ///
   /// In en, this message translates to:
@@ -3196,54 +3148,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'\"{title}\" added to play next.'**
   String librarySongPlayNextQueued(Object title);
-
-  /// No description provided for @libraryGenreDetailTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'{genre}'**
-  String libraryGenreDetailTitle(Object genre);
-
-  /// No description provided for @libraryGenreAlbumsTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Albums'**
-  String get libraryGenreAlbumsTab;
-
-  /// No description provided for @libraryGenreSongsTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Songs'**
-  String get libraryGenreSongsTab;
-
-  /// No description provided for @libraryGenreAlbumsEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Albums in This Genre'**
-  String get libraryGenreAlbumsEmptyTitle;
-
-  /// No description provided for @libraryGenreAlbumsEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync to refresh genre albums.'**
-  String get libraryGenreAlbumsEmptySubtitle;
-
-  /// No description provided for @libraryGenreSongsEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Songs in This Genre'**
-  String get libraryGenreSongsEmptyTitle;
-
-  /// No description provided for @libraryGenreSongsEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync to refresh genre songs.'**
-  String get libraryGenreSongsEmptySubtitle;
-
-  /// No description provided for @libraryGenreLoadErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Genre'**
-  String get libraryGenreLoadErrorTitle;
 
   /// No description provided for @artistCardAlbumCount.
   ///
@@ -8848,6 +8752,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Get API key'**
   String get onboardingLastFmGetApiKey;
+
+  /// No description provided for @routeNotFoundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Page not found'**
+  String get routeNotFoundTitle;
+
+  /// No description provided for @routeNotFoundMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This page is no longer available.'**
+  String get routeNotFoundMessage;
+
+  /// No description provided for @routeNotFoundGoHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Home'**
+  String get routeNotFoundGoHome;
+
+  /// No description provided for @navigationBackTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get navigationBackTooltip;
+
+  /// No description provided for @navigationForwardTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get navigationForwardTooltip;
+
+  /// No description provided for @desktopShortcutsNavigateBackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back'**
+  String get desktopShortcutsNavigateBackTitle;
+
+  /// No description provided for @desktopShortcutsNavigateBackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to the previous page; the mouse Back button does the same'**
+  String get desktopShortcutsNavigateBackDescription;
+
+  /// No description provided for @desktopShortcutsNavigateForwardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go forward'**
+  String get desktopShortcutsNavigateForwardTitle;
+
+  /// No description provided for @desktopShortcutsNavigateForwardDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to the next page after going back; the mouse Forward button does the same'**
+  String get desktopShortcutsNavigateForwardDescription;
 }
 
 class _AppLocalizationsDelegate

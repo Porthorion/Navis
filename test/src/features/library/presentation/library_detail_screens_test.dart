@@ -2,7 +2,6 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -24,7 +23,6 @@ import 'package:navis/src/features/library/presentation/artist_detail_screen.dar
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
-import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -498,7 +496,7 @@ void main() {
     });
 
     testWidgets(
-      'mobile artist preview reserves both controls and genre rows stay compact',
+      'mobile artist preview reserves both inline controls',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(360, 1200));
         const song = SongsTableData(
@@ -546,26 +544,6 @@ void main() {
           96,
         );
         _expectInlineMobileActions(tester);
-        await _disposeApp(tester);
-        await tester.pumpWidget(
-          _buildApp(
-            database: database,
-            adaptiveContext: _mobileContext,
-            child: GenreDetailScreen(
-              encodedGenre: base64Url.encode(utf8.encode('Diagnostics')),
-            ),
-            overrides: [
-              albumsByGenreProvider('Diagnostics')
-                  .overrideWithValue(const AsyncData(<AlbumsTableData>[])),
-              songsByGenreProvider('Diagnostics')
-                  .overrideWithValue(const AsyncData([song])),
-            ],
-          ),
-        );
-        await tester.pump();
-        await tester.tap(find.text('Songs'));
-        await tester.pumpAndSettle();
-        _expectInlineMobileActions(tester, maxHeight: 64);
         await _disposeApp(tester);
       },
     );

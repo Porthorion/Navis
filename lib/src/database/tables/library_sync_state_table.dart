@@ -60,8 +60,6 @@ class LibrarySyncStateTable extends Table {
 
   DateTimeColumn get lastAuxiliarySyncedAt => dateTime().nullable()();
 
-  DateTimeColumn get lastGenresSyncedAt => dateTime().nullable()();
-
   DateTimeColumn get lastAuditAt => dateTime().nullable()();
 
   IntColumn get auditOffset => integer().withDefault(const Constant(0))();

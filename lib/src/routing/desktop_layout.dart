@@ -72,6 +72,36 @@ class AdaptiveContext {
   final bool useStandardRailNavigation;
   final bool useCompactWideLandscape;
   final bool useRailNavigation;
+
+  // Value equality lets [AdaptiveContextScope] notify dependents only when
+  // the adaptive layout actually changes, not on every shell build.
+  @override
+  bool operator ==(Object other) =>
+      other is AdaptiveContext &&
+      other.desktopRuntime == desktopRuntime &&
+      other.desktopWide == desktopWide &&
+      other.desktopLayoutClass == desktopLayoutClass &&
+      other.adaptiveLayoutClass == adaptiveLayoutClass &&
+      other.adaptiveShellMode == adaptiveShellMode &&
+      other.isPhoneFormFactor == isPhoneFormFactor &&
+      other.useDesktopShell == useDesktopShell &&
+      other.useStandardRailNavigation == useStandardRailNavigation &&
+      other.useCompactWideLandscape == useCompactWideLandscape &&
+      other.useRailNavigation == useRailNavigation;
+
+  @override
+  int get hashCode => Object.hash(
+    desktopRuntime,
+    desktopWide,
+    desktopLayoutClass,
+    adaptiveLayoutClass,
+    adaptiveShellMode,
+    isPhoneFormFactor,
+    useDesktopShell,
+    useStandardRailNavigation,
+    useCompactWideLandscape,
+    useRailNavigation,
+  );
 }
 
 /// Shared adaptive input policy resolved from [AdaptiveContext].
@@ -92,6 +122,25 @@ class AdaptiveInputPolicy {
   final bool enableDesktopPointerAffordances;
   final bool enableSecondaryClickMenus;
   final bool enableDesktopCommandShortcuts;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AdaptiveInputPolicy &&
+      other.enableDeterministicTraversal == enableDeterministicTraversal &&
+      other.enableEscapeOverlayPriority == enableEscapeOverlayPriority &&
+      other.enableDesktopPointerAffordances ==
+          enableDesktopPointerAffordances &&
+      other.enableSecondaryClickMenus == enableSecondaryClickMenus &&
+      other.enableDesktopCommandShortcuts == enableDesktopCommandShortcuts;
+
+  @override
+  int get hashCode => Object.hash(
+    enableDeterministicTraversal,
+    enableEscapeOverlayPriority,
+    enableDesktopPointerAffordances,
+    enableSecondaryClickMenus,
+    enableDesktopCommandShortcuts,
+  );
 }
 
 /// Provides a shared [AdaptiveContext] to descendants.
@@ -211,18 +260,12 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   final isLandscape = width > height;
 
   if (!isPhoneFormFactor) {
-    if (adaptiveClass == AdaptiveLayoutClass.tabletExpanded) {
-      // Widescreen landscape displays (aspect ratio > 1.65, e.g. 16:9 car
-      // screens like Android Automotive OS) suit the compact icon rail better
-      // than the wide standard rail.  Regular tablets in landscape are at most
-      // ~1.6:1, so this only triggers for car-like ultra-wide displays.
-      final aspectRatio = height > 0 ? width / height : 1.0;
-      if (isLandscape && aspectRatio > 1.65) {
-        return AdaptiveShellMode.compactWideLandscape;
-      }
-      return AdaptiveShellMode.standardRail;
-    }
-    return AdaptiveShellMode.phoneBottomNav;
+    // Tablets are at least 600dp tall, which always fits the standard rail,
+    // whatever their aspect ratio: a 16:9 tablet is still a tablet. Only a
+    // short viewport (below) gets the compact icon rail.
+    return adaptiveClass == AdaptiveLayoutClass.tabletExpanded
+        ? AdaptiveShellMode.standardRail
+        : AdaptiveShellMode.phoneBottomNav;
   }
 
   if (!isLandscape || adaptiveClass != AdaptiveLayoutClass.tabletExpanded) {

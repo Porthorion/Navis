@@ -16,6 +16,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_presentation_host.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
@@ -62,6 +63,10 @@ class _NavisAppState extends ConsumerState<NavisApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
+    if (isDesktopRuntime) {
+      // Keep history recording from launch, not from the first Back press.
+      ref.listen(navigationHistoryProvider, (_, _) {});
+    }
     final themeModeName = ref.watch(themeModeProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     final localeCode = ref.watch(appLocaleProvider);
@@ -114,13 +119,9 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       onPointerDown: (event) {
         FocusManager.instance.primaryFocus?.unfocus();
         if (event.buttons & kBackMouseButton != 0) {
-          ref
-              .read(navigationHistoryProvider.notifier)
-              .navigateBack(ref.read(appRouterProvider));
+          unawaited(NavService.navigateHistory(ref, forward: false));
         } else if (event.buttons & kForwardMouseButton != 0) {
-          ref
-              .read(navigationHistoryProvider.notifier)
-              .navigateForward(ref.read(appRouterProvider));
+          unawaited(NavService.navigateHistory(ref, forward: true));
         }
       },
       child: Shortcuts.manager(

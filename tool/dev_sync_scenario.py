@@ -71,7 +71,6 @@ RESET_TABLES = (
     "songs",
     "albums",
     "artists",
-    "genres",
     "library_sync_state",
 )
 SANITIZE_TABLES = (

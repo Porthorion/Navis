@@ -122,7 +122,7 @@ void main() {
       statsController.add(const CacheStats(trackCount: 0, totalBytes: 0));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Back to Settings'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
       expect(tester.getSize(find.byType(ListView)).width, 1040);
       await expectLater(
         find.byType(CacheSettingsScreen),

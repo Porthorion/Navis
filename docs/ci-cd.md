@@ -291,7 +291,7 @@ song through the production queue path and capture its Now Playing metadata.
 For the real Albums filtered-empty state, run
 `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone /library library-filtered-empty`.
 For Radio's equivalent, run
-`NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library#radio' radio-filtered-empty`.
+`NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library?section=radio' radio-filtered-empty`.
 The Radio path enables a deterministic station fixture; both drive the
 production Library filter through its authenticated diagnostics control and
 capture the state before and after a clean restart.

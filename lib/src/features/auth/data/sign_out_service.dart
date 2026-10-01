@@ -268,7 +268,6 @@ class ServerDataResetService {
       await _database.delete(_database.songsTable).go();
       await _database.delete(_database.albumsTable).go();
       await _database.delete(_database.artistsTable).go();
-      await _database.delete(_database.genresTable).go();
       await _database.delete(_database.librarySyncStateTable).go();
       await _database.serverDao.clearSyncTimestamps();
     });

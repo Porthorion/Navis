@@ -11,6 +11,8 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_error_message.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class MatchFlowSongSearchScreen extends ConsumerStatefulWidget {
   const MatchFlowSongSearchScreen({required this.flowId, super.key});
@@ -121,7 +123,7 @@ class _MatchFlowSongSearchScreenState
         message: l10n.matchFlowSongAdded(song.title),
         level: AppNoticeLevel.success,
       );
-      Navigator.of(context).pop();
+      NavService.back(context, fallback: AppRoutes.matchFlow);
     } on MatchFlowException catch (error) {
       if (!mounted) return;
       showAppNotice(

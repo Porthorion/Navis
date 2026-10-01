@@ -671,7 +671,7 @@ class Runner:
         }
 
     def scroll_library(self):
-        self.app.api('/v1/presentation/navigate', {'location': '/library#albums'})
+        self.app.api('/v1/presentation/navigate', {'location': '/library?section=albums'})
         time.sleep(2)
         reached = 0
         for step in range(1, 61):

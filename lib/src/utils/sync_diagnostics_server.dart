@@ -59,6 +59,9 @@ import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/navigation_history_provider.dart';
 
 enum SyncDiagnosticsMode {
   clone,
@@ -525,8 +528,18 @@ class SyncDiagnosticsServer {
           });
           return;
         }
-        _navigationDriver.go(location);
+        if (!_navigationDriver.resolves(location)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'location does not match an app route',
+          });
+          return;
+        }
         final librarySection = _librarySectionForDiagnosticsLocation(location);
+        _navigationDriver.go(
+          librarySection == null
+              ? location
+              : AppRoutes.librarySection(librarySection.name),
+        );
         if (librarySection != null) {
           _container
               .read(librarySectionProvider.notifier)
@@ -2110,6 +2123,49 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (path == '/v1/presentation/system-back' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.systemBack();
+        await _respond(request, HttpStatus.ok, _navigationState());
+        return;
+      }
+      if (path == '/v1/presentation/tab' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final branch = ShellBranch.values
+            .where((candidate) => candidate.name == body['branch'])
+            .firstOrNull;
+        if (branch == null) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'branch must be home, library, search or settings',
+          });
+          return;
+        }
+        try {
+          await presentation.tapNavigationDestination(branch.index);
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _respond(request, HttpStatus.ok, _navigationState());
+        return;
+      }
       if (path == '/v1/presentation/shortcut' && request.method == 'POST') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -3014,6 +3070,17 @@ class SyncDiagnosticsServer {
   }
 
   /// Route, player overlay and quick-control state for quick-panel checks.
+  /// Location, shell tab and player overlays after a navigation control.
+  Map<String, Object?> _navigationState() => <String, Object?>{
+    'location': _navigationDriver.location,
+    'librarySection': _container.read(librarySectionProvider).name,
+    'playerOverlay': [
+      for (final route in _container.read(playerOverlayStackProvider))
+        route.name,
+    ],
+    'navigation': _container.read(navigationHistoryProvider).stack,
+  };
+
   Map<String, Object?> _quickPanelState(
     DiagnosticsPresentationController presentation,
   ) => <String, Object?>{
@@ -3211,7 +3278,7 @@ class SyncDiagnosticsServer {
       return;
     }
 
-    _navigationDriver.go('/search');
+    _navigationDriver.go(AppRoutes.search);
     _presentationSearchSongs = const <String, Song>{};
     _container.read(searchFilterProvider.notifier).select(filter);
     _container.read(searchQueryProvider.notifier).submit(query);
@@ -4057,6 +4124,9 @@ class SyncDiagnosticsServer {
 abstract interface class DiagnosticsNavigationDriver {
   String get location;
 
+  /// Whether [location] matches an app route.
+  bool resolves(String location);
+
   void go(String location);
 }
 
@@ -4068,6 +4138,12 @@ class ProviderDiagnosticsNavigationDriver
 
   @override
   String get location => _router().state.uri.toString();
+
+  @override
+  bool resolves(String location) {
+    final match = _router().configuration.findMatch(Uri.parse(location));
+    return !match.isError && match.isNotEmpty;
+  }
 
   @override
   void go(String location) => _router().go(location);
@@ -4082,13 +4158,16 @@ bool _isValidDiagnosticsLocation(String value) {
       !uri.hasAuthority;
 }
 
-/// Decodes the virtual Library destinations used by desktop navigation
-/// history. The diagnostics route uses this so that an app-API navigation to
-/// `/library#liked` drives the same section provider as the visible rail.
+/// Decodes the Library section of a diagnostics location:
+/// `/library?section=liked`, or the older `/library#liked` form.
 LibrarySection? _librarySectionForDiagnosticsLocation(String value) {
   final uri = Uri.tryParse(value);
-  if (uri == null || uri.path != '/library' || uri.fragment.isEmpty) {
+  if (uri == null || uri.path != AppRoutes.library) {
     return null;
+  }
+  final fromQuery = NavService.librarySectionForLocation(uri);
+  if (fromQuery != null || uri.fragment.isEmpty) {
+    return fromQuery;
   }
   for (final section in LibrarySection.values) {
     if (section.name == uri.fragment) {

@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
@@ -43,6 +44,10 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
+
+import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -589,7 +594,7 @@ void main() {
       findsNothing,
     );
     expect(
-      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_outlined)),
+      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_rounded)),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -679,6 +684,68 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 201));
   });
+
+  testWidgets(
+    'Mini Player keeps the navigation shell and ignores page shortcuts',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final windowController = DesktopWindowController.fallback(
+        desktopRuntime: true,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: const PlaybackSnapshot.idle(),
+          ),
+          desktopWindowControllerProvider.overrideWith(
+            (ref) => windowController,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final router = container.read(appRouterProvider);
+      router.go(AppRoutes.settings);
+      await tester.pumpAndSettle();
+      unawaited(router.push<void>(SettingsPage.cache.location));
+      await tester.pumpAndSettle();
+      final shellState = tester.state(find.byType(StatefulNavigationShell));
+
+      // The window shrinks with the mode, as the real window controller does.
+      await windowController.setMiniPlayerMode(true);
+      tester.view.physicalSize = const Size(720, 405);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, SettingsPage.cache.location);
+
+      await windowController.setMiniPlayerMode(false);
+      tester.view.physicalSize = const Size(1280, 800);
+      await tester.pumpAndSettle();
+      expect(
+        tester.state(find.byType(StatefulNavigationShell)),
+        same(shellState),
+      );
+      expect(router.state.uri.path, SettingsPage.cache.location);
+      expect(router.canPop(), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('720x405 Mini Player uses the dedicated desktop surface', (
     tester,
@@ -2182,9 +2249,25 @@ void main() {
       expect(find.text('Library - Liked'), findsOneWidget);
       expect(container.read(librarySectionProvider), LibrarySection.liked);
 
+      // Re-selecting Library keeps the section it was showing.
       await tester.tap(libraryMain);
       await tester.pumpAndSettle();
+      expect(find.text('Library - Liked'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.liked);
+      final router = container.read(appRouterProvider);
+      expect(router.state.uri.toString(), AppRoutes.librarySection('liked'));
 
+      // So does returning from another tab.
+      await tester.tap(find.byKey(const ValueKey('railNavTile-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(libraryMain);
+      await tester.pumpAndSettle();
+      expect(find.text('Library - Liked'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.liked);
+
+      // A Library location names its section.
+      router.go(AppRoutes.librarySection('albums'));
+      await tester.pumpAndSettle();
       expect(find.text('Library - Albums'), findsOneWidget);
       expect(container.read(librarySectionProvider), LibrarySection.albums);
     },
@@ -2556,6 +2639,211 @@ void main() {
     await tester.pump(const Duration(milliseconds: 150));
     expect(find.byType(ExpandablePlayerSheet), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'desktop lyrics overlay is Now Playing and closes on navigation and '
+    'Escape',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final lyricsOverlay = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_DesktopLyricsOverlay',
+      );
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsOneWidget);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit4);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsNothing);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(lyricsOverlay, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('re-selecting Settings scrolls its list back to the top', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 560);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder destination(ShellBranch branch) => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(branch.index);
+
+    await tester.tap(destination(ShellBranch.settings));
+    await tester.pumpAndSettle();
+    final list = find.descendant(
+      of: find.byType(SettingsScreen),
+      matching: find.byType(Scrollable),
+    );
+    await tester.drag(list.first, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final position = tester.state<ScrollableState>(list.first).position;
+    expect(position.pixels, greaterThan(0));
+
+    await tester.tap(destination(ShellBranch.settings));
+    await tester.pumpAndSettle();
+    expect(position.pixels, 0);
+  });
+
+  testWidgets('re-selecting Search scrolls its list back to the top', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 560);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    final history = container.read(navisDatabaseProvider).historyDao;
+    await tester.runAsync(() async {
+      for (var i = 0; i < 20; i++) {
+        await history.saveSearchQuery('query $i');
+      }
+    });
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder destination(ShellBranch branch) => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(branch.index);
+
+    await tester.tap(destination(ShellBranch.search));
+    await tester.pumpAndSettle();
+    // Let the database stream deliver the recent searches.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+    final list = find.text('query 1');
+    expect(list, findsOneWidget);
+    final scrollable = find
+        .ancestor(of: list, matching: find.byType(Scrollable))
+        .first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.drag(scrollable, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+
+    await tester.tap(destination(ShellBranch.search));
+    await tester.pumpAndSettle();
+    expect(position.pixels, 0);
+  });
+
+  testWidgets('Search focuses its field only when re-selected', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder searchDestination() => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(ShellBranch.search.index);
+    bool searchFieldFocused() => desktopCommandBlockedByTextInput();
+
+    await tester.tap(searchDestination());
+    await tester.pumpAndSettle();
+    expect(searchFieldFocused(), isFalse);
+
+    await tester.tap(searchDestination());
+    await tester.pumpAndSettle();
+    expect(searchFieldFocused(), isTrue);
+  });
+
+  testWidgets('switching tabs closes a menu opened inside the tab', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final homeContext = tester.element(find.byType(HomeScreen));
+    unawaited(
+      showDialog<void>(
+        context: homeContext,
+        useRootNavigator: false,
+        builder: (_) => const AlertDialog(content: Text('Tab menu')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Tab menu'), findsOneWidget);
+
+    // The dialog's barrier sits inside the tab, so the bar stays tappable.
+    Finder destination(IconData icon) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.byIcon(icon),
+    );
+    await tester.tap(destination(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(destination(Icons.home_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Tab menu'), findsNothing);
   });
 
   testWidgets('escape closes queue before collapsing now playing', (

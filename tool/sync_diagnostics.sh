@@ -93,11 +93,10 @@ if sys.argv[5] in ("cache-alias", "full-rescan"):
     target.execute('''
         UPDATE library_sync_state
         SET last_checked_at = ?, last_catalog_synced_at = ?,
-            last_auxiliary_synced_at = ?, last_genres_synced_at = ?,
-            last_audit_at = ?, audit_offset = 0,
+            last_auxiliary_synced_at = ?, last_audit_at = ?, audit_offset = 0,
             candidate_generation = NULL, candidate_status = NULL,
             candidate_started_at = NULL, candidate_carried_forward_count = 0
-    ''', (now, now, now, now, now))
+    ''', (now, now, now, now))
     row = target.execute(
         "SELECT id, capabilities FROM server_config ORDER BY id LIMIT 1"
     ).fetchone()

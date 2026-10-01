@@ -11,6 +11,7 @@ import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 /// Opens the Speed & Pitch panel from a player control.
 ///
@@ -216,9 +217,6 @@ ButtonStyle? quickActionDenseStyle(ButtonStyle? style, {required bool dense}) =>
       )
     : style;
 
-/// Location of the full Equalizer page.
-const equalizerRouteLocation = '/settings/equalizer';
-
 /// Player control for the equalizer.
 ///
 /// Opens the compact Equalizer panel. While the full page is showing it
@@ -282,7 +280,7 @@ class EqualizerQuickButton extends ConsumerWidget {
       builder: (context, _) => _button(
         context,
         ref,
-        onPage: router.state.uri.path == equalizerRouteLocation,
+        onPage: router.state.uri.path == AppRoutes.equalizer,
       ),
     );
   }

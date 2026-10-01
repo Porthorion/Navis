@@ -44,7 +44,7 @@ class _ChangelogDiscoveryCardState
 
   void _open(BuildContext context, ChangelogDiscovery discovery) {
     _markSeen(discovery.seenVersion);
-    NavService.openAboutChangelog(
+    NavService.openChangelog(
       context,
       version: (discovery.featured ?? discovery.current).version,
     );

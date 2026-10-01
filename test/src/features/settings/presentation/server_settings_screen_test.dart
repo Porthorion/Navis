@@ -271,7 +271,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
     final cardContext = tester.element(find.byType(Card).first);
     expect(Theme.of(cardContext).cardTheme.color, Colors.transparent);
   });

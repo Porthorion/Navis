@@ -264,6 +264,21 @@ Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
 playback sync, or queue coordination paths.
 
+#### Genres are not a Navis concept
+
+By product decision (2026-09-30) Navis has no genre page, route, Library
+section, Home shelf, search filter, Android Auto node, sync/scan input,
+catalog-change signal, recommendation input or diagnostics field. Server
+`genre` fields are ignored when albums are decoded, so a genre-only server edit
+is not a catalog change. Schema 89 dropped the `genres` table, the
+`albums.genre`, `library_sync_candidate_albums.genre` and
+`library_sync_state.last_genres_synced_at` columns, and purged retired
+`@genres` sync work and genre-target run history (`target_kind = 6`).
+`test/src/architecture/no_genre_feature_test.dart` fails on any `genre`
+mention in `lib/` outside generated files, historical changelog data and that
+migration step. An Android Auto genre voice intent is an ordinary raw-query
+search.
+
 ### Import Guidelines
 
 1. **Feature code should import from feature providers first**:
@@ -708,34 +723,47 @@ Features:
 
 ## Routing Structure
 
-Routes are defined in `lib/src/routing/app_router.dart`:
+Routes are declared in `lib/src/routing/app_router.dart` from the path
+segments in `lib/src/routing/app_routes.dart`. `AppRoutes` is the only place
+route locations are written: it builds every location, URL-encodes entity ids
+into single path segments, and defines `ShellBranch` (the four tab branches in
+router order) and `SettingsPage`. A source guard in
+`test/src/routing/app_router_test.dart` fails on route string literals outside
+`app_routes.dart` and on direct router calls outside `lib/src/routing/` except
+a short, justified allowlist (sign-in/out, onboarding, full-screen rebuilds and
+the diagnostics API). Another test resolves every `AppRoutes` location against
+the real router.
 
 ### Main Routes
 
+Full-screen flows, outside the tab shell:
+
 - `/login` - Login screen (unauthenticated)
 - `/initial-sync` - recoverable full-screen first-catalog route; it takes priority over versioned onboarding and opens Home only after complete catalog evidence
-- `/library-rebuild` - mandatory and user-started recoverable library rebuilds
-- `/onboarding` - full-screen, versioned first-run customization before normal authenticated routing
-- `/` - Home screen (default after login)
-- `/library` - Library tabs (albums, artists, playlists, liked albums)
-- `/library/artists/:id` - Artist detail
+- `/library-rebuild?reason=…` - mandatory and user-started recoverable library rebuilds
+- `/onboarding` - full-screen, versioned first-run customization before normal authenticated routing; `?review=1` re-runs it from Settings
+
+Tab shell (`StatefulShellRoute.indexedStack`, branches Home, Library, Search,
+Settings):
+
+- `/` - Home
+- `/library?section=<albums|liked|artists|playlists|radio>` - Library; the section is part of the location
+- `/library/artists/:id` and `/library/artists/:id/top-tracks` - Artist detail and its top-tracks playlist
 - `/library/albums/:id` - Album detail
 - `/library/playlists/:id` - Playlist detail
-- `/library/liked-albums` - Liked albums list
-- `/search` - Search screen
-- `/settings` - Settings screen
-- `/settings/server` - Server settings
-- `/settings/cache` - Cache settings
-- `/settings/downloads` - Downloads queue
-- `/settings/playback` - Playback settings
-- `/settings/sync` - Sync settings
-- `/settings/appearance` - Appearance settings
-- `/settings/about` - About / update checker
-- `/settings/desktop-window` - Desktop window settings
-- `/settings/shortcuts` - Keyboard shortcuts reference
+- `/library/listenbrainz/:sourcePatch` - ListenBrainz weekly playlist
+- `/library/liked-albums`, `/library/liked-artists` - Full liked lists
+- `/search` - Search
+- `/settings` - Settings
+- `/settings/server` (Configuration), `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
+- `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
+- `/settings/about/changelog`, `/settings/about/privacy`
+- `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
 
-The retired `/settings/group-listening` path redirects to Configuration and is
-not shown in navigation.
+The retired `/settings/group-listening` and `/settings/external-services` paths
+redirect to Configuration (`/settings/server`) and are not shown in
+navigation. A location that matches no route shows a localized not-found page
+with a Home action.
 
 `appRouterProvider` owns one stable `GoRouter` instance. Authentication and
 first-sync phase changes refresh its redirects in place rather than rebuilding
@@ -793,16 +821,79 @@ remain outside excluded semantics subtrees.
 
 ### Navigation Intent
 
-Feature code should call `NavService` from `lib/src/routing/navigation_service.dart` instead
-of raw GoRouter APIs for app-level movement. `push` means the user drilled into an album,
-artist, playlist, or similar entity from the current context, so Back returns to that context.
-`go` means the current route is being replaced, or the user is switching to a canonical shell
-branch such as Home, Library, Search, or Settings. Local dialog and sheet dismissal can continue
-to use `Navigator.pop`.
+Feature code navigates through `NavService`
+(`lib/src/routing/navigation_service.dart`), never raw GoRouter calls. Its
+helpers dismiss the keyboard, popup routes (on the current tab's navigator as
+well as the root) and the player overlay stack before moving.
 
-Desktop mouse back/forward is powered by `navigation_history_provider.dart`. It records
-normalized GoRouter locations, represents Library root sections as `/library#section`, drops
-duplicate emissions, and truncates forward history after new navigation.
+- **Drill-in** (`openAlbumDetail`, `openArtistDetail`, `openSettingsPage`,
+  `openChangelog`, …) pushes onto the current tab, so Back returns to where it
+  was opened. go_router keeps a pushed page on the tab it was pushed from even
+  when its path is under another branch (an album opened from Home stays on
+  Home).
+- **Tab switches** use `switchTab(ShellBranch)`; re-selecting the current tab
+  returns it to its root and scrolls it to the top. Re-selecting Library keeps
+  its section; re-selecting Search also focuses its field.
+- **Library sections** use `openLibrarySection`, which writes
+  `/library?section=…`. The shell follows that location into
+  `librarySectionProvider` from the router's change notification (never during
+  build), so returning to the tab, history, deep links and diagnostics select
+  the section named. A Library location without a section keeps the current
+  one.
+- **Page back buttons** use `NavService.back(context, fallback:)`: pop when the
+  page has history, otherwise go to the fallback. `returnToLibrary` pops an
+  unavailable detail page before switching to Library so it does not linger
+  on the origin tab.
+- **Mini Player**: links followed from Mini Player (for example the playing
+  track's album) first return to Desktop View; when Desktop View is
+  unavailable they do nothing.
+- `openSearch` (player metadata fallbacks) replaces the Search query and
+  records it in search history.
+
+Dialogs and sheets still dismiss themselves with `Navigator.pop`. Transient
+result-returning workflows (full-screen lyrics, the Mini Player queue and
+lyrics pages, download reconciliation) remain Navigator pages rather than
+routes; back closes them like dialogs and history does not record them.
+
+### Back handling
+
+Every back entry point in the shell (Android back via `BackButtonListener` and
+`PopScope`, the tab navigators' `NavigatorPopHandler`s, the desktop workspace)
+calls one handler, and desktop Escape starts from the same first steps:
+
+1. quick search;
+2. the queue (animated close that restores focus to its invoker);
+3. a panel inside Now Playing (compact-wide panels, full-screen or inline
+   lyrics);
+4. Now Playing itself (on desktop this is the lyrics overlay);
+5. pop the current tab's page;
+6. from another tab's root, switch to Home;
+7. at Home root, press back twice within two seconds to exit.
+
+Escape stops after step 4 (then closes a root dialog); it never pops pages.
+iOS detail pages without a Hero use `CupertinoPage`, so edge-swipe back works.
+
+### Desktop history
+
+`navigation_history_provider.dart` keeps desktop Back/Forward history. It is
+created at launch (`app.dart` listens on desktop) and records a
+`NavHistoryEntry` (`navigation_history.dart`) for every router configuration
+change that shows the tab shell: the whole `RouteMatchList`, its tab and page
+keys. Sign-in, onboarding and full-screen rebuild locations are never
+recorded; sign-out clears history; at most 100 entries are kept.
+
+A pop that returns to the previous entry moves back through history rather
+than adding an entry. Going back to the page directly beneath the current one
+pops it (completing its push future, which the Equalizer uses to restore its
+origin); every other move calls `GoRouter.restore` with the recorded snapshot,
+rehydrating already-completed push completers, so tabs keep their stacks,
+pages keep their state and `extra` payloads survive. `go()` is never used for
+history. Overlays are cleared before each move, and history is ignored in Mini
+Player.
+
+History is driven by mouse buttons 4/5, the configurable Back/Forward
+commands (Alt+Left/Right; Cmd+[ / Cmd+] on macOS) and the Back/Forward buttons
+at the top of the desktop sidebar, enabled from history state.
 
 Player overlays are logical shell state, separate from their visual exit
 transition. When playback becomes inactive, the shell clears the queue and
@@ -840,13 +931,32 @@ Desktop uses a separate classification:
 `resolveAdaptiveShellMode` maps layout class + runtime + orientation to a shell mode:
 
 - **Desktop runtime, Desktop View** → desktop workspace with persistent side navigation and bottom player
-- **Desktop runtime, Mini Player** → dedicated playback surface, with no application navigation shell
-- **Phone/tablet, landscape, tabletExpanded** → navigation rail
+- **Desktop runtime, Mini Player** → dedicated playback surface. The desktop
+  workspace, including the tab shell, stays mounted but hidden (offstage,
+  tickers off, focus excluded, laid out at the last Desktop View size) once
+  Desktop View has been shown, so returning restores every tab's pages. Page
+  shortcuts (tab switches, search, queue, history) are ignored in Mini Player.
+- **Tablets (shortest side ≥ 600 dp), ≥ 840 dp wide** → standard rail,
+  whatever the aspect ratio
+- **Phones in landscape, ≥ 840 dp wide** → standard rail when the rail fits the
+  height, otherwise the compact icon rail (compact-wide)
 - **All other cases** → bottom navigation bar
+
+Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
+same size, uses the standard rail. The top-inset proxy for car bars that do not
+report a bottom inset applies only to compact-wide.
+
+Selected destinations use filled icons on the bar and rails. When the sidebar
+or rail cannot show the Library section links (phone bottom navigation, the
+compact rail, icon-only or auto-hiding desktop sidebars, or a rail too short
+for them), the Library page shows its own section bar;
+`LibrarySectionNavigationScope` carries the sidebar's decision, which the
+sidebar reports after layout.
 
 ### AdaptiveContext
 
-`AdaptiveContext` is a value object computed once per `AppShell` layout pass and propagated
+`AdaptiveContext` is a value object (with value equality, so its scope only
+notifies on real changes) computed once per `AppShell` layout pass and propagated
 downward via `AdaptiveContextScope`. It exposes:
 
 - `desktopRuntime` — true on Linux/macOS/Windows
@@ -916,7 +1026,7 @@ stays with the text. Normal artwork rows retain their 64px minimum height.
 Rows with enough room keep their existing inline duration arrangement. Headers
 appear only for full collections. Numbered collections set
 `numberColumnExtent` to label their existing numeric area with `#` and the
-accessible description Track number: 32px for album/playlist/genre/weekly
+accessible description Track number: 32px for album/playlist/weekly
 lists and 30px within the 82px Artist Top Tracks leading area. Artwork-only
 lists leave it null, and compact headers stay hidden. Specialized callers
 retain their queue and playlist occurrence callbacks. Artist previews explicitly
@@ -1004,10 +1114,16 @@ mode selection, and transition resolution for the Linux runtime gate.
 `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) centralises keyboard shortcut
 handling. Commands are guarded before dispatch:
 
-- **Text input guard** — shortcuts are suppressed when focus is inside any `EditableText`
-  descendent, preventing transport hotkeys from interfering with search/text fields
-- **Route-current guard** — shortcuts that target a specific screen only fire when that
-  screen is the active route in the navigator stack
+- **Text input guard** — transport and history shortcuts are suppressed when focus is
+  inside any `EditableText` descendant, so they do not interfere with text editing
+- **Mini Player guard** — page shortcuts are ignored while Mini Player is shown
+
+Defaults: Ctrl/Cmd+F quick search, Ctrl/Cmd+K go to Search and focus its field,
+Ctrl/Cmd+1–4 tabs (Ctrl/Cmd+2 cycles sections only on the Library root),
+Ctrl/Cmd+J queue, Alt+Left/Right (Cmd+[ / Cmd+] on macOS) history, and Escape
+"Close overlay". Escape's persisted action name is still `toggleNowPlaying` for
+saved-binding compatibility. Quick search changes its filter with Tab, or with
+the arrow keys only while its field is empty.
 
 Configurable bindings persist per action; a saved map that predates an action
 keeps that action's default. Playback speed up/down/reset (`speedUp`,
@@ -1828,10 +1944,8 @@ states without starting audio or modifying a queue.
     `markAuxiliarySyncedAt` writer, and the retired per-server
     capabilities-JSON timestamp is no longer read or written. The
     catalog circuit breaker does not suppress these independent endpoints.
-    Genre metadata is not a synchronized domain because Navis has no consumer
-    for it. A legacy queued genre target is marked complete during recovery;
-    cached genre rows remain untouched for compatibility and no `getGenres`
-    request is scheduled.
+    Genres are not synchronized: there is no genre target, endpoint or stored
+    genre data (see "Genres are not a Navis concept").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Playlist headers upsert without replacing parent rows, so an unchanged
@@ -2323,7 +2437,7 @@ while checks inside the interval can continue pending-only work.
 
 Album/artist header timestamp comparisons use Drift's whole-second storage
 precision. Newest-feed header discrepancies only invalidate track hydration when
-the album is new/unhydrated or track-relevant fields change. Genre, rating,
+the album is new/unhydrated or track-relevant fields change. Rating,
 play-count and creation-date updates alone preserve verified tracks; independent
 age-based verification still covers song-only metadata changes.
 

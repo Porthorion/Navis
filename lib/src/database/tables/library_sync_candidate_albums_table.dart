@@ -27,8 +27,6 @@ class LibrarySyncCandidateAlbumsTable extends Table {
 
   IntColumn get year => integer().nullable()();
 
-  TextColumn get genre => text().nullable()();
-
   TextColumn get coverArt => text().nullable()();
 
   /// MusicBrainz release ID supplied by OpenSubsonic responses, promoted

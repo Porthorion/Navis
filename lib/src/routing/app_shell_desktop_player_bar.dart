@@ -10,7 +10,6 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
     required this.coverArtId,
     required this.coverArtUrl,
     required this.isExternalSource,
-    required this.onOpenPlayer,
     required this.onToggleQueue,
     required this.queueToggleFocusNode,
     required this.lyricsActive,
@@ -25,7 +24,6 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isExternalSource;
-  final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
   final FocusNode queueToggleFocusNode;
   final bool lyricsActive;
@@ -260,8 +258,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 }
 
                 final resolvedAlbumId = (widget.albumId ?? '').trim();
-                final canOpenAlbum =
-                    resolvedAlbumId.isNotEmpty && !playback.isRadioMode;
+                // Like Now Playing, the album link also works without an
+                // album id: the navigator falls back to the track's album
+                // name, then to an album search.
+                final canOpenAlbum = hasPlayback && !playback.isRadioMode;
 
                 Widget coverArtWidget;
                 if (!hasPlayback) {
@@ -306,7 +306,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                         NormalPlaybackMetadataNavigator.goToAlbum(
                           context,
                           ref,
-                          albumId: resolvedAlbumId,
+                          albumId: resolvedAlbumId.isEmpty
+                              ? null
+                              : resolvedAlbumId,
                           artistId: widget.artistId,
                           artistName: widget.songArtist,
                         ),

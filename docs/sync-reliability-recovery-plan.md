@@ -36,10 +36,11 @@ key. It must not depend on a globally bounded queue read, because a successful
 target request must record completion even when a large interactive hydration
 backlog is ahead of it.
 
-Genre metadata is not a Navis sync domain: the client has no active consumer
-for it, including Android Auto. No catalog, auxiliary, first-time, incremental,
-scheduled, or repair run calls `getGenres`. Legacy queued genre work is retired
-as completed without deleting previously cached rows.
+Genres are not a Navis concept (product decision 2026-09-30) and not a sync
+domain. No catalog, auxiliary, first-time, incremental, scheduled, or repair
+run calls `getGenres`, and a genre-only album edit is not a catalog change.
+Schema 89 removed the genre sync target, dropped cached genre rows and columns,
+and purged legacy queued `@genres` work and genre-target run history.
 
 ## Sync cohesion migration (schema v71)
 

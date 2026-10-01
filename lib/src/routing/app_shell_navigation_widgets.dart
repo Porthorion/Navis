@@ -1,14 +1,16 @@
 part of 'app_shell.dart';
 
-const int _homeBranchIndex = 0;
-const int _libraryBranchIndex = 1;
-const int _searchBranchIndex = 2;
-const int _settingsBranchIndex = 3;
-
 class _ShellDestination {
-  const _ShellDestination({required this.icon, required this.label});
+  const _ShellDestination({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 
   final IconData icon;
+
+  /// Filled variant shown for the selected destination.
+  final IconData selectedIcon;
   final String label;
 }
 
@@ -57,7 +59,9 @@ class _CompactIconRail extends StatelessWidget {
                           onTap: () => onDestinationSelected(i),
                           child: Center(
                             child: Icon(
-                              destinations[i].icon,
+                              i == selectedIndex
+                                  ? destinations[i].selectedIcon
+                                  : destinations[i].icon,
                               size: iconSize,
                               color: i == selectedIndex
                                   ? colorScheme.primary
@@ -102,6 +106,8 @@ class _RailSidebar extends ConsumerWidget {
     this.radioArtUrl,
     this.navbarAutohide = false,
     this.onToggleAutohide,
+    this.librarySectionsFit,
+    this.showHistoryControls = false,
   });
 
   final List<_ShellDestination> destinations;
@@ -128,6 +134,38 @@ class _RailSidebar extends ConsumerWidget {
   final bool navbarAutohide;
   final VoidCallback? onToggleAutohide;
 
+  /// Receives whether the Library section links fit this sidebar's height,
+  /// so the Library page can show its own section bar when they do not.
+  final ValueNotifier<bool>? librarySectionsFit;
+
+  /// Shows desktop Back/Forward history buttons above the destinations.
+  final bool showHistoryControls;
+
+  Widget _autohideButton(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        icon: Icon(
+          navbarAutohide ? Icons.lock_open_rounded : Icons.lock_rounded,
+          size: 16,
+        ),
+        tooltip: navbarAutohide
+            ? AppLocalizations.of(context)!.desktopNavbarLockTooltip
+            : AppLocalizations.of(
+                context,
+              )!.desktopNavbarUnlockTooltip,
+        onPressed: onToggleAutohide,
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          minimumSize: const Size(32, 32),
+          maximumSize: const Size(32, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final iconsOnly = navbarStyle == 'icons';
@@ -137,33 +175,20 @@ class _RailSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          if (onToggleAutohide != null)
-            Align(
-              alignment: iconsOnly ? Alignment.center : Alignment.centerRight,
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: IconButton(
-                  icon: Icon(
-                    navbarAutohide
-                        ? Icons.lock_open_rounded
-                        : Icons.lock_rounded,
-                    size: 16,
-                  ),
-                  tooltip: navbarAutohide
-                      ? AppLocalizations.of(context)!.desktopNavbarLockTooltip
-                      : AppLocalizations.of(
-                          context,
-                        )!.desktopNavbarUnlockTooltip,
-                  onPressed: onToggleAutohide,
-                  padding: EdgeInsets.zero,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(32, 32),
-                    maximumSize: const Size(32, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ),
+          if (iconsOnly)
+            Column(
+              children: <Widget>[
+                if (showHistoryControls) const _HistoryButtons(vertical: true),
+                if (onToggleAutohide != null) _autohideButton(context),
+              ],
+            )
+          else if (showHistoryControls || onToggleAutohide != null)
+            Row(
+              children: <Widget>[
+                if (showHistoryControls) const _HistoryButtons(),
+                const Spacer(),
+                if (onToggleAutohide != null) _autohideButton(context),
+              ],
             ),
           Expanded(
             child: LayoutBuilder(
@@ -187,11 +212,22 @@ class _RailSidebar extends ConsumerWidget {
                     baseNavHeight +
                     (librarySubSectionCount * subNavTileEstimatedHeight) +
                     subNavTrailingGap;
+                final librarySectionsFitHeight =
+                    navViewportHeight >=
+                    (inlineLibraryNavHeight + railCutoffSlack);
+                final sectionsFit = librarySectionsFit;
+                if (sectionsFit != null &&
+                    sectionsFit.value != librarySectionsFitHeight) {
+                  // Reported after layout; the notifier drives the Library
+                  // page, which must not change while this sidebar lays out.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    sectionsFit.value = librarySectionsFitHeight;
+                  });
+                }
                 final showLibrarySectionsInline =
                     !iconsOnly &&
                     showLibrarySubNavigation &&
-                    navViewportHeight >=
-                        (inlineLibraryNavHeight + railCutoffSlack);
+                    librarySectionsFitHeight;
                 final visibleNavContentHeight = showLibrarySectionsInline
                     ? inlineLibraryNavHeight
                     : baseNavHeight;
@@ -222,7 +258,7 @@ class _RailSidebar extends ConsumerWidget {
                           ),
                           label: _librarySectionShellLabel(context, section),
                           selected:
-                              selectedIndex == 1 &&
+                              selectedIndex == ShellBranch.library.index &&
                               selectedLibrarySection == section,
                           onTap: () => onLibrarySectionSelected(section),
                         ),
@@ -345,7 +381,7 @@ class _RailNavTile extends StatelessWidget {
               Badge(
                 isLabelVisible: showBadge,
                 child: Icon(
-                  destination.icon,
+                  selected ? destination.selectedIcon : destination.icon,
                   size: 24,
                   color: selected
                       ? colorScheme.onSecondaryContainer
@@ -413,5 +449,70 @@ class _RailSubNavTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Desktop Back/Forward history buttons, enabled from history state.
+class _HistoryButtons extends ConsumerWidget {
+  const _HistoryButtons({this.vertical = false});
+
+  final bool vertical;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final (canGoBack, canGoForward) = ref.watch(
+      navigationHistoryProvider.select(
+        (history) => (history.canGoBack, history.canGoForward),
+      ),
+    );
+    Widget button({
+      required String key,
+      required IconData icon,
+      required String tooltip,
+      required bool enabled,
+      required bool forward,
+    }) {
+      return SizedBox(
+        width: 32,
+        height: 32,
+        child: IconButton(
+          key: ValueKey<String>(key),
+          icon: Icon(icon, size: 18),
+          tooltip: tooltip,
+          onPressed: enabled
+              ? () => unawaited(
+                  NavService.navigateHistory(ref, forward: forward),
+                )
+              : null,
+          padding: EdgeInsets.zero,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(32, 32),
+            maximumSize: const Size(32, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      );
+    }
+
+    final children = <Widget>[
+      button(
+        key: 'desktopHistoryBack',
+        icon: Icons.arrow_back_rounded,
+        tooltip: l10n.navigationBackTooltip,
+        enabled: canGoBack,
+        forward: false,
+      ),
+      button(
+        key: 'desktopHistoryForward',
+        icon: Icons.arrow_forward_rounded,
+        tooltip: l10n.navigationForwardTooltip,
+        enabled: canGoForward,
+        forward: true,
+      ),
+    ];
+    return vertical
+        ? Column(mainAxisSize: MainAxisSize.min, children: children)
+        : Row(mainAxisSize: MainAxisSize.min, children: children);
   }
 }

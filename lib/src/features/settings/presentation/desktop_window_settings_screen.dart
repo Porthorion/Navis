@@ -6,6 +6,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class DesktopWindowSettingsScreen extends ConsumerWidget {
   const DesktopWindowSettingsScreen({super.key});
@@ -36,9 +37,10 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leading: IconButton(
-          tooltip: l10n.syncSettingsBackToSettings,
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => NavService.returnToSettings(context, ref),
+          onPressed: () =>
+              NavService.back(context, fallback: AppRoutes.settings),
         ),
         title: Text(l10n.desktopWindowTitle),
       ),

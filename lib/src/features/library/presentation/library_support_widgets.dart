@@ -332,7 +332,6 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
       LibrarySyncStage.persistingMetadata => l10n.librarySyncStagePersisting,
       LibrarySyncStage.fetchingSongs => l10n.librarySyncStageSongs,
       LibrarySyncStage.fetchingStarred => l10n.librarySyncStageStarred,
-      LibrarySyncStage.fetchingGenres => l10n.librarySyncStageGenres,
       LibrarySyncStage.fetchingPlaylists => l10n.librarySyncStagePlaylists,
       LibrarySyncStage.finalizing => l10n.librarySyncStageFinalizing,
       _ => l10n.librarySyncRunning,

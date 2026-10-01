@@ -370,11 +370,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopShortcutsGoSettingsDescription => 'Open settings';
 
   @override
-  String get desktopShortcutsToggleNowPlayingTitle => 'Toggle Now Playing';
+  String get desktopShortcutsToggleNowPlayingTitle => 'Close overlay';
 
   @override
   String get desktopShortcutsToggleNowPlayingDescription =>
-      'Expand or collapse now playing';
+      'Close the top-most panel, overlay or dialog';
 
   @override
   String get desktopShortcutsPlayPauseTitle => 'Play / Pause';
@@ -571,16 +571,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Starred and Playlist Headers';
 
   @override
-  String get syncSettingsLastGenresUpdateLabel => 'Genres';
-
-  @override
   String get syncSettingsLastLibraryChangeLabel => 'Last Library Change';
 
   @override
   String get syncSettingsAndroidBackgroundTitle => 'Android Background Sync';
-
-  @override
-  String get syncSettingsBackToSettings => 'Back to Settings';
 
   @override
   String get syncSettingsAndroidBackgroundDisabled =>
@@ -1557,9 +1551,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryTabSongs => 'Songs';
 
   @override
-  String get libraryTabGenres => 'Genres';
-
-  @override
   String get librarySyncRunning => 'Syncing library metadata...';
 
   @override
@@ -1594,9 +1585,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get librarySyncStageStarred => 'Updating liked items';
-
-  @override
-  String get librarySyncStageGenres => 'Fetching genres';
 
   @override
   String get librarySyncStagePlaylists => 'Updating playlists';
@@ -1725,21 +1713,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySongsSortLabel => 'Sort Songs By';
 
   @override
-  String get libraryGenresEmptyTitle => 'No Genres Found';
-
-  @override
-  String get libraryGenresEmptySubtitle =>
-      'Run a sync to populate your library.';
-
-  @override
-  String get libraryGenresErrorTitle => 'Could Not Load Genres';
-
-  @override
-  String libraryGenresCount(int albums, int songs) {
-    return '$albums albums • $songs songs';
-  }
-
-  @override
   String get librarySortRecentlyAdded => 'Recently Added';
 
   @override
@@ -1804,32 +1777,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String librarySongPlayNextQueued(Object title) {
     return '\"$title\" added to play next.';
   }
-
-  @override
-  String libraryGenreDetailTitle(Object genre) {
-    return '$genre';
-  }
-
-  @override
-  String get libraryGenreAlbumsTab => 'Albums';
-
-  @override
-  String get libraryGenreSongsTab => 'Songs';
-
-  @override
-  String get libraryGenreAlbumsEmptyTitle => 'No Albums in This Genre';
-
-  @override
-  String get libraryGenreAlbumsEmptySubtitle => 'Sync to refresh genre albums.';
-
-  @override
-  String get libraryGenreSongsEmptyTitle => 'No Songs in This Genre';
-
-  @override
-  String get libraryGenreSongsEmptySubtitle => 'Sync to refresh genre songs.';
-
-  @override
-  String get libraryGenreLoadErrorTitle => 'Could Not Load Genre';
 
   @override
   String artistCardAlbumCount(int count) {
@@ -5155,4 +5102,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingLastFmGetApiKey => 'Get API key';
+
+  @override
+  String get routeNotFoundTitle => 'Page not found';
+
+  @override
+  String get routeNotFoundMessage => 'This page is no longer available.';
+
+  @override
+  String get routeNotFoundGoHome => 'Go to Home';
+
+  @override
+  String get navigationBackTooltip => 'Back';
+
+  @override
+  String get navigationForwardTooltip => 'Forward';
+
+  @override
+  String get desktopShortcutsNavigateBackTitle => 'Go back';
+
+  @override
+  String get desktopShortcutsNavigateBackDescription =>
+      'Return to the previous page; the mouse Back button does the same';
+
+  @override
+  String get desktopShortcutsNavigateForwardTitle => 'Go forward';
+
+  @override
+  String get desktopShortcutsNavigateForwardDescription =>
+      'Go to the next page after going back; the mouse Forward button does the same';
 }

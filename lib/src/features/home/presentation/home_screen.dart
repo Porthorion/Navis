@@ -12,7 +12,6 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderBox, RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -318,7 +317,7 @@ class _ListenBrainzWeeklyDetailContentState
                         tooltip: MaterialLocalizations.of(
                           context,
                         ).backButtonTooltip,
-                        onPressed: () => context.pop(),
+                        onPressed: () => NavService.back(context),
                         icon: const Icon(Icons.arrow_back),
                       ),
                       const SizedBox(height: 4),
@@ -401,7 +400,7 @@ class _ListenBrainzWeeklyDetailContentState
           systemOverlayStyle: SystemUiOverlayStyle.light,
           leading: _buildAnimatedNavButton(
             icon: Icons.arrow_back,
-            onPressed: () => context.pop(),
+            onPressed: () => NavService.back(context),
           ),
           title: Opacity(
             opacity: toolbarTitleOpacity,
@@ -1286,7 +1285,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<AlbumsTableData>>(
             title: l10n.homeRecentlyLikedAlbumsTitle,
-            onSeeAll: () => context.push('/library/liked-albums'),
+            onSeeAll: () => NavService.openLikedAlbums(context, ref),
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
@@ -4329,12 +4328,21 @@ class _HomeActionRow extends ConsumerWidget {
       ref.read(downloadedOnlyFilterProvider.notifier).enabled = !downloadedOnly;
     }
 
+    // Desktop View has no expanded player; its Now Playing surface is the
+    // lyrics overlay, which radio does not open.
+    void expandPlayer() {
+      if (resolveAdaptiveContextFor(context).desktopRuntime) {
+        return;
+      }
+      ref.read(playerOverlayStackProvider.notifier).expand();
+    }
+
     Future<void> startInstantRadio() async {
       if (radioState.busy) return;
       if (radioState.retryCount >= 5) {
         final result = await ref.read(personalRadioProvider.notifier).retry();
         if (context.mounted && result.succeeded) {
-          ref.read(playerOverlayStackProvider.notifier).expand();
+          expandPlayer();
         }
         return;
       }
@@ -4352,7 +4360,7 @@ class _HomeActionRow extends ConsumerWidget {
           );
       if (!context.mounted) return;
       if (result.succeeded) {
-        ref.read(playerOverlayStackProvider.notifier).expand();
+        expandPlayer();
       } else {
         showAppNotice(
           context,

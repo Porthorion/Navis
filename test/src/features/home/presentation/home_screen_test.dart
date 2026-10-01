@@ -37,6 +37,9 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
+import 'package:go_router/go_router.dart';
+import 'package:navis/src/routing/app_routes.dart';
+
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
@@ -515,6 +518,15 @@ Future<void> _pumpRandomSectionHome(
         _StaticLibrarySyncController.new,
       ),
       subsonicApiProvider.overrideWithValue(null),
+      listenBrainzDiscoverStreamProvider.overrideWith(
+        (ref) => Stream.value(<ListenBrainzDiscoverPlaylist>[
+          for (final item in randomAlbums)
+            if (item case HomeRandomShowcaseListenBrainz(
+              :final ListenBrainzDiscoverPlaylist playlist,
+            ))
+              playlist,
+        ]),
+      ),
       homeRandomShowcaseProvider.overrideWith(
         (ref, filters) => AsyncData(
           mutableShowcase ? ref.watch(_showcaseFixture) : randomAlbums,
@@ -542,18 +554,12 @@ Future<void> _pumpRandomSectionHome(
       ...overrides,
     ],
   );
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: sectionOverrides,
-      child: MaterialApp(
-        theme: testTheme(),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
-          child: child!,
-        ),
-        home: Builder(
+  // Weekly playlists open their real route, as in the app.
+  final router = GoRouter(
+    routes: <RouteBase>[
+      GoRoute(
+        path: AppRoutes.home,
+        builder: (context, state) => Builder(
           builder: (context) {
             Widget screen = const HomeScreen();
             if (nativeTouch || forceDesktop)
@@ -575,6 +581,28 @@ Future<void> _pumpRandomSectionHome(
                   );
           },
         ),
+      ),
+      GoRoute(
+        path: '${AppRoutes.library}/${AppRoutes.listenBrainzSegment}',
+        builder: (context, state) => ListenBrainzWeeklyDetailScreen(
+          sourcePatch: state.pathParameters['sourcePatch']!,
+        ),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: sectionOverrides,
+      child: MaterialApp.router(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
+          child: child!,
+        ),
+        routerConfig: router,
       ),
     ),
   );
@@ -1421,7 +1449,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       final queueSpy =
           container.read(queueProvider.notifier) as _QueueSpyController;
@@ -1879,13 +1907,10 @@ void main() {
 
       await tester.tap(find.text('Weekly Exploration'));
       await tester.pumpAndSettle();
+      // The card opens the weekly playlist route, as it does in the app.
+      expect(find.byType(ListenBrainzWeeklyDetailScreen), findsOneWidget);
       expect(find.text('Weekly Exploration'), findsWidgets);
-      expect(find.text('Remote Song'), findsWidgets);
-      final playButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Play').last,
-      );
-      expect(playButton.onPressed, isNotNull);
-      await tester.tapAt(const Offset(12, 12));
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
       await tester.drag(
@@ -1932,7 +1957,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       final queueSpy =
           container.read(queueProvider.notifier) as _QueueSpyController;
@@ -1948,8 +1973,7 @@ void main() {
       expect(queueSpy.lastAutoPlay, isTrue);
       expect(queueSpy.lastExpandMatchFlows, isFalse);
 
-      await tester.tap(find.text('Weekly Exploration'));
-      await tester.pumpAndSettle();
+      // Still on the weekly playlist page: tap a single row.
       await tester.tap(find.text('Weekly Song 2').last);
       await tester.pumpAndSettle();
 
@@ -2008,7 +2032,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       final queueSpy =
           container.read(queueProvider.notifier) as _QueueSpyController;
@@ -2231,7 +2255,7 @@ void main() {
       active.value = true;
       await tester.pump();
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       final homeContext = tester.element(find.byType(HomeScreen));
       showDialog<void>(
@@ -2444,7 +2468,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 520));
       expect(currentPageKey(), isNot(afterDrag));
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       container
           .read(_autoAdvancePreference.notifier)
@@ -2485,7 +2509,7 @@ void main() {
         ],
       );
       final fixture = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       ).read(_showcaseFixture.notifier);
       fixture.items = items;
       await tester.pumpAndSettle();
@@ -2922,7 +2946,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen)),
+        tester.element(find.byType(HomeScreen, skipOffstage: false)),
       );
       final queueSpy =
           container.read(queueProvider.notifier) as _QueueSpyController;

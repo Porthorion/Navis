@@ -33,8 +33,6 @@ class AlbumsTable extends Table {
 
   IntColumn get year => integer().nullable()();
 
-  TextColumn get genre => text().nullable()();
-
   TextColumn get coverArt => text().nullable()();
 
   /// Incremented on targeted artwork recovery so cached cover bytes keyed to

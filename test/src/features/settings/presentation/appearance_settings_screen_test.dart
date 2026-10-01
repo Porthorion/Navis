@@ -381,7 +381,7 @@ void main() {
       ),
     );
 
-    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(tester.getSize(find.byType(ListView)).width, 1040);
     await expectLater(
       find.byType(AppearanceSettingsScreen),

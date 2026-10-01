@@ -70,6 +70,21 @@ void main() {
       expect(minimal.lastScan, isNull);
     });
 
+    test('ignores a server genre so a genre-only edit is not a change', () {
+      const base = <String, dynamic>{'id': 'al-1', 'name': 'A', 'year': 2020};
+      final tagged = Album.fromJson(<String, dynamic>{
+        ...base,
+        'genre': 'Rock',
+      });
+      final retagged = Album.fromJson(<String, dynamic>{
+        ...base,
+        'genre': 'Jazz',
+      });
+      expect(tagged, Album.fromJson(base));
+      expect(retagged, tagged);
+      expect(tagged.toJson(), isNot(contains('genre')));
+    });
+
     test('round-trips album and artist MusicBrainz identifiers', () {
       const album = Album(
         id: 'al-1',

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
@@ -41,6 +40,7 @@ import 'package:navis/src/features/library/presentation/unavailable_review_scree
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/library_section_navigation_scope.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -553,6 +553,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         return;
       }
       ref.read(librarySectionProvider.notifier).setSection(pending);
+      NavService.recordLibrarySection(context, pending);
     });
   }
 
@@ -567,52 +568,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final tabCount = visibleSections.length;
     final desktopMode = adaptiveContext.useDesktopShell;
-    final hasActivePlayback = ref.watch(
-      playerStateProvider.select((state) => state.hasActivePlayback),
-    );
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
-    final viewport = MediaQuery.sizeOf(context);
-    final safePadding = MediaQuery.paddingOf(context);
-    final isPhoneFormFactor = adaptiveContext.isPhoneFormFactor;
-    const navTileEstimatedHeight = 64.0;
-    const subNavTileEstimatedHeight = 44.0;
-    const subNavTrailingGap = 6.0;
-    const reservedMiniPlayerHeight = 170.0;
-    const railMiniPlayerGap = 6.0;
-    const railCutoffSlack = 4.0;
-    final librarySubSectionCount = visibleSections.length;
-    final inlineLibraryNavHeight =
-        (4 * navTileEstimatedHeight) +
-        (librarySubSectionCount * subNavTileEstimatedHeight) +
-        subNavTrailingGap;
-    final railHeightNeededForInlineLibrary =
-        reservedMiniPlayerHeight +
-        railMiniPlayerGap +
-        inlineLibraryNavHeight +
-        railCutoffSlack;
-    // Mirrors the rail-side vertical budget in AppShell:
-    // SafeArea + outer rail paddings consume ~44px before sidebar content.
-    final estimatedRailHeight = viewport.height - safePadding.vertical - 44.0;
     final selectedSection = ref.watch(librarySectionProvider);
-    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final tabletMode =
         !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    // On desktop the sidebar always shows library sub-navigation
-    // (AppShell's showLibrarySubNavigation == useDesktopShell || useRailNavigation),
-    // so the in-page TabBar must be suppressed for either condition.
-    final baseWideLibraryNavigation =
-        !isPhoneFormFactor &&
-        (adaptiveContext.useRailNavigation || desktopMode);
-    final forceTabbedLibraryNavigation =
-        // On desktop, the sidebar always handles library section navigation —
-        // never fall back to the in-page TabBar, which would duplicate it.
-        !desktopMode &&
-        (compactWideLandscapeMode ||
-            (baseWideLibraryNavigation &&
-                hasActivePlayback &&
-                estimatedRailHeight < railHeightNeededForInlineLibrary));
+    // The shell reports whether its sidebar shows the section links; when it
+    // does not, this page shows its own section bar.
     final useWideLibraryNavigation =
-        baseWideLibraryNavigation && !forceTabbedLibraryNavigation;
+        LibrarySectionNavigationScope.sidebarShowsSections(context);
     final tabController = _ensureTabController(tabCount);
     final desiredTabIndex = _tabIndexForSection(
       selectedSection,
@@ -741,85 +704,76 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ],
     );
 
-    if (desktopMode && !useWideLibraryNavigation) {
+    if (desktopMode) {
+      final colors = Theme.of(context).colorScheme;
+      // With the sections in the sidebar the page is one continuous
+      // workspace; otherwise a toolbar carries the title and section tabs.
+      final Widget? toolbarTrailing = useWideLibraryNavigation
+          ? (DesktopNavigationPresentationScope.iconsOnlyOf(context)
+                ? Text(
+                    _sectionTitle(l10n, activeSection),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  )
+                : null)
+          : TabBar(
+              key: const ValueKey<String>('libraryDesktopSectionTabs'),
+              controller: tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              dividerColor: Colors.transparent,
+              tabs: <Widget>[
+                for (final section in visibleSections)
+                  _tabForSection(l10n, section),
+              ],
+            );
       return Scaffold(
         body: SafeArea(
+          bottom: false,
           child: DesktopFrame(
             layoutClass: resolveDesktopLayoutClass(
               MediaQuery.sizeOf(context).width,
             ),
-            child: Column(
-              children: <Widget>[
-                DesktopPanel(child: tabBar),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: DesktopPanel(
-                    padding: EdgeInsets.zero,
-                    child: bodyContent,
+            padding: EdgeInsets.zero,
+            child: toolbarTrailing == null
+                ? bodyContent
+                : Column(
+                    children: <Widget>[
+                      Material(
+                        key: const ValueKey<String>(
+                          'libraryDesktopWorkspaceToolbar',
+                        ),
+                        color: colors.surfaceContainerLow,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                          child: Row(
+                            children: <Widget>[
+                              Text(
+                                l10n.libraryTitle,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(width: 16),
+                              Flexible(child: toolbarTrailing),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: colors.outlineVariant.withValues(alpha: 0.35),
+                      ),
+                      Expanded(child: bodyContent),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
       );
     }
 
     if (useWideLibraryNavigation) {
-      if (desktopMode) {
-        final colors = Theme.of(context).colorScheme;
-        final showDesktopWorkspaceHeader =
-            DesktopNavigationPresentationScope.iconsOnlyOf(context);
-        return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: DesktopFrame(
-              layoutClass: resolveDesktopLayoutClass(
-                MediaQuery.sizeOf(context).width,
-              ),
-              padding: EdgeInsets.zero,
-              child: showDesktopWorkspaceHeader
-                  ? Column(
-                      children: <Widget>[
-                        Material(
-                          key: const ValueKey<String>(
-                            'libraryDesktopWorkspaceToolbar',
-                          ),
-                          color: colors.surfaceContainerLow,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                            child: Row(
-                              children: <Widget>[
-                                Text(
-                                  l10n.libraryTitle,
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _sectionTitle(l10n, activeSection),
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: colors.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: colors.outlineVariant.withValues(alpha: 0.35),
-                        ),
-                        Expanded(child: bodyContent),
-                      ],
-                    )
-                  : bodyContent,
-            ),
-          ),
-        );
-      }
       return Scaffold(
         body: SafeArea(
           bottom: false,
@@ -1946,7 +1900,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       title: l10n.libraryLikedAlbumsSectionTitle,
                       compact: compactTitles,
                       padding: sectionHeaderPadding,
-                      onSeeAll: () => context.push('/library/liked-albums'),
+                      onSeeAll: () => NavService.openLikedAlbums(context, ref),
                     ),
                   ),
                 if (filteredAlbums.isNotEmpty)
@@ -2136,35 +2090,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ], autoPlay: true).ignore();
   }
 
+  /// "See all" opens the liked artists page, like liked albums does.
   void _openLikedArtistsAll() {
-    if (!ref.read(showArtistsPageProvider)) {
-      context.push('/library/liked-artists');
-      return;
-    }
-    if (mounted) {
-      setState(() {
-        _artistsLikedOnly = true;
-      });
-    }
-    ref
-        .read(librarySectionProvider.notifier)
-        .setSection(LibrarySection.artists);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      if (_artistsItemScrollController.isAttached) {
-        unawaited(
-          _artistsItemScrollController.scrollTo(
-            index: 0,
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-          ),
-        );
-        return;
-      }
-      _animateScrollControllerToTop(_artistsGridScrollController);
-    });
+    NavService.openLikedArtists(context, ref);
   }
 
   Future<void> _downloadLikedSong(SongsTableData song) async {
@@ -2705,7 +2633,7 @@ class _UnavailableReviewSliver extends ConsumerWidget {
         child: ActionChip(
           avatar: const Icon(Icons.playlist_remove),
           label: Text(l10n.unavailableReviewEntryWithCount(pendingCount)),
-          onPressed: () => context.push('/settings/unavailable-items'),
+          onPressed: () => NavService.openUnavailableItems(context, ref),
         ),
       ),
     );

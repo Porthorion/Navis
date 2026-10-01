@@ -19,6 +19,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
   const ServerSettingsScreen({super.key});
@@ -115,9 +116,10 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         automaticallyImplyLeading: !desktopMode,
         leading: desktopMode
             ? IconButton(
-                tooltip: l10n.syncSettingsBackToSettings,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.serverSettingsTitle),
@@ -462,7 +464,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             : l10n.serverSettingsSignOutSuccess,
         level: AppNoticeLevel.info,
       );
-      context.go('/login');
+      context.go(AppRoutes.login);
     } on Object {
       if (!mounted) return;
       showAppNotice(

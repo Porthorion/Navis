@@ -247,7 +247,7 @@ This document is the detailed execution log for preparing Navis as a native app 
   - Extended desktop context-menu behavior in shared widgets:
     - `showSongContextMenu` supports desktop popup-menu path via right-click anchor.
     - `showAlbumContextMenu` supports desktop popup-menu path via right-click anchor.
-    - Home/Library/Genre album cards and desktop song rows now pass secondary-click anchors, preserving mobile long-press behavior.
+    - Home/Library/Genre album cards and desktop song rows now pass secondary-click anchors, preserving mobile long-press behavior. (Correction 2026-09-30: the Genre surface was later removed by product decision.)
   - Applied desktop polish pass to core playback/library surfaces:
     - Now Playing desktop-wide mode now keeps transport controls visible and uses compact desktop-aware control sizing.
     - Now Playing wide layout uses stronger two-pane presentation (art panel framing + elevated metadata panel) for desktop readability.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/app_router.dart';
 
 void main() {
@@ -16,12 +17,12 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Builder(
             builder: (context) {
-              final page = buildSlideFadePage<void>(
+              final page = (buildSlideFadePage<void>(
                 context: context,
                 key: const ValueKey<String>('detail-preview'),
                 child: destination,
                 fadeOnly: fadeOnly,
-              );
+              ) as CustomTransitionPage<void>);
               return ColoredBox(
                 color: const Color(0xFF101010),
                 child: page.transitionsBuilder(

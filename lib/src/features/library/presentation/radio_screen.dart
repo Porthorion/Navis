@@ -13,19 +13,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 
-class RadioScreen extends ConsumerWidget {
-  const RadioScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.radioTitle)),
-      body: const RadioTabContent(),
-    );
-  }
-}
-
+/// The Library Radio section.
 class RadioTabContent extends ConsumerWidget {
   const RadioTabContent({
     super.key,
