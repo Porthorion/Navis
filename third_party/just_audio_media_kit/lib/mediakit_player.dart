@@ -29,6 +29,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // no-op with "Cannot seek in this stream".
     unawaited(setProperty(_player, 'force-seekable', 'yes'));
 
+    // Navis: libmpv's built-in ytdl hook retries any http(s) URL that fails to
+    // open through a yt-dlp/youtube-dl found on PATH. Subsonic stream URLs
+    // carry the account's salt and token, which would then sit in that
+    // subprocess's argv and be requested again. Navis never needs the hook.
+    unawaited(setProperty(_player, 'ytdl', 'no'));
+
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');
     }

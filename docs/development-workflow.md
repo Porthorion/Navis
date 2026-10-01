@@ -368,6 +368,24 @@ under `native`, the native index, the native shuffle flag (always false: Navis
 owns shuffle, so the native sequence is the play order),
 sequence ids (first 64), effective order and `mediaKitCurrent`.
 
+### Stream open diagnostics
+
+Run `python3 tool/stream_open_diagnostics.py` after changing the media_kit
+adapter's mpv properties, the libmpv build, or how desktop opens remote
+streams or radio. It serves a loopback Subsonic fixture whose `stream.view`
+returns 404 for one song, puts a recording `yt-dlp` stand-in first on the
+app's `PATH`, and launches an isolated muted Linux profile. It plays the 404
+song and requires that the stand-in was never run and the app log has no
+`ytdl_hook` line, then requires an ordinary uncached song to advance. Finally
+it opens Library > Radio and starts the fixture's Azuracast-style ICY station
+(`/listen/fixture/radio.mp3`, `icy-metaint` interleaved MP3) through the
+station card. It then requires advancing playback, an `Icy-MetaData: 1`
+request, a `/api/nowplaying/fixture` poll and a clean stop. The stand-in records
+its argv with `u`, `p`, `s` and `t` values redacted; the
+`radio-playing` screenshot should show the fixture's now-playing text. Results
+go to `build/stream-open-diagnostics/<timestamp>/report.json`, with exit status
+1 on any failed check. The radio stream needs `ffmpeg` with an MP3 encoder.
+
 ### Artist playback diagnostics
 
 Run `python3 tool/artist_playback_diagnostics.py` for the artist queue regression.
@@ -739,9 +757,12 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
 ```
 
 Its authenticated clone-only `POST /v1/presentation/library-action` accepts
-exactly one `action`: `openFirstAlbum` or `nextLikedAlbums`. It invokes only
-the existing onstage album-card callback or the Next button within the keyed
-Liked Albums shelf; arbitrary keys, coordinates and other actions are rejected.
+exactly one `action`: `openFirstAlbum`, `nextLikedAlbums` or
+`toggleFirstRadioStation`. It invokes only the existing onstage album-card
+callback, the Next button within the keyed Liked Albums shelf, or the first
+onstage Radio station card's own tap callback (which plays that station, or
+stops it when it is already playing); arbitrary keys, coordinates and other
+actions are rejected.
 Unavailable controls fail explicitly. The endpoint does not construct a queue,
 directly write library data or bypass navigation owners. Inspect every extra screenshot,
 including the wide numbered header and the before/after paged shelf. Timed

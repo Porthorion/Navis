@@ -25,6 +25,12 @@ queue persistence and clean restart. It uses a disposable copied database,
 loopback server, process-local credentials and app-owned screenshots; inspect
 its PNGs as described in `docs/development-workflow.md`.
 
+Changes to the desktop media_kit adapter's mpv properties or the bundled
+libmpv additionally run `python3 tool/stream_open_diagnostics.py`. This bounded
+Linux fixture gate requires that a 404 stream never reaches a yt-dlp on `PATH`
+(libmpv's ytdl hook stays off), that ordinary streams still play, and that an
+Azuracast-style ICY radio station plays and stops through its station card.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):

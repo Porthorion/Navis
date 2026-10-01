@@ -92,7 +92,11 @@ class DiagnosticsPresentationController {
     'miniPlayer': 'desktopPlayerMiniPlayerButton',
   };
   static const _tooltipPointerDevice = 904;
-  static const libraryActions = {'openFirstAlbum', 'nextLikedAlbums'};
+  static const libraryActions = {
+    'openFirstAlbum',
+    'nextLikedAlbums',
+    'toggleFirstRadioStation',
+  };
   static const trackActions = {
     'scrollToLast',
     'revealFirst',
@@ -578,6 +582,19 @@ class DiagnosticsPresentationController {
             onstage(element),
       );
       callback = (element?.widget as InkWell?)?.onTap;
+    } else if (action == 'toggleFirstRadioStation') {
+      // The card's own tap callback plays the station, or stops it when it
+      // is already playing.
+      final card = _findElement(root, (element) {
+        final key = element.widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('radioStation-') &&
+            onstage(element);
+      });
+      final target = card == null
+          ? null
+          : _findElement(card, (element) => element.widget is InkWell);
+      callback = (target?.widget as InkWell?)?.onTap;
     } else {
       final shelf = _findElement(
         root,

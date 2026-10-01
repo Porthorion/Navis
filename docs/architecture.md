@@ -1522,7 +1522,8 @@ user presets.
 The vendored media-kit adapter verifies the actual mpv pitch and filter scale
 because upstream setter errors are logged rather than thrown. Verification failure
 propagates to the handler's paired rollback and the UI. The existing progressive
-stream force-seekable customization remains in place.
+stream force-seekable customization and the disabled ytdl hook (see direct
+HTTPS playback below) remain in place.
 
 Desktop volume follows a parallel local-settings path:
 
@@ -1543,6 +1544,15 @@ proxy on desktop and passes the Navis user agent to media-kit. A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
 Cache & Storage does not look idle before registration.
+
+libmpv therefore opens the credential-bearing `stream.view` URL (and radio
+stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
+fails to open, such as a 404 stream, through a yt-dlp or youtube-dl found on
+`PATH`: the full URL becomes a subprocess argument visible to other local users
+and is requested again. media_kit 1.2.6 exposes no option for this, so the
+vendored adapter sets `ytdl=no` on every player beside `force-seekable`; a
+libmpv built without Lua has no hook and ignores the property.
+`tool/stream_open_diagnostics.py` guards this at runtime.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a
