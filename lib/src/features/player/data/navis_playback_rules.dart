@@ -727,8 +727,8 @@ Map<String, Object?> navisResolvedPlaybackExtras({
     'localSource': source.isLocal,
     'cachedFilePath': source.cachedFilePath ?? source.sidecarCacheFilePath,
     'sidecarCacheFilePath': source.sidecarCacheFilePath,
-    'streamUri':
-        source.uri?.toString() ?? source.lockCachingStreamUri?.toString(),
+    // Never the stream URL: audio_service publishes every String extra to
+    // the platform media session, and the URL carries the account token.
     'resolvedFormat': source.metadata.format,
     'resolvedBitRate': source.metadata.bitRate,
     'resolvedSampleRate': source.metadata.sampleRate,

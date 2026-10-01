@@ -325,6 +325,11 @@ class NavisAudioHandler extends BaseAudioHandler
       RollingCacheSidecarDownloader();
   final Map<String, SongsTableData> _sidecarSongsById =
       <String, SongsTableData>{};
+
+  /// The credential-bearing stream URL of each song in [_sidecarSongsById].
+  /// Kept here, not in [MediaItem.extras], which audio_service publishes to
+  /// the platform media session.
+  final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   Timer? _seekBufferingRecoveryTimer;
@@ -915,8 +920,13 @@ class NavisAudioHandler extends BaseAudioHandler
     _syncSidecarRollingCache(item);
   }
 
-  void _rememberSidecarSong(SongsTableData song) {
+  void _rememberSidecarSong(SongsTableData song, Uri? streamUri) {
     _sidecarSongsById[song.id] = song;
+    if (streamUri == null) {
+      _sidecarStreamUris.remove(song.id);
+    } else {
+      _sidecarStreamUris[song.id] = streamUri;
+    }
   }
 
   void _syncSidecarRollingCache(MediaItem? item) {
@@ -929,21 +939,12 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
     final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
-    final streamUriRaw = item.extras?['streamUri'] as String?;
+    final song = _sidecarSongsById[item.id];
+    final streamUri = _sidecarStreamUris[item.id];
     if (sidecarPath == null ||
         sidecarPath.isEmpty ||
-        streamUriRaw == null ||
-        streamUriRaw.isEmpty) {
-      unawaited(_sidecarDownloader.cancel());
-      return;
-    }
-    final song = _sidecarSongsById[item.id];
-    if (song == null) {
-      unawaited(_sidecarDownloader.cancel());
-      return;
-    }
-    final streamUri = Uri.tryParse(streamUriRaw);
-    if (streamUri == null) {
+        song == null ||
+        streamUri == null) {
       unawaited(_sidecarDownloader.cancel());
       return;
     }
@@ -3639,7 +3640,7 @@ class NavisAudioHandler extends BaseAudioHandler
       startupTrace?.markOnce('sourceResolutionComplete');
     }
     if (source.sidecarCacheFilePath != null) {
-      _rememberSidecarSong(song);
+      _rememberSidecarSong(song, source.uri ?? source.lockCachingStreamUri);
     }
     _rememberRemoteRow(song);
     return _PreparedQueueItem(
@@ -5668,6 +5669,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _checkQueueWorkCurrent(token, generation);
       await _sidecarDownloader.cancel();
       _sidecarSongsById.clear();
+      _sidecarStreamUris.clear();
       _rollingCacheActivities.clear();
       _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
       await _clearQueueInternal(persist: true, generation: generation);
@@ -8616,6 +8618,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _radioMetadataService.dispose();
     await _sidecarDownloader.dispose();
     _sidecarSongsById.clear();
+    _sidecarStreamUris.clear();
     await _interruptionSubscription?.cancel();
     await _becomingNoisySubscription?.cancel();
     await _queueEmissionCounter?.cancel();

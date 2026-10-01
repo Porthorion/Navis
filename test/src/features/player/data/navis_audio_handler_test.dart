@@ -952,6 +952,31 @@ void main() {
       expect(extras['transcodingApplied'], isTrue);
     });
 
+    test('resolved playback extras never carry the stream URL', () {
+      final song = SongsTableData(
+        isProvisional: false,
+        isExternal: false,
+        id: 'song-1',
+        title: 'Song 1',
+      );
+      final source = ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: Uri.parse(
+          'https://example.com/rest/stream.view?u=alice&t=secret-token'
+          '&s=secret-salt&id=song-1',
+        ),
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: false),
+      );
+
+      final extras = navisResolvedPlaybackExtras(song: song, source: source);
+
+      // audio_service publishes every String extra to the media session.
+      for (final value in extras.values.whereType<String>()) {
+        expect(value, isNot(contains('secret')));
+      }
+      expect(extras.containsKey('streamUri'), isFalse);
+    });
+
     test(
       'whole-entity queues retain supplied remote rows after identity match',
       () {
