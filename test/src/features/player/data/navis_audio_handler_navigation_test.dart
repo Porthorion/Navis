@@ -64,6 +64,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? seekGate;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
+  Completer<void>? appendGate;
+  Completer<void>? appendEntered;
   int lastSetAudioSourcesCount = 0;
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
@@ -304,6 +306,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> addAudioSources(List<AudioSource> sources) => _mutate(() async {
     await _hangIf('addAudioSources');
+    final gate = appendGate;
+    if (gate != null) {
+      appendGate = null;
+      appendEntered?.complete();
+      await gate.future;
+    }
     batchMutationCount++;
     // Like a native batch: one failing source fails the whole call.
     if (failAppendSongId != null &&
@@ -1825,6 +1833,41 @@ void main() {
       },
     );
 
+    test(
+      'a transition that could not be prepared is tried again on a later play',
+      () async {
+        final (handler, player, _) = await crossfading(6);
+        await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        player.isPlaying = true;
+        final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.failLoadSongId = 'song-0';
+        int failures() =>
+            (fade(handler)['phases']! as Map<String, int>)['prewarm_failed'] ??
+            0;
+        const nearEnd = Duration(minutes: 2, seconds: 56);
+        Future<void> trigger(int expected) async {
+          handler.debugCheckCrossfadeTrigger(nearEnd);
+          for (var i = 0; i < 100 && failures() < expected; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
+
+        await trigger(1);
+        expect(failures(), 1);
+
+        // Another song plays, then the first one again (as on repeat).
+        await handler.playFromIndex(1);
+        await handler.playFromIndex(0);
+        for (var i = 0; i < 100 && handler.snapshot.isLoading; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        player.isPlaying = true;
+        await trigger(2);
+
+        expect(failures(), 2);
+      },
+    );
+
     test('a deck with the same length but other songs is reloaded', () async {
       final (handler, _, _) = await crossfading(7);
       await handler.replaceQueue(ids(6), expandMatchFlows: false);
@@ -1960,6 +2003,83 @@ void main() {
         expect(player.sourceIds, ids(5));
       },
     );
+
+    /// Starts replacing the queue with [count] songs at [startIndex] and
+    /// returns once the fill (phase 2) is held open, with the player
+    /// holding only the start song.
+    Future<Completer<void>> fillHeldOpen(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player,
+      int count, {
+      required int startIndex,
+    }) async {
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..appendGate = gate
+        ..appendEntered = entered;
+      unawaited(
+        handler.replaceQueue(
+          ids(count),
+          startIndex: startIndex,
+          expandMatchFlows: false,
+        ),
+      );
+      await entered.future.timeout(const Duration(seconds: 5));
+      return gate;
+    }
+
+    for (final startIndex in <int>[0, 2]) {
+      test('keeps the whole queue when the stream stalls while the queue fills '
+          '(start $startIndex)', () async {
+        final (handler, player, _) = await recovering(6);
+        final gate = await fillHeldOpen(
+          handler,
+          player,
+          6,
+          startIndex: startIndex,
+        );
+
+        final recovery = handler.debugRecoverCurrentSong();
+        gate.complete();
+        await recovery;
+
+        await until(
+          () => !handler.snapshot.isLoading && player.sourceIds.length == 6,
+        );
+        expect(handler.snapshot.queueSongIds, ids(6));
+        expect(player.sourceIds, ids(6));
+        expect(handler.snapshot.currentSongId, 'song-$startIndex');
+        final events =
+            handler.collectPlaybackDiagnostics()['seekEvents']!
+                as List<Map<String, Object?>>;
+        if (startIndex == 0) {
+          expect(events.last['outcome'], 'reloaded');
+        } else {
+          // Until the fill places the start song, the song cannot be located
+          // for recovery; the stall watchdog retries once it has.
+          expect(events, isEmpty);
+        }
+      });
+    }
+
+    test('a stalled song that cannot be reloaded while the queue fills keeps '
+        'the queue and moves on', () async {
+      final (handler, player, _) = await recovering(6);
+      final gate = await fillHeldOpen(handler, player, 6, startIndex: 0);
+      player.failLoadSongId = 'song-0';
+
+      final recovery = handler.debugRecoverCurrentSong();
+      gate.complete();
+      await recovery;
+
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-1' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.queueSongIds, ids(6));
+    });
 
     test('a skip rebuilds a player that lost its songs', () async {
       final (handler, player, _) = await recovering(5);

@@ -156,7 +156,7 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'Shuffling a large artist with crossfade on no longer plays a different song than the one shown, and the queue no longer collapses to one song when a stream stalls and cannot be reloaded',
+        'Shuffling a large artist with crossfade on no longer plays a different song than the one shown, the queue no longer collapses to one song when a stream stalls (even while a long queue is still loading), and a song whose crossfade could not be prepared fades normally again the next time it plays',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

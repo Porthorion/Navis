@@ -1663,7 +1663,14 @@ even if a newer transport command (pause, another seek) arrives; only the
 seek correction and resume yield to it. When the song cannot be reloaded (a
 stream that times out again leaves both players rebuilt empty) the queue
 lists are put back rather than left cut down to that song, and the stall
-path then skips to the next song by its logical index. Navigation to a song
+path then skips to the next song by its logical index. A recovery while a
+queue replacement is still filling (the player and the queue lists hold only
+part of the queue) reads the pending queue's rows before it cancels the fill;
+when they cannot all be read, the fill keeps running and nothing is reloaded.
+Whatever happens afterwards, the whole pending queue is put back, with the
+songs around the current one as deferred entries, so a recovery never leaves
+the queue cut down to the song that stalled. Diagnostics record the outcome
+`reloaded` only when the player was rebuilt (otherwise `notRebuilt`). Navigation to a song
 the player should hold rebuilds the player around it, like a far jump, when
 the player no longer holds the materialised queue.
 
@@ -1841,7 +1848,8 @@ the queue at the hand-over; otherwise the fade is cancelled and the active
 player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
 starts while a queue load is in progress, and a song whose transition could
 not be prepared ends gaplessly instead of reloading the deck on every
-position tick. In-place refreshes of a queued song
+position tick; once another entry plays (or any queue command runs), that
+song's transition is tried again the next time it plays. In-place refreshes of a queued song
 (artwork, liked state, canonical id) do not count as queue changes
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
