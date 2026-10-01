@@ -5,6 +5,24 @@ import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
   group('redactCredentialQueryParameters', () {
+    test('redacts HTML-escaped and double-encoded separators', () {
+      expect(
+        redactCredentialQueryParameters(
+          '<a href="https://h.test/rest/stream.view?id=1&amp;u=me&amp;t=abc'
+          '&amp;s=salt">',
+        ),
+        '<a href="https://h.test/rest/stream.view?id=1&amp;u=REDACTED'
+        '&amp;t=REDACTED&amp;s=REDACTED">',
+      );
+      expect(
+        redactCredentialQueryParameters(
+          'next=%2Frest%2Fstream.view%253Fid%253D1%2526t%253Dabc%2526s%253Dxyz',
+        ),
+        'next=%2Frest%2Fstream.view%253Fid%253D1%2526t%253DREDACTED'
+        '%2526s%253DREDACTED',
+      );
+    });
+
     test('redacts the token, salt and user in an mpv stream error', () {
       const line =
           'MPV: [error] stream: Failed to open '
@@ -95,5 +113,26 @@ void main() {
         'stream: Failed to open '
         'https://a.test/rest?u=REDACTED&t=REDACTED&s=REDACTED&id=1';
     expect(printed, [redacted]);
+  });
+
+  test('an uncaught error is reported redacted and marked handled', () {
+    final lines = <String>[];
+    final handled = runZoned(
+      () => reportUncaughtErrorRedacted(
+        Exception(
+          'HttpException: Connection closed, uri = '
+          'https://h.test/rest/stream.view?u=me&t=abc&s=salt&id=7',
+        ),
+        StackTrace.empty,
+      ),
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) => lines.add(line),
+      ),
+    );
+
+    expect(handled, isTrue);
+    expect(lines.single, contains('u=REDACTED&t=REDACTED&s=REDACTED&id=7'));
+    expect(lines.single, startsWith('Unhandled Exception: '));
+    expect(lines.single, isNot(contains('abc')));
   });
 }

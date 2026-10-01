@@ -48,6 +48,9 @@ Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
 
 Future<void> _runNavis() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Errors nothing handled would otherwise be printed by the engine itself,
+  // outside the redacting zone.
+  PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
   LicenseRegistry.addLicense(_bundledFontLicenses);
 
   _initializeDesktopAudioBackend();

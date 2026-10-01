@@ -1833,9 +1833,13 @@ direct-stream URL, including the replayable `t`/`s` token pair. `main()`
 therefore runs the app inside `runWithCredentialRedactedPrint`
 (`lib/src/utils/credential_redaction.dart`). Every `print` in the main isolate,
 including the adapter's, `debugPrint`, and `AppLogger` output, has the values of
-the `u`, `t`, `s`, `p`, and `apiKey` query parameters (literal or
-percent-encoded) replaced with `REDACTED` before it reaches stdout or the
-system journal, in every build mode. `SubsonicLoggingInterceptor` redacts the
+the `u`, `t`, `s`, `p`, and `apiKey` query parameters (literal, HTML-escaped,
+percent-encoded or double percent-encoded) replaced with `REDACTED` before it
+reaches stdout or the system journal, in every build mode. Errors nothing
+handled would otherwise be printed by the engine outside the zone, so
+`PlatformDispatcher.instance.onError` is `reportUncaughtErrorRedacted`, which
+prints them redacted with the engine's `Unhandled Exception:` wording.
+`SubsonicLoggingInterceptor` redacts the
 same parameter set from request logs. The zone covers console output only: code
 that puts a URL into diagnostics responses or persisted records must still
 reduce it itself, as `_diagnosticMediaReference` does. Native writes to stderr
