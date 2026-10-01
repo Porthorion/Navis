@@ -63,6 +63,10 @@ abstract class NavisPlaybackHandler {
 
   Future<void> waitUntilReady();
 
+  /// Retries a startup queue restore that was deferred because no playback
+  /// source was available yet. A no-op once the user has started playback.
+  Future<void> retryDeferredQueueRestore();
+
   Future<void> replaceQueue(
     List<String> songIds, {
     int startIndex,

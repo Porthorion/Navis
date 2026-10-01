@@ -54,6 +54,7 @@ import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_screen.dart';
+import 'package:navis/src/features/player/presentation/deferred_queue_restore_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
@@ -612,6 +613,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
     ref.watch(mixModeReconciliationProvider);
+    ref.watch(deferredQueueRestoreControllerProvider);
 
     // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions
     // (Instant Mix / Instant Radio). Registered here because app_shell has

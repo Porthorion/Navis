@@ -698,4 +698,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> waitUntilReady() async {}
+
+  @override
+  Future<void> retryDeferredQueueRestore() async {}
 }

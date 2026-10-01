@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Reopening Navis on Android brings back your saved queue in Queue and Now Playing straight away, paused where you left it, instead of showing an empty queue until you press Play. If Navis starts offline or before you are signed in, the queue comes back as soon as it can play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Artist pages open faster on large libraries and stay smooth while their releases load',
         type: ChangelogEntryType.improvement,
       ),

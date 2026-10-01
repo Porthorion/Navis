@@ -388,6 +388,10 @@ class WindowsNavisPlaybackHandler
   Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
 
   @override
+  Future<void> retryDeferredQueueRestore() =>
+      _delegate.retryDeferredQueueRestore();
+
+  @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) =>
       _delegate.applySongIdentityAliases(aliases);
 
@@ -647,6 +651,10 @@ class LinuxNavisPlaybackHandler
 
   @override
   Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
+
+  @override
+  Future<void> retryDeferredQueueRestore() =>
+      _delegate.retryDeferredQueueRestore();
 
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) =>

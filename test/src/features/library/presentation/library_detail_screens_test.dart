@@ -98,6 +98,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> waitUntilReady() async {}
 
   @override
+  Future<void> retryDeferredQueueRestore() async {}
+
+  @override
   Future<void> replaceQueue(
     List<String> songIds, {
     int startIndex = 0,

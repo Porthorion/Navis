@@ -258,6 +258,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _positionPersistTimer;
   late final Future<void> _ready;
   Future<bool>? _prepareQueueForUserPlayInFlight;
+  Future<void>? _deferredQueueRestoreRetry;
   final NavisSupersedingLane _queueLane = NavisSupersedingLane();
   final _seekLane = NavisSupersedingLane();
   final _playbackLane = _SerializationLane();
@@ -268,6 +269,11 @@ class NavisAudioHandler extends BaseAudioHandler
   int _navigationTimeoutCount = 0;
   int? _navigationInFlightRevision;
   String _queueRestoreOutcome = 'not_attempted';
+
+  /// Why the latest restore was deferred, and how many deferred restores
+  /// were retried (diagnostics only; resolver messages carry no identities).
+  String? _queueRestoreDeferredReason;
+  int _queueRestoreRetryCount = 0;
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   Timer? _transportPersistTimer;
@@ -1117,29 +1123,68 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _restoreQueueAfterStartup() async {
-    await _queueLane.run((_) async {
-      try {
-        _queueRestoreOutcome = 'loading';
-        await _restoreQueueFromDisk().timeout(const Duration(seconds: 10));
-      } on TimeoutException catch (error, stackTrace) {
-        _queueRestoreOutcome = 'timeout';
-        // Keep the saved queue: large queues restore their current item
-        // first, so a timeout is transient and must not lose the user's queue.
-        AppLogger.warning(
-          'Queue restore timed out during startup; keeping the saved queue. '
-          '$error\n$stackTrace',
-        );
-      } on Object catch (error, stackTrace) {
-        _queueRestoreOutcome = 'failed';
-        AppLogger.error(
-          'Queue restore failed. Clearing persisted queue to keep playback functional.',
-          error,
-          stackTrace,
-        );
-        await _clearPersistedQueueBestEffort();
-      }
+    await _queueLane.run((_) => _restoreSavedQueue());
+  }
+
+  Future<void> _restoreSavedQueue({OperationToken? token}) async {
+    try {
+      _queueRestoreOutcome = 'loading';
+      await _restoreQueueFromDisk(
+        token: token,
+      ).timeout(const Duration(seconds: 10));
+    } on TimeoutException catch (error, stackTrace) {
+      _queueRestoreOutcome = 'timeout';
+      // Keep the saved queue: large queues restore their current item
+      // first, so a timeout is transient and must not lose the user's queue.
+      AppLogger.warning(
+        'Queue restore timed out; keeping the saved queue. '
+        '$error\n$stackTrace',
+      );
+    } on Object catch (error, stackTrace) {
+      _queueRestoreOutcome = 'failed';
+      AppLogger.error(
+        'Queue restore failed. Clearing persisted queue to keep playback functional.',
+        error,
+        stackTrace,
+      );
+      await _clearPersistedQueueBestEffort();
+    }
+  }
+
+  /// Retries a startup restore that was deferred because no playback source
+  /// was available (no session yet, or offline without a cached copy). The
+  /// queue is restored paused, and only while the user has not started other
+  /// playback.
+  @override
+  Future<void> retryDeferredQueueRestore() {
+    return _deferredQueueRestoreRetry ??= _retryDeferredQueueRestoreOnce()
+        .whenComplete(() => _deferredQueueRestoreRetry = null);
+  }
+
+  Future<void> _retryDeferredQueueRestoreOnce() async {
+    await _ready;
+    // A Play that is already restoring the saved queue needs no retry; a
+    // later one waits for this retry instead.
+    if (!_canRetryDeferredQueueRestore ||
+        _prepareQueueForUserPlayInFlight != null) {
+      return;
+    }
+    // Queued behind, never superseding, a command already in the lane; any
+    // later queue command cancels it.
+    await _queueLane.enqueue((token) async {
+      if (token.isCancelled || !_canRetryDeferredQueueRestore) return;
+      AppLogger.info('Retrying the deferred startup queue restore.');
+      _queueRestoreRetryCount++;
+      await _restoreSavedQueue(token: token);
     });
   }
+
+  bool get _canRetryDeferredQueueRestore =>
+      _queueRestoreOutcome == 'deferred_auth' &&
+      !_disposeHandlerStarted &&
+      _radioStation == null &&
+      _queueItems.isEmpty &&
+      !_isLoading;
 
   Future<void> _clearPersistedQueueBestEffort() async {
     try {
@@ -1159,6 +1204,10 @@ class NavisAudioHandler extends BaseAudioHandler
     bool navigation = false,
   }) {
     _clearQueueReplacementMetadataAnchor();
+    // The user's command replaces any startup queue still waiting to restore.
+    if (_queueRestoreOutcome == 'deferred_auth') {
+      _queueRestoreOutcome = 'superseded';
+    }
     _queueItemsPersistTimer?.cancel();
     _queueItemsPersistTimer = null;
     _queueItemsPersistContext = null;
@@ -2653,9 +2702,15 @@ class NavisAudioHandler extends BaseAudioHandler
     AppLogger.debug('Cross-fade metric: ${metric.toDebugString()}');
   }
 
-  Future<void> _restoreQueueFromDisk() async {
+  /// Restores the saved queue paused. With a lane [token], the restore yields
+  /// to a queue command issued while it read the saved queue.
+  Future<void> _restoreQueueFromDisk({OperationToken? token}) async {
     final queueState = await _playQueueDao.getQueueState();
     final queuedSongs = await _playQueueDao.getQueueItems();
+    if (token?.isCancelled ?? false) {
+      _queueRestoreOutcome = 'superseded';
+      return;
+    }
     if (queuedSongs.isEmpty) {
       _queueRestoreOutcome = 'empty';
       return;
@@ -2691,7 +2746,7 @@ class NavisAudioHandler extends BaseAudioHandler
           autoPlay: false,
           persist: false,
           generation: generation,
-          token: OperationToken(),
+          token: token ?? OperationToken(),
           initialPosition: restorePosition,
         );
       } else {
@@ -2705,12 +2760,20 @@ class NavisAudioHandler extends BaseAudioHandler
           forcePreloadWhenPaused: true,
         );
       }
-    } on PlaybackSourceUnavailableException {
+    } on PlaybackSourceUnavailableException catch (error) {
       _clearPendingLogicalQueue();
       _queueRestoreOutcome = 'deferred_auth';
+      _queueRestoreDeferredReason = error.message;
       AppLogger.warning(
-        'Playback queue restore skipped because auth/session was unavailable.',
+        'Playback queue restore deferred until a playback source is '
+        'available: ${error.message}',
       );
+      return;
+    } on OperationCancelledException {
+      // A newer queue command owns the player, the pending logical queue and
+      // the saved queue; leave all of them intact.
+      _queueRestoreOutcome = 'superseded';
+      AppLogger.debug('Queue restore superseded by a newer queue command.');
       return;
     } on Object catch (error, stackTrace) {
       _queueRestoreOutcome = 'failed';
@@ -2824,6 +2887,12 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<bool> _prepareBestAvailableQueueForUserPlayOnce() async {
+    // Let a deferred restore that is already running finish instead of
+    // restoring the saved queue a second time.
+    final deferredRestore = _deferredQueueRestoreRetry;
+    if (deferredRestore != null) {
+      await deferredRestore;
+    }
     final activeSource = navisChooseAutoResumeSource(
       hasActiveQueue: _radioStation != null || _queueItems.isNotEmpty,
       hasPersistedQueue: false,
@@ -5420,6 +5489,8 @@ class NavisAudioHandler extends BaseAudioHandler
         'pendingQueueMutations': _queueLane.pendingCount,
       },
       'queueRestoreOutcome': _queueRestoreOutcome,
+      'queueRestoreDeferredReason': _queueRestoreDeferredReason,
+      'queueRestoreRetries': _queueRestoreRetryCount,
       'startupAttempts': <Map<String, Object?>>[
         for (final trace in _startupTraces) trace.toDiagnostics(),
       ],

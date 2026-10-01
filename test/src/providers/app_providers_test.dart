@@ -119,6 +119,13 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> waitUntilReady() async {}
 
+  int retryDeferredQueueRestoreCalls = 0;
+
+  @override
+  Future<void> retryDeferredQueueRestore() async {
+    retryDeferredQueueRestoreCalls++;
+  }
+
   @override
   Future<void> addToQueue(
     List<String> songIds, {

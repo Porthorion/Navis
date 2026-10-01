@@ -1462,9 +1462,24 @@ Transport persistence is coalesced in the background. Queue and position writes
 use one ordered persistence chain, so an older delayed position write cannot
 commit after a newer queue replacement. The accepted logical queue is saved
 after the selected source loads, before background playlist fill completes. On
-cold start, the retained server session is hydrated before the audio handler
-restores the queue; remote sources are not misclassified as unavailable while
-credentials are still loading. Lock-cache seek recovery uses the same two-phase
+cold start, the retained server session and the first connectivity event
+(bounded by `audioBootstrapConnectivityWait`) are both awaited before the
+audio handler restores the queue; remote sources are not misclassified as
+unavailable while credentials load, nor as offline because the connectivity
+stream has not emitted yet. This matters on Android, where the media service
+starts the handler before the gated UI subscribes to connectivity. If the
+current song still has no source (offline without a cached copy, or no
+session), the restore is deferred (`queueRestoreOutcome: deferred_auth`, with
+the resolver's reason in `queueRestoreDeferredReason`) and the saved queue is
+kept. `DeferredQueueRestoreController`, kept alive by the app shell, calls
+`retryDeferredQueueRestore()` whenever the handler or the Subsonic client
+appears; the client is rebuilt on credential and network-type changes. The
+retry restores paused, runs as queue-lane edit work that never supersedes a
+command, is cancelled by any later queue command, and is skipped once the
+user has a queue, radio or a loading selection (a user queue command marks the
+deferred restore `superseded`). A Play that finds the queue empty waits for an
+in-flight retry instead of restoring twice. `queueRestoreRetries` counts
+retries that ran. Lock-cache seek recovery uses the same two-phase
 queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable
 batches. Completed-state Play restarts the queue only after the final prepared

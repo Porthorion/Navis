@@ -769,6 +769,10 @@ final audioBootstrapAttemptGateProvider = Provider<AudioBootstrapAttemptGate>(
   (_) => () async {},
 );
 
+/// Upper bound on waiting for the first connectivity event before the
+/// startup queue restore.
+const Duration audioBootstrapConnectivityWait = Duration(seconds: 2);
+
 final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
 ) {
@@ -778,6 +782,21 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     // Hydrate the retained session first so the resolver does not mistake an
     // as-yet-loading credential for a signed-out session on cold start.
     final sessionHydration = ref.read(serverConfigProvider.future);
+    // The resolver treats a network type it does not know yet as offline.
+    // On Android the media service starts before any UI subscribes to
+    // connectivity, so wait briefly for its first event; a late event is
+    // covered by the deferred-restore retry.
+    final connectivityHydration = ref
+        .read(connectivityProvider.future)
+        .timeout(audioBootstrapConnectivityWait)
+        .then<void>(
+          (_) {},
+          onError: (Object error) {
+            AppLogger.info(
+              'Connectivity unknown before queue restore: $error',
+            );
+          },
+        );
     AppSettingsModel? hydratedSettings;
     try {
       final settingsRepository = ref.read(settingsRepositoryProvider);
@@ -809,6 +828,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     final database = ref.read(navisDatabaseProvider);
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
     await sessionHydration;
+    await connectivityHydration;
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,

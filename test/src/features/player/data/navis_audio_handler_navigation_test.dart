@@ -9,6 +9,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -316,6 +318,9 @@ void main() {
     bool crossfade = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    bool cacheSongs = true,
+    SubsonicApiClient? Function()? readApiClient,
+    bool Function()? readCanStream,
   }) async {
     final database = createTestDatabase();
     final songs = <SongsTableCompanion>[];
@@ -324,7 +329,7 @@ void main() {
       songs.add(SongsTableCompanion.insert(id: id, title: 'Song $i'));
     }
     await database.libraryDao.upsertSongs(songs);
-    for (var i = 0; i < count; i++) {
+    for (var i = 0; i < (cacheSongs ? count : 0); i++) {
       final id = 'song-$i';
       final file = File('${directory.path}/$id.mp3');
       await file.writeAsBytes(<int>[1, 2, 3]);
@@ -358,12 +363,14 @@ void main() {
         cacheDao: database.cacheDao,
         libraryDao: database.libraryDao,
         rollingCacheManager: cache,
-        readApiClient: () => null,
+        readApiClient: readApiClient ?? () => null,
         readStreamingQuality: () => const StreamingQuality(label: 'original'),
         readRollingCacheDirectory: () async => directory,
         readCachedPlaybackFirst: () => true,
+        readCanStream: readCanStream,
+        readSupportsLockCaching: () => false,
       ),
-      readApiClient: () => null,
+      readApiClient: readApiClient ?? () => null,
       rollingCacheManager: cache,
       readRollingCacheBudgetBytes: () => 1024 * 1024,
       scrobbleService: _NoopScrobbleService(),
@@ -941,6 +948,134 @@ void main() {
       // The earlier songs keep their relative order among the new ones.
       final earlier = queue.where(ids(10).contains).toList();
       expect(earlier, ids(10));
+    });
+  });
+
+  group('deferred startup queue restore', () {
+    SubsonicApiClient createApiClient() => SubsonicApiClient(
+      baseUrl: 'https://example.com',
+      authConfig: const SubsonicAuthConfig(
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
+      ),
+      enableLogging: false,
+    );
+
+    String restoreOutcome(NavisAudioHandler handler) =>
+        handler.collectPlaybackDiagnostics()['queueRestoreOutcome']! as String;
+
+    test('retries paused once a session becomes available', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-deferred-restore-',
+      );
+      SubsonicApiClient? api;
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        savedQueueIndex: 1,
+        cacheSongs: false,
+        readApiClient: () => api,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+
+      expect(restoreOutcome(handler), 'deferred_auth');
+      expect(handler.snapshot.queueSongIds, isEmpty);
+
+      // Still no session: the retry defers again and keeps the saved queue.
+      await handler.retryDeferredQueueRestore();
+      expect(restoreOutcome(handler), 'deferred_auth');
+      expect(handler.snapshot.queueSongIds, isEmpty);
+
+      api = createApiClient();
+      await handler.retryDeferredQueueRestore();
+
+      expect(restoreOutcome(handler), 'restored');
+      expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+      expect(handler.snapshot.currentIndex, 1);
+      expect(player.isPlaying, isFalse);
+      expect((await database.playQueueDao.getQueueItems()).map((s) => s.id), [
+        'song-0',
+        'song-1',
+        'song-2',
+      ]);
+
+      // Once restored, a later session change does not restore again.
+      await handler.replaceQueue(
+        ['song-2'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await handler.retryDeferredQueueRestore();
+      expect(handler.snapshot.queueSongIds, ['song-2']);
+    });
+
+    test('yields to a queue the user starts meanwhile', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-deferred-restore-user-',
+      );
+      SubsonicApiClient? api;
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        savedQueueIndex: 0,
+        cacheSongs: false,
+        readApiClient: () => api,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      expect(restoreOutcome(handler), 'deferred_auth');
+
+      api = createApiClient();
+      // The session arrives together with the user's own selection.
+      final retry = handler.retryDeferredQueueRestore();
+      final userQueue = handler.replaceQueue(
+        ['song-2'],
+        expandMatchFlows: false,
+      );
+      await Future.wait([retry, userQueue]);
+      await handler.retryDeferredQueueRestore();
+
+      expect(restoreOutcome(handler), 'superseded');
+      expect(handler.snapshot.queueSongIds, ['song-2']);
+      expect(player.isPlaying, isTrue);
+    });
+
+    test('retries once an offline start comes back online', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-deferred-restore-offline-',
+      );
+      final api = createApiClient();
+      var online = false;
+      final (handler, player, database) = await createHandler(
+        directory,
+        2,
+        savedQueueIndex: 1,
+        cacheSongs: false,
+        readApiClient: () => api,
+        readCanStream: () => online,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      expect(restoreOutcome(handler), 'deferred_auth');
+
+      online = true;
+      await handler.retryDeferredQueueRestore();
+
+      expect(restoreOutcome(handler), 'restored');
+      expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+      expect(handler.snapshot.currentIndex, 1);
+      expect(player.isPlaying, isFalse);
     });
   });
 }
