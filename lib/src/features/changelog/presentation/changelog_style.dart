@@ -10,30 +10,6 @@ const List<ChangelogEntryType> changelogSectionOrder = <ChangelogEntryType>[
   ChangelogEntryType.fix,
 ];
 
-IconData entryIcon(ChangelogEntryType type) {
-  switch (type) {
-    case ChangelogEntryType.fix:
-      return Icons.build_outlined;
-    case ChangelogEntryType.improvement:
-      return Icons.trending_up_rounded;
-    case ChangelogEntryType.newFeature:
-      return Icons.auto_awesome_outlined;
-  }
-}
-
-/// Fixes use a neutral role so a long list of fixes does not read as an
-/// error state.
-Color entryColor(ChangelogEntryType type, ColorScheme scheme) {
-  switch (type) {
-    case ChangelogEntryType.fix:
-      return scheme.onSurfaceVariant;
-    case ChangelogEntryType.improvement:
-      return scheme.secondary;
-    case ChangelogEntryType.newFeature:
-      return scheme.primary;
-  }
-}
-
 String entryLabel(ChangelogEntryType type, AppLocalizations l10n) {
   switch (type) {
     case ChangelogEntryType.fix:
@@ -45,38 +21,10 @@ String entryLabel(ChangelogEntryType type, AppLocalizations l10n) {
   }
 }
 
-/// "10 new", "41 improved", "39 fixes".
-String entryCountLabel(
-  ChangelogEntryType type,
-  int count,
-  AppLocalizations l10n,
-) {
-  switch (type) {
-    case ChangelogEntryType.fix:
-      return l10n.changelogFixedCount(count);
-    case ChangelogEntryType.improvement:
-      return l10n.changelogImprovedCount(count);
-    case ChangelogEntryType.newFeature:
-      return l10n.changelogNewCount(count);
-  }
-}
-
-/// Count labels for the types present in [version], in section order.
-List<String> versionCountLabels(
-  ChangelogVersion version,
-  AppLocalizations l10n,
-) {
-  return <String>[
-    for (final type in changelogSectionOrder)
-      if (version.countOf(type) > 0)
-        entryCountLabel(type, version.countOf(type), l10n),
-  ];
-}
-
 IconData highlightIcon(ChangelogHighlightIcon icon) {
   switch (icon) {
     case ChangelogHighlightIcon.sparkle:
-      return Icons.auto_awesome_outlined;
+      return Icons.new_releases_outlined;
     case ChangelogHighlightIcon.equalizer:
       return Icons.equalizer_rounded;
     case ChangelogHighlightIcon.speed:
@@ -133,4 +81,29 @@ String? formatReleaseDate(BuildContext context, ChangelogVersion version) {
   }
   final locale = Localizations.localeOf(context).toLanguageTag();
   return DateFormat.yMMMd(locale).format(date);
+}
+
+/// "Navis 1.4" — the product name and display version.
+String releaseProductName(ChangelogVersion version) =>
+    'Navis ${version.displayVersion}';
+
+/// The release's name: its codename, else "Navis 1.4".
+String releaseTitle(ChangelogVersion version) =>
+    version.codename ?? releaseProductName(version);
+
+/// "Sep 30, 2026 • 90 changes", the album-style summary line. When
+/// [withProductName] is set and the release has a codename, "Navis 1.4"
+/// leads so the row still says which version it is.
+String releaseMeta(
+  BuildContext context,
+  ChangelogVersion version, {
+  bool withProductName = false,
+}) {
+  final l10n = AppLocalizations.of(context)!;
+  return <String>[
+    if (withProductName && version.codename != null)
+      releaseProductName(version),
+    ?formatReleaseDate(context, version),
+    l10n.changelogChangeCount(version.entries.length),
+  ].join(' • ');
 }

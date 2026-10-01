@@ -2843,6 +2843,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';
 
   @override
+  String get downloadsScanError => 'Could not scan the downloads folder.';
+
+  @override
+  String downloadsRescanImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count existing downloads imported.',
+      one: '1 existing download imported.',
+      zero: 'No existing downloads imported.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsManualImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count matched downloads imported.',
+      one: '1 matched download imported.',
+      zero: 'No matched downloads imported.',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String downloadsCustomFolderError(String message) {
     return 'Could not update download folder: $message';
   }
@@ -3083,15 +3110,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String changelogDiscoveryMore(int count) {
-    return '+$count';
-  }
-
-  @override
   String get changelogEmpty => 'No Changelog Entries Yet.';
-
-  @override
-  String get changelogMajorRelease => 'Major release';
 
   @override
   String get changelogEntryTypeNew => 'New';
@@ -3104,39 +3123,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changelogFilterAll => 'All';
-
-  @override
-  String changelogNewCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count new',
-      one: '1 new',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String changelogImprovedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count improved',
-      one: '1 improved',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String changelogFixedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count fixes',
-      one: '1 fix',
-    );
-    return '$_temp0';
-  }
 
   @override
   String changelogChangeCount(int count) {
@@ -3181,6 +3167,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changelogHighlights => 'Highlights';
+
+  @override
+  String get changelogAllChanges => 'All changes';
+
+  @override
+  String changelogDiscoveryAndMore(String list, int count) {
+    return '$list and $count more';
+  }
 
   @override
   String get aboutLicenses => 'Open-source licenses';
@@ -4585,6 +4579,120 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get eqRefreshError =>
       'Could not refresh. The existing catalogue is still available.';
+
+  @override
+  String get eqImportDefaultName => 'Imported profile';
+
+  @override
+  String get eqImportErrorTooLarge => 'EQ files must be smaller than 1 MB.';
+
+  @override
+  String get eqImportErrorEmpty => 'The EQ file is empty.';
+
+  @override
+  String get eqImportErrorUnreadable =>
+      'The text in this file could not be read.';
+
+  @override
+  String get eqImportErrorNavisPreset =>
+      'This Navis preset is damaged or from a newer version.';
+
+  @override
+  String get eqImportErrorUnsupportedJson =>
+      'This JSON file is not an EQ format Navis can import.';
+
+  @override
+  String eqImportErrorLine(int line) {
+    return 'Line $line is not an EQ setting Navis understands.';
+  }
+
+  @override
+  String eqImportErrorValue(int line) {
+    return 'Line $line has a value outside the supported range.';
+  }
+
+  @override
+  String get eqImportErrorValueNoLine =>
+      'A value is outside the supported range.';
+
+  @override
+  String eqImportErrorTooMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'EQ profiles can have at most $count filters.',
+      one: 'EQ profiles can have at most 1 filter.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eqImportErrorNoFilters => 'No EQ filters were found in this file.';
+
+  @override
+  String get eqImportErrorPreamp =>
+      'The preamp is outside the supported range.';
+
+  @override
+  String get eqImportErrorFixedBand =>
+      'Fixed-band profiles can only contain peaking filters.';
+
+  @override
+  String get eqImportErrorGraphic =>
+      'A GraphicEQ curve needs at least two points.';
+
+  @override
+  String get eqImportWarningsTitle => 'Notes';
+
+  @override
+  String get eqImportWarningPreampSummed =>
+      'Several preamp lines were added together.';
+
+  @override
+  String get eqImportWarningPreampMissing =>
+      'No preamp was set; automatic headroom prevents clipping.';
+
+  @override
+  String eqImportWarningIgnored(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count settings that do not affect the curve were ignored.',
+      one: '1 setting that does not affect the curve was ignored.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String eqImportWarningDropped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count filters of unsupported types were left out.',
+      one: '1 filter of an unsupported type was left out.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eqImportWarningChannels =>
+      'Only the first channel’s settings were imported.';
+
+  @override
+  String get eqImportWarningSplitChannels =>
+      'Left and right differ; the left channel was imported.';
+
+  @override
+  String eqImportWarningGraphic(int count, String rms) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'The curve was matched with $count filters (average difference $rms dB).',
+      one: 'The curve was matched with 1 filter (average difference $rms dB).',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get eqImportError => 'Could not read the preset file.';

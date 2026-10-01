@@ -957,13 +957,24 @@ void main() {
     () async {
       final serverId = await session();
       await seed();
+      final automaticDeadline = DateTime.now()
+          .add(const Duration(hours: 1))
+          .toUtc();
       await db.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
           serverId: Value(serverId),
           currentGeneration: const Value(1),
           lastCheckedAt: Value(DateTime.now()),
           lastAuditAt: Value(DateTime.now()),
+          failureStreak: const Value(1),
+          nextEligibleAt: Value(
+            DateTime.now().add(const Duration(minutes: 15)),
+          ),
         ),
+      );
+      await db.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: serverId,
+        nextAutomaticCheckAt: automaticDeadline,
       );
       for (var index = 0; index < 65; index++) {
         final id = 'manual-pending-$index';
@@ -1016,6 +1027,17 @@ void main() {
       );
       expect(firstHistory.outcome, SyncRunOutcomeKind.partial);
       expect(firstHistory.reason, SyncSafeReason.responseBudgetExceeded);
+      // A budget stop is a successful bounded check, not a failure: the
+      // continuation stays queued without a cooldown, the failure circuit
+      // closes, and the controller-owned automatic deadline is untouched.
+      final afterBudget = await db.librarySyncDao.getOrCreateState(serverId);
+      expect(first.nextRetryAt, isNull);
+      expect(afterBudget.nextEligibleAt, isNull);
+      expect(afterBudget.failureStreak, 0);
+      expect(
+        afterBudget.nextAutomaticCheckAt!.difference(automaticDeadline).abs(),
+        lessThan(const Duration(seconds: 1)),
+      );
 
       api.calls.clear();
       final resumed = await coordinator.requestSync(

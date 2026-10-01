@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderBox, RenderAbstractViewport;
 import 'package:flutter/services.dart';
@@ -404,7 +406,7 @@ class _ListenBrainzWeeklyDetailContentState
           title: Opacity(
             opacity: toolbarTitleOpacity,
             child: Text(
-              playlist.displayTitle,
+              playlist.localizedTitle(AppLocalizations.of(context)!),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -443,7 +445,7 @@ class _ListenBrainzWeeklyDetailContentState
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
-                        playlist.displayTitle,
+                        playlist.localizedTitle(AppLocalizations.of(context)!),
                         style: textTheme.displayMedium?.copyWith(
                           color: Colors.white,
                           shadows: <Shadow>[
@@ -852,7 +854,9 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
     final date = _listenBrainzGenerationDate(playlist);
     final metadata = <String>[
       l10n.weeklyPlaylistServiceName,
-      _formatListenBrainzDate(date),
+      DateFormat.yMMMd(
+        Localizations.localeOf(context).toLanguageTag(),
+      ).format(date),
       l10n.weeklyPlaylistTrackCount(playlist.totalCount),
       _listenBrainzAvailabilityText(playlist, l10n),
     ].join(' • ');
@@ -864,7 +868,7 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
       children: <Widget>[
         if (showTitle) ...<Widget>[
           Text(
-            playlist.displayTitle,
+            playlist.localizedTitle(l10n),
             textAlign: textAlign,
             maxLines: compact ? 3 : 2,
             overflow: TextOverflow.ellipsis,
@@ -904,24 +908,6 @@ DateTime _listenBrainzGenerationDate(ListenBrainzDiscoverPlaylist playlist) {
     }
   }
   return DateTime.now();
-}
-
-String _formatListenBrainzDate(DateTime date) {
-  const months = <String>[
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${months[date.month - 1]} ${date.day}, ${date.year}';
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
@@ -2772,7 +2758,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
-                    item.displayTitle,
+                    item.localizedTitle(AppLocalizations.of(context)!),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -3116,50 +3102,52 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
     final coverRadius = coverArtShapeToRadius(coverShape);
     final colors = Theme.of(context).colorScheme;
 
-    final scroller = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List<Widget>.generate(albums.length, (index) {
-          final item = albums[index];
-          final active = currentPage == index;
-          return Padding(
-            padding: EdgeInsets.only(
-              right: index == albums.length - 1 ? 0 : 6,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: coverRadius,
-              child: InkWell(
-                key: ValueKey<String>(
-                  'home-random-desktop-mini-cover-$index',
-                ),
+    final scroller = MouseDragScroll(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List<Widget>.generate(albums.length, (index) {
+            final item = albums[index];
+            final active = currentPage == index;
+            return Padding(
+              padding: EdgeInsets.only(
+                right: index == albums.length - 1 ? 0 : 6,
+              ),
+              child: Material(
+                color: Colors.transparent,
                 borderRadius: coverRadius,
-                onTap: () => onPageSelected(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: active ? 34 : 32,
-                  height: active ? 34 : 32,
-                  padding: const EdgeInsets.all(1.2),
-                  decoration: BoxDecoration(
-                    borderRadius: coverRadius,
-                    border: Border.all(
-                      color: active
-                          ? colors.primary
-                          : colors.outlineVariant.withValues(alpha: 0.42),
-                      width: active ? 1.6 : 1.0,
-                    ),
+                child: InkWell(
+                  key: ValueKey<String>(
+                    'home-random-desktop-mini-cover-$index',
                   ),
-                  child: _RandomMiniCover(
-                    item: item,
-                    borderRadius: coverRadius,
+                  borderRadius: coverRadius,
+                  onTap: () => onPageSelected(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: active ? 34 : 32,
+                    height: active ? 34 : 32,
+                    padding: const EdgeInsets.all(1.2),
+                    decoration: BoxDecoration(
+                      borderRadius: coverRadius,
+                      border: Border.all(
+                        color: active
+                            ? colors.primary
+                            : colors.outlineVariant.withValues(alpha: 0.42),
+                        width: active ? 1.6 : 1.0,
+                      ),
+                    ),
+                    child: _RandomMiniCover(
+                      item: item,
+                      borderRadius: coverRadius,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
     if (!showArrows) {
@@ -3307,6 +3295,8 @@ class _RandomAlbumsHeroCarouselState
   static const int _kVirtualLoopCycles = 10000;
   late PageController _pageController;
   double _viewportFraction = 0.66;
+  double? _pendingViewportFraction;
+  Timer? _viewportFractionTimer;
   late List<HomeRandomShowcaseItem> _displayedAlbums;
   late final RecommendationAutoAdvance _autoAdvance;
   final GlobalKey _viewportKey = GlobalKey();
@@ -3463,13 +3453,7 @@ class _RandomAlbumsHeroCarouselState
     );
 
     if (oldWidget.desktopMode != widget.desktopMode) {
-      final currentPage = _currentVirtualPage;
-      final previousController = _pageController;
-      _pageController = PageController(
-        viewportFraction: _viewportFraction,
-        initialPage: currentPage,
-      );
-      previousController.dispose();
+      _replacePageController(_viewportFraction);
     }
 
     if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
@@ -3536,6 +3520,7 @@ class _RandomAlbumsHeroCarouselState
     WidgetsBinding.instance.removeObserver(this);
     _homeScrollPosition?.removeListener(_onHomeScroll);
     _autoAdvance.dispose();
+    _viewportFractionTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -3582,23 +3567,48 @@ class _RandomAlbumsHeroCarouselState
   }
 
   /// Page controllers fix their viewport fraction, so a new width that needs
-  /// a different peek swaps in a controller at the same page.
+  /// a different peek swaps in a controller at the same page. The swap waits
+  /// until the width has settled and no drag or page animation is running,
+  /// so resizing a window or rotating a phone replaces it once, not per frame.
   void _syncViewportFraction(double fraction) {
-    if ((fraction - _viewportFraction).abs() < 0.005) return;
+    if ((fraction - _viewportFraction).abs() < 0.005) {
+      _pendingViewportFraction = null;
+      _viewportFractionTimer?.cancel();
+      return;
+    }
+    if (_pendingViewportFraction == fraction) return;
+    _pendingViewportFraction = fraction;
+    _viewportFractionTimer?.cancel();
+    _viewportFractionTimer = Timer(
+      const Duration(milliseconds: 200),
+      _applyPendingViewportFraction,
+    );
+  }
+
+  void _applyPendingViewportFraction() {
+    final fraction = _pendingViewportFraction;
+    if (!mounted || fraction == null) return;
+    if (_gestureActive || _pageScrolling) {
+      _viewportFractionTimer = Timer(
+        const Duration(milliseconds: 200),
+        _applyPendingViewportFraction,
+      );
+      return;
+    }
+    _pendingViewportFraction = null;
+    setState(() => _replacePageController(fraction));
+  }
+
+  void _replacePageController(double fraction) {
+    final previous = _pageController;
     _viewportFraction = fraction;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _pageController.viewportFraction == _viewportFraction) {
-        return;
-      }
-      final previous = _pageController;
-      setState(() {
-        _pageController = PageController(
-          viewportFraction: _viewportFraction,
-          initialPage: _currentVirtualPage,
-        );
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
-    });
+    _pageController = PageController(
+      viewportFraction: fraction,
+      initialPage: _currentVirtualPage,
+    );
+    // The old controller is still attached until the next frame rebuilds the
+    // PageView with the new one.
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
   }
 
   @override
@@ -3810,7 +3820,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
     final metadataParts = <String>[
       if (album.year != null && album.year! > 0) album.year.toString(),
       if (album.songCount != null && album.songCount! > 0)
-        '${album.songCount} tracks',
+        AppLocalizations.of(context)!.playlistsSongCount(album.songCount!),
     ];
     return Card(
       margin: EdgeInsets.zero,
@@ -3974,7 +3984,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      item.displayTitle,
+                      item.localizedTitle(AppLocalizations.of(context)!),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(

@@ -60,13 +60,45 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Saved queue rows in play order, each with its unshuffled position
+  /// (null when shuffle was off or the queue predates schema v88).
+  Future<List<({SongsTableData song, int? originalOrder})>> getQueueEntries() {
+    final query =
+        select(songsTable).join([
+            innerJoin(
+              playQueueItemsTable,
+              playQueueItemsTable.songId.equalsExp(songsTable.id),
+            ),
+          ])
+          ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
+          ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
+
+    return query.get().then(
+      (rows) => rows
+          .map(
+            (row) => (
+              song: row.readTable(songsTable),
+              originalOrder: row.readTable(playQueueItemsTable).originalOrder,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  /// Replaces the saved queue. [songIds] is the play order; [originalOrder],
+  /// when shuffle is on, gives each row's unshuffled position.
   Future<void> saveQueue({
     int? currentIndex,
     required List<String> songIds,
     ShuffleMode shuffleMode = ShuffleMode.off,
     RepeatMode repeatMode = RepeatMode.off,
     int positionMs = 0,
+    List<int>? originalOrder,
   }) async {
+    assert(
+      originalOrder == null || originalOrder.length == songIds.length,
+      'originalOrder must have one entry per song',
+    );
     await transaction(() async {
       await into(playQueueTable).insertOnConflictUpdate(
         PlayQueueTableCompanion.insert(
@@ -92,6 +124,7 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
                 queueId: primaryQueueId,
                 songId: songIds[index],
                 sortOrder: index,
+                originalOrder: Value(originalOrder?[index]),
               ),
             );
           }

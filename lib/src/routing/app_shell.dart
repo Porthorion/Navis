@@ -60,6 +60,7 @@ import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dis
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -608,11 +609,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Keep the sync controller alive without rebuilding the shell on each of
     // its progress updates.
     ref.listen(librarySyncControllerProvider, (_, _) {});
+    // Start the download service at launch, so downloads interrupted by a
+    // crash or a closed app resume (and their partial files are removed)
+    // without the user opening a download feature first.
+    ref.listen(downloadServiceProvider, (_, _) {});
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
     ref.watch(mixModeReconciliationProvider);
+    ref.watch(artistQueueDropRetentionProvider);
     ref.watch(deferredQueueRestoreControllerProvider);
 
     // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions

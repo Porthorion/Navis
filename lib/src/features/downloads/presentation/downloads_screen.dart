@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -1086,14 +1087,17 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             : l10n.downloadsCustomFolderDisabled,
         level: AppNoticeLevel.success,
       );
-    } on FileSystemException catch (error) {
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('Download folder update failed. $error\n$stackTrace');
       if (!mounted) {
         return;
       }
       AppNoticeMessenger.of(context).clearSnackBars();
       showAppNotice(
         context,
-        message: l10n.downloadsCustomFolderError(error.message),
+        message: error is FileSystemException
+            ? l10n.downloadsCustomFolderError(error.message)
+            : l10n.downloadsScanError,
         level: AppNoticeLevel.error,
       );
     } finally {
@@ -1115,19 +1119,19 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           .read(manualDownloadMatchingProvider.notifier)
           .recordScan(preview, automaticallyImported: automatic.importedCount);
       if (!mounted) return;
-      final result = automatic;
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(
+          context,
+        )!.downloadsRescanImported(automatic.importedCount),
+        level: AppNoticeLevel.success,
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('Download folder rescan failed. $error\n$stackTrace');
       if (mounted) {
         showAppNotice(
           context,
-          message: '${result.importedCount} existing download(s) imported.',
-          level: AppNoticeLevel.success,
-        );
-      }
-    } on FileSystemException catch (error) {
-      if (mounted) {
-        showAppNotice(
-          context,
-          message: 'Could not scan downloads: ${error.message}',
+          message: AppLocalizations.of(context)!.downloadsScanError,
           level: AppNoticeLevel.error,
         );
       }
@@ -1150,24 +1154,35 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       ),
     );
     if (manualSongIds == null || manualSongIds.isEmpty || !mounted) return;
-    final result = await ref
-        .read(downloadServiceProvider)
-        .importCustomDownloadFolder(
-          preview,
-          manualSongIds: manualSongIds,
-          includeRecognized: false,
+    try {
+      final result = await ref
+          .read(downloadServiceProvider)
+          .importCustomDownloadFolder(
+            preview,
+            manualSongIds: manualSongIds,
+            includeRecognized: false,
+          );
+      ref
+          .read(manualDownloadMatchingProvider.notifier)
+          .markImported(manualSongIds.keys);
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(
+          context,
+        )!.downloadsManualImported(result.importedCount),
+        level: AppNoticeLevel.success,
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('Manual download import failed. $error\n$stackTrace');
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: AppLocalizations.of(context)!.downloadsScanError,
+          level: AppNoticeLevel.error,
         );
-    ref
-        .read(manualDownloadMatchingProvider.notifier)
-        .markImported(
-          manualSongIds.keys,
-        );
-    if (!mounted) return;
-    showAppNotice(
-      context,
-      message: '${result.importedCount} manually matched download(s) imported.',
-      level: AppNoticeLevel.success,
-    );
+      }
+    }
   }
 
   @override

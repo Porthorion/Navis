@@ -23,6 +23,79 @@ void main() {
       await database.close();
     });
 
+    test('id lookups and deletes stay within the SQL variable limit', () async {
+      // More ids than SQLite's default bound-variable limit (32766), as when a
+      // server rebuild regenerates every album id.
+      final ids = [for (var i = 0; i < 40000; i++) 'missing-$i'];
+      expect(await database.libraryDao.getAlbumsByIds(ids), isEmpty);
+      expect(await database.libraryDao.getArtistsByIds(ids), isEmpty);
+      await database.libraryDao.deleteAlbumsByIds(ids);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'preserving cached rows accepts more stale ids than SQLite binds',
+      () async {
+        // A server rebuild can make every album and artist stale at once.
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Cached',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-2',
+            title: 'Same album',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: '/nonexistent/song-1.mp3',
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.utc(2026),
+          ),
+        );
+        final stale = [for (var i = 0; i < 40000; i++) 'album-stale-$i'];
+
+        final preserved = await database.libraryDao
+            .preserveCachedLegacyRowsAsProvisional(
+              staleArtistIds: [
+                'artist-1',
+                for (var i = 0; i < 40000; i++) 'artist-stale-$i',
+              ],
+              staleAlbumIds: ['album-1', ...stale],
+              protectedSongIds: [
+                for (var i = 0; i < 40000; i++) 'song-stale-$i',
+              ],
+            );
+
+        expect(preserved.songIds, {'song-1', 'song-2'});
+        expect(preserved.albumIds, {'album-1'});
+        expect(preserved.artistIds, {'artist-1'});
+        expect(
+          (await database.libraryDao.getSongById('song-2'))!.isProvisional,
+          isTrue,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('metadata upserts never execute primary-key updates', () async {
       // UPDATE OF observes column assignment even when the value is unchanged.
       // Rejecting it guards against expensive foreign-key rechecks while the

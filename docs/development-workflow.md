@@ -285,6 +285,36 @@ only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
 
+### Shuffle parity diagnostics
+
+Run `python3 tool/shuffle_parity_diagnostics.py` after changing shuffle, queue
+order, or the media_kit adapter. It serves a 40-song loopback fixture, launches
+an isolated muted Linux profile against an empty database, turns shuffle on,
+presses Next five times and lets two tracks advance on their own. Each sample
+compares the reported `songId` with the song mpv is playing
+(`native.mediaKitCurrent`, reduced to the stream `id` or cache file name so no
+credential-bearing URI is reported). It then queues 2,000 songs (the album 50
+times), jumps far ahead, near, far back and to both ends, presses Previous 40
+times across the released head and lets songs play on; those samples also
+check the reported `currentIndex`, that `deferredHeadLength` +
+`materializedLength` + `deferredLength` equals the queue, and that
+`playerSequenceLength` stays within the released window. The run writes
+`build/shuffle-parity-diagnostics/<timestamp>/report.json` and exits 1 when any
+sample or control call disagrees. `NAVIS_PARITY_BUNDLE` runs a built profile
+bundle instead of `flutter run`.
+
+Clone-only `POST /v1/downloads/enqueue {"songIds": [...]}` queues permanent
+downloads through the production download service (a song already in the
+rolling cache is promoted instead of downloaded), for download and
+interruption checks without driving the UI.
+
+Clone-only `POST /v1/playback/shuffle {"enabled": bool}` and
+`POST /v1/playback/repeat {"mode": "none"|"one"|"all"}` drive the production
+handler. `GET /v1/playback/status` reports the user's `shuffleEnabled` and,
+under `native`, the native index, the native shuffle flag (always false: Navis
+owns shuffle, so the native sequence is the play order),
+sequence ids (first 64), effective order and `mediaKitCurrent`.
+
 ### Artist playback diagnostics
 
 Run `python3 tool/artist_playback_diagnostics.py` for the artist queue regression.
@@ -386,8 +416,15 @@ shuffle/repeat, timeline progress, and clean restart. It writes only under its
 specified output root and never prints the bearer token, server URL, or media
 metadata.
 
+Run it with Windows PowerShell in a multithreaded apartment from the signed-in
+desktop session (GMTC is per interactive session, and blocking WinRT calls in
+the default single-threaded apartment are cancelled). Over SSH, start it with a
+scheduled task that uses an `Interactive` principal. It first turns shuffle and
+repeat off through GMTC, so a source database from an earlier run cannot change
+the Next and Previous targets.
+
 ```powershell
-.\tool\windows_smtc_diagnostics.ps1 `
+powershell.exe -MTA -File .\tool\windows_smtc_diagnostics.ps1 `
   -SourceDatabase C:\path\to\navis.sqlite.sqlite `
   -CredentialFile C:\path\to\diagnostics-password `
   -SongId first-song-id -SecondSongId second-song-id
@@ -448,7 +485,10 @@ the tree remains otherwise usable.
   `POST /v1/sync/target` through the production controller. It asserts neither
   action changes catalog status, verifies distinct automatic and retry
   deadlines, captures Sync Settings, and repeats the health/status/ledger/
-  screenshot checks after a clean restart. Use it when changing navigation,
+  screenshot checks after a clean restart, where the reported deadlines must
+  match the persisted sync-state row. It accepts the optional private
+  `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH` password file when desktop secure
+  storage is locked. Use it when changing navigation,
   catalog/target scheduling, cooldowns, or global sync presentation.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`,

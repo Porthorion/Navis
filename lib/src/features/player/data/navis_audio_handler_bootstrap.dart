@@ -255,6 +255,10 @@ class WindowsNavisPlaybackHandler
       _delegate.loadFailureStream;
 
   @override
+  Stream<QueueSongsDropped> get droppedSongsStream =>
+      _delegate.droppedSongsStream;
+
+  @override
   Future<void> waitUntilReady() => _delegate.waitUntilReady();
 
   @override
@@ -518,6 +522,10 @@ class LinuxNavisPlaybackHandler
   @override
   Stream<PlaybackLoadFailure> get loadFailureStream =>
       _delegate.loadFailureStream;
+
+  @override
+  Stream<QueueSongsDropped> get droppedSongsStream =>
+      _delegate.droppedSongsStream;
 
   @override
   Future<void> waitUntilReady() => _delegate.waitUntilReady();

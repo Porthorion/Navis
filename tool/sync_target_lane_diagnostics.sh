@@ -21,6 +21,20 @@ if [[ ! -f "$SOURCE_DB" ]]; then
   exit 66
 fi
 
+# Desktop secure storage may be locked or unavailable (for example after a
+# reboot). The documented private credential file then supplies the clone's
+# password without touching the primary credential store.
+CREDENTIAL_DEFINE=()
+if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
+  if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
+    echo "Diagnostics credential file was not found." >&2
+    exit 66
+  fi
+  CREDENTIAL_DEFINE=(
+    "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+  )
+fi
+
 mkdir -p "$CACHE_ROOT"
 chmod 700 "$OUTPUT_ROOT"
 
@@ -129,6 +143,7 @@ launch() {
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
+      ${CREDENTIAL_DEFINE[@]+"${CREDENTIAL_DEFINE[@]}"} \
       >>"$APP_LOG" 2>&1
   ) &
   FLUTTER_PID=$!
@@ -237,6 +252,19 @@ launch
 api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation "$OUTPUT_ROOT/presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-before.json"
+python3 - "$CLONE_DB" <<'PY'
+import sqlite3, sys
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+authenticated = db.execute(
+    "SELECT 1 FROM server_config WHERE is_authenticated = 1"
+).fetchone()
+db.close()
+if authenticated is None:
+    raise SystemExit(
+        "isolated clone lost its server session; unlock desktop secure storage "
+        "or set NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+    )
+PY
 
 # The app reads both clone deadlines through its production controller. Asking
 # the automatic endpoint before its normal interval is due must not start a
@@ -421,30 +449,88 @@ api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
 wait "$FLUTTER_PID" || true
 FLUTTER_PID=0
 
+RESTART_EPOCH="$(date -u +%s)"
 launch
 api GET /v1/health > "$OUTPUT_ROOT/restart-health.json"
 wait_for_presentation "$OUTPUT_ROOT/restart-presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/restart-catalog-status.json"
 python3 - "$OUTPUT_ROOT/catalog-before.json" \
-  "$OUTPUT_ROOT/restart-catalog-status.json" <<'PY'
-import datetime, json, sys
+  "$OUTPUT_ROOT/restart-catalog-status.json" "$CLONE_DB" "$RESTART_EPOCH" \
+  "$OUTPUT_ROOT/restart-deadlines.json" <<'PY'
+import datetime, json, sqlite3, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 restart = json.load(open(sys.argv[2], encoding="utf-8"))
+restart_epoch = int(sys.argv[4])
+
+def parse(value):
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+def epoch(value):
+    return None if value is None else int(parse(value).timestamp())
+
 before_deadline = before.get("nextAutomaticCheckAt")
 restart_deadline = restart.get("nextAutomaticCheckAt")
 before_retry = before.get("nextRetryAt")
 restart_retry = restart.get("nextRetryAt")
-if (not isinstance(before_deadline, str) or not isinstance(restart_deadline, str)
-        or not isinstance(before_retry, str) or not isinstance(restart_retry, str)):
-    raise SystemExit("restart status omitted an automatic or retry deadline")
-start = datetime.datetime.fromisoformat(before_deadline.replace("Z", "+00:00"))
-end = datetime.datetime.fromisoformat(restart_deadline.replace("Z", "+00:00"))
-if abs((end - start).total_seconds()) >= 1:
+if not isinstance(before_deadline, str) or not isinstance(before_retry, str):
+    raise SystemExit("startup status omitted an automatic or retry deadline")
+if not isinstance(restart_deadline, str):
+    raise SystemExit("restart status omitted the automatic deadline")
+if abs((parse(restart_deadline) - parse(before_deadline)).total_seconds()) >= 1:
     raise SystemExit(
         f"restart changed automatic deadline: {before_deadline} -> {restart_deadline}"
     )
-if before_retry != restart_retry:
+
+# Status must report the durable row that the scheduler timer and failure
+# circuit consult, not a value reconstructed from the last engine result.
+db = sqlite3.connect(f"file:{sys.argv[3]}?mode=ro", uri=True)
+row = db.execute(
+    "SELECT s.next_automatic_check_at, s.next_eligible_at, s.failure_streak "
+    "FROM library_sync_state s JOIN server_config c ON c.id = s.server_id "
+    "WHERE c.is_authenticated = 1 ORDER BY c.id LIMIT 1"
+).fetchone()
+db.close()
+if row is None:
+    raise SystemExit("restart clone has no persisted sync state")
+persisted_deadline, persisted_retry, failure_streak = row
+if epoch(restart_deadline) != persisted_deadline:
+    raise SystemExit(
+        f"restart automatic deadline {restart_deadline} differs from persisted {persisted_deadline}"
+    )
+if epoch(restart_retry) != persisted_retry:
+    raise SystemExit(
+        f"restart retry deadline {restart_retry} differs from persisted {persisted_retry}"
+    )
+
+# The fixture deadline is not due, but an interrupted user Check for updates in
+# the cloned profile resumes after restart once its lease expires. A completed
+# or budget-limited partial catalog check closes the failure circuit, clearing
+# the retry cooldown; without a catalog run the cooldown must survive unchanged.
+catalog_runs = [
+    run for run in restart.get("durableRuns") or []
+    if run.get("targetKind") == "catalog"
+    and isinstance(run.get("startedAt"), str)
+    and parse(run["startedAt"]).timestamp() >= restart_epoch - 1
+]
+outcomes = {run.get("outcome") for run in catalog_runs}
+if "failed" in outcomes:
+    if restart_retry is None:
+        raise SystemExit("failed restart catalog run did not schedule a retry")
+elif outcomes & {"completed", "partial"}:
+    if restart_retry is not None or failure_streak != 0:
+        raise SystemExit(
+            f"successful restart catalog run kept a failure cooldown: {restart_retry}"
+        )
+elif restart_retry != before_retry:
     raise SystemExit(f"restart changed retry deadline: {before_retry} -> {restart_retry}")
+json.dump({
+    "nextAutomaticCheckAt": restart_deadline,
+    "nextRetryAt": restart_retry,
+    "catalogRunsSinceRestart": [
+        {key: run.get(key) for key in ("requestId", "origin", "intent", "planKind", "outcome", "reason")}
+        for run in catalog_runs
+    ],
+}, open(sys.argv[5], "w", encoding="utf-8"))
 PY
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/restart-navigation.json"

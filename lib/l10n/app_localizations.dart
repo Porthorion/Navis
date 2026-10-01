@@ -4949,6 +4949,24 @@ abstract class AppLocalizations {
   /// **'Moving downloaded tracks...'**
   String get downloadsCustomFolderUpdating;
 
+  /// No description provided for @downloadsScanError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not scan the downloads folder.'**
+  String get downloadsScanError;
+
+  /// No description provided for @downloadsRescanImported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}'**
+  String downloadsRescanImported(int count);
+
+  /// No description provided for @downloadsManualImported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No matched downloads imported.} =1{1 matched download imported.} other{{count} matched downloads imported.}}'**
+  String downloadsManualImported(int count);
+
   /// No description provided for @downloadsCustomFolderError.
   ///
   /// In en, this message translates to:
@@ -5357,23 +5375,11 @@ abstract class AppLocalizations {
   /// **'Updated to {version}'**
   String changelogDiscoveryUpdatedTo(String version);
 
-  /// No description provided for @changelogDiscoveryMore.
-  ///
-  /// In en, this message translates to:
-  /// **'+{count}'**
-  String changelogDiscoveryMore(int count);
-
   /// No description provided for @changelogEmpty.
   ///
   /// In en, this message translates to:
   /// **'No Changelog Entries Yet.'**
   String get changelogEmpty;
-
-  /// No description provided for @changelogMajorRelease.
-  ///
-  /// In en, this message translates to:
-  /// **'Major release'**
-  String get changelogMajorRelease;
 
   /// No description provided for @changelogEntryTypeNew.
   ///
@@ -5398,24 +5404,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All'**
   String get changelogFilterAll;
-
-  /// No description provided for @changelogNewCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 new} other{{count} new}}'**
-  String changelogNewCount(int count);
-
-  /// No description provided for @changelogImprovedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 improved} other{{count} improved}}'**
-  String changelogImprovedCount(int count);
-
-  /// No description provided for @changelogFixedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 fix} other{{count} fixes}}'**
-  String changelogFixedCount(int count);
 
   /// No description provided for @changelogChangeCount.
   ///
@@ -5464,6 +5452,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Highlights'**
   String get changelogHighlights;
+
+  /// No description provided for @changelogAllChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'All changes'**
+  String get changelogAllChanges;
+
+  /// No description provided for @changelogDiscoveryAndMore.
+  ///
+  /// In en, this message translates to:
+  /// **'{list} and {count} more'**
+  String changelogDiscoveryAndMore(String list, int count);
 
   /// No description provided for @aboutLicenses.
   ///
@@ -7930,6 +7930,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not refresh. The existing catalogue is still available.'**
   String get eqRefreshError;
+
+  /// No description provided for @eqImportDefaultName.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported profile'**
+  String get eqImportDefaultName;
+
+  /// No description provided for @eqImportErrorTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'EQ files must be smaller than 1 MB.'**
+  String get eqImportErrorTooLarge;
+
+  /// No description provided for @eqImportErrorEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The EQ file is empty.'**
+  String get eqImportErrorEmpty;
+
+  /// No description provided for @eqImportErrorUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The text in this file could not be read.'**
+  String get eqImportErrorUnreadable;
+
+  /// No description provided for @eqImportErrorNavisPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'This Navis preset is damaged or from a newer version.'**
+  String get eqImportErrorNavisPreset;
+
+  /// No description provided for @eqImportErrorUnsupportedJson.
+  ///
+  /// In en, this message translates to:
+  /// **'This JSON file is not an EQ format Navis can import.'**
+  String get eqImportErrorUnsupportedJson;
+
+  /// No description provided for @eqImportErrorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Line {line} is not an EQ setting Navis understands.'**
+  String eqImportErrorLine(int line);
+
+  /// No description provided for @eqImportErrorValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Line {line} has a value outside the supported range.'**
+  String eqImportErrorValue(int line);
+
+  /// No description provided for @eqImportErrorValueNoLine.
+  ///
+  /// In en, this message translates to:
+  /// **'A value is outside the supported range.'**
+  String get eqImportErrorValueNoLine;
+
+  /// No description provided for @eqImportErrorTooMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{EQ profiles can have at most 1 filter.} other{EQ profiles can have at most {count} filters.}}'**
+  String eqImportErrorTooMany(int count);
+
+  /// No description provided for @eqImportErrorNoFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'No EQ filters were found in this file.'**
+  String get eqImportErrorNoFilters;
+
+  /// No description provided for @eqImportErrorPreamp.
+  ///
+  /// In en, this message translates to:
+  /// **'The preamp is outside the supported range.'**
+  String get eqImportErrorPreamp;
+
+  /// No description provided for @eqImportErrorFixedBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed-band profiles can only contain peaking filters.'**
+  String get eqImportErrorFixedBand;
+
+  /// No description provided for @eqImportErrorGraphic.
+  ///
+  /// In en, this message translates to:
+  /// **'A GraphicEQ curve needs at least two points.'**
+  String get eqImportErrorGraphic;
+
+  /// No description provided for @eqImportWarningsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get eqImportWarningsTitle;
+
+  /// No description provided for @eqImportWarningPreampSummed.
+  ///
+  /// In en, this message translates to:
+  /// **'Several preamp lines were added together.'**
+  String get eqImportWarningPreampSummed;
+
+  /// No description provided for @eqImportWarningPreampMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No preamp was set; automatic headroom prevents clipping.'**
+  String get eqImportWarningPreampMissing;
+
+  /// No description provided for @eqImportWarningIgnored.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 setting that does not affect the curve was ignored.} other{{count} settings that do not affect the curve were ignored.}}'**
+  String eqImportWarningIgnored(int count);
+
+  /// No description provided for @eqImportWarningDropped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 filter of an unsupported type was left out.} other{{count} filters of unsupported types were left out.}}'**
+  String eqImportWarningDropped(int count);
+
+  /// No description provided for @eqImportWarningChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the first channel’s settings were imported.'**
+  String get eqImportWarningChannels;
+
+  /// No description provided for @eqImportWarningSplitChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Left and right differ; the left channel was imported.'**
+  String get eqImportWarningSplitChannels;
+
+  /// No description provided for @eqImportWarningGraphic.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{The curve was matched with 1 filter (average difference {rms} dB).} other{The curve was matched with {count} filters (average difference {rms} dB).}}'**
+  String eqImportWarningGraphic(int count, String rms);
 
   /// No description provided for @eqImportError.
   ///

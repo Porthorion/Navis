@@ -155,6 +155,38 @@ void main() {
     expect(order, ['edit']);
   });
 
+  test(
+    'a fill keeps commands made before it and yields to navigation',
+    () async {
+      final lane = NavisSupersedingLane();
+      final order = <String>[];
+      final release = Completer<void>();
+      final first = lane.run((_) => release.future);
+
+      final navigation = lane.navigate((_) async => order.add('navigate'));
+      final edit = lane.enqueue((_) async => order.add('edit'));
+      // Submitting the fill cancels neither.
+      final fill = lane.fill((token) async {
+        token.checkCancelled();
+        order.add('fill');
+      });
+      final laterEdit = lane.enqueue((_) async => order.add('later edit'));
+      release.complete();
+      await Future.wait([first, navigation, edit, fill, laterEdit]);
+      expect(order, ['navigate', 'edit', 'fill', 'later edit']);
+
+      // A navigation made while a fill waits cancels it.
+      order.clear();
+      final hold = Completer<void>();
+      final busy = lane.enqueue((_) => hold.future);
+      final waitingFill = lane.fill((_) async => order.add('fill'));
+      final skip = lane.navigate((_) async => order.add('navigate'));
+      hold.complete();
+      await Future.wait([busy, waitingFill, skip]);
+      expect(order, ['navigate']);
+    },
+  );
+
   test('the lane reports when it drains', () async {
     final lane = NavisSupersedingLane();
     var drained = 0;

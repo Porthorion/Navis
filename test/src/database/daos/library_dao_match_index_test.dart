@@ -112,6 +112,66 @@ void main() {
     await expectBucketsMatchFullScan('other');
   });
 
+  test(
+    'an index refresh that cannot settle stops instead of looping',
+    () async {
+      // More than a refresh batch of albums, and every write is spoiled, so
+      // the rows always look stale and every batch is full.
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          for (var i = 0; i < 1200; i++) _album('stale-$i', artistId: 'other'),
+        ]),
+      );
+      for (final event in <String>['INSERT', 'UPDATE']) {
+        await database.customStatement('''
+        CREATE TEMP TRIGGER spoil_album_artist_index_$event
+        AFTER $event ON album_artist_index
+        WHEN NEW.source <> 'spoiled'
+        BEGIN
+          UPDATE album_artist_index SET source = 'spoiled'
+          WHERE album_id = NEW.album_id;
+        END;
+      ''');
+      }
+      final written = await database.libraryDao
+          .refreshAlbumArtistIndex()
+          .timeout(const Duration(seconds: 10));
+      expect(written, greaterThan(0));
+    },
+  );
+
+  test(
+    'artist snapshots and index refreshes overlap without stalling',
+    () async {
+      // Enough stale albums that refreshes take several batches.
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          for (var i = 0; i < 2500; i++)
+            _album('bulk-$i', artistId: i.isEven ? 'sq' : 'other'),
+        ]),
+      );
+      final work = <Future<Object?>>[];
+      for (var round = 0; round < 6; round++) {
+        work
+          ..add(database.libraryDao.refreshAlbumArtistIndex())
+          ..add(database.libraryDao.getArtistPlaybackSnapshot('sq'))
+          ..add(
+            database.batch(
+              (batch) =>
+                  batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                    for (var i = 0; i < 200; i++)
+                      _album('late-$round-$i', artistId: 'sq'),
+                  ]),
+            ),
+          )
+          ..add(database.libraryDao.getArtistPlaybackSnapshot('other'));
+      }
+      await Future.wait(work).timeout(const Duration(seconds: 60));
+      await expectBucketsMatchFullScan('sq');
+      await expectBucketsMatchFullScan('other');
+    },
+  );
+
   test('album writes are picked up without any index maintenance', () async {
     final updates = database.libraryDao.watchArtistAlbumBuckets('sq');
     final seen = <Set<String>>[];

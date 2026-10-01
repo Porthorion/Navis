@@ -72,7 +72,8 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   /// Reset any items stuck in `downloading` back to `queued`.
   ///
   /// Call on startup to recover from a previous app kill.
-  Future<void> requeueStuckDownloads() {
+  /// Returns how many downloads were interrupted.
+  Future<int> requeueStuckDownloads() {
     return (update(downloadQueueTable)..where(
           (t) => t.status.equalsValue(DownloadStatus.downloading),
         ))

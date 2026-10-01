@@ -160,7 +160,63 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
-        'The changelog is easier to read: each major release opens with a banner of its highlights, changes are grouped into New, Improved and Fixed with filters, long fix lists fold away, and older releases sit on a timeline you can expand; on desktop, releases are listed beside the one you are reading. After an update, Home shows a compact “Check out” card with the release’s highlights instead of a long description',
+        'Sync Settings now always shows when the next automatic check is due, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Very long queues stay light: songs you have played are released from the player after a while and come back when you go back to them, and jumping far ahead or back in a long queue loads only the songs around the one you picked (if it cannot load, the song that was playing continues)',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Shuffle is now handled by Navis on every platform: the Queue shows the order songs will really play in, the song shown as playing on desktop always matches what you hear, long shuffled queues start as quickly as unshuffled ones, and a shuffled queue survives restarts in the same order; turning shuffle off returns to the original order, including songs added meanwhile',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Songs from an artist queue that turn out to be unplayable only when the player reaches them now stay visible in the Queue as unavailable rows, instead of silently disappearing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On desktop, seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads interrupted by closing Navis now resume when you open it again, instead of waiting until you next use a download control',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A download interrupted by a crash, power loss or closing the app no longer leaves a half-written song under its real name in your Downloads folder; unfinished downloads use a temporary name that Navis removes on the next start, and the retried download keeps the normal file name',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Signing out and removing local data, or switching servers, no longer deletes music files from your own Downloads folder; only files Navis keeps in its private storage are removed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloads kept in a folder reached through a link, junction or mapped drive are recognised on rescan and are no longer renamed or deleted at startup, and a Downloads folder shared between Windows and other systems keeps its matches',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'EQ import reads presets from Equalizer APO, REW, EasyEffects and AutoEQ GraphicEQ as well as ParametricEQ, FixedBandEQ and Navis files, whatever text encoding or decimal separator they use; the preview explains anything it could not reproduce, and errors name the line to fix',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Setup shows a clear message when ListenBrainz or Last.fm validation fails instead of a technical error, and Home dates, track counts and weekly playlist names follow your language',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On desktop, album and artist shelves and the You Might Like cover strip can be scrolled by dragging with the mouse',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Resizing the window or rotating your phone no longer interrupts a swipe in You Might Like or rebuilds the carousel on every frame',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The changelog now reads like an album page: each major release has its own cover, name and highlights, changes are grouped into New, Improved and Fixed tabs, long fix lists fold away, and earlier releases are listed below (beside it on desktop). After an update, Home shows a compact “Check out” row with the release’s cover and highlights',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -177,6 +233,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Reopening Navis on Android brings back your saved queue in Queue and Now Playing straight away, paused where you left it, instead of showing an empty queue until you press Play. If Navis starts offline or before you are signed in, the queue comes back as soon as it can play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queue edits made just before skipping are saved, songs later in a long queue stay queued while you are offline or signed out instead of disappearing, and artist tracks that fail to join the queue stay visible as unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Files adopted from a custom Downloads folder keep their names and folders after a restart, a finished download is kept even when its folder record cannot be written, typing on other tabs no longer sets a hidden Library filter, and Equalizer values accept a comma as the decimal separator',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

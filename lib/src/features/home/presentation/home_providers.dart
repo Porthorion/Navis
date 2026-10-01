@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -149,6 +150,12 @@ class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
   final String? sourcePatch;
   final String displayTitle;
   final bool isLoading;
+
+  String localizedTitle(AppLocalizations l10n) => localizedWeeklyPlaylistTitle(
+    l10n,
+    sourcePatch: sourcePatch,
+    fallback: displayTitle,
+  );
 
   @override
   String get stableId {
@@ -340,6 +347,12 @@ class ListenBrainzDiscoverPlaylist {
   final bool matchingComplete;
 
   String get displayTitle => playlist.recommendationDisplayTitle;
+
+  String localizedTitle(AppLocalizations l10n) => localizedWeeklyPlaylistTitle(
+    l10n,
+    sourcePatch: playlist.sourcePatch,
+    fallback: displayTitle,
+  );
 
   int get totalCount => recommendations.length;
   int get matchedCount => playableSongs.length;
@@ -2579,3 +2592,15 @@ final homeStarredSongsProvider = FutureProvider<List<Song>>((ref) async {
 
   return (await api.getStarred2(cancelToken: cancelToken)).songs;
 });
+
+/// ListenBrainz names its weekly playlists in English; show Navis's own
+/// localized names for the ones it recognises.
+String localizedWeeklyPlaylistTitle(
+  AppLocalizations l10n, {
+  required String? sourcePatch,
+  required String fallback,
+}) => switch (sourcePatch) {
+  'weekly-jams' => l10n.weeklyPlaylistJamsTitle,
+  'weekly-exploration' => l10n.weeklyPlaylistExplorationTitle,
+  _ => fallback,
+};

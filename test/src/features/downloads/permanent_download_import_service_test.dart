@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
@@ -189,6 +190,65 @@ void main() {
       expect(await database.cacheDao.getPermanentEntries(), isEmpty);
     });
 
+    test('ignores an interrupted identity-tag rewrite copy', () async {
+      File('${root.path}/Unknown/Elsewhere.flac.navis-writing')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.items, isEmpty);
+    });
+
+    test(
+      'an unreadable subfolder is reported without ending the scan',
+      () async {
+        File('${root.path}/Unknown/Elsewhere.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1]);
+        final locked = Directory('${root.path}/Locked')..createSync();
+        File('${locked.path}/hidden.flac').writeAsBytesSync(<int>[1]);
+        await Process.run('chmod', <String>['000', locked.path]);
+        addTearDown(() => Process.run('chmod', <String>['755', locked.path]));
+
+        final preview = await service('profile').preview(root);
+
+        expect(preview.unmatchedCount, 1);
+        expect(preview.inaccessibleCount, 1);
+      },
+      skip: !Platform.isLinux || Platform.environment['USER'] == 'root',
+    );
+
+    test('bookkeeping files and folder link loops are skipped', () async {
+      File('${root.path}/Unknown/Elsewhere.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+      File('${root.path}/Unknown/Elsewhere.flac.mime').writeAsStringSync('x');
+      File('${root.path}/Unknown/Next.flac.navis-part')
+          .writeAsBytesSync(<int>[1]);
+      File('${root.path}/.navis-saf-transfer-1.flac')
+          .writeAsBytesSync(<int>[1]);
+      Link('${root.path}/Unknown/loop').createSync(root.path);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.items.map((item) => item.relativePath), <String>[
+        'Unknown/Elsewhere.flac',
+      ]);
+    }, skip: Platform.isWindows);
+
+    test('a damaged manifest does not stop the scan', () async {
+      File('${root.path}/$permanentDownloadManifestFileName')
+          .writeAsStringSync('not a database');
+      File('${root.path}/Unknown/Elsewhere.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.unmatchedCount, 1);
+    });
+
     test('keeps duplicate legacy title and artist matches ambiguous', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(
@@ -251,6 +311,122 @@ void main() {
         expect(
           (await database.cacheDao.getCachedTrack('song-1'))?.cacheType,
           CacheType.permanent,
+        );
+      },
+    );
+
+    test('a tagged download is recognised by its sidecar record', () async {
+      final artist = Directory('${root.path}/Jack Harlow')..createSync();
+      // A FLAC with a Vorbis comment block, which the tag writer rewrites.
+      final comment = <int>[5, 0, 0, 0, ...'navis'.codeUnits, 0, 0, 0, 0];
+      final file = File('${artist.path}/Hello Miss Johnson.flac')
+        ..writeAsBytesSync(<int>[
+          ...'fLaC'.codeUnits,
+          0,
+          0,
+          0,
+          0,
+          0x84,
+          0,
+          0,
+          comment.length,
+          ...comment,
+          0xff,
+          0xf8,
+          0,
+          0,
+        ]);
+      final before = file.lengthSync();
+      await service('profile').recordDownloaded(
+        root: root,
+        file: file,
+        songId: 'song-1',
+        format: 'flac',
+      );
+      expect(file.lengthSync(), isNot(before));
+
+      final preview = await service('profile').preview(root);
+
+      expect(
+        preview.items.single.matchOrigin,
+        PermanentDownloadMatchOrigin.manifest,
+      );
+    });
+
+    test(
+      'a download stored through a linked folder is already registered',
+      () async {
+        final real = Directory('${root.path}/real')..createSync();
+        final link = Link('${root.path}/link')..createSync(real.path);
+        // A name no title matches: only the path can recognise it.
+        final file = File('${link.path}/Rips/track 07.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: file.path,
+            fileSize: 1,
+            format: 'flac',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+
+        final preview = await service('profile').preview(Directory(link.path));
+
+        expect(
+          preview.items.single.disposition,
+          PermanentDownloadImportDisposition.alreadyRegistered,
+        );
+        expect(
+          preview.items.single.relativePath,
+          'Rips/track 07.flac',
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test(
+      'sidecar keys written with backslashes still match and are rewritten',
+      () async {
+        final file = File('${root.path}/Jack Harlow/Hello Miss Johnson.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        // A sidecar written on Windows by an older build.
+        final manifest = sqlite3.open('${root.path}/.navis-downloads.sqlite');
+        manifest.execute(
+          'CREATE TABLE download_records (relative_path TEXT PRIMARY KEY, '
+          'song_id TEXT NOT NULL, profile_fingerprint TEXT NOT NULL, '
+          'file_size INTEGER NOT NULL, format TEXT NOT NULL, '
+          'updated_at INTEGER NOT NULL)',
+        );
+        await service('profile').recordDownloaded(
+          root: root,
+          file: file,
+          songId: 'song-1',
+          format: 'flac',
+        );
+        manifest.execute(
+          "UPDATE download_records SET relative_path = replace(relative_path, '/', '\\')",
+        );
+        manifest.close();
+
+        final preview = await service('profile').preview(root);
+        expect(
+          preview.items.single.matchOrigin,
+          PermanentDownloadMatchOrigin.manifest,
+        );
+
+        await service('profile').commit(preview);
+        final reopened = sqlite3.open('${root.path}/.navis-downloads.sqlite');
+        addTearDown(reopened.close);
+        expect(
+          reopened
+              .select('SELECT relative_path FROM download_records')
+              .map((row) => row['relative_path']),
+          <String>['Jack Harlow/Hello Miss Johnson.flac'],
         );
       },
     );

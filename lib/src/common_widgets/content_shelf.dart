@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 /// A bounded, lazy horizontal preview that retains its position on resize.
@@ -102,14 +103,16 @@ class _ContentShelfState extends State<ContentShelf> {
         },
         child: Stack(
           children: [
-            ListView.separated(
-              controller: _controller,
-              scrollDirection: Axis.horizontal,
-              itemCount: widget.itemCount,
-              separatorBuilder: (_, _) => SizedBox(width: widget.gap),
-              itemBuilder: (context, index) => SizedBox(
-                width: widget.extent,
-                child: widget.itemBuilder(context, index),
+            MouseDragScroll(
+              child: ListView.separated(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.itemCount,
+                separatorBuilder: (_, _) => SizedBox(width: widget.gap),
+                itemBuilder: (context, index) => SizedBox(
+                  width: widget.extent,
+                  child: widget.itemBuilder(context, index),
+                ),
               ),
             ),
             if (desktop && _canBack)

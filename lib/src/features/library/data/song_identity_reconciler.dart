@@ -74,11 +74,17 @@ class SongIdentityReconciler {
     this._identityDao, {
     this.onBeforeRemap,
     this.readActiveSongId,
+    this.deferredFileDeletions,
   });
 
   final SongIdentityDao _identityDao;
   final Future<void> Function(Map<String, String> aliases)? onBeforeRemap;
   final String? Function()? readActiveSongId;
+
+  /// When set, cache files that lose a remap are collected here instead of
+  /// deleted: the reconciler runs inside a transaction whose owner deletes
+  /// them after it commits.
+  final List<String>? deferredFileDeletions;
 
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
@@ -329,6 +335,7 @@ class SongIdentityReconciliationSession {
         canonicalSongId: canonicalSong.id,
         matchReason: decision.reason.name,
         retainOldCacheFile: wasActive,
+        deferredFileDeletions: _reconciler.deferredFileDeletions,
       );
       _aliases.add(remap.alias);
       if (remap.restoredLike) {

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -89,23 +90,42 @@ class PermanentDownloadPathResolver {
     String? existingPath,
     Set<String> reservedPaths = const <String>{},
   }) {
+    return resolvePathInDirectory(
+      rootDirectory: rootDirectory,
+      artist: song.artistName,
+      title: song.title,
+      titleFallback: song.id.trim().isEmpty ? unknownTrackFileName : song.id,
+      identity: song.id,
+      extension: extension,
+      existingPath: existingPath,
+      reservedPaths: reservedPaths,
+    );
+  }
+
+  /// `<root>/<artist>/<title>.<ext>`, or `<title> [<hash>].<ext>` (then
+  /// `[<hash>-2]`, `-3`, ...) when that name is taken by another file or
+  /// reserved in the current batch.
+  String resolvePathInDirectory({
+    required Directory rootDirectory,
+    required String? artist,
+    required String? title,
+    required String titleFallback,
+    required String identity,
+    required String extension,
+    String? existingPath,
+    Set<String> reservedPaths = const <String>{},
+  }) {
     final artistDirectory = sanitizePathComponent(
-      song.artistName,
+      artist,
       fallback: unknownArtistDirectory,
     );
-    final fileStem = sanitizePathComponent(
-      song.title,
-      fallback: song.id.trim().isEmpty ? unknownTrackFileName : song.id,
-    );
+    final fileStem = sanitizePathComponent(title, fallback: titleFallback);
     final normalizedExtension = _normalizeExtension(extension);
+    final baseDirectory = p.join(rootDirectory.path, artistDirectory);
+    String candidate(String stem) =>
+        p.join(baseDirectory, '$stem.$normalizedExtension');
 
-    final baseDirectory = Directory(
-      p.join(rootDirectory.path, artistDirectory),
-    );
-    final preferredPath = p.join(
-      baseDirectory.path,
-      '$fileStem.$normalizedExtension',
-    );
+    final preferredPath = candidate(fileStem);
     if (_isPathAvailable(
       candidatePath: preferredPath,
       existingPath: existingPath,
@@ -113,32 +133,30 @@ class PermanentDownloadPathResolver {
     )) {
       return preferredPath;
     }
-
     final suffix = sha1
-        .convert(utf8.encode(song.id))
+        .convert(utf8.encode(identity))
         .toString()
         .substring(0, 8);
-    final collisionPath = p.join(
-      baseDirectory.path,
-      '$fileStem [$suffix].$normalizedExtension',
-    );
-    return collisionPath;
+    for (var attempt = 1; ; attempt++) {
+      final tag = attempt == 1 ? suffix : '$suffix-$attempt';
+      final path = candidate('$fileStem [$tag]');
+      if (attempt >= 100 ||
+          _isPathAvailable(
+            candidatePath: path,
+            existingPath: existingPath,
+            reservedPaths: reservedPaths,
+          )) {
+        return path;
+      }
+    }
   }
 
+  /// Longest file or folder name Navis writes; see [safeFileNameComponent].
+  static const int maxComponentLength = safeFileNameMaxLength;
+
   static String sanitizePathComponent(String? raw, {required String fallback}) {
-    final source = raw?.trim() ?? '';
-    var sanitized = source
-        .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    sanitized = sanitized.replaceAll(RegExp(r'[. ]+$'), '');
-    if (sanitized.isEmpty) {
-      sanitized = fallback;
-    }
-    if (_reservedWindowsNames.contains(sanitized.toUpperCase())) {
-      sanitized = '_$sanitized';
-    }
-    return sanitized;
+    final cleaned = safeFileNameComponent(raw, fallback: fallback);
+    return cleaned.isEmpty ? unknownTrackFileName : cleaned;
   }
 
   bool _isPathAvailable({
@@ -152,7 +170,16 @@ class PermanentDownloadPathResolver {
     if (reservedPaths.contains(candidatePath)) {
       return false;
     }
-    return !File(candidatePath).existsSync();
+    if (!File(candidatePath).existsSync()) return true;
+    // Taken only by the file itself, named through another spelling of its
+    // folder (a link, junction or mapped drive).
+    try {
+      return existingPath != null &&
+          File(existingPath).existsSync() &&
+          FileSystemEntity.identicalSync(candidatePath, existingPath);
+    } on FileSystemException {
+      return false;
+    }
   }
 
   String _normalizeExtension(String rawExtension) {
@@ -160,28 +187,3 @@ class PermanentDownloadPathResolver {
     return trimmed.isEmpty ? 'bin' : trimmed;
   }
 }
-
-const Set<String> _reservedWindowsNames = <String>{
-  'CON',
-  'PRN',
-  'AUX',
-  'NUL',
-  'COM1',
-  'COM2',
-  'COM3',
-  'COM4',
-  'COM5',
-  'COM6',
-  'COM7',
-  'COM8',
-  'COM9',
-  'LPT1',
-  'LPT2',
-  'LPT3',
-  'LPT4',
-  'LPT5',
-  'LPT6',
-  'LPT7',
-  'LPT8',
-  'LPT9',
-};

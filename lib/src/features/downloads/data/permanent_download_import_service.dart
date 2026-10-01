@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/downloads/data/download_path_identity.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_media_identity.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/utils/search_text.dart';
@@ -15,6 +17,9 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// The private identity store kept at the root of a user-selected folder.
 const String permanentDownloadManifestFileName = '.navis-downloads.sqlite';
+
+/// Suffix of a download still being written; renamed away when complete.
+const String downloadPartSuffix = '.navis-part';
 
 enum PermanentDownloadImportDisposition {
   recognized,
@@ -154,57 +159,86 @@ class PermanentDownloadImportService {
     if (_isSafTreeUri(root.path)) {
       return _previewSaf(root.path);
     }
-    final canonicalRoot = await root.resolveSymbolicLinks();
+    final identity = await DownloadRootIdentity.resolve(root.path);
+    final canonicalRoot = identity.canonicalRoot;
     final profileFingerprint = _profileFingerprint();
     final manifestFile = File(
       p.join(canonicalRoot, permanentDownloadManifestFileName),
     );
-    final manifest = manifestFile.existsSync()
-        ? sqlite3.open(manifestFile.path)
-        : null;
+    Database? manifest;
+    var manifestRecords = const <String, _ManifestRecord>{};
+    if (manifestFile.existsSync()) {
+      try {
+        manifest = sqlite3.open(manifestFile.path);
+        manifestRecords = <String, _ManifestRecord>{
+          for (final record in _readManifestRecords(manifest).values)
+            identity.lookupKey(record.relativePath): record,
+        };
+      } on Object catch (error) {
+        // A damaged sidecar only loses its shortcut: embedded tags and names
+        // still identify files.
+        AppLogger.warning('Download folder manifest is unreadable: $error');
+      }
+    }
     try {
       final songIndex = await _openMatchIndex();
       final registered = await _cacheDao.getPermanentEntries();
-      final registeredPaths = registered
-          .map((track) => p.normalize(track.filePath))
-          .toSet();
-      final registeredSongsByPath = <String, String>{
+      // Stored paths use the folder as configured; the scan walks the
+      // resolved folder. Keys match them whichever spelling each uses.
+      final registeredSongsByKey = <String, String>{
         for (final track in registered)
-          p.normalize(track.filePath): track.songId,
+          if (identity.keyFor(track.filePath) case final key?)
+            identity.lookupKey(key): track.songId,
       };
       final registeredSongIds = registered.map((track) => track.songId).toSet();
-      final manifestRecords = manifest == null
-          ? const <String, _ManifestRecord>{}
-          : _readManifestRecords(manifest);
       final items = <PermanentDownloadImportItem>[];
 
-      await for (final entity in Directory(
-        canonicalRoot,
-      ).list(recursive: true)) {
-        if (entity is! File || _isNavisSidecar(entity.path)) continue;
-        final stat = await entity.stat();
+      await for (final found in _walkFolder(canonicalRoot)) {
+        if (_isIgnoredFile(found.path)) continue;
+        final entity = File(found.path);
+        final FileStat stat;
+        try {
+          if (!found.readable) {
+            throw FileSystemException('Folder is not readable', found.path);
+          }
+          stat = await entity.stat();
+        } on FileSystemException {
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath:
+                  identity.keyFor(found.path) ??
+                  p.relative(found.path, from: canonicalRoot),
+              fileSize: 0,
+              format: p.extension(found.path).replaceFirst('.', ''),
+              disposition: PermanentDownloadImportDisposition.inaccessible,
+            ),
+          );
+          continue;
+        }
         final normalizedPath = p.normalize(entity.path);
-        final relativePath = p.relative(normalizedPath, from: canonicalRoot);
+        final relativePath = identity.keyFor(normalizedPath);
+        if (relativePath == null) continue;
+        final lookupKey = identity.lookupKey(relativePath);
         final format = p
             .extension(normalizedPath)
             .replaceFirst('.', '')
             .toLowerCase();
         if (format.isEmpty) continue;
-        if (registeredPaths.contains(normalizedPath)) {
+        if (registeredSongsByKey.containsKey(lookupKey)) {
           items.add(
             PermanentDownloadImportItem(
               relativePath: relativePath,
               fileSize: stat.size,
               format: format,
               disposition: PermanentDownloadImportDisposition.alreadyRegistered,
-              songId: registeredSongsByPath[normalizedPath],
+              songId: registeredSongsByKey[lookupKey],
               matchOrigin: PermanentDownloadMatchOrigin.alreadyRegistered,
             ),
           );
           continue;
         }
 
-        final manifestRecord = manifestRecords[relativePath];
+        final manifestRecord = manifestRecords[lookupKey];
         if (manifestRecord != null) {
           if (manifestRecord.profileFingerprint != profileFingerprint) {
             items.add(
@@ -235,7 +269,21 @@ class PermanentDownloadImportService {
           }
         }
 
-        final tags = await _mediaIdentity.read(entity);
+        final Map<String, String> tags;
+        try {
+          tags = await _mediaIdentity.read(entity);
+        } on FileSystemException {
+          // Locked or vanished while scanning (antivirus, a sync client).
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: relativePath,
+              fileSize: stat.size,
+              format: format,
+              disposition: PermanentDownloadImportDisposition.inaccessible,
+            ),
+          );
+          continue;
+        }
         final taggedSongId = tags[PermanentDownloadMediaIdentity.songIdKey];
         final taggedProfile =
             tags[PermanentDownloadMediaIdentity.profileFingerprintKey];
@@ -501,6 +549,7 @@ class PermanentDownloadImportService {
       );
     }
     final root = Directory(preview.rootPath);
+    final identity = await DownloadRootIdentity.resolve(preview.rootPath);
     final manifest = _openManifest(root);
     var imported = 0;
     var skipped = 0;
@@ -516,7 +565,7 @@ class PermanentDownloadImportService {
         if (item.disposition ==
             PermanentDownloadImportDisposition.alreadyRegistered) {
           if (songId != null) {
-            final file = File(p.join(root.path, item.relativePath));
+            final file = File(identity.pathFor(item.relativePath));
             if (await file.exists()) {
               final stat = await file.stat();
               _writeManifestRecord(
@@ -544,7 +593,7 @@ class PermanentDownloadImportService {
           skipped++;
           continue;
         }
-        final file = File(p.join(root.path, item.relativePath));
+        final file = File(identity.pathFor(item.relativePath));
         if (!await file.exists()) {
           skipped++;
           continue;
@@ -710,14 +759,20 @@ class PermanentDownloadImportService {
     required String songId,
     required String format,
   }) async {
-    final canonicalRoot = await root.resolveSymbolicLinks();
+    final identity = await DownloadRootIdentity.resolve(root.path);
+    // The file may be named through either spelling of the folder.
+    final key = identity.keyFor(file.path);
+    // Tag first: rewriting FLAC comments changes the size the manifest
+    // records, and a stale size defeats the manifest match on rescan.
+    await _writeIdentityTags(file, songId);
+    if (key == null) return;
     final stat = await file.stat();
-    final manifest = _openManifest(Directory(canonicalRoot));
+    final manifest = _openManifest(Directory(identity.canonicalRoot));
     try {
       _writeManifestRecord(
         manifest,
         _ManifestRecord(
-          relativePath: p.relative(file.path, from: canonicalRoot),
+          relativePath: key,
           songId: songId,
           profileFingerprint: _profileFingerprint(),
           fileSize: stat.size,
@@ -725,7 +780,6 @@ class PermanentDownloadImportService {
           updatedAt: DateTime.now(),
         ),
       );
-      await _writeIdentityTags(file, songId);
     } finally {
       manifest.close();
     }
@@ -788,11 +842,51 @@ class PermanentDownloadImportService {
     return _DownloadMatchIndex(_libraryDao);
   }
 
+  /// Files under [root], found without following folder links (no loops,
+  /// nothing outside the folder). Links to files are included. A subfolder
+  /// that cannot be listed is reported as unreadable instead of ending the
+  /// scan; an unreadable root is still an error.
+  Stream<({String path, bool readable})> _walkFolder(String root) async* {
+    final pending = <String>[root];
+    while (pending.isNotEmpty) {
+      final directory = pending.removeLast();
+      final List<FileSystemEntity> entries;
+      try {
+        entries = await Directory(directory).list(followLinks: false).toList();
+      } on FileSystemException {
+        if (directory == root) rethrow;
+        yield (path: directory, readable: false);
+        continue;
+      }
+      for (final entry in entries) {
+        if (entry is Directory) {
+          pending.add(entry.path);
+        } else if (entry is File) {
+          yield (path: entry.path, readable: true);
+        } else if (entry is Link &&
+            await FileSystemEntity.type(entry.path) ==
+                FileSystemEntityType.file) {
+          yield (path: entry.path, readable: true);
+        }
+      }
+    }
+  }
+
+  /// Navis bookkeeping files that are never offered for import.
+  bool _isIgnoredFile(String path) {
+    final name = p.basename(path);
+    return _isNavisSidecar(path) ||
+        name.endsWith('.mime') ||
+        name.endsWith(downloadPartSuffix) ||
+        name.startsWith('.navis-saf-transfer-');
+  }
+
   bool _isNavisSidecar(String path) {
     final name = p.basename(path);
     return name == permanentDownloadManifestFileName ||
         name == '$permanentDownloadManifestFileName-wal' ||
-        name == '$permanentDownloadManifestFileName-shm';
+        name == '$permanentDownloadManifestFileName-shm' ||
+        name.endsWith(identityRewriteSuffix);
   }
 
   String _profileFingerprint() {
@@ -862,6 +956,16 @@ class PermanentDownloadImportService {
   }
 
   void _writeManifestRecord(Database db, _ManifestRecord record) {
+    // Older builds keyed records with the platform separator; a rewrite
+    // replaces that row with the portable key.
+    db.execute(
+      Platform.isWindows
+          ? "DELETE FROM download_records WHERE relative_path <> ?1 AND "
+                "lower(replace(relative_path, '\\', '/')) = lower(?1)"
+          : "DELETE FROM download_records WHERE relative_path <> ?1 AND "
+                "replace(relative_path, '\\', '/') = ?1",
+      <Object?>[record.relativePath],
+    );
     db.execute(
       'INSERT INTO download_records(relative_path, song_id, profile_fingerprint, file_size, format, updated_at) '
       'VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(relative_path) DO UPDATE SET '

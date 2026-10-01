@@ -519,6 +519,188 @@ void main() {
     );
 
     test(
+      'budget-limited partial delta keeps the persisted automatic deadline in status',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final deadline = DateTime.now().add(const Duration(hours: 1));
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: deadline,
+        );
+        // An interrupted Check for updates resumes before the deadline.
+        await database.librarySyncDao.enqueueWork(
+          serverId: config.id!,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 60,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async {
+            // Engine frames and results never carry the automatic deadline.
+            onProgress?.call(
+              const LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: LibrarySyncStage.fetchingSongs,
+                planKind: LibrarySyncPlanKind.deltaReconcile,
+              ),
+            );
+            return LibrarySyncState(
+              status: LibrarySyncStatus.partial,
+              stage: LibrarySyncStage.completed,
+              planKind: LibrarySyncPlanKind.deltaReconcile,
+              planReason: 'resumeDeltaReconcile',
+              failureCategory: 'entityBudget',
+              completedAt: DateTime.now(),
+            );
+          },
+          ({forceFull = false, onProgress}) async =>
+              const LibrarySyncState.idle(),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(engine.staleCalls, 1);
+        final status = container.read(librarySyncControllerProvider);
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(status.status, LibrarySyncStatus.partial);
+        expect(status.failureCategory, 'entityBudget');
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+        expect(status.nextAutomaticCheckAt, persisted.nextAutomaticCheckAt);
+        expect(status.nextRetryAt, persisted.nextEligibleAt);
+      },
+    );
+
+    test(
+      'repair keeps the automatic deadline and persisted retry in status',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final deadline = DateTime.now().add(const Duration(hours: 1));
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: deadline,
+        );
+        final retryAt = DateTime.now().add(const Duration(minutes: 15));
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(config.id!),
+            nextEligibleAt: Value(retryAt),
+          ),
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState.idle(),
+          ({forceFull = false, onProgress}) async {
+            for (final stage in <LibrarySyncStage>[
+              LibrarySyncStage.collectingCandidate,
+              LibrarySyncStage.applyingCandidate,
+            ]) {
+              onProgress?.call(
+                LibrarySyncState(
+                  status: LibrarySyncStatus.running,
+                  stage: stage,
+                  planKind: LibrarySyncPlanKind.fullRepair,
+                ),
+              );
+            }
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              planKind: LibrarySyncPlanKind.fullRepair,
+              completedAt: DateTime.now(),
+            );
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(engine.staleCalls, 0);
+        expect(
+          container.read(librarySyncControllerProvider).nextAutomaticCheckAt,
+          isNotNull,
+        );
+
+        final published = <LibrarySyncState>[];
+        container.listen<LibrarySyncState>(
+          librarySyncControllerProvider,
+          (_, next) => published.add(next),
+        );
+        await controller.repairLibrary();
+
+        expect(engine.forceFullCalls, <bool>[true]);
+        expect(
+          published.where(
+            (value) => value.status == LibrarySyncStatus.running,
+          ),
+          isNotEmpty,
+        );
+        for (final value in published) {
+          expect(value.nextAutomaticCheckAt, isNotNull, reason: '$value');
+        }
+        final status = container.read(librarySyncControllerProvider);
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(status.status, LibrarySyncStatus.succeeded);
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+        expect(status.nextAutomaticCheckAt, persisted.nextAutomaticCheckAt);
+        expect(status.nextRetryAt, persisted.nextEligibleAt);
+        expect(status.nextRetryAt, isNotNull);
+      },
+    );
+
+    test(
       'automatic timer waits for the persisted deadline before one catalog pass',
       () async {
         final database = createTestDatabase();

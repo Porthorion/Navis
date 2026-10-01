@@ -57,6 +57,10 @@ abstract class NavisPlaybackHandler {
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;
 
+  /// Songs the handler took out of the queue after accepting them, because
+  /// they could not be prepared when the player needed them.
+  Stream<QueueSongsDropped> get droppedSongsStream => const Stream.empty();
+
   /// Emits when a radio stream encounters a mid-playback error (e.g. HTTP 503,
   /// connection reset). The UI should show a dismissible error notification.
   Stream<void> get radioStreamErrorStream;
@@ -172,6 +176,27 @@ abstract class NavisPlaybackHandler {
   void registerPreferredMixToggleCallback(
     Future<void> Function(String seedSongId) callback,
   );
+}
+
+/// Why queued songs were dropped.
+enum QueueDropReason {
+  /// A deferred song could not be prepared when it was released.
+  release,
+
+  /// Songs could not be added (an insert or a move into the window).
+  insert,
+
+  /// A rebuild of the player (timeout recovery, far jump) could not
+  /// prepare them.
+  rebuild,
+}
+
+@immutable
+class QueueSongsDropped {
+  const QueueSongsDropped({required this.songIds, required this.reason});
+
+  final List<String> songIds;
+  final QueueDropReason reason;
 }
 
 @immutable

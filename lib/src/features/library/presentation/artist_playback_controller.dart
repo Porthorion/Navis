@@ -11,7 +11,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart'
-    show QueueInsertRun;
+    show QueueInsertRun, QueueSongsDropped;
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -322,6 +322,20 @@ class ArtistPlaybackState {
   };
 }
 
+/// Keeps [ArtistPlaybackController] informed of songs the player drops.
+/// Watched by the app shell: a direct stream subscription, because a
+/// provider nobody listens to has its listeners paused.
+final artistQueueDropRetentionProvider = Provider<void>((ref) {
+  final subscription = ref
+      .watch(queueSongsDroppedProvider)
+      .listen(
+        (event) => ref
+            .read(artistPlaybackControllerProvider.notifier)
+            .retainDroppedSongs(event),
+      );
+  ref.onDispose(subscription.cancel);
+});
+
 final artistPlaybackControllerProvider =
     NotifierProvider<ArtistPlaybackController, ArtistPlaybackState>(
       ArtistPlaybackController.new,
@@ -330,6 +344,12 @@ final artistPlaybackControllerProvider =
 class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
   int _generation = 0;
   int? _queueSelection;
+
+  /// The songs of the latest artist queue, so songs the handler drops later
+  /// (for example when a deferred song cannot be prepared) can still be
+  /// shown as unavailable instead of silently disappearing.
+  final Map<String, SongsTableData> _queuedSongs = <String, SongsTableData>{};
+  final Set<String> _retainedDrops = <String>{};
   bool _submitting = false;
   Stopwatch? _timer;
 
@@ -376,6 +396,8 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
     final generation = ++_generation;
     final queue = ref.read(queueProvider.notifier);
     _queueSelection = queue.reserveSelection();
+    if (action != ArtistPlaybackAction.add) _queuedSongs.clear();
+    _retainedDrops.clear();
     final timer = Stopwatch()..start();
     _timer = timer;
     final attempted = <String>{};
@@ -404,6 +426,9 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
       final incoming = selection.songs
           .where((song) => attempted.add(song.id))
           .toList();
+      for (final song in incoming) {
+        _queuedSongs[song.id] = song;
+      }
       for (final song in incoming) {
         if (selection.unavailableSongIds.contains(song.id)) {
           failures[song.id] = song;
@@ -459,8 +484,29 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
                 ),
               );
             }
-          } on Object {
-            AppLogger.warning('Artist queue batch could not finish.');
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'Artist queue batch could not finish. $error\n$stackTrace',
+            );
+            // The handler keeps whatever part of the batch it committed;
+            // every other song is retained as unavailable, not lost.
+            final added = <String, int>{};
+            for (final id in ref.read(queueProvider)) {
+              added[id] = (added[id] ?? 0) + 1;
+            }
+            for (final id in before) {
+              added[id] = (added[id] ?? 0) - 1;
+            }
+            final lost = <String>[];
+            for (final song in songs) {
+              final count = added[song.id] ?? 0;
+              if (count > 0) {
+                added[song.id] = count - 1;
+              } else {
+                lost.add(song.id);
+              }
+            }
+            skipped = lost;
           }
           if (!_owns(generation)) return;
           final byId = {for (final song in songs) song.id: song};
@@ -645,6 +691,29 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
       counts[song.id] = count - 1;
       return false;
     }).toList();
+  }
+
+  /// Shows songs of this controller's queue that the player dropped later
+  /// as unavailable. Fed by [artistQueueDropRetentionProvider].
+  void retainDroppedSongs(QueueSongsDropped event) {
+    final selection = _queueSelection;
+    if (!ref.mounted ||
+        selection == null ||
+        !ref.read(queueProvider.notifier).ownsSelection(selection)) {
+      return;
+    }
+    // Another occurrence of a song may still be queued; one missing
+    // occurrence is still worth showing.
+    final songs = <SongsTableData>[
+      for (final id in event.songIds)
+        if (_queuedSongs[id] case final song? when _retainedDrops.add(id)) song,
+    ];
+    if (songs.isEmpty) return;
+    AppLogger.info(
+      'Artist queue retained ${songs.length} songs dropped by the player '
+      '(${event.reason.name}).',
+    );
+    ref.read(retainedArtistQueueProvider.notifier).retain(songs, append: true);
   }
 
   void cancel() {

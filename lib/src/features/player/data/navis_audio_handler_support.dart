@@ -81,3 +81,30 @@ class CrossfadeTransitionMetric {
         .join(' ');
   }
 }
+
+/// Time limits for native player work. Tests shorten them to exercise
+/// recovery without waiting for production timeouts.
+@immutable
+class NavisPlaybackTimeouts {
+  const NavisPlaybackTimeouts({
+    this.load = const Duration(seconds: 12),
+    this.remoteStall = const Duration(seconds: 12),
+    this.seekBufferingRecovery = const Duration(seconds: 3),
+    this.reset = const Duration(seconds: 4),
+    this.control = const Duration(seconds: 4),
+  });
+
+  /// A native load or queue mutation that takes longer is abandoned and the
+  /// players are rebuilt.
+  final Duration load;
+
+  /// A remote stream that stops making progress for this long is recovered.
+  final Duration remoteStall;
+  final Duration seekBufferingRecovery;
+
+  /// Stopping, disposing or reconfiguring a player during recovery.
+  final Duration reset;
+
+  /// A single transport control call.
+  final Duration control;
+}

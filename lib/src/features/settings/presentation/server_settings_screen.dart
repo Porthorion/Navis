@@ -5,7 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/lastfm_api_client.dart';
+import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -491,7 +491,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         if (!result.valid) {
           if (!mounted) return;
           setState(() {
-            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(result, l10n);
+            _lastFmApiKeyError = lastFmApiKeyFailureMessage(result, l10n);
             _lastFmApiKeySuccess = null;
           });
           return;
@@ -654,19 +654,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-  }
-
-  String _lastFmApiKeyFailureMessage(
-    LastFmApiKeyValidationResult result,
-    AppLocalizations l10n,
-  ) {
-    if (result.apiErrorCode == 10 || result.statusCode == 403) {
-      return l10n.configurationLastFmApiKeyInvalid;
-    }
-    if (result.statusCode == 429) {
-      return l10n.configurationLastFmApiKeyRateLimited;
-    }
-    return result.message ?? l10n.configurationLastFmApiKeyValidationFailed;
   }
 
   String _toUserMessage(Object error, AppLocalizations l10n) {

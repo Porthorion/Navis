@@ -16,6 +16,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../helpers/test_database.dart';
 
@@ -811,6 +812,89 @@ void main() {
     );
 
     test(
+      'a sidecar manifest failure keeps the finished download',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_support_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        // A locked or unusable sidecar: a directory where the file belongs.
+        Directory(
+          '${supportDir.path}/audio/permanent/.navis-downloads.sqlite',
+        ).createSync(recursive: true);
+
+        final dio = _MockDio();
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          final savePath = invocation.positionalArguments[1] as String;
+          await File(savePath).parent.create(recursive: true);
+          await File(savePath).writeAsBytes(<int>[1, 2, 3, 4]);
+          return Response<void>(
+            requestOptions: RequestOptions(path: 'download'),
+            statusCode: 200,
+          );
+        });
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final downloadService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          dio: dio,
+        );
+        addTearDown(downloadService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Downloaded Song',
+            artistName: const Value('Downloaded Artist'),
+            suffix: const Value('mp3'),
+          ),
+        ]);
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await downloadService.processQueuedDownloads();
+
+        final track = await database.cacheDao.getCachedTrack('song-1');
+        expect(track, isNotNull);
+        expect(File(track!.filePath).existsSync(), isTrue);
+        expect(await database.downloadQueueDao.getQueuedItems(), isEmpty);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
       'queued item completes from compatible permanent cache during processing',
       () async {
         final cacheDir = await Directory.systemTemp.createTemp(
@@ -1245,6 +1329,278 @@ void main() {
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
+
+    test(
+      'start leaves files inside a custom download folder where they are',
+      () async {
+        final customDir = await Directory.systemTemp.createTemp(
+          'navis_custom_adopted_',
+        );
+        addTearDown(() => customDir.delete(recursive: true));
+        final adopted = File('${customDir.path}/Album X/01 Duality.mp3')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[4, 5, 6]);
+
+        final customService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => true,
+          readCustomDownloadFolderPath: () => customDir.path,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+        );
+        addTearDown(customService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Duality',
+            artistName: const Value('Slipknot'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: adopted.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await customService.start();
+
+        final track = await database.cacheDao.getCachedTrack('song-1');
+        expect(track?.filePath, adopted.path);
+        expect(adopted.existsSync(), isTrue);
+        expect(Directory('${customDir.path}/Slipknot').existsSync(), isFalse);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'startup cleanup keeps downloads stored through the other folder spelling',
+      () async {
+        final sandbox = await Directory.systemTemp.createTemp('navis_support_');
+        addTearDown(() => sandbox.delete(recursive: true));
+        final real = Directory('${sandbox.path}/real')..createSync();
+        final link = Link('${sandbox.path}/link')..createSync(real.path);
+        final file = File('${real.path}/audio/permanent/Artist/Song.mp3')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        final orphan = File('${real.path}/audio/permanent/Artist/Stray.mp3')
+          ..writeAsBytesSync(<int>[4]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: file.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            artistName: const Value('Artist'),
+          ),
+        ]);
+        final linkedService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          // The app data folder reached through a link.
+          readApplicationSupportDirectory: () async => Directory(link.path),
+        );
+        addTearDown(linkedService.stop);
+
+        await linkedService.start();
+
+        expect(file.existsSync(), isTrue);
+        expect(orphan.existsSync(), isFalse);
+      },
+      skip: !sqliteAvailable || Platform.isWindows,
+    );
+
+    group('partial files', () {
+      late Directory supportDir;
+      late _MockDio dio;
+      final savePaths = <String>[];
+
+      DownloadService serviceWith({String? customFolder}) {
+        final downloadService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => SubsonicApiClient(
+            baseUrl: 'https://example.com',
+            authConfig: const SubsonicAuthConfig(
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+            enableLogging: false,
+          ),
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customFolder != null,
+          readCustomDownloadFolderPath: () => customFolder,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          dio: dio,
+        );
+        addTearDown(downloadService.stop);
+        return downloadService;
+      }
+
+      void answerDownload({required bool fail}) {
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          final savePath = invocation.positionalArguments[1] as String;
+          savePaths.add(savePath);
+          await File(savePath).parent.create(recursive: true);
+          await File(savePath).writeAsBytes(<int>[1, 2, 3, 4]);
+          final options = RequestOptions(path: 'download');
+          if (fail) {
+            throw DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+            );
+          }
+          return Response<void>(requestOptions: options, statusCode: 200);
+        });
+      }
+
+      Future<void> enqueueSong() async {
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            artistName: const Value('Artist'),
+            suffix: const Value('mp3'),
+          ),
+        ]);
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+      }
+
+      List<String> audioFilesIn(Directory root) => root
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map((file) => p.relative(file.path, from: root.path))
+          .where((path) => !path.contains('.navis-downloads'))
+          .toList();
+
+      setUp(() async {
+        supportDir = await Directory.systemTemp.createTemp('navis_part_');
+        dio = _MockDio();
+        savePaths.clear();
+      });
+
+      tearDown(() async {
+        if (await supportDir.exists()) await supportDir.delete(recursive: true);
+      });
+
+      test(
+        'a download is written under a part name and renamed when complete',
+        () async {
+          answerDownload(fail: false);
+          await enqueueSong();
+
+          await serviceWith().processQueuedDownloads();
+
+          final track = await database.cacheDao.getCachedTrack('song-1');
+          expect(savePaths.single, '${track!.filePath}.navis-part');
+          expect(File(track.filePath).existsSync(), isTrue);
+          expect(File(savePaths.single).existsSync(), isFalse);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+
+      test(
+        'a failed transfer never leaves a file under the song name',
+        () async {
+          answerDownload(fail: true);
+          await enqueueSong();
+
+          await serviceWith().processQueuedDownloads();
+
+          expect(savePaths, isNotEmpty);
+          expect(
+            audioFilesIn(Directory('${supportDir.path}/audio/permanent')),
+            isEmpty,
+          );
+          expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+
+      test(
+        'startup removes part files of interrupted downloads in a custom '
+        'folder and keeps the user files there',
+        () async {
+          final custom = Directory('${supportDir.path}/custom')..createSync();
+          final part = File('${custom.path}/Other/Old Song.flac.navis-part')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(<int>[1]);
+          final mine = File('${custom.path}/Artist/Mine.mp3')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(<int>[2]);
+          final mineLookalike = File(
+            '${custom.path}/Artist/notes.navis-partial',
+          )..writeAsBytesSync(<int>[3]);
+          await enqueueSong();
+          final item =
+              (await database.downloadQueueDao.getQueuedItems()).single;
+          await database.downloadQueueDao.updateStatus(
+            item.id,
+            DownloadStatus.downloading,
+          );
+          // Startup resumes the queue; keep that transfer from finishing.
+          answerDownload(fail: true);
+
+          await serviceWith(customFolder: custom.path).start();
+
+          expect(part.existsSync(), isFalse);
+          expect(mine.existsSync(), isTrue);
+          expect(mineLookalike.existsSync(), isTrue);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+    });
 
     test(
       'removeDownloadedTrack prunes empty artist folders but keeps root folder',

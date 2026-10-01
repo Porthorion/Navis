@@ -44,6 +44,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('a mouse drag scrolls the shelf', (tester) async {
+    await render(tester);
+    final list = find.byType(Scrollable);
+    double offset() =>
+        tester.state<ScrollableState>(list.first).position.pixels;
+    expect(offset(), 0);
+    await tester.dragFrom(
+      tester.getCenter(find.text('2')),
+      const Offset(-300, 0),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(offset(), greaterThan(250));
+  });
+
   testWidgets('default Next tooltip appears on actual mouse hover', (
     tester,
   ) async {

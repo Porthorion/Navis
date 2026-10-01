@@ -58,12 +58,21 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   double appliedPitch = 1;
   bool failPitchOnce = false;
   String? failAppendSongId;
+
+  /// A load whose first song is this one fails, as a broken source would.
+  String? failLoadSongId;
   Completer<void>? seekGate;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
   int lastSetAudioSourcesCount = 0;
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
+
+  /// Mutations named here never complete, as a stuck native call would.
+  final Set<String> hang = <String>{};
+
+  Future<void> _hangIf(String method) =>
+      hang.contains(method) ? Completer<void>().future : Future<void>.value();
 
   Future<T> _mutate<T>(Future<T> Function() action) async {
     _activeMutations++;
@@ -183,14 +192,19 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> removeAudioSourceAt(int index) => _mutate(() async {
+    await _hangIf('removeAudioSourceAt');
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
   });
 
   @override
   Future<void> removeAudioSourceRange(int start, int end) => _mutate(() async {
+    await _hangIf('removeAudioSourceRange');
     rangeRemovals++;
     _sources.removeRange(start, end);
+    // Like just_audio: the current item keeps its place in the playlist.
+    final current = index;
+    if (current != null && current >= end) index = current - (end - start);
   });
 
   /// Song ids in the native playlist.
@@ -227,6 +241,15 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
+    await _hangIf('setAudioSources');
+    final failing = failLoadSongId;
+    if (failing != null &&
+        sources.isNotEmpty &&
+        sources.first is IndexedAudioSource &&
+        ((sources.first as IndexedAudioSource).tag as MediaItem?)?.id ==
+            failing) {
+      throw StateError('load failed');
+    }
     state = ProcessingState.loading;
     final gate = loadGate;
     loadGate = null;
@@ -266,10 +289,21 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> moveAudioSource(int currentIndex, int newIndex) =>
       _mutate(() async {
         _sources.insert(newIndex, _sources.removeAt(currentIndex));
+        // Like just_audio: the playing item keeps playing wherever it moves.
+        final playing = index;
+        if (playing == null) return;
+        if (playing == currentIndex) {
+          index = newIndex;
+        } else if (currentIndex < playing && newIndex >= playing) {
+          index = playing - 1;
+        } else if (currentIndex > playing && newIndex <= playing) {
+          index = playing + 1;
+        }
       });
 
   @override
   Future<void> addAudioSources(List<AudioSource> sources) => _mutate(() async {
+    await _hangIf('addAudioSources');
     batchMutationCount++;
     // Like a native batch: one failing source fails the whole call.
     if (failAppendSongId != null &&
@@ -286,6 +320,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> insertAudioSources(int at, List<AudioSource> sources) =>
       _mutate(() async {
+        await _hangIf('insertAudioSources');
         batchMutationCount++;
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;
@@ -318,18 +353,34 @@ void main() {
     bool crossfade = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+    List<_ControllableAudioPlayer>? rebuiltPlayers,
+    // Songs stream from a server, with desktop sidecar caching.
+    bool sidecarStreams = false,
+    Future<void> Function(NavisDatabase database)? seed,
     bool cacheSongs = true,
     SubsonicApiClient? Function()? readApiClient,
     bool Function()? readCanStream,
   }) async {
     final database = createTestDatabase();
+    final apiClient = sidecarStreams
+        ? SubsonicApiClient(
+            baseUrl: 'https://example.com',
+            authConfig: const SubsonicAuthConfig(
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+            enableLogging: false,
+          )
+        : null;
     final songs = <SongsTableCompanion>[];
     for (var i = 0; i < count; i++) {
       final id = 'song-$i';
       songs.add(SongsTableCompanion.insert(id: id, title: 'Song $i'));
     }
     await database.libraryDao.upsertSongs(songs);
-    for (var i = 0; i < (cacheSongs ? count : 0); i++) {
+    for (var i = 0; i < count && cacheSongs && !sidecarStreams; i++) {
       final id = 'song-$i';
       final file = File('${directory.path}/$id.mp3');
       await file.writeAsBytes(<int>[1, 2, 3]);
@@ -351,6 +402,7 @@ void main() {
         songIds: List<String>.generate(count, (index) => 'song-$index'),
       );
     }
+    await seed?.call(database);
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
@@ -363,14 +415,14 @@ void main() {
         cacheDao: database.cacheDao,
         libraryDao: database.libraryDao,
         rollingCacheManager: cache,
-        readApiClient: readApiClient ?? () => null,
+        readApiClient: readApiClient ?? () => apiClient,
         readStreamingQuality: () => const StreamingQuality(label: 'original'),
         readRollingCacheDirectory: () async => directory,
         readCachedPlaybackFirst: () => true,
         readCanStream: readCanStream,
-        readSupportsLockCaching: () => false,
+        readUsesSidecarRollingCache: () => sidecarStreams,
       ),
-      readApiClient: readApiClient ?? () => null,
+      readApiClient: readApiClient ?? () => apiClient,
       rollingCacheManager: cache,
       readRollingCacheBudgetBytes: () => 1024 * 1024,
       scrobbleService: _NoopScrobbleService(),
@@ -398,6 +450,15 @@ void main() {
       starSyncDao: database.starSyncDao,
       player: player,
       queueWindow: queueWindow,
+      timeouts: timeouts,
+      shuffleRandom: Random(7),
+      playerFactory: rebuiltPlayers == null
+          ? null
+          : () {
+              final rebuilt = _ControllableAudioPlayer();
+              rebuiltPlayers.add(rebuilt);
+              return rebuilt;
+            },
     );
     await handler.waitUntilReady();
     return (handler, player, database);
@@ -661,6 +722,31 @@ void main() {
     expect(handler.snapshot.queueSongIds, isNot(ids));
   });
 
+  test('skipping right after a queue edit still persists the edit', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final (handler, player, database) = await createHandler(directory, 6);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(6, (index) => 'song-$index');
+    await handler.replaceQueueWithData(
+      await database.libraryDao.getSongsByIds(ids),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    await handler.reorderQueue(5, 1);
+    await handler.skipToNext();
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+
+    expect(handler.snapshot.queueSongIds, isNot(ids));
+    expect(
+      (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+      handler.snapshot.queueSongIds,
+    );
+  });
+
   test('burst keeps latest target and serializes player mutations', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
     final (handler, player, database) = await createHandler(directory, 20);
@@ -769,6 +855,192 @@ void main() {
     expect(player.currentIndex, 1);
   });
 
+  test(
+    'an edit made after a navigation never overtakes one made before it',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis-fifo-');
+      final (handler, player, database) = await createHandler(directory, 10);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(10, (i) => 'song-$i');
+      // Hold the replacement in its native load.
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..loadGate = gate
+        ..loadEntered = entered;
+      final replacing = handler.replaceQueue(ids, expandMatchFlows: false);
+      await entered.future;
+
+      // A waits for the load a later navigation completes; B arrives after
+      // that navigation.
+      final first = handler.addToQueue(<String>[
+        'song-1',
+      ], expandMatchFlows: false);
+      final navigation = handler.playFromIndex(2);
+      final second = handler.addToQueue(<String>[
+        'song-2',
+      ], expandMatchFlows: false);
+      gate.complete();
+      await Future.wait(<Future<void>>[replacing, first, navigation, second])
+          .timeout(const Duration(seconds: 5));
+
+      expect(handler.snapshot.queueSongIds, <String>[
+        ...ids,
+        'song-1',
+        'song-2',
+      ]);
+    },
+  );
+
+  test('an edit a replacement discards reports it was cancelled', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-cancel-');
+    final (handler, player, database) = await createHandler(directory, 10);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(10, (i) => 'song-$i');
+    final gate = Completer<void>();
+    final entered = Completer<void>();
+    player
+      ..loadGate = gate
+      ..loadEntered = entered;
+    final replacing = handler.replaceQueue(ids, expandMatchFlows: false);
+    await entered.future;
+
+    final edit = handler.addToQueue(<String>[
+      'song-1',
+    ], expandMatchFlows: false);
+    final replacement = handler.replaceQueue(
+      ids.reversed.toList(),
+      expandMatchFlows: false,
+    );
+    gate.complete();
+
+    await expectLater(edit, throwsA(isA<OperationCancelledException>()));
+    await Future.wait(<Future<void>>[replacing, replacement]);
+    expect(handler.snapshot.queueSongIds, ids.reversed.toList());
+  });
+
+  group('a queue edit whose native call never returns', () {
+    const timeouts = NavisPlaybackTimeouts(
+      load: Duration(milliseconds: 150),
+      reset: Duration(milliseconds: 150),
+    );
+    List<String> ids(int count) =>
+        List<String>.generate(count, (i) => 'song-$i');
+
+    Future<
+      (
+        NavisAudioHandler,
+        _ControllableAudioPlayer,
+        List<_ControllableAudioPlayer>,
+      )
+    >
+    playingAt(int index) async {
+      final directory = await Directory.systemTemp.createTemp('navis-hang-');
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, database) = await createHandler(
+        directory,
+        10,
+        timeouts: timeouts,
+        rebuiltPlayers: rebuilt,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(ids(10), expandMatchFlows: false);
+      expect(player.sourceIds, ids(10));
+      player
+        ..moveTo(index)
+        ..isPlaying = true;
+      return (handler, player, rebuilt);
+    }
+
+    test('an insert that times out reloads the queue it left', () async {
+      final (handler, player, rebuilt) = await playingAt(3);
+      player.hang.add('insertAudioSources');
+
+      await expectLater(
+        handler.playNext(<String>['song-0'], expandMatchFlows: false),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+
+      final active = rebuilt.first;
+      expect(active.sourceIds, ids(10));
+      expect(active.index, 3);
+      expect(active.isPlaying, isTrue);
+      expect(handler.snapshot.queueSongIds, ids(10));
+      expect(handler.snapshot.currentSongId, 'song-3');
+
+      // The next edit lands on the reloaded player.
+      await handler.addToQueue(<String>['song-1'], expandMatchFlows: false);
+      expect(active.sourceIds, <String>[...ids(10), 'song-1']);
+    });
+
+    test('a removal that times out still removes the song', () async {
+      final (handler, player, rebuilt) = await playingAt(3);
+      player.hang.add('removeAudioSourceAt');
+
+      await expectLater(
+        handler.removeAt(6),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+
+      final expected = ids(10)..removeAt(6);
+      expect(rebuilt.first.sourceIds, expected);
+      expect(rebuilt.first.index, 3);
+      expect(handler.snapshot.queueSongIds, expected);
+    });
+  });
+
+  test(
+    'a seek served from a completed sidecar file keeps the whole queue',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis-sidecar-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        5,
+        sidecarStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(5, (i) => 'song-$i');
+      await handler.replaceQueue(ids, startIndex: 1, expandMatchFlows: false);
+      expect(player.sourceIds, ids);
+      final sidecar =
+          handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
+      // The stream finished caching; the fake player never lands a seek.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+      bool served() =>
+          handler.queue.value.length == 5 &&
+          handler.queue.value[1].extras!['sourceKind'] == 'file' &&
+          player.sourceIds.length == 5 &&
+          !handler.snapshot.isLoading;
+
+      await handler.seek(const Duration(seconds: 30));
+      for (var i = 0; i < 300 && !served(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      expect(player.sourceIds, ids);
+      expect(player.index, 1);
+      expect(handler.snapshot.queueSongIds, ids);
+      expect(handler.queue.value[1].extras!['sourceKind'], 'file');
+    },
+  );
+
   group('released queue window', () {
     const window = NavisQueueWindow(
       deferThreshold: 16,
@@ -827,6 +1099,50 @@ void main() {
       expect(handler.snapshot.queueSongIds, ids(60));
     });
 
+    test(
+      'songs that cannot play yet stay deferred instead of dropping',
+      () async {
+        final (handler, player, database) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Without a cached copy or a session the tail cannot resolve for now.
+        for (final id in ids(60, 9)) {
+          await database.cacheDao.removeCachedTrack(id);
+        }
+        player.moveTo(6);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(player.sourceIds, ids(9));
+        expect(handler.snapshot.queueSongIds, ids(60));
+        expect(handler.collectPlaybackDiagnostics()['deferredLength'], 51);
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ids(60),
+        );
+      },
+    );
+
+    test(
+      'a deferred song that can no longer be prepared is reported',
+      () async {
+        final (handler, player, database) = await windowed(60);
+        final dropped = <QueueSongsDropped>[];
+        final subscription = handler.droppedSongsStream.listen(dropped.add);
+        addTearDown(subscription.cancel);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Gone from the library while it waited in the tail.
+        await database.customStatement(
+          "DELETE FROM songs WHERE id = 'song-10'",
+        );
+
+        player.moveTo(6);
+        await until(() => player.sourceIds.length == 16);
+
+        expect(player.sourceIds, isNot(contains('song-10')));
+        expect(dropped.single.songIds, <String>['song-10']);
+        expect(dropped.single.reason, QueueDropReason.release);
+      },
+    );
+
     test('a near jump into the tail releases through it and seeks', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
@@ -852,7 +1168,212 @@ void main() {
       expect(handler.snapshot.currentIndex, 50);
       expect(handler.snapshot.currentSongId, 'song-50');
       expect(handler.snapshot.queueSongIds, ids(60));
+      // Only a window around the target: 32 before it, 8 after.
+      expect(player.sourceIds, ids(59, 18));
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 18);
+      expect(player.index, 32);
+    });
+
+    test('jumping back into released songs brings them back', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      // Near: the head releases back into the player.
+      await handler.playFromIndex(5);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-5' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 5);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      // The target, the songs after it and a page before it (here the rest
+      // of the 18 released songs).
       expect(player.sourceIds, ids(59));
+      expect(player.sourceIds[player.index!], 'song-5');
+    });
+
+    group('played songs', () {
+      const small = NavisQueueWindow(
+        deferThreshold: 16,
+        ahead: 4,
+        lowWater: 2,
+        page: 4,
+        nearJump: 8,
+        behind: 4,
+        trimSlack: 2,
+      );
+
+      Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
+      trimmed() async {
+        final directory = await Directory.systemTemp.createTemp('navis-trim-');
+        final created = await createHandler(directory, 60, queueWindow: small);
+        final (handler, player, database) = created;
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Play through ten songs.
+        for (var i = 0; i < 10; i++) {
+          player.moveTo(player.index! + 1);
+          await until(() => handler.snapshot.currentSongId == 'song-${i + 1}');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        return created;
+      }
+
+      int head(NavisAudioHandler handler) =>
+          handler.collectPlaybackDiagnostics()['deferredHeadLength'] as int;
+
+      test('beyond the window leave the player in batches', () async {
+        final (handler, player, database) = await trimmed();
+        expect(head(handler), 6);
+        expect(player.sourceIds.first, 'song-6');
+        expect(player.index, 4);
+        expect(handler.snapshot.currentIndex, 10);
+        expect(handler.snapshot.queueSongIds, ids(60));
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((s) => s.id),
+          ids(60),
+        );
+        expect((await database.playQueueDao.getQueueState())!.currentIndex, 10);
+      });
+
+      test(
+        'come back with Previous past the first song the player holds',
+        () async {
+          final (handler, player, _) = await trimmed();
+          for (var target = 9; target >= 4; target--) {
+            await handler.skipToPrevious();
+            await until(
+              () =>
+                  handler.snapshot.currentSongId == 'song-$target' &&
+                  !handler.snapshot.isLoading,
+            );
+          }
+          expect(handler.snapshot.currentIndex, 4);
+          expect(player.sourceIds[player.index!], 'song-4');
+          expect(handler.snapshot.queueSongIds, ids(60));
+          // One release of the target and a page before it.
+          expect(head(handler), 1);
+        },
+      );
+    });
+
+    test('a far jump whose song cannot load keeps the old queue', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      player
+        ..moveTo(3)
+        ..isPlaying = true;
+      await until(() => handler.snapshot.currentSongId == 'song-3');
+      player.failLoadSongId = 'song-50';
+
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.lastFailedSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(handler.snapshot.currentIndex, 3);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      expect(player.sourceIds.first, 'song-0');
+      expect(player.sourceIds[player.index!], 'song-3');
+    });
+
+    test('a far jump back rebuilds around the first song', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      await handler.playFromIndex(0);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-0' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 0);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      expect(player.sourceIds, ids(9));
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 0);
+    });
+
+    group('a remote row matched to a local song', () {
+      // The caller's remote row shares a local id; re-reading it by id would
+      // silently swap in the local row.
+      Future<List<SongsTableData>> queueWithRemote(
+        NavisDatabase database,
+      ) async {
+        final rows = await database.libraryDao.getSongsByIds(ids(60));
+        return <SongsTableData>[
+          for (final row in rows)
+            row.id == 'song-3'
+                ? row.copyWith(title: 'Remote 3', isExternal: true)
+                : row,
+        ];
+      }
+
+      String titleOf(NavisAudioHandler handler, String id) =>
+          handler.queue.value.firstWhere((item) => item.id == id).title;
+
+      test('keeps its row through a far jump rebuild', () async {
+        final (handler, _, database) = await windowed(60);
+        await handler.replaceQueueWithData(
+          await queueWithRemote(database),
+          startIndex: 0,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+        await handler.playFromIndex(50);
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-50' &&
+              !handler.snapshot.isLoading,
+        );
+        // Now among the released songs; bring it back.
+        await handler.playFromIndex(3);
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-3' &&
+              !handler.snapshot.isLoading,
+        );
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+      });
+
+      test('keeps its row when moved behind the window and back', () async {
+        final (handler, player, database) = await windowed(60);
+        await handler.replaceQueueWithData(
+          await queueWithRemote(database),
+          startIndex: 0,
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await handler.reorderQueue(3, 40);
+        expect(player.sourceIds, isNot(contains('song-3')));
+        await handler.reorderQueue(
+          handler.snapshot.queueSongIds.indexOf('song-3'),
+          3,
+        );
+        await until(() => player.sourceIds.contains('song-3'));
+        expect(titleOf(handler, 'song-3'), 'Remote 3');
+      });
     });
 
     test('edits inside the deferred tail touch no native state', () async {
@@ -881,16 +1402,182 @@ void main() {
       expect(handler.snapshot.queueSongIds, hasLength(60));
     });
 
-    test('turning shuffle on releases the deferred tail first', () async {
-      final (handler, player, _) = await windowed(60);
-      await handler.replaceQueue(ids(60), expandMatchFlows: false);
-      await handler.setShuffleMode(AudioServiceShuffleMode.all);
-      expect(player.sourceIds, ids(60));
-      expect(player.shuffleEnabled, isTrue);
-      expect(handler.collectPlaybackDiagnostics()['deferredLength'], 0);
+    group('Navis-owned shuffle', () {
+      void expectNativeMirrorsQueue(
+        NavisAudioHandler handler,
+        _ControllableAudioPlayer player,
+      ) {
+        final queue = handler.snapshot.queueSongIds;
+        final diagnostics = handler.collectPlaybackDiagnostics();
+        final head = diagnostics['deferredHeadLength'] as int;
+        expect(player.shuffleEnabled, isFalse);
+        expect(
+          player.sourceIds,
+          queue.skip(head).take(player.sourceIds.length),
+        );
+        expect(
+          head +
+              player.sourceIds.length +
+              (diagnostics['deferredLength'] as int),
+          queue.length,
+        );
+      }
+
+      test('turning shuffle on shuffles only what follows the current song '
+          'and keeps deferring', () async {
+        final (handler, player, _) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        player.moveTo(5);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+
+        final queue = handler.snapshot.queueSongIds;
+        expect(queue.take(6), ids(6));
+        expect(queue.skip(6).toSet(), ids(60, 6).toSet());
+        expect(queue.skip(6), isNot(ids(60, 6)));
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
+        expect(
+          handler.collectPlaybackDiagnostics()['deferredLength'],
+          isPositive,
+        );
+        expect(player.index, 5);
+        expectNativeMirrorsQueue(handler, player);
+      });
+
+      test('turning shuffle off restores the order, with songs added while '
+          'shuffled', () async {
+        final (handler, player, _) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        player.moveTo(5);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.playNext(<String>['song-0'], expandMatchFlows: false);
+        await handler.addToQueue(<String>['song-1'], expandMatchFlows: false);
+        // Two songs later, in shuffled order.
+        player.moveTo(7);
+        final playing = handler.snapshot.queueSongIds[7];
+
+        await handler.setShuffleMode(AudioServiceShuffleMode.none);
+
+        final expected = <String>[
+          ...ids(6),
+          'song-0',
+          ...ids(60, 6),
+          'song-1',
+        ];
+        expect(handler.snapshot.queueSongIds, expected);
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
+        expect(handler.snapshot.currentSongId, playing);
+        expect(player.index, expected.indexOf(playing));
+        expectNativeMirrorsQueue(handler, player);
+      });
+
+      test(
+        'a queue started with shuffle on begins at the chosen song',
+        () async {
+          final (handler, player, _) = await windowed(60);
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          await handler.replaceQueue(
+            ids(60),
+            startIndex: 10,
+            expandMatchFlows: false,
+          );
+          final queue = handler.snapshot.queueSongIds;
+          expect(queue.first, 'song-10');
+          expect(queue.toSet(), ids(60).toSet());
+          expect(queue, isNot(ids(60)));
+          expectNativeMirrorsQueue(handler, player);
+
+          await handler.setShuffleMode(AudioServiceShuffleMode.none);
+          expect(handler.snapshot.queueSongIds, ids(60));
+          expect(handler.snapshot.currentSongId, 'song-10');
+        },
+      );
+
+      Future<(NavisAudioHandler, _ControllableAudioPlayer)> restoring({
+        required List<String> playOrder,
+        required int currentIndex,
+        List<int>? originalOrder,
+      }) async {
+        final directory = await Directory.systemTemp.createTemp('navis-shuf-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          60,
+          queueWindow: window,
+          seed: (database) => database.playQueueDao.saveQueue(
+            currentIndex: currentIndex,
+            songIds: playOrder,
+            shuffleMode: ShuffleMode.all,
+            originalOrder: originalOrder,
+          ),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await until(
+          () =>
+              handler.snapshot.queueSongIds.length == 60 &&
+              !handler.snapshot.isLoading,
+        );
+        return (handler, player);
+      }
+
+      test(
+        'a saved shuffled queue restores in play order and unshuffles',
+        () async {
+          final playOrder = ids(60).reversed.toList();
+          final (handler, player) = await restoring(
+            playOrder: playOrder,
+            currentIndex: 2,
+            originalOrder: <int>[for (var i = 59; i >= 0; i--) i],
+          );
+          expect(handler.snapshot.queueSongIds, playOrder);
+          expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
+          expect(handler.snapshot.currentSongId, 'song-57');
+
+          await handler.setShuffleMode(AudioServiceShuffleMode.none);
+          expect(handler.snapshot.queueSongIds, ids(60));
+          expect(handler.snapshot.currentSongId, 'song-57');
+          expectNativeMirrorsQueue(handler, player);
+        },
+      );
+
+      test('a queue saved before Navis owned shuffle is shuffled again after '
+          'the current song', () async {
+        final (handler, player) = await restoring(
+          playOrder: ids(60),
+          currentIndex: 4,
+        );
+        final queue = handler.snapshot.queueSongIds;
+        expect(queue.take(5), ids(5));
+        expect(queue.skip(5).toSet(), ids(60, 5).toSet());
+        expect(queue.skip(5), isNot(ids(60, 5)));
+        expect(handler.snapshot.currentSongId, 'song-4');
+
+        await handler.setShuffleMode(AudioServiceShuffleMode.none);
+        expect(handler.snapshot.queueSongIds, ids(60));
+        expectNativeMirrorsQueue(handler, player);
+      });
+
+      test('the play order and the original order are both saved', () async {
+        final (handler, player, database) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        player.moveTo(3);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.debugFlushQueuePersistence();
+
+        final saved = await database.playQueueDao.getQueueEntries();
+        expect(
+          saved.map((entry) => entry.song.id),
+          handler.snapshot.queueSongIds,
+        );
+        final byOriginal = List.of(saved)
+          ..sort((a, b) => a.originalOrder!.compareTo(b.originalOrder!));
+        expect(byOriginal.map((entry) => entry.song.id), ids(60));
+      });
     });
 
-    test('repeat all waits until nothing is deferred', () async {
+    test('repeat all waits until nothing is deferred on either side', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
       await handler.setRepeatMode(AudioServiceRepeatMode.all);
@@ -902,7 +1589,18 @@ void main() {
             handler.snapshot.currentSongId == 'song-59' &&
             !handler.snapshot.isLoading,
       );
-      expect(player.appliedLoopMode, LoopMode.all);
+      // The first songs were released from the player, so it cannot wrap to
+      // them itself; Navis wraps once the last song ends.
+      expect(player.appliedLoopMode, LoopMode.off);
+      player.state = ProcessingState.completed;
+      await handler.play();
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-0' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 0);
+      expect(player.appliedLoopMode, LoopMode.off);
     });
 
     test('repeat all resumes when a new queue has nothing deferred', () async {
@@ -1077,5 +1775,186 @@ void main() {
       expect(handler.snapshot.currentIndex, 1);
       expect(player.isPlaying, isFalse);
     });
+  });
+
+  group('queue window model', () {
+    // A tiny window, so heads, tails, releases and trims happen constantly.
+    const tiny = NavisQueueWindow(
+      deferThreshold: 12,
+      ahead: 3,
+      lowWater: 2,
+      page: 3,
+      nearJump: 5,
+      behind: 3,
+      trimSlack: 1,
+    );
+    final seeds =
+        int.tryParse(Platform.environment['NAVIS_QUEUE_MODEL_SEEDS'] ?? '') ??
+        500;
+    const steps = 24;
+    const songCount = 30;
+
+    Future<void> settle(NavisAudioHandler handler) async {
+      var quiet = 0;
+      for (var i = 0; i < 2000 && quiet < 3; i++) {
+        await Future<void>.delayed(Duration.zero);
+        quiet = handler.debugQueueLaneIdle && !handler.snapshot.isLoading
+            ? quiet + 1
+            : 0;
+      }
+      if (quiet < 3) fail('queue work did not settle');
+    }
+
+    test('matches a plain list through random edits and navigation', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-model-');
+      addTearDown(() => directory.delete(recursive: true));
+      for (var seed = 0; seed < seeds; seed++) {
+        final random = Random(seed);
+        final (handler, player, database) = await createHandler(
+          directory,
+          songCount,
+          queueWindow: tiny,
+        );
+        final log = <String>[];
+        try {
+          var model = List<String>.generate(20, (i) => 'song-$i');
+          var current = random.nextInt(model.length);
+          await handler.replaceQueue(
+            model,
+            startIndex: current,
+            expandMatchFlows: false,
+          );
+          await settle(handler);
+
+          void check(String step) {
+            final reason = 'seed $seed after ${log.join(', ')}';
+            final snapshot = handler.snapshot;
+            expect(snapshot.queueSongIds, model, reason: reason);
+            expect(snapshot.currentIndex, current, reason: reason);
+            expect(snapshot.currentSongId, model[current], reason: reason);
+            final head =
+                handler.collectPlaybackDiagnostics()['deferredHeadLength']
+                    as int;
+            final native = player.sourceIds;
+            expect(
+              native,
+              model.sublist(head, head + native.length),
+              reason: reason,
+            );
+            expect(player.index! + head, current, reason: reason);
+            expect(player.shuffleEnabled, isFalse, reason: reason);
+          }
+
+          check('start');
+          for (var step = 0; step < steps; step++) {
+            final song = 'song-${random.nextInt(songCount)}';
+            switch (random.nextInt(9)) {
+              case 0:
+                log.add('next');
+                await handler.skipToNext();
+                if (current < model.length - 1) current++;
+              case 1:
+                log.add('previous');
+                await handler.skipToPrevious();
+                if (current > 0) current--;
+              case 2:
+                final target = random.nextInt(model.length);
+                log.add('jump $target');
+                await handler.playFromIndex(target);
+                current = target;
+              case 3:
+                final index = player.index!;
+                if (index + 1 >= player.sourceIds.length) continue;
+                log.add('advance');
+                player.moveTo(index + 1);
+                current++;
+              case 4:
+                log.add('add $song');
+                await handler.addToQueue(<String>[
+                  song,
+                ], expandMatchFlows: false);
+                model = <String>[...model, song];
+              case 5:
+                log.add('play next $song');
+                await handler.playNext(<String>[song], expandMatchFlows: false);
+                model = <String>[...model]..insert(current + 1, song);
+              case 6:
+                if (model.length < 3) continue;
+                var index = random.nextInt(model.length);
+                if (index == current) index = (index + 1) % model.length;
+                log.add('remove $index');
+                await handler.removeAt(index);
+                model = <String>[...model]..removeAt(index);
+                if (index < current) current--;
+              case 7:
+                var from = random.nextInt(model.length);
+                if (from == current) from = (from + 1) % model.length;
+                final to = random.nextInt(model.length + 1);
+                final adjusted = from < to ? to - 1 : to;
+                if (from == adjusted) continue;
+                log.add('move $from to $to');
+                await handler.reorderQueue(from, to);
+                final next = <String>[...model];
+                next.insert(adjusted, next.removeAt(from));
+                model = next;
+                if (from < current && adjusted >= current) {
+                  current--;
+                } else if (from > current && adjusted <= current) {
+                  current++;
+                }
+              case 8:
+                final on =
+                    handler.snapshot.shuffleMode ==
+                    AudioServiceShuffleMode.none;
+                log.add(on ? 'shuffle on' : 'shuffle off');
+                final playing = model[current];
+                await handler.setShuffleMode(
+                  on
+                      ? AudioServiceShuffleMode.all
+                      : AudioServiceShuffleMode.none,
+                );
+                await settle(handler);
+                final reordered = handler.snapshot.queueSongIds;
+                expect(
+                  List<String>.of(reordered)..sort(),
+                  List<String>.of(model)..sort(),
+                  reason: 'seed $seed: ${log.join(', ')}',
+                );
+                expect(
+                  handler.snapshot.currentSongId,
+                  playing,
+                  reason: 'seed $seed: ${log.join(', ')}',
+                );
+                if (on) {
+                  expect(
+                    reordered.take(current + 1),
+                    model.take(current + 1),
+                    reason: 'seed $seed: ${log.join(', ')}',
+                  );
+                }
+                model = List<String>.of(reordered);
+                current = handler.snapshot.currentIndex!;
+            }
+            await settle(handler);
+            check(log.last);
+          }
+          await handler.debugFlushQueuePersistence();
+          final saved = await database.playQueueDao.getQueueItems();
+          expect(
+            saved.map((song) => song.id),
+            model,
+            reason: 'seed $seed saved: ${log.join(', ')}',
+          );
+          expect(
+            (await database.playQueueDao.getQueueState())!.currentIndex,
+            current,
+            reason: 'seed $seed saved index: ${log.join(', ')}',
+          );
+        } finally {
+          await handler.disposeHandler();
+          await database.close();
+        }
+      }
+    }, timeout: const Timeout(Duration(minutes: 10)));
   });
 }

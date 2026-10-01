@@ -8,6 +8,9 @@ import 'dart:convert';
 /// FLAC/Vorbis comments are implemented without a platform plugin so Navis can
 /// recover identity on every supported desktop and mobile runtime. Other
 /// formats continue to use the root manifest as their authoritative identity.
+/// Suffix of the temporary copy written while identity tags are added.
+const String identityRewriteSuffix = '.navis-writing';
+
 class PermanentDownloadMediaIdentity {
   static const songIdKey = 'NAVIS_SONG_ID';
   static const profileFingerprintKey = 'NAVIS_PROFILE_FINGERPRINT';
@@ -83,9 +86,23 @@ class PermanentDownloadMediaIdentity {
       additions,
     );
     if (replacement == null) return;
-    final temporary = File('$path.navis-writing');
-    await temporary.writeAsBytes(replacement, flush: true);
-    await temporary.rename(path);
+    final temporary = File('$path$identityRewriteSuffix');
+    try {
+      await temporary.writeAsBytes(replacement, flush: true);
+      // Windows refuses the replace while another process (typically an
+      // antivirus scan of the new file) holds it open; that clears quickly.
+      for (var attempt = 1; ; attempt++) {
+        try {
+          await temporary.rename(path);
+          return;
+        } on FileSystemException {
+          if (attempt == 3) rethrow;
+          await Future<void>.delayed(Duration(milliseconds: 200 * attempt));
+        }
+      }
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   Uint8List? _writeFlac(Uint8List bytes, Map<String, String> additions) {

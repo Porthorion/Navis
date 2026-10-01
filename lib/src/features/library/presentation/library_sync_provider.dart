@@ -1289,10 +1289,28 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       state = stateBeforeRequest;
       return stateBeforeRequest;
     }
-    // The engine owns catalog result fields, but automatic scheduling is a
-    // controller-owned durable contract. A manual result must not blank the
-    // in-memory deadline while the persisted value remains valid.
-    state = result.copyWith(nextAutomaticCheckAt: state.nextAutomaticCheckAt);
+    // The engine owns catalog result fields, but both deadlines are durable
+    // scheduler inputs. Engine results do not carry the automatic deadline,
+    // and a run can start before the persisted row has been loaded, so the
+    // terminal status mirrors the row the timer and circuit will consult.
+    final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
+    final persisted = serverId == null
+        ? null
+        : await ref
+              .read(navisDatabaseProvider)
+              .librarySyncDao
+              .getOrCreateState(serverId);
+    if (!ref.mounted) {
+      return result;
+    }
+    state = persisted == null
+        ? result.copyWith(nextAutomaticCheckAt: state.nextAutomaticCheckAt)
+        : result.copyWith(
+            nextAutomaticCheckAt: persisted.nextAutomaticCheckAt,
+            clearNextAutomaticCheckAt: persisted.nextAutomaticCheckAt == null,
+            nextRetryAt: persisted.nextEligibleAt,
+            clearNextRetryAt: persisted.nextEligibleAt == null,
+          );
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
       case LibrarySyncStatus.partial:
@@ -1359,7 +1377,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       interval: librarySyncProgressPublishInterval,
       onPublish: (progress) {
         if (ref.mounted) {
-          state = progress;
+          // Engine progress never carries the controller-owned automatic
+          // deadline; keep it visible while the run is active.
+          state = progress.copyWith(
+            nextAutomaticCheckAt: state.nextAutomaticCheckAt,
+          );
         }
       },
     );

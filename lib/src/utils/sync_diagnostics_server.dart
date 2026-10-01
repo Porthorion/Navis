@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
@@ -1668,6 +1670,30 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
       }
+      if (request.method == 'POST' && path == '/v1/downloads/enqueue') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final songIds = body['songIds'];
+        if (songIds is! List ||
+            songIds.isEmpty ||
+            songIds.any((id) => id is! String || id.trim().isEmpty)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songIds must be a non-empty list of song ids',
+          });
+          return;
+        }
+        final service = _container.read(downloadServiceProvider);
+        for (final id in songIds.cast<String>()) {
+          await service.enqueueSong(id.trim());
+        }
+        await _respond(request, HttpStatus.accepted, <String, Object?>{
+          'queued': songIds.length,
+        });
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/downloads/folder/adopt') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -1840,7 +1866,7 @@ class SyncDiagnosticsServer {
                 body['text'] as String,
                 id: 'preview',
                 name: body['name'] as String,
-                fixedBand: body['fixedBand'] == true,
+                fixedBand: body['fixedBand'] as bool?,
               );
               success =
                   await controller.saveAs(
@@ -2465,6 +2491,50 @@ class SyncDiagnosticsServer {
           await handler.skipToNext();
         } else {
           await handler.skipToPrevious();
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          (path == '/v1/playback/shuffle' || path == '/v1/playback/repeat')) {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        if (path == '/v1/playback/shuffle') {
+          final enabled = body['enabled'];
+          if (enabled is! bool) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'enabled must be boolean',
+            });
+            return;
+          }
+          await handler.setShuffleMode(
+            enabled
+                ? AudioServiceShuffleMode.all
+                : AudioServiceShuffleMode.none,
+          );
+        } else {
+          final mode = switch (body['mode']) {
+            'none' => AudioServiceRepeatMode.none,
+            'one' => AudioServiceRepeatMode.one,
+            'all' => AudioServiceRepeatMode.all,
+            _ => null,
+          };
+          if (mode == null) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'mode must be none, one or all',
+            });
+            return;
+          }
+          await handler.setRepeatMode(mode);
         }
         await _respond(
           request,

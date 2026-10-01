@@ -100,6 +100,7 @@ class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
         #currentMediaItem => null,
         #mediaItemStream => const Stream<MediaItem?>.empty(),
         #loadFailureStream => const Stream<PlaybackLoadFailure>.empty(),
+        #droppedSongsStream => const Stream<QueueSongsDropped>.empty(),
         #radioStreamErrorStream => const Stream<void>.empty(),
         _ => null,
       };
@@ -293,6 +294,25 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('the shell starts the download service at launch', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
+    // Created, and so started, before any download control is used: an
+    // interrupted download resumes after a restart.
+    expect(container.exists(downloadServiceProvider), isFalse);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    expect(container.exists(downloadServiceProvider), isTrue);
+  });
 
   testWidgets('desktop player tooltip cycles keep semantics consistent', (
     tester,

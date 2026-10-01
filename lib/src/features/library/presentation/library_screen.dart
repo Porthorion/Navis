@@ -299,6 +299,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _onLibraryKeyEvent(KeyEvent event) {
     if (!mounted) return false;
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    // The shell keeps this branch mounted behind other tabs; only the visible
+    // Library tab may take keystrokes.
+    if (!TickerMode.valuesOf(context).enabled) return false;
     // Don't intercept when the quick-search overlay is visible.
     if (ref.read(quickSearchOverlayVisibleProvider)) return false;
     // Only when library root is the active screen (not inside album/artist detail)

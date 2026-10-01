@@ -449,7 +449,12 @@ class QueueController extends Notifier<List<String>> {
       }
       final handler = _requireHandler();
       final before = handler.snapshot.queueSongIds;
-      await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
+      try {
+        await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
+      } on OperationCancelledException {
+        // A queue replacement discarded the append: nothing was inserted.
+        return const RecommendationQueueResult(<String>[]);
+      }
       final after = handler.snapshot.queueSongIds;
       final insertedIds = _insertedSongIds(before: before, after: after);
       _prewarmLyricsForIds(insertedIds);

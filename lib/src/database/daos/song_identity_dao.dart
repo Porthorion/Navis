@@ -182,12 +182,21 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Moves [oldSongId]'s references, user state and cache onto
+  /// [canonicalSongId] and records the alias.
+  ///
+  /// The losing cache file is deleted once the remap commits. When the remap
+  /// runs inside a caller's transaction (catalog promotion), pass
+  /// [deferredFileDeletions]: the paths are added to it instead, for the
+  /// caller to delete after its own commit, so a rollback never leaves the
+  /// restored rows pointing at deleted files.
   Future<SongIdentityRemapResult> remapSongIdentity({
     required String oldSongId,
     required String canonicalSongId,
     required String matchReason,
     DateTime? matchedAt,
     bool retainOldCacheFile = false,
+    List<String>? deferredFileDeletions,
   }) async {
     final oldId = oldSongId.trim();
     final canonicalId = canonicalSongId.trim();
@@ -419,10 +428,19 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
 
     final deletedPaths = <String>[];
     final retainedPath = retainOldCacheFile ? oldCache?.filePath : null;
-    for (final path in cacheChoice.losingFilePaths) {
-      if (path == retainedPath) {
-        continue;
-      }
+    final losingPaths = <String>[
+      for (final path in cacheChoice.losingFilePaths)
+        if (path != retainedPath) path,
+    ];
+    if (deferredFileDeletions != null) {
+      deferredFileDeletions.addAll(losingPaths);
+      return SongIdentityRemapResult(
+        alias: alias,
+        deletedFilePaths: const <String>[],
+        restoredLike: restoredLike,
+      );
+    }
+    for (final path in losingPaths) {
       final file = File(path);
       try {
         if (await file.exists()) {

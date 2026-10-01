@@ -14,6 +14,11 @@ class PlayQueueItemsTable extends Table {
 
   IntColumn get sortOrder => integer()();
 
+  /// While shuffle is on, the row's position in the unshuffled queue;
+  /// [sortOrder] is the play order. Null when shuffle is off, and in queues
+  /// saved before schema v88.
+  IntColumn get originalOrder => integer().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {queueId, sortOrder};
 }

@@ -140,7 +140,15 @@ Located in `lib/src/providers/app_providers.dart`:
   one foreground one-shot timer that re-arms from that value; startup,
   reconnect, resume, and UI reconstruction only ask whether the deadline is
   due. They do not create independent periodic schedules. Manual checks and
-  repairs bypass this automatic deadline.
+  repairs bypass this automatic deadline. Engine progress and results never
+  carry it: the controller keeps it on progress frames and, after every
+  catalog run, reloads both `next_automatic_check_at` and the failure
+  cooldown (`next_eligible_at`) from the persisted row, so status shows the
+  deadlines the timer and circuit will use. A check that stops at its time,
+  entity, page, request, or byte budget is a successful bounded check: its
+  continuation stays queued without a cooldown, the failure circuit closes,
+  and the remainder resumes on the next schedule trigger (startup, resume,
+  reconnect, or the automatic deadline).
 - Durable sync work uses terminal `completed`, `cancelled`, `failed`, and
   `awaitingConfirmation` states. The next app lifecycle event must not revive
   a cancelled operation immediately. A new compatible user action, changed
@@ -205,7 +213,11 @@ Located in `lib/src/providers/app_providers.dart`:
   adaptive keyset pages. The atomic visibility transaction then writes only
   inserted or changed rows once, streams unseen-song anti-joins, applies an
   indexed provisional-song identity plan, and defers cache-file unlinking
-  until after commit. Unchanged catalogs therefore avoid metadata rewrites and
+  until after commit, including files that lose a song identity remap inside
+  the transaction (`SongIdentityReconciler.deferredFileDeletions`), so a
+  rolled-back promotion never leaves restored rows pointing at deleted files.
+  Explicit relinks from recovery review run outside a promotion and delete
+  immediately. Unchanged catalogs therefore avoid metadata rewrites and
   large in-memory ID collections.
 - Native Drift access uses WAL plus two pooled readers. Candidate collection
   and classification stay on the writer while an interactive read can proceed
@@ -536,8 +548,10 @@ through `release_notes_markdown.dart`.
   (`displayVersion`).
 - A release can carry `released` (`YYYY-MM-DD`), `codename`, `summary`,
   `highlights` and `iconAsset` (SVG or PNG under `assets/changelog/`).
-  `ChangelogReleaseIcon` falls back to a sparkles icon when there is none or
-  it fails to load.
+- `ChangelogReleaseCover` draws a release like album art and follows the
+  cover-shape preference. It uses the release's asset, or, when there is none
+  or it fails to load, a typographic cover: the version set large on
+  `primary`.
 - Highlight icons are a `ChangelogHighlightIcon` enum, mapped to Material
   icons in `changelog_style.dart`, so the data file needs no Flutter import.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
@@ -549,26 +563,31 @@ through `release_notes_markdown.dart`.
 recorded in `changelog_seen_version.txt` (Application Support), otherwise the
 running release plus the newest *major* in the unseen range
 (last seen, current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
-- With a featured major: "Check out 1.4 “Navi”", the release icon, up to
-  three highlight badges and "+N". It shows no description.
-- Patch only: one row, "Updated to 1.4.1 · 1 improved · 2 fixes".
+- It is a flat row styled like a library row.
+- With a featured major: a 48 px cover, "Check out 1.4 “Navi”", and one plain
+  line naming up to three highlights ("…and 2 more").
+- Patch only: "Updated to Navis 1.4.1" and its number of changes.
 - Tapping opens `/settings/about/changelog?version=<featured or current>`.
   Opening or dismissing records the running version as seen.
 
-**Changelog screen (`/settings/about/changelog`).**
+**Changelog screen (`/settings/about/changelog`).** A release reads like an
+album page, in the album screen's own grammar rather than banners or cards.
+- `ChangelogReleaseHeader`: the cover on the left (112 px phone, 208 px
+  desktop), then the codename (or "Navis 1.4"), "Navis 1.4" and
+  "Sep 30, 2026 • 90 changes", bottom-aligned like the desktop album header.
+  Patches have no cover.
+- `ChangelogHighlightList`: highlights as track-style rows (a narrow icon
+  column, title, one line), in two columns on desktop.
+- `ChangelogReleaseDetails`: an "All changes" section with Library-style
+  tabs (All, New, Improved, Fixed), plain paragraphs under plain
+  subheadings, and fixes past five behind "Show N more fixes".
+- `ChangelogReleaseRow`: a release in a list, with a 48 px cover for majors
+  and an empty slot for patches so they sit under their major.
 - Phones show the focused release (the `version` query parameter, else the
-  newest) in full, then an "Earlier releases" timeline of
-  `ChangelogTimelineTile`s that expand in place.
-  - A major gets `ChangelogReleaseHero` (a centred banner with icon, version,
-    codename, summary and counts) and `ChangelogHighlights` (a horizontal
-    strip).
-  - A patch gets a compact header and a "Part of 1.4 “Navi”" row that
-    focuses its major.
-- The desktop shell shows a version rail (majors lead, their patches are
-  indented) beside the selected release, whose highlights become a grid.
-- `ChangelogReleaseDetails` groups entries into New, Improved and Fixed with
-  filter chips. Fixes past five collapse behind "Show N more fixes" and use a
-  neutral colour, not the error role.
+  newest), then "Earlier releases" rows; tapping one shows it in place. A
+  patch adds a "Part of Navis 1.4 “Navi”" row that shows its major.
+- The desktop shell keeps the release rows in a list beside the selected
+  release.
 
 ### Common Widgets (`lib/src/common_widgets/`)
 
@@ -1131,7 +1150,13 @@ Identified tracks omitted by preparation stay in `retainedArtistQueueProvider`
 as grey removable rows in both queue views, separate from native playable
 indexes. These retained rows last for the current session and clear on queue
 replacement/clear, radio, or account changes. Unresolved releases with no track
-identities cannot create queue rows.
+identities cannot create queue rows. Songs the handler drops after accepting
+them (a deferred song that cannot be prepared when released, a move into the
+window that fails, a rebuild that cannot prepare a song) are published on
+`NavisPlaybackHandler.droppedSongsStream` as `QueueSongsDropped`;
+`artistQueueDropRetentionProvider`, kept alive by the app shell with a direct
+stream subscription, adds those that belong to the artist queue still in the
+player to the same retained rows.
 
 Play orders known releases chronologically and tracks by disc then track. Newly
 loaded tracks join the upcoming queue in that order while keeping the current
@@ -1359,38 +1384,103 @@ even if the rest of the queue is still filling.
 #### Released queue window
 
 Long queues are not handed to the native player whole. `NavisAudioHandler`
-keeps `_queueItems` and the native playlist one to one (so a logical index is
-the native index for everything the player holds) and keeps later songs in a
-Dart-only deferred tail (`NavisQueueWindow`, `navis_queue_window.dart`).
-Replacing, restoring, or rebuilding a queue longer than 256 songs materialises
-the prefix and 32 songs after the start song; the rest is deferred. When fewer
-than 12 materialised songs remain after the current one, one page of 32 is
-released with a single `addAudioSources` append. Releases run as idle queue
-lane work and never cancel a user command. `PlaybackSnapshot.queueSongIds`
-always lists the whole logical queue, so the Queue UI shows and edits every
-song; tapping a deferred song within 64 of the window releases through it and
-seeks, farther taps rebuild the player around it, and removes and reorders
-inside the tail are Dart-only. Songs that cannot be resolved when released are
-dropped. Turning shuffle on releases the whole tail first (native shuffle
-orders only what the player holds), and repeat-all stays off natively until
-nothing is deferred, so the player never wraps early; the reported repeat mode
-is the user's. `GET /v1/playback/status` reports `materializedLength`,
-`deferredLength`, and release counters. Known limit: restoring at, or jumping
-to, a far index still materialises the prefix before it.
+keeps `_queueItems` and the native playlist one to one and keeps the rest of
+the queue in two Dart-only lists (`NavisQueueWindow`,
+`navis_queue_window.dart`): a deferred tail of songs still to come and a
+deferred head of played songs released from the player. The logical queue is
+head + materialised + tail, so a logical index is the native index plus the
+head's length; snapshots, persistence and every index-based API (jumps,
+remove, reorder, insert runs, merges) use logical indices, while
+`playbackState.queueIndex` stays native, paired with the materialised `queue`
+that MPRIS, SMTC and Android media sessions see. Replacing, restoring, or
+rebuilding a queue longer than 256 songs materialises 32 songs before and 32
+after the start song; earlier songs go to the head and later ones to the
+tail. When fewer than 12 materialised songs remain after the current one, one
+page of 32 is released with a single `addAudioSources` append; once more than
+48 played songs (`behind` 32 + `trimSlack` 16) pile up in a long queue, the
+oldest beyond 32 move to the head with one range removal. Releases and trims
+run as idle queue lane work and never cancel a user command.
+`PlaybackSnapshot.queueSongIds` always lists the whole logical queue, so the
+Queue UI shows and edits every song. Tapping a deferred song within 64 of the
+window (either side) releases through it, and a page more for Previous, then
+seeks; farther taps rebuild the player around it, materialising only that
+window, and keep the old queue playing if the target cannot load. Removes,
+reorders and inserts entirely inside the head or tail are Dart-only; a
+reorder reaching into the head releases it first. Songs that cannot be
+resolved when released are dropped, except that a song that is only
+unplayable for now (offline without a cached copy, or no server session)
+stays deferred with every song after it and the release backs off and
+retries. Shuffled queues defer like any other (see Shuffle below).
+Repeat-all stays off natively while anything is deferred on either side, so
+the player never wraps early; the reported repeat mode is the user's, and at
+the end of the last song Navis wraps to the first itself.
+`GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
+`deferredHeadLength` and release counters. The queue window model test
+(`queue window model` in
+`test/src/features/player/data/navis_audio_handler_navigation_test.dart`)
+runs 500 seeded random sequences of navigation, auto-advance, edits and
+shuffle against a tiny window and checks the queue, index, native playlist
+and saved queue after every step; `NAVIS_QUEUE_MODEL_SEEDS` changes the count.
 
-The queue lane (`NavisSupersedingLane`) has four kinds of work. Replacements
-supersede everything; navigation cancels replacements and idle work but lets
-queued edits finish first; edits (add, play next, remove, reorder, merges,
-alias updates) run in FIFO order and are never silently dropped; idle work
-(tail releases) runs only on an empty lane. Edits apply one batched native
+Shuffle is owned by Navis, not the player (`_shuffleEnabled`,
+`navis_shuffle_order.dart`). Native shuffle is never enabled: it can order
+only what the player holds, and media_kit's `playlist-shuffle` physically
+reorders mpv's playlist while just_audio keeps the old order, so the song
+reported as playing was not the song heard. Instead the logical queue is
+always the play order, so the Queue shows the real order and next/previous
+step by one. Turning shuffle on keeps the history and the current song and
+shuffles the rest; a queue started with shuffle on begins at the chosen song
+with the others shuffled. The unshuffled order is kept in `_originalOrder`
+and reconciled lazily with edits made while shuffled
+(`reconcileOriginalRanks`: songs matched by occurrence, a song played next
+lands after the current song, appended songs go last, removed songs drop).
+Turning shuffle off restores that order around the current song without
+interrupting it (`_rearrangeQueue`). Schema v88 saves each queue row's
+unshuffled position in `play_queue_items.original_order` next to its play
+position, so a shuffled queue restores in the order it was playing; a queue
+saved by an older build (shuffle on, no original order) keeps its history and
+current song and shuffles the rest. Remote rows keep
+their own row whenever a materialised song returns to the tail (reorders,
+deferred ranges, far jumps, seek recovery, crossfade deck sync): the
+handler remembers the rows of materialised remote songs instead of re-reading
+their ids, which would drop them or swap in a matched local song.
+
+Every native queue edit runs under a timeout, including single removals and
+moves. A timeout rebuilds both players, which leaves the active one empty, so
+queue edits reload the materialised queue into the rebuilt player at the same
+song, position and play state before the edit reports its failure, keeping
+later edits in the lane consistent. Songs past the release window go back to
+the tail. An edit the Dart queue applied first (remove, move) stays applied;
+an insert that timed out is not applied.
+
+A seek that does not land on a remote stream is recovered by reloading the
+whole logical queue at the current song and position
+(`_rebuildQueueForSeekRecovery`); when the desktop sidecar file for the
+current song is complete, that song is loaded from the file instead of the
+stream. Either way every queued song, the deferred tail and the user's repeat
+mode are kept.
+
+The queue lane (`NavisSupersedingLane`) has five kinds of work. Replacements
+supersede everything; navigation cancels replacements, fills and idle work
+but lets queued edits finish first; edits (add, play next, remove, reorder,
+merges, alias updates) run in FIFO order and are never silently dropped;
+fills (the second phase of a restore or seek recovery) wait in order and
+cancel nothing, so a skip or edit made between the two phases survives; idle
+work (tail releases) runs only on an empty lane. An edit that finds a load
+still in progress goes to the back of the lane once; later edits that reach
+the front first follow it, so edits apply in the order they were made. An
+edit a replacement discards completes with `OperationCancelledException`
+rather than success; callers treat that as superseded, not as an error.
+Edits apply one batched native
 call where possible, fall back to per-song inserts only when a batch fails,
-and coalesce their queue save (at most 2 s). A successful native call made by
+and coalesce their queue save (at most 2 s); navigation keeps a pending
+coalesced save, so an edit followed at once by a skip is still persisted. A successful native call made by
 an edit is always committed even if a newer command superseded it, so the
 Dart queue never diverges from the player.
 
 Phase 2 resolves sources concurrently within a batch (8 songs first, then 64)
 and applies each batch with one `addAudioSources`/`insertAudioSources` call:
-every native insert re-sends the whole shuffle order and rebuilds the player
+every native insert re-sends the whole (identity) shuffle order and rebuilds the player
 sequence, so per-song inserts were quadratic in queue length. Songs after the
 selection are appended before the prefix is inserted, so the next track is
 ready for gapless playback first. The handler subscribes to just_audio's
@@ -1633,8 +1723,8 @@ states without starting audio or modifying a queue.
    honors `Retry-After`. Durable work owns later attempts with exponential
    cooldown. Three consecutive failures open the endpoint circuit; user,
    reconnect, and resume triggers may probe it early. The cooldown is exposed
-   as `LibrarySyncState.nextRetryAt`, populated both from persisted state at
-   launch and from the terminal coordinator result. Sync Settings renders it
+   as `LibrarySyncState.nextRetryAt`, populated from persisted state at launch
+   and reloaded from it after every catalog run. Sync Settings renders it
    separately from `nextAutomaticCheckAt`, so a normal interval and a
    failure-backoff wait cannot be mistaken for one another.
 7. Complete snapshots are generation-based. Old rows remain visible and
@@ -1901,9 +1991,27 @@ contract.
 6. A custom permanent-download root is user-owned: Navis records known files
    in its root `.navis-downloads.sqlite` sidecar and can adopt existing files
    only after an explicit preview/confirmation. The sidecar maps relative file
-   paths to a profile fingerprint and song ID; supported media tags are a
+   paths to a profile fingerprint and song ID. Paths inside a download folder
+   are compared by key (`DownloadRootIdentity`): the path relative to the
+   folder with `/` separators, reached through either the configured or the
+   link-resolved spelling of the folder, and case-insensitive on Windows only.
+   Sidecar keys written with `\` by older builds still match and are rewritten
+   on the next write, and moves never treat the same file under another
+   spelling as a separate destination. Supported media tags are a
    best-effort additional identity source. Unknown, ambiguous, and
-   profile-mismatched files remain untouched.
+   profile-mismatched files remain untouched. A transfer is written to
+   `<final name>.navis-part` and renamed into place (with retries while
+   Windows antivirus holds the new file) only after it completes, then
+   tagged and registered, so an interrupted download never appears under a
+   song's name. The app shell starts `DownloadService` at launch (it was
+   otherwise created only when a download control was first used), and its
+   startup after interrupted downloads requeues them and removes
+   `*.navis-part` files, and only those, from the active folder without
+   following links; folder scans ignore them. Promoting a rolling-cache file reuses an
+   existing destination only when its size matches. Resetting server data (a full
+   sign-out or server switch) removes the library rows but deletes only
+   Navis-owned audio files; files inside the custom folder and Android SAF
+   documents stay where they are.
    Android uses a persisted Storage Access Framework tree URI rather than a
    filesystem path. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
@@ -1917,7 +2025,8 @@ contract.
    manual-review screen; its local-song picker shows cover art and ranks exact
    title matches with liked songs (including liked-album tracks) first. Closing
    that review leaves unresolved user files untouched. Adopted files are never
-   modified: the sidecar is their identity record, and adoption writes sidecar
+   modified or moved: startup normalization leaves every file already inside a
+   custom root where it is, the sidecar is their identity record, and adoption writes sidecar
    records in one transaction and cache rows in chunks of 250 (one
    `cached_tracks` notification per chunk). Only files Navis downloads itself
    carry identity tags; they are written to the local file, off the UI

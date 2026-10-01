@@ -115,6 +115,13 @@ class PlaybackSourceUnavailableException implements Exception {
   String toString() => message;
 }
 
+/// No source is available now, but one may be later: playback is offline
+/// without a cached copy, or no server session exists yet.
+class PlaybackSourceTemporarilyUnavailableException
+    extends PlaybackSourceUnavailableException {
+  const PlaybackSourceTemporarilyUnavailableException(super.message);
+}
+
 class PlaybackSourceResolver {
   const PlaybackSourceResolver({
     required CacheDao cacheDao,
@@ -249,14 +256,14 @@ class PlaybackSourceResolver {
     }
 
     if (!cachePolicy.canStream) {
-      throw const PlaybackSourceUnavailableException(
+      throw const PlaybackSourceTemporarilyUnavailableException(
         'No cached playback source available while offline.',
       );
     }
 
     final api = _readApiClient();
     if (api == null) {
-      throw const PlaybackSourceUnavailableException(
+      throw const PlaybackSourceTemporarilyUnavailableException(
         'No authenticated Subsonic session available.',
       );
     }

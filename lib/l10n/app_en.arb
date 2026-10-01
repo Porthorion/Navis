@@ -1291,6 +1291,19 @@
   "downloadsCustomFolderSaved": "Download folder updated.",
   "downloadsCustomFolderDisabled": "Custom download folder disabled.",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
+  "downloadsScanError": "Could not scan the downloads folder.",
+  "downloadsRescanImported": "{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}",
+  "@downloadsRescanImported": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsManualImported": "{count, plural, =0{No matched downloads imported.} =1{1 matched download imported.} other{{count} matched downloads imported.}}",
+  "@downloadsManualImported": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "downloadsCustomFolderError": "Could not update download folder: {message}",
   "@downloadsCustomFolderError": {
     "placeholders": {
@@ -1419,36 +1432,11 @@
       "version": { "type": "String" }
     }
   },
-  "changelogDiscoveryMore": "+{count}",
-  "@changelogDiscoveryMore": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "changelogEmpty": "No Changelog Entries Yet.",
-  "changelogMajorRelease": "Major release",
   "changelogEntryTypeNew": "New",
   "changelogEntryTypeImproved": "Improved",
   "changelogEntryTypeFixed": "Fixed",
   "changelogFilterAll": "All",
-  "changelogNewCount": "{count, plural, =1{1 new} other{{count} new}}",
-  "@changelogNewCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "changelogImprovedCount": "{count, plural, =1{1 improved} other{{count} improved}}",
-  "@changelogImprovedCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "changelogFixedCount": "{count, plural, =1{1 fix} other{{count} fixes}}",
-  "@changelogFixedCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "changelogChangeCount": "{count, plural, =1{1 change} other{{count} changes}}",
   "@changelogChangeCount": {
     "placeholders": {
@@ -1478,6 +1466,14 @@
     }
   },
   "changelogHighlights": "Highlights",
+  "changelogAllChanges": "All changes",
+  "changelogDiscoveryAndMore": "{list} and {count} more",
+  "@changelogDiscoveryAndMore": {
+    "placeholders": {
+      "list": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "privacyTitle": "Privacy",
@@ -2061,6 +2057,46 @@
   "eqNoResults": "No matching headphones. Try the full index or import a profile.",
   "eqDownloadError": "Could not download this profile. Check your connection and try again.",
   "eqRefreshError": "Could not refresh. The existing catalogue is still available.",
+  "eqImportDefaultName": "Imported profile",
+  "eqImportErrorTooLarge": "EQ files must be smaller than 1 MB.",
+  "eqImportErrorEmpty": "The EQ file is empty.",
+  "eqImportErrorUnreadable": "The text in this file could not be read.",
+  "eqImportErrorNavisPreset": "This Navis preset is damaged or from a newer version.",
+  "eqImportErrorUnsupportedJson": "This JSON file is not an EQ format Navis can import.",
+  "eqImportErrorLine": "Line {line} is not an EQ setting Navis understands.",
+  "@eqImportErrorLine": {
+    "placeholders": {"line": {"type": "int"}}
+  },
+  "eqImportErrorValue": "Line {line} has a value outside the supported range.",
+  "@eqImportErrorValue": {
+    "placeholders": {"line": {"type": "int"}}
+  },
+  "eqImportErrorValueNoLine": "A value is outside the supported range.",
+  "eqImportErrorTooMany": "{count, plural, =1{EQ profiles can have at most 1 filter.} other{EQ profiles can have at most {count} filters.}}",
+  "@eqImportErrorTooMany": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "eqImportErrorNoFilters": "No EQ filters were found in this file.",
+  "eqImportErrorPreamp": "The preamp is outside the supported range.",
+  "eqImportErrorFixedBand": "Fixed-band profiles can only contain peaking filters.",
+  "eqImportErrorGraphic": "A GraphicEQ curve needs at least two points.",
+  "eqImportWarningsTitle": "Notes",
+  "eqImportWarningPreampSummed": "Several preamp lines were added together.",
+  "eqImportWarningPreampMissing": "No preamp was set; automatic headroom prevents clipping.",
+  "eqImportWarningIgnored": "{count, plural, =1{1 setting that does not affect the curve was ignored.} other{{count} settings that do not affect the curve were ignored.}}",
+  "@eqImportWarningIgnored": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "eqImportWarningDropped": "{count, plural, =1{1 filter of an unsupported type was left out.} other{{count} filters of unsupported types were left out.}}",
+  "@eqImportWarningDropped": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "eqImportWarningChannels": "Only the first channel’s settings were imported.",
+  "eqImportWarningSplitChannels": "Left and right differ; the left channel was imported.",
+  "eqImportWarningGraphic": "{count, plural, =1{The curve was matched with 1 filter (average difference {rms} dB).} other{The curve was matched with {count} filters (average difference {rms} dB).}}",
+  "@eqImportWarningGraphic": {
+    "placeholders": {"count": {"type": "int"}, "rms": {"type": "String"}}
+  },
   "eqImportError": "Could not read the preset file.",
   "eqExportError": "Could not export the preset.",
   "eqPresetDeleted": "Preset deleted. The current sound is preserved as Custom.",
