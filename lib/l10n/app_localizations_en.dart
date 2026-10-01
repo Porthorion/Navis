@@ -133,7 +133,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initialSyncUseMobileData => 'Sync using mobile data';
 
   @override
-  String get initialSyncFailed => 'Initial sync could not complete.';
+  String get initialSyncFailed => 'Your library could not be set up.';
 
   @override
   String get initialSyncCancelling => 'Cancelling and signing out...';
@@ -167,6 +167,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get requiredSyncRebuildFailed => 'Library rebuild could not complete.';
+
+  @override
+  String get requiredSyncFailureCacheReset =>
+      'The library cache could not be cleared.';
+
+  @override
+  String get requiredSyncFailureCacheRenewal =>
+      'The library cache still needs to be renewed.';
+
+  @override
+  String get requiredSyncFailureSignOut =>
+      'Signing out did not finish. Try again.';
 
   @override
   String get requiredSyncSignOut => 'Sign out';

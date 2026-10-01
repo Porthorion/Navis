@@ -325,7 +325,7 @@ abstract class AppLocalizations {
   /// No description provided for @initialSyncFailed.
   ///
   /// In en, this message translates to:
-  /// **'Initial sync could not complete.'**
+  /// **'Your library could not be set up.'**
   String get initialSyncFailed;
 
   /// No description provided for @initialSyncCancelling.
@@ -387,6 +387,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Library rebuild could not complete.'**
   String get requiredSyncRebuildFailed;
+
+  /// No description provided for @requiredSyncFailureCacheReset.
+  ///
+  /// In en, this message translates to:
+  /// **'The library cache could not be cleared.'**
+  String get requiredSyncFailureCacheReset;
+
+  /// No description provided for @requiredSyncFailureCacheRenewal.
+  ///
+  /// In en, this message translates to:
+  /// **'The library cache still needs to be renewed.'**
+  String get requiredSyncFailureCacheRenewal;
+
+  /// No description provided for @requiredSyncFailureSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing out did not finish. Try again.'**
+  String get requiredSyncFailureSignOut;
 
   /// No description provided for @requiredSyncSignOut.
   ///

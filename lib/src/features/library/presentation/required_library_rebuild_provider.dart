@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
@@ -25,13 +26,28 @@ enum RequiredLibraryRebuildStatus {
   complete,
 }
 
+/// Why a rebuild ended in [RequiredLibraryRebuildStatus.failed]; the screen
+/// words it.
+enum RequiredLibraryRebuildFailure {
+  /// The sync did not complete, or failed unexpectedly.
+  incomplete,
+  cacheResetFailed,
+  cacheRenewalPending,
+  signOutFailed,
+}
+
 class RequiredLibraryRebuildState {
   const new({
     this.status = RequiredLibraryRebuildStatus.idle,
+    this.failure,
     this.errorMessage,
   });
 
   final RequiredLibraryRebuildStatus status;
+  final RequiredLibraryRebuildFailure? failure;
+
+  /// The server's or sync engine's own explanation of a failure, when it gave
+  /// one; shown under the screen's status.
   final String? errorMessage;
 }
 
@@ -136,10 +152,11 @@ class RequiredLibraryRebuildController
       try {
         await _clearRecoverableCache();
       } on Object catch (error) {
+        AppLogger.warning('Library cache reset failed: ${error.runtimeType}.');
         if (_isCurrent(runEpoch)) {
-          state = RequiredLibraryRebuildState(
+          state = const RequiredLibraryRebuildState(
             status: RequiredLibraryRebuildStatus.failed,
-            errorMessage: 'Library cache reset failed: ${error.runtimeType}.',
+            failure: RequiredLibraryRebuildFailure.cacheResetFailed,
           );
         }
         return;
@@ -205,8 +222,7 @@ class RequiredLibraryRebuildController
           if (cacheRenewalStillRequired) {
             state = const RequiredLibraryRebuildState(
               status: RequiredLibraryRebuildStatus.failed,
-              errorMessage:
-                  'Library cache renewal is still pending after the rebuild.',
+              failure: RequiredLibraryRebuildFailure.cacheRenewalPending,
             );
             return;
           }
@@ -229,15 +245,16 @@ class RequiredLibraryRebuildController
       if (!_isCurrent(runEpoch)) return;
       state = RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.failed,
-        errorMessage:
-            result.errorMessage ?? 'Library rebuild did not complete.',
+        failure: RequiredLibraryRebuildFailure.incomplete,
+        errorMessage: result.errorMessage,
       );
     } on Object catch (error) {
+      AppLogger.warning('Library rebuild failed: ${error.runtimeType}.');
       if (_isCurrent(runEpoch) &&
           state.status != RequiredLibraryRebuildStatus.cancelling) {
-        state = RequiredLibraryRebuildState(
+        state = const RequiredLibraryRebuildState(
           status: RequiredLibraryRebuildStatus.failed,
-          errorMessage: 'Library rebuild failed: ${error.runtimeType}.',
+          failure: RequiredLibraryRebuildFailure.incomplete,
         );
       }
     }
@@ -332,7 +349,7 @@ class RequiredLibraryRebuildController
       if (state.status == RequiredLibraryRebuildStatus.cancelling) {
         state = const RequiredLibraryRebuildState(
           status: RequiredLibraryRebuildStatus.failed,
-          errorMessage: 'Sign-out did not complete. Try again.',
+          failure: RequiredLibraryRebuildFailure.signOutFailed,
         );
       }
     } finally {

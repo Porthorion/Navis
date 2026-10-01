@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'When first-time library setup cannot finish, the screen now says so once, in setup wording, and shows the server\'s own explanation when it gives one',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'On desktop, notices such as "Your library is ready" now appear above the player bar instead of covering page titles and buttons',
         type: ChangelogEntryType.improvement,
       ),

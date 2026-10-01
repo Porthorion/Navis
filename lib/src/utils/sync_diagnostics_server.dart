@@ -2754,6 +2754,7 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.ok, <String, Object?>{
       'reason': reason.routeValue,
       'status': state.status.name,
+      'failure': state.failure?.name,
       'errorMessage': state.errorMessage,
     });
   }
