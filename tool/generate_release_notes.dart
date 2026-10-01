@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Sync Settings now always shows when the next automatic check is due, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
         type: _EntryType.fix,
       ),

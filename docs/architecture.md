@@ -140,7 +140,15 @@ Located in `lib/src/providers/app_providers.dart`:
   one foreground one-shot timer that re-arms from that value; startup,
   reconnect, resume, and UI reconstruction only ask whether the deadline is
   due. They do not create independent periodic schedules. Manual checks and
-  repairs bypass this automatic deadline.
+  repairs bypass this automatic deadline. Engine progress and results never
+  carry it: the controller keeps it on progress frames and, after every
+  catalog run, reloads both `next_automatic_check_at` and the failure
+  cooldown (`next_eligible_at`) from the persisted row, so status shows the
+  deadlines the timer and circuit will use. A check that stops at its time,
+  entity, page, request, or byte budget is a successful bounded check: its
+  continuation stays queued without a cooldown, the failure circuit closes,
+  and the remainder resumes on the next schedule trigger (startup, resume,
+  reconnect, or the automatic deadline).
 - Durable sync work uses terminal `completed`, `cancelled`, `failed`, and
   `awaitingConfirmation` states. The next app lifecycle event must not revive
   a cancelled operation immediately. A new compatible user action, changed
@@ -1649,8 +1657,8 @@ states without starting audio or modifying a queue.
    honors `Retry-After`. Durable work owns later attempts with exponential
    cooldown. Three consecutive failures open the endpoint circuit; user,
    reconnect, and resume triggers may probe it early. The cooldown is exposed
-   as `LibrarySyncState.nextRetryAt`, populated both from persisted state at
-   launch and from the terminal coordinator result. Sync Settings renders it
+   as `LibrarySyncState.nextRetryAt`, populated from persisted state at launch
+   and reloaded from it after every catalog run. Sync Settings renders it
    separately from `nextAutomaticCheckAt`, so a normal interval and a
    failure-backoff wait cannot be mistaken for one another.
 7. Complete snapshots are generation-based. Old rows remain visible and

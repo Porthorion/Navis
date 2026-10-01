@@ -142,7 +142,15 @@ repeats the Home-to-Liked navigation while the clone is explicitly offline,
 then sends an album target request through the production controller and makes
 the same assertion while that request is active. It captures the Liked and
 Sync Settings presentations and repeats the health/status/screenshot checks
-after a clean restart, asserting that the deadline itself did not move.
+after a clean restart, asserting that the automatic deadline itself did not
+move and that both reported deadlines equal the persisted sync-state row. The
+retry cooldown must also be unchanged unless a catalog check ran after the
+restart (for example, an interrupted Check for updates in the cloned profile).
+A completed or budget-limited partial check must have cleared it, and a failed
+one must have scheduled a new one. The clone uses the desktop secure-storage
+password; when that store is locked or unavailable, set
+`NAVIS_DIAGNOSTICS_CREDENTIAL_PATH` to a private password file. The gate stops
+with an explicit error if the clone loses its server session.
 It also exports and validates the bounded redacted sync ledger, ensuring target
 hydration is attributable without sensitive server or library fields and reaches
 a recorded terminal transition rather than merely being accepted.

@@ -105,6 +105,14 @@ was verified, and what still needs a decision.
 - After a restart, an automatic delta sync that ends partial on its time or
   entity budget leaves no next automatic check or retry. Sync Settings then
   shows "Scheduling…". Reproduced on the commit before these changes.
+  **Fixed afterwards:** the run was the cloned profile's interrupted Check for
+  updates (durable origin `libraryPullToRefresh`) resuming before the future
+  deadline, not the automatic schedule. The persisted automatic deadline was
+  intact; the controller dropped it from status because engine progress and
+  results never carry it. Status now reloads both deadlines from the persisted
+  row after every catalog run. The cleared retry is correct, because a
+  budget-limited partial is a successful check that closes the failure
+  circuit, so the target-lane gate now checks the retry against that rule.
 - On an Android cold start where the session is not ready yet, the queue
   restore is deferred (`deferred_auth`) and only retried when Play is pressed.
 
