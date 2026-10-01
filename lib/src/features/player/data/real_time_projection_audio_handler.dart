@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Presents playback to the operating system in real listening time.
@@ -22,9 +23,12 @@ import 'package:rxdart/rxdart.dart';
 /// whole list over the platform channel on every change, which for a long or
 /// growing queue blocked the UI thread; the window is republished only when
 /// its songs change, and system queue indices are mapped back to the full
-/// queue. Everything else is forwarded unchanged.
+/// queue. With [systemArt] (Android), cover art that would carry the account
+/// token is published as a content URI instead (see [AndroidSystemArt]),
+/// including browse and search results. Everything else is forwarded
+/// unchanged.
 class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
-  new(this.inner) : super(inner) {
+  new(this.inner, {this.systemArt}) : super(inner) {
     _subscriptions
       ..add(
         inner.playbackState.listen((state) {
@@ -59,6 +63,9 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
   /// The handler the app talks to directly, in track time.
   final AudioHandler inner;
 
+  /// Replaces credential-bearing cover URLs for the system, when set.
+  final AndroidSystemArt? systemArt;
+
   final BehaviorSubject<PlaybackState> _playbackState =
       BehaviorSubject<PlaybackState>();
   final BehaviorSubject<MediaItem?> _mediaItem = BehaviorSubject<MediaItem?>();
@@ -68,6 +75,10 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
   final BehaviorSubject<List<MediaItem>> _queue =
       BehaviorSubject<List<MediaItem>>();
   int _queueWindowStart = 0;
+
+  /// The app's items behind [_queue], compared by identity, since the
+  /// published items are copies when [systemArt] rewrites their art.
+  List<MediaItem> _queueWindowSource = const <MediaItem>[];
 
   MediaItem? _lastSourceItem;
   double? _lastSpeed;
@@ -88,8 +99,8 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
     }
     final end = math.min(source.length, start + size);
     start = math.max(0, math.min(start, end));
-    final current = _queue.valueOrNull;
-    if (current != null &&
+    final current = _queueWindowSource;
+    if (_queue.hasValue &&
         start == _queueWindowStart &&
         current.length == end - start) {
       var same = true;
@@ -102,7 +113,15 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
       if (same) return false;
     }
     _queueWindowStart = start;
-    _queue.add(List<MediaItem>.unmodifiable(source.sublist(start, end)));
+    _queueWindowSource = source.sublist(start, end);
+    final art = systemArt;
+    _queue.add(
+      List<MediaItem>.unmodifiable(
+        art == null
+            ? _queueWindowSource
+            : _queueWindowSource.map((item) => art.forSystem(item)),
+      ),
+    );
     return true;
   }
 
@@ -131,7 +150,39 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
     }
     _lastSourceItem = source;
     _lastSpeed = speed;
-    _mediaItem.add(projectMediaItemToRealTime(source, speed));
+    final projected = projectMediaItemToRealTime(source, speed);
+    _mediaItem.add(
+      projected == null
+          ? null
+          : systemArt?.forSystem(projected, prefetch: true) ?? projected,
+    );
+  }
+
+  @override
+  Future<List<MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async {
+    final items = await super.getChildren(parentMediaId, options);
+    return systemArt?.forSystemList(items) ?? items;
+  }
+
+  @override
+  Future<List<MediaItem>> search(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final items = await super.search(query, extras);
+    return systemArt?.forSystemList(items) ?? items;
+  }
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    final item = await super.getMediaItem(mediaId);
+    final art = systemArt;
+    return item == null || art == null
+        ? item
+        : art.forSystem(item, prefetch: true);
   }
 
   @override

@@ -29,6 +29,8 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/features/player/data/android_system_art.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
@@ -988,24 +990,27 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  /// Caches [coverArtId]'s cover from [artUri] for the system media
+  /// controls and returns the local file, or `null` when there is no cache
+  /// on this platform or the download fails.
+  Future<String?> cacheSystemArtwork(String coverArtId, Uri artUri) =>
+      _artCache?.getOrFetch(coverArtId, artUri) ?? Future<String?>.value();
+
   /// Downloads the cover art for [trigger] to a local file and re-emits the
   /// current [MediaItem] with `artCacheFile` injected into
   /// [MediaItem.extras].
   ///
   /// ## Why extras, not artUri
   ///
-  /// A previous approach replaced [MediaItem.artUri] with a `file://` URI.
-  /// That caused Java's `createMediaMetadata` to write the raw file path into
-  /// `METADATA_KEY_DISPLAY_ICON_URI`.  Android Auto runs in a *separate OS
-  /// process* and cannot read another app's internal cache directory via a
-  /// plain `file://` URI, so it silently dropped the art.
+  /// The app keeps the HTTP [MediaItem.artUri]. The system never sees it:
+  /// on Android, [RealTimeProjectionAudioHandler] publishes a
+  /// `content://<package>.artwork/cover/<key>` URI served by
+  /// `NavisArtworkProvider` from this same cache file (Android Auto runs in
+  /// a separate process and cannot read a plain `file://` path), and the
+  /// Linux MPRIS and Windows SMTC bridges publish the file itself. The
+  /// Subsonic cover URL carries the account token, so it must not leave the
+  /// app.
   ///
-  /// By keeping the original HTTP artUri (which AAOS can fetch cross-process)
-  /// and injecting `artCacheFile` into [MediaItem.extras], we get the best of
-  /// both worlds:
-  ///
-  /// * `METADATA_KEY_DISPLAY_ICON_URI` stays as the HTTP URL → AAOS can load
-  ///   art from the network whenever it wants.
   /// * Java's `AudioService.setMetadata` reads `extras["artCacheFile"]`,
   ///   decodes the local JPEG with `BitmapFactory.decodeFile`, and stores the
   ///   result in `METADATA_KEY_ALBUM_ART` + `METADATA_KEY_DISPLAY_ICON` →

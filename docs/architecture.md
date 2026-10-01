@@ -1846,6 +1846,23 @@ reduce it itself, as `_diagnosticMediaReference` does. Native writes to stderr
 and other isolates are outside the zone; libmpv leaves its own terminal output
 off for embedding clients.
 
+Other processes never receive a credential-bearing URL either. The stream URL
+is not a `MediaItem` extra (audio_service copies every String extra into the
+Android session metadata); the desktop sidecar cache keeps it in the handler.
+Cover art reaches the system as a local file: `PlaybackArtCache` caches the
+current cover on Android, Linux and Windows (`artCacheFile` extra), MPRIS
+publishes it as `file://` and SMTC loads it with `StorageFile`; an artwork URL
+is published only when it carries no credentials (radio art,
+`uriCarriesCredentials`). On Android, `RealTimeProjectionAudioHandler` maps
+every credential-bearing `artUri` it publishes (metadata, the queue window,
+browse, search and `getMediaItem` results) through `AndroidSystemArt` to
+`content://<applicationId>.artwork/cover/<key>`, served read-only by the
+exported `NavisArtworkProvider` from the same cache, which Android Auto can
+open from its own process. Browse lists wait up to 1.5 s for their covers to
+download (six at a time); a cover not cached yet appears the next time the
+list is shown, and queue entries show art once it has been cached. The app
+itself keeps the HTTP `artUri`.
+
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
 position from `positionStream`; Windows SMTC coalesces routine timeline updates

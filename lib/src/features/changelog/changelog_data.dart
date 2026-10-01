@@ -180,6 +180,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Your server sign-in details are no longer shared with other apps through the media controls: the lock screen, notification, Android Auto, Linux media controls and Windows media overlay now get cover art from Navis itself instead of a server address that included your token',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Linux and Windows, Navis now checks your server\'s HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection',
         type: ChangelogEntryType.fix,
       ),
