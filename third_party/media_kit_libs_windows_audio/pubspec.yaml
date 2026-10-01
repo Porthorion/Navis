@@ -1,0 +1,21 @@
+name: media_kit_libs_windows_audio
+description: Navis copy of media_kit_libs_windows_audio that bundles a pinned, full libmpv build (with the libavfilter audio filters the equalizer needs).
+version: 1.0.9+navis.1
+publish_to: none
+homepage: https://github.com/media-kit/media-kit.git
+repository: https://github.com/media-kit/media-kit.git
+
+environment:
+  sdk: ">=2.17.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        pluginClass: MediaKitLibsWindowsAudioPluginCApi

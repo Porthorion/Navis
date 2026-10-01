@@ -1,12 +1,11 @@
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
+import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:uuid/uuid.dart';
@@ -18,8 +17,7 @@ final autoEqCatalogueProvider = Provider<AutoEqCatalogue>(
 final eqCapabilitiesProvider = Provider<EqCapabilities>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   return handler?.equalizerCapabilities ??
-      (Platform.isAndroid ||
-              (Platform.isLinux && JustAudioMediaKit.isRegistered)
+      (navisEqualizerSupported()
           ? EqCapabilities.available
           : EqCapabilities.unavailable);
 });

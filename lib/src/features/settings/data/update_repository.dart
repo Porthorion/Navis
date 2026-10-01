@@ -101,8 +101,11 @@ class UpdateRepository {
       final tagVersion = rawTag.startsWith('v') ? rawTag.substring(1) : rawTag;
       final tagSemver = _parseSemverCore(tagVersion);
 
-      if (currentSemver == null || tagSemver == null) {
-        // Fallback when format is unexpected.
+      // Only versioned releases are app updates; the repository also holds
+      // releases such as mirrored build inputs (`third-party-binaries`).
+      if (tagSemver == null) return false;
+      if (currentSemver == null) {
+        // Fallback when the installed version format is unexpected.
         return tagVersion != currentVersion;
       }
       return _compareSemverCore(tagSemver, currentSemver) > 0;

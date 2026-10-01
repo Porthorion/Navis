@@ -67,6 +67,12 @@ geometry coverage, and separate Android/Linux runtime evidence.
 against a 56k-track library, the changes made, before/after results, the
 follow-up after the UX merge, and known limits.
 
+[Windows review follow-up](audits/windows-review-2026-10-01.md) records the
+2026-10-01 Windows review changes, their verification and the decisions it
+raised. [Dependency audit](audits/dependency-audit-2026-10-01.md) lists
+dependencies and build-time binaries that are old, archived or carry
+advisories outside pub's version constraints, with a recommendation for each.
+
 [Polestar 4 automotive investigation](audits/polestar-4-automotive-investigation-2026-09-28.md)
 preserves the direct-install driving lockout report, Android Auto/AAOS findings,
 user preferences, and open questions. Automotive work is deferred separately

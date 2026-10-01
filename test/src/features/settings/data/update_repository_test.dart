@@ -8,6 +8,7 @@ import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class _MockDio extends Mock implements Dio {}
 
@@ -152,6 +153,54 @@ void main() {
         expect(result.downloadUrl, 'https://example.com/navis.apk');
       },
     );
+
+    test('a release whose tag is not a version is never an update', () async {
+      if (Platform.isIOS || Platform.isAndroid) {
+        return;
+      }
+      PackageInfo.setMockInitialValues(
+        appName: 'Navis',
+        packageName: 'com.navis.app.navis',
+        version: '1.4.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      Map<String, Object?> release(String tag) => <String, Object?>{
+        'tag_name': tag,
+        'prerelease': true,
+        'html_url': 'https://example.com/$tag',
+        'body': '',
+        'assets': <Object?>[],
+      };
+      var releases = <Object?>[
+        release('third-party-binaries'),
+        release('v1.3.0'),
+      ];
+      when(
+        () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
+      ).thenAnswer(
+        (_) async => Response<List<dynamic>>(
+          data: releases,
+          requestOptions: RequestOptions(path: '/releases'),
+          statusCode: 200,
+        ),
+      );
+      final repository = UpdateRepository(
+        dio: dio,
+        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
+      );
+
+      expect(
+        await repository.checkForUpdate(forceCheck: true, updateChannel: 'dev'),
+        isNull,
+      );
+      releases = <Object?>[release('third-party-binaries'), release('v1.4.1')];
+      final update = await repository.checkForUpdate(
+        forceCheck: true,
+        updateChannel: 'dev',
+      );
+      expect(update?.tagName, 'v1.4.1');
+    });
 
     test('skips network fetch when update check throttle is active', () async {
       if (Platform.isIOS) {

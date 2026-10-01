@@ -16,8 +16,9 @@ import '../../../../helpers/test_database.dart';
 /// Synthetic promotion measurement (plan §4 56k fixture row).
 ///
 /// The default size keeps the regular suite fast; the 56k-song measurement
-/// run scales the fixture with the environment:
-/// `NAVIS_PERF_SONG_COUNT=56000 NAVIS_PERF_ALBUM_COUNT=1000 flutter test ...`
+/// run scales the fixture with compile-time defines:
+/// `flutter test --dart-define=NAVIS_PERF_SONG_COUNT=56000
+/// --dart-define=NAVIS_PERF_ALBUM_COUNT=1000 ...`
 const _perfSongCount = int.fromEnvironment(
   'NAVIS_PERF_SONG_COUNT',
   defaultValue: 5000,
@@ -28,7 +29,7 @@ const _perfAlbumCount = int.fromEnvironment(
 );
 
 /// Albums (and artists) renamed by the id-rebuild measurement:
-/// `NAVIS_PERF_REBUILD_ALBUM_COUNT=2000 flutter test ...`.
+/// `flutter test --dart-define=NAVIS_PERF_REBUILD_ALBUM_COUNT=2000 ...`.
 const _perfRebuildAlbumCount = int.fromEnvironment(
   'NAVIS_PERF_REBUILD_ALBUM_COUNT',
   defaultValue: 100,

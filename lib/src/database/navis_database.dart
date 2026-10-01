@@ -2281,11 +2281,16 @@ FROM scrobble_queue;
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);',
     );
-    // Exact lookups on the derived search index: track-matching title keys,
-    // and title-then-artist prefixes for downloads-folder matching.
+    // Exact lookups on the derived search index: track-matching title and
+    // artist keys, and title-then-artist prefixes for downloads-folder
+    // matching.
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_song_search_text_match_title '
       'ON song_search_text(match_title);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_song_search_text_match_artist '
+      'ON song_search_text(match_artist);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_song_search_text_search '

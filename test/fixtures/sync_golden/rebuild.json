@@ -404,39 +404,6 @@
         "user_rating": null
       },
       {
-        "id": "s-mb-1",
-        "title": "Mb One",
-        "album_id": "al-mb2",
-        "artist_id": "ar-mb2",
-        "recording_mbid": "mb-rec-1",
-        "is_provisional": 1,
-        "server_deleted": 0,
-        "starred": 0,
-        "user_rating": null
-      },
-      {
-        "id": "s-mb-2",
-        "title": "Mb Two",
-        "album_id": "al-mb2",
-        "artist_id": "ar-mb2",
-        "recording_mbid": "mb-rec-2",
-        "is_provisional": 1,
-        "server_deleted": 0,
-        "starred": 0,
-        "user_rating": null
-      },
-      {
-        "id": "s-mb-3",
-        "title": "Mb Three",
-        "album_id": "al-mb2",
-        "artist_id": "ar-mb2",
-        "recording_mbid": "mb-rec-3",
-        "is_provisional": 1,
-        "server_deleted": 0,
-        "starred": 0,
-        "user_rating": null
-      },
-      {
         "id": "s-mb2-1",
         "title": "Mb One",
         "album_id": "al-mb2",
@@ -547,7 +514,23 @@
         "user_rating": null
       }
     ],
-    "songAliases": [],
+    "songAliases": [
+      {
+        "old_song_id": "s-mb-1",
+        "canonical_song_id": "s-mb2-1",
+        "match_reason": "recordingMbid"
+      },
+      {
+        "old_song_id": "s-mb-2",
+        "canonical_song_id": "s-mb2-2",
+        "match_reason": "recordingMbid"
+      },
+      {
+        "old_song_id": "s-mb-3",
+        "canonical_song_id": "s-mb2-3",
+        "match_reason": "recordingMbid"
+      }
+    ],
     "entityAliases": [
       {
         "entity_type": "album",
@@ -560,6 +543,24 @@
         "old_id": "ar-mb",
         "new_id": "ar-mb2",
         "match_reason": "stableMbid"
+      },
+      {
+        "entity_type": "song",
+        "old_id": "s-mb-1",
+        "new_id": "s-mb2-1",
+        "match_reason": "recordingMbid"
+      },
+      {
+        "entity_type": "song",
+        "old_id": "s-mb-2",
+        "new_id": "s-mb2-2",
+        "match_reason": "recordingMbid"
+      },
+      {
+        "entity_type": "song",
+        "old_id": "s-mb-3",
+        "new_id": "s-mb2-3",
+        "match_reason": "recordingMbid"
       }
     ],
     "recoveryReviews": [
@@ -600,7 +601,7 @@
         "download_status": "complete"
       },
       {
-        "song_id": "s-mb-2",
+        "song_id": "s-mb2-2",
         "file_path": "permanent-s-mb-2.mp3",
         "cache_type": "permanent",
         "download_status": "complete"
@@ -619,7 +620,7 @@
       "rolling-s-gone-2.mp3"
     ],
     "queue": [
-      "s-mb-1",
+      "s-mb2-1",
       "s-plain-1",
       "s-gone-2",
       "s-keep-1"

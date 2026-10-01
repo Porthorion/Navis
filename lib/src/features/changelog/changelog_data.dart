@@ -164,6 +164,22 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The equalizer is now available on Windows, and Windows playback runs on a current mpv and FFmpeg instead of a 2023 build',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The update check no longer offers repository releases that are not Navis versions as updates',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist top tracks and ListenBrainz playlists on Home find their songs in large libraries more than twice as fast, with the same matches as before',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'After a server rebuilds its library, downloads from the rebuilt albums are linked to the new songs in the same sync, instead of only on the next full sync',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
         type: ChangelogEntryType.fix,
       ),

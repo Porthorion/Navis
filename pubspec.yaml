@@ -53,7 +53,9 @@ dependencies:
   # Vendored: enables libmpv force-seekable for Subsonic progressive streams.
   just_audio_media_kit:
     path: third_party/just_audio_media_kit
-  media_kit_libs_windows_audio: ^1.0.9
+  # Vendored to bundle a pinned full libmpv (see the package's NAVIS.md).
+  media_kit_libs_windows_audio:
+    path: third_party/media_kit_libs_windows_audio
   media_kit_libs_linux: ^1.2.1
   navis_windows_smtc:
     path: third_party/navis_windows_smtc

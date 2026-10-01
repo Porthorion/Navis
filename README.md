@@ -44,7 +44,7 @@ Minimum tested versions:
 
 ## Equalizer
 
-Android and Linux support dedicated EQ editing, exact presets, AutoEQ import and
+Android, Linux and Windows support dedicated EQ editing, exact presets, AutoEQ import and
 offline headphone search. See [the equalizer guide](docs/equalizer.md) for
 platform and validation limits.
 

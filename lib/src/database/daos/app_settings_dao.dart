@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/database/navis_database.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/database/tables/app_settings_table.dart';
 
 part 'app_settings_dao.g.dart';
@@ -11,6 +13,44 @@ typedef GroupListeningSettingsRecord = ({
   String? voyageDeviceLabel,
   bool voyageAutoFollowHost,
 });
+
+const bool _cloneDiagnostics =
+    bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
+    String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') == 'clone';
+const String _diagnosticsRoot = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_ROOT',
+);
+
+/// A clone diagnostics profile is a copy of a real profile, so its settings
+/// can name the user's own downloads folder, and the download service would
+/// move the clone's downloads into it. In a clone, a filesystem download
+/// folder outside the diagnostics root therefore reads as unset; folders the
+/// diagnostics create inside the root, and Android tree URIs (whose grants
+/// belong to the real app), are kept.
+@visibleForTesting
+AppSettingsTableData? isolateCloneDownloadFolder(
+  AppSettingsTableData? row, {
+  required bool cloneDiagnostics,
+  required String diagnosticsRoot,
+}) {
+  final path = row?.customDownloadFolderPath?.trim();
+  if (row == null ||
+      !cloneDiagnostics ||
+      diagnosticsRoot.isEmpty ||
+      path == null ||
+      path.isEmpty ||
+      path.startsWith('content://') ||
+      p.isWithin(
+        p.normalize(p.absolute(diagnosticsRoot)),
+        p.normalize(p.absolute(path)),
+      )) {
+    return row;
+  }
+  return row.copyWith(
+    customDownloadFolderEnabled: false,
+    customDownloadFolderPath: const Value(null),
+  );
+}
 
 @DriftAccessor(tables: [AppSettingsTable])
 class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
@@ -28,15 +68,23 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     final query = select(appSettingsTable)
       ..where((table) => table.id.equals(primarySettingsId))
       ..limit(1);
-    return query.watchSingleOrNull();
+    return query.watchSingleOrNull().map(_isolateCloneDownloadFolder);
   }
 
-  Future<AppSettingsTableData?> getSettings() {
+  Future<AppSettingsTableData?> getSettings() async {
     final query = select(appSettingsTable)
       ..where((table) => table.id.equals(primarySettingsId))
       ..limit(1);
-    return query.getSingleOrNull();
+    return _isolateCloneDownloadFolder(await query.getSingleOrNull());
   }
+
+  static AppSettingsTableData? _isolateCloneDownloadFolder(
+    AppSettingsTableData? row,
+  ) => isolateCloneDownloadFolder(
+    row,
+    cloneDiagnostics: _cloneDiagnostics,
+    diagnosticsRoot: _diagnosticsRoot,
+  );
 
   Future<GroupListeningSettingsRecord> getGroupListeningSettings() async {
     final row = await customSelect(

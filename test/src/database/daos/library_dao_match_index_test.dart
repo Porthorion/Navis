@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
@@ -248,6 +250,87 @@ void main() {
       expect(await matches(fresh), reference);
       // Fresh keys narrow the candidates to songs that could match.
       expect(fresh.map((song) => song.id), isNot(contains('t5')));
+    });
+
+    test('the indexed lookup returns exactly the full-scan rows', () async {
+      // Words that are substrings of each other, one-letter words, accents
+      // and punctuation, so containment and shared-word matches overlap.
+      const words = <String>[
+        'Okabe',
+        'Okab',
+        'abe',
+        'Keiichi',
+        'Kei',
+        'A',
+        'x',
+        'Square',
+        'Enix',
+        'Music',
+        'feat.',
+        'Emi',
+        'Évans',
+        'evans',
+        'The',
+        'AC/DC',
+        '',
+        ' ',
+      ];
+      for (var seed = 0; seed < 25; seed++) {
+        final random = math.Random(seed);
+        String phrase(int maxWords) => List<String>.generate(
+          random.nextInt(maxWords + 1),
+          (_) => words[random.nextInt(words.length)],
+        ).join(' ');
+        await database.customStatement('DELETE FROM song_search_text');
+        await database.customStatement('DELETE FROM songs');
+        final songs = <SongsTableCompanion>[
+          for (var i = 0; i < 60; i++)
+            SongsTableCompanion.insert(
+              id: 's$seed-$i',
+              title: phrase(3),
+              artistName: Value(random.nextInt(8) == 0 ? null : phrase(4)),
+              isProvisional: Value(random.nextInt(10) == 0),
+              serverDeletedAt: Value(
+                random.nextInt(10) == 0 ? DateTime.utc(2026) : null,
+              ),
+            ),
+        ];
+        await database.batch(
+          (batch) => batch.insertAll(database.songsTable, songs.sublist(0, 50)),
+        );
+        await database.libraryDao.refreshSongSearchIndex();
+        // Songs added since the refresh have no index row.
+        await database.batch(
+          (batch) => batch.insertAll(database.songsTable, songs.sublist(50)),
+        );
+        for (var round = 0; round < 8; round++) {
+          // Songs renamed since the last refresh have stale keys.
+          for (var i = 0; i < 5; i++) {
+            await database.customStatement(
+              'UPDATE songs SET artist_name = ? WHERE id = ?',
+              <Object?>[phrase(3), 's$seed-${random.nextInt(50)}'],
+            );
+          }
+          final tracks = <({String title, String artist})>[
+            for (var i = random.nextInt(6); i >= 0; i--)
+              (title: phrase(3), artist: phrase(3)),
+          ];
+          final reference = await database.libraryDao
+              .debugTrackMatchCandidatesByFullScan(tracks);
+          final indexed = await database.libraryDao.getTrackMatchCandidates(
+            tracks,
+          );
+          expect(
+            indexed.map((song) => song.id).toSet(),
+            reference.map((song) => song.id).toSet(),
+            reason: 'seed $seed round $round tracks $tracks',
+          );
+          expect(indexed, hasLength(reference.length));
+          // Let the refresh the stale rows started finish before the next
+          // round changes the library.
+          await database.libraryDao.scheduleSongSearchIndexRefresh();
+        }
+      }
     });
   });
 }

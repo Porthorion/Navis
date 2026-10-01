@@ -37,6 +37,7 @@ import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/data/linux_mpris_bridge.dart';
 import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
+import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -131,9 +132,9 @@ class NavisAudioHandler extends BaseAudioHandler
       _equalizerPipelineEnabled = equalizerCapabilities?.supported ?? false;
       _player = player;
     } else {
-      _equalizerPipelineEnabled =
-          _isAndroidRuntime ||
-          (Platform.isLinux && JustAudioMediaKit.isRegistered);
+      _equalizerPipelineEnabled = navisEqualizerSupported(
+        android: _isAndroidRuntime,
+      );
       _player = _buildAudioPlayer(enableEqualizer: _equalizerPipelineEnabled);
     }
     _crossfadeEnabled = runtime.crossfadeEnabled;
@@ -6637,8 +6638,7 @@ class NavisAudioHandler extends BaseAudioHandler
   EqCapabilities get equalizerCapabilities {
     if (!_equalizerPipelineEnabled) return EqCapabilities.unavailable;
     return _injectedEqualizerCapabilities ??
-        ((_isAndroidRuntime ||
-                (Platform.isLinux && JustAudioMediaKit.isRegistered))
+        (navisEqualizerSupported(android: _isAndroidRuntime)
             ? EqCapabilities.available
             : EqCapabilities.unavailable);
   }

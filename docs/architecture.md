@@ -1201,8 +1201,10 @@ none of them own persistent state or issue native commands directly. The root
 hydrates EQ before audio creation; general settings saves omit its fields.
 The handler applies typed configurations to both decks and reports desired
 versus applied status. Android uses the vendored just_audio Media3 PCM processor;
-Linux's tracked media-kit adapter owns a combined EQ/tempo chain. Unsupported
-backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
+Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
+(Windows on the pinned full libmpv, see [release-windows.md](release-windows.md#bundled-libmpv)).
+`navisEqualizerSupported()` decides availability for both the controller and the
+handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in
 [equalizer.md](equalizer.md).
 
@@ -1913,7 +1915,10 @@ contract.
   claimant, and a same-identity claim keeps precedence over contested weaker
   claims (targeted hydration finalizes per album batch; promotion finalizes
   across the full candidate set). Candidate sets include retained confirmed-missing
-  rows so a later scan can relink them. `remapSongIdentity` merges user state
+  rows so a later scan can relink them. Rows a promotion itself preserves or
+  retains (downloads of a rebuilt album) get a second pass in the same
+  promotion, after the stale-song loop and before album/artist relinking, so
+  they are relinked by the promoting sync rather than the next one. `remapSongIdentity` merges user state
   with local precedence (a carried like keeps its original timestamp and is
   re-queued to the server through `star_sync_queue`), transfers absence
   evidence, local mutation journals, and writes both the legacy and the typed
@@ -2104,7 +2109,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
   share a word. A snapshot built from those makes the same matches as one
-  built from the whole library. Deferred maintenance normalizes in an isolate.
+  built from the whole library. The artist rules are tested once per distinct
+  `match_artist` key (indexed, like `match_title`), not once per song, and
+  the matching songs are read through the two key indexes;
+  `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
+  reference. Deferred maintenance normalizes in an isolate.
 - The artist page reads its albums through `album_artist_index`, a derived
   table of each album's artist keys (`i:<id>` for the album artist and each
   credit, `n:<normalized name>` for a name-only album artist and each credited

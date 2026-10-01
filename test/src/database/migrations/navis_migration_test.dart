@@ -2236,6 +2236,7 @@ SET group_listening_enabled = 1,
     try {
       raw.execute('DROP INDEX IF EXISTS idx_song_search_text_match_title;');
       raw.execute('DROP INDEX IF EXISTS idx_song_search_text_search;');
+      raw.execute('DROP INDEX IF EXISTS idx_song_search_text_match_artist;');
       for (final column in ['match_title', 'match_artist', 'match_album']) {
         raw.execute('ALTER TABLE song_search_text DROP COLUMN $column;');
       }
