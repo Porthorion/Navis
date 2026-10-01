@@ -37,7 +37,8 @@ Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
 2. Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 3. Native equalizer response/PCM fixtures (`tool/equalizer_native_test.sh`)
-4. `dart format --set-exit-if-changed .`
+4. `./tool/dart_format.sh --check` (reports without rewriting; excludes
+   vendored CargoKit, which is checked from its own directory)
 5. `dart run build_runner build`
 6. `flutter analyze --no-fatal-infos`
 7. Drift migration tests

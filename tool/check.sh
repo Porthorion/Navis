@@ -63,8 +63,7 @@ assert_no_blocking_warnings() {
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
-# Tracked sources only: build/ can hold stale copies from other tooling.
-run_step "format check" dart format --set-exit-if-changed lib test tool third_party
+run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos
 # custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility

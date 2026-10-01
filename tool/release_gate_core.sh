@@ -89,7 +89,7 @@ assert_no_blocking_warnings() {
 tmp_log_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_log_dir}"' EXIT
 
-run_step "format check" dart format --set-exit-if-changed .
+run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze
 

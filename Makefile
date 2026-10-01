@@ -22,10 +22,10 @@ lint:
 	flutter analyze --no-fatal-infos
 
 format:
-	dart format .
+	./tool/dart_format.sh
 
 format-check:
-	dart format --set-exit-if-changed .
+	./tool/dart_format.sh --check
 
 release:
 	@echo "Usage: make release VERSION=v0.3.0 [IPA=1]"
