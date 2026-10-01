@@ -748,8 +748,11 @@ class SyncSettingsScreen extends ConsumerWidget {
       return l10n.syncSettingsNeverSynced;
     }
     final material = MaterialLocalizations.of(context);
-    return '${material.formatFullDate(value)} '
-        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(value))}';
+    // Sync deadlines can be UTC (the scheduler's own values); always show
+    // the device's local time.
+    final local = value.toLocal();
+    return '${material.formatFullDate(local)} '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
   }
 
   String _humanize(String value) {

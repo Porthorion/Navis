@@ -260,7 +260,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Sync Settings now always shows when the next automatic check is due, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
+        'Sync Settings now always shows when the next automatic check is due, in your local time, instead of Scheduling…, after a check that stopped at its safe sync limit or after a library repair',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

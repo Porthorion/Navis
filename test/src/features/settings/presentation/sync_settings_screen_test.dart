@@ -480,6 +480,83 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('shows sync deadlines in local time', (tester) async {
+    final lastSynced = DateTime(2026, 2, 20);
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final router = GoRouter(
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) =>
+              const Scaffold(body: Text('Required library rebuild')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+                lastSynced: lastSynced,
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.idle,
+                stage: LibrarySyncStage.idle,
+                lastSyncedAt: lastSynced,
+                nextAutomaticCheckAt: DateTime.utc(2026, 2, 20, 12),
+              ),
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp.router(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(SyncSettingsScreen));
+    final material = MaterialLocalizations.of(context);
+    final local = DateTime.utc(2026, 2, 20, 12).toLocal();
+    expect(
+      find.text(
+        '${material.formatFullDate(local)} '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(local))}',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('shows redacted Android background schedule state', (
     tester,
   ) async {
