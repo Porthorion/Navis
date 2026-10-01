@@ -195,4 +195,20 @@ void main() {
     expect(drained, 1);
     expect(lane.isIdle, isTrue);
   });
+
+  test('work runs in the zone the lane was created in', () async {
+    final lane = NavisSupersedingLane();
+    // As a database transaction's zone would carry its connection.
+    const key = #submitterZoneValue;
+    final seen = <Object?>[];
+    await runZoned(
+      () => lane.enqueue((_) async {
+        seen.add(Zone.current[key]);
+        await Future<void>.delayed(Duration.zero);
+        seen.add(Zone.current[key]);
+      }),
+      zoneValues: <Object?, Object?>{key: 'transaction'},
+    );
+    expect(seen, <Object?>[null, null]);
+  });
 }

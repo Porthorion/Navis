@@ -1342,10 +1342,13 @@ song and played prefix in place: each admit is one `insertQueueRuns` edit with
 one contiguous run per release. Shuffle randomizes available tracks and merges
 each new batch at random upcoming positions with one `mergeIntoUpcoming` edit,
 without restarting the current song. The current song and the next two keep
-their place; the rest of the upcoming queue is merged in Dart after one native
-range removal, so an admit costs O(1) native operations however many songs it
-carries (per-song moves made a remote-heavy artist's Shuffle quadratic and
-flooded the media session). After a hydrated release, the resolver re-reads
+their place. Once part of the queue is deferred (see Released queue window),
+every song the player holds keeps its place too and new songs are merged among
+the deferred ones in Dart only, so an admit makes no native call and never
+races a crossfade deck; before that, the rest of the upcoming queue is merged
+in Dart after one native range removal. Either way an admit costs O(1) native
+operations however many songs it carries (per-song moves made a remote-heavy
+artist's Shuffle quadratic and flooded the media session). After a hydrated release, the resolver re-reads
 only that album (`getArtistPlaybackAlbum`) instead of the whole catalogue.
 Once a user edits the queue, filling preserves that order and appends subsequent
 batches. Removed song IDs are not reintroduced by later snapshots. Artist Add to
@@ -1633,12 +1636,26 @@ later edits in the lane consistent. Songs past the release window go back to
 the tail. An edit the Dart queue applied first (remove, move) stays applied;
 an insert that timed out is not applied.
 
-A seek that does not land on a remote stream is recovered by reloading the
-whole logical queue at the current song and position
-(`_rebuildQueueForSeekRecovery`); when the desktop sidecar file for the
-current song is complete, that song is loaded from the file instead of the
-stream. Either way every queued song, the deferred tail and the user's repeat
-mode are kept.
+A seek that does not land on a remote stream, a seek that keeps buffering and
+a stalled remote stream are recovered by reloading the whole logical queue at
+the current song and position (`_rebuildQueueForSeekRecovery`); when the
+desktop sidecar file for the current song is complete, that song is loaded
+from the file instead of the stream. Either way every queued song, the
+deferred head and tail and the user's repeat mode are kept. Recovery cancels a
+crossfade in progress and runs as navigation work, so queue edits already
+waiting (an artist's next albums) apply first and the queue is captured after
+them; the queue counts as loading only once the reload starts, so waiting
+behind queue work or a slow database read never stops refills or fades. The
+rest of the queue is restored as fill work submitted from inside the
+recovery, so an edit made meanwhile applies to the restored queue. Once the
+current song is reloaded the rest is always restored and the load completed,
+even if a newer transport command (pause, another seek) arrives; only the
+seek correction and resume yield to it. When the song cannot be reloaded (a
+stream that times out again leaves both players rebuilt empty) the queue
+lists are put back rather than left cut down to that song, and the stall
+path then skips to the next song by its logical index. Navigation to a song
+the player should hold rebuilds the player around it, like a far jump, when
+the player no longer holds the materialised queue.
 
 The queue lane (`NavisSupersedingLane`) has five kinds of work. Replacements
 supersede everything; navigation cancels replacements, fills and idle work
@@ -1656,7 +1673,19 @@ call where possible, fall back to per-song inserts only when a batch fails,
 and coalesce their queue save (at most 2 s); navigation keeps a pending
 coalesced save, so an edit followed at once by a skip is still persisted. A successful native call made by
 an edit is always committed even if a newer command superseded it, so the
-Dart queue never diverges from the player.
+Dart queue never diverges from the player. Lane work always runs in the zone
+the lane was created in, never the submitter's: drift routes a zone's
+database calls to an open transaction, so work started from inside one would
+keep using it after it closed.
+
+Song identity aliases (`applySongIdentityAliases`) take effect at once and
+the queue catches up as an edit nobody waits for, which saves the queue with
+the coalesced save. Sync calls it from inside the hydration transaction,
+just before `remapSongIdentity` rewrites the rows (including the saved
+queue's); waiting there for queue work deadlocked the database and the queue
+lane whenever the lane held work that read the database, or the edit's own
+save. Deferred songs are read by canonical id, so a song remapped before the
+queue caught up still resolves.
 
 Phase 2 resolves sources concurrently within a batch (8 songs first, then 64)
 and applies each batch with one `addAudioSources`/`insertAudioSources` call:
@@ -1775,7 +1804,24 @@ growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
 enabled and is created, synchronized, or disposed as that setting changes.
 Its clones of lock-cached sources use direct streams so two decks never rename
-the same partial cache file.
+the same partial cache file. Queue edits do not wait for a fade, so the deck
+is checked by content, not length: before a fade the deck is loaded unless it
+holds exactly the materialised queue (song ids, canonical ids matching); an
+edit that lands while it loads makes it load once more, and a second change
+degrades that transition to gapless (`prewarm_failed`). The incoming deck must
+still hold the queue, at the next song, when the fade starts, and still hold
+the queue at the hand-over; otherwise the fade is cancelled and the active
+player, which holds the queue, continues gaplessly (`deck_mismatch`). No fade
+starts while a queue load is in progress, and a song whose transition could
+not be prepared ends gaplessly instead of reloading the deck on every
+position tick. In-place refreshes of a queued song
+(artwork, liked state, canonical id) do not count as queue changes
+(`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
+neither abort a release nor invalidate the deck. `GET /v1/playback/status`
+reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
+inactive deck length and match, outcome counts by phase), `queueLane` (the
+running work's kind and age, and the waiting kinds) and `recovery` (the stage
+of the latest seek or stall recovery).
 
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS

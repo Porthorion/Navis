@@ -93,6 +93,11 @@ enum NavisLaneWorkKind {
 /// future still completes normally.
 /// This lane does *not* interrupt Dart async or native playback commands.
 class NavisSupersedingLane {
+  /// Work always runs in the zone the lane was created in, not the zone of
+  /// whoever submitted it: a caller inside a database transaction (sync
+  /// applying song aliases) would otherwise route every later queue
+  /// operation's database calls to that transaction after it closed.
+  final Zone _zone = Zone.current;
   _SupersedingWork? _active;
   final List<_SupersedingWork> _waiting = <_SupersedingWork>[];
   bool _draining = false;
@@ -102,6 +107,17 @@ class NavisSupersedingLane {
 
   int get pendingCount =>
       _waiting.where((work) => work.kind != NavisLaneWorkKind.idle).length;
+
+  DateTime? _activeSince;
+
+  /// The running work's kind and age and the waiting kinds, for diagnostics.
+  Map<String, Object?> get diagnostics => <String, Object?>{
+    'active': _active?.kind.name,
+    'activeForMs': _activeSince == null
+        ? null
+        : DateTime.now().difference(_activeSince!).inMilliseconds,
+    'waiting': <String>[for (final work in _waiting) work.kind.name],
+  };
 
   /// Whether nothing is running or waiting.
   bool get isIdle => _active == null && _waiting.isEmpty;
@@ -177,7 +193,7 @@ class NavisSupersedingLane {
     _waiting.add(work);
     if (!_draining) {
       _draining = true;
-      unawaited(_drain());
+      _zone.run(() => unawaited(_drain()));
     }
     return work.future;
   }
@@ -186,8 +202,10 @@ class NavisSupersedingLane {
     while (_waiting.isNotEmpty) {
       final work = _waiting.removeAt(0);
       _active = work;
+      _activeSince = DateTime.now();
       await work.execute();
       _active = null;
+      _activeSince = null;
     }
     _draining = false;
     // The drain runs unawaited, so a throwing listener would otherwise
