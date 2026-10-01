@@ -108,17 +108,13 @@ sudo dpkg -i navis-v0.x.y-linux-amd64.deb
 After installation, `navis` is available as a system command and appears in the
 application menu.
 
-### Known limitation: missing `libmpv` dependency
+### Runtime dependency: `libmpv`
 
-The current Debian control file declares `Depends: libgtk-3-0` but does not list `libmpv`.
-On clean Ubuntu installs, audio will not work until the user installs it separately:
-
-```bash
-sudo apt install libmpv2
-```
-
-This will be corrected in a future release by updating the `Depends` line in
-`tool/release.sh` to `Depends: libgtk-3-0, libmpv2 | libmpv1`.
+Playback and the equalizer use the system libmpv, which media_kit loads as
+`libmpv.so`, `libmpv.so.2` or `libmpv.so.1`. The Debian control file declares
+`Depends: libgtk-3-0, libmpv2 | libmpv1`, so `apt` installs it with the
+package: Debian 12 and Ubuntu 23.04+ ship `libmpv2`, Ubuntu 22.04 ships
+`libmpv1`.
 
 ### Auto-updater behavior
 
@@ -274,11 +270,11 @@ does. Use `sudo dpkg -i` or `sudo apt install ./file.deb`.
 
 ### Users report audio not working after installing the `.deb`
 
-The `libmpv` runtime is not yet listed in the package `Depends`. The user needs to install
-it manually:
+Packages built before 1.4.0 did not list `libmpv` in `Depends`. Install it
+manually, or install the current package with `apt` so it is pulled in:
 
 ```bash
-sudo apt install libmpv2    # Ubuntu 22.04+
+sudo apt install libmpv2    # Debian 12, Ubuntu 23.04+ (libmpv1 on 22.04)
 ```
 
 ### Auto-updater: `pkexec` not found

@@ -9,9 +9,11 @@ line, or diagnostics export) per row.
 
 - [ ] Build and install the dev side-by-side app:
       `./tool/dev_app.sh apk` then install `com.navis.app.navis.dev`.
-- [ ] Confirm the app upgrades in place over an existing 1.4.0 install (do not
-      uninstall first — the schema 79→80 migration and the post-upgrade
-      one-shot reconciliation only run on upgrade).
+- [ ] Confirm the app upgrades in place over an existing 1.3.1 install (do not
+      uninstall first — the schema 73→89 migrations and the post-upgrade
+      one-shot reconciliation only run on upgrade). An emulator sidecar run on
+      2026-10-01 upgraded a 1.3.1 profile build in place: schema 89, catalog
+      kept, saved queue restored paused at its song and position.
 - [ ] Record the pre-upgrade liked-songs count and one pinned album for the
       user-state checks below.
 
@@ -19,7 +21,7 @@ line, or diagnostics export) per row.
 
 - [ ] First launch after upgrade completes without a cache reset prompt.
 - [ ] Library, favorites, and downloads all still present after the
-      migration (schema 80).
+      migration (schema 89).
 - [ ] The startup reconciliation schedules exactly one full repair
       (Settings → Sync shows a repair running or queued); on cellular it
       waits for consent/Wi-Fi, and after it completes the model version is

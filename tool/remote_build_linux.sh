@@ -200,7 +200,7 @@ Section: sound
 Priority: optional
 Architecture: ${deb_arch}
 Maintainer: ${deb_maintainer}
-Depends: libgtk-3-0
+Depends: libgtk-3-0, libmpv2 | libmpv1
 Homepage: https://git.porthorion.com/khalifa/Navis
 Description: Navis music player
  Subsonic/OpenSubsonic music player built with Flutter.

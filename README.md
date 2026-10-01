@@ -13,7 +13,7 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 | Windows | Supported | Native desktop build with adaptive shell, shortcuts, and SMTC integration |
 
 Released target baselines:
-- Android 8.0 (API 26)
+- Android 7.0 (API 24)
 - Ubuntu 22.04+ (or equivalent Linux desktop runtime)
 - Windows 10/11
 
@@ -79,11 +79,11 @@ The [September dependency upgrade plan](Dependency_Upgrade_Plan.md) tracks
 the current upgrade work, compatible versions, major migrations, and runtime
 validation gates. The build baseline is Flutter 3.47.5 with Dart 3.13.
 
-A dependency sweep was completed on July 26, 2026. Direct resolvable updates
-were applied, direct imports were declared explicitly, and the unused
-`audio_service_mpris` dependency was removed after Linux MPRIS moved to the
-app-owned `dbus` bridge. Remaining `pub outdated` entries are blocked by
-SDK/toolchain or upstream constraints rather than local overrides.
+The October 2026 upgrade moved Navis to the current Flutter hotfix and current
+navigation, artwork, storage, database and Windows components; the
+[dependency audit](docs/audits/dependency-audit-2026-10-01.md) records what
+was checked and what stays pinned. Remaining `pub outdated` entries are
+blocked by SDK/toolchain or upstream constraints rather than local overrides.
 
 ## Quick Start
 
