@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/system_media_art.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -217,7 +218,7 @@ class LinuxMprisBridge {
       title: item.title,
       artist: item.artist,
       album: item.album,
-      artUrl: item.artUri?.toString(),
+      artUrl: systemArtUrl(item),
       duration: item.duration,
     );
   }

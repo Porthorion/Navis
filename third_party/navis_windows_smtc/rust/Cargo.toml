@@ -13,4 +13,4 @@ anyhow = '1.0.103'
 
 [dependencies.windows]
 version = '0.62.2'
-features = ['Media', 'Media_Playback', 'Foundation', 'Storage_Streams']
+features = ['Media', 'Media_Playback', 'Foundation', 'Storage', 'Storage_Streams']

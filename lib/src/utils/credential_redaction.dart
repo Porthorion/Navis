@@ -6,6 +6,17 @@ import 'dart:async';
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
 const subsonicCredentialQueryParameters = {'u', 't', 's', 'p', 'apiKey'};
 
+/// Whether [uri] carries a Subsonic credential query parameter, and so must
+/// not be handed to another process (media sessions, MPRIS, SMTC).
+bool uriCarriesCredentials(Uri uri) {
+  final keys = uri.queryParameters.keys.map((key) => key.toLowerCase());
+  return keys.any(
+    (key) => subsonicCredentialQueryParameters.any(
+      (parameter) => parameter.toLowerCase() == key,
+    ),
+  );
+}
+
 /// A credential parameter anywhere in free text, after a literal, HTML-escaped
 /// (`&amp;`), percent-encoded or double percent-encoded `?` or `&`, up to the
 /// next parameter, fragment, whitespace, or quote.

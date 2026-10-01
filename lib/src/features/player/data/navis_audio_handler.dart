@@ -103,7 +103,9 @@ class NavisAudioHandler extends BaseAudioHandler
        _reportNetworkUsage = reportNetworkUsage,
        _preferredMixCallback = startPreferredMix,
        _preferredMixToggleCallback = togglePreferredMix,
-       _artCache = _isAndroidRuntime
+       // A local cover file for the system media controls: Android's
+       // bitmap, and MPRIS and SMTC art without the credential-bearing URL.
+       _artCache = _isAndroidRuntime || _isLinuxRuntime || _isWindowsRuntime
            ? PlaybackArtCache(reportNetworkUsage: reportNetworkUsage)
            : null {
     final runtime = _readRuntimeSettings();

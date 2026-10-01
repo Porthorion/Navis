@@ -5,6 +5,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/system_media_art.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis_windows_smtc/navis_windows_smtc.dart';
@@ -262,7 +264,7 @@ class WindowsSmtcBridge {
               artist: item.artist,
               album: item.album,
               albumArtist: item.artist,
-              thumbnail: _safeArtworkUri(item.artUri),
+              thumbnail: _systemArtwork(item),
             ),
     );
     final write = _stateWrites.then((_) => smtc.applyState(state));
@@ -280,8 +282,16 @@ class WindowsSmtcBridge {
     }
   }
 
-  String? _safeArtworkUri(Uri? uri) {
-    if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http')) {
+  /// The local cover file once it is cached, otherwise an http(s) artwork
+  /// URL without account credentials (radio). A Subsonic cover URL is never
+  /// handed to Windows.
+  String? _systemArtwork(MediaItem item) {
+    final cached = systemArtFile(item);
+    if (cached != null) return cached;
+    final uri = item.artUri;
+    if (uri == null ||
+        !(uri.scheme == 'https' || uri.scheme == 'http') ||
+        uriCarriesCredentials(uri)) {
       return null;
     }
     return uri.toString();

@@ -145,6 +145,67 @@ void main() {
       },
     );
 
+    for (final (name, item, expected) in <(String, MediaItem, String?)>[
+      (
+        'never hands Windows a credential-bearing cover URL',
+        MediaItem(
+          id: 'song-1',
+          title: 'Track',
+          artUri: Uri.parse(
+            'https://music.test/rest/getCoverArt.view?id=c&u=me&t=tok&s=salt',
+          ),
+        ),
+        null,
+      ),
+      (
+        'uses the cached cover file',
+        MediaItem(
+          id: 'song-1',
+          title: 'Track',
+          artUri: Uri.parse(
+            'https://music.test/rest/getCoverArt.view?id=c&u=me&t=tok&s=salt',
+          ),
+          extras: const <String, Object?>{
+            'artCacheFile': r'C:\Users\me\AppData\Local\Temp\navis_art_c.jpg',
+          },
+        ),
+        r'C:\Users\me\AppData\Local\Temp\navis_art_c.jpg',
+      ),
+      (
+        'keeps radio artwork without credentials',
+        MediaItem(
+          id: 'radio',
+          title: 'Station',
+          artUri: Uri.parse('https://radio.test/art/now.jpg'),
+        ),
+        'https://radio.test/art/now.jpg',
+      ),
+    ]) {
+      test(name, () async {
+        final handler = _FakePlaybackHandler(
+          initialSnapshot: const PlaybackSnapshot.idle().copyWith(
+            queueSongIds: <String>['song-1'],
+            currentSongId: 'song-1',
+            currentIndex: 0,
+            processingState: AudioProcessingState.ready,
+            playing: true,
+          ),
+          initialMediaItem: item,
+        );
+        final client = _FakeWindowsSmtcClient();
+        final bridge = WindowsSmtcBridge(
+          handler: handler,
+          createClient: () async => client,
+          isWindowsRuntime: () => true,
+        );
+
+        await _flushAsync();
+
+        expect(client.lastState?.metadata?.thumbnail, expected);
+        await bridge.dispose();
+      });
+    }
+
     test('disables unavailable controls for radio snapshots', () async {
       final handler = _FakePlaybackHandler(
         initialSnapshot: const PlaybackSnapshot.idle(),
