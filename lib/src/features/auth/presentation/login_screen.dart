@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
@@ -35,6 +34,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _passwordVisible = false;
 
   bool get _isBusy => _isConnecting;
+  ProviderSubscription<AsyncValue<ServerConfigModel?>>?
+  _retainedServerSubscription;
 
   @override
   void initState() {
@@ -43,27 +44,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _urlController.addListener(_handleUrlChanged);
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
-    unawaited(_prefillRetainedServer());
-  }
-
-  /// After a keep-data sign-out, or when the saved password can no longer be
-  /// read, the profile is still on the device: offer its address and
-  /// username so only the password needs typing.
-  Future<void> _prefillRetainedServer() async {
-    final retained = await ref
-        .read(serverConfigRepositoryProvider)
-        .getRetainedServer();
-    if (!mounted || retained == null) return;
-    // Never overwrite what the user has started typing.
-    if (_urlController.text.isNotEmpty || _usernameController.text.isNotEmpty) {
-      return;
-    }
-    _urlController.text = retained.url;
-    _usernameController.text = retained.username;
+    // After a keep-data sign-out, or when the saved password can no longer
+    // be read, the profile is still on the device: offer its address and
+    // username so only the password needs typing.
+    _retainedServerSubscription = ref.listenManual(retainedServerProvider, (
+      _,
+      next,
+    ) {
+      final retained = next.asData?.value;
+      if (retained == null) return;
+      _retainedServerSubscription?.close();
+      _retainedServerSubscription = null;
+      // Never overwrite what the user has started typing.
+      if (_urlController.text.isNotEmpty ||
+          _usernameController.text.isNotEmpty) {
+        return;
+      }
+      _urlController.text = retained.url;
+      _usernameController.text = retained.username;
+    }, fireImmediately: true);
   }
 
   @override
   void dispose() {
+    _retainedServerSubscription?.close();
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();

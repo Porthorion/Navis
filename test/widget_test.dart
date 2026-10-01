@@ -26,6 +26,7 @@ List<Override> _noDbOverrides({List<Override> extras = const []}) {
     onboardingVersionProvider.overrideWithValue(
       const AsyncData(currentOnboardingVersion),
     ),
+    retainedServerProvider.overrideWith((_) async => null),
     ...extras,
   ];
 }
