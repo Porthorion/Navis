@@ -327,7 +327,29 @@ or Home across restarts without claiming full freshness. All full-screen rebuild
 reasons share this partial exception. Other failed, deferred, or partial runs
 keep retry and sign-out actions; offline and metered conditions retain their
 retry/consent behavior. Pending albums continue through eligible incremental
-checks. This policy is recorded in
+checks. First setup without a committed catalog requests the planner's
+first-catalog snapshot. When a committed generation (or `last_synced`) already
+exists without readiness evidence, for example after an interrupted setup and
+a keep-data sign-out and sign-in, setup and every retry run the explicit full
+scan (`forceFullSync`) that cache upgrade uses: an incremental discovery pass
+never publishes a catalog in its own run and stops at per-run budgets, so it
+could never satisfy the readiness predicate. A completed profile keeps its
+full-sync evidence across keep-data sign-out and returns directly to Home.
+The rebuild controller behind every full-screen reason is an autoDispose
+family scoped to one route visit. Each visit starts from idle and runs its own
+rebuild. A run or a cancel-and-sign-out holds a keep-alive link, so its
+readiness or cache-version bookkeeping completes after the route closes, and
+the controller is disposed afterwards. A visit is also scoped to one
+signed-in session. `build()` watches the active server identity. A quick
+sign-out and sign-in can bring back the still-mounted route during its exit
+transition, and Riverpod keeps the notifier instance across rebuilds. So a
+session change starts a new visit, supersedes earlier runs by epoch, and only
+starts work while a session exists. A finished, failed or cancelled visit
+therefore never reaches a later sign-in, server change or repeated rebuild
+request. Retry within one visit keeps its prepared cache reset. Sign-out steps
+fail softly. If a cancel-and-sign-out leaves the session in place, the screen
+returns to a failed state with Retry instead of staying on "cancelling".
+This policy is recorded in
 [the full-screen partial-readiness decision](decisions/2026-09-20-fullscreen-sync-partial-readiness.md).
 The shell may observe an authenticated session before the credential-backed
 sync engine is constructed. Its automatic startup and periodic passes wait for
@@ -446,7 +468,22 @@ its credential from a mode-600 diagnostics file, and exercises offline
 recovery, safe promotion, screenshots, restart, real playback-to-sign-out
 teardown, and setup cancellation. Clone-mode credential writes and clears stay
 in memory, so these destructive actions can never clear or replace device
-secure storage.
+secure storage. With `passive=1`, `GET /v1/session/status`,
+`POST /v1/session/sign-out` and `POST /v1/session/reset-initial-state`
+report the session without instantiating the legacy diagnostics setup
+controller. That controller starts its own setup run whenever the session
+needs one, which would mask the route-owned controller. Clone-only
+`GET`/`POST /v1/presentation/library-rebuild` reports the route-owned
+full-screen rebuild controller for a given `reason`, and can `retry` or press
+its `cancelAndSignOut`. It reports `inactive` rather than instantiating an
+unmounted controller, because instantiation starts a rebuild. The
+`existing-catalog` mode uses these to verify keep-data sign-out, cancellation
+and wipe sign-out followed by a new sign-in in the same process. The legacy
+diagnostics setup controller follows the same session scoping. It starts setup
+only once the phase requires it, never while the phase is still loading. A
+non-passive session call activates it with a lasting subscription. Riverpod
+pauses a provider that is only read, and a paused provider would miss a
+sign-out or sign-in between two requests.
 
 Clone-only `POST /v1/session/connect` validates and saves a server session
 through the production connection service but does not instantiate the legacy

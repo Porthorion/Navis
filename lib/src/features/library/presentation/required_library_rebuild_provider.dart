@@ -35,8 +35,12 @@ class RequiredLibraryRebuildState {
   final String? errorMessage;
 }
 
-final requiredLibraryRebuildControllerProvider =
-    NotifierProvider.family<
+/// Scoped to one visit of a full-screen rebuild route. Every visit starts from
+/// idle and runs its own rebuild, so a finished, failed or cancelled visit can
+/// never be shown to a later session or rebuild request. A run or cancellation
+/// in flight keeps the controller alive until its bookkeeping completes.
+final requiredLibraryRebuildControllerProvider = NotifierProvider.autoDispose
+    .family<
       RequiredLibraryRebuildController,
       RequiredLibraryRebuildState,
       RequiredLibraryRebuildReason
@@ -48,11 +52,24 @@ class RequiredLibraryRebuildController
 
   final RequiredLibraryRebuildReason _reason;
   Future<void>? _inFlight;
+  int _inFlightEpoch = 0;
   int _epoch = 0;
   bool _resetPrepared = false;
 
   @override
   RequiredLibraryRebuildState build() {
+    // A visit also belongs to one signed-in session. A quick sign-out and
+    // sign-in can reuse the still-mounted route during its exit transition,
+    // and Riverpod keeps this notifier instance across rebuilds, so a session
+    // change starts a new visit here and supersedes the previous one's runs.
+    final session = ref.watch(
+      serverConfigStateProvider.select((config) {
+        final server = config.asData?.value;
+        return server == null ? null : (server.id, server.url, server.username);
+      }),
+    );
+    _epoch += 1;
+    _resetPrepared = false;
     ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
       _,
       next,
@@ -73,7 +90,7 @@ class RequiredLibraryRebuildController
         unawaited(start());
       }
     });
-    unawaited(Future<void>.microtask(start));
+    if (session != null) unawaited(Future<void>.microtask(start));
     return const RequiredLibraryRebuildState();
   }
 
@@ -85,10 +102,28 @@ class RequiredLibraryRebuildController
       _start(allowMeteredBroadOverride: true);
 
   Future<void> _start({required bool allowMeteredBroadOverride}) {
-    return _inFlight ??= _run(
-      allowMeteredBroadOverride: allowMeteredBroadOverride,
-    ).whenComplete(() => _inFlight = null);
+    // The build microtask and network listeners can fire after the route
+    // closed and the controller was disposed, or while signed out.
+    if (!ref.mounted ||
+        ref.read(serverConfigStateProvider).asData?.value == null) {
+      return Future<void>.value();
+    }
+    final inFlight = _inFlight;
+    if (inFlight != null && _inFlightEpoch == _epoch) return inFlight;
+    final link = ref.keepAlive();
+    _inFlightEpoch = _epoch;
+    late final Future<void> run;
+    run = _run(allowMeteredBroadOverride: allowMeteredBroadOverride)
+        .whenComplete(() {
+          if (identical(_inFlight, run)) _inFlight = null;
+          link.close();
+        });
+    return _inFlight = run;
   }
+
+  /// Whether a run may still publish state: the controller is mounted and no
+  /// cancellation or session change superseded the run.
+  bool _isCurrent(int runEpoch) => ref.mounted && runEpoch == _epoch;
 
   Future<void> _run({required bool allowMeteredBroadOverride}) async {
     final runEpoch = _epoch;
@@ -101,7 +136,7 @@ class RequiredLibraryRebuildController
       try {
         await _clearRecoverableCache();
       } on Object catch (error) {
-        if (runEpoch == _epoch) {
+        if (_isCurrent(runEpoch)) {
           state = RequiredLibraryRebuildState(
             status: RequiredLibraryRebuildStatus.failed,
             errorMessage: 'Library cache reset failed: ${error.runtimeType}.',
@@ -109,7 +144,7 @@ class RequiredLibraryRebuildController
         }
         return;
       }
-      if (runEpoch != _epoch) return;
+      if (!_isCurrent(runEpoch)) return;
       _resetPrepared = true;
     }
     final reachability = ref.read(serverReachabilityControllerProvider);
@@ -144,7 +179,7 @@ class RequiredLibraryRebuildController
           allowMeteredBroadOverride,
         ),
       };
-      if (runEpoch != _epoch ||
+      if (!_isCurrent(runEpoch) ||
           state.status == RequiredLibraryRebuildStatus.cancelling) {
         return;
       }
@@ -154,7 +189,7 @@ class RequiredLibraryRebuildController
               : result.status == LibrarySyncStatus.succeeded ||
                     usableIncompleteAlbums) &&
           await _hasCommittedCatalog(result)) {
-        if (runEpoch != _epoch ||
+        if (!_isCurrent(runEpoch) ||
             state.status == RequiredLibraryRebuildStatus.cancelling) {
           return;
         }
@@ -162,9 +197,11 @@ class RequiredLibraryRebuildController
           await ref
               .read(cacheSystemUpgradeServiceProvider)
               .markCurrentVersionAfterSuccessfulScan();
+          if (!_isCurrent(runEpoch)) return;
           final cacheRenewalStillRequired = await ref.refresh(
             cacheSystemUpgradeNeededProvider.future,
           );
+          if (!_isCurrent(runEpoch)) return;
           if (cacheRenewalStillRequired) {
             state = const RequiredLibraryRebuildState(
               status: RequiredLibraryRebuildStatus.failed,
@@ -174,7 +211,7 @@ class RequiredLibraryRebuildController
             return;
           }
         }
-        if (runEpoch != _epoch ||
+        if (!_isCurrent(runEpoch) ||
             state.status == RequiredLibraryRebuildStatus.cancelling) {
           return;
         }
@@ -189,13 +226,14 @@ class RequiredLibraryRebuildController
         );
         return;
       }
+      if (!_isCurrent(runEpoch)) return;
       state = RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.failed,
         errorMessage:
             result.errorMessage ?? 'Library rebuild did not complete.',
       );
     } on Object catch (error) {
-      if (runEpoch == _epoch &&
+      if (_isCurrent(runEpoch) &&
           state.status != RequiredLibraryRebuildStatus.cancelling) {
         state = RequiredLibraryRebuildState(
           status: RequiredLibraryRebuildStatus.failed,
@@ -209,9 +247,7 @@ class RequiredLibraryRebuildController
     state = const RequiredLibraryRebuildState(
       status: RequiredLibraryRebuildStatus.syncing,
     );
-    return ref
-        .read(librarySyncControllerProvider.notifier)
-        .syncNow(allowMeteredBroadOverride: allowMetered);
+    return runInitialCatalogSync(ref, allowMeteredBroadOverride: allowMetered);
   }
 
   Future<LibrarySyncState> _runCacheUpgrade(bool allowMetered) async {
@@ -278,12 +314,29 @@ class RequiredLibraryRebuildController
 
   Future<void> cancelAndSignOut() async {
     if (state.status == RequiredLibraryRebuildStatus.cancelling) return;
-    state = const RequiredLibraryRebuildState(
-      status: RequiredLibraryRebuildStatus.cancelling,
-    );
-    _epoch += 1;
-    await ref.read(signOutServiceProvider).signOut(wipeLocalData: false);
-    await ref.read(serverConfigProvider.notifier).refresh();
-    ref.invalidate(initialSyncRequiredProvider);
+    // Signing out replaces this route while the teardown is still running.
+    final link = ref.keepAlive();
+    try {
+      state = const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.cancelling,
+      );
+      _epoch += 1;
+      await ref.read(signOutServiceProvider).signOut(wipeLocalData: false);
+      if (!ref.mounted) return;
+      await ref.read(serverConfigProvider.notifier).refresh();
+      if (!ref.mounted) return;
+      ref.invalidate(initialSyncRequiredProvider);
+      // A completed sign-out has already reset this controller for the next
+      // session. Sign-out steps fail softly, so a session can survive it;
+      // offer retry rather than leaving the screen in `cancelling`.
+      if (state.status == RequiredLibraryRebuildStatus.cancelling) {
+        state = const RequiredLibraryRebuildState(
+          status: RequiredLibraryRebuildStatus.failed,
+          errorMessage: 'Sign-out did not complete. Try again.',
+        );
+      }
+    } finally {
+      link.close();
+    }
   }
 }

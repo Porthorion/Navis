@@ -34,6 +34,8 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
@@ -146,6 +148,7 @@ class SyncDiagnosticsServer {
   int _nextSyncLedgerId = 1;
   Map<String, Song> _presentationSearchSongs = const <String, Song>{};
   StreamSubscription<Object?>? _playbackFailureSubscription;
+  ProviderSubscription<InitialServerSyncState>? _initialSyncSubscription;
   int _playbackFailureCount = 0;
 
   bool get allowsMutations => mode == SyncDiagnosticsMode.clone;
@@ -203,6 +206,8 @@ class SyncDiagnosticsServer {
     SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
     await _playbackFailureSubscription?.cancel();
     _playbackFailureSubscription = null;
+    _initialSyncSubscription?.close();
+    _initialSyncSubscription = null;
     await server.close(force: true);
     final clearer = androidHandshakeClearer;
     if (clearer != null) {
@@ -803,6 +808,15 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (path == '/v1/presentation/library-rebuild' &&
+          (request.method == 'GET' || request.method == 'POST')) {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _libraryRebuildControl(request);
+        return;
+      }
       if (request.method == 'POST' &&
           path == '/v1/presentation/player-overlay') {
         if (!allowsMutations) {
@@ -1169,7 +1183,11 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/session/status') {
-        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
+        );
         return;
       }
       if (request.method == 'POST' && path == '/v1/session/connect') {
@@ -1186,9 +1204,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        await _container
-            .read(initialServerSyncControllerProvider.notifier)
-            .retry();
+        await _initialSyncController().retry();
         await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
@@ -1198,9 +1214,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        await _container
-            .read(initialServerSyncControllerProvider.notifier)
-            .startUsingMobileData();
+        await _initialSyncController().startUsingMobileData();
         await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
@@ -1210,9 +1224,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        await _container
-            .read(initialServerSyncControllerProvider.notifier)
-            .cancelAndLogOut();
+        await _initialSyncController().cancelAndLogOut();
         await _respond(request, HttpStatus.ok, await _sessionStatusJson());
         return;
       }
@@ -1226,7 +1238,11 @@ class SyncDiagnosticsServer {
             .read(signOutServiceProvider)
             .signOut(wipeLocalData: body['wipeLocalData'] == true);
         await _container.read(serverConfigProvider.notifier).refresh();
-        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
+        );
         return;
       }
       if (request.method == 'POST' &&
@@ -1246,7 +1262,11 @@ class SyncDiagnosticsServer {
         await _container.read(serverConfigProvider.notifier).refresh();
         _container.invalidate(initialSyncRequiredProvider);
         _container.invalidate(initialServerSyncControllerProvider);
-        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _sessionStatusJson(activateInitialSync: !_isPassive(request)),
+        );
         return;
       }
       if (request.method == 'POST' && path == '/v1/search/source-audit') {
@@ -2661,6 +2681,83 @@ class SyncDiagnosticsServer {
     }
   }
 
+  /// Activates the legacy diagnostics setup controller with a lasting
+  /// subscription. A provider that is only read is paused between reads,
+  /// which would also pause its session watch and phase and network
+  /// listeners, so it would miss a sign-out or sign-in between two requests.
+  InitialServerSyncState _initialSyncState() {
+    final subscription = _initialSyncSubscription ??= _container.listen(
+      initialServerSyncControllerProvider,
+      (_, _) {},
+    );
+    return subscription.read();
+  }
+
+  InitialServerSyncController _initialSyncController() {
+    _initialSyncState();
+    return _container.read(initialServerSyncControllerProvider.notifier);
+  }
+
+  /// `passive=1` reports the session without instantiating the legacy
+  /// diagnostics setup controller, which would otherwise start its own setup
+  /// run whenever the session needs one and mask the route-owned controller.
+  bool _isPassive(HttpRequest request) =>
+      request.uri.queryParameters['passive'] == '1';
+
+  /// Observes or retries the full-screen rebuild controller that the mounted
+  /// route owns. Reading an unmounted controller would start a rebuild, so
+  /// status reports `inactive` instead of instantiating it.
+  Future<void> _libraryRebuildControl(HttpRequest request) async {
+    final body = request.method == 'POST'
+        ? await _readJson(request)
+        : const <String, Object?>{};
+    final reason = RequiredLibraryRebuildReason.parse(
+      (body['reason'] as String?) ?? request.uri.queryParameters['reason'],
+    );
+    if (reason == null) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'reason must be a full-screen rebuild route value',
+      });
+      return;
+    }
+    final provider = requiredLibraryRebuildControllerProvider(reason);
+    if (!_container.exists(provider)) {
+      await _respond(request, HttpStatus.ok, <String, Object?>{
+        'reason': reason.routeValue,
+        'status': 'inactive',
+      });
+      return;
+    }
+    if (request.method == 'POST') {
+      final controller = _container.read(provider.notifier);
+      switch (body['action']) {
+        case 'retry':
+          unawaited(controller.retry());
+        case 'cancelAndSignOut':
+          // Same action as the screen's sign-out button; it keeps local data.
+          await controller.cancelAndSignOut();
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'reason': reason.routeValue,
+            'status': _container.exists(provider)
+                ? _container.read(provider).status.name
+                : 'inactive',
+          });
+          return;
+        default:
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'action must be retry or cancelAndSignOut',
+          });
+          return;
+      }
+    }
+    final state = _container.read(provider);
+    await _respond(request, HttpStatus.ok, <String, Object?>{
+      'reason': reason.routeValue,
+      'status': state.status.name,
+      'errorMessage': state.errorMessage,
+    });
+  }
+
   Future<void> _connectDiagnosticsSession(HttpRequest request) async {
     final body = await _readJson(request);
     final url = (body['url'] as String? ?? '').trim();
@@ -2833,7 +2930,7 @@ class SyncDiagnosticsServer {
     final sync = _reportedSyncState();
     final phase = _container.read(sessionRoutePhaseProvider);
     final initialSync = activateInitialSync
-        ? _container.read(initialServerSyncControllerProvider).status
+        ? _initialSyncState().status
         : _passiveInitialSyncStatus(phase, sync);
     return <String, Object?>{
       'phase': phase.name,

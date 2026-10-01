@@ -69,6 +69,7 @@ ARTIST_ALBUMS = [ALBUM]
 INDEX_LAST_MODIFIED = 1780000000000
 FAILURE_FLAG = ""
 PARTIAL_ALBUM_FLAG = ""
+ALBUM_ERROR_FLAG = ""
 PARTIAL_ALBUM_ID = "fixture-incomplete-album"
 
 
@@ -250,6 +251,17 @@ class Handler(BaseHTTPRequestHandler):
             if album is None:
                 self._json(_root(status="failed", error={"code": 70, "message": "Album not found"}))
                 return
+            if (
+                album_id == PARTIAL_ALBUM_ID
+                and ALBUM_ERROR_FLAG
+                and os.path.exists(ALBUM_ERROR_FLAG)
+            ):
+                # A server-side detail failure is not an incomplete response:
+                # the promoted first catalog must not qualify as usable.
+                self._json(
+                    {"error": "Fixture album detail failure"}, status=500
+                )
+                return
             song = SONG if album_id == ALBUM["id"] else {
                 **SONG, "id": f"{album_id}-song", "albumId": album_id, "album": album["name"],
             }
@@ -301,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global FAILURE_FLAG, PARTIAL_ALBUM_FLAG
+    global FAILURE_FLAG, PARTIAL_ALBUM_FLAG, ALBUM_ERROR_FLAG
     parser = argparse.ArgumentParser()
     parser.add_argument("--handshake", required=True)
     parser.add_argument("--failure-flag", required=True)
@@ -317,6 +329,10 @@ def main():
     )
     parser.add_argument("--annotation-log")
     parser.add_argument("--partial-album-flag")
+    parser.add_argument(
+        "--album-error-flag",
+        help="While this file exists, the incomplete album's detail fails.",
+    )
     args = parser.parse_args()
     global ANNOTATION_LOG
     ANNOTATION_LOG = args.annotation_log
@@ -324,6 +340,11 @@ def main():
     PARTIAL_ALBUM_FLAG = (
         os.path.realpath(args.partial_album_flag)
         if args.partial_album_flag is not None
+        else ""
+    )
+    ALBUM_ERROR_FLAG = (
+        os.path.realpath(args.album_error_flag)
+        if args.album_error_flag is not None
         else ""
     )
     if args.scenario == "manual-discovery":

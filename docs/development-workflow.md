@@ -610,6 +610,7 @@ Authentication lifecycle work uses:
 ```bash
 ./tool/auth_lifecycle_diagnostics.sh clone
 ./tool/auth_lifecycle_diagnostics.sh partial
+./tool/auth_lifecycle_diagnostics.sh existing-catalog
 ```
 
 The script creates isolated database/cache profiles, uses the authenticated
@@ -635,6 +636,28 @@ screenshot and keeps the full-sync timestamp null until verification completes.
 With the incomplete response restored, it then visits all four full-screen
 rebuild routes and verifies each partial catalog reaches Home with the album
 still pending, using the durable run ledger for completion evidence.
+The `existing-catalog` mode first completes a fixture setup, signs out with
+kept data and back in through `POST /v1/session/connect`, and requires Home
+without the setup route. It then removes data, makes the fixture album
+incomplete so the automatic timer pass cannot finish setup, and signs in
+again in the same process. The setup screen's own controller must record a
+new catalog run and reach Home. Next it restarts, makes the fixture's second
+album detail fail with HTTP 500 during a fresh setup so a catalog is promoted
+without readiness evidence, and restores an incomplete response. It then
+presses the screen's "Cancel and sign out" through
+`POST /v1/presentation/library-rebuild` and signs in again. The new visit
+must start automatically, record a `repairLibrary` catalog run (never
+`manualCatalogDiscovery`), store the usable marker, open Home with the album
+still pending, and stay ready after a clean restart. Its session calls use
+`passive=1` so the legacy diagnostics controller does not run a competing
+setup. When setup does not resume, the mode saves the route, controller
+state, ledger and a screenshot before failing.
+The `partial` mode's rebuild pass visits manual cache reset and Repair
+Library a second time in the same process. Each visit must record its own
+catalog run. The `clone` mode ends with a third profile that cancels a
+waiting setup through `POST /v1/session/initial-sync/cancel` and signs in
+again in the same process. The legacy diagnostics setup controller must then
+report `complete` with the session `ready`, rather than staying `cancelling`.
 The clone-only `POST /v1/diagnostics/sync-foreground` control sets the same
 foreground admission provider as Flutter lifecycle events, allowing the
 headless desktop fixture to exercise automatic work even when the window is not
