@@ -1108,10 +1108,13 @@ fi
 trap - EXIT INT TERM
 
 VALIDATED_DB="${CLONE_DB:-$SOURCE_DB}"
+# The clone starts with its cache rows in cache/; the app may then move
+# permanent downloads into its isolated app-support folder, also under the
+# run root. Anything outside the run root would touch the user's files.
 write_database_summary \
   "$VALIDATED_DB" \
   "$OUTPUT_ROOT/database-validation.json" \
-  "${CLONE_DB:+$OUTPUT_ROOT/cache}"
+  "${CLONE_DB:+$OUTPUT_ROOT}"
 
 python3 - "$OUTPUT_ROOT/pre-run-database.json" \
   "$OUTPUT_ROOT/database-validation.json" <<'PY'

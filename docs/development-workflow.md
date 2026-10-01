@@ -308,6 +308,15 @@ downloads through the production download service (a song already in the
 rolling cache is promoted instead of downloaded), for download and
 interruption checks without driving the UI.
 
+A clone copies the source profile's settings, including a custom Downloads
+folder that is the user's real one. The download service starts at launch and
+moves permanent downloads into that folder, so in clone mode
+`AppSettingsDao` reads a filesystem download folder outside
+`NAVIS_SYNC_DIAGNOSTICS_ROOT` as unset (Android tree URIs are left alone).
+Downloads then stay in the clone's app-support folder under the run root, which
+`sync_diagnostics.sh` checks after the run. To test a user folder, point the
+clone at a folder inside the run root.
+
 Clone-only `POST /v1/playback/shuffle {"enabled": bool}` and
 `POST /v1/playback/repeat {"mode": "none"|"one"|"all"}` drive the production
 handler. `GET /v1/playback/status` reports the user's `shuffleEnabled` and,
