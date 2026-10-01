@@ -205,6 +205,17 @@ launch_app() {
       --dart-define=NAVIS_SYNC_DIAGNOSTICS_ALLOW_CACHE_UPGRADE=true
     )
   fi
+  # Like sync_diagnostics.sh: an optional mode-600 password file signs the
+  # clone in where the system keyring holds no Navis password.
+  if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
+    if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
+      echo "Diagnostics credential file was not found." >&2
+      exit 66
+    fi
+    cache_upgrade_define+=(
+      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+    )
+  fi
   flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
