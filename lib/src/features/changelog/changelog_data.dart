@@ -156,6 +156,10 @@ const List<ChangelogVersion> changelogs = [
     ],
     entries: [
       ChangelogEntry(
+        'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloaded songs in a custom Android folder now play when Android Auto starts Navis before the phone screen is opened',
         type: ChangelogEntryType.fix,
       ),

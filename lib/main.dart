@@ -18,6 +18,7 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
@@ -40,7 +41,11 @@ Stream<LicenseEntry> _bundledFontLicenses() async* {
   yield LicenseEntryWithLineBreaks(const <String>['Inter font'], text);
 }
 
-Future<void> main() async {
+// mpv's error lines, among other dependency output, quote full stream URLs
+// whose token and salt are replayable credentials.
+Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
+
+Future<void> _runNavis() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(_bundledFontLicenses);
 

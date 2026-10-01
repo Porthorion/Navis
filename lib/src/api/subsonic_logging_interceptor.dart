@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 
 /// Logs request method, URL, status and duration with auth parameter redaction.
 class SubsonicLoggingInterceptor extends Interceptor {
   static const _startKey = 'subsonic_request_start_ms';
   static const _retryAttemptKey = 'subsonic_retry_attempt';
-  static const _sensitiveParams = {'u', 't', 's', 'p'};
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -72,7 +72,8 @@ class SubsonicLoggingInterceptor extends Interceptor {
   static Uri redactUri(Uri uri) {
     final redacted = <String, String>{};
     for (final entry in uri.queryParameters.entries) {
-      redacted[entry.key] = _sensitiveParams.contains(entry.key)
+      redacted[entry.key] =
+          subsonicCredentialQueryParameters.contains(entry.key)
           ? 'REDACTED'
           : entry.value;
     }
