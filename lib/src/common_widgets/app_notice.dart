@@ -170,22 +170,39 @@ class AppNoticeMessenger {
 }
 
 class AppNoticeHost extends StatelessWidget {
-  const new({required this.controller, this.topOffset = 12, super.key});
+  const new({
+    required this.controller,
+    this.topOffset = 12,
+    this.bottomOffset,
+    super.key,
+  });
 
   final AppNoticeController controller;
   final double topOffset;
 
+  /// When set, notices sit this far above the bottom edge instead of at the
+  /// top. The desktop shell uses it so a notice rests above the player bar
+  /// rather than over page titles and toolbars.
+  final double? bottomOffset;
+
   @override
   Widget build(BuildContext context) {
     final mediaPadding = MediaQuery.paddingOf(context);
+    final bottom = bottomOffset;
     return Align(
-      alignment: Alignment.topCenter,
+      alignment: bottom == null ? Alignment.topCenter : Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.only(
-          top: mediaPadding.top + topOffset,
-          left: 12,
-          right: 12,
-        ),
+        padding: bottom == null
+            ? EdgeInsets.only(
+                top: mediaPadding.top + topOffset,
+                left: 12,
+                right: 12,
+              )
+            : EdgeInsets.only(
+                bottom: mediaPadding.bottom + bottom,
+                left: 12,
+                right: 12,
+              ),
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
@@ -196,7 +213,7 @@ class AppNoticeHost extends StatelessWidget {
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) {
                 final slide = Tween<Offset>(
-                  begin: const Offset(0, -0.18),
+                  begin: Offset(0, bottom == null ? -0.18 : 0.18),
                   end: Offset.zero,
                 ).animate(animation);
                 return FadeTransition(

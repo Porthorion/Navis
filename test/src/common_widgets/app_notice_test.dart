@@ -67,6 +67,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
   });
 
+  testWidgets('a bottom offset rests the notice above the bottom edge', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    await tester.binding.setSurfaceSize(const Size(1000, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppNoticeScope(
+            notifier: controller,
+            child: Stack(
+              children: <Widget>[
+                const SizedBox.expand(),
+                AppNoticeHost(controller: controller, bottomOffset: 100),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.show(message: 'Library ready');
+    await tester.pumpAndSettle();
+
+    final rect = tester.getRect(find.text('Library ready'));
+    expect(rect.bottom, lessThanOrEqualTo(600));
+    expect(rect.top, greaterThan(500));
+    controller.dismiss();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('auto-dismiss hides notice after duration', (tester) async {
     final controller = AppNoticeController();
     addTearDown(controller.dispose);

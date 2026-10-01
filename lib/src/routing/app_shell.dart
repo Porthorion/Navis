@@ -2101,6 +2101,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                       AppNoticeHost(
                         controller: _appNoticeController,
                         topOffset: appNoticeTopOffset,
+                        // Desktop pages put their titles and actions at the
+                        // top; rest notices above the player bar instead.
+                        bottomOffset: useDesktopShell && !isMiniPlayerMode
+                            ? DesktopPlaybackProgress.playerHeight(context) + 12
+                            : null,
                       ),
                     ],
                   ),

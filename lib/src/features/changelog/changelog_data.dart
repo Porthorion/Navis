@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On desktop, notices such as "Your library is ready" now appear above the player bar instead of covering page titles and buttons',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Pages that cannot load something from your server, such as Radio on a server without internet radio, now show why straight away instead of loading for about 40 seconds and asking the server again ten times',
         type: ChangelogEntryType.fix,
       ),
