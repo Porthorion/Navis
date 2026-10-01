@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'The update check no longer offers repository releases that are not Navis versions as updates',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Artist top tracks and ListenBrainz playlists on Home find their songs in large libraries more than twice as fast, with the same matches as before',
         type: ChangelogEntryType.improvement,
       ),
