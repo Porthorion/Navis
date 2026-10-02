@@ -331,19 +331,28 @@
       }
     }
   },
-  "syncSettingsIdentitySummary": "{canonicalized} cached songs canonicalized; {ambiguous} ambiguous matches retained",
+  "syncSettingsIdentitySummary": "{canonicalized, plural, =1{1 cached song canonicalized} other{{canonicalized} cached songs canonicalized}}; {ambiguous, plural, =1{1 ambiguous match retained} other{{ambiguous} ambiguous matches retained}}",
   "@syncSettingsIdentitySummary": {
     "placeholders": {
-      "canonicalized": {},
-      "ambiguous": {}
+      "canonicalized": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "ambiguous": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsIntervalLabel": "Auto-Sync Interval",
   "syncSettingsIntervalManual": "Manual only",
-  "syncSettingsIntervalMinutes": "Every {minutes} minutes",
+  "syncSettingsIntervalMinutes": "{minutes, plural, =1{Every minute} other{Every {minutes} minutes}}",
   "@syncSettingsIntervalMinutes": {
     "placeholders": {
-      "minutes": {}
+      "minutes": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "syncSettingsIntervalHours": "{hours, plural, =1{Every hour} other{Every {hours} hours}}",
@@ -490,11 +499,17 @@
   "weeklyPlaylistUnavailableTitle": "No Weekly Playlist Available",
   "weeklyPlaylistUnavailableSubtitle": "Refresh to check for a new playlist.",
   "weeklyPlaylistMatchAction": "Match",
-  "weeklyPlaylistMatchSuccess": "Matched {matched} of {total} tracks",
+  "weeklyPlaylistMatchSuccess": "Matched {matched} of {total, plural, =1{1 track} other{{total} tracks}}",
   "@weeklyPlaylistMatchSuccess": {
     "placeholders": {
-      "matched": {"type": "int"},
-      "total": {"type": "int"}
+      "matched": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "weeklyPlaylistMatchError": "Could not match this playlist. Try again.",
@@ -729,11 +744,12 @@
   "librarySyncStagePlaylists": "Updating playlists",
   "librarySyncStageFinalizing": "Finalizing",
   "librarySyncFailureFallback": "Library sync failed.",
-  "librarySyncScanningSongIndex": "Metadata ready. Scanning song index ({count} songs found)",
+  "librarySyncScanningSongIndex": "Metadata ready. Scanning song index ({count, plural, =1{1 song found} other{{count} songs found}})",
   "@librarySyncScanningSongIndex": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -790,14 +806,16 @@
   "libraryAlbumsByYearEmptyTitle": "No Albums with Year Data",
   "libraryAlbumsByYearEmptySubtitle": "Sync more metadata or change filters to browse by year.",
   "libraryAlbumsSortLabel": "Sort Albums By",
-  "libraryAlbumsPagingProgress": "Loaded {loaded} of {total} albums",
+  "libraryAlbumsPagingProgress": "Loaded {loaded} of {total, plural, =1{1 album} other{{total} albums}}",
   "@libraryAlbumsPagingProgress": {
     "placeholders": {
       "loaded": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       },
       "total": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -851,11 +869,12 @@
   "artistDetailTitle": "Artist",
   "artistDetailNotFoundTitle": "Artist Not Found",
   "artistDetailNotFoundSubtitle": "This artist is not available in local data.",
-  "artistDetailAlbumCount": "{count} albums",
+  "artistDetailAlbumCount": "{count, plural, =1{1 album} other{{count} albums}}",
   "@artistDetailAlbumCount": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -900,13 +919,14 @@
   "albumDetailNotFoundTitle": "Album Not Found",
   "albumDetailNotFoundSubtitle": "This album is not available in local data.",
   "albumDetailUnknownArtist": "Unknown artist",
-  "albumDetailMeta": "{artist} • {year} • {trackCount} tracks",
+  "albumDetailMeta": "{artist} • {year} • {trackCount, plural, =1{1 track} other{{trackCount} tracks}}",
   "@albumDetailMeta": {
     "placeholders": {
       "artist": {},
       "year": {},
       "trackCount": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -1106,11 +1126,12 @@
   "searchSongsSection": "Songs",
   "searchShowAll": "Show all",
   "searchShowLess": "Show less",
-  "searchAlbumCount": "{count} albums",
+  "searchAlbumCount": "{count, plural, =1{1 album} other{{count} albums}}",
   "@searchAlbumCount": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },
@@ -1406,10 +1427,13 @@
   "cacheSettingsCoverArtSection": "Cover Art Cache",
   "cacheSettingsCoverArtDescription": "Cached album artwork images. Larger limits reduce network requests but use more storage.",
   "cacheSettingsCoverArtMaxLabel": "Maximum Images",
-  "cacheSettingsCoverArtMaxValue": "{count} images",
+  "cacheSettingsCoverArtMaxValue": "{count, plural, =1{1 image} other{{count} images}}",
   "@cacheSettingsCoverArtMaxValue": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "cacheSettingsCoverArtMaxSaved": "Cover art cache limit updated.",
@@ -1694,10 +1718,13 @@
       "seedType": { "type": "String" }
     }
   },
-  "audioMuseMixGenerated": "AI Mix created — {count} tracks queued.",
+  "audioMuseMixGenerated": "AI Mix created — {count, plural, =1{1 track} other{{count} tracks}} queued.",
   "@audioMuseMixGenerated": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "audioMuseMixFailed": "Could not generate AI mix. Try again later.",
@@ -1707,10 +1734,13 @@
   "smartQueueButton": "Smart Queue",
   "smartQueueActive": "Smart Queue active",
   "smartQueueStopped": "Smart Queue stopped",
-  "smartQueueStarted": "{count} tracks queued via Smart Queue.",
+  "smartQueueStarted": "{count, plural, =1{1 track} other{{count} tracks}} queued via Smart Queue.",
   "@smartQueueStarted": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "smartQueueUnsupported": "Smart Queues require the AudioMuse plugin on your server.",
@@ -2141,10 +2171,13 @@
       "value": {"type": "String"}
     }
   },
-  "eqFilterCount": "{count} filters",
+  "eqFilterCount": "{count, plural, =1{1 filter} other{{count} filters}}",
   "@eqFilterCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "eqCatalogueRevision": "Catalogue revision: {revision}",
@@ -2179,11 +2212,17 @@
   },
   "eqDraftNotSaved": "Draft could not be saved",
   "artistPlaybackPreparing": "Loading artist queue",
-  "artistPlaybackProgress": "Loaded {completed} of {total} albums",
+  "artistPlaybackProgress": "Loaded {completed} of {total, plural, =1{1 album} other{{total} albums}}",
   "@artistPlaybackProgress": {
     "placeholders": {
-      "completed": {"type": "int"},
-      "total": {"type": "int"}
+      "completed": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
     }
   },
   "queueTrackUnavailable": "Unavailable · skipped automatically",

@@ -1150,7 +1150,7 @@ void main() {
         );
 
         expect(
-          find.text('Metadata ready. Scanning song index (50000 songs found)'),
+          find.text('Metadata ready. Scanning song index (50,000 songs found)'),
           findsOneWidget,
         );
         expect(
