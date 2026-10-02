@@ -87,6 +87,18 @@ trap cleanup EXIT INT TERM
 
 launch_app() {
   rm -f "$HANDSHAKE"
+  # Like presentation_diagnostics.sh: an optional mode-600 password file
+  # signs the clone in where the system keyring holds no Navis password.
+  local -a credential_define=()
+  if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
+    if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
+      echo "Diagnostics credential file was not found." >&2
+      exit 66
+    fi
+    credential_define+=(
+      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+    )
+  fi
   flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
@@ -97,6 +109,7 @@ launch_app() {
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
+    "${credential_define[@]}" \
     >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
 
