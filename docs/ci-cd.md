@@ -454,6 +454,12 @@ Use `--allow-existing-version` only when intentionally rebuilding the same
 release version, such as retrying failed artifact publication. Normal releases
 must advance the semver/build so installed apps can detect updates.
 
+Release preparation may bump `pubspec.yaml` on `dev` before the release, so
+that changelog entries land under the coming version (1.4.0 and 1.3.1 did this,
+and 1.4.1 was opened this way on 2026-10-03). Such a release is published with
+`--allow-existing-version` after confirming that `git tag -l <tag>` prints
+nothing, because the guard cannot tell a pre-bumped version from a rebuild.
+
 ### Release channels
 
 - `stable` channel assets are named `navis-<tag>.*`
