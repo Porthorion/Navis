@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:path/path.dart' as p;
 
 /// The `MediaItem.extras` key of the local cover file that
 /// `NavisAudioHandler` caches for the current song.
@@ -21,4 +24,54 @@ String? systemArtUrl(MediaItem item) {
   final artUri = item.artUri;
   if (artUri == null || uriCarriesCredentials(artUri)) return null;
   return artUri.toString();
+}
+
+/// [path] when its extension matches its image bytes, otherwise a copy named
+/// for the image type. The art cache names every cover `.jpg`, and Windows
+/// picks the cover decoder by extension, so a PNG cover would otherwise leave
+/// the media overlay without an image.
+String typedSystemArtFile(String path) {
+  final extension = _imageExtension(path);
+  if (extension == null || p.extension(path).toLowerCase() == extension) {
+    return path;
+  }
+  final typed = p.setExtension(path, extension);
+  try {
+    final source = File(path);
+    final target = File(typed);
+    if (!target.existsSync() ||
+        target.lastModifiedSync().isBefore(source.lastModifiedSync())) {
+      source.copySync(typed);
+    }
+    return typed;
+  } on FileSystemException {
+    return path;
+  }
+}
+
+String? _imageExtension(String path) {
+  final List<int> head;
+  try {
+    final file = File(path).openSync();
+    try {
+      head = file.readSync(12);
+    } finally {
+      file.closeSync();
+    }
+  } on FileSystemException {
+    return null;
+  }
+  bool startsWith(List<int> bytes, [int offset = 0]) =>
+      head.length >= offset + bytes.length &&
+      Iterable<int>.generate(bytes.length)
+          .every((i) => head[offset + i] == bytes[i]);
+  if (startsWith(const [0xFF, 0xD8, 0xFF])) return '.jpg';
+  if (startsWith(const [0x89, 0x50, 0x4E, 0x47])) return '.png';
+  if (startsWith(const [0x47, 0x49, 0x46, 0x38])) return '.gif';
+  if (startsWith(const [0x52, 0x49, 0x46, 0x46]) &&
+      startsWith(const [0x57, 0x45, 0x42, 0x50], 8)) {
+    return '.webp';
+  }
+  if (startsWith(const [0x42, 0x4D])) return '.bmp';
+  return null;
 }

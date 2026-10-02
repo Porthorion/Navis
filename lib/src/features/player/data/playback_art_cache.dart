@@ -21,6 +21,7 @@ import 'dart:io';
 
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
@@ -78,7 +79,7 @@ class PlaybackArtCache {
     try {
       final cacheDir = await getTemporaryDirectory();
       final file = File(
-        '${cacheDir.path}/navis_art_${fileKey(coverArtId)}.jpg',
+        p.join(cacheDir.path, 'navis_art_${fileKey(coverArtId)}.jpg'),
       );
 
       // Reuse a previously downloaded file if it is non-empty and already

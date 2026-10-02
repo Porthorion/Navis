@@ -10,6 +10,7 @@ import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis_windows_smtc/navis_windows_smtc.dart';
+import 'package:path/path.dart' as p;
 
 /// Bridges Navis playback state with Windows System Media Transport Controls.
 class WindowsSmtcBridge {
@@ -35,6 +36,8 @@ class WindowsSmtcBridge {
   WindowsSmtcClient? _smtc;
   PlaybackSnapshot _latestSnapshot;
   MediaItem? _latestMediaItem;
+  String? _artworkSource;
+  late String _artworkPath;
   StreamSubscription<PlaybackSnapshot>? _snapshotSubscription;
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
   StreamSubscription<PressedButton>? _buttonSubscription;
@@ -282,12 +285,24 @@ class WindowsSmtcBridge {
     }
   }
 
+  /// The file Windows loads for the cached cover [cached], resolved once per
+  /// cover: a backslash path, since `StorageFile` rejects forward slashes
+  /// (0x800700A1), named for the image type, since Windows picks the decoder
+  /// by extension. Either mistake leaves the media overlay without a cover.
+  String _windowsArtworkPath(String cached) {
+    if (cached != _artworkSource) {
+      _artworkSource = cached;
+      _artworkPath = p.windows.normalize(typedSystemArtFile(cached));
+    }
+    return _artworkPath;
+  }
+
   /// The local cover file once it is cached, otherwise an http(s) artwork
   /// URL without account credentials (radio). A Subsonic cover URL is never
   /// handed to Windows.
   String? _systemArtwork(MediaItem item) {
     final cached = systemArtFile(item);
-    if (cached != null) return cached;
+    if (cached != null) return _windowsArtworkPath(cached);
     final uri = item.artUri;
     if (uri == null ||
         !(uri.scheme == 'https' || uri.scheme == 'http') ||
