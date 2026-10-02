@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:audio_service/audio_service.dart';
@@ -1117,6 +1119,27 @@ void main() {
       );
 
       expect(shouldRetry, isTrue);
+    });
+
+    test('native source ids include untagged lock-cached streams', () {
+      final tagged = AudioSource.uri(
+        Uri.parse('file:///music/a.flac'),
+        tag: const MediaItem(id: 'song-a', title: 'A'),
+      );
+      // ignore: experimental_member_use, reason: Android rolling-cache playback uses LockCachingAudioSource.
+      final lockCached = LockCachingAudioSource(
+        Uri.parse(
+          'https://music.test/rest/stream.view?id=song-b&u=me&t=tok&s=salt',
+        ),
+        cacheFile: File(
+          '${Directory.systemTemp.path}/navis-native-source-id-test.flac',
+        ),
+      );
+      final untagged = AudioSource.uri(Uri.parse('https://radio.test/live'));
+
+      expect(navisNativeSourceSongId(tagged), 'song-a');
+      expect(navisNativeSourceSongId(lockCached), 'song-b');
+      expect(navisNativeSourceSongId(untagged), isNull);
     });
 
     test('lock-cached preference is disabled for bypassed songs', () {

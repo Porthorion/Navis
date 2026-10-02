@@ -1909,7 +1909,10 @@ neither abort a release nor invalidate the deck. `GET /v1/playback/status`
 reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
 inactive deck length and match, outcome counts by phase), `queueLane` (the
 running work's kind and age, and the waiting kinds) and `recovery` (the stage
-of the latest seek or stall recovery).
+of the latest seek or stall recovery). The native order is read from each
+source's `MediaItem` tag, or for an Android lock-cached stream, which is built
+before its `MediaItem` and carries no tag, from its stream URL's `id`
+(`navisNativeSourceSongId`).
 
 Startup waits for cache maintenance before restoring or synthesizing a queue,
 so stale partial-file cleanup cannot race a new lock-cache download. If the OS

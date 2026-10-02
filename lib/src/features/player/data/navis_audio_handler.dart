@@ -5947,10 +5947,11 @@ class NavisAudioHandler extends BaseAudioHandler
     final sequence = player.sequence;
     if (sequence.length != _queueItems.length) return false;
     for (var i = 0; i < sequence.length; i++) {
-      final tag = sequence[i].tag;
-      if (tag is! MediaItem) return false;
+      final nativeId = navisNativeSourceSongId(sequence[i]);
+      if (nativeId == null) return false;
       final id = _queueItems[i].id;
-      if (tag.id != id && _canonicalSongId(tag.id) != _canonicalSongId(id)) {
+      if (nativeId != id &&
+          _canonicalSongId(nativeId) != _canonicalSongId(id)) {
         return false;
       }
     }
@@ -5994,7 +5995,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'shuffleEnabled': _player.shuffleModeEnabled,
         'sequenceIds': <String?>[
           for (final source in _player.sequence.take(64))
-            source.tag is MediaItem ? (source.tag as MediaItem).id : null,
+            navisNativeSourceSongId(source),
         ],
         'effectiveIndices': _player.effectiveIndices.take(64).toList(),
         // What mpv itself is playing, reduced to the stream `id` parameter or
