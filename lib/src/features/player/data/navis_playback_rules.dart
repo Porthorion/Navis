@@ -284,6 +284,21 @@ bool navisEffectiveGaplessEnabled({
   return gaplessEnabled || crossfadeEnabled;
 }
 
+/// The song a native player source plays, for diagnostics: its [MediaItem]
+/// tag, or for an Android lock-cached stream, which is built before its
+/// [MediaItem] and so carries no tag, the `id` of its stream URL.
+@visibleForTesting
+String? navisNativeSourceSongId(IndexedAudioSource source) {
+  final tag = source.tag;
+  if (tag is MediaItem) return tag.id;
+  // ignore: experimental_member_use, reason: Android rolling-cache playback uses LockCachingAudioSource.
+  if (source is LockCachingAudioSource) {
+    final id = source.uri.queryParameters['id'];
+    return id == null || id.isEmpty ? null : id;
+  }
+  return null;
+}
+
 @visibleForTesting
 bool navisShouldUseLockCachingForSong({
   required bool preferLockCaching,
