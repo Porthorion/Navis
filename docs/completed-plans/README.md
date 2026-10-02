@@ -7,6 +7,11 @@ open blockers, or required follow-up work remain at the repository root.
 
 ## Completed plans
 
+- [Rapid playback navigation](Rapid_Playback_Navigation_Fix_Plan.md) — bounded
+  Next/Previous bursts and row selections in the production handler. Regression
+  tests, the real-server Linux gate, and Windows VM and Android emulator bursts
+  passed on 2026-10-02; iOS, macOS and physical devices are recorded as not
+  covered.
 - [Gradual speed, pitch and playback presets](Playback_Speed_Pitch_Presets_Plan.md)
   — shared bidirectional rulers, independent pitch, exact entry, local presets
   and persistent adjustments. Full quality gate and isolated Linux/Android

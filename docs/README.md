@@ -89,10 +89,9 @@ acceptance criteria. Its [reproduction appendix](audits/sync-1-4-0-reproductions
 preserves sanitized characterization fixtures; their passing assertions describe
 the audited defects, not the desired post-fix behavior.
 
-[Rapid Playback Navigation Fix Plan](../Rapid_Playback_Navigation_Fix_Plan.md)
-records the cross-platform playback burst investigation, repair contracts, and
-runtime acceptance matrix. Keep it at the root until all listed validation is
-complete.
+The [Rapid Playback Navigation Fix Plan](completed-plans/Rapid_Playback_Navigation_Fix_Plan.md)
+records the cross-platform playback burst investigation, repair contracts,
+runtime acceptance matrix and its 2026-10-02 handoff.
 
 `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `design-ux-audit.md`,
 `../Remote_Song_Handling_Plan.md`,

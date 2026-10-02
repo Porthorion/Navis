@@ -125,3 +125,33 @@ required by changed models. Run focused tests, analysis, `./tool/check.sh`,
 review the complete diff, and repeat runtime acceptance after a clean restart.
 The handoff must identify an original reproduction, failing-then-passing
 regressions, latency/resource evidence, platform results, and limitations.
+
+## Handoff (2026-10-02)
+
+Archived after the 1.4.0 release validation. The burst handling lives in the
+production handler's navigation lanes and intent
+(`navis_playback_lanes.dart`, `PlaybackNavigationIntent`), described in
+`docs/architecture.md`.
+
+- Regression tests: `navis_audio_handler_navigation_test.dart` (including
+  "burst keeps latest target and serializes player mutations", seek recovery,
+  a native call that never returns, and the queue window model checked against
+  a plain list through seeded random edits and navigation),
+  `navis_playback_lanes_test.dart` and `playback_navigation_intent_test.dart`;
+  all pass in `tool/check.sh`.
+- Linux: `tool/rapid_playback_diagnostics.py` passed against the real server
+  with an isolated clone of the 57,000-song library (overlapping Next/Previous
+  bursts, Pause during a row selection, clean restart).
+- Windows 11 VM, loopback fixture, 240-song queue: 100 Next and 100 Previous
+  commands from 20 concurrent clients answered in a median of 149 and 162 ms
+  through an SSH tunnel and settled on the target within 0.7 s, with at most
+  one pending queue change; Pause during a selection won and the player matched
+  the queue.
+- Android 37 emulator (disposable AVD), same fixture and bursts: median 8 and
+  10 ms, settled within 0.21 s, at most one pending change, Pause won, and the
+  player matched the queue. The run exposed that the diagnostics could not
+  identify Android's untagged lock-cached sources; that is fixed
+  ("compare Android's native queue by song id").
+- Not covered: iOS and macOS (no hosts available), physical Android devices,
+  and a reproduction of the original September failures against the pre-fix
+  handler; the evidence above is from the fixed code.
