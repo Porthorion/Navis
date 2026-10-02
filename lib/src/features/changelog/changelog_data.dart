@@ -32,9 +32,10 @@ class ChangelogVersion {
   /// Optional name for a major release, shown as "Check out 1.4 “Navi”".
   final String? codename;
 
-  /// Optional bundled SVG or PNG under `assets/changelog/`, centred in the
-  /// release banner. The UI falls back to a sparkles icon when it is null or
-  /// fails to load.
+  /// Optional bundled SVG or PNG under `assets/changelog/`, shown as the
+  /// release's cover. It is a single-colour glyph: the UI keeps only its shape
+  /// and paints it in the theme's on-accent colour on the accent colour. The
+  /// UI falls back to a typographic cover when it is null or fails to load.
   final String? iconAsset;
 
   /// Optional one or two sentences, shown only in the changelog banner.
@@ -126,6 +127,7 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.4.0',
     codename: 'Navi',
+    iconAsset: 'assets/changelog/navi.svg',
     highlights: [
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.equalizer,

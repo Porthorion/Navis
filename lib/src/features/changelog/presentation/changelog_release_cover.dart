@@ -6,9 +6,10 @@ import 'package:navis/src/providers/app_providers.dart';
 
 /// A release's square "cover", shaped like album art.
 ///
-/// It shows the release's own [ChangelogVersion.iconAsset] when one is
-/// bundled. Otherwise, or when the asset fails to load, it is a typographic
-/// cover: the version set large on the accent colour.
+/// It shows the release's own [ChangelogVersion.iconAsset] in the on-accent
+/// colour on the accent colour when one is bundled. Otherwise, or when the
+/// asset fails to load, it is a typographic cover: the version set large on
+/// the accent colour.
 class ChangelogReleaseCover extends ConsumerWidget {
   const new({required this.version, required this.size, super.key});
 
@@ -26,13 +27,18 @@ class ChangelogReleaseCover extends ConsumerWidget {
     if (asset == null || asset.isEmpty) {
       cover = typographic;
     } else {
-      final inset = size * 0.18;
+      final inset = size * 0.12;
       final artSize = size - inset * 2;
+      // The icon is a single-colour glyph: only its shape is used, painted
+      // like the typographic cover's text, so one file suits light and dark
+      // themes and every accent colour.
+      final ink = colorScheme.onPrimary;
       final art = asset.toLowerCase().endsWith('.svg')
           ? SvgPicture.asset(
               asset,
               width: artSize,
               height: artSize,
+              colorFilter: ColorFilter.mode(ink, BlendMode.srcIn),
               errorBuilder: (_, _, _) => typographic,
             )
           : Image.asset(
@@ -40,10 +46,13 @@ class ChangelogReleaseCover extends ConsumerWidget {
               width: artSize,
               height: artSize,
               fit: BoxFit.contain,
+              color: ink,
+              colorBlendMode: BlendMode.srcIn,
               errorBuilder: (_, _, _) => typographic,
             );
       cover = ColoredBox(
-        color: colorScheme.surfaceContainerHighest,
+        key: const ValueKey<String>('changelogIconCover'),
+        color: colorScheme.primary,
         child: Center(child: art),
       );
     }
