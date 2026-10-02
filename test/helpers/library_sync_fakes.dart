@@ -31,6 +31,10 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   final Map<String, Album> albumDetails = <String, Album>{};
   final Map<String, Playlist> playlistDetails = <String, Playlist>{};
   final Map<int, List<Album>> fastPathPages = <int, List<Album>>{};
+
+  /// Pages of the server's `newest` list by offset. When empty, the newest
+  /// list repeats [fastPathPages].
+  final Map<int, List<Album>> newestPages = <int, List<Album>>{};
   final Map<int, Object> fastPathErrors = <int, Object>{};
   final Map<int, List<Song>> bulkSongPages = <int, List<Song>>{};
   StarredContent starredContent = const StarredContent();
@@ -176,8 +180,12 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   Future<List<Album>> getNewestAlbumListPage({
     required int size,
     required int offset,
-  }) {
-    return getAlbumListPage(size: size, offset: offset);
+  }) async {
+    if (newestPages.isEmpty) {
+      return await getAlbumListPage(size: size, offset: offset);
+    }
+    calls.add('getNewestAlbumListPage:$offset:$size');
+    return newestPages[offset] ?? const <Album>[];
   }
 
   @override

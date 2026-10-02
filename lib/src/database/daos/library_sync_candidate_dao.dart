@@ -383,6 +383,25 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
         .toList(growable: false);
   }
 
+  Future<int> countAlbums({
+    required int serverId,
+    required int generation,
+  }) async {
+    final count = librarySyncCandidateAlbumsTable.id.count();
+    final row =
+        await (selectOnly(librarySyncCandidateAlbumsTable)
+              ..addColumns([count])
+              ..where(
+                librarySyncCandidateAlbumsTable.serverId.equals(serverId) &
+                    librarySyncCandidateAlbumsTable.generation.equals(
+                      generation,
+                    ),
+              ))
+            .getSingle();
+    final resolvedCount = row.read(count) ?? 0;
+    return resolvedCount;
+  }
+
   Future<int> countPendingAlbums({
     required int serverId,
     required int generation,

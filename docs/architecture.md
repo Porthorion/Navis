@@ -204,6 +204,15 @@ Located in `lib/src/providers/app_providers.dart`:
   generation. Promotion validates checkpoint-to-row counts and refuses an
   empty album candidate when the artist snapshot reports albums, preserving
   the committed catalog instead of applying an incomplete replacement.
+- A catalog page checkpoint (version 3) counts only the albums that page added
+  to the candidate, written in the same transaction as those rows. A server
+  list that shifts while Navis pages it (an album added mid-repair, or ties in
+  name order) repeats the boundary album on the next page; counting it twice
+  made every resume of that generation fail the count check for up to 24
+  hours. Version-2 generations are never resumed. The complete newest-rank
+  scan likewise keeps an album's first rank when it reappears, and fails only
+  when a page repeats exactly or adds no new album (a server ignoring the
+  offset or looping).
 - Candidate apply queries chunk large song-ID sets below SQLite's variable
   limit. A rolled-back `applying` generation remains resumable, allowing a
   corrected retry to reuse its fully hydrated candidate. Promotion completes
