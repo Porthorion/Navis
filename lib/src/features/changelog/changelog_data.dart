@@ -124,8 +124,10 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
+  ChangelogVersion(version: '1.4.1', entries: []),
   ChangelogVersion(
     version: '1.4.0',
+    released: '2026-10-02',
     codename: 'Navi',
     iconAsset: 'assets/changelog/navi.svg',
     highlights: [

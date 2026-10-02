@@ -1077,7 +1077,9 @@ sentinels do not match the expected release.
 
 `tool/release.sh` fails when `pubspec.yaml` already contains the exact requested
 release version. Use a new version for normal releases; reserve
-`--allow-existing-version` for intentional rebuilds or failed-release retries.
+`--allow-existing-version` for intentional rebuilds, failed-release retries, or
+a version that release preparation already bumped on `dev` and has no tag yet
+(see [ci-cd.md](ci-cd.md#what-it-does)).
 
 Advanced release packaging options:
 
