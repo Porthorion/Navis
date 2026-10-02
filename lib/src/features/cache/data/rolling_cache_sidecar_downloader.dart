@@ -64,10 +64,18 @@ class RollingCacheSidecarDownloader {
       if (!_isCurrent(generation)) {
         return;
       }
+      // The stream URI carries credentials, so these errors never include it.
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException(
           'Sidecar cache download failed with HTTP ${response.statusCode}',
-          uri: uri,
+        );
+      }
+      final contentType = response.headers.contentType;
+      if (!_mayBeAudio(contentType)) {
+        // A server error document or proxy page, not the song.
+        throw HttpException(
+          'Sidecar cache download returned ${contentType?.mimeType} '
+          'instead of audio',
         );
       }
 
@@ -145,6 +153,25 @@ class RollingCacheSidecarDownloader {
   }
 
   bool _isCurrent(int generation) => generation == _generation;
+
+  /// Whether a response of [contentType] may be audio. Servers label audio
+  /// many ways (including `application/octet-stream`, `text/plain` or no type
+  /// at all), so only document types are refused.
+  static bool _mayBeAudio(ContentType? contentType) {
+    if (contentType == null) {
+      return true;
+    }
+    final subType = contentType.subType;
+    final isDocument =
+        subType == 'html' ||
+        subType == 'json' ||
+        subType == 'xml' ||
+        subType.endsWith('+json') ||
+        subType.endsWith('+xml');
+    return !(isDocument &&
+        (contentType.primaryType == 'text' ||
+            contentType.primaryType == 'application'));
+  }
 
   void _clearActive(int generation) {
     if (!_isCurrent(generation)) {

@@ -172,6 +172,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A song your server could not send is no longer cached as broken audio that keeps failing until the cache is cleared, and such entries left by earlier versions are removed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
         type: ChangelogEntryType.fix,
       ),

@@ -96,3 +96,18 @@ SubsonicApiException mapSubsonicApiError({int? code, String? message}) {
     _ => SubsonicGenericException(code: code, message: resolvedMessage),
   };
 }
+
+/// Bytes from the start of a media payload that
+/// [looksLikeSubsonicErrorDocument] inspects.
+const int subsonicErrorDocumentProbeBytes = 256;
+
+/// True when [head], the start of a downloaded media payload, reads as a
+/// Subsonic error envelope. Navidrome answers some failed media requests (a
+/// missing song or cover) with HTTP 200 and this document instead of an error
+/// status, so a status check alone would keep the document as media.
+bool looksLikeSubsonicErrorDocument(List<int> head) {
+  final sample = String.fromCharCodes(
+    head.take(subsonicErrorDocumentProbeBytes),
+  );
+  return sample.contains('subsonic-response') && sample.contains('failed');
+}

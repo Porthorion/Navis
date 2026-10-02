@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
@@ -51,10 +52,6 @@ const int _coverArtMaxConnectionsPerHost = 4;
 /// coordinator below owns prioritisation and cancellation; the HTTP client
 /// remains the hard safety cap for actual sockets.
 const int _coverArtMaxScheduledFetches = 64;
-
-/// Bytes inspected from a successful response body to decide whether it is
-/// artwork or a server error document masquerading under HTTP success.
-const int _coverArtPayloadHeadBytes = 32;
 
 /// Upper bound on how much of a non-image success body is buffered for
 /// classification before it is rejected.
@@ -109,17 +106,6 @@ bool _looksLikeImagePayload(List<int> head) {
     return true; // ICO
   }
   return false;
-}
-
-/// True when the payload reads as a Subsonic error envelope. Navidrome
-/// answers missing artwork with HTTP 200 and this document instead of a
-/// 404, so it counts as missing-cover evidence rather than a generic
-/// invalid payload.
-bool _looksLikeSubsonicErrorDocument(List<int> bytes) {
-  final sample = String.fromCharCodes(
-    bytes.take(_coverArtPayloadHeadBytes * 8),
-  );
-  return sample.contains('subsonic-response') && sample.contains('failed');
 }
 
 enum CoverArtLoadPriority { background, visible, critical }
@@ -524,7 +510,7 @@ class CoverArtHttpFileService implements FileService {
           response,
           timeout: _bodyReadTimeout,
         );
-        if (_looksLikeSubsonicErrorDocument(sample)) {
+        if (looksLikeSubsonicErrorDocument(sample)) {
           final coverId = uri.queryParameters['id'];
           if (coverId != null && coverId.isNotEmpty) {
             onMissingCover?.call(coverId);
@@ -696,7 +682,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
           inspectedHead = true;
           headIsImage = _looksLikeImagePayload(chunk);
           headIsErrorDocument =
-              !headIsImage && _looksLikeSubsonicErrorDocument(chunk);
+              !headIsImage && looksLikeSubsonicErrorDocument(chunk);
         }
         if (!headIsImage) {
           // Consume the remainder (keeps the connection reusable) but

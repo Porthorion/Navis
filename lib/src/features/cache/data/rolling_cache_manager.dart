@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -22,6 +23,8 @@ abstract class RollingCacheManager {
 
   Future<void> enforceBudget({required int maxBytes});
 
+  /// Remove rolling entries whose files are missing or hold a server error
+  /// document instead of audio.
   Future<void> pruneMissingFiles();
 
   /// Remove permanent cache DB entries whose backing files no longer exist on
@@ -68,6 +71,25 @@ class DriftRollingCacheManager implements RollingCacheManager {
   static Future<bool> _defaultEntryExists(CachedTracksTableData entry) async =>
       File(entry.filePath).existsSync();
 
+  /// Cached files at most this large are checked for a server error document;
+  /// real audio is far larger, so bigger files are never read.
+  static const int _errorDocumentMaxBytes = 64 * 1024;
+
+  static Future<bool> _holdsErrorDocument(File file, int size) async {
+    if (size > _errorDocumentMaxBytes) {
+      return false;
+    }
+    try {
+      final head = <int>[];
+      await file
+          .openRead(0, subsonicErrorDocumentProbeBytes)
+          .forEach(head.addAll);
+      return looksLikeSubsonicErrorDocument(head);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   @override
   Future<void> registerTrack({
     required String songId,
@@ -82,6 +104,16 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
 
     final stat = file.statSync();
+    // A stream request the server refused can still arrive with HTTP 200 and
+    // an error document. Never keep that as audio: playback prefers the
+    // rolling cache over streaming, so the song would fail until evicted.
+    if (await _holdsErrorDocument(file, stat.size)) {
+      await _deleteCacheFileSet(filePath);
+      AppLogger.warning(
+        'Discarded a server error response cached as audio for song=$songId.',
+      );
+      return;
+    }
     final normalizedFormat = _normalizeFormat(format, filePath);
     final canonicalSongId =
         await _songIdentityDao?.resolveCanonicalId(songId) ?? songId;
@@ -151,16 +183,30 @@ class DriftRollingCacheManager implements RollingCacheManager {
   Future<void> pruneMissingFiles() async {
     final entries = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
     final staleIds = <String>[];
+    var errorDocuments = 0;
 
     for (final entry in entries) {
       if (!await _entryExists(entry)) {
         staleIds.add(entry.songId);
+      } else if (await _holdsErrorDocument(
+        File(entry.filePath),
+        entry.fileSize,
+      )) {
+        await _deleteCacheFileSet(entry.filePath);
+        staleIds.add(entry.songId);
+        errorDocuments += 1;
       }
     }
 
     if (staleIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(staleIds);
       await _garbageCollectProvisionalMetadata();
+    }
+    if (errorDocuments > 0) {
+      AppLogger.info(
+        'Removed $errorDocuments rolling cache entries holding a server error '
+        'response instead of audio.',
+      );
     }
   }
 

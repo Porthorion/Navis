@@ -59,6 +59,39 @@ void main() {
     },
   );
 
+  test('refuses a server error document instead of audio', () async {
+    final errorServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => errorServer.close(force: true));
+    unawaited(
+      errorServer.forEach((request) async {
+        request.response.statusCode = 200;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          '{"subsonic-response":{"status":"failed",'
+          '"error":{"code":70,"message":"data not found"}}}',
+        );
+        await request.response.close();
+      }),
+    );
+
+    final downloader = RollingCacheSidecarDownloader();
+    addTearDown(downloader.dispose);
+    final cacheFile = File(p.join(tempDir.path, 'missing.flac'));
+    var completed = false;
+
+    await downloader.start(
+      songId: 'song-missing',
+      uri: Uri.parse('http://127.0.0.1:${errorServer.port}/audio'),
+      cacheFilePath: cacheFile.path,
+      onProgress: (_) {},
+      onComplete: (_) async => completed = true,
+    );
+
+    expect(completed, isFalse);
+    expect(cacheFile.existsSync(), isFalse);
+    expect(tempDir.listSync(), isEmpty);
+  });
+
   test('cancel stops an in-flight download without completing', () async {
     final slowServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => slowServer.close(force: true));
