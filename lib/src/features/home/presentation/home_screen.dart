@@ -523,6 +523,9 @@ class _ListenBrainzWeeklyDetailContentState
     bool iconOnly = false,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    // Play and Shuffle include remote matches; only songs on the server can
+    // be downloaded.
+    final playableSongs = playlist.playableSongs;
     final sourcePatch = _playlistSourcePatch;
     final canMatch = sourcePatch.isNotEmpty && !_playlistIsMatching;
     if (iconOnly) {
@@ -534,16 +537,16 @@ class _ListenBrainzWeeklyDetailContentState
           IconButton(
             tooltip: l10n.albumDetailPlayAction,
             icon: const Icon(Icons.play_arrow),
-            onPressed: serverSongs.isEmpty
+            onPressed: playableSongs.isEmpty
                 ? null
-                : () => _queueSongs(serverSongs, shuffle: false),
+                : () => _queueSongs(playableSongs, shuffle: false),
           ),
           IconButton(
             tooltip: l10n.albumDetailShuffleAction,
             icon: const Icon(Icons.shuffle),
-            onPressed: serverSongs.isEmpty
+            onPressed: playableSongs.isEmpty
                 ? null
-                : () => _queueSongs(serverSongs, shuffle: true),
+                : () => _queueSongs(playableSongs, shuffle: true),
           ),
           IconButton(
             tooltip: l10n.albumDetailDownloadAction,
@@ -570,16 +573,16 @@ class _ListenBrainzWeeklyDetailContentState
       runSpacing: 10,
       children: <Widget>[
         FilledButton.icon(
-          onPressed: serverSongs.isEmpty
+          onPressed: playableSongs.isEmpty
               ? null
-              : () => _queueSongs(serverSongs, shuffle: false),
+              : () => _queueSongs(playableSongs, shuffle: false),
           icon: const Icon(Icons.play_arrow_rounded),
           label: Text(l10n.albumDetailPlayAction),
         ),
         FilledButton.tonalIcon(
-          onPressed: serverSongs.isEmpty
+          onPressed: playableSongs.isEmpty
               ? null
-              : () => _queueSongs(serverSongs, shuffle: true),
+              : () => _queueSongs(playableSongs, shuffle: true),
           icon: const Icon(Icons.shuffle_rounded),
           label: Text(l10n.albumDetailShuffleAction),
         ),
@@ -627,7 +630,7 @@ class _ListenBrainzWeeklyDetailContentState
                 : null,
             horizontalTitleGap: 6,
             actionExtent: 96,
-            onTap: () => _playOneTableSong(tableSong),
+            onTap: () => _playRecommendation(index - 1),
             onLongPress: () => showSongContextMenu(context, ref, tableSong),
             onSecondaryTapDown: (details) => showSongContextMenu(
               context,
@@ -675,11 +678,7 @@ class _ListenBrainzWeeklyDetailContentState
               ? const EdgeInsetsDirectional.only(start: 8, end: 4)
               : null,
           horizontalTitleGap: 6,
-          onPlay: (song) {
-            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-              song,
-            ], expandMatchFlows: false).ignore();
-          },
+          onPlay: (_) => _playRecommendation(index - 1),
           onSearch: (track) {
             NavService.openSearch(
               context,
@@ -699,21 +698,20 @@ class _ListenBrainzWeeklyDetailContentState
     return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
   }
 
-  void _queueSongs(List<SongsTableData> songs, {required bool shuffle}) {
-    final queueSongs = List<SongsTableData>.of(songs);
+  void _queueSongs(List<Song> songs, {required bool shuffle}) {
+    final queueSongs = List<Song>.of(songs);
     if (shuffle) {
       queueSongs.shuffle(math.Random());
     }
+    // Saves remote matches as provisional rows before queueing them.
     ref
         .read(queueProvider.notifier)
-        .replaceWithTableData(queueSongs, expandMatchFlows: false)
+        .replaceWithSongs(queueSongs, expandMatchFlows: false)
         .ignore();
   }
 
-  void _playOneTableSong(SongsTableData song) {
-    ref.read(queueProvider.notifier).replaceWithTableData(<SongsTableData>[
-      song,
-    ], expandMatchFlows: false).ignore();
+  void _playRecommendation(int index) {
+    _playWeeklyRecommendation(ref, playlist.recommendations, index);
   }
 
   Future<void> _rematchPlaylist() async {
@@ -2807,21 +2805,7 @@ class _DesktopListenBrainzSongListState
           index: index + 1,
           // Numbered hero list without artwork: denser rows.
           minHeight: 48,
-          onPlay: (song) {
-            final tableSong = recommendation.hasServerSong
-                ? recommendation.tableSong
-                : null;
-            if (tableSong != null) {
-              ref.read(queueProvider.notifier).replaceWithTableData(
-                <SongsTableData>[tableSong],
-                expandMatchFlows: false,
-              ).ignore();
-            } else {
-              ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-                song,
-              ], expandMatchFlows: false).ignore();
-            }
-          },
+          onPlay: (_) => _playWeeklyRecommendation(ref, recommendations, index),
           onSearch: (track) {
             NavService.openSearch(
               context,
@@ -2833,6 +2817,29 @@ class _DesktopListenBrainzSongListState
       },
     );
   }
+}
+
+/// Plays the weekly-playlist recommendation at [index]. With Album Queue on
+/// the whole playlist's matched songs (on the server or remote) are queued
+/// from that song, like an album; otherwise only that song plays. Match
+/// flows stay collapsed: the playlist already chose these songs.
+void _playWeeklyRecommendation(
+  WidgetRef ref,
+  List<ListenBrainzResolvedRecommendation> recommendations,
+  int index,
+) {
+  final playback = listenBrainzPlaybackFrom(recommendations, index);
+  if (playback == null) return;
+  final queueAll =
+      ref.read(albumQueueEnabledProvider) && playback.songs.length > 1;
+  ref
+      .read(queueProvider.notifier)
+      .replaceWithSongs(
+        queueAll ? playback.songs : <Song>[playback.songs[playback.startIndex]],
+        startIndex: queueAll ? playback.startIndex : 0,
+        expandMatchFlows: false,
+      )
+      .ignore();
 }
 
 class _ListenBrainzLoadingArtwork extends StatelessWidget {

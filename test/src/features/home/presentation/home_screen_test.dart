@@ -321,6 +321,74 @@ ListenBrainzDiscoverPlaylist _listenBrainzPlaylistWithTableSongs() {
   );
 }
 
+/// A weekly playlist with an on-server match, a remote-only match, an
+/// unmatched track and another on-server match, in that order.
+ListenBrainzDiscoverPlaylist _listenBrainzMixedPlaylist() {
+  final first = _songRow(
+    id: 'weekly-song-1',
+    title: 'Weekly Song 1',
+    albumId: 'weekly',
+  );
+  final last = _songRow(
+    id: 'weekly-song-3',
+    title: 'Weekly Song 3',
+    albumId: 'weekly',
+  );
+  return ListenBrainzDiscoverPlaylist(
+    playlist: const ListenBrainzPlaylist(
+      identifier: 'exploration',
+      title: 'Weekly Exploration for alice, week of 2026-06-15',
+      sourcePatch: 'weekly-exploration',
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(title: 'Weekly Song 1', creator: 'Artist'),
+        ListenBrainzPlaylistTrack(title: 'Remote Song 2', creator: 'Remote'),
+        ListenBrainzPlaylistTrack(title: 'Missing Song', creator: 'Nobody'),
+        ListenBrainzPlaylistTrack(title: 'Weekly Song 3', creator: 'Artist'),
+      ],
+    ),
+    recommendations: <ListenBrainzResolvedRecommendation>[
+      ListenBrainzResolvedRecommendation(
+        track: const ListenBrainzPlaylistTrack(
+          title: 'Weekly Song 1',
+          creator: 'Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        tableSong: first,
+        song: Song(id: first.id, title: first.title, artist: 'Artist'),
+      ),
+      const ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Remote Song 2',
+          creator: 'Remote',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        song: Song(
+          id: 'ext-deezer-song-2',
+          title: 'Remote Song 2',
+          artist: 'Remote',
+          isExternal: true,
+        ),
+      ),
+      const ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Missing Song',
+          creator: 'Nobody',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.unmatched,
+      ),
+      ListenBrainzResolvedRecommendation(
+        track: const ListenBrainzPlaylistTrack(
+          title: 'Weekly Song 3',
+          creator: 'Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        tableSong: last,
+        song: Song(id: last.id, title: last.title, artist: 'Artist'),
+      ),
+    ],
+  );
+}
+
 SongsTableData _songRow({
   required String id,
   required String title,
@@ -1919,64 +1987,122 @@ void main() {
     },
   );
 
+  Future<_QueueSpyController> openMixedWeeklyDetail(
+    WidgetTester tester, {
+    bool albumQueue = true,
+  }) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    // Tall enough for every row of the playlist without scrolling.
+    view.physicalSize = const Size(390, 1400);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz(playlist: _listenBrainzMixedPlaylist()),
+      ],
+      overrides: <Override>[
+        queueProvider.overrideWith(_QueueSpyController.new),
+        albumQueueEnabledProvider.overrideWithValue(albumQueue),
+      ],
+    );
+    await tester.tap(find.text('Weekly Exploration'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen, skipOffstage: false)),
+    );
+    return container.read(queueProvider.notifier) as _QueueSpyController;
+  }
+
   testWidgets(
-    'weekly detail row taps queue one matched song without match-flow expansion',
+    'weekly Play and Shuffle queue on-server and remote matches in order',
     (tester) async {
-      final view = tester.view;
-      view.devicePixelRatio = 1.0;
-      view.physicalSize = const Size(390, 844);
-      addTearDown(() {
-        view.resetPhysicalSize();
-        view.resetDevicePixelRatio();
-      });
-
-      await _pumpRandomSectionHome(
-        tester,
-        database: database,
-        randomAlbums: <HomeRandomShowcaseItem>[
-          HomeRandomShowcaseListenBrainz(
-            playlist: _listenBrainzPlaylistWithTableSongs(),
-          ),
-        ],
-        overrides: <Override>[
-          queueProvider.overrideWith(_QueueSpyController.new),
-        ],
-      );
-
-      await tester.tap(find.text('Weekly Exploration'));
-      await tester.pumpAndSettle();
-
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomeScreen, skipOffstage: false)),
-      );
-      final queueSpy =
-          container.read(queueProvider.notifier) as _QueueSpyController;
+      final queueSpy = await openMixedWeeklyDetail(tester);
 
       await tester.tap(find.widgetWithText(FilledButton, 'Play').last);
       await tester.pumpAndSettle();
 
+      // 1.4.0 queued only the on-server songs.
       expect(queueSpy.lastReplaceIds, const <String>[
         'weekly-song-1',
-        'weekly-song-2',
+        'ext-deezer-song-2',
         'weekly-song-3',
       ]);
       expect(queueSpy.lastStartIndex, 0);
       expect(queueSpy.lastAutoPlay, isTrue);
       expect(queueSpy.lastExpandMatchFlows, isFalse);
 
-      // Still on the weekly playlist page: tap a single row.
-      await tester.tap(find.text('Weekly Song 2').last);
+      await tester.tap(find.widgetWithText(FilledButton, 'Shuffle').last);
       await tester.pumpAndSettle();
 
-      expect(queueSpy.lastReplaceIds, const <String>['weekly-song-2']);
-      expect(queueSpy.lastStartIndex, 0);
-      expect(queueSpy.lastAutoPlay, isTrue);
+      expect(
+        queueSpy.lastReplaceIds,
+        unorderedEquals(<String>[
+          'weekly-song-1',
+          'ext-deezer-song-2',
+          'weekly-song-3',
+        ]),
+      );
       expect(queueSpy.lastExpandMatchFlows, isFalse);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets(
+    'with Album Queue on, a weekly row plays the playlist from that song',
+    (tester) async {
+      final queueSpy = await openMixedWeeklyDetail(tester);
+
+      await tester.tap(find.text('Weekly Song 3').last);
+      await tester.pumpAndSettle();
+
+      expect(queueSpy.lastReplaceIds, const <String>[
+        'weekly-song-1',
+        'ext-deezer-song-2',
+        'weekly-song-3',
+      ]);
+      expect(queueSpy.lastStartIndex, 2);
+      expect(queueSpy.lastAutoPlay, isTrue);
+      expect(queueSpy.lastExpandMatchFlows, isFalse);
+
+      // A remote row starts the same queue at its own position.
+      await tester.tap(find.text('Remote Song 2').last);
+      await tester.pumpAndSettle();
+
+      expect(queueSpy.lastReplaceIds, hasLength(3));
+      expect(queueSpy.lastStartIndex, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('with Album Queue off, a weekly row plays only that song', (
+    tester,
+  ) async {
+    final queueSpy = await openMixedWeeklyDetail(tester, albumQueue: false);
+
+    await tester.tap(find.text('Weekly Song 3').last);
+    await tester.pumpAndSettle();
+
+    expect(queueSpy.lastReplaceIds, const <String>['weekly-song-3']);
+    expect(queueSpy.lastStartIndex, 0);
+    expect(queueSpy.lastExpandMatchFlows, isFalse);
+
+    await tester.tap(find.text('Remote Song 2').last);
+    await tester.pumpAndSettle();
+
+    expect(queueSpy.lastReplaceIds, const <String>['ext-deezer-song-2']);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets(
     'weekly detail remote row taps queue one API song without match-flow expansion',
@@ -2648,6 +2774,40 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('desktop weekly panel rows follow Album Queue', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(1366, 900));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz(
+          playlist: _listenBrainzPlaylistWithApiSongs(),
+        ),
+      ],
+      overrides: <Override>[
+        queueProvider.overrideWith(_QueueSpyController.new),
+      ],
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen, skipOffstage: false)),
+    );
+    final queueSpy =
+        container.read(queueProvider.notifier) as _QueueSpyController;
+
+    await tester.tap(find.text('Remote Song 2').last);
+    await tester.pumpAndSettle();
+
+    expect(queueSpy.lastReplaceIds, const <String>[
+      'remote-song-1',
+      'remote-song-2',
+    ]);
+    expect(queueSpy.lastStartIndex, 1);
+    expect(queueSpy.lastExpandMatchFlows, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('desktop weekly marker aligns with inactive track numbers', (
     tester,
