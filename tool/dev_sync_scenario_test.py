@@ -7,9 +7,11 @@ import unittest
 from pathlib import Path
 
 from tool.dev_sync_scenario import (
+    PROJECT_ROOT,
     _clone_diagnostic_defines,
     _scenario_args,
     prepare_database,
+    prepare_support_directory,
 )
 
 
@@ -142,6 +144,24 @@ class DevSyncScenarioTest(unittest.TestCase):
             handshake_path=self.root / "run" / "handshake.json",
         )
         self.assertEqual(defines["NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS"], "600")
+
+    def test_existing_profiles_seed_their_own_support_directory(self):
+        version = next(
+            line.split(":", 1)[1].strip().split("+", 1)[0]
+            for line in (PROJECT_ROOT / "pubspec.yaml").read_text().splitlines()
+            if line.startswith("version:")
+        )
+        for scenario in ("first-setup", "partial-album", "repair-library"):
+            run = self.root / scenario
+            run.mkdir()
+            prepare_support_directory(run, scenario)
+            marker = run / "support" / "changelog_seen_version.txt"
+            self.assertEqual(marker.read_text(), version + "\n")
+            self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+        fresh = self.root / "fresh-login"
+        fresh.mkdir()
+        prepare_support_directory(fresh, "fresh-login")
+        self.assertEqual(list((fresh / "support").iterdir()), [])
 
 
 if __name__ == "__main__":

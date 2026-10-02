@@ -14,7 +14,10 @@ are checked again after restart, with app-owned screenshots retained.
 presets. Their profile-mode clone and fixture flows are documented in
 `docs/dev-testing-builds.md`; they are exploratory launchers, not quality-gate
 replacements. Changes to their launch or preparation behavior require focused
-scenario tests, the Linux app/API runtime loop, and this repository gate.
+scenario tests (`python3 -m unittest tool.dev_sync_scenario_test`), the Linux
+app/API runtime loop, and this repository gate. Clone launchers seed
+app-support state such as the What's New marker under `<root>/support/`, where
+desktop clone builds keep it (see `docs/development-workflow.md`).
 
 Artist queue changes additionally verify early playback and background queue
 growth without a modal using `python3 tool/artist_playback_diagnostics.py`.

@@ -105,14 +105,14 @@ chmod 600 "$CLONE_DB"
 
 launch() {
   rm -f "$HANDSHAKE"
-  local data_home="$OUTPUT_ROOT/app-data"
   local version
   version="$(awk '/^version:/ {split($2, p, "+"); print p[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
-  mkdir -p "$data_home/com.navis.app.navis"
-  printf '%s\n' "$version" > "$data_home/com.navis.app.navis/changelog_seen_version.txt"
+  # Clone app-support state lives in the run root's support directory.
+  mkdir -p "$OUTPUT_ROOT/support"
+  printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    env "XDG_DATA_HOME=$data_home" flutter run -d linux --profile \
+    flutter run -d linux --profile \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define=NAVIS_APP_NAME='Navis Repair Confirmation Diagnostics' \

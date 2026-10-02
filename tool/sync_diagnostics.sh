@@ -227,23 +227,19 @@ FLUTTER_PID=0
 launch_app() {
   rm -f "$HANDSHAKE"
   local diagnostics_runtime_mode="$MODE"
-  local diagnostics_data_home=""
-  local -a diagnostics_environment=()
   if [[ "$MODE" != "primary-certification" ]]; then
-    diagnostics_data_home="$OUTPUT_ROOT/app-data"
-    diagnostics_environment+=("XDG_DATA_HOME=$diagnostics_data_home")
     local changelog_version
     changelog_version="$(awk '/^version:/ {split($2, parts, "+"); print parts[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
-    mkdir -p "$diagnostics_data_home/com.navis.app.navis"
-    # A first-run changelog dialog would mask the actual repair progress. Keep
-    # clone-only app-support state isolated and mark this build as already seen.
+    mkdir -p "$OUTPUT_ROOT/support"
+    # A What's New card would mask the actual repair progress. Clone
+    # app-support state lives in the run root; mark this build as seen.
     printf '%s\n' "$changelog_version" \
-      > "$diagnostics_data_home/com.navis.app.navis/changelog_seen_version.txt"
+      > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   fi
   if [[ "$MODE" == "throughput" || "$MODE" == "full-rescan" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
-  env "${diagnostics_environment[@]}" flutter run -d linux --profile \
+  flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \

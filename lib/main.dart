@@ -19,12 +19,14 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/clone_diagnostics_path_provider.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 /// Root-library entrypoint resolved by Android's headless FlutterEngine.
 ///
@@ -52,6 +54,18 @@ Future<void> _runNavis() async {
   // outside the redacting zone.
   PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
   LicenseRegistry.addLicense(_bundledFontLicenses);
+  // Before anything resolves a directory: a desktop clone runs as the same OS
+  // user as the real app, so its platform directories would be the real
+  // profile's. (An Android sidecar is its own package with its own storage.)
+  if (_syncDiagnosticsRequested &&
+      _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
+      _syncDiagnosticsRoot.isNotEmpty &&
+      _isDesktopRuntime) {
+    PathProviderPlatform.instance = CloneDiagnosticsPathProvider(
+      root: _syncDiagnosticsRoot,
+      platform: PathProviderPlatform.instance,
+    );
+  }
 
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {
