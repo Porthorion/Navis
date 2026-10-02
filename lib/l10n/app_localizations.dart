@@ -1293,8 +1293,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsIdentitySummary.
   ///
   /// In en, this message translates to:
-  /// **'{canonicalized} cached songs canonicalized; {ambiguous} ambiguous matches retained'**
-  String syncSettingsIdentitySummary(Object canonicalized, Object ambiguous);
+  /// **'{canonicalized, plural, =1{1 cached song canonicalized} other{{canonicalized} cached songs canonicalized}}; {ambiguous, plural, =1{1 ambiguous match retained} other{{ambiguous} ambiguous matches retained}}'**
+  String syncSettingsIdentitySummary(int canonicalized, int ambiguous);
 
   /// No description provided for @syncSettingsIntervalLabel.
   ///
@@ -1311,8 +1311,8 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsIntervalMinutes.
   ///
   /// In en, this message translates to:
-  /// **'Every {minutes} minutes'**
-  String syncSettingsIntervalMinutes(Object minutes);
+  /// **'{minutes, plural, =1{Every minute} other{Every {minutes} minutes}}'**
+  String syncSettingsIntervalMinutes(int minutes);
 
   /// No description provided for @syncSettingsIntervalHours.
   ///
@@ -1953,7 +1953,7 @@ abstract class AppLocalizations {
   /// No description provided for @weeklyPlaylistMatchSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Matched {matched} of {total} tracks'**
+  /// **'Matched {matched} of {total, plural, =1{1 track} other{{total} tracks}}'**
   String weeklyPlaylistMatchSuccess(int matched, int total);
 
   /// No description provided for @weeklyPlaylistMatchError.
@@ -2853,7 +2853,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySyncScanningSongIndex.
   ///
   /// In en, this message translates to:
-  /// **'Metadata ready. Scanning song index ({count} songs found)'**
+  /// **'Metadata ready. Scanning song index ({count, plural, =1{1 song found} other{{count} songs found}})'**
   String librarySyncScanningSongIndex(int count);
 
   /// No description provided for @librarySyncHydratingUnknown.
@@ -3020,7 +3020,7 @@ abstract class AppLocalizations {
   /// No description provided for @libraryAlbumsPagingProgress.
   ///
   /// In en, this message translates to:
-  /// **'Loaded {loaded} of {total} albums'**
+  /// **'Loaded {loaded} of {total, plural, =1{1 album} other{{total} albums}}'**
   String libraryAlbumsPagingProgress(int loaded, int total);
 
   /// No description provided for @librarySongsEmptyTitle.
@@ -3194,7 +3194,7 @@ abstract class AppLocalizations {
   /// No description provided for @artistDetailAlbumCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} albums'**
+  /// **'{count, plural, =1{1 album} other{{count} albums}}'**
   String artistDetailAlbumCount(int count);
 
   /// No description provided for @artistDetailAlbumsEmptyTitle.
@@ -3356,7 +3356,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailMeta.
   ///
   /// In en, this message translates to:
-  /// **'{artist} • {year} • {trackCount} tracks'**
+  /// **'{artist} • {year} • {trackCount, plural, =1{1 track} other{{trackCount} tracks}}'**
   String albumDetailMeta(Object artist, Object year, int trackCount);
 
   /// No description provided for @albumDetailTracksEmptyTitle.
@@ -4244,7 +4244,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchAlbumCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} albums'**
+  /// **'{count, plural, =1{1 album} other{{count} albums}}'**
   String searchAlbumCount(int count);
 
   /// No description provided for @searchPlayNext.
@@ -5198,7 +5198,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsCoverArtMaxValue.
   ///
   /// In en, this message translates to:
-  /// **'{count} images'**
+  /// **'{count, plural, =1{1 image} other{{count} images}}'**
   String cacheSettingsCoverArtMaxValue(int count);
 
   /// No description provided for @cacheSettingsCoverArtMaxSaved.
@@ -6188,7 +6188,7 @@ abstract class AppLocalizations {
   /// No description provided for @audioMuseMixGenerated.
   ///
   /// In en, this message translates to:
-  /// **'AI Mix created — {count} tracks queued.'**
+  /// **'AI Mix created — {count, plural, =1{1 track} other{{count} tracks}} queued.'**
   String audioMuseMixGenerated(int count);
 
   /// No description provided for @audioMuseMixFailed.
@@ -6236,7 +6236,7 @@ abstract class AppLocalizations {
   /// No description provided for @smartQueueStarted.
   ///
   /// In en, this message translates to:
-  /// **'{count} tracks queued via Smart Queue.'**
+  /// **'{count, plural, =1{1 track} other{{count} tracks}} queued via Smart Queue.'**
   String smartQueueStarted(int count);
 
   /// No description provided for @smartQueueUnsupported.
@@ -8036,7 +8036,7 @@ abstract class AppLocalizations {
   /// No description provided for @eqFilterCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} filters'**
+  /// **'{count, plural, =1{1 filter} other{{count} filters}}'**
   String eqFilterCount(int count);
 
   /// No description provided for @eqCatalogueRevision.
@@ -8138,7 +8138,7 @@ abstract class AppLocalizations {
   /// No description provided for @artistPlaybackProgress.
   ///
   /// In en, this message translates to:
-  /// **'Loaded {completed} of {total} albums'**
+  /// **'Loaded {completed} of {total, plural, =1{1 album} other{{total} albums}}'**
   String artistPlaybackProgress(int completed, int total);
 
   /// No description provided for @queueTrackUnavailable.

@@ -23,7 +23,48 @@ void main() {
     );
   });
 
+  test('library, playback and settings counts read naturally', () {
+    expect(l10n.artistDetailAlbumCount(1), '1 album');
+    expect(l10n.artistDetailAlbumCount(12), '12 albums');
+    expect(l10n.searchAlbumCount(1), '1 album');
+    expect(l10n.albumDetailMeta('Artist', 2024, 1), 'Artist • 2024 • 1 track');
+    expect(
+      l10n.albumDetailMeta('Artist', 2024, 14),
+      'Artist • 2024 • 14 tracks',
+    );
+    expect(l10n.audioMuseMixGenerated(1), 'AI Mix created — 1 track queued.');
+    expect(l10n.smartQueueStarted(25), '25 tracks queued via Smart Queue.');
+    expect(l10n.eqFilterCount(1), '1 filter');
+    expect(l10n.eqFilterCount(10), '10 filters');
+    expect(l10n.syncSettingsIntervalMinutes(1), 'Every minute');
+    expect(l10n.syncSettingsIntervalMinutes(30), 'Every 30 minutes');
+    expect(
+      l10n.syncSettingsIdentitySummary(1, 2),
+      '1 cached song canonicalized; 2 ambiguous matches retained',
+    );
+    expect(
+      l10n.librarySyncScanningSongIndex(1),
+      'Metadata ready. Scanning song index (1 song found)',
+    );
+    expect(l10n.weeklyPlaylistMatchSuccess(1, 1), 'Matched 1 of 1 track');
+    expect(l10n.cacheSettingsCoverArtMaxValue(1), '1 image');
+  });
+
   test('large counts are grouped', () {
+    expect(
+      l10n.libraryAlbumsPagingProgress(1200, 4500),
+      'Loaded 1,200 of 4,500 albums',
+    );
+    expect(l10n.artistPlaybackProgress(3, 1000), 'Loaded 3 of 1,000 albums');
+    expect(
+      l10n.librarySyncScanningSongIndex(57364),
+      'Metadata ready. Scanning song index (57,364 songs found)',
+    );
+    expect(
+      l10n.weeklyPlaylistMatchSuccess(1500, 2000),
+      'Matched 1,500 of 2,000 tracks',
+    );
+    expect(l10n.cacheSettingsCoverArtMaxValue(10000), '10,000 images');
     expect(
       l10n.syncSettingsRepairDeletionConfirmationPending(63733),
       startsWith('63,733 items the server no longer has'),

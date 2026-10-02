@@ -815,8 +815,29 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String syncSettingsIdentitySummary(Object canonicalized, Object ambiguous) {
-    return '$canonicalized cached songs canonicalized; $ambiguous ambiguous matches retained';
+  String syncSettingsIdentitySummary(int canonicalized, int ambiguous) {
+    final intl.NumberFormat canonicalizedNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String canonicalizedString = canonicalizedNumberFormat.format(
+      canonicalized,
+    );
+    final intl.NumberFormat ambiguousNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String ambiguousString = ambiguousNumberFormat.format(ambiguous);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      canonicalized,
+      locale: localeName,
+      other: '$canonicalizedString cached songs canonicalized',
+      one: '1 cached song canonicalized',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      ambiguous,
+      locale: localeName,
+      other: '$ambiguousString ambiguous matches retained',
+      one: '1 ambiguous match retained',
+    );
+    return '$_temp0; $_temp1';
   }
 
   @override
@@ -826,8 +847,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsIntervalManual => 'Manual only';
 
   @override
-  String syncSettingsIntervalMinutes(Object minutes) {
-    return 'Every $minutes minutes';
+  String syncSettingsIntervalMinutes(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: 'Every $minutesString minutes',
+      one: 'Every minute',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1238,7 +1269,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String weeklyPlaylistMatchSuccess(int matched, int total) {
-    return 'Matched $matched of $total tracks';
+    final intl.NumberFormat matchedNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String matchedString = matchedNumberFormat.format(matched);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$totalString tracks',
+      one: '1 track',
+    );
+    return 'Matched $matchedString of $_temp0';
   }
 
   @override
@@ -1767,7 +1811,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String librarySyncScanningSongIndex(int count) {
-    return 'Metadata ready. Scanning song index ($count songs found)';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString songs found',
+      one: '1 song found',
+    );
+    return 'Metadata ready. Scanning song index ($_temp0)';
   }
 
   @override
@@ -1866,7 +1920,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String libraryAlbumsPagingProgress(int loaded, int total) {
-    return 'Loaded $loaded of $total albums';
+    final intl.NumberFormat loadedNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String loadedString = loadedNumberFormat.format(loaded);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$totalString albums',
+      one: '1 album',
+    );
+    return 'Loaded $loadedString of $_temp0';
   }
 
   @override
@@ -1971,7 +2038,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String artistDetailAlbumCount(int count) {
-    return '$count albums';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString albums',
+      one: '1 album',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2063,7 +2140,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String albumDetailMeta(Object artist, Object year, int trackCount) {
-    return '$artist • $year • $trackCount tracks';
+    final intl.NumberFormat trackCountNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String trackCountString = trackCountNumberFormat.format(trackCount);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      trackCount,
+      locale: localeName,
+      other: '$trackCountString tracks',
+      one: '1 track',
+    );
+    return '$artist • $year • $_temp0';
   }
 
   @override
@@ -2562,7 +2649,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String searchAlbumCount(int count) {
-    return '$count albums';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString albums',
+      one: '1 album',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -3163,7 +3260,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String cacheSettingsCoverArtMaxValue(int count) {
-    return '$count images';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString images',
+      one: '1 image',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -3749,7 +3856,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String audioMuseMixGenerated(int count) {
-    return 'AI Mix created — $count tracks queued.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString tracks',
+      one: '1 track',
+    );
+    return 'AI Mix created — $_temp0 queued.';
   }
 
   @override
@@ -3777,7 +3894,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String smartQueueStarted(int count) {
-    return '$count tracks queued via Smart Queue.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString tracks',
+      one: '1 track',
+    );
+    return '$_temp0 queued via Smart Queue.';
   }
 
   @override
@@ -4853,7 +4980,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String eqFilterCount(int count) {
-    return '$count filters';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString filters',
+      one: '1 filter',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -4914,7 +5051,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String artistPlaybackProgress(int completed, int total) {
-    return 'Loaded $completed of $total albums';
+    final intl.NumberFormat completedNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String completedString = completedNumberFormat.format(completed);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$totalString albums',
+      one: '1 album',
+    );
+    return 'Loaded $completedString of $_temp0';
   }
 
   @override

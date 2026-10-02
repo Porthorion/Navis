@@ -192,7 +192,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Sync Settings reads more naturally: counts say "1 artist" or "2 artists" instead of "artist(s)", large numbers are grouped (63,733), and internal library-update details are described in plain words',
+        'Counts read naturally across the app: "1 album", "1 track" and "Every minute" instead of "1 albums" or "artist(s)", large numbers are grouped (63,733), and Sync Settings describes internal library-update details in plain words',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
