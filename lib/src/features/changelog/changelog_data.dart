@@ -204,7 +204,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'When first-time library setup cannot finish, the screen now says so once, in setup wording, and shows the server\'s own explanation when it gives one',
+        "When first-time library setup cannot finish, the screen now says so once, in setup wording, and shows the server's own explanation when it gives one",
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -220,7 +220,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On Linux and Windows, Navis now checks your server\'s HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection',
+        "On Linux and Windows, Navis now checks your server's HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
