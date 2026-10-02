@@ -263,12 +263,16 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
 
                 Widget coverArtWidget;
                 if (!hasPlayback) {
+                  // The empty artwork slot takes the cover shape too.
                   coverArtWidget = Container(
                     width: compactLayout ? 42 : 48,
                     height: compactLayout ? 42 : 48,
                     decoration: BoxDecoration(
                       color: colors.surfaceContainerHighest,
-                      borderRadius: NavisRadius.smAll,
+                      borderRadius: artworkBorderRadius(
+                        ref.watch(coverArtShapeProvider),
+                        extent: compactLayout ? 42 : 48,
+                      ),
                     ),
                     child: Icon(
                       Icons.music_note_rounded,
@@ -288,7 +292,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     size: kCoverArtStandardSize,
                     width: compactLayout ? 42 : 48,
                     height: compactLayout ? 42 : 48,
-                    borderRadius: NavisRadius.smAll,
+                    shape: ArtworkShapeRole.cover,
                     loadPriority: CoverArtLoadPriority.critical,
                     isExternalSource: widget.isExternalSource,
                     remoteSourceIndicatorPolicy:

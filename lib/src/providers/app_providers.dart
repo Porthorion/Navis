@@ -12,7 +12,6 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
-import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
@@ -65,6 +64,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
@@ -2416,22 +2416,6 @@ final albumGridDensityProvider = Provider<int?>((ref) {
   return settings.albumGridDensity;
 });
 
-/// Converts a shape preset string to a [BorderRadius].
-///
-/// - 'square'  → [BorderRadius.zero]
-/// - 'circle'  → very large radius (effectively circular)
-/// - 'rounded' or any other → [BorderRadius.circular(12)]
-BorderRadius coverArtShapeToRadius(String shape) {
-  switch (shape) {
-    case 'square':
-      return BorderRadius.zero;
-    case 'circle':
-      return BorderRadius.circular(9999);
-    default:
-      return BorderRadius.circular(12);
-  }
-}
-
 /// Shape preset for cover art in library / carousel cards.
 final coverArtShapeProvider = Provider<String>((ref) {
   final settings =
@@ -2455,6 +2439,16 @@ final artistCardShapeProvider = Provider<String>((ref) {
       const AppSettingsModel.defaults();
   return settings.artistCardShape;
 });
+
+/// The shape setting [ArtworkShapeRole] artwork follows; map it to corners
+/// with [artworkBorderRadius].
+final artworkShapeProvider = Provider.family<String, ArtworkShapeRole>(
+  (ref, role) => switch (role) {
+    ArtworkShapeRole.cover => ref.watch(coverArtShapeProvider),
+    ArtworkShapeRole.nowPlaying => ref.watch(nowPlayingArtShapeProvider),
+    ArtworkShapeRole.artist => ref.watch(artistCardShapeProvider),
+  },
+);
 
 /// Artist view layout: 'list' or 'grid'.
 final artistViewModeProvider = Provider<String>((ref) {

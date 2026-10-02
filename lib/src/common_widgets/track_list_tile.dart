@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class TrackListTile extends ConsumerWidget {
   const new({
@@ -64,7 +65,9 @@ class TrackListTile extends ConsumerWidget {
               coverArtId: song.coverArt,
               revision: song.coverArtRevision ?? 0,
               size: 80,
-              borderRadius: BorderRadius.circular(6),
+              width: 48,
+              height: 48,
+              shape: ArtworkShapeRole.cover,
               isExternalSource: song.isExternal,
               remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             ),

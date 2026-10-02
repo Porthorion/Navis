@@ -23,8 +23,8 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
   const new({required this.artistId, super.key});
@@ -146,7 +146,6 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                           coverArtIds: coverArtIds,
                           imageUrl: imageUrl,
                           size: 260,
-                          borderRadius: 16,
                         ),
                         const SizedBox(width: 28),
                         Expanded(
@@ -185,7 +184,6 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                           coverArtIds: coverArtIds,
                           imageUrl: imageUrl,
                           size: 180,
-                          borderRadius: 12,
                         ),
                       ),
                     ),
@@ -412,7 +410,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               size: 80,
               width: 44,
               height: 44,
-              borderRadius: NavisRadius.xsAll,
+              shape: ArtworkShapeRole.cover,
               placeholderIcon: Icons.music_note_outlined,
               isExternalSource: isRemote,
               remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,

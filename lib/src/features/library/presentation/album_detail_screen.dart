@@ -39,6 +39,7 @@ import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
   const new({
@@ -104,7 +105,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
         : const <String>{};
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(
+      coverShape,
+      extent: double.infinity,
+    );
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;

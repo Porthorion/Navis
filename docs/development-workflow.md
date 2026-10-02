@@ -747,8 +747,9 @@ success. It enables Artists/Radio only in the isolated clone. The authenticated,
 clone-only `GET/POST /v1/presentation/appearance` endpoint accepts only
 `gridArtworkSize` (auto/small/medium/large),
 `homeRecommendationsAutoAdvance` (boolean), `showArtistsPage` and `showRadioPage`
-(booleans). Updates use targeted production DAO methods; the response contains
-only those preferences. It rejects unknown keys/types and primary certification.
+(booleans), and the shape settings `coverArtShape` (square/rounded),
+`nowPlayingArtShape` and `artistCardShape` (square/rounded/circle). Updates use
+targeted production DAO methods; the response contains only those preferences. It rejects unknown keys/types and primary certification.
 The script verifies Small and enabled auto-advance persist across clean restart;
 desktop recommendations remain manual even with that touch preference enabled.
 Inspect the additional PNGs as well as the final pair; file validation alone

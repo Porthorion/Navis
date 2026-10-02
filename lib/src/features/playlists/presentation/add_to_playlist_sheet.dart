@@ -8,7 +8,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Shows a bottom sheet that lets the user pick a playlist to add
 /// the given [songIds] to. Also offers a "New playlist" option at the top.
@@ -117,7 +117,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       size: kCoverArtStandardSize,
                       width: 40,
                       height: 40,
-                      borderRadius: NavisRadius.xsAll,
+                      shape: ArtworkShapeRole.cover,
                       placeholderIcon: Icons.queue_music,
                     ),
                     title: Text(

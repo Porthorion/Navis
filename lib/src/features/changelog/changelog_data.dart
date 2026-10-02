@@ -124,7 +124,15 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.1', entries: []),
+  ChangelogVersion(
+    version: '1.4.1',
+    entries: [
+      ChangelogEntry(
+        'Appearance shape settings now apply everywhere: Cover Art Shape also shapes song lists, the queue, the mini player and player bar, playlists and downloads, Now Playing Art Shape shapes the Now Playing cover again, and Artist Card Shape applies to artist lists and similar artists. Small covers follow the shape too, with corners scaled to their size',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.0',
     released: '2026-10-02',

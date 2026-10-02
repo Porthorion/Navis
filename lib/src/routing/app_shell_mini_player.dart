@@ -142,7 +142,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         size: kCoverArtStandardSize,
                                         width: 44,
                                         height: 44,
-                                        borderRadius: BorderRadius.circular(9),
+                                        shape: ArtworkShapeRole.cover,
                                         loadPriority:
                                             CoverArtLoadPriority.critical,
                                         isExternalSource:
@@ -713,7 +713,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             size: kCoverArtStandardSize,
                             width: 64,
                             height: 64,
-                            borderRadius: BorderRadius.circular(10),
+                            shape: ArtworkShapeRole.cover,
                             loadPriority: CoverArtLoadPriority.critical,
                             isExternalSource: widget.isExternalSource,
                             remoteSourceIndicatorPolicy:
@@ -879,7 +879,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 size: kCoverArtStandardSize,
                                 width: 48,
                                 height: 48,
-                                borderRadius: NavisRadius.smAll,
+                                shape: ArtworkShapeRole.cover,
                                 loadPriority: CoverArtLoadPriority.critical,
                                 isExternalSource: widget.isExternalSource,
                                 remoteSourceIndicatorPolicy:
@@ -1105,7 +1105,7 @@ class _LivePlaybackProgressBar extends ConsumerWidget {
 }
 
 /// Small square cover art for a radio station in the mini player.
-class _MiniRadioArt extends StatelessWidget {
+class _MiniRadioArt extends ConsumerWidget {
   const new({required this.artUrl, required this.colorScheme, this.size = 48});
 
   final String? artUrl;
@@ -1113,10 +1113,13 @@ class _MiniRadioArt extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final url = artUrl;
     return ClipRRect(
-      borderRadius: NavisRadius.smAll,
+      borderRadius: artworkBorderRadius(
+        ref.watch(coverArtShapeProvider),
+        extent: size,
+      ),
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,
@@ -1145,7 +1148,7 @@ class _MiniRadioArt extends StatelessWidget {
 }
 
 /// Remote/non-library fallback cover art in the mini player.
-class _MiniRemoteArt extends StatelessWidget {
+class _MiniRemoteArt extends ConsumerWidget {
   const new({required this.artUrl, required this.colorScheme, this.size = 48});
 
   final String? artUrl;
@@ -1153,10 +1156,13 @@ class _MiniRemoteArt extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final url = artUrl;
     return ClipRRect(
-      borderRadius: NavisRadius.smAll,
+      borderRadius: artworkBorderRadius(
+        ref.watch(coverArtShapeProvider),
+        extent: size,
+      ),
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,

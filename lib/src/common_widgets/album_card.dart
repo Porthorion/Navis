@@ -11,6 +11,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Size presets for [AlbumCard].
 enum AlbumCardSize {
@@ -62,7 +63,10 @@ class AlbumCard extends ConsumerWidget {
         ? colorScheme.onSurfaceVariant
         : const Color(0xCCFFFFFF);
     final shape = ref.watch(coverArtShapeProvider);
-    final cardBorderRadius = coverArtShapeToRadius(shape);
+    final cardBorderRadius = artworkBorderRadius(
+      shape,
+      extent: double.infinity,
+    );
     final cardWidth = extent ?? size.extent;
 
     return SizedBox(

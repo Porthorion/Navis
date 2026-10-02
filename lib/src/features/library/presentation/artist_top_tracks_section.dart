@@ -22,9 +22,9 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_provid
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Top Tracks section for the artist detail page, powered by Last.fm.
 ///
@@ -384,7 +384,9 @@ class _TopTrackTile extends ConsumerWidget {
             child: CoverArtImage(
               coverArtId: track.resolvedSong?.coverArt,
               size: 80,
-              borderRadius: NavisRadius.xsAll,
+              width: 40,
+              height: 40,
+              shape: ArtworkShapeRole.cover,
               placeholderIcon: Icons.music_note_outlined,
               showLoadingPlaceholder: false,
               isExternalSource: isRemote,

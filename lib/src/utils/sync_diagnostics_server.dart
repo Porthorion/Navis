@@ -646,23 +646,40 @@ class SyncDiagnosticsServer {
           final autoAdvance = body['homeRecommendationsAutoAdvance'];
           final artists = body['showArtistsPage'];
           final radio = body['showRadioPage'];
+          final coverShape = body['coverArtShape'];
+          final nowPlayingShape = body['nowPlayingArtShape'];
+          final artistShape = body['artistCardShape'];
+          const shapes = ['square', 'rounded', 'circle'];
           if (body.keys.any(
-                (key) =>
-                    key != 'gridArtworkSize' &&
-                    key != 'homeRecommendationsAutoAdvance' &&
-                    key != 'showArtistsPage' &&
-                    key != 'showRadioPage',
+                (key) => !const {
+                  'gridArtworkSize',
+                  'homeRecommendationsAutoAdvance',
+                  'showArtistsPage',
+                  'showRadioPage',
+                  'coverArtShape',
+                  'nowPlayingArtShape',
+                  'artistCardShape',
+                }.contains(key),
               ) ||
               (size != null &&
                   !const ['auto', 'small', 'medium', 'large'].contains(size)) ||
               (autoAdvance != null && autoAdvance is! bool) ||
               (artists != null && artists is! bool) ||
               (radio != null && radio is! bool) ||
-              (size == null &&
-                  autoAdvance == null &&
-                  artists == null &&
-                  radio == null)) {
+              // Cover art offers only square and rounded, like Appearance.
+              (coverShape != null &&
+                  !const ['square', 'rounded'].contains(coverShape)) ||
+              (nowPlayingShape != null && !shapes.contains(nowPlayingShape)) ||
+              (artistShape != null && !shapes.contains(artistShape)) ||
+              body.isEmpty) {
             throw const FormatException();
+          }
+          if (coverShape is String) await dao.updateCoverArtShape(coverShape);
+          if (nowPlayingShape is String) {
+            await dao.updateNowPlayingArtShape(nowPlayingShape);
+          }
+          if (artistShape is String) {
+            await dao.updateArtistCardShape(artistShape);
           }
           if (size is String) await dao.updateGridArtworkSize(size);
           if (autoAdvance is bool) {
@@ -683,6 +700,9 @@ class SyncDiagnosticsServer {
           'showRadioPage': settings?.showRadioPage ?? true,
           'homeRecommendationsAutoAdvance':
               settings?.homeRecommendationsAutoAdvance ?? false,
+          'coverArtShape': settings?.coverArtShape ?? 'square',
+          'nowPlayingArtShape': settings?.nowPlayingArtShape ?? 'rounded',
+          'artistCardShape': settings?.artistCardShape ?? 'circle',
         });
         return;
       }

@@ -1,36 +1,23 @@
 part of 'now_playing_screen.dart';
 
-class _CoverArt extends ConsumerWidget {
+/// The Now Playing cover, shaped by the Now Playing Art Shape setting.
+class _CoverArt extends StatelessWidget {
   const new({
     this.coverArtId,
     this.semanticLabel,
-    this.maxSize,
     this.isExternalSource = false,
   });
 
   final String? coverArtId;
   final String? semanticLabel;
-  final double? maxSize;
   final bool isExternalSource;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Watch for rebuilds when the art shape setting changes.
-    ref.watch(nowPlayingArtShapeProvider);
-    final explicitMaxSize = maxSize;
-    if (explicitMaxSize != null) {
-      return CoverArtImage(
-        coverArtId: coverArtId,
-        size: kCoverArtStandardSize,
-        loadPriority: CoverArtLoadPriority.critical,
-        isExternalSource: isExternalSource,
-        remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
-      );
-    }
-
+  Widget build(BuildContext context) {
     return CoverArtImage(
       coverArtId: coverArtId,
       size: kCoverArtStandardSize,
+      shape: ArtworkShapeRole.nowPlaying,
       semanticLabel: semanticLabel,
       loadPriority: CoverArtLoadPriority.critical,
       isExternalSource: isExternalSource,
@@ -48,7 +35,7 @@ class _RadioCoverArt extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final npShape = ref.watch(nowPlayingArtShapeProvider);
-    final npRadius = coverArtShapeToRadius(npShape);
+    final npRadius = artworkBorderRadius(npShape, extent: double.infinity);
     final explicitMaxSize = maxSize;
     if (explicitMaxSize != null) {
       final artSize = explicitMaxSize.clamp(180.0, 680.0);
