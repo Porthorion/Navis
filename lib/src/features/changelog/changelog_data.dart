@@ -124,7 +124,19 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.1', entries: []),
+  ChangelogVersion(
+    version: '1.4.1',
+    entries: [
+      ChangelogEntry(
+        'Choosing a custom download folder now finishes setting it up, shows the folder as on and lists files for Manual Matching even if you switch Downloads tabs while Navis scans it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Custom Folder settings (Rescan, Manual Matching and the number of songs left to match) can now be translated',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.0',
     released: '2026-10-02',

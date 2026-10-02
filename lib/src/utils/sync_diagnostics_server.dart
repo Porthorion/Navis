@@ -1,3 +1,5 @@
+import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
+import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -1728,30 +1730,45 @@ class SyncDiagnosticsServer {
           }
           folder = requested;
         }
-        // Same sequence as choosing a folder in Downloads settings.
-        final service = _container.read(downloadServiceProvider);
+        // The same owner Downloads settings uses: preview, configure, import,
+        // then record the scan for Manual Matching.
         final watch = Stopwatch()..start();
-        final preview = await service.previewCustomDownloadFolder(folder);
-        final previewMs = watch.elapsedMilliseconds;
-        await service.configureCustomDownloadFolder(
-          enabled: true,
-          path: folder,
-        );
-        final configureMs = watch.elapsedMilliseconds;
-        final result = await service.importCustomDownloadFolder(preview);
+        final result = await _container
+            .read(customDownloadFolderControllerProvider.notifier)
+            .choose(folder);
+        final matching = _container.read(manualDownloadMatchingProvider);
+        final items =
+            matching.preview?.items ?? const <PermanentDownloadImportItem>[];
         await _respond(request, HttpStatus.ok, <String, Object?>{
-          'items': preview.items.length,
+          'items': items.length,
           'importedCount': result.importedCount,
           'skippedCount': result.skippedCount,
-          'previewMs': previewMs,
-          'configureMs': configureMs - previewMs,
-          'commitMs': watch.elapsedMilliseconds - configureMs,
+          'manualMatchingPending': matching.pendingCount,
+          'totalMs': watch.elapsedMilliseconds,
           'dispositions': <String, int>{
             for (final disposition in PermanentDownloadImportDisposition.values)
-              disposition.name: preview.items
+              disposition.name: items
                   .where((item) => item.disposition == disposition)
                   .length,
           },
+        });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/downloads/folder/status') {
+        // The persisted settings, as the app reads them (a clone ignores a
+        // folder outside its run); the path itself is not reported.
+        final settings = await _container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .getSettings();
+        final folderPath = settings?.customDownloadFolderPath;
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'enabled': settings?.customDownloadFolderEnabled ?? false,
+          'configured': folderPath != null && folderPath.trim().isNotEmpty,
+          'busy': _container.read(customDownloadFolderControllerProvider).busy,
+          'manualMatchingPending': _container
+              .read(manualDownloadMatchingProvider)
+              .pendingCount,
         });
         return;
       }

@@ -300,7 +300,12 @@ void main() {
     await tester.pump();
     await scrolling;
     expect(scroll.offset, scroll.position.maxScrollExtent);
-    for (final action in ['download', 'downloadedTab', 'dragFirstToLast']) {
+    for (final action in [
+      'download',
+      'downloadedTab',
+      'downloadSettingsTab',
+      'dragFirstToLast',
+    ]) {
       await expectLater(
         controller.activateTrackControl(action: action),
         throwsA(isA<DiagnosticsPresentationUnavailable>()),

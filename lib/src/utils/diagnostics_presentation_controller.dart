@@ -103,6 +103,7 @@ class DiagnosticsPresentationController {
     'more',
     'download',
     'downloadedTab',
+    'downloadSettingsTab',
     'dragFirstToLast',
   };
 
@@ -137,7 +138,7 @@ class DiagnosticsPresentationController {
     if (!trackActions.contains(action)) throw const FormatException();
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    if (action == 'downloadedTab') {
+    if (action == 'downloadedTab' || action == 'downloadSettingsTab') {
       final downloads = _findElement(
         root,
         (element) =>
@@ -149,7 +150,7 @@ class DiagnosticsPresentationController {
           : _findElement(downloads, (element) => element.widget is TabBar);
       final controller = (tabs?.widget as TabBar?)?.controller;
       if (controller == null) throw const DiagnosticsPresentationUnavailable();
-      controller.animateTo(1);
+      controller.animateTo(action == 'downloadedTab' ? 1 : 2);
     } else {
       final rows = <Element>[];
       void collect(Element element) {

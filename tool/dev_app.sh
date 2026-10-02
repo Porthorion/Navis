@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tool/dev_app.sh — Build/run a sidecar "Navis Dev" app that installs next to stable.
 #
-# Defaults:
+# Defaults (except linux-release, which builds the app itself):
 #   - applicationId suffix: .dev
 #   - app name: Navis Dev
 #   - updater channel: dev
@@ -12,6 +12,7 @@
 #   ./tool/dev_app.sh scenario <isolated-run-dir> <control-action>
 #   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh linux-icon
+#   ./tool/dev_app.sh linux-release          # release build for the desktop launcher
 #   ./tool/dev_app.sh apk [flutter-build-args...]
 #   ./tool/dev_app.sh apk-debug [flutter-build-args...]
 #   ./tool/dev_app.sh auto [flutter-run-args...]
@@ -53,10 +54,12 @@ if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
 fi
 
-echo "==> Dev app identity"
-echo "    NAVIS_APP_ID_SUFFIX=${NAVIS_APP_ID_SUFFIX}"
-echo "    NAVIS_APP_NAME=${NAVIS_APP_NAME}"
-echo "    NAVIS_UPDATE_CHANNEL=dev"
+if [[ "${MODE}" != "linux-release" ]]; then
+  echo "==> Dev app identity"
+  echo "    NAVIS_APP_ID_SUFFIX=${NAVIS_APP_ID_SUFFIX}"
+  echo "    NAVIS_APP_NAME=${NAVIS_APP_NAME}"
+  echo "    NAVIS_UPDATE_CHANNEL=dev"
+fi
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   echo "    NAVIS_LASTFM_API_KEY=provided"
 else
@@ -95,33 +98,17 @@ if [[ -d /home/linuxbrew/.linuxbrew/lib ]]; then
   export LD_LIBRARY_PATH="/home/linuxbrew/.linuxbrew/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 fi
 
-candidates=(
-  "${PROJECT_ROOT}/build/linux/x64/release/bundle/navis"
-  "${PROJECT_ROOT}/build/linux/x64/profile/bundle/navis"
-  "${PROJECT_ROOT}/build/linux/x64/debug/bundle/navis"
-)
-
-newest=""
-newest_mtime=-1
-for candidate in "${candidates[@]}"; do
-  if [[ -x "${candidate}" ]]; then
-    mtime="$(stat -c %Y "${candidate}" 2>/dev/null || stat -f %m "${candidate}")"
-    if ((mtime > newest_mtime)); then
-      newest="${candidate}"
-      newest_mtime="${mtime}"
-    fi
-  fi
-done
-
-if [[ -z "${newest}" ]]; then
-  echo "Navis Linux bundle not found under:" >&2
-  echo "  ${PROJECT_ROOT}/build/linux/x64/{release,profile,debug}/bundle/navis" >&2
-  echo "Build it with: ./tool/dev_app.sh linux" >&2
-  echo "or: flutter build linux" >&2
+# Only the release bundle. Linux diagnostics scripts rebuild the profile
+# bundle as "Navis Diagnostics" clones of a copied profile, and the debug
+# bundle comes from development runs; neither may stand in for the app.
+bundle="${PROJECT_ROOT}/build/linux/x64/release/bundle/navis"
+if [[ ! -x "${bundle}" ]]; then
+  echo "Navis Linux release bundle not found: ${bundle}" >&2
+  echo "Build it with: ./tool/dev_app.sh linux-release" >&2
   exit 127
 fi
 
-exec "${newest}" "$@"
+exec "${bundle}" "$@"
 BODY
   } >"${launcher}"
   chmod 0755 "${launcher}"
@@ -223,6 +210,18 @@ case "${MODE}" in
     flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   linux-icon)
+    echo "==> Installing user-level desktop entry for Wayland icon support"
+    install_linux_desktop_icon
+    ;;
+  linux-release)
+    # The build the desktop launcher runs: the app's own identity and profile
+    # on the stable update channel, with the same defines as tool/release.sh.
+    RELEASE_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=stable")
+    if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+      RELEASE_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+    fi
+    echo "==> Building the Linux release bundle (update channel: stable)"
+    flutter build linux --release "${RELEASE_DEFINE_ARGS[@]}" "$@"
     echo "==> Installing user-level desktop entry for Wayland icon support"
     install_linux_desktop_icon
     ;;
@@ -396,7 +395,7 @@ case "${MODE}" in
     ;;
   *)
     echo "Unknown mode: ${MODE}"
-    echo "Usage: ./tool/dev_app.sh <run|linux|linux-icon|apk|auto|dhu> [flutter args...]"
+    echo "Usage: ./tool/dev_app.sh <run|linux|linux-icon|linux-release|apk|apk-debug|auto|dhu> [flutter args...]"
     exit 1
     ;;
 esac

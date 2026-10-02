@@ -53,8 +53,13 @@ if ! grep -q "PROJECT_ROOT=${REPO_ROOT}" "${launcher}" &&
   ! grep -q "PROJECT_ROOT=\"${REPO_ROOT}\"" "${launcher}"; then
   fail "launcher does not pin PROJECT_ROOT to the repository"
 fi
-if ! grep -q 'build/linux/x64/' "${launcher}"; then
-  fail "launcher does not search the Linux bundle directory"
+if ! grep -q 'build/linux/x64/release/bundle/navis' "${launcher}"; then
+  fail "launcher does not run the Linux release bundle"
+fi
+# Diagnostics scripts rebuild the profile bundle as clone builds of a copied
+# profile; the launcher once ran whichever bundle was newest (issue #45).
+if grep -Eq 'x64/(profile|debug)' "${launcher}"; then
+  fail "launcher can run a profile or debug bundle"
 fi
 bash -n "${launcher}" || fail "launcher is not valid bash"
 

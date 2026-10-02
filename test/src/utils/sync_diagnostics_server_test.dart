@@ -8,6 +8,7 @@ import 'dart:ui' show FrameTiming;
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -1678,6 +1679,75 @@ void main() {
     );
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
+
+  test(
+    'folder adoption records Manual Matching and reports its status',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      // The download service keeps its own files under app support.
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            pathProvider,
+            (call) async => fixture.temp.path,
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(pathProvider, null),
+      );
+      final folder = Directory(p.join(fixture.temp.path, 'adopt-fixture'))
+        ..createSync();
+      File(p.join(folder.path, 'Unknown Artist', 'Unknown.flac'))
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+
+      final before = await _request(
+        fixture.port,
+        '/v1/downloads/folder/status',
+        token: fixture.token,
+      );
+      expect(before.body, <String, Object?>{
+        'enabled': false,
+        'configured': false,
+        'busy': false,
+        'manualMatchingPending': 0,
+      });
+
+      final outside = await _request(
+        fixture.port,
+        '/v1/downloads/folder/adopt',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'path': Directory.systemTemp.path},
+      );
+      expect(outside.statusCode, HttpStatus.badRequest);
+
+      final adopted = await _request(
+        fixture.port,
+        '/v1/downloads/folder/adopt',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'path': folder.path},
+      );
+      expect(adopted.statusCode, HttpStatus.ok);
+      expect(adopted.body['items'], 1);
+      expect(adopted.body['manualMatchingPending'], 1);
+
+      final after = await _request(
+        fixture.port,
+        '/v1/downloads/folder/status',
+        token: fixture.token,
+      );
+      expect(after.body, <String, Object?>{
+        'enabled': true,
+        'configured': true,
+        'busy': false,
+        'manualMatchingPending': 1,
+      });
+      expect(after.body.toString(), isNot(contains(folder.path)));
+    },
+  );
 
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();

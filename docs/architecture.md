@@ -2372,7 +2372,17 @@ contract.
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit
    mapping; completing mappings reduces that count, while a new rescan replaces
-   the transient queue.
+   the transient queue. Choosing, disabling and rescanning the folder run in
+   the app-lifetime `CustomDownloadFolderController`, one at a time, not in the
+   settings page: that page is a tab disposed as soon as another tab is
+   shown, and leaving it during a long scan used to stop setup before the
+   folder was saved or before Manual Matching was filled in (issue #45). The
+   page shows the controller's `busy` state. A clone diagnostics build reads a
+   filesystem folder outside its run root as unset
+   (`cloneDownloadFolderOutsideRoot`), and `DownloadService` refuses to scan
+   or configure such a folder with a `FileSystemException` before any work,
+   so a clone can no longer adopt the user's files and then show the folder
+   as off.
 7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced

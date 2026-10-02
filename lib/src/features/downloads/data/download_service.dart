@@ -79,6 +79,7 @@ class DownloadService {
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
+    this._rejectsCustomFolder = cloneRejectsDownloadFolder,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
@@ -108,6 +109,10 @@ class DownloadService {
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
+
+  /// Folders this build must not use as the custom download folder (the
+  /// user's own folders in a clone diagnostics build).
+  final bool Function(String path) _rejectsCustomFolder;
   final PermanentDownloadPathResolver _permanentPathResolver;
   final PermanentDownloadImportService _permanentDownloadImportService;
   final AndroidSafStorage _safStorage = const AndroidSafStorage();
@@ -236,6 +241,7 @@ class DownloadService {
         'A custom download folder path is required when enabling the feature.',
       );
     }
+    if (enabled) _checkCustomFolderAllowed(normalizedPath!);
 
     if (normalizedPath case final safPath? when _isSafRoot(safPath)) {
       await _runWithQueuePaused(() async {
@@ -277,8 +283,22 @@ class DownloadService {
 
   Future<PermanentDownloadImportPreview> previewCustomDownloadFolder(
     String path,
-  ) {
-    return _permanentDownloadImportService.preview(Directory(path));
+  ) async {
+    _checkCustomFolderAllowed(path.trim());
+    return await _permanentDownloadImportService.preview(Directory(path));
+  }
+
+  /// A clone diagnostics build reads a folder outside its run as unset, so
+  /// choosing one would scan and adopt the user's files and then show the
+  /// folder as off (issue #45). Refuse it before any work instead.
+  void _checkCustomFolderAllowed(String path) {
+    if (_rejectsCustomFolder(path)) {
+      throw FileSystemException(
+        'A diagnostics clone can only use a download folder inside its run '
+        'folder.',
+        path,
+      );
+    }
   }
 
   Future<PermanentDownloadImportResult> importCustomDownloadFolder(
