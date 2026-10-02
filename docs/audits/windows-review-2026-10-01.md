@@ -147,6 +147,19 @@ On the Windows 11 VM at `bb4f0de6`, with the bundled 20261001 libmpv:
 - The fixture streams at 22.05 kHz could not represent filters above
   11 kHz, and Navis correctly reported that; the checks above used 44.1 kHz.
 
+## 1.4.0 release check (2026-10-02)
+
+Windows 11 VM, profile build of `dev` with the release fixes, against the
+loopback Subsonic fixture:
+
+| What | Result |
+| --- | --- |
+| `tool/windows_smtc_diagnostics.ps1` | Passed before and after the cover fix: metadata, play, pause, next, previous, seek (paused), shuffle, repeat and a clean restart. |
+| Cover in the system media card (GSMTC thumbnail, Quick Settings) | Missing on `dev`: the cached cover path had a forward slash, which `StorageFile` rejects (`0x800700A1`), and a PNG cover kept the cache's `.jpg` name, which Windows cannot decode. After the fix, PNG and JPEG covers both show. |
+| EQ: simple, presets, ten-band, advanced filters, speed and pitch, seek, track changes, off and on | 14 of 14 passed, playing throughout. |
+| Rapid playback: 100 next and 100 previous commands on a 240-song queue | Settled on the right song within 0.7 s; at most one pending queue change; queue intact; a pause during a selection won. |
+| Radio over HTTPS with an untrusted self-signed certificate | Refused: a TLS connection attempt, no HTTP request, no playback; the same station over plain HTTP played. |
+
 ## Environment notes
 
 - A fresh download of the `sqlite3` 3.5.2 native library

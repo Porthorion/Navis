@@ -85,7 +85,9 @@ this host all equal `b1772918…`. No Pub package version in the lockfile has an
   trust anchors through OpenSSL's `org.openssl.winstore`, so a private CA trusted by Windows is trusted for
   streaming as well. Navis's Dart client never bypasses certificate checks, so a server it can sign in to also
   streams.
-- No man-in-the-middle test was run on Linux or macOS.
+- On 2026-10-02 Navis itself refused an untrusted certificate on Linux (`tool/stream_open_diagnostics.py`,
+  a self-signed HTTPS radio station) and on the Windows VM (the same station flow: a TLS connection attempt,
+  no HTTP request, no playback, while the plain-HTTP station played). macOS was not tested.
 - Upstream `just_audio_media_kit` added only mTLS `tlsCertFile`/`tlsKeyFile` options after 2.1.0 (PR #30,
   2026-04-27). It did not add `tls-verify`.
 
