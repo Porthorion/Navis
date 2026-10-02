@@ -172,6 +172,17 @@ void main() {
         r'C:\Users\me\AppData\Local\Temp\navis_art_c.jpg',
       ),
       (
+        'gives Windows the cached cover path with backslashes',
+        const MediaItem(
+          id: 'song-1',
+          title: 'Track',
+          extras: <String, Object?>{
+            'artCacheFile': r'S:\NavisTest\tmp/navis_art_c.jpg',
+          },
+        ),
+        r'S:\NavisTest\tmp\navis_art_c.jpg',
+      ),
+      (
         'keeps radio artwork without credentials',
         MediaItem(
           id: 'radio',

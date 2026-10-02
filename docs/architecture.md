@@ -1860,7 +1860,11 @@ is not a `MediaItem` extra (audio_service copies every String extra into the
 Android session metadata); the desktop sidecar cache keeps it in the handler.
 Cover art reaches the system as a local file: `PlaybackArtCache` caches the
 current cover on Android, Linux and Windows (`artCacheFile` extra), MPRIS
-publishes it as `file://` and SMTC loads it with `StorageFile`; an artwork URL
+publishes it as `file://` and SMTC loads it with `StorageFile`. The Windows
+bridge hands over a backslash path (`StorageFile` rejects forward slashes with
+`0x800700A1`) named for the image type (`typedSystemArtFile`: the cache names
+every cover `.jpg`, and Windows picks the decoder by extension, so a PNG cover
+showed no image); either mistake leaves the overlay without a cover. An artwork URL
 is published only when it carries no credentials (radio art,
 `uriCarriesCredentials`). On Android, `RealTimeProjectionAudioHandler` maps
 every credential-bearing `artUri` it publishes (metadata, the queue window,
