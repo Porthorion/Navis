@@ -1278,6 +1278,29 @@ storage, provide a separately permissioned temporary credential file through
 primary credential store. `NAVIS_DIAGNOSTICS_USERNAME` similarly replaces the
 username only in the clone when validating a different account.
 
+Every Linux clone gate that signs in to the configured server accepts that
+credential file: the sync, target-lane, presentation (including desktop
+layout), rapid-playback, equalizer, speed/pitch, playback-indicator and
+seek-cache diagnostics. Use it on hosts whose desktop keyring cannot be read
+(for example when the Secret Service `default` alias points at a missing
+`login` collection); without it those clones stop at Login and their
+presentation steps fail with `DiagnosticsPresentationUnavailable`. Scripts that
+do not apply `NAVIS_DIAGNOSTICS_USERNAME` themselves take the account from the
+source profile, which `NAVIS_DIAGNOSTICS_PRIMARY_DB` selects, so point it at a
+copy whose `server_config.username` names the validation account.
+
+A clone must never reach the source profile's own files. Clone mode ignores the
+source's custom download folder, so a copied `cached_tracks` row that still
+names a file in the user's download folder would be relocated into the run
+folder by the app's own download migration. Every clone gate therefore either
+copies the audio it needs into its run folder and rewrites `cached_tracks` to
+point there, or deletes the copied `cached_tracks` and `download_queue` rows and
+clears the custom download folder settings. As a backstop, a desktop clone build
+forgets every `cached_tracks` row whose file lies outside
+`NAVIS_SYNC_DIAGNOSTICS_ROOT` at startup, before any service runs (Android
+sidecars use their own app-private storage and skip this step). Keep new gates
+the same way: copy into the run folder or drop the rows.
+
 Run primary certification only after the clone suite passes:
 
 ```bash

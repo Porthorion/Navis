@@ -78,7 +78,12 @@ def main() -> int:
     clone_db = root / "navis-diagnostics.sqlite"
     handshake = root / "handshake.json"
     app_log = root / "navis.log"
-    source_db = Path.home() / "Documents" / "navis.sqlite.sqlite"
+    source_db = Path(
+        os.environ.get(
+            "NAVIS_DIAGNOSTICS_PRIMARY_DB",
+            str(Path.home() / "Documents" / "navis.sqlite.sqlite"),
+        )
+    ).expanduser()
 
     source = sqlite3.connect(f"file:{source_db}?mode=ro", uri=True)
     target = sqlite3.connect(clone_db)
@@ -112,23 +117,33 @@ def main() -> int:
         handshake.unlink()
     app_log.write_text("", encoding="utf-8")
     log_fh = open(app_log, "a", encoding="utf-8")
+    command = [
+        "flutter",
+        "run",
+        "-d",
+        "linux",
+        "--profile",
+        "--dart-define=NAVIS_UPDATE_CHANNEL=dev",
+        "--dart-define=NAVIS_APP_ID_SUFFIX=.dev",
+        "--dart-define=NAVIS_APP_NAME=Navis Diagnostics",
+        "--dart-define=NAVIS_SYNC_DIAGNOSTICS=true",
+        "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true",
+        "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone",
+        f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE={handshake}",
+        f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_ROOT={root}",
+        f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_DB_PATH={clone_db}",
+    ]
+    # Like the other clone gates: an optional mode-600 password file signs the
+    # clone in where the system keyring holds no Navis password.
+    credential = os.environ.get("NAVIS_DIAGNOSTICS_CREDENTIAL_PATH", "")
+    if credential:
+        if not Path(credential).is_file():
+            raise RuntimeError("Diagnostics credential file was not found.")
+        command.append(
+            f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH={credential}"
+        )
     proc = subprocess.Popen(
-        [
-            "flutter",
-            "run",
-            "-d",
-            "linux",
-            "--profile",
-            "--dart-define=NAVIS_UPDATE_CHANNEL=dev",
-            "--dart-define=NAVIS_APP_ID_SUFFIX=.dev",
-            "--dart-define=NAVIS_APP_NAME=Navis Diagnostics",
-            "--dart-define=NAVIS_SYNC_DIAGNOSTICS=true",
-            "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true",
-            "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone",
-            f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE={handshake}",
-            f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_ROOT={root}",
-            f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_DB_PATH={clone_db}",
-        ],
+        command,
         cwd=project,
         stdout=log_fh,
         stderr=subprocess.STDOUT,

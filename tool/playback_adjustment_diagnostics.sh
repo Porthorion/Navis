@@ -17,7 +17,7 @@ fi
 mkdir -p "$OUTPUT_ROOT/cache"
 chmod 700 "$OUTPUT_ROOT"
 python3 - "$SOURCE_DB" "$CLONE_DB" "$OUTPUT_ROOT/cache" <<'PY'
-import os, sqlite3, sys, wave, math, struct, time, hashlib
+import os, shutil, sqlite3, sys, wave, math, struct, time, hashlib
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
@@ -36,9 +36,13 @@ with wave.open(tone_path, 'wb') as tone:
     tone.setnchannels(1); tone.setsampwidth(2); tone.setframerate(44100)
     chunk = b''.join(struct.pack('<h', int(2200 * math.sin(2 * math.pi * 440 * i / 44100))) for i in range(44100))
     for _ in range(30): tone.writeframes(chunk)
-for identity in ('diagnostics-adjustment-tone-1', 'diagnostics-adjustment-tone-2'):
+for index, identity in enumerate(('diagnostics-adjustment-tone-1', 'diagnostics-adjustment-tone-2'), start=1):
+    # Each song owns its file: the app moves a permanent download into its own
+    # layout, which would leave a shared path missing for the other song.
+    identity_path = os.path.join(cache_root, f'tone-{index}.wav')
+    shutil.copyfile(tone_path, identity_path)
     target.execute("INSERT OR REPLACE INTO songs (id, title, duration, content_type, suffix) VALUES (?, 'Playback adjustment tone', 30, 'audio/wav', 'wav')", (identity,))
-    target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (identity,tone_path,os.path.getsize(tone_path),'wav',int(time.time())))
+    target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (identity,identity_path,os.path.getsize(identity_path),'wav',int(time.time())))
 target.execute("UPDATE app_settings SET crossfade_enabled = 1, gapless_enabled = 1, crossfade_duration_seconds = 3, scrobble_enabled = 0, listen_brainz_scrobbling_enabled = 0")
 columns = {row[1] for row in target.execute('PRAGMA table_info(app_settings)')}
 if 'playback_presets' in columns:
@@ -71,6 +75,18 @@ trap cleanup EXIT INT TERM
 
 launch_app() {
   rm -f "$HANDSHAKE"
+  # Like presentation_diagnostics.sh: an optional mode-600 password file
+  # signs the clone in where the system keyring holds no Navis password.
+  local -a credential_define=()
+  if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
+    if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
+      echo "Diagnostics credential file was not found." >&2
+      exit 66
+    fi
+    credential_define+=(
+      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+    )
+  fi
   PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
@@ -81,6 +97,7 @@ launch_app() {
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
+    "${credential_define[@]}" \
     >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
 

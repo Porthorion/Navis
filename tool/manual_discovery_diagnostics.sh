@@ -72,6 +72,14 @@ state_columns = {row[1] for row in target.execute("PRAGMA table_info(library_syn
 if "next_automatic_check_at" not in state_columns:
     target.execute("ALTER TABLE library_sync_state ADD COLUMN next_automatic_check_at INTEGER")
 target.execute("DELETE FROM library_sync_work")
+# Clone-only: drop the source profile's downloads and download settings so
+# the app cannot move, delete or re-tag the user's real files.
+target.execute("DELETE FROM cached_tracks")
+target.execute("DELETE FROM download_queue")
+settings_columns = {row[1] for row in target.execute("PRAGMA table_info(app_settings)")}
+for column, value in (("custom_download_folder_enabled", 0), ("custom_download_folder_path", None), ("custom_download_folder_storage_kind", "filesystem"), ("auto_download_starred_on_wifi", 0)):
+    if column in settings_columns:
+        target.execute(f"UPDATE app_settings SET {column} = ?", (value,))
 target.execute("DELETE FROM star_sync_queue")
 album_columns = {row[1] for row in target.execute("PRAGMA table_info(albums)")}
 if "songs_verified_at" not in album_columns:
