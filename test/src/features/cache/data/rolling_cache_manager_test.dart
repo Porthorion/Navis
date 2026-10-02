@@ -205,6 +205,55 @@ void main() {
       expect(await database.cacheDao.getCachedTrack('song-2'), isNotNull);
     }, skip: !sqliteAvailable);
 
+    test('registerTrack discards a cached server error document', () async {
+      for (final (index, document) in _errorDocuments.indexed) {
+        final songId = 'error-song-$index';
+        await _insertSong(database, songId);
+        final file = File(p.join(tempDir.path, '$songId.flac'));
+        await file.writeAsString(document);
+        final mime = File('${file.path}.mime');
+        await mime.writeAsString('application/json');
+
+        await manager.registerTrack(
+          songId: songId,
+          filePath: file.path,
+          format: 'flac',
+        );
+
+        expect(await database.cacheDao.getCachedTrack(songId), isNull);
+        expect(file.existsSync(), isFalse);
+        expect(mime.existsSync(), isFalse);
+      }
+    }, skip: !sqliteAvailable);
+
+    test('pruneMissingFiles removes error documents cached as audio', () async {
+      await _insertSong(database, 'poisoned');
+      await _insertSong(database, 'audio');
+      final poisoned = File(p.join(tempDir.path, 'poisoned.flac'));
+      await poisoned.writeAsString(_errorDocuments.first);
+      final audio = await _writeFile(tempDir, 'audio.flac', 32);
+      for (final (songId, file) in [('poisoned', poisoned), ('audio', audio)]) {
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: songId,
+            filePath: file.path,
+            fileSize: file.lengthSync(),
+            format: 'flac',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+      }
+
+      await manager.pruneMissingFiles();
+
+      expect(await database.cacheDao.getCachedTrack('poisoned'), isNull);
+      expect(poisoned.existsSync(), isFalse);
+      expect(await database.cacheDao.getCachedTrack('audio'), isNotNull);
+      expect(audio.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
+
     test('touchTrack bumps lastAccessedAt', () async {
       await _insertSong(database, 'song-1');
       final file = await _writeFile(tempDir, 'song-1.mp3', 24);
@@ -327,6 +376,16 @@ void main() {
     );
   });
 }
+
+/// What Navidrome sends with HTTP 200 for a stream it cannot serve.
+const _errorDocuments = <String>[
+  '{"subsonic-response":{"status":"failed","version":"1.16.1",'
+      '"type":"navidrome","error":{"code":70,"message":"data not found"}}}',
+  '<?xml version="1.0" encoding="UTF-8"?>'
+      '<subsonic-response xmlns="http://subsonic.org/restapi" '
+      'status="failed" version="1.16.1">'
+      '<error code="70" message="data not found"/></subsonic-response>',
+];
 
 Future<void> _insertSong(NavisDatabase database, String id) {
   return database.libraryDao.upsertSongs(<SongsTableCompanion>[

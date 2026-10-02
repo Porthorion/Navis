@@ -2286,7 +2286,13 @@ contract.
    sidecar download fills the rolling cache: each uncached track is fetched
    twice (a FLAC is typically 25–50 MB, and transcoding runs twice on the
    server). This is a deliberate cost of seekable desktop playback.
-2. On completion → `RollingCacheManager.registerTrack()`
+2. On completion → `RollingCacheManager.registerTrack()`. A small file that
+   holds a Subsonic error document is deleted instead of registered: Navidrome
+   answers a stream it cannot serve with HTTP 200 and that document, and
+   playback prefers the rolling cache over streaming, so keeping it would fail
+   the song until eviction. Startup pruning removes such entries left by older
+   builds, and the desktop sidecar refuses HTML, JSON and XML responses before
+   writing anything.
 3. Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache
 5. Permanent download completion and rolling→permanent promotion pre-cache
