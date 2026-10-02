@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -247,6 +248,51 @@ void main() {
     );
   });
 
+  testWidgets('a release icon is painted in the accent colours of the theme', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 520);
+    addTearDown(tester.view.reset);
+
+    final light = buildLightTheme(_seed);
+    final dark = buildDarkTheme(_seed);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides,
+        child: MaterialApp(
+          home: Column(
+            children: <Widget>[
+              _IconCoverSample(theme: light),
+              _IconCoverSample(theme: dark),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('changelogTypographicCover')),
+      findsNothing,
+    );
+    final pictures = tester
+        .widgetList<SvgPicture>(find.byType(SvgPicture))
+        .toList();
+    expect(pictures, hasLength(6));
+    for (final (index, picture) in pictures.indexed) {
+      final scheme = (index < 3 ? light : dark).colorScheme;
+      expect(
+        picture.colorFilter,
+        ColorFilter.mode(scheme.onPrimary, BlendMode.srcIn),
+      );
+    }
+    await expectLater(
+      find.byType(Column).first,
+      matchesGoldenFile('goldens/changelog_icon_cover_light_dark.png'),
+    );
+  });
+
   testWidgets('a missing release icon falls back to the typographic cover', (
     tester,
   ) async {
@@ -274,4 +320,39 @@ void main() {
     );
     expect(find.text('9.9'), findsOneWidget);
   });
+}
+
+/// The bundled 1.4 icon at the header, list and Home card sizes.
+class _IconCoverSample extends StatelessWidget {
+  const new({required this.theme});
+
+  final ThemeData theme;
+
+  static const _version = ChangelogVersion(
+    version: '9.9.0',
+    entries: <ChangelogEntry>[],
+    iconAsset: 'assets/changelog/navi.svg',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: theme,
+      child: ColoredBox(
+        color: theme.colorScheme.surface,
+        child: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 24,
+            children: <Widget>[
+              ChangelogReleaseCover(version: _version, size: 208),
+              ChangelogReleaseCover(version: _version, size: 112),
+              ChangelogReleaseCover(version: _version, size: 48),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

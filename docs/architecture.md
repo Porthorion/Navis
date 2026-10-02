@@ -621,9 +621,10 @@ through `release_notes_markdown.dart`.
 - A release can carry `released` (`YYYY-MM-DD`), `codename`, `summary`,
   `highlights` and `iconAsset` (SVG or PNG under `assets/changelog/`).
 - `ChangelogReleaseCover` draws a release like album art and follows the
-  cover-shape preference. It uses the release's asset, or, when there is none
-  or it fails to load, a typographic cover: the version set large on
-  `primary`.
+  cover-shape preference. It paints the release's asset as a single-colour
+  glyph (`BlendMode.srcIn`) in `onPrimary` on `primary`, so one file suits
+  both brightnesses and every accent. When there is no asset or it fails to
+  load, it draws a typographic cover: the version set large on `primary`.
 - Highlight icons are a `ChangelogHighlightIcon` enum, mapped to Material
   icons in `changelog_style.dart`, so the data file needs no Flutter import.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
