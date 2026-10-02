@@ -124,7 +124,15 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.1', entries: []),
+  ChangelogVersion(
+    version: '1.4.1',
+    entries: [
+      ChangelogEntry(
+        'On phones, the volume level in the Now Playing menu no longer wraps onto two lines with larger text sizes',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.0',
     released: '2026-10-02',

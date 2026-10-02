@@ -1490,7 +1490,10 @@ updated/deleted. `POST /v1/presentation/adjustments` reveals the Settings panel;
 with `open: true`, it activates the existing Now Playing entry point before
 revealing the panel. With `quick: true` it instead presses the first visible
 player Speed button (desktop bar or Now Playing transport) through its
-production callback and returns `surface` (`popover` or `sheet`). Every
+production callback and returns `surface` (`popover` or `sheet`). With
+`settingsSheet: true` it opens only the phone Now Playing settings sheet
+(volume level and Sound section) through its button and returns `surface`
+`settingsSheet`, for a screenshot of that sheet. Every
 response lists `quickControls`: visible Speed/Equalizer quick buttons with
 their key, enabled state and the Speed multiplier label. Clone-only
 `POST /v1/presentation/shortcut` accepts `action` `speedUp`, `speedDown` or

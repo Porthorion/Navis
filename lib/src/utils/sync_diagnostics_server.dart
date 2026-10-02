@@ -2057,6 +2057,9 @@ class SyncDiagnosticsServer {
         String? surface;
         if (body['quick'] == true) {
           surface = await presentation.openPlaybackQuickPanel();
+        } else if (body['settingsSheet'] == true) {
+          await presentation.openNowPlayingSettingsSheet();
+          surface = 'settingsSheet';
         } else {
           await presentation.revealPlaybackAdjustments(
             open: body['open'] == true,

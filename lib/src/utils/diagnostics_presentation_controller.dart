@@ -314,6 +314,35 @@ class DiagnosticsPresentationController {
     return null;
   }
 
+  Element _boundaryElement() {
+    final boundary = _boundaryKey.currentContext;
+    if (boundary is! Element) throw const DiagnosticsPresentationUnavailable();
+    return boundary;
+  }
+
+  /// Opens only the phone Now Playing settings sheet (volume and Sound)
+  /// through its production button.
+  Future<void> openNowPlayingSettingsSheet() async {
+    final root = _boundaryElement();
+    final settingsAction = _findElement(
+      root,
+      (element) =>
+          element.widget.key == const ValueKey('nowPlayingSettingsAction') &&
+          element.widget is IconButton,
+    );
+    final callback = (settingsAction?.widget as IconButton?)?.onPressed;
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+    if (!root.mounted) throw const DiagnosticsPresentationUnavailable();
+    final sheet = _findElement(
+      root,
+      (element) =>
+          element.widget.key == const ValueKey('nowPlayingSettingsSheet'),
+    );
+    if (sheet == null) throw const DiagnosticsPresentationUnavailable();
+  }
+
   Future<void> revealPlaybackAdjustments({required bool open}) async {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();

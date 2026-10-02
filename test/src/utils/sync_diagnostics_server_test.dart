@@ -1679,6 +1679,32 @@ void main() {
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
+  test('adjustments can open only the Now Playing settings sheet', () async {
+    final presentation = _MockPresentationController();
+    when(presentation.openNowPlayingSettingsSheet).thenAnswer((_) async {});
+    when(presentation.playbackQuickControls).thenReturn(const []);
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+
+    final result = await _request(
+      fixture.port,
+      '/v1/presentation/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{'settingsSheet': true},
+    );
+
+    expect(result.statusCode, HttpStatus.ok);
+    expect(result.body['surface'], 'settingsSheet');
+    verify(presentation.openNowPlayingSettingsSheet).called(1);
+    verifyNever(
+      () => presentation.revealPlaybackAdjustments(open: any(named: 'open')),
+    );
+  });
+
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();
     when(() => presentation.hoverTooltip(target: 'lyrics'))
