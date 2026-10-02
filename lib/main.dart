@@ -71,6 +71,21 @@ Future<void> _runNavis() async {
     );
   }
   final diagnosticsDatabase = _openDiagnosticsDatabase();
+  if (diagnosticsDatabase != null && !_isAndroidRuntime) {
+    // A desktop clone copies a real profile, whose download and cache rows
+    // name the user's own files. Forget those before any service starts, so
+    // nothing in the clone can move, rename or delete them. (An Android
+    // sidecar's own cache lives outside its root and is not the user's.)
+    final forgotten = await diagnosticsDatabase.cacheDao.forgetEntriesOutside(
+      _syncDiagnosticsRoot,
+    );
+    if (forgotten > 0) {
+      AppLogger.info(
+        'Clone diagnostics: forgot $forgotten cached tracks outside the '
+        'diagnostics root.',
+      );
+    }
+  }
   final desktopBootstrap = await _configureDesktopWindow(
     databaseOverride: diagnosticsDatabase,
   );

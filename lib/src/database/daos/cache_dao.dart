@@ -3,6 +3,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:path/path.dart' as p;
 
 part 'cache_dao.g.dart';
 
@@ -143,6 +144,38 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
   }
 
   /// Get all permanent cache entries (for stale-file pruning).
+  /// Forgets every cached or downloaded track whose file lies outside
+  /// [root], returning how many were forgotten. Android `content://` grants
+  /// are kept.
+  ///
+  /// A clone diagnostics profile is a copy of a real profile, so these rows
+  /// can name the user's own downloads and cache files; the clone's download
+  /// normalization, cache eviction or catalog deletions would then move or
+  /// delete them. Gates that need media copy it inside [root] first.
+  Future<int> forgetEntriesOutside(String root) async {
+    final normalizedRoot = p.normalize(p.absolute(root));
+    final rows = await select(cachedTracksTable).get();
+    final outside = <String>[
+      for (final row in rows)
+        if (!row.filePath.startsWith('content://') &&
+            !p.isWithin(normalizedRoot, p.normalize(p.absolute(row.filePath))))
+          row.songId,
+    ];
+    if (outside.isEmpty) return 0;
+    await transaction(() async {
+      for (var start = 0; start < outside.length; start += 500) {
+        final batch = outside.sublist(
+          start,
+          start + 500 < outside.length ? start + 500 : outside.length,
+        );
+        await (delete(
+          cachedTracksTable,
+        )..where((t) => t.songId.isIn(batch))).go();
+      }
+    });
+    return outside.length;
+  }
+
   Future<List<CachedTracksTableData>> getPermanentEntries() {
     final query = select(cachedTracksTable)
       ..where((t) => t.cacheType.equals(CacheType.permanent.name));
