@@ -124,7 +124,15 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.1', entries: []),
+  ChangelogVersion(
+    version: '1.4.1',
+    entries: [
+      ChangelogEntry(
+        'Bluetooth car stereos and Android Auto show cover art again after a track change, instead of staying blank for songs whose cover had not been downloaded yet',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.0',
     released: '2026-10-02',

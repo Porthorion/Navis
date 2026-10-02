@@ -996,6 +996,11 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<String?> cacheSystemArtwork(String coverArtId, Uri artUri) =>
       _artCache?.getOrFetch(coverArtId, artUri) ?? Future<String?>.value();
 
+  /// The local file of [coverArtId]'s cover if it is already cached for the
+  /// system media controls, without downloading.
+  String? cachedSystemArtwork(String coverArtId) =>
+      _artCache?.cachedPath(coverArtId);
+
   /// Downloads the cover art for [trigger] to a local file and re-emits the
   /// current [MediaItem] with `artCacheFile` injected into
   /// [MediaItem.extras].
@@ -1007,7 +1012,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// `content://<package>.artwork/cover/<key>` URI served by
   /// `NavisArtworkProvider` from this same cache file (Android Auto runs in
   /// a separate process and cannot read a plain `file://` path), and the
-  /// Linux MPRIS and Windows SMTC bridges publish the file itself. The
+  /// Linux MPRIS and Windows SMTC bridges publish the file itself. Until this
+  /// re-emit, an uncached cover is published without art (see
+  /// [AndroidSystemArt]), so the system sees a change from no art to art. The
   /// Subsonic cover URL carries the account token, so it must not leave the
   /// app.
   ///
