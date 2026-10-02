@@ -201,6 +201,26 @@ def prepare_database(
         db.close()
 
 
+def _app_version() -> str:
+    for line in (PROJECT_ROOT / "pubspec.yaml").read_text(encoding="utf-8").splitlines():
+        if line.startswith("version:"):
+            return line.split(":", 1)[1].strip().split("+", 1)[0]
+    raise ValueError("pubspec.yaml has no version")
+
+
+def prepare_support_directory(root: Path, scenario: str) -> None:
+    """Seed the clone's app-support directory, which the app keeps in root."""
+    support = root / "support"
+    support.mkdir(mode=0o700, exist_ok=True)
+    if scenario == "fresh-login":
+        # An empty profile shows this build's What's New card, as a new
+        # install does.
+        return
+    marker = support / "changelog_seen_version.txt"
+    marker.write_text(_app_version() + "\n", encoding="utf-8")
+    os.chmod(marker, 0o600)
+
+
 def _wait_for_json(path: Path, process: subprocess.Popen, timeout: int) -> dict:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -315,6 +335,7 @@ def launch(argv: list[str]) -> int:
         json.dumps({"scenario": options.scenario}) + "\n", encoding="utf-8"
     )
     os.chmod(root / "scenario.json", 0o600)
+    prepare_support_directory(root, options.scenario)
     database = root / "navis.sqlite"
     handshake_path = root / "handshake.json"
     fixture_process = None

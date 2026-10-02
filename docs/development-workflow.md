@@ -143,8 +143,8 @@ accepts the isolated presets documented in
 `--force-setup`, the full-screen repair entries, and deterministic
 `--partial-album`/`--server-error` fixtures create disposable profiles under
 `build/dev-sync-scenarios/`. The launcher uses profile-mode clone diagnostics,
-so the normal local database and both rolling and cover-art caches are outside
-the reset path. Network gates can be seeded at process start with `--offline`
+so the normal local database, both rolling and cover-art caches, and the real
+app-support directory are outside the reset path. Network gates can be seeded at process start with `--offline`
 or `--metered` and changed through `dev_app.sh scenario` while it runs. These
 interactive presets complement, rather than replace, bounded authenticated
 diagnostics scripts and their assertions.
@@ -1300,6 +1300,33 @@ forgets every `cached_tracks` row whose file lies outside
 `NAVIS_SYNC_DIAGNOSTICS_ROOT` at startup, before any service runs (Android
 sidecars use their own app-private storage and skip this step). Keep new gates
 the same way: copy into the run folder or drop the rows.
+
+A desktop clone also runs as the same OS user as the real app, so its platform
+directories would be the real profile's (on Linux,
+`~/.local/share/com.navis.app.navis/` and `/tmp`). Before anything resolves a
+directory, a Linux or Windows clone build therefore replaces the
+`path_provider` platform implementation with `CloneDiagnosticsPathProvider`.
+Every caller, including plugins such as `flutter_cache_manager`, then resolves
+inside `NAVIS_SYNC_DIAGNOSTICS_ROOT`:
+
+| Platform directory | Clone directory |
+|---|---|
+| Application support | `<root>/support/` (also the default download root) |
+| Temporary, application cache | `<root>/cache/` (shared with the rolling cache) |
+| Documents, downloads, library | `<root>/documents/`, `<root>/downloads/`, `<root>/library/` |
+
+A clone therefore starts with its own window geometry, update-check state,
+Last.fm and AutoEQ caches, image-cache indexes and What's New marker, and its
+startup cache maintenance prunes only the clone's rolling files. Launchers do
+not change `XDG_*` or `TMPDIR`, so fonts, GTK settings, mpv and the Secret
+Service keyring behave as they do for the real app; the credential file is
+still read from its own path. A clone shows the What's New card unless its
+launcher writes the running version to
+`<root>/support/changelog_seen_version.txt`, as `sync_diagnostics.sh`,
+`sync_target_lane_diagnostics.sh`, `repair_confirmation_diagnostics.sh`,
+`manual_discovery_diagnostics.sh` and the `dev_app.sh` presets (except
+`--fresh-login`) do. Android sidecars are separate packages with their own
+storage and keep their platform directories.
 
 Run primary certification only after the clone suite passes:
 

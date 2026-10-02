@@ -124,17 +124,16 @@ trap cleanup EXIT INT TERM
 
 launch() {
   rm -f "$HANDSHAKE"
-  local diagnostics_data_home="$OUTPUT_ROOT/app-data"
   local changelog_version
   changelog_version="$(awk '/^version:/ {split($2, parts, "+"); print parts[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
-  mkdir -p "$diagnostics_data_home/com.navis.app.navis"
-  # Keep clone-only app-support state isolated. A first-run changelog dialog
-  # would cover the Liked surface that this gate has to inspect.
+  mkdir -p "$OUTPUT_ROOT/support"
+  # Clone app-support state lives in the run root's support directory. A
+  # What's New card would cover the Liked surface that this gate inspects.
   printf '%s\n' "$changelog_version" \
-    > "$diagnostics_data_home/com.navis.app.navis/changelog_seen_version.txt"
+    > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    env "XDG_DATA_HOME=$diagnostics_data_home" flutter run -d linux --profile \
+    flutter run -d linux --profile \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define=NAVIS_APP_NAME='Navis Target Lane Diagnostics' \

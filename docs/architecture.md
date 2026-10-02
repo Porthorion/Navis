@@ -235,6 +235,8 @@ Located in `lib/src/providers/app_providers.dart`:
 - Linux and Windows profile diagnostics use the bearer-authenticated loopback
   control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
   launchers must use the same clone-only, isolated database/cache contract.
+  A desktop clone resolves all `path_provider` directories inside
+  `NAVIS_SYNC_DIAGNOSTICS_ROOT`.
   API, isolates cloned database/cache paths for fault testing, and permits only
   non-fault-injected operations during backed-up primary certification. The
   read-only `POST /v1/search/source-audit` route runs the real `search3` path
@@ -2399,10 +2401,13 @@ contract.
 
 Interactive Linux sync presets in `tool/dev_app.sh` run against a disposable
 diagnostics clone. The cloned database drops cached-file references, outbound
-queues, and any copied custom download root. Its rolling cache, cover-art
-cache key, and default permanent-download directory are separate from the
-primary profile, so testing first setup or a cache reset cannot delete the
-primary profile's media. Initial offline/metered overrides are seeded before
+queues, and any copied custom download root. A desktop clone resolves every
+`path_provider` directory inside its diagnostics root
+(`CloneDiagnosticsPathProvider`, installed first in `main`), so its rolling
+cache, cover-art and image caches, default permanent-download directory and
+app-support state (window geometry, update check, What's New marker) are
+separate from the primary profile, and testing first setup or a cache reset
+cannot delete the primary profile's media. Initial offline/metered overrides are seeded before
 the first sync decision; the authenticated diagnostics API can change them
 while the scenario is running.
 

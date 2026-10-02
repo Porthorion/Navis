@@ -78,8 +78,11 @@ authenticated diagnostics controls; ordinary `dev_app.sh run` retains its
 debug/hot-reload behavior. They snapshot the default local database at
 `~/Documents/navis.sqlite.sqlite` into `build/dev-sync-scenarios/`, never reset
 that source, and remove copied download/cache references and outbound queues.
-The app uses a separate rolling and cover-art cache; copied credentials stay in
-memory. An already authenticated local profile is required except for
+The app keeps its app-support, cache and temporary files in the run directory
+(`support/` and `cache/`), so window geometry, update-check state, image caches
+and the What's New marker never touch `~/.local/share/com.navis.app.navis/`;
+copied credentials stay in memory. Presets other than `--fresh-login` mark the
+running version's What's New as seen. An already authenticated local profile is required except for
 `--fresh-login`, and the onboarding/repair/cache presets require a usable
 catalog. Use `--scenario-source /absolute/path/to/navis.sqlite.sqlite` to
 choose another source. Each invocation creates a new copy; its directory can be
