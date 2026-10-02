@@ -2141,6 +2141,122 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    group('album repeated across catalog pages', () {
+      // A server whose album list shifts while Navis pages through it (an
+      // album added mid-repair, or ties in name order) returns the album at a
+      // page boundary on both pages.
+      Album header(String id) => Album(id: id, name: id, artistId: 'artist-1');
+
+      DriftLibrarySyncEngine shiftedCatalogEngine() {
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = [header('a'), header('b')];
+        api.fastPathPages[2] = [header('b'), header('c')];
+        api.fastPathPages[4] = [header('d')];
+        api.newestPages[0] = [
+          header('d'),
+          header('c'),
+          header('b'),
+          header('a'),
+        ];
+        for (final id in ['a', 'b', 'c', 'd']) {
+          api.albumDetails[id] = Album(
+            id: id,
+            name: id,
+            artistId: 'artist-1',
+            songs: const <Song>[],
+          );
+        }
+        return DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fastPathPageSize: 2,
+          isolateThreshold: 1000,
+        );
+      }
+
+      Future<Set<String>> albumIds() async =>
+          (await database.libraryDao.getAllAlbums())
+              .map((album) => album.id)
+              .toSet();
+
+      test('still completes the repair', () async {
+        await saveSession();
+        final localEngine = shiftedCatalogEngine();
+
+        final state = await localEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await albumIds(), {'a', 'b', 'c', 'd'});
+      }, skip: !sqliteAvailable);
+
+      test(
+        'completes when an interrupted repair resumes its saved pages',
+        () async {
+          await saveSession();
+          final localEngine = shiftedCatalogEngine();
+          api.fastPathErrors[4] = const SubsonicConnectionException('offline');
+          expect(
+            (await localEngine.forceFullSync()).status,
+            LibrarySyncStatus.failed,
+          );
+
+          api.fastPathErrors.clear();
+          final resumed = await localEngine.forceFullSync();
+
+          expect(resumed.status, LibrarySyncStatus.succeeded);
+          expect(await albumIds(), {'a', 'b', 'c', 'd'});
+          // The middle page came from its saved checkpoint, not a new request.
+          expect(
+            api.calls.where((call) => call == 'getAlbumListPage:2:2'),
+            hasLength(2),
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test('in the newest list keeps its first rank', () async {
+        await saveSession();
+        final localEngine = shiftedCatalogEngine();
+        api.fastPathPages
+          ..clear()
+          ..[0] = [header('a'), header('b')]
+          ..[2] = [header('c'), header('d')];
+        // The server caps the first page at two albums, then an album added
+        // during the scan shifts the list so 'c' comes back.
+        api.newestPages
+          ..clear()
+          ..[0] = [header('d'), header('c')]
+          ..[2] = [header('c'), header('b'), header('a')];
+
+        final state = await localEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        final ranks = {
+          for (final album in await database.libraryDao.getAllAlbums())
+            album.id: album.recentlyAddedRank,
+        };
+        expect(ranks, {'d': 0, 'c': 1, 'b': 3, 'a': 4});
+      }, skip: !sqliteAvailable);
+
+      test('fails a newest list that loops without new albums', () async {
+        await saveSession();
+        final localEngine = shiftedCatalogEngine();
+        api.fastPathPages
+          ..clear()
+          ..[0] = [header('a'), header('b')]
+          ..[2] = [header('c'), header('d')];
+        api.newestPages
+          ..clear()
+          ..[0] = [header('d'), header('c')]
+          ..[2] = [header('c'), header('d')];
+
+        final state = await localEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.failed);
+      }, skip: !sqliteAvailable);
+    });
+
     test('catalog snapshot revalidates its boundary before resuming committed pages', () async {
       await saveSession();
       api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));

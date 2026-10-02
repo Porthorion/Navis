@@ -172,6 +172,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Repair Library no longer keeps failing for up to a day when albums are added to the server while it runs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
         type: ChangelogEntryType.fix,
       ),

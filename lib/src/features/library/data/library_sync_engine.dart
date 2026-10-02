@@ -72,6 +72,10 @@ class _AlbumBatchFetchResult {
   final List<String> hardFailedAlbumIds;
 }
 
+/// Version 3 counts the albums each page added to the candidate; version 2
+/// counted the page's albums, so its saved generations are never resumed.
+const int _catalogPageCheckpointVersion = 3;
+
 class _CatalogPageCheckpoint {
   const new({
     required this.count,
@@ -6087,17 +6091,26 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (page.isEmpty) break;
       final ids = page.map((album) => album.id.trim()).toList(growable: false);
       final signature = sha1.convert(utf8.encode(ids.join('\n'))).toString();
-      if (signature == lastPageSignature ||
-          ids.any((id) => id.isEmpty || !seenIds.add(id))) {
-        throw StateError('Newest album pagination repeated before completion.');
-      }
-      lastPageSignature = signature;
+      final seenBefore = seenIds.length;
       for (var index = 0; index < ids.length; index++) {
         final id = ids[index];
-        if (candidateAlbumIds.contains(id)) {
+        // An album already seen keeps its first rank: albums added during the
+        // scan shift the list, so the album at a page boundary comes back on
+        // the next page.
+        if (id.isNotEmpty &&
+            seenIds.add(id) &&
+            candidateAlbumIds.contains(id)) {
           ranks[id] = offset + index;
         }
       }
+      // A server that ignores the offset repeats its page, and one that loops
+      // brings nothing new; neither would ever reach the empty last page.
+      if (signature == lastPageSignature ||
+          seenIds.length == seenBefore ||
+          ids.any((id) => id.isEmpty)) {
+        throw StateError('Newest album pagination repeated before completion.');
+      }
+      lastPageSignature = signature;
       offset += page.length;
     }
 
@@ -6190,54 +6203,77 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
       lastPageSignature = signature;
 
-      if (catalogPage.isNotEmpty) {
-        await _database.librarySyncCandidateDao.upsertAlbums(
-          serverId: serverId,
-          generation: catalogGeneration,
-          albums: await _toAlbumCompanions(
-            catalogPage,
-            pendingHydrationAlbumIds: catalogPage.map((album) => album.id),
-            catalogGeneration: catalogGeneration,
-          ),
-        );
-        metrics.addDbWriteBatch();
-      }
-
+      final albums = catalogPage.isEmpty
+          ? const <AlbumsTableCompanion>[]
+          : await _toAlbumCompanions(
+              catalogPage,
+              pendingHydrationAlbumIds: catalogPage.map((album) => album.id),
+              catalogGeneration: catalogGeneration,
+            );
       // Compatible servers can cap responses below the requested page size.
       // A short non-empty page is not EOF: advance by the returned count and
       // stop only when an empty or repeated page proves the catalog ended.
       final hasMorePages = page.isNotEmpty;
-      discoveredCount += catalogPage.length;
-      var work = existingWork;
-      if (work == null) {
-        await _database.librarySyncDao.enqueueWork(
+      // A page counts only the albums it adds to the candidate. When the
+      // server's list shifts while Navis pages through it (an album added
+      // mid-repair, or ties in name order), the album at a page boundary
+      // comes back on the next page; counting it twice would fail the
+      // completeness check below on every resume. The write and its
+      // checkpoint commit together, so a resume never counts a page twice.
+      final added = await _database.transaction(() async {
+        final before = await _database.librarySyncCandidateDao.countAlbums(
           serverId: serverId,
-          kind: 'catalogAlbumPage',
-          entityId: pageKey,
-          priority: 40,
+          generation: catalogGeneration,
         );
-        work = await _database.librarySyncDao.getWork(
-          serverId: serverId,
-          kind: 'catalogAlbumPage',
-          entityId: pageKey,
-        );
+        if (albums.isNotEmpty) {
+          await _database.librarySyncCandidateDao.upsertAlbums(
+            serverId: serverId,
+            generation: catalogGeneration,
+            albums: albums,
+          );
+        }
+        final added =
+            await _database.librarySyncCandidateDao.countAlbums(
+              serverId: serverId,
+              generation: catalogGeneration,
+            ) -
+            before;
+        var work = existingWork;
+        if (work == null) {
+          await _database.librarySyncDao.enqueueWork(
+            serverId: serverId,
+            kind: 'catalogAlbumPage',
+            entityId: pageKey,
+            priority: 40,
+          );
+          work = await _database.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: 'catalogAlbumPage',
+            entityId: pageKey,
+          );
+        }
+        if (work != null) {
+          await _database.librarySyncDao.updateCheckpoint(
+            work.id,
+            checkpointJson: jsonEncode(<String, Object>{
+              'version': _catalogPageCheckpointVersion,
+              'rawCount': page.length,
+              'count': added,
+              'hasMore': hasMorePages,
+              'signature': signature,
+            }),
+          );
+          await _database.librarySyncDao.markCompleted(
+            work.id,
+            preserveCheckpoint: true,
+          );
+        }
+        return added;
+      });
+      if (albums.isNotEmpty) {
+        metrics.addDbWriteBatch();
       }
-      if (work != null) {
-        await _database.librarySyncDao.updateCheckpoint(
-          work.id,
-          checkpointJson: jsonEncode(<String, Object>{
-            'version': 2,
-            'rawCount': page.length,
-            'count': catalogPage.length,
-            'hasMore': hasMorePages,
-            'signature': signature,
-          }),
-        );
-        await _database.librarySyncDao.markCompleted(
-          work.id,
-          preserveCheckpoint: true,
-        );
-      }
+      discoveredCount += added;
       onPageProgress?.call(
         discoveredCount: discoveredCount,
         hasMorePages: hasMorePages,
@@ -6268,7 +6304,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (decoded is! Map<String, dynamic>) {
         return null;
       }
-      if (decoded['version'] != 2) return null;
+      if (decoded['version'] != _catalogPageCheckpointVersion) return null;
       final rawCount = decoded['rawCount'];
       final count = decoded['count'];
       final hasMore = decoded['hasMore'];
