@@ -158,3 +158,10 @@ to Navis. Decisions:
   fallback, coloured entry stripes, the timeline rail, card grids, and the
   Home card's badge chips, which are now one plain line.
 
+The same rules were later applied to Speed & Pitch (2026-10-03). Its rulers
+had an accent glow behind the marker, a graded and outlined well, and a
+marker with a dot on top. Now they sit flat, and accent marks only the
+marker and the neutral 1.00× / 0 semitones line. The − and + buttons moved to
+the ends of the ruler, and Speed's Reset, which repeated the 1× chip, was
+removed.
+

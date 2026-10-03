@@ -1497,8 +1497,13 @@ rename or delete (with confirmation) the current or originating preset. Exact en
 commas, validated inline.
 
 Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
-0.10 (eight logical pixels per minor tick). A recessed themed surface, center
-highlight and outer 15% fades keep the center readable. Release settles onto the
+0.10 (eight logical pixels per minor tick). They sit flat on the panel with no
+fill, glow or outline; a `primary` outline appears only as the keyboard focus
+ring, and outer 15% fades show the scale continues. Accent is reserved for the
+plain 2 px marker and the neutral line (1.00× speed, 0 semitones), which rises
+above the other ticks as a detent mark; range endpoints keep a long tick in the
+base color. Tick labels and the value readouts use tabular figures so they do
+not shift while dragging. Release settles onto the
 nearest supported tick over 140 ms with ease-out motion; the animation never
 writes to the engine. Values chosen elsewhere (chips, presets, reset, the − and +
 buttons, or pitch following speed) cancel any gesture and glide to the new value.
@@ -1510,9 +1515,12 @@ finite bounds so reversing at an endpoint responds immediately. While dragging,
 0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
 0.10 lines a light impact and the neutral value a medium impact; release
 settling and keyboard steps stay silent, and the platform touch-feedback setting
-applies. Endpoint feedback and the
+applies. The − and + buttons sit at the ends of the ruler they move, in a row
+kept left-to-right because the scale always puts lower values on the left.
+Speed has no separate Reset (its 1× chip does that); Pitch shows Reset beside
+its heading only while it differs from 0 semitones. Endpoint feedback and the
 available bounds appear only once a limit is reached, explaining the disabled
-button. With Pitch Lock on, the pitch heading shows a link icon ("Follows playback speed" as tooltip and label), the ruler is read-only at full contrast (`AdjustmentRuler.readOnly`) and still glides with speed, and the inert −/Reset/+ row is hidden; unsupported
+button. With Pitch Lock on, the pitch heading shows a link icon ("Follows playback speed" as tooltip and label), the ruler is read-only at full contrast (`AdjustmentRuler.readOnly`) and still glides with speed, and the inert − and + buttons and Reset are hidden; invisible stand-ins keep the pitch ruler as wide as the speed ruler. Unsupported
 backends hide the pitch control and lock and show a single availability note.
 
 Capabilities follow the initialized backend, including debug macOS and fallback.
