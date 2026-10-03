@@ -127,6 +127,7 @@ enum ChangelogHighlightIcon {
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.4.1',
+    released: '2026-10-03',
     entries: [
       ChangelogEntry(
         'Choose a download quality once: your next download asks whether to always use that quality, and Downloads settings let you pick Ask every time, Original, or a bitrate',
