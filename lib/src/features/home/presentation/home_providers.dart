@@ -283,6 +283,17 @@ bool _listenBrainzDiscoverPlaylistsContentEqual(
         _listenBrainzPlaylistVersionMarker(rightPlaylist.playlist)) {
       return false;
     }
+    // A recheck can swap a remote match for the server copy without changing
+    // any count.
+    final leftMatches = leftPlaylist.recommendations;
+    final rightMatches = rightPlaylist.recommendations;
+    for (var track = 0; track < leftMatches.length; track++) {
+      if (leftMatches[track].song?.id != rightMatches[track].song?.id ||
+          leftMatches[track].hasServerSong !=
+              rightMatches[track].hasServerSong) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -336,11 +347,17 @@ class ListenBrainzDiscoverPlaylist {
     required this.playlist,
     required this.recommendations,
     this.matchingComplete = false,
+    this.searchedAt,
   });
 
   final ListenBrainzPlaylist playlist;
   final List<ListenBrainzResolvedRecommendation> recommendations;
   final bool matchingComplete;
+
+  /// When the server was last searched for this playlist's tracks (stored as
+  /// the weekly cache row's `fetchedAt`); `null` when it never was. Remote and
+  /// unmatched tracks are searched again once this is a day old.
+  final DateTime? searchedAt;
 
   String get displayTitle => playlist.recommendationDisplayTitle;
 
@@ -364,11 +381,13 @@ class ListenBrainzDiscoverPlaylist {
     ListenBrainzPlaylist? playlist,
     List<ListenBrainzResolvedRecommendation>? recommendations,
     bool? matchingComplete,
+    DateTime? searchedAt,
   }) {
     return ListenBrainzDiscoverPlaylist(
       playlist: playlist ?? this.playlist,
       recommendations: recommendations ?? this.recommendations,
       matchingComplete: matchingComplete ?? this.matchingComplete,
+      searchedAt: searchedAt ?? this.searchedAt,
     );
   }
 }
@@ -479,18 +498,31 @@ final listenBrainzPlaylistRematchControllerProvider =
       ListenBrainzPlaylistRematchController.new,
     );
 
+/// Rechecks weekly matches against the library after every library sync that
+/// changed it, fully or partly, so a remote match switches to a newly synced
+/// copy (see [ListenBrainzDiscoverRefreshEpochNotifier.refreshAfterLibrarySync]).
 final listenBrainzLibrarySyncRefreshBridgeProvider = Provider<void>((ref) {
   ref.listen<LibrarySyncState>(librarySyncControllerProvider, (previous, next) {
-    if (next.status == LibrarySyncStatus.succeeded &&
-        previous?.status != LibrarySyncStatus.succeeded) {
+    final finished =
+        next.status == LibrarySyncStatus.succeeded ||
+        next.status == LibrarySyncStatus.partial;
+    if (finished && previous?.status != next.status) {
       final settings = ref.read(appSettingsProvider).asData?.value;
       if (settings?.listenBrainzTokenValid ?? false) {
+        final epochAtSync = ref.read(listenBrainzDiscoverRefreshEpochProvider);
         // A sync transition may be flushed while Home is reading the derived
         // showcase provider. Defer the dependent invalidation until that
         // widget build has finished.
         unawaited(
           Future<void>(() {
             if (!ref.mounted) {
+              return;
+            }
+            // Another refresh started meanwhile (Home pull-to-refresh starts
+            // a full one right after its sync) and already sees the synced
+            // library; replacing it would only repeat the work.
+            if (ref.read(listenBrainzDiscoverRefreshEpochProvider) !=
+                epochAtSync) {
               return;
             }
             ref
@@ -584,6 +616,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
           ? const <ListenBrainzDiscoverPlaylist>[]
           : await _loadListenBrainzWeeklyCache(
               cacheDao: cacheDao,
+              libraryDao: dao,
               userName: cachedUserName,
             );
       AppLogger.debug(
@@ -669,6 +702,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   final persistentCached = shouldLoadPersistentCache
       ? await _loadListenBrainzWeeklyCache(
           cacheDao: cacheDao,
+          libraryDao: dao,
           userName: sessionKey,
         )
       : const <ListenBrainzDiscoverPlaylist>[];
@@ -864,28 +898,38 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
     '${playlistMetadata.length} selectedTargets=${targetMetadata.length}.',
   );
   final hasPersistentCache = cachedPlaylists.isNotEmpty;
+  // Whether this resolve searches the server (search3). A new week always
+  // does; an unchanged week only for its daily recheck, which also looks for
+  // server copies of remote matches. Every resolve checks the library.
+  var searchServer = true;
+  var recheckRemote = false;
   if (hasPersistentCache &&
       _listenBrainzMetadataMatchesCachedPlaylists(
         targetMetadata,
         cachedPlaylists,
       )) {
-    final unresolvedCount = _listenBrainzUnresolvedRecommendationCount(
+    final localRecheckCount = _listenBrainzLocalRecheckCount(cachedPlaylists);
+    final searchDue = _listenBrainzSearchRecheckDue(
       cachedPlaylists,
+      DateTime.now(),
     );
     AppLogger.debug(
       'ListenBrainz discover metadata check result=unchanged count='
       '${targetMetadata.length}.',
     );
     AppLogger.debug(
-      'ListenBrainz discover cached unresolved rematch count=$unresolvedCount.',
+      'ListenBrainz discover cached recheck: local=$localRecheckCount '
+      'searchDue=$searchDue.',
     );
-    if (unresolvedCount == 0 && !_listenBrainzForceRematchOnNextRefresh) {
+    if (localRecheckCount == 0 && !searchDue) {
       _listenBrainzDiscoverSessionCache = cachedPlaylists;
       _listenBrainzForceRematchOnNextRefresh = false;
       yield cachedPlaylists;
       return;
     }
     resolvedPlaylists = cachedPlaylists;
+    searchServer = searchDue;
+    recheckRemote = searchDue;
   } else {
     if (hasPersistentCache) {
       AppLogger.debug(
@@ -963,32 +1007,44 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
     '${afterLocalMatched - beforeLocalMatched} totalMatched=$afterLocalMatched.',
   );
 
-  final unresolvedCount = _listenBrainzUnresolvedRecommendationCount(
-    resolvedPlaylists,
-  );
-  if (unresolvedCount > 0) {
-    final searchParallelism = automaticRefresh
-        ? _listenBrainzDiscoverAutomaticSearchParallelism
-        : _listenBrainzDiscoverSearchParallelism;
-    AppLogger.debug(
-      'ListenBrainz discover search3 start: '
-      'unresolved=$unresolvedCount concurrency=$searchParallelism.',
-    );
-    await for (final updated in _resolveListenBrainzTrackSearchMisses(
-      api: api,
-      dao: dao,
-      playlists: resolvedPlaylists,
-      maxConcurrent: searchParallelism,
-      emitProgressiveUpdates: emitProgressiveSearchUpdates,
-    )) {
+  if (searchServer) {
+    final searchCount = resolvedPlaylists.fold<int>(0, (sum, playlist) {
+      return sum +
+          playlist.recommendations.where((recommendation) {
+            return _listenBrainzRecommendationNeedsResolution(recommendation) ||
+                (recheckRemote && _listenBrainzIsRemoteMatch(recommendation));
+          }).length;
+    });
+    if (searchCount > 0) {
+      final searchParallelism = automaticRefresh
+          ? _listenBrainzDiscoverAutomaticSearchParallelism
+          : _listenBrainzDiscoverSearchParallelism;
+      AppLogger.debug(
+        'ListenBrainz discover search3 start: '
+        'tracks=$searchCount recheckRemote=$recheckRemote '
+        'concurrency=$searchParallelism.',
+      );
+      await for (final updated in _resolveListenBrainzTrackSearchMisses(
+        api: api,
+        dao: dao,
+        playlists: resolvedPlaylists,
+        maxConcurrent: searchParallelism,
+        emitProgressiveUpdates: emitProgressiveSearchUpdates,
+        recheckRemote: recheckRemote,
+      )) {
+        if (!ref.mounted) {
+          return;
+        }
+        resolvedPlaylists = updated;
+      }
       if (!ref.mounted) {
         return;
       }
-      resolvedPlaylists = updated;
     }
-    if (!ref.mounted) {
-      return;
-    }
+    final searchedAt = DateTime.now();
+    resolvedPlaylists = resolvedPlaylists
+        .map((playlist) => playlist.copyWith(searchedAt: searchedAt))
+        .toList(growable: false);
   }
 
   resolvedPlaylists = resolvedPlaylists
@@ -1100,10 +1156,14 @@ Future<ListenBrainzDiscoverPlaylist> _rematchListenBrainzPlaylist(
     maxConcurrent: _listenBrainzDiscoverSearchParallelism,
     emitProgressiveUpdates: false,
     allowCachedMatches: false,
+    recheckRemote: true,
   )) {
     resolved = updated.single;
   }
-  resolved = resolved.copyWith(matchingComplete: true);
+  resolved = resolved.copyWith(
+    matchingComplete: true,
+    searchedAt: DateTime.now(),
+  );
   await _saveListenBrainzWeeklyCache(
     cacheDao: db.cacheDao,
     userName: userName.toLowerCase(),
@@ -1222,7 +1282,10 @@ _resolveListenBrainzTracksFromLocalSnapshot({
     recommendationIndex++
   ) {
     final recommendation = playlist.recommendations[recommendationIndex];
-    if (recommendation.isPlayable) {
+    // Remote and unmatched tracks are checked against the library on every
+    // pass, so a remote match switches to the library copy once its album is
+    // on the server and synced.
+    if (recommendation.hasServerSong) {
       recommendations.add(recommendation);
       continue;
     }
@@ -1233,7 +1296,7 @@ _resolveListenBrainzTracksFromLocalSnapshot({
     final cached = allowCachedMatches
         ? _listenBrainzDiscoverMatchCache[cacheKey]
         : null;
-    if (cached != null && cached.isPlayable) {
+    if (cached != null && cached.hasServerSong) {
       recommendations.add(cached);
       continue;
     }
@@ -1246,6 +1309,7 @@ _resolveListenBrainzTracksFromLocalSnapshot({
     if (localMatch.isPlayable) {
       _listenBrainzDiscoverMatchCache[cacheKey] = localMatch;
     }
+    // Without a library match a remote match stays playable as it was.
     recommendations.add(localMatch.isPlayable ? localMatch : recommendation);
     if ((recommendationIndex + 1) %
             _listenBrainzDiscoverLocalMatchYieldBatchSize ==
@@ -1264,6 +1328,7 @@ _resolveListenBrainzTrackSearchMisses({
   required int maxConcurrent,
   required bool emitProgressiveUpdates,
   bool allowCachedMatches = true,
+  bool recheckRemote = false,
 }) async* {
   var current = playlists
       .map(
@@ -1318,7 +1383,8 @@ _resolveListenBrainzTrackSearchMisses({
       recommendationIndex++
     ) {
       final recommendation = playlist.recommendations[recommendationIndex];
-      if (!_listenBrainzRecommendationNeedsResolution(recommendation)) {
+      if (!_listenBrainzRecommendationNeedsResolution(recommendation) &&
+          !(recheckRemote && _listenBrainzIsRemoteMatch(recommendation))) {
         continue;
       }
       final taskId = nextTaskId++;
@@ -1387,11 +1453,16 @@ _resolveListenBrainzRemoteSearchMiss({
   required bool allowCachedMatches,
 }) async {
   final track = recommendation.track;
+  // A remote match is searched again only to find a copy on the server; it is
+  // never replaced by another remote result or lost to a failed search.
+  final upgradeOnly = _listenBrainzIsRemoteMatch(recommendation);
   final cacheKey = _listenBrainzMatchCacheKey(playlist, track);
   final cached = allowCachedMatches
       ? _listenBrainzDiscoverMatchCache[cacheKey]
       : null;
-  if (cached != null && cached.isPlayable) {
+  if (cached != null &&
+      cached.isPlayable &&
+      !(upgradeOnly && _listenBrainzIsRemoteMatch(cached))) {
     return (
       taskId: taskId,
       playlistIndex: playlistIndex,
@@ -1411,10 +1482,21 @@ _resolveListenBrainzRemoteSearchMiss({
       albumCount: 0,
       songCount: _listenBrainzDiscoverSearchSongCount,
     );
-    final match = _pickListenBrainzTrackMatch(
-      track,
-      search.songs.map(_listenBrainzRemoteCandidate).toList(growable: false),
-    );
+    final candidates = search.songs
+        .map(_listenBrainzRemoteCandidate)
+        .toList(growable: false);
+    final onServer = candidates
+        .where((candidate) => isServerAddressableSongId(candidate.song.id))
+        .toList(growable: false);
+    // Prefer a copy on the server over an equally good remote one.
+    var match = onServer.isEmpty
+        ? null
+        : _pickListenBrainzTrackMatch(track, onServer);
+    if (match == null || !match.isPlayable) {
+      match = upgradeOnly
+          ? recommendation
+          : _pickListenBrainzTrackMatch(track, candidates);
+    }
     AppLogger.debug(
       'ListenBrainz discover search3 result: query="$query" '
       'returned=${search.songs.length} status=${match.status.name} '
@@ -1434,10 +1516,12 @@ _resolveListenBrainzRemoteSearchMiss({
       'ListenBrainz discover search3 failed: '
       'query="${track.title} ${track.creator ?? ''}". error=$error',
     );
-    final unmatched = ListenBrainzResolvedRecommendation(
-      track: track,
-      status: ListenBrainzRecommendationMatchStatus.unmatched,
-    );
+    final unmatched = upgradeOnly
+        ? recommendation
+        : ListenBrainzResolvedRecommendation(
+            track: track,
+            status: ListenBrainzRecommendationMatchStatus.unmatched,
+          );
     return (
       taskId: taskId,
       playlistIndex: playlistIndex,
@@ -1476,13 +1560,14 @@ ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
   };
 }
 
-/// Title and artist of every recommendation still needing a local match.
+/// Title and artist of every recommendation without a song on the server,
+/// remote matches included.
 Iterable<({String title, String artist})> _listenBrainzUnresolvedMatchQueries(
   List<ListenBrainzDiscoverPlaylist> playlists,
 ) sync* {
   for (final playlist in playlists) {
     for (final recommendation in playlist.recommendations) {
-      if (recommendation.isPlayable) continue;
+      if (recommendation.hasServerSong) continue;
       final query = _listenBrainzTrackMatchQuery(recommendation.track);
       yield (title: query.title, artist: query.artist);
     }
@@ -2127,6 +2212,7 @@ List<ListenBrainzDiscoverPlaylist> _listenBrainzLoadingDiscoverPlaylists() {
 
 Future<List<ListenBrainzDiscoverPlaylist>> _loadListenBrainzWeeklyCache({
   required CacheDao cacheDao,
+  required LibraryDao libraryDao,
   required String userName,
 }) async {
   final rows = await cacheDao.getListenBrainzWeeklyCacheForUser(userName);
@@ -2141,9 +2227,57 @@ Future<List<ListenBrainzDiscoverPlaylist>> _loadListenBrainzWeeklyCache({
     }
     bySourcePatch[row.sourcePatch] = playlist;
   }
-  return _listenBrainzShowcaseSourcePatches
+  final playlists = _listenBrainzShowcaseSourcePatches
       .map((sourcePatch) => bySourcePatch[sourcePatch])
       .whereType<ListenBrainzDiscoverPlaylist>()
+      .toList(growable: false);
+  return await _attachListenBrainzLibraryRows(libraryDao, playlists);
+}
+
+/// Gives cached matches of songs on the server their current library rows.
+///
+/// The cache stores only the matched API song. A song the server has since
+/// deleted (or that is no longer in the library) becomes unmatched, so it is
+/// neither played nor counted as available and the next resolve looks for it
+/// again. Remote matches have no library row and keep none.
+Future<List<ListenBrainzDiscoverPlaylist>> _attachListenBrainzLibraryRows(
+  LibraryDao libraryDao,
+  List<ListenBrainzDiscoverPlaylist> playlists,
+) async {
+  final serverIds = <String>{
+    for (final playlist in playlists)
+      for (final recommendation in playlist.recommendations)
+        if (recommendation.song case final song?
+            when isServerAddressableSongId(song.id))
+          song.id,
+  };
+  if (serverIds.isEmpty) {
+    return playlists;
+  }
+  final rowsById = <String, SongsTableData>{
+    for (final row in await libraryDao.getSongsByIds(serverIds)) row.id: row,
+  };
+  return playlists
+      .map(
+        (playlist) => playlist.copyWith(
+          recommendations: playlist.recommendations
+              .map((recommendation) {
+                final song = recommendation.song;
+                if (song == null || !isServerAddressableSongId(song.id)) {
+                  return recommendation;
+                }
+                final row = rowsById[song.id];
+                if (row == null || row.serverDeletedAt != null) {
+                  return ListenBrainzResolvedRecommendation(
+                    track: recommendation.track,
+                    status: ListenBrainzRecommendationMatchStatus.unmatched,
+                  );
+                }
+                return recommendation.copyWith(tableSong: row);
+              })
+              .toList(growable: false),
+        ),
+      )
       .toList(growable: false);
 }
 
@@ -2176,7 +2310,9 @@ Future<void> _saveListenBrainzWeeklyCache({
         ),
         matchedCount: Value(playlist.matchedCount),
         totalCount: Value(playlist.totalCount),
-        fetchedAt: DateTime.now(),
+        // When the server was last searched for these tracks; local-only
+        // passes keep it, so the daily recheck is not postponed.
+        fetchedAt: playlist.searchedAt ?? DateTime.now(),
       ),
     );
   }
@@ -2214,6 +2350,7 @@ ListenBrainzDiscoverPlaylist? _listenBrainzDiscoverPlaylistFromCache(
       ),
       recommendations: recommendations,
       matchingComplete: true,
+      searchedAt: row.fetchedAt,
     );
   } on Object catch (error) {
     AppLogger.debug(
@@ -2265,7 +2402,6 @@ ListenBrainzResolvedRecommendation? _listenBrainzRecommendationFromCacheJson(
         ? ListenBrainzRecommendationMatchStatus.unmatched
         : status,
     song: song,
-    tableSong: song == null ? null : _listenBrainzTableSong(song),
   );
 }
 
@@ -2368,14 +2504,40 @@ bool _listenBrainzRecommendationNeedsResolution(
   return !recommendation.isPlayable;
 }
 
-int _listenBrainzUnresolvedRecommendationCount(
+/// A playable match that only a remote catalog (Octo-Fiesta) provides.
+bool _listenBrainzIsRemoteMatch(
+  ListenBrainzResolvedRecommendation recommendation,
+) {
+  final song = recommendation.song;
+  return recommendation.isPlayable &&
+      song != null &&
+      !isServerAddressableSongId(song.id);
+}
+
+/// Recommendations the local pass checks: every one without a song on the
+/// server.
+int _listenBrainzLocalRecheckCount(
   List<ListenBrainzDiscoverPlaylist> playlists,
 ) {
   return playlists.fold<int>(0, (sum, playlist) {
     return sum +
         playlist.recommendations
-            .where(_listenBrainzRecommendationNeedsResolution)
+            .where((recommendation) => !recommendation.hasServerSong)
             .length;
+  });
+}
+
+/// The server is searched again for remote and unmatched tracks once a day.
+const Duration _listenBrainzSearchRecheckInterval = Duration(hours: 24);
+
+bool _listenBrainzSearchRecheckDue(
+  List<ListenBrainzDiscoverPlaylist> playlists,
+  DateTime now,
+) {
+  return playlists.any((playlist) {
+    final searchedAt = playlist.searchedAt;
+    return searchedAt == null ||
+        now.difference(searchedAt) >= _listenBrainzSearchRecheckInterval;
   });
 }
 
