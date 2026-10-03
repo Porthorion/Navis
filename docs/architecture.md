@@ -1885,7 +1885,9 @@ exported `NavisArtworkProvider` from the same cache, which Android Auto can
 open from its own process. Browse lists wait up to 1.5 s for their covers to
 download (six at a time); a cover not cached yet appears the next time the
 list is shown, and queue entries show art once it has been cached. The app
-itself keeps the HTTP `artUri`.
+itself keeps the HTTP `artUri`. Before any network fetch, `PlaybackArtCache`
+copies a downloaded song's cover from the permanent artwork store (see Cache
+Flow), so downloaded music shows its cover offline on every system surface.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
@@ -2325,9 +2327,11 @@ contract.
    builds, and the desktop sidecar refuses HTML, JSON and XML responses before
    writing anything.
 3. Cache manager reads the current budget and enforces it via LRU eviction
-4. User pins content → Download to permanent cache
+4. User pins content → Download to permanent cache (see **Download quality,
+   concurrency and artwork** below)
 5. Permanent download completion and rolling→permanent promotion pre-cache
-   cover art using `kCoverArtStandardSize`
+   cover art using `kCoverArtStandardSize` and keep a durable copy in the
+   permanent artwork store
 6. A custom permanent-download root is user-owned: Navis records known files
    in its root `.navis-downloads.sqlite` sidecar and can adopt existing files
    only after an explicit preview/confirmation. The sidecar maps relative file
@@ -2427,6 +2431,74 @@ contract.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
+
+### Download quality, concurrency and artwork
+
+**Quality preference.** Every download action calls `requestDownloadQuality`
+(`download_quality_sheet.dart`). It reads the saved preference from the
+targeted-only `app_settings` columns `download_quality_mode` (`ask`,
+`original`, `transcode`), `download_max_bit_rate` and `download_format`. A
+saved mode returns its choice without UI and the queued notice names the
+quality (`downloadQueuedNotice`); `ask` shows the picker: Original plus
+96–320 kbps in the saved transcode format (MP3, AAC or Opus). While
+`download_quality_prompted` is false, the first pick is followed by a
+one-time "Always download in …?" dialog. Either answer sets the flag; accepting
+saves the mode. Schema 90 adds the columns with the flag false, so every
+existing install, with or without downloads, is asked once. Choosing a quality
+in Downloads settings also sets the flag. "Change quality" on a downloaded
+track always opens the picker. Auto-downloads of liked items use the saved
+quality on Wi-Fi (original when the mode is `ask`) and the cellular streaming
+profile on mobile data. Full settings drafts never write these columns.
+
+**Original detection.** An original download records the song's bitrate, so
+`isOriginalQualityDownload` treats a stored download as original when it has
+no bitrate, or the song's own format (`sameAudioFormat`: `m4a`/`mp4`/`aac`
+are one family) at no less than the song's bitrate. Enqueueing at Original
+therefore skips songs already downloaded in original quality.
+
+**Transcoded transfers.** `stream.view` requests carry
+`estimateContentLength=true` so transfers report progress; a transfer without
+a length shows an indeterminate bar. After a 2xx response the
+`content-type` names the stored format (`downloadedFormatFor`): a server
+without the requested encoder that sends the original file stores it under
+its real extension and bitrate. HTML, JSON and XML responses are failures and
+never registered.
+
+**Concurrency.** `DownloadService` runs a worker pool. `effectiveConcurrency`
+is 0 while paused or held by Wi-Fi-only, 1 on cellular, otherwise
+`max_concurrent_downloads` (1–4, default 2; `kMaxConcurrentDownloads` bounds
+server encoders, device I/O and streaming bandwidth). The pump runs on queue,
+network and setting changes and when a worker ends. Only the network transfer
+runs in parallel: the finishing step (rename, identity tags, SAF upload,
+`cached_tracks` upsert, folder sidecar record, queue row removal) runs one at
+a time, and destination paths of transfers in flight are reserved, so two
+songs with the same artist and title take the resolver's collision suffix.
+Each transfer has its own `CancelToken`. Cancelling an item
+(`cancelQueueItem`, `clearQueue`) stops its transfer, deletes the part file
+and removes the row. Pausing (`setPaused`, persisted in `downloads_paused`
+and read at start before the queue subscription) cancels transfers in flight
+and returns their rows to the queue. A failed item waits out its backoff
+(5 s × 2^retry, in memory; a restart retries at once) before the pump starts
+it again, and `markForRetry` notifies queue watchers. `processQueuedDownloads`
+completes once no worker is running. The Android progress notification
+aggregates every transfer in flight.
+
+**Permanent artwork store.** `PermanentArtworkStore` keeps one 768 px copy of
+each downloaded song's cover in `<app support>/artwork/permanent/<key>.<ext>`
+(clone runs: inside the run root), named for its image signature, written
+through a part file, and never a non-image payload. It is Navis-owned and
+outside any user download folder, so it never becomes an import candidate.
+Downloads and promotions store the cover; startup stores covers missing for
+existing and adopted downloads (Wi-Fi only) and deletes covers no permanent
+download uses; removing downloads prunes it, but never while a download's
+song is missing from the library (a rebuild in progress). `CoverArtImage`
+renders a stored cover (resized to the requested size): at refresh revision 0
+whenever the cache has no entry for that size; at a bumped revision only when
+the network load fails, so a refreshed cover still loads fresh online; and
+always when there is no server connection. `PlaybackArtCache` copies it for
+the system media controls. Reset
+Caches and Clear Cover Art keep the store, like permanent downloads; a server
+data reset clears it.
 
 Interactive Linux sync presets in `tool/dev_app.sh` run against a disposable
 diagnostics clone. The cloned database drops cached-file references, outbound

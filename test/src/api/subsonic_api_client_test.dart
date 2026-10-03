@@ -825,6 +825,20 @@ void main() {
 
       expect(stream.path, '/rest/stream.view');
       expect(stream.queryParameters['id'], 'song-1');
+      expect(stream.queryParameters['maxBitRate'], '320');
+      expect(stream.queryParameters['format'], 'mp3');
+      // Playback streams never ask for an estimated length.
+      expect(stream.queryParameters, isNot(contains('estimateContentLength')));
+      expect(
+        client
+            .streamUrl(
+              id: 'song-1',
+              format: 'opus',
+              estimateContentLength: true,
+            )
+            .queryParameters['estimateContentLength'],
+        'true',
+      );
       expect(download.path, '/rest/download.view');
       expect(download.queryParameters['id'], 'song-1');
       expect(cover.path, '/rest/getCoverArt.view');

@@ -25,7 +25,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
-  new({this._reportNetworkUsage});
+  new({this._reportNetworkUsage, this._readPermanentArtwork});
 
   /// The file-name key of [coverArtId]'s cached file
   /// (`<temporary dir>/navis_art_<key>.jpg`). Android's
@@ -38,6 +38,11 @@ class PlaybackArtCache {
   static const Duration _responseTimeout = Duration(seconds: 15);
 
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  /// The durable cover of a downloaded song, used before any network fetch
+  /// so downloaded music shows its cover offline (Bluetooth/AVRCP, Android
+  /// Auto, MPRIS, SMTC).
+  final Future<File?> Function(String coverArtId)? _readPermanentArtwork;
 
   /// Shared client, so consecutive track changes reuse a keep-alive
   /// connection instead of paying a TCP and TLS handshake each time.
@@ -99,6 +104,23 @@ class PlaybackArtCache {
           return file.path;
         }
         await file.delete();
+      }
+
+      final permanent = await _readPermanentArtwork?.call(coverArtId);
+      if (permanent != null) {
+        try {
+          await permanent.copy(file.path);
+          _mem[coverArtId] = file.path;
+          AppLogger.debug(
+            'PlaybackArtCache: art for $coverArtId → ${file.path} '
+            '(download artwork)',
+          );
+          return file.path;
+        } on FileSystemException catch (error) {
+          AppLogger.warning(
+            'PlaybackArtCache: download artwork copy failed: $error',
+          );
+        }
       }
 
       // Download using dart:io HttpClient so we use the same platform HTTP

@@ -863,6 +863,82 @@ class $AppSettingsTableTable extends AppSettingsTable
         requiredDuringInsert: false,
         defaultValue: const Constant('filesystem'),
       );
+  static const VerificationMeta _downloadQualityModeMeta =
+      const VerificationMeta('downloadQualityMode');
+  @override
+  late final GeneratedColumn<String> downloadQualityMode =
+      GeneratedColumn<String>(
+        'download_quality_mode',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('ask'),
+      );
+  static const VerificationMeta _downloadMaxBitRateMeta =
+      const VerificationMeta('downloadMaxBitRate');
+  @override
+  late final GeneratedColumn<int> downloadMaxBitRate = GeneratedColumn<int>(
+    'download_max_bit_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(320),
+  );
+  static const VerificationMeta _downloadFormatMeta = const VerificationMeta(
+    'downloadFormat',
+  );
+  @override
+  late final GeneratedColumn<String> downloadFormat = GeneratedColumn<String>(
+    'download_format',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('mp3'),
+  );
+  static const VerificationMeta _downloadQualityPromptedMeta =
+      const VerificationMeta('downloadQualityPrompted');
+  @override
+  late final GeneratedColumn<bool> downloadQualityPrompted =
+      GeneratedColumn<bool>(
+        'download_quality_prompted',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("download_quality_prompted" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _maxConcurrentDownloadsMeta =
+      const VerificationMeta('maxConcurrentDownloads');
+  @override
+  late final GeneratedColumn<int> maxConcurrentDownloads = GeneratedColumn<int>(
+    'max_concurrent_downloads',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2),
+  );
+  static const VerificationMeta _downloadsPausedMeta = const VerificationMeta(
+    'downloadsPaused',
+  );
+  @override
+  late final GeneratedColumn<bool> downloadsPaused = GeneratedColumn<bool>(
+    'downloads_paused',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("downloads_paused" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _themeModeMeta = const VerificationMeta(
     'themeMode',
   );
@@ -1597,6 +1673,12 @@ class $AppSettingsTableTable extends AppSettingsTable
     customDownloadFolderEnabled,
     customDownloadFolderPath,
     customDownloadFolderStorageKind,
+    downloadQualityMode,
+    downloadMaxBitRate,
+    downloadFormat,
+    downloadQualityPrompted,
+    maxConcurrentDownloads,
+    downloadsPaused,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -1843,6 +1925,60 @@ class $AppSettingsTableTable extends AppSettingsTable
         customDownloadFolderStorageKind.isAcceptableOrUnknown(
           data['custom_download_folder_storage_kind']!,
           _customDownloadFolderStorageKindMeta,
+        ),
+      );
+    }
+    if (data.containsKey('download_quality_mode')) {
+      context.handle(
+        _downloadQualityModeMeta,
+        downloadQualityMode.isAcceptableOrUnknown(
+          data['download_quality_mode']!,
+          _downloadQualityModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('download_max_bit_rate')) {
+      context.handle(
+        _downloadMaxBitRateMeta,
+        downloadMaxBitRate.isAcceptableOrUnknown(
+          data['download_max_bit_rate']!,
+          _downloadMaxBitRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('download_format')) {
+      context.handle(
+        _downloadFormatMeta,
+        downloadFormat.isAcceptableOrUnknown(
+          data['download_format']!,
+          _downloadFormatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('download_quality_prompted')) {
+      context.handle(
+        _downloadQualityPromptedMeta,
+        downloadQualityPrompted.isAcceptableOrUnknown(
+          data['download_quality_prompted']!,
+          _downloadQualityPromptedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('max_concurrent_downloads')) {
+      context.handle(
+        _maxConcurrentDownloadsMeta,
+        maxConcurrentDownloads.isAcceptableOrUnknown(
+          data['max_concurrent_downloads']!,
+          _maxConcurrentDownloadsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('downloads_paused')) {
+      context.handle(
+        _downloadsPausedMeta,
+        downloadsPaused.isAcceptableOrUnknown(
+          data['downloads_paused']!,
+          _downloadsPausedMeta,
         ),
       );
     }
@@ -2433,6 +2569,30 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}custom_download_folder_storage_kind'],
       )!,
+      downloadQualityMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}download_quality_mode'],
+      )!,
+      downloadMaxBitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}download_max_bit_rate'],
+      )!,
+      downloadFormat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}download_format'],
+      )!,
+      downloadQualityPrompted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}download_quality_prompted'],
+      )!,
+      maxConcurrentDownloads: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_concurrent_downloads'],
+      )!,
+      downloadsPaused: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}downloads_paused'],
+      )!,
       themeMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}theme_mode'],
@@ -2709,6 +2869,25 @@ class AppSettingsTableData extends DataClass
   /// `filesystem` for paths and `androidSaf` for persisted document-tree URIs.
   final String customDownloadFolderStorageKind;
 
+  /// `ask` (show the quality picker), `original`, or `transcode`.
+  final String downloadQualityMode;
+
+  /// Bitrate (kbps) of transcoded downloads when the mode is `transcode`.
+  final int downloadMaxBitRate;
+
+  /// Transcode format offered by the quality picker and used by `transcode`.
+  final String downloadFormat;
+
+  /// True once the one-time "always download in this quality?" prompt has
+  /// been answered. Defaults to false so existing installs see it once.
+  final bool downloadQualityPrompted;
+
+  /// Number of downloads transferred at once (1 to 4). Cellular uses 1.
+  final int maxConcurrentDownloads;
+
+  /// When true, queued downloads wait until the user resumes them.
+  final bool downloadsPaused;
+
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
 
@@ -2902,6 +3081,12 @@ class AppSettingsTableData extends DataClass
     required this.customDownloadFolderEnabled,
     this.customDownloadFolderPath,
     required this.customDownloadFolderStorageKind,
+    required this.downloadQualityMode,
+    required this.downloadMaxBitRate,
+    required this.downloadFormat,
+    required this.downloadQualityPrompted,
+    required this.maxConcurrentDownloads,
+    required this.downloadsPaused,
     required this.themeMode,
     this.colorSchemeSeed,
     this.customColorPresets,
@@ -3001,6 +3186,12 @@ class AppSettingsTableData extends DataClass
     map['custom_download_folder_storage_kind'] = Variable<String>(
       customDownloadFolderStorageKind,
     );
+    map['download_quality_mode'] = Variable<String>(downloadQualityMode);
+    map['download_max_bit_rate'] = Variable<int>(downloadMaxBitRate);
+    map['download_format'] = Variable<String>(downloadFormat);
+    map['download_quality_prompted'] = Variable<bool>(downloadQualityPrompted);
+    map['max_concurrent_downloads'] = Variable<int>(maxConcurrentDownloads);
+    map['downloads_paused'] = Variable<bool>(downloadsPaused);
     map['theme_mode'] = Variable<String>(themeMode);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
@@ -3137,6 +3328,12 @@ class AppSettingsTableData extends DataClass
           ? const Value.absent()
           : Value(customDownloadFolderPath),
       customDownloadFolderStorageKind: Value(customDownloadFolderStorageKind),
+      downloadQualityMode: Value(downloadQualityMode),
+      downloadMaxBitRate: Value(downloadMaxBitRate),
+      downloadFormat: Value(downloadFormat),
+      downloadQualityPrompted: Value(downloadQualityPrompted),
+      maxConcurrentDownloads: Value(maxConcurrentDownloads),
+      downloadsPaused: Value(downloadsPaused),
       themeMode: Value(themeMode),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
@@ -3263,6 +3460,18 @@ class AppSettingsTableData extends DataClass
       customDownloadFolderStorageKind: serializer.fromJson<String>(
         json['customDownloadFolderStorageKind'],
       ),
+      downloadQualityMode: serializer.fromJson<String>(
+        json['downloadQualityMode'],
+      ),
+      downloadMaxBitRate: serializer.fromJson<int>(json['downloadMaxBitRate']),
+      downloadFormat: serializer.fromJson<String>(json['downloadFormat']),
+      downloadQualityPrompted: serializer.fromJson<bool>(
+        json['downloadQualityPrompted'],
+      ),
+      maxConcurrentDownloads: serializer.fromJson<int>(
+        json['maxConcurrentDownloads'],
+      ),
+      downloadsPaused: serializer.fromJson<bool>(json['downloadsPaused']),
       themeMode: serializer.fromJson<String>(json['themeMode']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       customColorPresets: serializer.fromJson<String?>(
@@ -3410,6 +3619,14 @@ class AppSettingsTableData extends DataClass
       'customDownloadFolderStorageKind': serializer.toJson<String>(
         customDownloadFolderStorageKind,
       ),
+      'downloadQualityMode': serializer.toJson<String>(downloadQualityMode),
+      'downloadMaxBitRate': serializer.toJson<int>(downloadMaxBitRate),
+      'downloadFormat': serializer.toJson<String>(downloadFormat),
+      'downloadQualityPrompted': serializer.toJson<bool>(
+        downloadQualityPrompted,
+      ),
+      'maxConcurrentDownloads': serializer.toJson<int>(maxConcurrentDownloads),
+      'downloadsPaused': serializer.toJson<bool>(downloadsPaused),
       'themeMode': serializer.toJson<String>(themeMode),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
@@ -3517,6 +3734,12 @@ class AppSettingsTableData extends DataClass
     bool? customDownloadFolderEnabled,
     Value<String?> customDownloadFolderPath = const Value.absent(),
     String? customDownloadFolderStorageKind,
+    String? downloadQualityMode,
+    int? downloadMaxBitRate,
+    String? downloadFormat,
+    bool? downloadQualityPrompted,
+    int? maxConcurrentDownloads,
+    bool? downloadsPaused,
     String? themeMode,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
@@ -3606,6 +3829,14 @@ class AppSettingsTableData extends DataClass
         : this.customDownloadFolderPath,
     customDownloadFolderStorageKind:
         customDownloadFolderStorageKind ?? this.customDownloadFolderStorageKind,
+    downloadQualityMode: downloadQualityMode ?? this.downloadQualityMode,
+    downloadMaxBitRate: downloadMaxBitRate ?? this.downloadMaxBitRate,
+    downloadFormat: downloadFormat ?? this.downloadFormat,
+    downloadQualityPrompted:
+        downloadQualityPrompted ?? this.downloadQualityPrompted,
+    maxConcurrentDownloads:
+        maxConcurrentDownloads ?? this.maxConcurrentDownloads,
+    downloadsPaused: downloadsPaused ?? this.downloadsPaused,
     themeMode: themeMode ?? this.themeMode,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
@@ -3765,6 +3996,24 @@ class AppSettingsTableData extends DataClass
           data.customDownloadFolderStorageKind.present
           ? data.customDownloadFolderStorageKind.value
           : this.customDownloadFolderStorageKind,
+      downloadQualityMode: data.downloadQualityMode.present
+          ? data.downloadQualityMode.value
+          : this.downloadQualityMode,
+      downloadMaxBitRate: data.downloadMaxBitRate.present
+          ? data.downloadMaxBitRate.value
+          : this.downloadMaxBitRate,
+      downloadFormat: data.downloadFormat.present
+          ? data.downloadFormat.value
+          : this.downloadFormat,
+      downloadQualityPrompted: data.downloadQualityPrompted.present
+          ? data.downloadQualityPrompted.value
+          : this.downloadQualityPrompted,
+      maxConcurrentDownloads: data.maxConcurrentDownloads.present
+          ? data.maxConcurrentDownloads.value
+          : this.maxConcurrentDownloads,
+      downloadsPaused: data.downloadsPaused.present
+          ? data.downloadsPaused.value
+          : this.downloadsPaused,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
@@ -3955,6 +4204,12 @@ class AppSettingsTableData extends DataClass
           ..write(
             'customDownloadFolderStorageKind: $customDownloadFolderStorageKind, ',
           )
+          ..write('downloadQualityMode: $downloadQualityMode, ')
+          ..write('downloadMaxBitRate: $downloadMaxBitRate, ')
+          ..write('downloadFormat: $downloadFormat, ')
+          ..write('downloadQualityPrompted: $downloadQualityPrompted, ')
+          ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
+          ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -4044,6 +4299,12 @@ class AppSettingsTableData extends DataClass
     customDownloadFolderEnabled,
     customDownloadFolderPath,
     customDownloadFolderStorageKind,
+    downloadQualityMode,
+    downloadMaxBitRate,
+    downloadFormat,
+    downloadQualityPrompted,
+    maxConcurrentDownloads,
+    downloadsPaused,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -4128,6 +4389,12 @@ class AppSettingsTableData extends DataClass
           other.customDownloadFolderPath == this.customDownloadFolderPath &&
           other.customDownloadFolderStorageKind ==
               this.customDownloadFolderStorageKind &&
+          other.downloadQualityMode == this.downloadQualityMode &&
+          other.downloadMaxBitRate == this.downloadMaxBitRate &&
+          other.downloadFormat == this.downloadFormat &&
+          other.downloadQualityPrompted == this.downloadQualityPrompted &&
+          other.maxConcurrentDownloads == this.maxConcurrentDownloads &&
+          other.downloadsPaused == this.downloadsPaused &&
           other.themeMode == this.themeMode &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
@@ -4212,6 +4479,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> customDownloadFolderEnabled;
   final Value<String?> customDownloadFolderPath;
   final Value<String> customDownloadFolderStorageKind;
+  final Value<String> downloadQualityMode;
+  final Value<int> downloadMaxBitRate;
+  final Value<String> downloadFormat;
+  final Value<bool> downloadQualityPrompted;
+  final Value<int> maxConcurrentDownloads;
+  final Value<bool> downloadsPaused;
   final Value<String> themeMode;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
@@ -4290,6 +4563,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.customDownloadFolderEnabled = const Value.absent(),
     this.customDownloadFolderPath = const Value.absent(),
     this.customDownloadFolderStorageKind = const Value.absent(),
+    this.downloadQualityMode = const Value.absent(),
+    this.downloadMaxBitRate = const Value.absent(),
+    this.downloadFormat = const Value.absent(),
+    this.downloadQualityPrompted = const Value.absent(),
+    this.maxConcurrentDownloads = const Value.absent(),
+    this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -4369,6 +4648,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.customDownloadFolderEnabled = const Value.absent(),
     this.customDownloadFolderPath = const Value.absent(),
     this.customDownloadFolderStorageKind = const Value.absent(),
+    this.downloadQualityMode = const Value.absent(),
+    this.downloadMaxBitRate = const Value.absent(),
+    this.downloadFormat = const Value.absent(),
+    this.downloadQualityPrompted = const Value.absent(),
+    this.maxConcurrentDownloads = const Value.absent(),
+    this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -4448,6 +4733,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? customDownloadFolderEnabled,
     Expression<String>? customDownloadFolderPath,
     Expression<String>? customDownloadFolderStorageKind,
+    Expression<String>? downloadQualityMode,
+    Expression<int>? downloadMaxBitRate,
+    Expression<String>? downloadFormat,
+    Expression<bool>? downloadQualityPrompted,
+    Expression<int>? maxConcurrentDownloads,
+    Expression<bool>? downloadsPaused,
     Expression<String>? themeMode,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
@@ -4535,6 +4826,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'custom_download_folder_path': customDownloadFolderPath,
       if (customDownloadFolderStorageKind != null)
         'custom_download_folder_storage_kind': customDownloadFolderStorageKind,
+      if (downloadQualityMode != null)
+        'download_quality_mode': downloadQualityMode,
+      if (downloadMaxBitRate != null)
+        'download_max_bit_rate': downloadMaxBitRate,
+      if (downloadFormat != null) 'download_format': downloadFormat,
+      if (downloadQualityPrompted != null)
+        'download_quality_prompted': downloadQualityPrompted,
+      if (maxConcurrentDownloads != null)
+        'max_concurrent_downloads': maxConcurrentDownloads,
+      if (downloadsPaused != null) 'downloads_paused': downloadsPaused,
       if (themeMode != null) 'theme_mode': themeMode,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
@@ -4645,6 +4946,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? customDownloadFolderEnabled,
     Value<String?>? customDownloadFolderPath,
     Value<String>? customDownloadFolderStorageKind,
+    Value<String>? downloadQualityMode,
+    Value<int>? downloadMaxBitRate,
+    Value<String>? downloadFormat,
+    Value<bool>? downloadQualityPrompted,
+    Value<int>? maxConcurrentDownloads,
+    Value<bool>? downloadsPaused,
     Value<String>? themeMode,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
@@ -4729,6 +5036,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       customDownloadFolderStorageKind:
           customDownloadFolderStorageKind ??
           this.customDownloadFolderStorageKind,
+      downloadQualityMode: downloadQualityMode ?? this.downloadQualityMode,
+      downloadMaxBitRate: downloadMaxBitRate ?? this.downloadMaxBitRate,
+      downloadFormat: downloadFormat ?? this.downloadFormat,
+      downloadQualityPrompted:
+          downloadQualityPrompted ?? this.downloadQualityPrompted,
+      maxConcurrentDownloads:
+          maxConcurrentDownloads ?? this.maxConcurrentDownloads,
+      downloadsPaused: downloadsPaused ?? this.downloadsPaused,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
@@ -4880,6 +5195,30 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       map['custom_download_folder_storage_kind'] = Variable<String>(
         customDownloadFolderStorageKind.value,
       );
+    }
+    if (downloadQualityMode.present) {
+      map['download_quality_mode'] = Variable<String>(
+        downloadQualityMode.value,
+      );
+    }
+    if (downloadMaxBitRate.present) {
+      map['download_max_bit_rate'] = Variable<int>(downloadMaxBitRate.value);
+    }
+    if (downloadFormat.present) {
+      map['download_format'] = Variable<String>(downloadFormat.value);
+    }
+    if (downloadQualityPrompted.present) {
+      map['download_quality_prompted'] = Variable<bool>(
+        downloadQualityPrompted.value,
+      );
+    }
+    if (maxConcurrentDownloads.present) {
+      map['max_concurrent_downloads'] = Variable<int>(
+        maxConcurrentDownloads.value,
+      );
+    }
+    if (downloadsPaused.present) {
+      map['downloads_paused'] = Variable<bool>(downloadsPaused.value);
     }
     if (themeMode.present) {
       map['theme_mode'] = Variable<String>(themeMode.value);
@@ -5120,6 +5459,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write(
             'customDownloadFolderStorageKind: $customDownloadFolderStorageKind, ',
           )
+          ..write('downloadQualityMode: $downloadQualityMode, ')
+          ..write('downloadMaxBitRate: $downloadMaxBitRate, ')
+          ..write('downloadFormat: $downloadFormat, ')
+          ..write('downloadQualityPrompted: $downloadQualityPrompted, ')
+          ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
+          ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -34729,6 +35074,12 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> customDownloadFolderEnabled,
       Value<String?> customDownloadFolderPath,
       Value<String> customDownloadFolderStorageKind,
+      Value<String> downloadQualityMode,
+      Value<int> downloadMaxBitRate,
+      Value<String> downloadFormat,
+      Value<bool> downloadQualityPrompted,
+      Value<int> maxConcurrentDownloads,
+      Value<bool> downloadsPaused,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -34809,6 +35160,12 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> customDownloadFolderEnabled,
       Value<String?> customDownloadFolderPath,
       Value<String> customDownloadFolderStorageKind,
+      Value<String> downloadQualityMode,
+      Value<int> downloadMaxBitRate,
+      Value<String> downloadFormat,
+      Value<bool> downloadQualityPrompted,
+      Value<int> maxConcurrentDownloads,
+      Value<bool> downloadsPaused,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -34981,6 +35338,36 @@ class $$AppSettingsTableTableFilterComposer
         column: $table.customDownloadFolderStorageKind,
         builder: (column) => ColumnFilters(column),
       );
+
+  ColumnFilters<String> get downloadQualityMode => $composableBuilder(
+    column: $table.downloadQualityMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get downloadMaxBitRate => $composableBuilder(
+    column: $table.downloadMaxBitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get downloadFormat => $composableBuilder(
+    column: $table.downloadFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get downloadQualityPrompted => $composableBuilder(
+    column: $table.downloadQualityPrompted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxConcurrentDownloads => $composableBuilder(
+    column: $table.maxConcurrentDownloads,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get downloadsPaused => $composableBuilder(
+    column: $table.downloadsPaused,
+    builder: (column) => ColumnFilters(column),
+  );
 
   ColumnFilters<String> get themeMode => $composableBuilder(
     column: $table.themeMode,
@@ -35378,6 +35765,36 @@ class $$AppSettingsTableTableOrderingComposer
         builder: (column) => ColumnOrderings(column),
       );
 
+  ColumnOrderings<String> get downloadQualityMode => $composableBuilder(
+    column: $table.downloadQualityMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get downloadMaxBitRate => $composableBuilder(
+    column: $table.downloadMaxBitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get downloadFormat => $composableBuilder(
+    column: $table.downloadFormat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get downloadQualityPrompted => $composableBuilder(
+    column: $table.downloadQualityPrompted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxConcurrentDownloads => $composableBuilder(
+    column: $table.maxConcurrentDownloads,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get downloadsPaused => $composableBuilder(
+    column: $table.downloadsPaused,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get themeMode => $composableBuilder(
     column: $table.themeMode,
     builder: (column) => ColumnOrderings(column),
@@ -35773,6 +36190,36 @@ class $$AppSettingsTableTableAnnotationComposer
         builder: (column) => column,
       );
 
+  GeneratedColumn<String> get downloadQualityMode => $composableBuilder(
+    column: $table.downloadQualityMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get downloadMaxBitRate => $composableBuilder(
+    column: $table.downloadMaxBitRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get downloadFormat => $composableBuilder(
+    column: $table.downloadFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get downloadQualityPrompted => $composableBuilder(
+    column: $table.downloadQualityPrompted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxConcurrentDownloads => $composableBuilder(
+    column: $table.maxConcurrentDownloads,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get downloadsPaused => $composableBuilder(
+    column: $table.downloadsPaused,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get themeMode =>
       $composableBuilder(column: $table.themeMode, builder: (column) => column);
 
@@ -36106,6 +36553,12 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> customDownloadFolderPath = const Value.absent(),
                 Value<String> customDownloadFolderStorageKind =
                     const Value.absent(),
+                Value<String> downloadQualityMode = const Value.absent(),
+                Value<int> downloadMaxBitRate = const Value.absent(),
+                Value<String> downloadFormat = const Value.absent(),
+                Value<bool> downloadQualityPrompted = const Value.absent(),
+                Value<int> maxConcurrentDownloads = const Value.absent(),
+                Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -36188,6 +36641,12 @@ class $$AppSettingsTableTableTableManager
                 customDownloadFolderPath: customDownloadFolderPath,
                 customDownloadFolderStorageKind:
                     customDownloadFolderStorageKind,
+                downloadQualityMode: downloadQualityMode,
+                downloadMaxBitRate: downloadMaxBitRate,
+                downloadFormat: downloadFormat,
+                downloadQualityPrompted: downloadQualityPrompted,
+                maxConcurrentDownloads: maxConcurrentDownloads,
+                downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
@@ -36269,6 +36728,12 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> customDownloadFolderPath = const Value.absent(),
                 Value<String> customDownloadFolderStorageKind =
                     const Value.absent(),
+                Value<String> downloadQualityMode = const Value.absent(),
+                Value<int> downloadMaxBitRate = const Value.absent(),
+                Value<String> downloadFormat = const Value.absent(),
+                Value<bool> downloadQualityPrompted = const Value.absent(),
+                Value<int> maxConcurrentDownloads = const Value.absent(),
+                Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -36351,6 +36816,12 @@ class $$AppSettingsTableTableTableManager
                 customDownloadFolderPath: customDownloadFolderPath,
                 customDownloadFolderStorageKind:
                     customDownloadFolderStorageKind,
+                downloadQualityMode: downloadQualityMode,
+                downloadMaxBitRate: downloadMaxBitRate,
+                downloadFormat: downloadFormat,
+                downloadQualityPrompted: downloadQualityPrompted,
+                maxConcurrentDownloads: maxConcurrentDownloads,
+                downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,

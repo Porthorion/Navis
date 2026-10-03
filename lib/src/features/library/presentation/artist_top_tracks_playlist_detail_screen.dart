@@ -271,7 +271,7 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     WidgetRef ref,
     List<Song> songs,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !context.mounted) return;
     final service = ref.read(downloadServiceProvider);
     for (final song in songs) {
@@ -284,8 +284,11 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!
-          .downloadPlaylistQueued(songs.length),
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadPlaylistQueued(songs.length),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }
@@ -453,7 +456,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
     WidgetRef ref,
     String songId,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !context.mounted) return;
     await ref
         .read(downloadServiceProvider)
@@ -461,7 +464,11 @@ class _RankedTopTrackRow extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadSongQueued,
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadSongQueued,
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }

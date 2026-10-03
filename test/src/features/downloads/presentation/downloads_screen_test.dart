@@ -10,6 +10,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -432,6 +433,182 @@ void main() {
     await tester.pumpAndSettle();
     verify(() => service.configureCustomDownloadFolder(enabled: false))
         .called(1);
+  });
+
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+    }
+  }
+
+  Widget mobileDownloads(List<Object> overrides) => ProviderScope(
+    overrides: withTestDatabase(database, overrides: overrides.cast()),
+    child: MaterialApp(
+      theme: testTheme(),
+      localizationsDelegates: navisLocalizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: AdaptiveContextScope(
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: false,
+          viewportSize: const Size(800, 1200),
+          safePadding: EdgeInsets.zero,
+        ),
+        child: const DownloadsScreen(),
+      ),
+    ),
+  );
+
+  testWidgets('download settings save the quality, format and concurrency', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1200);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+    final service = _MockDownloadService();
+    when(() => service.setMaxConcurrentDownloads(any()))
+        .thenAnswer((_) async {});
+    await tester.pumpWidget(
+      mobileDownloads([
+        downloadServiceProvider.overrideWithValue(service),
+        downloadQueueProvider.overrideWithValue(
+          const AsyncData(<DownloadQueueTableData>[]),
+        ),
+        permanentCachedTracksProvider.overrideWithValue(
+          const AsyncData(<CachedTracksTableData>[]),
+        ),
+      ]),
+    );
+    await tester.tap(find.text('Settings'));
+    await settle(tester);
+
+    expect(find.text('Quality'), findsOneWidget);
+    expect(find.text('Ask every time'), findsOneWidget);
+    expect(find.textContaining('2 downloads at a time'), findsOneWidget);
+
+    await tester.tap(find.text('Ask every time'));
+    await settle(tester);
+    await tester.tap(find.text('192 kbps MP3').last);
+    await settle(tester);
+    var preference = (await tester.runAsync(
+      () => database.appSettingsDao.getDownloadQualityPreference(),
+    ))!;
+    expect(preference.mode, DownloadQualityMode.transcode);
+    expect(preference.bitRate, 192);
+    // Choosing here answers the one-time question.
+    expect(preference.prompted, isTrue);
+
+    await tester.tap(find.text('MP3'));
+    await settle(tester);
+    await tester.tap(find.text('OPUS').last);
+    await settle(tester);
+    preference = (await tester.runAsync(
+      () => database.appSettingsDao.getDownloadQualityPreference(),
+    ))!;
+    expect(preference.format, 'opus');
+    expect(find.text('192 kbps OPUS'), findsOneWidget);
+
+    await tester.tap(find.text('192 kbps OPUS'));
+    await settle(tester);
+    await tester.tap(find.text('Original quality').last);
+    await settle(tester);
+    preference = (await tester.runAsync(
+      () => database.appSettingsDao.getDownloadQualityPreference(),
+    ))!;
+    expect(preference.mode, DownloadQualityMode.original);
+    final formatField = tester.widget<DropdownButton<String>>(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('downloadFormat:opus')),
+        matching: find.byType(DropdownButton<String>),
+      ),
+    );
+    expect(formatField.onChanged, isNull);
+
+    final slider = find.byKey(
+      const ValueKey<String>('downloadsConcurrentSlider'),
+    );
+    await tester.drag(slider, const Offset(400, 0));
+    await settle(tester);
+    verify(() => service.setMaxConcurrentDownloads(4)).called(1);
+  });
+
+  testWidgets('the queue pauses, resumes and cancels through the service', (
+    tester,
+  ) async {
+    final service = _MockDownloadService();
+    when(() => service.setPaused(paused: any(named: 'paused')))
+        .thenAnswer((_) async {});
+    when(() => service.cancelQueueItem(any())).thenAnswer((_) async {});
+    const song = SongsTableData(
+      id: 'song-1',
+      title: 'Queued Song',
+      artistName: 'Artist',
+      isProvisional: false,
+      isExternal: false,
+    );
+    Widget build({required bool paused}) => mobileDownloads([
+      downloadServiceProvider.overrideWithValue(service),
+      downloadsPausedProvider.overrideWithValue(AsyncData(paused)),
+      downloadQueueProvider.overrideWithValue(
+        AsyncData(<DownloadQueueTableData>[
+          DownloadQueueTableData(
+            id: 7,
+            songId: song.id,
+            status: DownloadStatus.downloading,
+            progress: 0,
+            addedAt: DateTime(2026),
+            priority: 0,
+            retryCount: 0,
+          ),
+        ]),
+      ),
+      permanentCachedTracksProvider.overrideWithValue(
+        const AsyncData(<CachedTracksTableData>[]),
+      ),
+      downloadRelatedSongsProvider.overrideWith(
+        (ref) => Stream.value({song.id: song}),
+      ),
+      songByIdProvider.overrideWith((ref, songId) => Stream.value(song)),
+    ]);
+
+    await tester.pumpWidget(build(paused: false));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // A transfer without a known length shows an indeterminate bar.
+    final bar = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(bar.value, isNull);
+    expect(
+      find.byKey(const ValueKey<String>('downloadsPausedBanner')),
+      findsNothing,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('downloadsPauseToggle')),
+    );
+    await tester.pump();
+    verify(() => service.setPaused(paused: true)).called(1);
+
+    await tester.tap(find.byTooltip('Cancel Download'));
+    await tester.pump();
+    verify(() => service.cancelQueueItem(7)).called(1);
+
+    await tester.pumpWidget(build(paused: true));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey<String>('downloadsPausedBanner')),
+      findsOneWidget,
+    );
+    expect(find.text('Resume'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('downloadsPauseToggle')),
+    );
+    await tester.pump();
+    verify(() => service.setPaused(paused: false)).called(1);
   });
 }
 

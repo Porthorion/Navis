@@ -129,7 +129,34 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.1',
     entries: [
       ChangelogEntry(
-        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        'Choose a download quality once: your next download asks whether to always use that quality, and Downloads settings let you pick Ask every time, Original, or a bitrate',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloads can be converted to MP3, AAC or Opus at 96 to 320 kbps, and liked songs downloaded automatically on Wi-Fi follow your saved quality',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Up to four songs download at once (two by default, one on mobile data), and the download queue can be paused and resumed',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloaded songs keep their cover art, so covers show offline, on the lock screen and over Bluetooth or Android Auto',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
+      ),
+      ChangelogEntry(
+        'Turning off the custom download folder now asks first and explains that its files stay where they are',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cancelling a download that is in progress now stops it, instead of the song finishing and being saved anyway',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Failed downloads now wait before retrying, songs already downloaded in original quality are no longer downloaded again, and converted downloads show their progress',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -141,15 +168,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Turning off the custom download folder now asks first and explains that its files stay where they are',
-        type: ChangelogEntryType.improvement,
+        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
       ),
     ],
   ),

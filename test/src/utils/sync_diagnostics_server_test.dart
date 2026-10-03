@@ -18,6 +18,8 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -47,6 +49,138 @@ import '../../helpers/test_database.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
+
+  test(
+    'download control is clone-only; download status is observable',
+    () async {
+      final primaryService = _downloadServiceStub();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        downloadService: primaryService,
+      );
+      for (final (path, body) in <(String, Map<String, Object?>)>[
+        ('/v1/downloads/settings', {'paused': true}),
+        ('/v1/downloads/cancel', {'queueId': 1}),
+        (
+          '/v1/downloads/enqueue',
+          {
+            'songIds': ['s1'],
+          },
+        ),
+      ]) {
+        final forbidden = await _request(
+          primary.port,
+          path,
+          method: 'POST',
+          token: primary.token,
+          body: body,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden, reason: path);
+      }
+      final observed = await _request(
+        primary.port,
+        '/v1/downloads/status',
+        token: primary.token,
+      );
+      expect(observed.statusCode, HttpStatus.ok);
+      expect(observed.body['qualityPreference'], containsPair('mode', 'ask'));
+      verifyNever(() => primaryService.setPaused(paused: any(named: 'paused')));
+      await primary.close();
+
+      final service = _downloadServiceStub();
+      final clone = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        downloadService: service,
+      );
+      addTearDown(clone.close);
+      for (final body in <Map<String, Object?>>[
+        {'maxConcurrent': 'many'},
+        {'paused': 'yes'},
+        {'qualityMode': 'lossy'},
+        {'qualityMode': 'transcode', 'bitRate': 100},
+        {'format': 'wma'},
+        {'prompted': 1},
+      ]) {
+        final invalid = await _request(
+          clone.port,
+          '/v1/downloads/settings',
+          method: 'POST',
+          token: clone.token,
+          body: body,
+        );
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+      final invalidCancel = await _request(
+        clone.port,
+        '/v1/downloads/cancel',
+        method: 'POST',
+        token: clone.token,
+        body: {'queueId': '1'},
+      );
+      expect(invalidCancel.statusCode, HttpStatus.badRequest);
+
+      final saved = await _request(
+        clone.port,
+        '/v1/downloads/settings',
+        method: 'POST',
+        token: clone.token,
+        body: {
+          'maxConcurrent': 3,
+          'paused': true,
+          'qualityMode': 'transcode',
+          'bitRate': 192,
+          'format': 'opus',
+          'prompted': true,
+        },
+      );
+      expect(saved.statusCode, HttpStatus.ok);
+      verify(() => service.setMaxConcurrentDownloads(3)).called(1);
+      verify(() => service.setPaused(paused: true)).called(1);
+      expect(saved.body['qualityPreference'], <String, Object?>{
+        'mode': 'transcode',
+        'bitRate': 192,
+        'format': 'opus',
+        'prompted': true,
+      });
+      for (final key in const [
+        'paused',
+        'maxConcurrent',
+        'effectiveConcurrency',
+        'activeQueueIds',
+        'peakActive',
+        'queue',
+        'queueItems',
+        'permanentDownloads',
+        'permanentArtworkCount',
+      ]) {
+        expect(saved.body, contains(key));
+      }
+
+      final enqueued = await _request(
+        clone.port,
+        '/v1/downloads/enqueue',
+        method: 'POST',
+        token: clone.token,
+        body: {
+          'songIds': ['s1'],
+          'usePreference': true,
+        },
+      );
+      expect(enqueued.statusCode, HttpStatus.accepted);
+      verify(() => service.enqueueSong('s1', quality: '192', format: 'opus'))
+          .called(1);
+
+      final cancelled = await _request(
+        clone.port,
+        '/v1/downloads/cancel',
+        method: 'POST',
+        token: clone.token,
+        body: {'queueId': 4},
+      );
+      expect(cancelled.statusCode, HttpStatus.ok);
+      verify(() => service.cancelQueueItem(4)).called(1);
+    },
+  );
 
   test(
     'artist diagnostics reject primary mutation and invalid clone commands',
@@ -593,7 +727,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 89);
+    expect(authorized.body['schemaVersion'], 90);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -2427,6 +2561,7 @@ Future<_DiagnosticsFixture> _startFixture(
   DiagnosticsPresentationController? presentationController,
   DiagnosticsNavigationDriver? navigationDriver,
   ServerConfigModel? serverConfig,
+  DownloadService? downloadService,
   List<Override> overrides = const <Override>[],
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
@@ -2446,6 +2581,8 @@ Future<_DiagnosticsFixture> _startFixture(
       if (api != null) searchIsOfflineProvider.overrideWithValue(false),
       if (librarySyncEngine != null)
         librarySyncEngineProvider.overrideWithValue(librarySyncEngine),
+      if (downloadService != null)
+        downloadServiceProvider.overrideWithValue(downloadService),
       ...overrides,
     ],
   );
@@ -2473,6 +2610,34 @@ Future<_DiagnosticsFixture> _startFixture(
 }
 
 class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler;
+
+class _MockDownloadService extends Mock implements DownloadService;
+
+_MockDownloadService _downloadServiceStub() {
+  final service = _MockDownloadService();
+  when(() => service.isPaused).thenReturn(false);
+  when(() => service.maxConcurrentDownloads).thenReturn(2);
+  when(() => service.effectiveConcurrency).thenReturn(2);
+  when(() => service.activeQueueIds).thenReturn(const <int>{});
+  when(() => service.peakActiveDownloads).thenReturn(0);
+  when(() => service.artworkStore).thenReturn(
+    PermanentArtworkStore(
+      readApplicationSupportDirectory: Directory.systemTemp.createTemp,
+    ),
+  );
+  when(() => service.setMaxConcurrentDownloads(any())).thenAnswer((_) async {});
+  when(() => service.setPaused(paused: any(named: 'paused')))
+      .thenAnswer((_) async {});
+  when(() => service.cancelQueueItem(any())).thenAnswer((_) async {});
+  when(
+    () => service.enqueueSong(
+      any(),
+      quality: any(named: 'quality'),
+      format: any(named: 'format'),
+    ),
+  ).thenAnswer((_) async {});
+  return service;
+}
 
 class _MockPresentationController extends Mock
     implements DiagnosticsPresentationController;

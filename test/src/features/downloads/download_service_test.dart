@@ -16,6 +16,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:path/path.dart' as p;
@@ -27,6 +28,15 @@ class _MockCacheManager extends Mock implements BaseCacheManager;
 class _MockLrclibClient extends Mock implements LrclibClient;
 
 class _MockDio extends Mock implements Dio;
+
+/// Keeps download artwork off the network in tests that do not cover it.
+class _OfflineArtworkStore extends PermanentArtworkStore {
+  new()
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  @override
+  Future<bool> ensure(String? coverArtId, SubsonicApiClient api) async => false;
+}
 
 /// Hands each custom folder setting write to [_follow], as the app's settings
 /// providers see it once the settings stream re-reads the row.
@@ -77,6 +87,7 @@ void main() {
         readCustomDownloadFolderPath: () => null,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
       );
     });
 
@@ -402,6 +413,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: lrclib,
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(lrclibFirstService.stop);
 
@@ -463,6 +475,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(wifiOnlyOfflineService.stop);
 
@@ -563,6 +576,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
         );
         addTearDown(rollingService.stop);
@@ -652,6 +666,7 @@ void main() {
         readCustomDownloadFolderPath: () => null,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: () => cacheManager,
+        artworkStore: _OfflineArtworkStore(),
         readApplicationSupportDirectory: () async => supportDir,
       );
       addTearDown(rollingService.stop);
@@ -762,6 +777,7 @@ void main() {
             readCustomDownloadFolderPath: () => null,
             lrclibClient: LrclibClient(),
             readCoverArtCacheManager: () => cacheManager,
+            artworkStore: _OfflineArtworkStore(),
             readApplicationSupportDirectory: () async => supportDir,
             dio: dio,
           );
@@ -849,6 +865,7 @@ void main() {
         readCustomDownloadFolderPath: () => null,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
         readApplicationSupportDirectory: () async => supportDir,
         dio: dio,
       );
@@ -968,6 +985,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
           dio: dio,
         );
@@ -1018,6 +1036,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(gatedService.stop);
 
@@ -1079,6 +1098,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(staleService.stop);
 
@@ -1122,6 +1142,7 @@ void main() {
           readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
         );
         addTearDown(normalizingService.stop);
@@ -1186,6 +1207,7 @@ void main() {
           readCustomDownloadFolderPath: () => customPath,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
         );
         addTearDown(movingService.stop);
@@ -1260,6 +1282,7 @@ void main() {
         readCustomDownloadFolderPath: () => customPath,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
         readApplicationSupportDirectory: () async => supportDir,
       );
       addTearDown(movingService.stop);
@@ -1335,6 +1358,7 @@ void main() {
           readCustomDownloadFolderPath: () => customPath,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
         );
         addTearDown(folderService.stop);
@@ -1629,6 +1653,7 @@ void main() {
           readCustomDownloadFolderPath: () => customPath,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
           isAndroid: true,
         );
@@ -1677,6 +1702,7 @@ void main() {
           readCustomDownloadFolderPath: () => customDir.path,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(customService.stop);
 
@@ -1749,6 +1775,7 @@ void main() {
         readCustomDownloadFolderPath: () => null,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
         // The app data folder reached through a link.
         readApplicationSupportDirectory: () async => Directory(link.path),
       );
@@ -1786,6 +1813,7 @@ void main() {
           readCustomDownloadFolderPath: () => customFolder,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
           readApplicationSupportDirectory: () async => supportDir,
           dio: dio,
         );
@@ -1941,6 +1969,7 @@ void main() {
           readCustomDownloadFolderPath: () => customDir.path,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
+          artworkStore: _OfflineArtworkStore(),
         );
         addTearDown(pruningService.stop);
 
