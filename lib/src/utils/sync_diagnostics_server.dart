@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -30,6 +31,9 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -703,6 +707,65 @@ class SyncDiagnosticsServer {
           'coverArtShape': settings?.coverArtShape ?? 'square',
           'nowPlayingArtShape': settings?.nowPlayingArtShape ?? 'rounded',
           'artistCardShape': settings?.artistCardShape ?? 'circle',
+        });
+        return;
+      }
+      if ((request.method == 'GET' || request.method == 'POST') &&
+          path == '/v1/presentation/playback-settings') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        if (request.method == 'POST') {
+          final body = await _readJson(request);
+          final toggle = body['toggle'];
+          if (body.length != 1 ||
+              toggle is! String ||
+              !DiagnosticsPresentationController.playbackSettingToggles
+                  .containsKey(toggle)) {
+            throw const FormatException();
+          }
+          final presentation = presentationController;
+          if (presentation == null) {
+            await _presentationUnavailable(request);
+            return;
+          }
+          await presentation.togglePlaybackSetting(setting: toggle);
+        }
+        final settings = await _container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .getSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'scrobbleEnabled': settings?.scrobbleEnabled ?? true,
+          'backgroundSyncUnmeteredOnly':
+              settings?.backgroundSyncUnmeteredOnly ?? true,
+          'listenBrainzTokenValid': settings?.listenBrainzTokenValid ?? false,
+          'listenBrainzAccountStored':
+              settings?.listenBrainzUserName?.isNotEmpty ?? false,
+          'persistedVolume':
+              settings?.desktopPlaybackVolume ??
+              AppSettingsDao.defaultDesktopPlaybackVolume,
+        });
+        return;
+      }
+      if (request.method == 'GET' &&
+          path == '/v1/presentation/listenbrainz-discover') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Read before counting: this flushes a restart that is still pending
+        // while Home is hidden, so the count includes it.
+        final discover = _container.read(listenBrainzDiscoverStreamProvider);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'streamBuilds': listenBrainzDiscoverStreamBuildCount,
+          'state': switch (discover) {
+            AsyncData() => 'data',
+            AsyncError() => 'error',
+            AsyncLoading() => 'loading',
+          },
+          'playlistCount': discover.asData?.value.length,
         });
         return;
       }
@@ -1703,6 +1766,10 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
       }
+      if (request.method == 'GET' && path == '/v1/downloads/status') {
+        await _respond(request, HttpStatus.ok, await _downloadStatusJson());
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/downloads/enqueue') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -1718,13 +1785,101 @@ class SyncDiagnosticsServer {
           });
           return;
         }
+        final quality = body['quality'];
+        final format = body['format'];
+        if ((quality != null && (quality is! int || quality <= 0)) ||
+            (format != null && format is! String)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'quality must be a positive int and format a string',
+          });
+          return;
+        }
+        // usePreference applies the saved download quality, as the app's
+        // download actions do once a preference is saved.
+        final saved = body['usePreference'] == true
+            ? (await _container
+                      .read(navisDatabaseProvider)
+                      .appSettingsDao
+                      .getDownloadQualityPreference())
+                  .savedChoice
+            : null;
         final service = _container.read(downloadServiceProvider);
         for (final id in songIds.cast<String>()) {
-          await service.enqueueSong(id.trim());
+          await service.enqueueSong(
+            id.trim(),
+            quality: saved?.quality ?? (quality as int?)?.toString(),
+            format: saved?.format ?? format as String?,
+          );
         }
         await _respond(request, HttpStatus.accepted, <String, Object?>{
           'queued': songIds.length,
         });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/downloads/cancel') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final queueId = body['queueId'];
+        if (queueId is! int) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'queueId must be an int',
+          });
+          return;
+        }
+        await _container.read(downloadServiceProvider).cancelQueueItem(queueId);
+        await _respond(request, HttpStatus.ok, await _downloadStatusJson());
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/downloads/settings') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final maxConcurrent = body['maxConcurrent'];
+        final paused = body['paused'];
+        final mode = body['qualityMode'];
+        final bitRate = body['bitRate'];
+        final format = body['format'];
+        final prompted = body['prompted'];
+        if ((maxConcurrent != null && maxConcurrent is! int) ||
+            (paused != null && paused is! bool) ||
+            (mode != null &&
+                !DownloadQualityMode.values.any((m) => m.name == mode)) ||
+            (bitRate != null && !kDownloadBitRateOptions.contains(bitRate)) ||
+            (format != null && !kDownloadFormatOptions.contains(format)) ||
+            (prompted != null && prompted is! bool)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error':
+                'expected maxConcurrent int, paused bool, qualityMode '
+                'ask|original|transcode, bitRate and format from the '
+                'download options, prompted bool',
+          });
+          return;
+        }
+        final service = _container.read(downloadServiceProvider);
+        final dao = _container.read(navisDatabaseProvider).appSettingsDao;
+        if (maxConcurrent is int) {
+          await service.setMaxConcurrentDownloads(maxConcurrent);
+        }
+        if (mode is String) {
+          await dao.updateDownloadQuality(
+            mode: DownloadQualityMode.parse(mode),
+            bitRate: bitRate as int?,
+            format: format as String?,
+          );
+        } else if (format is String) {
+          await dao.updateDownloadFormat(format);
+        }
+        if (prompted is bool) {
+          await dao.updateDownloadQualityPrompted(prompted: prompted);
+        }
+        if (paused is bool) await service.setPaused(paused: paused);
+        if (body['resetPeak'] == true) service.resetPeakActiveDownloads();
+        await _respond(request, HttpStatus.ok, await _downloadStatusJson());
         return;
       }
       if (request.method == 'POST' && path == '/v1/downloads/folder/adopt') {
@@ -2077,6 +2232,9 @@ class SyncDiagnosticsServer {
         String? surface;
         if (body['quick'] == true) {
           surface = await presentation.openPlaybackQuickPanel();
+        } else if (body['settingsSheet'] == true) {
+          await presentation.openNowPlayingSettingsSheet();
+          surface = 'settingsSheet';
         } else {
           await presentation.revealPlaybackAdjustments(
             open: body['open'] == true,
@@ -2846,6 +3004,55 @@ class SyncDiagnosticsServer {
       'renewalRequired': await _container
           .read(cacheSystemUpgradeServiceProvider)
           .needsReset(),
+    };
+  }
+
+  /// Download queue, preference, and artwork state. Files are named by base
+  /// name only, so no path outside the run root is reported.
+  Future<Map<String, Object?>> _downloadStatusJson() async {
+    final database = _container.read(navisDatabaseProvider);
+    final service = _container.read(downloadServiceProvider);
+    final queue = await database.downloadQueueDao.watchQueue().first;
+    final preference = await database.appSettingsDao
+        .getDownloadQualityPreference();
+    final permanent = await database.cacheDao.getPermanentEntries();
+    return <String, Object?>{
+      'paused': service.isPaused,
+      'maxConcurrent': service.maxConcurrentDownloads,
+      'effectiveConcurrency': service.effectiveConcurrency,
+      'activeQueueIds': service.activeQueueIds.toList()..sort(),
+      'peakActive': service.peakActiveDownloads,
+      'queue': <String, Object?>{
+        for (final status in DownloadStatus.values)
+          status.name: queue.where((item) => item.status == status).length,
+      },
+      'queueItems': <Object?>[
+        for (final item in queue)
+          <String, Object?>{
+            'id': item.id,
+            'songId': item.songId,
+            'status': item.status.name,
+            'quality': item.quality,
+            'format': item.format,
+            'retryCount': item.retryCount,
+          },
+      ],
+      'qualityPreference': <String, Object?>{
+        'mode': preference.mode.name,
+        'bitRate': preference.bitRate,
+        'format': preference.format,
+        'prompted': preference.prompted,
+      },
+      'permanentDownloads': <Object?>[
+        for (final entry in permanent)
+          <String, Object?>{
+            'songId': entry.songId,
+            'format': entry.format,
+            'bitRate': entry.bitRate,
+            'fileName': p.basename(entry.filePath),
+          },
+      ],
+      'permanentArtworkCount': await service.artworkStore.count(),
     };
   }
 

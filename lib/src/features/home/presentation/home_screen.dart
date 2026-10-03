@@ -741,7 +741,7 @@ class _ListenBrainzWeeklyDetailContentState
   }
 
   Future<void> _downloadVirtualAlbum() async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
     setState(() {
       _pendingDownloadChoice = choice;
@@ -751,13 +751,17 @@ class _ListenBrainzWeeklyDetailContentState
     if (!mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadAlbumQueued(count),
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadAlbumQueued(count),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }
 
   Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
     await ref
         .read(downloadServiceProvider)
@@ -770,7 +774,11 @@ class _ListenBrainzWeeklyDetailContentState
     if (!mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadSongQueued,
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadSongQueued,
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }

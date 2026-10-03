@@ -505,7 +505,7 @@ class _TopTrackTile extends ConsumerWidget {
 
   void _downloadSong(BuildContext context, WidgetRef ref, String songId) {
     unawaited(() async {
-      final choice = await showDownloadQualitySheet(context);
+      final choice = await requestDownloadQuality(context, ref);
       if (choice == null || !context.mounted) return;
       unawaited(
         ref
@@ -519,7 +519,11 @@ class _TopTrackTile extends ConsumerWidget {
       if (!context.mounted) return;
       showAppNotice(
         context,
-        message: AppLocalizations.of(context)!.downloadSongQueued,
+        message: downloadQueuedNotice(
+          AppLocalizations.of(context)!,
+          AppLocalizations.of(context)!.downloadSongQueued,
+          choice,
+        ),
         level: AppNoticeLevel.success,
       );
     }());

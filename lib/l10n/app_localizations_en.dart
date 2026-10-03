@@ -2909,13 +2909,77 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadQualityOriginalSub => 'Lossless / as stored on server';
 
   @override
-  String get downloadQuality320 => '320 kbps MP3';
+  String downloadQualityTranscoded(int kbps, String format) {
+    return '$kbps kbps $format';
+  }
 
   @override
-  String get downloadQuality192 => '192 kbps MP3';
+  String downloadQualityAlwaysTitle(String quality) {
+    return 'Always download in $quality?';
+  }
 
   @override
-  String get downloadQuality128 => '128 kbps MP3';
+  String get downloadQualityAlwaysBody =>
+      'Navis will stop asking and download everything in this quality. You can change this anytime in Downloads settings.';
+
+  @override
+  String get downloadQualityAlwaysAsk => 'Ask every time';
+
+  @override
+  String get downloadQualityAlwaysUse => 'Always use';
+
+  @override
+  String downloadQueuedWithQuality(String message, String quality) {
+    return '$message · $quality';
+  }
+
+  @override
+  String get downloadsSettingsQualitySection => 'Quality';
+
+  @override
+  String get downloadsSettingsQualityLabel => 'Download quality';
+
+  @override
+  String get downloadsSettingsQualityAsk => 'Ask every time';
+
+  @override
+  String get downloadsSettingsFormatLabel => 'Transcode format';
+
+  @override
+  String get downloadsSettingsFormatHelper =>
+      'Used for downloads below original quality';
+
+  @override
+  String get downloadsSettingsConcurrentTitle => 'Concurrent downloads';
+
+  @override
+  String downloadsSettingsConcurrentValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count downloads at a time',
+      one: '1 download at a time',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsSettingsConcurrentCellular(String value) {
+    return '$value · 1 on mobile data';
+  }
+
+  @override
+  String get downloadsSettingsStorageSection => 'Storage';
+
+  @override
+  String get downloadsPauseAll => 'Pause';
+
+  @override
+  String get downloadsResumeAll => 'Resume';
+
+  @override
+  String get downloadsPausedBanner =>
+      'Downloads are paused. Resume to continue the queue.';
 
   @override
   String get downloadAction => 'Download';
@@ -3037,7 +3101,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsCustomFolderSubtitle =>
-      'Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.';
+      'Store permanent downloads in a folder you choose. Navis moves its downloads there into artist folders; files already in the folder keep their names.';
 
   @override
   String get downloadsCustomFolderUnsupported =>
@@ -3052,6 +3116,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get downloadsCustomFolderDisabled =>
       'Custom download folder disabled.';
+
+  @override
+  String get downloadsCustomFolderDisableTitle => 'Turn Off Custom Folder?';
+
+  @override
+  String get downloadsCustomFolderDisableConfirm =>
+      'Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.';
+
+  @override
+  String get downloadsCustomFolderDisableAction => 'Turn Off';
 
   @override
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';

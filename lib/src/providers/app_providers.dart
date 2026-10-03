@@ -36,6 +36,8 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
@@ -864,6 +866,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       starSyncDao: database.starSyncDao,
       initialVolume: initialVolume,
       reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+      readPermanentArtwork: ref.read(permanentArtworkStoreProvider).fileFor,
       reportRollingCacheActivity: (activity) {
         if (!ref.mounted) {
           return;
@@ -2253,6 +2256,31 @@ final permanentCachedTracksProvider =
       return dao.watchCachedTracksByType(CacheType.permanent);
     });
 
+/// Clone diagnostics keep downloads and their artwork inside the run root.
+final Future<Directory> Function()? _downloadSupportDirectoryOverride =
+    _syncDiagnosticsEnabled &&
+        _syncDiagnosticsMode == 'clone' &&
+        _syncDiagnosticsRoot.isNotEmpty
+    ? () async {
+        final directory = Directory('$_syncDiagnosticsRoot/support');
+        await directory.create(recursive: true);
+        return directory;
+      }
+    : null;
+
+/// Durable cover art of permanent downloads, shared by the download service,
+/// cover art widgets, and the system media art cache.
+final permanentArtworkStoreProvider = Provider<PermanentArtworkStore>((ref) {
+  return PermanentArtworkStore(
+    readApplicationSupportDirectory: _downloadSupportDirectoryOverride,
+    // Resolved on first use: cover widgets read this store, and the meter
+    // opens the database.
+    reportNetworkUsage: ({required category, required bytes, operation}) => ref
+        .read(networkUsageMeterProvider)
+        .record(category: category, bytes: bytes, operation: operation),
+  );
+});
+
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
@@ -2276,16 +2304,8 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       final config = ref.read(serverConfigProvider).asData?.value;
       return config == null ? null : '${config.url}|${config.username}';
     },
-    readApplicationSupportDirectory:
-        _syncDiagnosticsEnabled &&
-            _syncDiagnosticsMode == 'clone' &&
-            _syncDiagnosticsRoot.isNotEmpty
-        ? () async {
-            final directory = Directory('$_syncDiagnosticsRoot/support');
-            await directory.create(recursive: true);
-            return directory;
-          }
-        : null,
+    readApplicationSupportDirectory: _downloadSupportDirectoryOverride,
+    artworkStore: ref.read(permanentArtworkStoreProvider),
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
@@ -2331,6 +2351,28 @@ final customDownloadFolderEnabledProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.customDownloadFolderEnabled;
+});
+
+/// The saved download quality (and whether its one-time prompt was answered).
+final downloadQualityPreferenceProvider =
+    StreamProvider<DownloadQualityPreference>((ref) {
+      return ref
+          .watch(navisDatabaseProvider)
+          .appSettingsDao
+          .watchDownloadQualityPreference();
+    });
+
+/// The configured number of concurrent downloads (1 to 4).
+final maxConcurrentDownloadsProvider = StreamProvider<int>((ref) {
+  return ref
+      .watch(navisDatabaseProvider)
+      .appSettingsDao
+      .watchMaxConcurrentDownloads();
+});
+
+/// Whether the download queue is paused.
+final downloadsPausedProvider = StreamProvider<bool>((ref) {
+  return ref.watch(navisDatabaseProvider).appSettingsDao.watchDownloadsPaused();
 });
 
 final customDownloadFolderPathProvider = Provider<String?>((ref) {

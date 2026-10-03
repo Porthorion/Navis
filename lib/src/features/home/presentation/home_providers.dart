@@ -505,18 +505,34 @@ final listenBrainzDiscoverStartupSyncStateProvider = Provider<LibrarySyncState>(
   },
 );
 
+int _listenBrainzDiscoverStreamBuilds = 0;
+
+/// How many times weekly discovery has (re)started in this process. Clone
+/// diagnostics read it to prove which settings saves restart discovery.
+int get listenBrainzDiscoverStreamBuildCount =>
+    _listenBrainzDiscoverStreamBuilds;
+
 final listenBrainzDiscoverStreamProvider =
-    StreamProvider<List<ListenBrainzDiscoverPlaylist>>(
-      _listenBrainzDiscoverStream,
-    );
+    StreamProvider<List<ListenBrainzDiscoverPlaylist>>((ref) {
+      _listenBrainzDiscoverStreamBuilds++;
+      return _listenBrainzDiscoverStream(ref);
+    });
 
 Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   Ref ref,
 ) async* {
   final refreshEpoch = ref.watch(listenBrainzDiscoverRefreshEpochProvider);
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
+  // Only the ListenBrainz identity restarts discovery; unrelated settings
+  // saves (playback autosave, appearance, desktop volume) must not.
+  final listenBrainzSettings = ref.watch(
+    appSettingsProvider.select((async) {
+      final settings = async.asData?.value ?? const AppSettingsModel.defaults();
+      return (
+        userName: settings.listenBrainzUserName,
+        tokenValid: settings.listenBrainzTokenValid,
+      );
+    }),
+  );
   final networkType = ref.watch(networkTypeProvider);
   final credentialStore = ref.read(externalScrobbleCredentialStoreProvider);
   final db = ref.read(navisDatabaseProvider);
@@ -560,8 +576,8 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     return;
   }
 
-  var userName = settings.listenBrainzUserName?.trim();
-  final tokenValid = settings.listenBrainzTokenValid;
+  var userName = listenBrainzSettings.userName?.trim();
+  final tokenValid = listenBrainzSettings.tokenValid;
   if (!tokenValid || userName == null || userName.isEmpty) {
     if (networkType == NetworkType.offline) {
       AppLogger.debug(

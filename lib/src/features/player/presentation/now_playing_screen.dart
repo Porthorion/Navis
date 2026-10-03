@@ -17,6 +17,7 @@ import 'package:navis/src/features/player/presentation/playback_quick_actions.da
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -775,14 +776,7 @@ void _showNowPlayingSettingsSheet(
                           ),
                         ),
                       ),
-                      SizedBox(
-                        width: 40,
-                        child: Text(
-                          '${(sheetVolume * 100).round()}%',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
+                      _VolumePercentLabel(volume: sheetVolume),
                     ],
                   ),
                 ),
@@ -960,7 +954,7 @@ void _showNowPlayingSettingsSheet(
                         return;
                       }
                       Navigator.of(sheetContext).pop();
-                      final choice = await showDownloadQualitySheet(context);
+                      final choice = await requestDownloadQuality(context, ref);
                       if (choice == null || !context.mounted) return;
                       final service = ref.read(downloadServiceProvider);
                       await service.enqueueSong(
@@ -971,7 +965,11 @@ void _showNowPlayingSettingsSheet(
                       if (context.mounted) {
                         showAppNotice(
                           context,
-                          message: l10n.downloadSongQueued,
+                          message: downloadQueuedNotice(
+                            l10n,
+                            l10n.downloadSongQueued,
+                            choice,
+                          ),
                           level: AppNoticeLevel.success,
                         );
                       }
@@ -1001,6 +999,41 @@ void _showNowPlayingSettingsSheet(
 
 /// Follow-up actions the settings sheet hands back once it has closed.
 enum _SettingsSheetAction { speedPitch, openEqualizer }
+
+/// The settings sheet's volume level. Its slot is as wide as the widest
+/// value ("100%") at the current text size, so the level stays on one line
+/// and the slider beside it does not move as the volume changes.
+class _VolumePercentLabel extends StatelessWidget {
+  const new({required this.volume});
+
+  final double volume;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    final format = NumberFormat.percentPattern(
+      Localizations.localeOf(context).toString(),
+    );
+    final widest = TextPainter(
+      text: TextSpan(text: format.format(1), style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = math.max(40, widest.width.ceilToDouble()).toDouble();
+    widest.dispose();
+    return SizedBox(
+      width: width,
+      child: Text(
+        format.format(volume),
+        style: style,
+        textAlign: TextAlign.end,
+        maxLines: 1,
+        softWrap: false,
+      ),
+    );
+  }
+}
 
 class _NowPlayingSoundSectionLabel extends StatelessWidget {
   const new({required this.label});

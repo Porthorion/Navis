@@ -216,9 +216,11 @@ adb_cmd shell dumpsys media_session | tr -d '\r' | awk -v pkg="$PACKAGE_NAME" '
   }
 ' || true
 
-section "Filtered logcat (Android Auto / AudioService / Navis / crashes)"
+# MediaPlayerWrapper logs "tried to update with no new data" when Bluetooth
+# AVRCP drops a metadata update (a cover added without any other change).
+section "Filtered logcat (Android Auto / Bluetooth / AudioService / Navis / crashes)"
 adb_cmd logcat -d -v time \
-  -s Gearhead AndroidAuto CarService CarAppProjection GmsCar AudioService NavisAudioHandler flutter AndroidRuntime \
+  -s Gearhead AndroidAuto CarService CarAppProjection GmsCar AudioService NavisAudioHandler flutter AndroidRuntime MediaPlayerWrapper AvrcpTargetService AvrcpCoverArtService \
   | tail -n "$LOGCAT_LINES" \
   || true
 

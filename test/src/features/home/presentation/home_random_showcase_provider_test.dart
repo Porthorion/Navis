@@ -18,6 +18,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:riverpod/src/framework.dart' show Override;
@@ -233,6 +234,27 @@ class _FakeExternalScrobbleCredentialStore
 
   @override
   Future<String?> readListenBrainzToken() async => token;
+
+  @override
+  Future<void> saveListenBrainzToken(String value) async {}
+}
+
+/// Counts token reads: the weekly stream reads the token once per body run.
+class _CountingExternalScrobbleCredentialStore
+    implements ExternalScrobbleCredentialStore {
+  new(this.token);
+
+  final String? token;
+  int reads = 0;
+
+  @override
+  Future<void> clearListenBrainzToken() async {}
+
+  @override
+  Future<String?> readListenBrainzToken() async {
+    reads++;
+    return token;
+  }
 
   @override
   Future<void> saveListenBrainzToken(String value) async {}
@@ -483,6 +505,140 @@ void main() {
       expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 0);
       await Future<void>.delayed(Duration.zero);
       expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 1);
+    },
+  );
+
+  test(
+    'unrelated settings saves do not restart ListenBrainz weekly discovery',
+    () async {
+      final database = createTestDatabase();
+      final credentialStore = _CountingExternalScrobbleCredentialStore('token');
+      final listenBrainz = _weeklyListenBrainzClient();
+      final container = ProviderContainer(
+        overrides: withHomeShowcaseTestOverrides(
+          database,
+          overrides: <Override>[
+            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupSyncStateProvider.overrideWithValue(
+              const LibrarySyncState.idle(),
+            ),
+            externalScrobbleCredentialStoreProvider.overrideWithValue(
+              credentialStore,
+            ),
+            listenBrainzApiClientProvider.overrideWithValue(listenBrainz),
+            subsonicApiProvider.overrideWithValue(
+              _FakeDiscoveryApiClient(
+                {},
+                searchSongs: <Song>[
+                  Song(id: 'song-jams', title: 'Jam Song', artist: 'Artist'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      // Real Drift-backed settings: every save emits a new model, as Playback
+      // autosave, appearance changes and desktop volume persistence do.
+      final repository = container.read(settingsRepositoryProvider);
+      await repository.saveSettings(
+        const AppSettingsModel.defaults().copyWith(
+          listenBrainzScrobblingEnabled: true,
+          listenBrainzTokenValid: true,
+          listenBrainzUserName: 'alice',
+        ),
+      );
+      final settingsSubscription = container.listen(
+        appSettingsProvider,
+        (_, _) {},
+      );
+      addTearDown(settingsSubscription.close);
+      await container.read(appSettingsProvider.future);
+
+      final emissions = <List<ListenBrainzDiscoverPlaylist>>[];
+      final subscription = container
+          .listen<AsyncValue<List<ListenBrainzDiscoverPlaylist>>>(
+            listenBrainzDiscoverStreamProvider,
+            (_, next) {
+              if (next case AsyncData(:final value)) {
+                emissions.add(value);
+              }
+            },
+            fireImmediately: true,
+          );
+      addTearDown(subscription.close);
+
+      Future<void> settledAfter(int emissionCount) async {
+        while (emissions.length <= emissionCount ||
+            !emissions.last.every((playlist) => playlist.matchingComplete)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      Future<void> settingsApplied(
+        bool Function(AppSettingsModel settings) applied,
+      ) async {
+        while (!applied(container.read(appSettingsProvider).requireValue)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await container.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+
+      await settledAfter(0);
+      expect(credentialStore.reads, 1);
+      expect(listenBrainz.recommendationPlaylistCalls, 1);
+      expect(emissions.last.single.playableSongs.single.id, 'song-jams');
+
+      await repository.saveSettings(
+        container
+            .read(appSettingsProvider)
+            .requireValue
+            .copyWith(
+              scrobbleEnabled: false,
+              gridArtworkSize: GridArtworkSize.large,
+            ),
+      );
+      await settingsApplied(
+        (settings) =>
+            !settings.scrobbleEnabled &&
+            settings.gridArtworkSize == GridArtworkSize.large,
+      );
+      await repository.saveDesktopPlaybackVolume(
+        volume: 0.4,
+        lastAudibleVolume: 0.4,
+      );
+      await settingsApplied(
+        (settings) => settings.desktopPlaybackVolume == 0.4,
+      );
+
+      expect(credentialStore.reads, 1);
+      expect(listenBrainz.recommendationPlaylistCalls, 1);
+
+      final emissionsBeforeUserChange = emissions.length;
+      await database.appSettingsDao.updateListenBrainzScrobblingState(
+        userName: 'bob',
+      );
+      await settingsApplied(
+        (settings) => settings.listenBrainzUserName == 'bob',
+      );
+      await settledAfter(emissionsBeforeUserChange);
+
+      expect(credentialStore.reads, 2);
+      expect(listenBrainz.recommendationPlaylistCalls, 2);
+
+      // Token validation refreshes through the epoch, which still restarts.
+      container
+          .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+          .refresh();
+      await container.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(credentialStore.reads, 3);
     },
   );
 

@@ -459,6 +459,39 @@ class _PlaybackAdjustmentPanelState
     final quickPicks = speed
         ? playbackSpeedQuickPicks.where(range.contains).toList()
         : const <double>[];
+    final showReset =
+        !speed &&
+        enabled &&
+        range.contains(resetValue) &&
+        (value - resetValue).abs() > 1e-10;
+    Widget stepper({
+      required String keySuffix,
+      required IconData icon,
+      required String tooltip,
+      required bool canStep,
+      required int hundredths,
+    }) {
+      // Linked pitch has no usable steppers; an invisible stand-in keeps its
+      // ruler the same width as the speed ruler above it.
+      if (linked) {
+        return Visibility(
+          visible: false,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: IconButton(onPressed: null, icon: Icon(icon)),
+        );
+      }
+      return _RepeatingStepButton(
+        key: ValueKey('adjustment-$keyName-$keySuffix'),
+        icon: icon,
+        tooltip: tooltip,
+        enabled: enabled && canStep,
+        onStep: () => _step(keyName, hundredths),
+        onEnd: _flush,
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -485,13 +518,34 @@ class _PlaybackAdjustmentPanelState
                     ),
                   ),
                 ],
+                // Speed resets through its 1× chip. Pitch has no chips, so
+                // once changed it offers Reset where the link icon sits
+                // while linked.
+                if (showReset) ...[
+                  const SizedBox(width: 4),
+                  // The icon matches "Reset Speed & Pitch" and keeps the
+                  // button from reading as part of the heading.
+                  TextButton.icon(
+                    key: ValueKey('adjustment-$keyName-reset'),
+                    onPressed: () {
+                      _cancelRulers();
+                      onChanged(resetValue);
+                      _flush();
+                    },
+                    icon: const Icon(Icons.restart_alt, size: 18),
+                    label: Text(l10n.playbackAdjustmentReset),
+                  ),
+                ],
               ],
             ),
             TextButton(
               key: ValueKey('adjustment-$keyName-value'),
               style: TextButton.styleFrom(
                 disabledForegroundColor: theme.colorScheme.onSurface,
-                textStyle: theme.textTheme.titleLarge,
+                // Fixed-width digits keep the readout still while dragging.
+                textStyle: theme.textTheme.titleLarge?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
               onPressed: enabled
                   ? () => _enterValue(label, value, onChanged, isSpeed: speed)
@@ -553,56 +607,42 @@ class _PlaybackAdjustmentPanelState
           ),
           const SizedBox(height: 8),
         ],
-        AdjustmentRuler(
-          key: ValueKey('adjustment-$keyName-ruler'),
-          value: value,
-          label: label,
-          valueLabel: valueLabel,
-          onChanged: onChanged,
-          onChangeEnd: _flush,
-          range: range,
-          resetValue: resetValue,
-          interactionToken: _interactionToken,
-          enabled: enabled,
-          readOnly: linked,
+        // Steppers sit at the ends of the scale they move. The painter puts
+        // lower values on the left in every locale, so the row stays LTR.
+        Row(
+          textDirection: TextDirection.ltr,
+          children: [
+            stepper(
+              keySuffix: 'minus',
+              icon: Icons.remove,
+              tooltip: l10n.playbackAdjustmentDecreaseBy(stepLabel),
+              canStep: lower < value,
+              hundredths: -buttonHundredths,
+            ),
+            Expanded(
+              child: AdjustmentRuler(
+                key: ValueKey('adjustment-$keyName-ruler'),
+                value: value,
+                label: label,
+                valueLabel: valueLabel,
+                onChanged: onChanged,
+                onChangeEnd: _flush,
+                range: range,
+                resetValue: resetValue,
+                interactionToken: _interactionToken,
+                enabled: enabled,
+                readOnly: linked,
+              ),
+            ),
+            stepper(
+              keySuffix: 'plus',
+              icon: Icons.add,
+              tooltip: l10n.playbackAdjustmentIncreaseBy(stepLabel),
+              canStep: upper > value,
+              hundredths: buttonHundredths,
+            ),
+          ],
         ),
-        // Every step button is inert while linked, so the row is omitted.
-        if (!linked) ...[
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _RepeatingStepButton(
-                key: ValueKey('adjustment-$keyName-minus'),
-                icon: Icons.remove,
-                tooltip: l10n.playbackAdjustmentDecreaseBy(stepLabel),
-                enabled: enabled && lower < value,
-                onStep: () => _step(keyName, -buttonHundredths),
-                onEnd: _flush,
-              ),
-              TextButton(
-                key: ValueKey('adjustment-$keyName-reset'),
-                onPressed:
-                    enabled && range.contains(resetValue) && value != resetValue
-                    ? () {
-                        _cancelRulers();
-                        onChanged(resetValue);
-                        _flush();
-                      }
-                    : null,
-                child: Text(l10n.playbackAdjustmentReset),
-              ),
-              _RepeatingStepButton(
-                key: ValueKey('adjustment-$keyName-plus'),
-                icon: Icons.add,
-                tooltip: l10n.playbackAdjustmentIncreaseBy(stepLabel),
-                enabled: enabled && upper > value,
-                onStep: () => _step(keyName, buttonHundredths),
-                onEnd: _flush,
-              ),
-            ],
-          ),
-        ],
         if (enabled && (atMinimum || atMaximum)) ...[
           Text(
             speed

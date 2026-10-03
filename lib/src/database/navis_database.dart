@@ -186,7 +186,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 89;
+  int get schemaVersion => 90;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -474,6 +474,28 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 89 && to >= 89) {
       await from88To89(migrator);
+    }
+    if (from < 90 && to >= 90) {
+      await from89To90(migrator);
+    }
+  }
+
+  /// Adds the download preferences: the saved download quality, the
+  /// one-time "always download in this quality?" prompt flag, the number of
+  /// concurrent downloads, and the global pause. The prompt flag starts false
+  /// for every existing install, so each user is asked once.
+  Future<void> from89To90(Migrator migrator) async {
+    for (final column in <GeneratedColumn<Object>>[
+      appSettingsTable.downloadQualityMode,
+      appSettingsTable.downloadMaxBitRate,
+      appSettingsTable.downloadFormat,
+      appSettingsTable.downloadQualityPrompted,
+      appSettingsTable.maxConcurrentDownloads,
+      appSettingsTable.downloadsPaused,
+    ]) {
+      if (!await _columnExists('app_settings', column.name)) {
+        await migrator.addColumn(appSettingsTable, column);
+      }
     }
   }
 

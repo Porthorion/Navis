@@ -11,6 +11,9 @@ typedef SystemArtFetch = Future<String?> Function(
   Uri artUri,
 );
 
+/// The cached file of [coverArtId]'s cover, or `null` when it is not on disk.
+typedef SystemArtLookup = String? Function(String coverArtId);
+
 /// Hands Android's media session, notification and Android Auto cover art
 /// without the account token.
 ///
@@ -20,14 +23,26 @@ typedef SystemArtFetch = Future<String?> Function(
 /// Such an `artUri` is replaced by `content://<package>.artwork/cover/<key>`,
 /// which `NavisArtworkProvider` serves read-only from the cover cache
 /// ([PlaybackArtCache]); Android Auto runs in another process and can open
-/// it. The cover is downloaded in-process first. Art without credentials
-/// (radio artwork) is passed through.
+/// it. Art without credentials (radio artwork) is passed through.
+///
+/// The content URI is published only once the cover is on disk; until then
+/// the item has no art and the download is started. A URI the provider
+/// cannot open yet makes audio_service put empty `METADATA_KEY_ALBUM_ART`
+/// into the session, and the later update with the real bitmap keeps the
+/// same URI: Bluetooth AVRCP treats it as unchanged and Android Auto does not
+/// reload an unchanged URI, so both stayed blank (1.4.0). Going from no art
+/// to art is a change both of them show.
 class AndroidSystemArt {
-  new({required this.authority, required this._fetch});
+  new({
+    required this.authority,
+    required this._fetch,
+    required this._cachedPath,
+  });
 
   /// `<applicationId>.artwork`, matching the manifest's provider.
   final String authority;
   final SystemArtFetch _fetch;
+  final SystemArtLookup _cachedPath;
 
   static const _prefetchConcurrency = 6;
 
@@ -43,13 +58,16 @@ class AndroidSystemArt {
   }
 
   /// [item] as the system may see it. With [prefetch] the cover download
-  /// starts (or joins one in progress) so the provider can serve it.
+  /// starts (or joins one in progress) when the cover is not cached yet.
   MediaItem forSystem(MediaItem item, {bool prefetch = false}) {
     final artUri = item.artUri;
     final coverArtId = _credentialedCoverId(artUri);
     if (coverArtId == null) return item;
     if (coverArtId.isEmpty) return item.copyWith(artUri: null);
-    if (prefetch) unawaited(_fetch(coverArtId, artUri!));
+    if (!_isCached(item, coverArtId)) {
+      if (prefetch) unawaited(_fetch(coverArtId, artUri!));
+      return item.copyWith(artUri: null);
+    }
     return item.copyWith(
       artUri: Uri(
         scheme: 'content',
@@ -59,8 +77,13 @@ class AndroidSystemArt {
     );
   }
 
+  /// NavisAudioHandler adds `artCacheFile` to the current item once its
+  /// cover is on disk; other items are looked up in the cover cache.
+  bool _isCached(MediaItem item, String coverArtId) =>
+      item.extras?['artCacheFile'] is String || _cachedPath(coverArtId) != null;
+
   /// [items] as the system may see them, once their covers are cached or
-  /// [budget] has passed.
+  /// [budget] has passed. Covers still downloading are left out.
   Future<List<MediaItem>> forSystemList(
     List<MediaItem> items, {
     Duration budget = browseArtBudget,

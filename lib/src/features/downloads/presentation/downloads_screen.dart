@@ -21,6 +21,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -281,17 +282,48 @@ class _QueueTab extends ConsumerWidget {
             ),
           );
           if (confirmed != true) return;
-          final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
-          await dao.clearQueue();
+          await ref.read(downloadServiceProvider).clearQueue();
         }
+
+        final paused =
+            ref.watch(downloadsPausedProvider).asData?.value ?? false;
 
         return Column(
           children: <Widget>[
+            if (paused)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Card.filled(
+                  key: const ValueKey<String>('downloadsPausedBanner'),
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    leading: const Icon(Icons.pause_circle_outline),
+                    title: Text(l10n.downloadsPausedBanner),
+                  ),
+                ),
+              ),
             if (hasFailed || filtered.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
                   children: <Widget>[
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        key: const ValueKey<String>('downloadsPauseToggle'),
+                        onPressed: () => unawaited(
+                          ref
+                              .read(downloadServiceProvider)
+                              .setPaused(paused: !paused),
+                        ),
+                        icon: Icon(paused ? Icons.play_arrow : Icons.pause),
+                        label: Text(
+                          paused
+                              ? l10n.downloadsResumeAll
+                              : l10n.downloadsPauseAll,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     if (hasFailed)
                       Expanded(
                         child: FilledButton.tonalIcon(
@@ -434,7 +466,10 @@ class _QueueItemTile extends ConsumerWidget {
           if (isActive)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: LinearProgressIndicator(value: item.progress),
+              // A transfer without a known length has no progress to show.
+              child: LinearProgressIndicator(
+                value: item.progress > 0 ? item.progress : null,
+              ),
             ),
           if (isFailed)
             Text(
@@ -449,11 +484,14 @@ class _QueueItemTile extends ConsumerWidget {
             ? l10n.downloadsRetryFailed
             : l10n.downloadsCancelAction,
         onPressed: () {
-          final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
           if (isFailed) {
+            final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
             unawaited(dao.updateStatus(item.id, DownloadStatus.queued));
           } else {
-            unawaited(dao.remove(item.id));
+            // Stops the transfer too when this item is downloading.
+            unawaited(
+              ref.read(downloadServiceProvider).cancelQueueItem(item.id),
+            );
           }
         },
       ),
@@ -750,15 +788,13 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 title: Text(l10n.downloadsChangeQuality),
                 subtitle: Text(
                   l10n.downloadsChangeQualityCurrent(
-                    track.bitRate == null
-                        ? l10n.downloadQualityOriginal
-                        : track.bitRate == 320
-                        ? l10n.downloadQuality320
-                        : track.bitRate == 192
-                        ? l10n.downloadQuality192
-                        : track.bitRate == 128
-                        ? l10n.downloadQuality128
-                        : '${track.bitRate} kbps ${track.format.toUpperCase()}',
+                    downloadQualityLabel(
+                      l10n,
+                      downloadedQualityChoice(
+                        track,
+                        ref.read(songByIdProvider(track.songId)).asData?.value,
+                      ),
+                    ),
                   ),
                 ),
                 onTap: () async {
@@ -843,13 +879,20 @@ class _DownloadedTrackTile extends ConsumerWidget {
             .replace(queue, startIndex: trackIndex, autoPlay: true);
         return;
       case _DownloadedTrackAction.changeQuality:
-        final currentChoice = DownloadQualityChoice(
-          quality: track.bitRate != null ? '${track.bitRate}' : null,
-          format: track.bitRate != null ? track.format : null,
+        final currentChoice = downloadedQualityChoice(
+          track,
+          ref.read(songByIdProvider(track.songId)).asData?.value,
         );
+        final preference = await ref
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .getDownloadQualityPreference();
+        if (!context.mounted) return;
+        // An explicit change always asks, whatever the saved preference.
         final choice = await showDownloadQualitySheet(
           context,
           initialChoice: currentChoice,
+          format: currentChoice.format ?? preference.format,
         );
         if (choice == null) return;
         final service = ref.read(downloadServiceProvider);
@@ -1030,6 +1073,26 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       await _pickCustomDownloadFolder();
       return;
     }
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.downloadsCustomFolderDisableTitle),
+        content: Text(l10n.downloadsCustomFolderDisableConfirm),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            key: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.downloadsCustomFolderDisableAction),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
     await _applyCustomDownloadFolder(enabled: false);
   }
 
@@ -1220,6 +1283,9 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
     return ListView(
       children: <Widget>[
+        const _DownloadQualitySettings(),
+        const _ConcurrentDownloadsTile(),
+        const Divider(),
         if (!isDesktopRuntime)
           SwitchListTile(
             title: Text(l10n.cacheSettingsWifiOnlyDownloads),
@@ -1234,6 +1300,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onChanged: _updateAutoDownloadLiked,
         ),
         SwitchListTile(
+          key: const ValueKey<String>('downloadsCustomFolderSwitch'),
           title: Text(l10n.downloadsCustomFolderTitle),
           subtitle:
               _supportsCustomDownloadFolderSelection &&
@@ -1310,6 +1377,167 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onTap: _clearDownloads,
         ),
       ],
+    );
+  }
+}
+
+/// The saved download quality and the transcode format.
+class _DownloadQualitySettings extends ConsumerWidget {
+  const new();
+
+  static const String _ask = 'ask';
+  static const String _original = 'original';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final preference =
+        ref.watch(downloadQualityPreferenceProvider).asData?.value ??
+        const DownloadQualityPreference();
+    final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+    final selected = switch (preference.mode) {
+      DownloadQualityMode.ask => _ask,
+      DownloadQualityMode.original => _original,
+      DownloadQualityMode.transcode => '${preference.bitRate}',
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            l10n.downloadsSettingsQualitySection,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String>('downloadQualityMode:$selected'),
+            initialValue: selected,
+            decoration: InputDecoration(
+              labelText: l10n.downloadsSettingsQualityLabel,
+            ),
+            items: <DropdownMenuItem<String>>[
+              DropdownMenuItem<String>(
+                value: _ask,
+                child: Text(l10n.downloadsSettingsQualityAsk),
+              ),
+              DropdownMenuItem<String>(
+                value: _original,
+                child: Text(l10n.downloadQualityOriginal),
+              ),
+              for (final kbps in kDownloadBitRateOptions)
+                DropdownMenuItem<String>(
+                  value: '$kbps',
+                  child: Text(
+                    downloadQualityLabel(
+                      l10n,
+                      DownloadQualityChoice(
+                        quality: '$kbps',
+                        format: preference.format,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+            onChanged: (value) {
+              if (value == null || value == selected) return;
+              unawaited(switch (value) {
+                _ask => dao.updateDownloadQuality(
+                  mode: DownloadQualityMode.ask,
+                ),
+                _original => dao.updateDownloadQuality(
+                  mode: DownloadQualityMode.original,
+                ),
+                _ => dao.updateDownloadQuality(
+                  mode: DownloadQualityMode.transcode,
+                  bitRate: int.parse(value),
+                ),
+              });
+              // Choosing here answers the one-time question too.
+              unawaited(dao.updateDownloadQualityPrompted(prompted: true));
+            },
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String>('downloadFormat:${preference.format}'),
+            initialValue: preference.format,
+            decoration: InputDecoration(
+              labelText: l10n.downloadsSettingsFormatLabel,
+              helperText: l10n.downloadsSettingsFormatHelper,
+            ),
+            items: <DropdownMenuItem<String>>[
+              for (final format in kDownloadFormatOptions)
+                DropdownMenuItem<String>(
+                  value: format,
+                  child: Text(downloadFormatLabel(format)),
+                ),
+            ],
+            onChanged: preference.mode == DownloadQualityMode.original
+                ? null
+                : (value) {
+                    if (value == null || value == preference.format) return;
+                    unawaited(dao.updateDownloadFormat(value));
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// How many downloads transfer at once.
+class _ConcurrentDownloadsTile extends ConsumerStatefulWidget {
+  const new();
+
+  @override
+  ConsumerState<_ConcurrentDownloadsTile> createState() =>
+      _ConcurrentDownloadsTileState();
+}
+
+class _ConcurrentDownloadsTileState
+    extends ConsumerState<_ConcurrentDownloadsTile> {
+  /// The value while the slider is dragged; null shows the saved value.
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final saved =
+        ref.watch(maxConcurrentDownloadsProvider).asData?.value ??
+        kDefaultConcurrentDownloads;
+    final value = _dragValue ?? saved.toDouble();
+    final count = value.round();
+    final description = l10n.downloadsSettingsConcurrentValue(count);
+    return ListTile(
+      key: const ValueKey<String>('downloadsConcurrentTile'),
+      title: Text(l10n.downloadsSettingsConcurrentTitle),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            isDesktopRuntime
+                ? description
+                : l10n.downloadsSettingsConcurrentCellular(description),
+          ),
+          Slider(
+            key: const ValueKey<String>('downloadsConcurrentSlider'),
+            min: 1,
+            max: kMaxConcurrentDownloads.toDouble(),
+            divisions: kMaxConcurrentDownloads - 1,
+            value: value,
+            label: '$count',
+            onChanged: (next) => setState(() => _dragValue = next),
+            onChangeEnd: (next) {
+              setState(() => _dragValue = null);
+              unawaited(
+                ref
+                    .read(downloadServiceProvider)
+                    .setMaxConcurrentDownloads(next.round()),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

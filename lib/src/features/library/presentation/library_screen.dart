@@ -2073,7 +2073,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Future<void> _downloadLikedSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
     final service = ref.read(downloadServiceProvider);
     unawaited(
@@ -2087,7 +2087,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadSongQueued,
+      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
       level: AppNoticeLevel.success,
     );
   }

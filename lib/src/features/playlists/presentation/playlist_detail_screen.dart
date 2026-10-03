@@ -880,7 +880,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     PlaylistsTableData playlist,
     List<SongsTableData> songs,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
@@ -895,7 +895,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadPlaylistQueued(count),
+      message: downloadQueuedNotice(
+        l10n,
+        l10n.downloadPlaylistQueued(count),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }
@@ -928,7 +932,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
@@ -941,7 +945,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadSongQueued,
+      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
       level: AppNoticeLevel.success,
     );
   }

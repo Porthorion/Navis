@@ -4,10 +4,11 @@
 /// the Forgejo release notes (`tool/generate_release_notes.dart` imports it),
 /// so it must stay plain Dart with no imports.
 ///
-/// When preparing a release, add a new [ChangelogVersion] at the top of
-/// [changelogs]. Every `x.y.0` release is a major release: give it 3–5
-/// [ChangelogVersion.highlights] and, optionally, a [ChangelogVersion.codename]
-/// and [ChangelogVersion.iconAsset].
+/// When work on a new version starts, add its [ChangelogVersion] at the top
+/// of [changelogs] together with the `pubspec.yaml` bump (see "Versioning" in
+/// `docs/agentic-engineering.md`). Every `x.y.0` release is a major release:
+/// give it 3–5 [ChangelogVersion.highlights] and, optionally, a
+/// [ChangelogVersion.codename] and [ChangelogVersion.iconAsset].
 class ChangelogVersion {
   const new({
     required this.version,
@@ -127,6 +128,61 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.4.1',
     entries: [
+      ChangelogEntry(
+        'Choose a download quality once: your next download asks whether to always use that quality, and Downloads settings let you pick Ask every time, Original, or a bitrate',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloads can be converted to MP3, AAC or Opus at 96 to 320 kbps, and liked songs downloaded automatically on Wi-Fi follow your saved quality',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Up to four songs download at once (two by default, one on mobile data), and the download queue can be paused and resumed',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloaded songs keep their cover art, so covers show offline, on the lock screen and over Bluetooth or Android Auto',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
+      ),
+      ChangelogEntry(
+        'Turning off the custom download folder now asks first and explains that its files stay where they are',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cancelling a download that is in progress now stops it, instead of the song finishing and being saved anyway',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Failed downloads now wait before retrying, songs already downloaded in original quality are no longer downloaded again, and converted downloads show their progress',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Turning off, changing or choosing your custom download folder again no longer moves or renames the files already in it: they stay where they are, and choosing that folder again picks them back up as downloads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        "On Android, if you chose a custom download folder in a version before 1.2.8, updating no longer moves the downloads in it into Navis's own storage: they stay in that folder, and choosing it again lets Navis pick them back up",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Bluetooth car stereos and Android Auto show cover art again after a track change, instead of staying blank for songs whose cover had not been downloaded yet',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On phones, the volume level in the Now Playing menu no longer wraps onto two lines with larger text sizes',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Appearance shape settings now apply everywhere: Cover Art Shape also shapes song lists, the queue, the mini player and player bar, playlists and downloads, Now Playing Art Shape shapes the Now Playing cover again, and Artist Card Shape applies to artist lists and similar artists. Small covers follow the shape too, with corners scaled to their size',
         type: ChangelogEntryType.fix,

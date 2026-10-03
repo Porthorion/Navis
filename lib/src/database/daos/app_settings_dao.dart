@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:path/path.dart' as p;
 import 'package:navis/src/database/tables/app_settings_table.dart';
 
@@ -589,6 +590,106 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Stream<String?> watchCustomDownloadFolderPath() {
     return watchSettings().map((s) => s?.customDownloadFolderPath);
   }
+
+  // ---------------------------------------------------------------------------
+  // Download preference helpers (targeted only; full-draft saves never write
+  // these columns)
+  // ---------------------------------------------------------------------------
+
+  static DownloadQualityPreference _downloadQualityOf(
+    AppSettingsTableData? s,
+  ) => DownloadQualityPreference.fromStored(
+    mode: s?.downloadQualityMode,
+    bitRate: s?.downloadMaxBitRate,
+    format: s?.downloadFormat,
+    prompted: s?.downloadQualityPrompted,
+  );
+
+  Stream<DownloadQualityPreference> watchDownloadQualityPreference() =>
+      watchSettings().map(_downloadQualityOf).distinct();
+
+  Future<DownloadQualityPreference> getDownloadQualityPreference() async =>
+      _downloadQualityOf(await getSettings());
+
+  /// Saves the download quality. Null [bitRate] or [format] keeps the stored
+  /// value, so choosing Original keeps the transcode format for the picker.
+  Future<void> updateDownloadQuality({
+    required DownloadQualityMode mode,
+    int? bitRate,
+    String? format,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        downloadQualityMode: Value(mode.name),
+        downloadMaxBitRate: bitRate == null
+            ? const Value.absent()
+            : Value(bitRate),
+        downloadFormat: format == null ? const Value.absent() : Value(format),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Saves the transcode format alone (used by the picker in every mode).
+  Future<void> updateDownloadFormat(String format) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        downloadFormat: Value(format),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateDownloadQualityPrompted({required bool prompted}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        downloadQualityPrompted: Value(prompted),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateMaxConcurrentDownloads(int value) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        maxConcurrentDownloads: Value(sanitizeConcurrentDownloads(value)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Stream<int> watchMaxConcurrentDownloads() => watchSettings()
+      .map((s) => sanitizeConcurrentDownloads(s?.maxConcurrentDownloads))
+      .distinct();
+
+  Future<int> getMaxConcurrentDownloads() async => sanitizeConcurrentDownloads(
+    (await getSettings())?.maxConcurrentDownloads,
+  );
+
+  Future<void> updateDownloadsPaused({required bool paused}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        downloadsPaused: Value(paused),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Stream<bool> watchDownloadsPaused() =>
+      watchSettings().map((s) => s?.downloadsPaused ?? false).distinct();
+
+  Future<bool> getDownloadsPaused() async =>
+      (await getSettings())?.downloadsPaused ?? false;
 
   // ---------------------------------------------------------------------------
   // Theme helpers
