@@ -68,6 +68,10 @@ flows and platform contracts.
   `lib/src/features/changelog/changelog_data.dart`, the single source for the
   in-app changelog and the release notes that
   `tool/generate_release_notes.dart` renders.
+- If the version in `pubspec.yaml` is already released (its `v<version>` tag
+  exists), start the next version before new work: bump it and add its
+  changelog entry. Patch +0.0.1 for fixes, minor +0.1.0 for reworks, major
+  only for a milestone; see "Versioning" in `docs/agentic-engineering.md`.
 - Listen Together/Voyage is retired. Do not restore its networking, sessions,
   settings, queue sync, or visible UI without an explicit product decision.
 - Genres are not a Navis concept: no genre page, route, Library section, Home

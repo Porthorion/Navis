@@ -86,6 +86,7 @@ class DownloadService {
     Future<Directory> Function()? readApplicationSupportDirectory,
     PermanentArtworkStore? artworkStore,
     Dio? dio,
+    bool? isAndroid,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
@@ -97,6 +98,7 @@ class DownloadService {
              readApplicationSupportDirectory: readApplicationSupportDirectory,
              dio: dio,
            ),
+       _isAndroid = isAndroid ?? Platform.isAndroid,
        _permanentPathResolver = PermanentDownloadPathResolver(
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
@@ -121,6 +123,7 @@ class DownloadService {
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
+  final bool _isAndroid;
   final PermanentDownloadPathResolver _permanentPathResolver;
   final PermanentDownloadImportService _permanentDownloadImportService;
   final AndroidSafStorage _safStorage = const AndroidSafStorage();
@@ -232,18 +235,24 @@ class DownloadService {
   /// Versions before 1.2.8 stored Android picker fallbacks as ordinary paths.
   /// Scoped storage never granted Navis reliable access to those paths. Disable
   /// the setting instead of touching user files; the settings UI will ask for a
-  /// new persisted tree grant on the next selection.
+  /// new persisted tree grant on the next selection. Like leaving any custom
+  /// folder, Navis forgets the downloads in it and leaves the files there.
   Future<void> _migrateUnsafeAndroidCustomFolder() async {
-    if (!Platform.isAndroid ||
+    if (!_isAndroid ||
         !_readCustomDownloadFolderEnabled() ||
         _isSafRoot(_readCustomDownloadFolderPath())) {
       return;
     }
+    // Forgotten before the setting changes: startup normalization moves every
+    // row outside the active folder into Navis's own directory.
+    final leftInUserFolder = await _songIdsLeftInUserFolder();
+    await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
     await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: false);
     await _appSettingsDao.updateCustomDownloadFolderPath(null);
     await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
     AppLogger.info(
-      'Disabled legacy Android custom download folder without modifying files; '
+      'Disabled legacy Android custom download folder without modifying files '
+      '(downloads forgotten: ${leftInUserFolder.length}); '
       'a persisted SAF folder must be selected again.',
     );
   }
@@ -2181,7 +2190,7 @@ class DownloadService {
   }
 
   bool _isSafRoot(String? value) =>
-      Platform.isAndroid && (value?.startsWith('content://') ?? false);
+      _isAndroid && (value?.startsWith('content://') ?? false);
 
   Future<void> _deletePermanentLocator(String locator) async {
     if (_isSafRoot(locator)) {

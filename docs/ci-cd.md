@@ -297,7 +297,8 @@ Playback settings autosave has a focused manual runtime gate:
 It signs an isolated clone in to the loopback fixture, flips Scrobbling on the
 mounted Playback settings screen, and verifies that the ListenBrainz account,
 unmetered-only background sync and desktop volume survive the save and a clean
-restart. It supplements but does not replace `./tool/check.sh`.
+restart, and that neither the save nor a desktop volume write restarts weekly
+ListenBrainz discovery. It supplements but does not replace `./tool/check.sh`.
 
 Current-song row presentation has a focused isolated Linux runtime gate:
 
@@ -457,7 +458,16 @@ make release VERSION=v0.2.0
 
 ### What it does
 
-1. Fails if `pubspec.yaml` already has the exact requested `version: <semver>+<build>` value, unless `--allow-existing-version` is passed for an intentional rebuild or retry.
+1. Fails if the requested version was already released, meaning its tag
+   (for example `v1.4.1`) exists locally or on origin
+   (`tool/release_tag_guard.sh`), unless `--allow-existing-version` is passed
+   for an intentional rebuild or retry; the retry then reuses that tag instead
+   of creating it. `pubspec.yaml` already naming the version is expected:
+   development starts the next version as soon as work on it begins (see
+   "Versioning" in [agentic-engineering.md](agentic-engineering.md)), so the
+   script reports it and continues. It also fails when it cannot read origin's
+   tags. `tool/release_tag_guard_test.sh` covers these cases in
+   `tool/check.sh`.
 2. Runs `./tool/check.sh` unless `--skip-checks` is passed.
 3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
    Android release builds clean stale Flutter/Gradle APK outputs before
@@ -480,15 +490,13 @@ make release VERSION=v0.2.0
 8. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
 9. Uploads all built assets to the release.
 
-Use `--allow-existing-version` only when intentionally rebuilding the same
-release version, such as retrying failed artifact publication. Normal releases
-must advance the semver/build so installed apps can detect updates.
-
-Release preparation may bump `pubspec.yaml` on `dev` before the release, so
-that changelog entries land under the coming version (1.4.0 and 1.3.1 did this,
-and 1.4.1 was opened this way on 2026-10-03). Such a release is published with
-`--allow-existing-version` after confirming that `git tag -l <tag>` prints
-nothing, because the guard cannot tell a pre-bumped version from a rebuild.
+Use `--allow-existing-version` only when intentionally rebuilding a version
+that was already tagged, such as retrying failed artifact publication. Normal
+releases advance the version so installed apps can detect updates; which
+increment to use is set out in "Versioning" in
+[agentic-engineering.md](agentic-engineering.md). Before 2026-10-03 the guard
+compared `pubspec.yaml` instead of the tag, so a version set early on `dev`
+needed this flag; it no longer does.
 
 ### Release channels
 

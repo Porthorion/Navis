@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Verifies that a Playback settings autosave keeps settings other screens own:
 # the ListenBrainz account, unmetered-only background sync and the desktop
-# volume. The Linux profile app signs in to the local loopback fixture with an
-# isolated clone, flips Scrobbling through the production switch, and repeats
-# the assertions after a clean restart.
+# volume. It also requires that neither that autosave nor a desktop volume write
+# restarts weekly ListenBrainz discovery. The Linux profile app signs in to the
+# local loopback fixture with an isolated clone, flips Scrobbling through the
+# production switch, and repeats the assertions after a clean restart.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
@@ -24,6 +25,11 @@ mkdir -p "$OUTPUT_ROOT"
 chmod 700 "$OUTPUT_ROOT"
 
 cleanup() {
+  # Killing the launcher subshell alone leaves the app running after a failed
+  # assertion, so ask the app to exit first.
+  if (( FLUTTER_PID > 0 )) && [[ -n "${TOKEN:-}" ]]; then
+    api POST /v1/shutdown >/dev/null 2>&1 || true
+  fi
   for process_id in "$FLUTTER_PID" "$FIXTURE_PID"; do
     if (( process_id > 0 )) && kill -0 "$process_id" >/dev/null 2>&1; then
       kill "$process_id" >/dev/null 2>&1 || true
@@ -186,17 +192,56 @@ PY
   exit 1
 }
 
+discover_builds() {
+  api GET /v1/presentation/listenbrainz-discover > "$1"
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["streamBuilds"])' "$1"
+}
+
+# Prints the weekly discovery build count once two reads a second apart agree,
+# so the startup settings load has finished restarting it.
+settled_discover_builds() {
+  local previous current
+  previous="$(discover_builds "$1")"
+  for _ in $(seq 1 30); do
+    sleep 1
+    current="$(discover_builds "$1")"
+    if [[ "$current" == "$previous" ]]; then
+      echo "$current"
+      return
+    fi
+    previous="$current"
+  done
+  echo "Weekly discovery kept restarting. See $1" >&2
+  exit 1
+}
+
+# Requires the weekly discovery build count to stay at $1 for three seconds.
+assert_discover_builds() {
+  local expected="$1" output="$2" current
+  for _ in $(seq 1 6); do
+    current="$(discover_builds "$output")"
+    if [[ "$current" != "$expected" ]]; then
+      echo "Weekly discovery restarted ($expected -> $current). See $output" >&2
+      exit 1
+    fi
+    sleep 0.5
+  done
+}
+
 launch
 api GET /v1/health > "$OUTPUT_ROOT/health-initial.json"
 wait_for_ready
+DISCOVER_BUILDS="$(settled_discover_builds "$OUTPUT_ROOT/discover-initial.json")"
 api POST /v1/playback/volume '{"value":0.37}' > "$OUTPUT_ROOT/volume-set.json"
 assert_settings true "$OUTPUT_ROOT/settings-seeded.json"
+assert_discover_builds "$DISCOVER_BUILDS" "$OUTPUT_ROOT/discover-after-volume.json"
 api POST /v1/presentation/navigate '{"location":"/settings/playback"}' \
   > "$OUTPUT_ROOT/navigate-playback.json"
 wait_for_ready
 api POST /v1/presentation/playback-settings '{"toggle":"scrobble"}' \
   > "$OUTPUT_ROOT/toggle-scrobble.json"
 assert_settings false "$OUTPUT_ROOT/settings-after-autosave.json"
+assert_discover_builds "$DISCOVER_BUILDS" "$OUTPUT_ROOT/discover-after-autosave.json"
 api POST /v1/presentation/screenshot '{"label":"playback-settings"}' \
   > "$OUTPUT_ROOT/screenshot-playback-settings.json"
 shutdown_app initial
@@ -205,6 +250,15 @@ launch
 api GET /v1/health > "$OUTPUT_ROOT/health-restart.json"
 wait_for_ready
 assert_settings false "$OUTPUT_ROOT/settings-after-restart.json"
+DISCOVER_BUILDS="$(settled_discover_builds "$OUTPUT_ROOT/discover-restart.json")"
+api POST /v1/presentation/navigate '{"location":"/settings/playback"}' \
+  > "$OUTPUT_ROOT/navigate-playback-restart.json"
+wait_for_ready
+api POST /v1/presentation/playback-settings '{"toggle":"scrobble"}' \
+  > "$OUTPUT_ROOT/toggle-scrobble-restart.json"
+assert_settings true "$OUTPUT_ROOT/settings-after-restart-autosave.json"
+assert_discover_builds "$DISCOVER_BUILDS" \
+  "$OUTPUT_ROOT/discover-after-restart-autosave.json"
 shutdown_app final
 
 if grep -E 'Unhandled Exception|ERROR:flutter/runtime' "$APP_LOG" >/dev/null; then

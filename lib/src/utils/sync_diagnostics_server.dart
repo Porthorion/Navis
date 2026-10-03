@@ -729,6 +729,26 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'GET' &&
+          path == '/v1/presentation/listenbrainz-discover') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Read before counting: this flushes a restart that is still pending
+        // while Home is hidden, so the count includes it.
+        final discover = _container.read(listenBrainzDiscoverStreamProvider);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'streamBuilds': listenBrainzDiscoverStreamBuildCount,
+          'state': switch (discover) {
+            AsyncData() => 'data',
+            AsyncError() => 'error',
+            AsyncLoading() => 'loading',
+          },
+          'playlistCount': discover.asData?.value.length,
+        });
+        return;
+      }
       if (request.method == 'POST' &&
           path == '/v1/presentation/library-filter') {
         if (!allowsMutations) {

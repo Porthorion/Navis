@@ -4,10 +4,11 @@
 /// the Forgejo release notes (`tool/generate_release_notes.dart` imports it),
 /// so it must stay plain Dart with no imports.
 ///
-/// When preparing a release, add a new [ChangelogVersion] at the top of
-/// [changelogs]. Every `x.y.0` release is a major release: give it 3–5
-/// [ChangelogVersion.highlights] and, optionally, a [ChangelogVersion.codename]
-/// and [ChangelogVersion.iconAsset].
+/// When work on a new version starts, add its [ChangelogVersion] at the top
+/// of [changelogs] together with the `pubspec.yaml` bump (see "Versioning" in
+/// `docs/agentic-engineering.md`). Every `x.y.0` release is a major release:
+/// give it 3–5 [ChangelogVersion.highlights] and, optionally, a
+/// [ChangelogVersion.codename] and [ChangelogVersion.iconAsset].
 class ChangelogVersion {
   const new({
     required this.version,
@@ -156,8 +157,16 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        "On Android, if you chose a custom download folder in a version before 1.2.8, updating no longer moves the downloads in it into Navis's own storage: they stay in that folder, and choosing it again lets Navis pick them back up",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning off the custom download folder now asks first and explains that its files stay where they are',
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
+        type: ChangelogEntryType.fix,
       ),
     ],
   ),
