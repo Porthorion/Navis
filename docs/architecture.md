@@ -2354,7 +2354,11 @@ contract.
    folder again moves nothing. Files count as inside the new folder through
    any spelling of its path or theirs, links resolved.
    Android uses a persisted Storage Access Framework tree URI rather than a
-   filesystem path. The cached-track storage kind distinguishes Android SAF
+   filesystem path. A folder that a version before 1.2.8 stored as a plain
+   path is turned off at startup under the same leaving rule: Navis forgets
+   the downloads inside it before the setting changes and leaves the files
+   where they are, and choosing the folder again as an Android folder runs
+   the usual scan. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
    relocation, deletion, and offline playback go through the Android
    ContentResolver bridge and never overwrite unmanaged documents. Before a
