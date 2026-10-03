@@ -2221,6 +2221,27 @@ states without starting audio or modifying a queue.
     unrelated saves (Playback autosave, appearance, desktop volume persistence)
     do not restart it; a validated token refreshes it through
     `listenBrainzDiscoverRefreshEpochProvider`.
+    Weekly matches are rechecked on two schedules. Every resolve, including
+    the one the bridge starts after each library sync that succeeded or
+    partly succeeded, runs the local pass for every recommendation without
+    a song on the server, remote matches included; a remote match switches
+    to the library copy once its album is on the server and synced, and
+    stays remote otherwise. The server is searched (`search3`) for a new
+    week, for the per-playlist Match action, and once a day for an unchanged
+    week: then unmatched, unclear and remote tracks are searched, a copy on
+    the server is preferred over an equally good remote one, and a remote
+    match is only ever replaced by a server copy, never by another remote
+    result or a failed search. Each playlist's `searchedAt`, stored as its
+    weekly cache row's `fetchedAt`, records the last search and is kept by
+    local-only saves. Before 1.4.1 remote matches counted as resolved, so they
+    never switched, and unmatched tracks were searched again on every
+    launch. The bridge skips its refresh when another refresh started after
+    the sync finished (Home pull-to-refresh starts a full one), so the full
+    refresh is not replaced by a cached re-match. Cached matches take their
+    current library rows on load (`_attachListenBrainzLibraryRows`); a song
+    the server has deleted reads as unmatched instead of staying playable.
+    The stream also yields a resolve whose counts are unchanged when a track's
+    matched song or server status changed.
 
 The provider fast/compatibility split and explicit repair terminology follow
 the public principles documented by

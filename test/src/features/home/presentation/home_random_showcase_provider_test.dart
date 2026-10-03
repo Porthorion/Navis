@@ -365,10 +365,13 @@ Future<void> _primeListenBrainzWeeklyCache(
   String trackTitle = 'Jam Song',
   String artist = 'Artist',
   String songId = 'song-jams',
+  List<Song>? searchSongs,
 }) async {
   final fakeApi = _FakeDiscoveryApiClient(
     {},
-    searchSongs: <Song>[Song(id: songId, title: trackTitle, artist: artist)],
+    searchSongs:
+        searchSongs ??
+        <Song>[Song(id: songId, title: trackTitle, artist: artist)],
   );
   final container = ProviderContainer(
     overrides: _listenBrainzWeeklyOverrides(
@@ -388,6 +391,39 @@ Future<void> _primeListenBrainzWeeklyCache(
   container.dispose();
   debugResetListenBrainzDiscoverSessionCacheForTests();
 }
+
+/// Makes the weekly cache look last searched [age] ago.
+Future<void> _ageListenBrainzWeeklyCache(
+  NavisDatabase database,
+  Duration age, {
+  String userName = 'alice',
+}) async {
+  for (final row in await database.cacheDao.getListenBrainzWeeklyCacheForUser(
+    userName,
+  )) {
+    await database.cacheDao.upsertListenBrainzWeeklyCache(
+      row
+          .toCompanion(false)
+          .copyWith(fetchedAt: Value(DateTime.now().subtract(age))),
+    );
+  }
+}
+
+Future<List<ListenBrainzDiscoverPlaylist>> _weeklyAfterLibrarySync(
+  ProviderContainer container,
+) {
+  container
+      .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+      .refreshAfterLibrarySync();
+  return container.read(listenBrainzDiscoverProvider.future);
+}
+
+const Song _remoteJam = Song(
+  id: 'ext-deezer-jam',
+  title: 'Jam Song',
+  artist: 'Artist',
+  isExternal: true,
+);
 
 Future<List<ListenBrainzDiscoverPlaylist>> _firstListenBrainzEmission(
   ProviderContainer container,
@@ -639,6 +675,236 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(credentialStore.reads, 3);
+    },
+  );
+
+  test(
+    'a partly successful library sync also rechecks weekly matches',
+    () async {
+      final controller = _MutableLibrarySyncController();
+      final container = ProviderContainer(
+        overrides: <Override>[
+          librarySyncControllerProvider.overrideWith(() => controller),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzTokenValid: true,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(listenBrainzLibrarySyncRefreshBridgeProvider);
+
+      controller.value = const LibrarySyncState(
+        status: LibrarySyncStatus.partial,
+        stage: LibrarySyncStage.idle,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 1);
+    },
+  );
+
+  test('a manual weekly refresh that lands with a sync runs once', () async {
+    final controller = _MutableLibrarySyncController();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        librarySyncControllerProvider.overrideWith(() => controller),
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            const AppSettingsModel.defaults().copyWith(
+              listenBrainzTokenValid: true,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(listenBrainzLibrarySyncRefreshBridgeProvider);
+
+    // Home pull-to-refresh awaits the sync, then starts a full refresh before
+    // the bridge's deferred refresh runs.
+    controller.value = const LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.idle,
+    );
+    container
+        .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+        .refreshFull();
+    await Future<void>.delayed(Duration.zero);
+
+    // The full refresh already covers the sync; it is not replaced by a
+    // cached re-match.
+    expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 1);
+  });
+
+  test('after a library sync a remote match switches to the library copy without search3', () async {
+    final database = createTestDatabase();
+    await _primeListenBrainzWeeklyCache(
+      database,
+      searchSongs: const <Song>[_remoteJam],
+    );
+    // The album has since landed on the server and been synced.
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'library-jam',
+        title: 'Jam Song',
+        artistName: const Value('Artist'),
+      ),
+    ]);
+    final fakeApi = _FakeDiscoveryApiClient({});
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: _weeklyListenBrainzClient(),
+        subsonic: fakeApi,
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    final result = await _weeklyAfterLibrarySync(container);
+
+    final recommendation = result.single.recommendations.single;
+    expect(recommendation.hasServerSong, isTrue);
+    expect(recommendation.tableSong!.id, 'library-jam');
+    expect(fakeApi.totalSearchCalls, 0);
+  });
+
+  test(
+    'a day-old weekly cache searches the server again for remote matches',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(
+        database,
+        searchSongs: const <Song>[_remoteJam],
+      );
+      await _ageListenBrainzWeeklyCache(database, const Duration(days: 2));
+      final fakeApi = _FakeDiscoveryApiClient(
+        {},
+        searchSongs: const <Song>[
+          _remoteJam,
+          Song(id: 'server-jam', title: 'Jam Song', artist: 'Artist'),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(fakeApi.totalSearchCalls, 1);
+      // The copy on the server wins over the remote one.
+      expect(result.single.playableSongs.single.id, 'server-jam');
+      final row = (await database.cacheDao.getListenBrainzWeeklyCacheForUser(
+        'alice',
+      )).single;
+      expect(
+        DateTime.now().difference(row.fetchedAt),
+        lessThan(const Duration(minutes: 1)),
+      );
+    },
+  );
+
+  test(
+    'a daily recheck that finds nothing better keeps the remote match',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(
+        database,
+        searchSongs: const <Song>[_remoteJam],
+      );
+      await _ageListenBrainzWeeklyCache(database, const Duration(days: 2));
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(fakeApi.totalSearchCalls, 1);
+      expect(result.single.playableSongs.single.id, 'ext-deezer-jam');
+    },
+  );
+
+  test(
+    'unmatched weekly tracks wait for the daily recheck to search again',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(
+        database,
+        searchSongs: const <Song>[],
+      );
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(result.single.playableSongs, isEmpty);
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test(
+    'a cached weekly song deleted from the server is no longer playable',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      await (database.update(database.songsTable)
+            ..where((table) => table.id.equals('song-jams')))
+          .write(SongsTableCompanion(serverDeletedAt: Value(DateTime.now())));
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(first.single.playableSongs, isEmpty);
+      expect(result.single.playableSongs, isEmpty);
+      expect(
+        result.single.recommendations.single.status,
+        ListenBrainzRecommendationMatchStatus.unmatched,
+      );
     },
   );
 
@@ -1801,6 +2067,9 @@ void main() {
         downloadedOnly: false,
         likedOnly: false,
       ));
+      // Home's own discovery run reads the cache; let it finish before
+      // the database closes.
+      await _listenBrainzStreamSettled(container);
 
       expect(result, hasLength(3));
       expect(fakeListenBrainz.createdForCalls, 0);
@@ -2010,6 +2279,9 @@ void main() {
       downloadedOnly: false,
       likedOnly: false,
     ));
+    // Home's own discovery run reads the cache; let it finish before
+    // the database closes.
+    await _listenBrainzStreamSettled(container);
 
     expect(result, hasLength(2));
     expect(result.first.listenBrainz.playlist!.playlist.identifier, 'jams');

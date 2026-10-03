@@ -203,6 +203,14 @@ const List<ChangelogVersion> changelogs = [
         'With Album Queue on, tapping a song in a weekly playlist plays the playlist from that song, like an album',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Weekly playlists recheck your library after every sync and search the server again once a day, so a song that was only available remotely switches to your own copy once its album is added',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Weekly playlist songs that were removed from your server no longer show as available, and pulling to refresh Home no longer makes the weekly playlists match twice',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(
