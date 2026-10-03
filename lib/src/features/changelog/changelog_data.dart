@@ -195,6 +195,14 @@ const List<ChangelogVersion> changelogs = [
         'The Custom Folder settings (Rescan, Manual Matching and the number of songs left to match) can now be translated',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Play and Shuffle on a ListenBrainz weekly playlist now include its songs that are only available remotely',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'With Album Queue on, tapping a song in a weekly playlist plays the playlist from that song, like an album',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

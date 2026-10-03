@@ -353,6 +353,8 @@ class ListenBrainzDiscoverPlaylist {
   int get totalCount => recommendations.length;
   int get matchedCount => playableSongs.length;
 
+  /// Every matched song, on the server or remote only, in playlist order.
+  /// Play and Shuffle queue these; a remote song makes the server fetch it.
   List<Song> get playableSongs => recommendations
       .where((recommendation) => recommendation.isPlayable)
       .map((recommendation) => recommendation.song!)
@@ -369,6 +371,29 @@ class ListenBrainzDiscoverPlaylist {
       matchingComplete: matchingComplete ?? this.matchingComplete,
     );
   }
+}
+
+/// The queue for playing the recommendation at [index] of [recommendations]
+/// with Album Queue on: every playable song in playlist order, starting at
+/// the tapped one. `null` when that recommendation cannot be played.
+({List<Song> songs, int startIndex})? listenBrainzPlaybackFrom(
+  List<ListenBrainzResolvedRecommendation> recommendations,
+  int index,
+) {
+  if (index < 0 ||
+      index >= recommendations.length ||
+      !recommendations[index].isPlayable) {
+    return null;
+  }
+  final songs = <Song>[];
+  var startIndex = 0;
+  for (var i = 0; i < recommendations.length; i++) {
+    final recommendation = recommendations[i];
+    if (!recommendation.isPlayable) continue;
+    if (i == index) startIndex = songs.length;
+    songs.add(recommendation.song!);
+  }
+  return (songs: songs, startIndex: startIndex);
 }
 
 class HomeRandomShowcaseShuffleSeedNotifier extends Notifier<int> {
