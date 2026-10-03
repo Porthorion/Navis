@@ -124,6 +124,49 @@ Use `tool/release.env` only as the ignored local secret source and
 `tool/release.env.example` for non-secret examples. Treat custom download
 folders as user-owned as documented in the architecture.
 
+## Versioning
+
+The app version is `version: <major>.<minor>.<patch>+<build>` in
+`pubspec.yaml`. `tool/release.sh` derives the build number as
+major × 10000 + minor × 100 + patch, so minor and patch stay below 100.
+
+**Start the next version before new work.** When the version in
+`pubspec.yaml` on `dev` has already been released (its `v<version>` tag
+exists, and it is on `main`), the first change of new work starts the next
+version:
+
+1. Set `version:` in `pubspec.yaml` to the next version and build number.
+2. Add its `ChangelogVersion` at the top of `changelogs` in
+   `lib/src/features/changelog/changelog_data.dart`, with `released` left
+   null.
+3. Land that change on `dev` on its own (for example `chore: start 1.4.1`)
+   before the work itself, so every later change, including work in other
+   branches and sessions, adds its changelog entry under that version.
+
+While that version is unreleased, later changes add to it; they do not bump
+the version again.
+
+**Choose the increment by the scope of the work:**
+
+- **Patch, +0.0.1** (1.4.0 → 1.4.1): fixes, hotfixes and small improvements.
+- **Minor, +0.1.0** (1.4.1 → 1.5.0): overhauls, reworks, restructuring or a
+  substantial new capability. The changelog treats every `x.y.0` as a major
+  release: give it 3–5 highlights and, optionally, a codename and cover.
+- **Major, +1.0.0** (1.x → 2.0.0): reserved for a milestone, such as the app
+  being complete and self-sufficient with only small patches expected after
+  it. Never for ordinary feature work.
+
+If the work grows while its version is unreleased, for example a patch
+turns into a rework, raise the pending version (1.4.1 → 1.5.0) and move its
+changelog entry instead of releasing a number that understates the change.
+
+Versions up to 1.4.0 were numbered before this policy (1.0.0 came early, for
+instance). They stay as released; this policy applies from 1.4.1 on.
+
+Release the pending version with `./tool/release.sh v<version>`. The script
+refuses only a version whose release tag already exists, so a version set
+early on `dev` releases without extra flags (see [ci-cd.md](ci-cd.md)).
+
 ## Documentation lifecycle
 
 Active documents describe supported current behavior. Plans, audits, and
@@ -141,6 +184,8 @@ ADRs without reliable evidence. Use the template and status rules in
 ## Definition of done
 
 - [ ] Relevant docs and applicable scoped instructions were read first.
+- [ ] If the current version was already released, the next version was
+  started first (see Versioning).
 - [ ] Existing patterns, callers, configuration, and tests were inspected.
 - [ ] The change is complete, focused, and handles relevant failure/edge cases.
 - [ ] Relevant tests were added or updated and validation was run proportionately.
