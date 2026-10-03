@@ -16,8 +16,9 @@ abstract final class NavisSpace {
 
 /// Corner-radius scale shared by every surface.
 ///
-/// Artwork honours the user's cover-shape preference instead; these steps are
-/// for controls, rows, cards and panels.
+/// Artwork follows the user's shape settings instead (see
+/// `artworkBorderRadius`); these steps are for controls, rows, cards and
+/// panels.
 abstract final class NavisRadius {
   static const double xs = 4;
   static const double sm = 8;

@@ -1,30 +1,33 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
-class ArtistVirtualPlaylistArtwork extends StatefulWidget {
+/// Rotating cover art for an artist's virtual playlist, shaped by the Cover
+/// Art Shape setting.
+class ArtistVirtualPlaylistArtwork extends ConsumerStatefulWidget {
   const new({
     required this.coverArtIds,
     required this.size,
     this.imageUrl,
-    this.borderRadius = 8,
     super.key,
   });
 
   final List<String> coverArtIds;
   final String? imageUrl;
   final double size;
-  final double borderRadius;
 
   @override
-  State<ArtistVirtualPlaylistArtwork> createState() =>
+  ConsumerState<ArtistVirtualPlaylistArtwork> createState() =>
       _ArtistVirtualPlaylistArtworkState();
 }
 
 class _ArtistVirtualPlaylistArtworkState
-    extends State<ArtistVirtualPlaylistArtwork> {
+    extends ConsumerState<ArtistVirtualPlaylistArtwork> {
   Timer? _timer;
   int _index = 0;
 
@@ -75,7 +78,10 @@ class _ArtistVirtualPlaylistArtworkState
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(widget.borderRadius);
+    final radius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: widget.size,
+    );
     final covers = _distinctCoverArtIds;
     if (covers.length >= 2) {
       final coverArtId = covers[_index % covers.length];
@@ -128,18 +134,13 @@ class _ArtistVirtualPlaylistArtworkState
           width: widget.size,
           height: widget.size,
           fit: BoxFit.cover,
-          errorWidget: (_, _, _) => _ArtworkPlaceholder(
-            size: widget.size,
-            borderRadius: widget.borderRadius,
-          ),
+          errorWidget: (_, _, _) =>
+              _ArtworkPlaceholder(size: widget.size, borderRadius: radius),
         ),
       );
     }
 
-    return _ArtworkPlaceholder(
-      size: widget.size,
-      borderRadius: widget.borderRadius,
-    );
+    return _ArtworkPlaceholder(size: widget.size, borderRadius: radius);
   }
 }
 
@@ -147,7 +148,7 @@ class _ArtworkPlaceholder extends StatelessWidget {
   const new({required this.size, required this.borderRadius});
 
   final double size;
-  final double borderRadius;
+  final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +158,7 @@ class _ArtworkPlaceholder extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRadius,
       ),
       child: Icon(
         Icons.queue_music,

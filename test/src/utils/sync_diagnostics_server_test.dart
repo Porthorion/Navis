@@ -417,6 +417,11 @@ void main() {
         <String, Object?>{'gridArtworkSize': 'five'},
         <String, Object?>{'homeRecommendationsAutoAdvance': 'true'},
         <String, Object?>{'unknown': true},
+        <String, Object?>{},
+        // Cover art has no circle option in Appearance.
+        <String, Object?>{'coverArtShape': 'circle'},
+        <String, Object?>{'nowPlayingArtShape': 'oval'},
+        <String, Object?>{'artistCardShape': 1},
       ]) {
         final invalid = await _request(
           fixture.port,
@@ -435,6 +440,9 @@ void main() {
         body: {
           'gridArtworkSize': 'small',
           'homeRecommendationsAutoAdvance': true,
+          'coverArtShape': 'rounded',
+          'nowPlayingArtShape': 'circle',
+          'artistCardShape': 'square',
         },
       );
       expect(changed.statusCode, HttpStatus.ok);
@@ -443,6 +451,9 @@ void main() {
         'homeRecommendationsAutoAdvance': true,
         'showArtistsPage': true,
         'showRadioPage': true,
+        'coverArtShape': 'rounded',
+        'nowPlayingArtShape': 'circle',
+        'artistCardShape': 'square',
       });
       final observed = await _request(
         fixture.port,
@@ -456,6 +467,9 @@ void main() {
           .getSettings();
       expect(persisted!.gridArtworkSize, 'small');
       expect(persisted.homeRecommendationsAutoAdvance, isTrue);
+      expect(persisted.coverArtShape, 'rounded');
+      expect(persisted.nowPlayingArtShape, 'circle');
+      expect(persisted.artistCardShape, 'square');
       await fixture.close();
       final primary = await _startFixture(
         SyncDiagnosticsMode.primaryCertification,

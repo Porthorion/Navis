@@ -15,6 +15,7 @@ import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
 /// by the shell overlay in `app_shell.dart`; this widget has no animation
@@ -435,7 +436,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                   size: kCoverArtStandardSize,
                   width: 48,
                   height: 48,
-                  borderRadius: NavisRadius.xsAll,
+                  shape: ArtworkShapeRole.cover,
                   isExternalSource: song.isExternal,
                   remoteSourceIndicatorPolicy:
                       RemoteSourceIndicatorPolicy.hidden,

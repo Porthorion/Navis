@@ -12,6 +12,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -35,6 +36,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.placeholderIcon = Icons.album_outlined,
     this.borderRadius,
     this.circular = false,
+    this.shape,
     this.semanticLabel,
     this.fadeInDuration = const Duration(milliseconds: 150),
     this.showLoadingPlaceholder = true,
@@ -58,6 +60,11 @@ class CoverArtImage extends ConsumerStatefulWidget {
   final IconData placeholderIcon;
   final BorderRadius? borderRadius;
   final bool circular;
+
+  /// The Appearance shape setting this artwork follows. When set it replaces
+  /// [borderRadius] and [circular]: corners scale with [width] and [height]
+  /// (see [artworkBorderRadius]), and a circle clips to an oval.
+  final ArtworkShapeRole? shape;
 
   /// Optional text description read by screen readers. When `null` the image
   /// is treated as decorative and excluded from the accessibility tree.
@@ -154,8 +161,27 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     super.dispose();
   }
 
+  /// The [CoverArtImage.shape] setting, read in [build].
+  String? _shapeSetting;
+
+  bool get _isCircular =>
+      _shapeSetting == null ? widget.circular : _shapeSetting == 'circle';
+
+  BorderRadius get _borderRadius {
+    final setting = _shapeSetting;
+    if (setting == null) return widget.borderRadius ?? BorderRadius.zero;
+    return artworkBorderRadius(
+      setting,
+      extent: _finiteSide(widget.width, widget.height) ?? double.infinity,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final shape = widget.shape;
+    _shapeSetting = shape == null
+        ? null
+        : ref.watch(artworkShapeProvider(shape));
     final id = widget.coverArtId?.trim() ?? '';
     if (id.isEmpty) {
       _clearInterest();
@@ -608,10 +634,10 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   }
 
   Widget _clip(Widget child) {
-    if (widget.circular) {
+    if (_isCircular) {
       return ClipOval(child: child);
     }
-    final radius = widget.borderRadius ?? BorderRadius.zero;
+    final radius = _borderRadius;
     return radius == BorderRadius.zero
         ? child
         : ClipRRect(borderRadius: radius, child: child);
@@ -667,10 +693,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
             colors.surfaceContainerHighest,
           ],
         ),
-        borderRadius: widget.circular
-            ? null
-            : widget.borderRadius ?? BorderRadius.zero,
-        shape: widget.circular ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: _isCircular ? null : _borderRadius,
+        shape: _isCircular ? BoxShape.circle : BoxShape.rectangle,
       ),
       alignment: Alignment.center,
       child: Icon(

@@ -183,6 +183,10 @@ const List<ChangelogVersion> changelogs = [
         'On phones, the volume level in the Now Playing menu no longer wraps onto two lines with larger text sizes',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Appearance shape settings now apply everywhere: Cover Art Shape also shapes song lists, the queue, the mini player and player bar, playlists and downloads, Now Playing Art Shape shapes the Now Playing cover again, and Artist Card Shape applies to artist lists and similar artists. Small covers follow the shape too, with corners scaled to their size',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

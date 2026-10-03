@@ -12,7 +12,9 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
@@ -158,6 +160,34 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('the cover follows Now Playing Art Shape', (tester) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await container
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .updateNowPlayingArtShape('circle');
+    await _pumpNowPlaying(tester, container);
+
+    final cover = find.byWidgetPredicate(
+      (widget) =>
+          widget is CoverArtImage &&
+          widget.shape == ArtworkShapeRole.nowPlaying,
+    );
+    expect(cover, findsOneWidget);
+    // Without a server the cover shows its placeholder tile, which carries
+    // the cover's shape (1.4.0 drew song covers square whatever the setting).
+    final tile = tester.widget<Container>(
+      find.descendant(of: cover, matching: find.byType(Container)).first,
+    );
+    expect((tile.decoration! as BoxDecoration).shape, BoxShape.circle);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('split layout lyrics action opens fullscreen lyrics page', (
     tester,

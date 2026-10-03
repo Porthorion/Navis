@@ -54,6 +54,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 part 'now_playing_seek_bar.dart';
 part 'now_playing_metadata_panel.dart';
@@ -2070,7 +2071,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   ? _CoverArt(
                       coverArtId: coverArtId,
                       semanticLabel: title,
-                      maxSize: artMaxSize,
                       isExternalSource: song?.isExternal ?? false,
                     )
                   : (hasMediaArtUrl
@@ -2081,7 +2081,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         : _CoverArt(
                             coverArtId: null,
                             semanticLabel: title,
-                            maxSize: artMaxSize,
                             isExternalSource: song?.isExternal ?? false,
                           )),
             ),
@@ -2496,7 +2495,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 ? _CoverArt(
                     coverArtId: coverArtId,
                     semanticLabel: title,
-                    maxSize: artMaxSize,
                     isExternalSource: song?.isExternal ?? false,
                   )
                 : (hasMediaArtUrl
@@ -2504,7 +2502,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       : _CoverArt(
                           coverArtId: null,
                           semanticLabel: title,
-                          maxSize: artMaxSize,
                           isExternalSource: song?.isExternal ?? false,
                         )),
           ),
@@ -2842,7 +2839,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       ? _CoverArt(
                           coverArtId: coverArtId,
                           semanticLabel: title,
-                          maxSize: splitCoverArtMaxSize,
                           isExternalSource: song?.isExternal ?? false,
                         )
                       : (hasMediaArtUrl
@@ -2853,7 +2849,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             : _CoverArt(
                                 coverArtId: null,
                                 semanticLabel: title,
-                                maxSize: splitCoverArtMaxSize,
                                 isExternalSource: song?.isExternal ?? false,
                               )),
                 ),

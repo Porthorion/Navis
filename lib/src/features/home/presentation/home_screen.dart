@@ -62,6 +62,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
@@ -2028,7 +2029,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(
+      coverShape,
+      extent: double.infinity,
+    );
     final compactDensity = density == _HomeSectionDensity.compact;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2493,7 +2497,10 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(
+      coverShape,
+      extent: double.infinity,
+    );
     final heroTag = buildCoverArtHeroTag(
       coverArtId: album.coverArtId,
       context: '${heroContext}_${album.id}_desktop_page',
@@ -2686,7 +2693,12 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
+      shape: RoundedRectangleBorder(
+        borderRadius: artworkBorderRadius(
+          ref.watch(coverArtShapeProvider),
+          extent: double.infinity,
+        ),
+      ),
       child: InkWell(
         onTap: item.isLoading
             ? null
@@ -3051,7 +3063,10 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(
+      coverShape,
+      extent: double.infinity,
+    );
     final colors = Theme.of(context).colorScheme;
 
     final scroller = MouseDragScroll(
@@ -3766,7 +3781,12 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
+      shape: RoundedRectangleBorder(
+        borderRadius: artworkBorderRadius(
+          ref.watch(coverArtShapeProvider),
+          extent: double.infinity,
+        ),
+      ),
       child: InkWell(
         onTap: () => NavService.openAlbumDetail(
           context,
@@ -3790,7 +3810,10 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.album_outlined,
-              borderRadius: NavisRadius.xlAll,
+              borderRadius: artworkBorderRadius(
+                ref.watch(coverArtShapeProvider),
+                extent: double.infinity,
+              ),
               isExternalSource: album.isExternal,
             ),
             HeroRouteChrome(
@@ -3884,7 +3907,12 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
+      shape: RoundedRectangleBorder(
+        borderRadius: artworkBorderRadius(
+          ref.watch(coverArtShapeProvider),
+          extent: double.infinity,
+        ),
+      ),
       child: InkWell(
         onTap: item.isLoading
             ? null

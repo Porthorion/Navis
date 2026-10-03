@@ -8,6 +8,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Reviews files Navis could not safely associate with one local song.
 /// Mappings only live for this route; leaving it cannot adopt source files.
@@ -212,7 +213,9 @@ class _DownloadMatchPickerState extends ConsumerState<_DownloadMatchPicker> {
                       child: CoverArtImage(
                         coverArtId: song.coverArt,
                         size: 80,
-                        borderRadius: BorderRadius.circular(6),
+                        width: 48,
+                        height: 48,
+                        shape: ArtworkShapeRole.cover,
                       ),
                     ),
                     title: Text(

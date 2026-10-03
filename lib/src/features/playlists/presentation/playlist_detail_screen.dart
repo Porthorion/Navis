@@ -24,7 +24,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const new({required this.playlistId, super.key});
@@ -180,7 +180,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 220,
-                            borderRadius: NavisRadius.lgAll,
+                            shape: ArtworkShapeRole.cover,
                             placeholderIcon: Icons.queue_music,
                           ),
                           const SizedBox(width: 24),
@@ -236,7 +236,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 180,
-                            borderRadius: NavisRadius.mdAll,
+                            shape: ArtworkShapeRole.cover,
                             placeholderIcon: Icons.queue_music,
                           ),
                         ),

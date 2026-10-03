@@ -32,6 +32,7 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -420,7 +421,9 @@ class _QueueItemTile extends ConsumerWidget {
               ? CoverArtImage(
                   coverArtId: song!.coverArt,
                   size: 48,
-                  borderRadius: BorderRadius.circular(6),
+                  width: 48,
+                  height: 48,
+                  shape: ArtworkShapeRole.cover,
                   isExternalSource: song.isExternal,
                   remoteSourceIndicatorPolicy:
                       RemoteSourceIndicatorPolicy.hidden,
@@ -430,7 +433,10 @@ class _QueueItemTile extends ConsumerWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: artworkBorderRadius(
+                      ref.watch(coverArtShapeProvider),
+                      extent: 48,
+                    ),
                   ),
                   child: const Icon(Icons.music_note),
                 ),
@@ -622,7 +628,9 @@ class _DownloadedTrackTile extends ConsumerWidget {
               ? CoverArtImage(
                   coverArtId: song!.coverArt,
                   size: 48,
-                  borderRadius: BorderRadius.circular(6),
+                  width: 48,
+                  height: 48,
+                  shape: ArtworkShapeRole.cover,
                   isExternalSource: song.isExternal,
                   remoteSourceIndicatorPolicy:
                       RemoteSourceIndicatorPolicy.hidden,
@@ -632,7 +640,10 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: artworkBorderRadius(
+                      ref.watch(coverArtShapeProvider),
+                      extent: 48,
+                    ),
                   ),
                   child: const Icon(Icons.music_note),
                 ),

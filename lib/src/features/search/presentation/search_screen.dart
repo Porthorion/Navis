@@ -28,6 +28,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -763,7 +764,7 @@ class _ArtistResultsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final artistShape = ref.watch(artistCardShapeProvider);
-    final artistRadius = coverArtShapeToRadius(artistShape);
+    final artistRadius = artworkBorderRadius(artistShape, extent: 40);
     final visible = expanded ? artists : artists.take(5).toList();
 
     return Column(
@@ -896,7 +897,7 @@ class _AlbumResultsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(coverShape, extent: 48);
     final visible = expanded ? albums : albums.take(5).toList();
 
     return Column(
@@ -982,7 +983,7 @@ class _SongResultsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(coverShape, extent: 48);
     final visible = expanded ? songs : songs.take(5).toList();
 
     return Column(

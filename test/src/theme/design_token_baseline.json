@@ -15,15 +15,8 @@
   "lib/src/common_widgets/remote_source_indicator.dart": {
     "colorLiteral": 2
   },
-  "lib/src/common_widgets/track_list_tile.dart": {
-    "radius": 1
-  },
   "lib/src/features/downloads/presentation/download_reconciliation_screen.dart": {
-    "radius": 1,
     "paletteColor": 1
-  },
-  "lib/src/features/downloads/presentation/downloads_screen.dart": {
-    "radius": 4
   },
   "lib/src/features/equalizer/presentation/eq_graph_painter.dart": {
     "radius": 3
@@ -38,12 +31,6 @@
   "lib/src/features/library/presentation/artist_detail_screen.dart": {
     "fontSize": 3,
     "colorLiteral": 6
-  },
-  "lib/src/features/library/presentation/library_tabs.dart": {
-    "radius": 1
-  },
-  "lib/src/features/match_flow/presentation/match_flow_screen.dart": {
-    "radius": 1
   },
   "lib/src/features/onboarding/presentation/onboarding_screen.dart": {
     "radius": 1
@@ -70,11 +57,7 @@
   "lib/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart": {
     "radius": 1
   },
-  "lib/src/providers/app_providers.dart": {
-    "radius": 3
-  },
   "lib/src/routing/app_shell_mini_player.dart": {
-    "radius": 2,
     "fontSize": 2
   }
 }

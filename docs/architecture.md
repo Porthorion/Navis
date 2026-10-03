@@ -559,7 +559,20 @@ target-selection rules.
     hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
     warning container and the `success` foreground for completed or
     confirmed states. Read it with `NavisTokens.of(context)`.
-  - Artwork radii follow the user's cover-shape preference, not these scales.
+  - Artwork radii follow the user's Appearance shape settings, not these
+    scales. `artwork_shape.dart` maps a setting (`square`, `rounded`,
+    `circle`) and the artwork's rendered size to corners with
+    `artworkBorderRadius`: rounded is 4 below 40 px, 8 below 96 px and 12
+    otherwise, so row thumbnails and cards share one look. `ArtworkShapeRole`
+    names the setting a surface follows (Cover Art Shape for album, song and
+    playlist art, Now Playing Art Shape, Artist Card Shape), and
+    `artworkShapeProvider(role)` reads it. `CoverArtImage(shape: role)`
+    shapes itself from its width and height; surfaces that clip or decorate
+    the artwork themselves (cards, Hero covers, playlist mosaics, the mini
+    player's radio and remote art, empty artwork slots) call
+    `artworkBorderRadius` with their own size. Full-bleed headers and the
+    full-screen cover viewer stay unshaped. Before 1.4.1 most rows, the
+    queue, the players and Now Playing song covers ignored these settings.
 - `motion_policy.dart`: owns every duration, including the reduced-motion
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the

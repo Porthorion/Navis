@@ -8,6 +8,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 
@@ -80,6 +81,9 @@ Future<_QueueSpyController> _pumpQueueSheet(
     ProviderScope(
       overrides: [
         playerStateProvider.overrideWithValue(snapshot),
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
         queueProvider.overrideWith(() => queueSpy),
         currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
         songByIdProvider.overrideWith(
