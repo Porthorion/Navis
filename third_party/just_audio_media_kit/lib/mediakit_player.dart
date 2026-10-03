@@ -7,6 +7,7 @@ import 'package:just_audio_platform_interface/just_audio_platform_interface.dart
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'src/audio_request_batch.dart';
+import 'src/deferred_seek.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
 
@@ -45,6 +46,20 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       setProperty(_player, 'prefetch-playlist', 'yes');
     }
 
+    _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
+      _nativeSeeking = seeking;
+      if (!_mediaOpened) return;
+      if (_processingState == ProcessingStateMessage.loading) {
+        _finishLoadLater();
+      } else if (_processingState != ProcessingStateMessage.idle &&
+          _processingState != ProcessingStateMessage.completed) {
+        _processingState = seeking || _player.state.buffering
+            ? ProcessingStateMessage.buffering
+            : ProcessingStateMessage.ready;
+      }
+      _updatePlaybackEvent();
+    });
+
     _streamSubscriptions = [
       _player.stream.audioParams.listen((params) {
         final rate = params.sampleRate?.toDouble();
@@ -61,16 +76,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         }
       }),
       _player.stream.duration.listen((duration) {
-        if (_currentMedia?.extras?['overrideDuration'] != null) return;
-
-        if (_setPosition != null && duration.inSeconds > 0) {
-          unawaited(_player.seek(_setPosition!));
-          _setPosition = null;
+        if (_currentMedia?.extras?['overrideDuration'] == null) {
+          _updateDuration(duration);
         }
-        _updateDuration(duration);
+        _finishLoadLater();
         _updatePlaybackEvent();
       }),
       _player.stream.position.listen((position) {
+        if (!_mediaOpened) return;
         _position = position;
         final start = _currentMedia?.start;
         if (start != null) _position -= start;
@@ -85,8 +98,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         }
         if (_processingState == ProcessingStateMessage.loading) {
           if (!isBuffering && _mediaOpened) {
-            _processingState = ProcessingStateMessage.ready;
-            _completeLoad(_duration);
+            _finishLoadLater();
           }
         } else if (_processingState != ProcessingStateMessage.completed ||
             isBuffering) {
@@ -109,8 +121,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
             _mediaOpened &&
             start != null &&
             _bufferedPosition > start) {
-          _processingState = ProcessingStateMessage.ready;
-          _completeLoad(_duration);
+          _finishLoadLater();
         }
         _updatePlaybackEvent();
       }),
@@ -118,7 +129,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _dataController.add(PlayerDataMessage(volume: volume / 100.0));
       }),
       _player.stream.completed.listen((completed) {
-        _bufferedPosition = _position = Duration.zero;
+        if (!completed || !_mediaOpened) return;
         if (completed &&
             // is at the end of the [Playlist]
             _currentIndex == _player.state.playlist.medias.length - 1 &&
@@ -192,6 +203,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Duration? _duration;
   bool _playing = false;
   bool _mediaOpened = false;
+  bool _nativeSeeking = false;
+  late final Future<void> _nativeSeekingReady;
   int? _errorCode;
   String? _errorMessage;
   Completer<Duration?>? _loadCompleter;
@@ -200,8 +213,45 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// The index that's currently playing
   int _currentIndex = 0;
 
-  /// [LoadRequest.initialPosition] or [seek] request before [Player.play] was called and/or finished loading.
-  Duration? _setPosition;
+  late final DeferredSeek _deferredSeek = DeferredSeek(
+    // Progressive streams can become playable without a native duration.
+    // force-seekable still permits an explicit seek once opening is ready.
+    isReady: () =>
+        _mediaOpened &&
+        (_player.state.duration > Duration.zero || !_player.state.buffering),
+    // Only native position events report a landed seek. The command's
+    // completion can precede decoding or represent a native no-op.
+    apply: (position) async {
+      _nativeSeeking = true;
+      _updatePlaybackEvent();
+      await _player.seek(position + (_currentMedia?.start ?? Duration.zero));
+    },
+  );
+
+  void _finishLoadLater() {
+    final generation = _loadGeneration;
+    unawaited(_finishLoad(generation).catchError((Object error) {
+      if (generation != _loadGeneration) return;
+      final load = _loadCompleter;
+      if (load != null && !load.isCompleted) load.completeError(error);
+    }));
+  }
+
+  Future<void> _finishLoad(int generation) async {
+    if (!_mediaOpened || generation != _loadGeneration) return;
+    await _deferredSeek.flush();
+    if (generation != _loadGeneration || _deferredSeek.isPending) return;
+    final start = _currentMedia?.start;
+    if (_nativeSeeking ||
+        _player.state.buffering ||
+        (start != null && _bufferedPosition <= start)) return;
+    if (_processingState == ProcessingStateMessage.loading) {
+      _processingState = ProcessingStateMessage.ready;
+      _updateDuration(_player.state.duration);
+      _completeLoad(_duration);
+      _updatePlaybackEvent();
+    }
+  }
 
   Media? get _currentMedia {
     final medias = _player.state.playlist.medias;
@@ -211,6 +261,17 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// Diagnostics only: the URI of the media mpv is playing.
   String? get debugCurrentMediaUri => _currentMedia?.uri;
+
+  /// Credential-free native transport state for isolated runtime checks.
+  Map<String, Object?> get debugTransportState => {
+        'positionMs': _player.state.position.inMilliseconds,
+        'durationMs': _player.state.duration.inMilliseconds,
+        'playing': _player.state.playing,
+        'buffering': _player.state.buffering,
+        'requestedPlaying': _playing,
+        'pendingPosition': _deferredSeek.isPending,
+        'seeking': _nativeSeeking,
+      };
 
   EqualizerConfigurationMessage? _equalizer;
   EqualizerStateMessage _eqState = const EqualizerStateMessage(enabled: false);
@@ -263,7 +324,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   void _updatePlaybackEvent() {
     _eventController.add(PlaybackEventMessage(
-      processingState: _processingState,
+      processingState: _nativeSeeking &&
+              _processingState != ProcessingStateMessage.loading &&
+              _processingState != ProcessingStateMessage.idle
+          ? ProcessingStateMessage.buffering
+          : _processingState,
       updateTime: DateTime.now(),
       updatePosition: _position,
       bufferedPosition: _bufferedPosition,
@@ -288,7 +353,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         load.future.then<void>((_) {}, onError: (Object _, StackTrace __) {}));
     _mediaOpened = false;
     _loadCompleter = load;
-    _setPosition = null;
+    _deferredSeek.beginLoad(request.initialPosition);
     _currentIndex = request.initialIndex ?? 0;
     _bufferedPosition = Duration.zero;
     _position = Duration.zero;
@@ -299,6 +364,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _updatePlaybackEvent();
 
     try {
+      await _nativeSeekingReady;
       if (request.audioSourceMessage is ConcatenatingAudioSourceMessage) {
         final audioSource =
             request.audioSourceMessage as ConcatenatingAudioSourceMessage;
@@ -317,10 +383,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _mediaOpened = true;
       if (_equalizer != null) await _serializeAudio(_applyAudio);
 
-      if (request.initialPosition != null) {
-        _setPosition = _position = request.initialPosition!;
-      }
-
+      await _finishLoad(generation);
       _updatePlaybackEvent();
       return LoadResponse(duration: await load.future);
     } finally {
@@ -471,16 +534,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     final position = request.position;
     if (position != null) {
-      _position = position;
-
-      final start = _currentMedia?.start;
-      var nativePosition = position;
-      if (start != null) nativePosition += start;
-      if (_player.state.duration.inSeconds > 0) {
-        await _player.seek(nativePosition);
-      } else {
-        _setPosition = nativePosition;
-      }
+      _deferredSeek.request(position);
+      await _deferredSeek.flush();
     } else {
       _position = Duration.zero;
     }

@@ -253,6 +253,7 @@ bool navisPlaybackSnapshotsStructurallyEqual(
       previous.isLoading == next.isLoading &&
       previous.hasPendingLogicalQueue == next.hasPendingLogicalQueue &&
       previous.pendingQueueIndex == next.pendingQueueIndex &&
+      previous.pendingSeekPosition == next.pendingSeekPosition &&
       previous.loadingSongId == next.loadingSongId &&
       previous.lastFailedSongId == next.lastFailedSongId;
 }
@@ -560,11 +561,9 @@ bool navisShouldRecoverSeekToDirectStream({
     return false;
   }
   final delta = (requestedPosition - actualPosition).abs();
-  // Recover when the seek significantly under-shot the target. This catches
-  // both the "snap to near-zero" case and the "snap to buffer boundary" case
-  // (e.g. user seeks to 60s but lands at 8s because only 8s is buffered).
-  return delta >= const Duration(seconds: 2) &&
-      actualPosition < requestedPosition;
+  // A backwards seek can fail just as a forwards seek can. Callers probe
+  // within a bounded settlement window, before ordinary playback drifts.
+  return delta >= const Duration(seconds: 2);
 }
 
 @visibleForTesting

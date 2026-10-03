@@ -53,6 +53,19 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   List<AudioSource> _sources = <AudioSource>[];
   ProcessingState state = ProcessingState.idle;
   bool isPlaying = false;
+  Duration _simulatedPosition = Duration.zero;
+  DateTime _positionUpdated = DateTime.now();
+  bool simulateProgress = false;
+  Duration get simulatedPosition => _simulatedPosition;
+  set simulatedPosition(Duration value) {
+    _simulatedPosition = value;
+    _positionUpdated = DateTime.now();
+  }
+
+  bool ignoreSeeks = false;
+  bool nativePositionFrozen = false;
+  bool keepStreamsAfterDispose = false;
+  int seekCalls = 0;
   int? index;
   double appliedSpeed = 1;
   double appliedPitch = 1;
@@ -62,6 +75,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// A load whose first song is this one fails, as a broken source would.
   String? failLoadSongId;
   Completer<void>? seekGate;
+  Completer<void>? seekEntered;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
   Completer<void>? appendGate;
@@ -87,6 +101,15 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       _activeMutations--;
     }
   }
+
+  @override
+  PlaybackEvent get playbackEvent => PlaybackEvent(
+    processingState: state,
+    updatePosition: nativePositionFrozen ? simulatedPosition : position,
+    bufferedPosition: bufferedPosition,
+    duration: duration,
+    currentIndex: index,
+  );
 
   @override
   Stream<PlaybackEvent> get playbackEventStream =>
@@ -121,7 +144,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   int? get currentIndex => index;
 
   @override
-  Duration get position => Duration.zero;
+  Duration get position =>
+      _simulatedPosition +
+      (simulateProgress && isPlaying
+          ? DateTime.now().difference(_positionUpdated)
+          : Duration.zero);
 
   @override
   Duration get bufferedPosition => Duration.zero;
@@ -221,11 +248,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> pause() async {
+    simulatedPosition = position;
     isPlaying = false;
   }
 
   @override
   Future<void> play() async {
+    _positionUpdated = DateTime.now();
     isPlaying = true;
   }
 
@@ -259,6 +288,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       loadEntered?.complete();
       await gate.future;
     }
+    simulatedPosition = initialPosition ?? Duration.zero;
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
     index = sources.isEmpty ? null : initialIndex ?? 0;
@@ -337,17 +367,25 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
+    seekCalls++;
+    await _hangIf('seek');
     final gate = seekGate;
     seekGate = null;
-    if (gate != null) await gate.future;
+    if (gate != null) {
+      if (seekEntered case final entered? when !entered.isCompleted) {
+        entered.complete();
+      }
+      await gate.future;
+    }
     if (state == ProcessingState.loading) return;
+    if (position != null && !ignoreSeeks) simulatedPosition = position;
     if (index != null) this.index = index;
     _indices.add(this.index);
   });
 
   @override
   Future<void> dispose() async {
-    await _indices.close();
+    if (!keepStreamsAfterDispose) await _indices.close();
   }
 }
 
@@ -463,7 +501,8 @@ void main() {
       playerFactory: rebuiltPlayers == null
           ? null
           : () {
-              final rebuilt = _ControllableAudioPlayer();
+              final rebuilt = _ControllableAudioPlayer()
+                ..simulateProgress = true;
               rebuiltPlayers.add(rebuilt);
               return rebuilt;
             },
@@ -1024,7 +1063,10 @@ void main() {
       expect(player.sourceIds, ids);
       final sidecar =
           handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
-      // The stream finished caching; the fake player never lands a seek.
+      // Simulate a no-op native seek, then use the completed local source.
+      player
+        ..ignoreSeeks = true
+        ..simulateProgress = true;
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
       bool served() =>
@@ -1887,6 +1929,339 @@ void main() {
     });
   });
 
+  group('seek requests', () {
+    const fastTimeouts = NavisPlaybackTimeouts(
+      load: Duration(seconds: 2),
+      control: Duration(milliseconds: 100),
+      reset: Duration(milliseconds: 150),
+      seekBufferingRecovery: Duration(milliseconds: 150),
+    );
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)> setup({
+      List<_ControllableAudioPlayer>? rebuilt,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-seek-');
+      final created = await createHandler(
+        directory,
+        4,
+        timeouts: fastTimeouts,
+        rebuiltPlayers: rebuilt,
+      );
+      addTearDown(() async {
+        await created.$1.disposeHandler();
+        await created.$3.close();
+        await directory.delete(recursive: true);
+      });
+      created.$2.simulateProgress = true;
+      return created;
+    }
+
+    for (final play in [true, false]) {
+      test('latest seek survives loading with playing=$play', () async {
+        final (handler, player, _) = await setup();
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final load = handler.replaceQueue(
+          ['song-0', 'song-1'],
+          expandMatchFlows: false,
+          autoPlay: play,
+        );
+        await entered.future;
+        final old = handler.seek(const Duration(seconds: 30));
+        final latest = handler.seek(const Duration(seconds: 90));
+        expect(
+          handler.snapshot.pendingSeekPosition,
+          const Duration(seconds: 90),
+        );
+        expect(player.seekCalls, 0);
+        expect(handler.snapshot.playing, play);
+        gate.complete();
+        await Future.wait([load, old, latest]);
+        expect(
+          (player.position - const Duration(seconds: 90)).abs().inMilliseconds,
+          lessThan(1000),
+        );
+        expect(player.playing, play);
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'completed',
+        );
+      });
+    }
+
+    test('hung seek retires the engine before a newer seek uses it', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, _) = await setup(rebuilt: rebuilt);
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-0'],
+        startIndex: 2,
+        expandMatchFlows: false,
+      );
+      const adjustments = PlaybackAdjustments(speed: 1.25, pitchSemitones: -2);
+      await handler.setPlaybackAdjustments(adjustments);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      player.hang.add('seek');
+      final old = handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final latest = handler.seek(const Duration(seconds: 40));
+      await Future.wait([old, latest]);
+      expect(rebuilt, hasLength(1));
+      expect(
+        (rebuilt.single.position - const Duration(seconds: 40))
+            .abs()
+            .inMilliseconds,
+        lessThan(1000),
+      );
+      expect(rebuilt.single.index, 2);
+      expect(rebuilt.single.sourceIds, ['song-0', 'song-1', 'song-0']);
+      expect(rebuilt.single.playing, isTrue);
+      expect(rebuilt.single.appliedSpeed, adjustments.speed);
+      expect(
+        rebuilt.single.appliedPitch,
+        closeTo(adjustments.pitchFactor, 0.000001),
+      );
+      expect(rebuilt.single.appliedLoopMode, LoopMode.all);
+      expect(player.seekCalls, 1);
+    });
+
+    test(
+      'late callbacks from a timed-out engine cannot change the new selection',
+      () async {
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, _) = await setup(rebuilt: rebuilt);
+        player.keepStreamsAfterDispose = true;
+        addTearDown(player._indices.close);
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..seekGate = gate
+          ..seekEntered = entered;
+        final seek = handler.seek(const Duration(seconds: 90));
+        await entered.future;
+        final selection = handler.playFromIndex(1);
+        await Future.wait([seek, selection]);
+        // Navigation acknowledges admission before its serialized load settles.
+        for (var attempt = 0; attempt < 100; attempt++) {
+          if (rebuilt.length == 1 &&
+              !handler.snapshot.isLoading &&
+              handler.snapshot.currentIndex == 1) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(rebuilt, hasLength(1));
+        expect(handler.snapshot.isLoading, isFalse);
+        gate.complete();
+        player._indices.add(0);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+        expect(rebuilt.single.position.inMilliseconds, lessThan(1000));
+      },
+    );
+
+    test(
+      'removing the selected duplicate cancels its pending target',
+      () async {
+        final (handler, player, _) = await setup();
+        await handler.replaceQueue([
+          'song-0',
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player.ignoreSeeks = true;
+        final seek = handler.seek(const Duration(seconds: 90));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await handler.removeAt(0);
+        await seek;
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'superseded',
+        );
+      },
+    );
+
+    test(
+      'an interpolated clock cannot confirm a stalled native seek',
+      () async {
+        final (handler, player, _) = await setup();
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player.nativePositionFrozen = true;
+        await handler.seek(const Duration(seconds: 90));
+        final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+        expect(outcome['outcome'], 'failed');
+        expect(outcome['recoveryAttempts'], 1);
+        await handler.debugRecoverCurrentSong();
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']!
+              as Map)['recoveryAttempts'],
+          1,
+        );
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+        expect(player.playing, isTrue);
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+      },
+    );
+
+    test(
+      'buffering range probes can outlast the short stall interval',
+      () async {
+        final (handler, player, _) = await setup();
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player
+          ..state = ProcessingState.buffering
+          ..nativePositionFrozen = true;
+        final ready = Timer(const Duration(milliseconds: 350), () {
+          player
+            ..state = ProcessingState.ready
+            ..nativePositionFrozen = false;
+        });
+        addTearDown(ready.cancel);
+        await handler.seek(const Duration(seconds: 90));
+        final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+        expect(outcome['outcome'], 'completed');
+        expect(outcome['recoveryAttempts'], 0);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+      },
+    );
+
+    test(
+      'recovery waits for a progressing sidecar to become a complete file',
+      () async {
+        final previousHttp = HttpOverrides.current;
+        HttpOverrides.global = null;
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        unawaited(() async {
+          await for (final request in server) {
+            request.response
+              ..headers.contentType = ContentType('audio', 'mpeg')
+              ..contentLength = 100
+              ..add(List<int>.filled(80, 1));
+            await request.response.flush();
+            for (var chunk = 0; chunk < 4; chunk++) {
+              await Future<void>.delayed(const Duration(milliseconds: 100));
+              request.response.add(List<int>.filled(5, 1));
+              await request.response.flush();
+            }
+            await request.response.close();
+          }
+        }());
+        final api = SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${server.port}',
+          authConfig: const SubsonicAuthConfig(
+            username: 'fixture',
+            password: 'synthetic',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final directory = await Directory.systemTemp.createTemp('navis-seek-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          2,
+          sidecarStreams: true,
+          readApiClient: () => api,
+          timeouts: fastTimeouts,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await server.close(force: true);
+          await directory.delete(recursive: true);
+          HttpOverrides.global = previousHttp;
+        });
+        await handler.replaceQueue(
+          ['song-0', 'song-1', 'song-0'],
+          startIndex: 2,
+          expandMatchFlows: false,
+        );
+        player
+          ..ignoreSeeks = true
+          ..simulateProgress = true;
+        for (var attempt = 0; attempt < 100; attempt++) {
+          final activity = handler
+              .collectPlaybackDiagnostics()['cacheActivity'];
+          if (activity is Map && (activity['progress'] as num) >= 0.8) break;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        await handler.seek(const Duration(seconds: 90));
+        final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+        expect(outcome['outcome'], 'completed');
+        expect(outcome['recoveryAttempts'], 1);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-0']);
+        expect(handler.snapshot.currentIndex, 2);
+        expect(handler.queue.value[2].extras!['sourceKind'], 'file');
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('backward native no-op recovers to the requested position', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      player
+        ..simulatedPosition = const Duration(seconds: 90)
+        ..ignoreSeeks = true;
+      await handler.seek(const Duration(seconds: 20));
+      expect(
+        (player.position - const Duration(seconds: 20)).abs().inMilliseconds,
+        lessThan(1000),
+      );
+      expect(player.playing, isTrue);
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        1,
+      );
+    });
+
+    for (final resetAccount in [true, false]) {
+      test(
+        'pending seek is cancelled by ${resetAccount ? 'account reset' : 'track selection'}',
+        () async {
+          final (handler, player, _) = await setup();
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..loadGate = gate
+            ..loadEntered = entered;
+          final load = handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await entered.future;
+          final seek = handler.seek(const Duration(seconds: 90));
+          final selection = resetAccount
+              ? handler.resetSession()
+              : handler.replaceQueue(['song-1'], expandMatchFlows: false);
+          gate.complete();
+          await Future.wait([load, seek, selection]);
+          expect(handler.snapshot.pendingSeekPosition, isNull);
+          expect(player.position.inMilliseconds, lessThan(1000));
+          expect(
+            handler.snapshot.currentSongId,
+            resetAccount ? isNull : 'song-1',
+          );
+        },
+      );
+    }
+  });
+
   group('seek recovery', () {
     List<String> ids(int count, [int from = 0]) =>
         List<String>.generate(count - from, (i) => 'song-${i + from}');
@@ -1905,6 +2280,9 @@ void main() {
         await created.$3.close();
         await directory.delete(recursive: true);
       });
+      created.$2
+        ..ignoreSeeks = true
+        ..simulateProgress = true;
       return created;
     }
 
@@ -1941,7 +2319,7 @@ void main() {
           ..loadGate = gate
           ..loadEntered = entered;
 
-        unawaited(handler.seek(const Duration(seconds: 30)));
+        final seek = handler.seek(const Duration(seconds: 30));
         await entered.future;
         // A newer transport command while the current song reloads.
         await handler.pause();
@@ -1950,11 +2328,84 @@ void main() {
         await until(
           () => player.sourceIds.length == 5 && !handler.snapshot.isLoading,
         );
+        await seek;
+        expect(player.position, const Duration(seconds: 30));
+        expect(player.playing, isFalse);
         expect(player.sourceIds, ids(5));
         expect(handler.snapshot.queueSongIds, ids(5));
         expect(
           handler.collectPlaybackDiagnostics()['playerMatchesQueue'],
           true,
+        );
+      },
+    );
+
+    test(
+      'Play during recovery of a paused song resumes at the target',
+      () async {
+        final (handler, player, _) = await recovering(5);
+        await start(handler, 5);
+        await handler.pause();
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final seek = handler.seek(const Duration(seconds: 30));
+        await entered.future;
+        await handler.play();
+        gate.complete();
+        await seek;
+        await until(
+          () => player.sourceIds.length == 5 && !handler.snapshot.isLoading,
+        );
+        expect(player.playing, isTrue);
+        expect(
+          (player.position - const Duration(seconds: 30)).abs().inMilliseconds,
+          lessThan(1000),
+        );
+        expect(handler.snapshot.queueSongIds, ids(5));
+      },
+    );
+
+    test(
+      'overlapping seeks during recovery restore the full duplicate queue',
+      () async {
+        final (handler, player, _) = await recovering(5);
+        await handler.replaceQueue(
+          ['song-0', 'song-1', 'song-1', 'song-2'],
+          startIndex: 2,
+          expandMatchFlows: false,
+        );
+        final sidecar =
+            handler.queue.value[2].extras!['sidecarCacheFilePath']! as String;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered;
+        final first = handler.seek(const Duration(seconds: 30));
+        await entered.future;
+        final latest = handler.seek(const Duration(seconds: 60));
+        expect(
+          handler.snapshot.pendingSeekPosition,
+          const Duration(seconds: 60),
+        );
+        gate.complete();
+        await Future.wait([first, latest]);
+        await until(() => !handler.snapshot.isLoading);
+        expect(player.index, 2);
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-1', 'song-2']);
+        expect(
+          (player.position - const Duration(seconds: 60)).abs().inMilliseconds,
+          lessThan(1000),
+        );
+        expect(player.playing, isTrue);
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'completed',
         );
       },
     );

@@ -101,6 +101,16 @@ under `build/rapid-playback/`. Run it for navigation, queue loading, and player
 recovery or adapter changes in addition to `./tool/check.sh`; set
 `NAVIS_RAPID_QUEUE_LENGTH=500` for the large-queue case.
 
+Seeking, lyric-follow interaction and audio-adapter changes also require
+`python3 tool/seek_reliability_diagnostics.py --platform linux`, and the Android
+variant on a disposable emulator when available (see development workflow).
+The muted synthetic profile tests early/overlapping seeks, Play/Pause preservation,
+backward bursts, completed caches and WAV/MP3/FLAC/Opus with Range fault modes,
+then repeats after a clean start. Keep unsupported/failing Range outcomes distinct
+from supported seek acceptance. Retain app-owned screenshots and separate platform
+evidence under `build/seek-reliability/`; this runtime gate complements the unit,
+widget and full quality checks.
+
 Android Auto's service-first regression has a separate Android phone-emulator
 gate. It builds only the `.dev` sidecar, force-stops it, and binds an external
 MediaBrowser client without launching `MainActivity`:

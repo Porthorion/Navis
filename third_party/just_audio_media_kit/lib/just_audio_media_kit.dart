@@ -111,6 +111,15 @@ class JustAudioMediaKit extends JustAudioPlatform {
     ];
   }
 
+  /// Credential-free transport observations from live native players.
+  static List<Map<String, Object?>>? debugTransportStates() {
+    final instance = JustAudioPlatform.instance;
+    if (instance is! JustAudioMediaKit) return null;
+    return [
+      for (final player in instance._players.values) player.debugTransportState
+    ];
+  }
+
   @override
   Future<AudioPlayerPlatform> init(InitRequest request) async {
     if (_players.containsKey(request.id)) {

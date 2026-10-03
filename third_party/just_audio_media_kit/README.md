@@ -174,3 +174,23 @@ recompile filters, and unsupported frequency/rate combinations bypass the
 complete profile with a reason. Linux has captured-output evidence; Navis gates
 Windows/macOS EQ until their separate validation. Callers without the optional
 configuration retain the upstream speed/pitch implementation.
+
+### Navis seek settlement
+
+Initial positions are retained until opening and duration/readiness permit a
+native seek, regardless of event order. Explicit seeks replace that pending
+position, including zero; a superseded completion cannot clear newer work.
+Only native position events report landing. The native `seeking` property keeps
+unfinished seeks buffering, including paused seeks, until decoding is ready.
+
+The adapter appends `usetoc=1` to mpv's existing demuxer option list, enabling the
+MP3 table of contents for uncached HTTP seeks without reading an index from the
+beginning. Native list mutation preserves escaping in the protocol whitelist.
+The existing force-seekable, TLS verification and disabled ytdl hook remain.
+Navis applies control/load deadlines and validates the landed target rather
+than assuming the native command completed playback.
+
+`test/src/third_party/deferred_seek_test.dart` covers retained-position races.
+`tool/seek_reliability_diagnostics.py` provides muted Linux/Android runtime checks
+for WAV, MP3, FLAC and Opus, cache states, range faults and clean restarts. Windows
+and Apple runtime behavior requires separate platform evidence.

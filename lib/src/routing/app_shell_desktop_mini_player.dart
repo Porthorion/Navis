@@ -214,7 +214,7 @@ enum _DesktopMiniPlayerAction {
   lyrics,
 }
 
-class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
+class _DesktopMiniPlayerTightPlayback extends ConsumerStatefulWidget {
   const new({
     required this.playback,
     required this.songTitle,
@@ -232,7 +232,31 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
   final bool isExternalSource;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DesktopMiniPlayerTightPlayback> createState() =>
+      _DesktopMiniPlayerTightPlaybackState();
+}
+
+class _DesktopMiniPlayerTightPlaybackState
+    extends ConsumerState<_DesktopMiniPlayerTightPlayback> {
+  double? _dragSeekValue;
+
+  @override
+  void didUpdateWidget(_DesktopMiniPlayerTightPlayback oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playback.currentSongId != oldWidget.playback.currentSongId ||
+        widget.playback.currentIndex != oldWidget.playback.currentIndex) {
+      _dragSeekValue = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playback = widget.playback;
+    final songTitle = widget.songTitle;
+    final songArtist = widget.songArtist;
+    final coverArtId = widget.coverArtId;
+    final coverArtUrl = widget.coverArtUrl;
+    final isExternalSource = widget.isExternalSource;
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
     // Only the seek slider below watches position ticks.
@@ -473,6 +497,7 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                         child: Consumer(
                           builder: (context, ref, _) {
                             final position =
+                                playback.pendingSeekPosition ??
                                 ref
                                     .watch(playbackPositionProvider)
                                     .asData
@@ -483,21 +508,29 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                                 'desktopMiniPlayerSeekSlider',
                               ),
                               value: canSeek
-                                  ? position.inMilliseconds
+                                  ? (_dragSeekValue ??
+                                            position.inMilliseconds.toDouble())
                                         .clamp(0, durationMs)
                                         .toDouble()
                                   : 0.0,
                               max: canSeek ? durationMs.toDouble() : 1,
                               onChanged: canSeek
-                                  ? (value) => unawaited(
-                                      ref
-                                          .read(audioHandlerProvider)
-                                          ?.seek(
-                                            Duration(
-                                              milliseconds: value.round(),
+                                  ? (value) =>
+                                        setState(() => _dragSeekValue = value)
+                                  : null,
+                              onChangeEnd: canSeek
+                                  ? (value) {
+                                      setState(() => _dragSeekValue = null);
+                                      unawaited(
+                                        ref
+                                            .read(audioHandlerProvider)
+                                            ?.seek(
+                                              Duration(
+                                                milliseconds: value.round(),
+                                              ),
                                             ),
-                                          ),
-                                    )
+                                      );
+                                    }
                                   : null,
                             );
                           },

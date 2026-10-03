@@ -791,7 +791,10 @@ LyricsDisplayWidget(
 Features:
 - Auto-scroll to current line
 - Tap to seek (synced lyrics)
-- Manual scroll with re-center button
+- Touch dragging, mouse-wheel and trackpad browsing suspend following; the
+  existing 2.5-second grace period starts after the final interaction. A
+  re-center button resumes immediately. Obsolete follow animations are
+  cancelled without changing audio position; only a lyric tap calls `onSeek`.
 - Graceful fallback for unsynced/missing lyrics
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
@@ -1698,11 +1701,50 @@ later edits in the lane consistent. Songs past the release window go back to
 the tail. An edit the Dart queue applied first (remove, move) stays applied;
 an insert that timed out is not applied.
 
+Seek requests retain their target, selected queue occurrence and generation
+through source loading. `PlaybackSnapshot.pendingSeekPosition` keeps all seek
+controls at the requested target until settlement or failure; slider gestures
+preview locally and commit once on release, including the compact desktop Mini
+Player. New requests supersede older requests. Track selection, queue replacement
+and account reset cancel them; edits to the same selected occurrence update its
+index. Play/Pause intent is independent of temporary native loading states and
+survives seeking, including commands issued while recovery is in progress.
+
+Native seeks share the queue mutation lane and have the four-second control
+deadline. A stuck call retires its player before later operations can touch the
+engine, then reloads the queue using the existing load/reset deadlines. Listener
+callbacks from retired players are rejected. Settlement probes are scoped to the
+current request, confirm both forward and backward seeks within two seconds of
+the target. Native buffering may probe several byte ranges before producing a
+packet, so it has the load deadline; an unchanged packet position alone does not
+interrupt that work. A ready player that misses the target or stops position and
+buffer progress for three seconds triggers recovery. Each current
+request permits one recovery attempt. An exhausted request reports failure and
+suppresses automatic stream retries until another explicit transport/selection
+request, preventing a failed seek from later restarting or skipping the song.
+Diagnostics expose `seek` generation,
+requested position, pending flag, stage, outcome and recovery count, with a bounded
+`seekEvents` history. Desktop deferred initial positions survive opening and
+duration/readiness events in either order, including progressive streams that
+become playable before native duration is known. Native position events confirm
+landing and the native `seeking` flag keeps an unfinished paused seek buffering;
+an interpolated clock cannot certify stalled decoding. The MP3 demuxer's
+`usetoc=1` option enables HTTP seeks using its table of contents rather than
+building an index by reading from the beginning. It is appended to the existing
+native option list without changing protocol restrictions or source quality.
+Credential-free
+`native.mediaKitTransport` observations expose native playing/buffering/position
+seeking and pending initial positions. Completions cannot clear newer positions.
+
 A seek that does not land on a remote stream, a seek that keeps buffering and
 a stalled remote stream are recovered by reloading the whole logical queue at
 the current song and position (`_rebuildQueueForSeekRecovery`); when the
 desktop sidecar file for the current song is complete, that song is loaded
-from the file instead of the stream. Either way every queued song, the
+from the file instead of the stream. If its independent download is at least
+half complete and still progressing, an explicit seek may wait up to the load
+deadline for the completed file before falling back to the stream. Three seconds
+without download progress ends that wait. Partial files are never loaded.
+Either way every queued song, the
 deferred head and tail and the user's repeat mode are kept. Recovery cancels a
 crossfade in progress and runs as navigation work, so queue edits already
 waiting (an artist's next albums) apply first and the queue is captured after
@@ -1711,8 +1753,9 @@ behind queue work or a slow database read never stops refills or fades. The
 rest of the queue is restored as fill work submitted from inside the
 recovery, so an edit made meanwhile applies to the restored queue. Once the
 current song is reloaded the rest is always restored and the load completed,
-even if a newer transport command (pause, another seek) arrives; only the
-seek correction and resume yield to it. When the song cannot be reloaded (a
+even if a newer seek or Play/Pause command arrives. Position corrections yield
+to a newer seek; a current seek resumes according to the latest Play/Pause intent.
+When the song cannot be reloaded (a
 stream that times out again leaves both players rebuilt empty) the queue
 lists are put back rather than left cut down to that song, and the stall
 path then skips to the next song by its logical index. A recovery while a

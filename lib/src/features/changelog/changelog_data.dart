@@ -125,7 +125,23 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.2', entries: []),
+  ChangelogVersion(
+    version: '1.4.2',
+    entries: [
+      ChangelogEntry(
+        'Seeking while a song loads keeps your latest position and preserves Play or Pause; stalled seeks recover without losing the queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The compact Mini Player previews seeking while you drag and jumps once when you release',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Browsing lyrics with a mouse wheel or trackpad pauses following until you finish scrolling',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.1',
     released: '2026-10-03',

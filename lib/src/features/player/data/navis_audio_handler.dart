@@ -308,6 +308,10 @@ class NavisAudioHandler extends BaseAudioHandler
   int _queueRestoreRetryCount = 0;
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
+  _PendingSeek? _pendingSeek;
+  _PendingSeek? _lastSeek;
+  int _seekRevision = 0;
+  bool _seekFailureBlocksRecovery = false;
   Timer? _transportPersistTimer;
   Timer? _queueItemsPersistTimer;
   String? _queueItemsPersistContext;
@@ -340,7 +344,6 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
-  Timer? _seekBufferingRecoveryTimer;
   String? _remotePlaybackStallSongId;
   Duration? _remotePlaybackStallPosition;
   Duration? _remotePlaybackStallBufferedPosition;
@@ -1282,11 +1285,16 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _isActiveLoadGeneration(int generation) =>
       generation == _activeLoadGeneration;
 
-  int _supersedeTransportIntent({bool? shouldPlay}) {
-    _seekLane.cancelCurrent();
-    _cancelSeekBufferingRecovery();
+  int _supersedeTransportIntent({bool? shouldPlay, bool preserveSeek = false}) {
+    if (!preserveSeek || (shouldPlay != null && _pendingSeek == null)) {
+      _seekFailureBlocksRecovery = false;
+    }
+    if (!preserveSeek) {
+      _seekLane.cancelCurrent();
+      _cancelPendingSeek();
+    }
     _remotePlaybackRecoveryAttempts.clear();
-    _latestExplicitTransportPlaying = shouldPlay;
+    if (shouldPlay != null) _latestExplicitTransportPlaying = shouldPlay;
     return ++_transportGeneration;
   }
 
@@ -2026,7 +2034,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'that could not be prepared: ${dropped.take(8).join(', ')}',
         );
       }
-      if (capture.playing) unawaited(_player.play());
+      if (_requestedPlaying) unawaited(_player.play());
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Could not reload the queue after a player timeout. '
@@ -2110,6 +2118,7 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _eqRefreshInFlight = false;
 
   void _wirePlayerListeners() {
+    final wiredPlayer = _player;
     _emitBufferState(
       songId: _radioStation == null ? _currentMediaItem?.id : null,
       bufferedPosition: Duration.zero,
@@ -2117,6 +2126,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     _playbackEventSubscription = _player.playbackEventStream.listen(
       (_) {
+        if (!identical(_player, wiredPlayer)) return;
         final processing = _player.processingState;
         final index = _player.currentIndex;
         if (processing == ProcessingState.completed) {
@@ -2144,6 +2154,7 @@ class NavisAudioHandler extends BaseAudioHandler
         _syncRemotePlaybackStallWatchdog();
       },
       onError: (Object error, StackTrace stackTrace) {
+        if (!identical(_player, wiredPlayer)) return;
         AppLogger.error('Playback event stream error.', error, stackTrace);
         // If a radio stream is active, stop it and notify the UI.
         if (_radioStation != null) {
@@ -2200,6 +2211,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
+      if (!identical(_player, wiredPlayer)) return;
       if (navisIsQueueReplacementMetadataAnchorConfirmed(
         queueItems: _queueItems,
         backendCurrentIndex: index,
@@ -2214,6 +2226,16 @@ class NavisAudioHandler extends BaseAudioHandler
         anchor: _queueReplacementMetadataAnchor,
       );
       final item = resolved.mediaItem;
+      final pendingSeek = _pendingSeek;
+      if (pendingSeek != null &&
+          !_isLoading &&
+          _queueLane.isIdle &&
+          (item?.id != pendingSeek.songId ||
+              _logicalIndexOf(resolved.currentIndex) !=
+                  pendingSeek.queueIndex)) {
+        _seekLane.cancelCurrent();
+        _cancelPendingSeek();
+      }
       final failedFade = _crossfadeFailedFrom;
       if (failedFade != null &&
           (failedFade.index != resolved.currentIndex ||
@@ -2245,6 +2267,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _shuffleModeSubscription = _player.shuffleModeEnabledStream
         .distinct()
         .listen((_) {
+          if (!identical(_player, wiredPlayer)) return;
           _broadcastPlaybackState();
           unawaited(
             _persistSafely(
@@ -2255,6 +2278,7 @@ class NavisAudioHandler extends BaseAudioHandler
         });
 
     _loopModeSubscription = _player.loopModeStream.distinct().listen((_) {
+      if (!identical(_player, wiredPlayer)) return;
       _broadcastPlaybackState();
       unawaited(
         _persistSafely(
@@ -2270,6 +2294,7 @@ class NavisAudioHandler extends BaseAudioHandler
           maxPeriod: const Duration(milliseconds: 200),
         )
         .listen((position) {
+          if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
             _positionController.add(position);
           }
@@ -2307,6 +2332,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _bufferedPositionSubscription = _player.bufferedPositionStream.listen((
       bufferedPosition,
     ) {
+      if (!identical(_player, wiredPlayer)) return;
       final songId = _radioStation == null
           ? _resolveCurrentQueueMetadata().mediaItem?.id
           : null;
@@ -2322,7 +2348,9 @@ class NavisAudioHandler extends BaseAudioHandler
           minPeriod: const Duration(milliseconds: 250),
           maxPeriod: const Duration(milliseconds: 500),
         )
-        .listen(_checkCrossfadeTrigger);
+        .listen((position) {
+          if (identical(_player, wiredPlayer)) _checkCrossfadeTrigger(position);
+        });
   }
 
   Future<void> _disposePlayerListeners() async {
@@ -4910,6 +4938,11 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Publishes a queue edit: one queue emission, one coalesced save, one
   /// snapshot.
   void _afterQueueEdit({required String context}) {
+    final seek = _pendingSeek;
+    if (seek != null &&
+        _resolveCurrentQueueMetadata().mediaItem?.id == seek.songId) {
+      seek.queueIndex = _logicalCurrentIndex;
+    }
     // An edit may have emptied the deferred tail, which re-enables repeat-all.
     unawaited(
       _syncNativeLoopMode().catchError((Object error) {
@@ -5507,6 +5540,10 @@ class NavisAudioHandler extends BaseAudioHandler
       // Remove the audio source and queue item incrementally — this does NOT
       // interrupt playback of other items.  If the currently playing item is
       // removed, just_audio automatically advances to the next item.
+      if (_logicalCurrentIndex == _deferredHead.length + index) {
+        _seekLane.cancelCurrent();
+        _cancelPendingSeek();
+      }
       final removed = _queueItems.removeAt(index);
       await _timedQueueEdit(
         'remove queue item',
@@ -5515,16 +5552,13 @@ class NavisAudioHandler extends BaseAudioHandler
         mirror: (deck) => deck.sequence.length > index,
       );
 
-      queue.add(List<MediaItem>.unmodifiable(_queueItems));
       // Update the mediaItem stream to match whatever is now current.
       final nowIndex = _player.currentIndex;
       if (nowIndex != null && nowIndex >= 0 && nowIndex < _queueItems.length) {
         _setCurrentMediaItem(_queueItems[nowIndex]);
       }
 
-      _scheduleQueueItemsPersistence(context: 'remove at');
-      _broadcastPlaybackState();
-      _emitSnapshot();
+      _afterQueueEdit(context: 'remove at');
     }
   }
 
@@ -5676,7 +5710,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _invalidatePendingStartupSelection();
     _navigationIntent.reset();
     _pendingLogicalQueueSongs = null;
-    _supersedeTransportIntent();
+    _supersedeTransportIntent(shouldPlay: false);
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
     _radioMetadataService.stop();
@@ -5723,7 +5757,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
-    final transportGeneration = _supersedeTransportIntent(shouldPlay: true);
+    final transportGeneration = _supersedeTransportIntent(
+      shouldPlay: true,
+      preserveSeek: true,
+    );
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
 
@@ -5789,7 +5826,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> pause() async {
     _invalidatePendingStartupSelection();
-    final transportGeneration = _supersedeTransportIntent(shouldPlay: false);
+    final transportGeneration = _supersedeTransportIntent(
+      shouldPlay: false,
+      preserveSeek: true,
+    );
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();
@@ -5803,7 +5843,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> click([MediaButton button = MediaButton.media]) async {
     switch (button) {
       case MediaButton.media:
-        if (_player.playing) {
+        if (_visiblePlaying) {
           await pause();
         } else {
           await play();
@@ -5915,29 +5955,131 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> seek(Duration position) {
-    final generation = _supersedeTransportIntent();
+    if (_radioStation != null) return Future<void>.value();
+    final songId =
+        _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (songId == null) return Future<void>.value();
+    final generation = _supersedeTransportIntent(preserveSeek: true);
+    _cancelPendingSeek();
+    final request = _PendingSeek(
+      generation: ++_seekRevision,
+      songId: songId,
+      queueIndex: _navigationIntent.desiredIndex ?? _logicalCurrentIndex,
+      position: navisSanitizeSeekPosition(position),
+    );
+    _seekFailureBlocksRecovery = false;
+    _pendingSeek = _lastSeek = request;
+    _broadcastPlaybackState();
+    _emitSnapshot();
     return _seekLane.run((token) async {
-      await _ready;
-      token.checkCancelled();
-      if (!_isCurrentTransportIntent(generation)) {
-        return;
-      }
-      _cancelCrossfade();
-      final sanitizedPosition = navisSanitizeSeekPosition(position);
-      await _seekWithRecovery(
-        sanitizedPosition,
-        token: token,
-        transportGeneration: generation,
-      );
-      token.checkCancelled();
-      if (_isCurrentTransportIntent(generation)) {
-        _scheduleSeekBufferingRecovery(
-          requestedPosition: sanitizedPosition,
+      final started = Stopwatch()..start();
+      final beforePosition = _player.position;
+      final beforeBuffered = _player.bufferedPosition;
+      final beforeSourceKind = _currentSourceKind;
+      try {
+        await _ready;
+        await _waitForSeekSource(request, token);
+        _cancelCrossfade();
+        await _seekWithRecovery(
+          request.position,
+          token: token,
           transportGeneration: generation,
+          seekRequest: request,
         );
+        _checkSeekCurrent(request, token);
+        request.outcome = 'completed';
+        request.stage = 'done';
         _scheduleTransportPersistence(context: 'seek');
+      } on OperationCancelledException {
+        request.outcome = 'superseded';
+        request.stage = 'done';
+      } on Object catch (error, stackTrace) {
+        request.outcome = 'failed';
+        request.stage = 'done';
+        if (identical(_pendingSeek, request)) {
+          _seekFailureBlocksRecovery = true;
+          _emitLoadFailure(
+            operation: 'seek',
+            message: 'The requested playback position could not be reached.',
+            songId: request.songId,
+            isTimeout: error is TimeoutException,
+          );
+          AppLogger.warning('Seek failed: ${error.runtimeType}\n$stackTrace');
+        }
+      } finally {
+        _recordSeekDiagnosticsEvent(<String, Object?>{
+          'at': DateTime.now().toUtc().toIso8601String(),
+          'generation': request.generation,
+          'path': request.recoveryAttempts == 0 ? 'direct' : 'recovery',
+          'requestedPositionMs': request.position.inMilliseconds,
+          'beforePositionMs': beforePosition.inMilliseconds,
+          'beforeBufferedMs': beforeBuffered.inMilliseconds,
+          'beforeSourceKind': beforeSourceKind,
+          'afterPositionMs': _player.position.inMilliseconds,
+          'afterSourceKind': _currentSourceKind,
+          'elapsedMs': started.elapsedMilliseconds,
+          'outcome': request.outcome,
+          'recoveryAttempts': request.recoveryAttempts,
+        });
+        if (identical(_pendingSeek, request)) {
+          _pendingSeek = null;
+          _broadcastPlaybackState();
+          _emitSnapshot();
+        }
       }
     });
+  }
+
+  void _cancelPendingSeek() {
+    final request = _pendingSeek;
+    if (request != null) {
+      request.outcome = 'superseded';
+      request.stage = 'done';
+      _pendingSeek = null;
+    }
+  }
+
+  bool _isCurrentSeek(_PendingSeek request) => identical(_pendingSeek, request);
+
+  void _checkSeekCurrent(_PendingSeek request, OperationToken token) {
+    token.checkCancelled();
+    if (!_isCurrentSeek(request)) throw OperationCancelledException();
+  }
+
+  bool _isCurrentSeekOrTransport(int generation, _PendingSeek? request) =>
+      request == null
+      ? _isCurrentTransportIntent(generation)
+      : _isCurrentSeek(request);
+
+  bool get _requestedPlaying =>
+      _latestExplicitTransportPlaying ?? _player.playing;
+
+  bool get _visiblePlaying =>
+      _pendingSeek == null ? _player.playing : _requestedPlaying;
+
+  Future<void> _waitForSeekSource(
+    _PendingSeek request,
+    OperationToken token,
+  ) async {
+    // Phase one must finish before an older occurrence of the same song can
+    // be mistaken for readiness on the source selected by this request.
+    await _queueLane.enqueue((_) async => _checkSeekCurrent(request, token));
+    final wait = Stopwatch()..start();
+    while (true) {
+      _checkSeekCurrent(request, token);
+      final selected = _resolveCurrentQueueMetadata().mediaItem?.id;
+      final processing = _player.processingState;
+      if (selected == request.songId &&
+          processing != ProcessingState.loading &&
+          processing != ProcessingState.idle) {
+        request.stage = 'seeking';
+        return;
+      }
+      if (wait.elapsed >= _playerLoadTimeout) {
+        throw PlaybackLoadTimeoutException(operation: 'seek source readiness');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
   }
 
   /// Reduces a media URI to a song reference that carries no credentials:
@@ -6011,6 +6153,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'effectiveIndices': _player.effectiveIndices.take(64).toList(),
         // What mpv itself is playing, reduced to the stream `id` parameter or
         // the cache file name so no credential-bearing URI is reported.
+        'mediaKitTransport': JustAudioMediaKit.debugTransportStates(),
         'mediaKitCurrent': JustAudioMediaKit.debugCurrentMediaUris()
             ?.map(_diagnosticMediaReference)
             .toList(),
@@ -6072,6 +6215,14 @@ class NavisAudioHandler extends BaseAudioHandler
           ? _crossfadePlayer?.pitch
           : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+      'seek': <String, Object?>{
+        'generation': _lastSeek?.generation,
+        'requestedPositionMs': _lastSeek?.position.inMilliseconds,
+        'pending': _pendingSeek != null,
+        'stage': _lastSeek?.stage,
+        'outcome': _lastSeek?.outcome,
+        'recoveryAttempts': _lastSeek?.recoveryAttempts,
+      },
       'navigation': <String, Object?>{
         'revision': _navigationIntent.revision,
         'desiredIndex': _navigationIntent.desiredIndex,
@@ -7268,10 +7419,10 @@ class NavisAudioHandler extends BaseAudioHandler
       isRadioMode: _radioStation != null,
       duration: effectiveDuration,
       processingState: processingState,
-      playing: _player.playing,
+      playing: _visiblePlaying,
     );
     final controls = navisNotificationControls(
-      isPlaying: _player.playing,
+      isPlaying: _visiblePlaying,
       capabilities: capabilities,
     );
     final state = playbackState.value.copyWith(
@@ -7280,7 +7431,7 @@ class NavisAudioHandler extends BaseAudioHandler
       androidCompactActionIndices:
           navisNotificationCompactActionIndicesForControls(controls),
       processingState: processingState,
-      playing: _player.playing,
+      playing: _visiblePlaying,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
@@ -7458,7 +7609,7 @@ class NavisAudioHandler extends BaseAudioHandler
       currentIndex: _radioStation != null
           ? null
           : _logicalIndexOf(resolved.currentIndex),
-      playing: _player.playing,
+      playing: _visiblePlaying,
       processingState: _mapProcessingState(_player.processingState),
       position: _player.position,
       duration: _effectivePlaybackDuration(currentItem),
@@ -7475,6 +7626,7 @@ class NavisAudioHandler extends BaseAudioHandler
       pendingQueueIndex: _navigationIntent.isPending
           ? _navigationIntent.desiredIndex
           : null,
+      pendingSeekPosition: _pendingSeek?.position,
       loadingSongId: _loadingSongId,
       lastFailedSongId: _lastFailedSongId,
     );
@@ -7527,176 +7679,166 @@ class NavisAudioHandler extends BaseAudioHandler
     Duration position, {
     required OperationToken token,
     required int transportGeneration,
+    required _PendingSeek seekRequest,
   }) async {
-    final autoPlayAfterRecovery = _player.playing;
-    final startedAt = DateTime.now().toUtc();
-    final beforeBuffered = _player.bufferedPosition;
-    final beforePosition = _player.position;
-    final beforeSourceKind = _currentSourceKind;
-    var path = 'direct';
-    // Proactive path: if the seek target clearly exceeds the buffered range on
-    // a lock-cached stream, skip the doomed seek and rebuild immediately.
-    // This avoids the 200 ms stutter from the reactive path below.
-    // Guard: only fire when we have a measured buffer (bufferedPosition > 0)
-    // and the target overshoots it by at least 1 s.
-    if (_currentSourceKind == PlaybackSourceKind.lockCachedStream.name) {
-      final buffered = _player.bufferedPosition;
-      if (buffered > Duration.zero &&
-          position > buffered + const Duration(seconds: 1)) {
-        path = 'proactive_rebuild';
-        AppLogger.warning(
-          'Seek target $position exceeds buffered position $buffered on a '
-          'lock-cached source. Proactively rebuilding with direct streams.',
+    _checkSeekCurrent(seekRequest, token);
+    final sourceKind = _currentSourceKind;
+    final buffer = _player.bufferedPosition;
+    final needsDirectSource =
+        sourceKind == PlaybackSourceKind.lockCachedStream.name &&
+        position > buffer + const Duration(seconds: 1);
+    if (!needsDirectSource) {
+      try {
+        await _runNativeSeek(seekRequest, token, operation: 'seek');
+        _checkSeekCurrent(seekRequest, token);
+        if (await _waitForSeekSettlement(seekRequest, token)) return;
+      } on PlaybackLoadTimeoutException {
+        // The timed operation retired the hung player and restored the queue.
+        // A newer request can now use that player without the old call racing it.
+        _checkSeekCurrent(seekRequest, token);
+        seekRequest.recoveryAttempts = 1;
+        await _runNativeSeek(
+          seekRequest,
+          token,
+          operation: 'seek after player reset',
         );
-        await _rebuildQueueForSeekRecovery(
-          position,
-          autoPlay: autoPlayAfterRecovery,
-          token: token,
-          transportGeneration: transportGeneration,
+        if (await _waitForSeekSettlement(seekRequest, token)) {
+          if (_requestedPlaying) unawaited(_player.play());
+          return;
+        }
+        throw StateError('Seek failed after the player was reset.');
+      } on OperationCancelledException {
+        rethrow;
+      } on Object catch (error) {
+        _checkSeekCurrent(seekRequest, token);
+        AppLogger.debug(
+          'Native seek rejected: ${error.runtimeType}; recovering source.',
         );
-        _recordSeekDiagnosticsEvent(<String, Object?>{
-          'at': startedAt.toIso8601String(),
-          'path': path,
-          'requestedPositionMs': position.inMilliseconds,
-          'beforePositionMs': beforePosition.inMilliseconds,
-          'beforeBufferedMs': beforeBuffered.inMilliseconds,
-          'beforeSourceKind': beforeSourceKind,
-          'afterPositionMs': _player.position.inMilliseconds,
-          'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
-          'afterSourceKind': _currentSourceKind,
-          'elapsedMs': DateTime.now()
-              .toUtc()
-              .difference(startedAt)
-              .inMilliseconds,
-          'lockCachingBypassed':
-              !(_snapshot.currentSongId == null) &&
-              _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
-        });
-        return;
       }
     }
-
-    await _player.seek(position);
-    token.checkCancelled();
-    if (!_isCurrentTransportIntent(transportGeneration)) {
-      return;
-    }
-    // Local files seek reliably. Remote Subsonic streams (direct or
-    // lock-cached) can no-op under libmpv; briefly probe then reload at the
-    // requested position when the seek undershoots.
-    final sourceKind = _currentSourceKind;
-    final isRemoteSource =
-        sourceKind == PlaybackSourceKind.lockCachedStream.name ||
-        sourceKind == PlaybackSourceKind.directStream.name;
-    if (!isRemoteSource) {
-      _recordSeekDiagnosticsEvent(<String, Object?>{
-        'at': startedAt.toIso8601String(),
-        'path': path,
-        'requestedPositionMs': position.inMilliseconds,
-        'beforePositionMs': beforePosition.inMilliseconds,
-        'beforeBufferedMs': beforeBuffered.inMilliseconds,
-        'beforeSourceKind': beforeSourceKind,
-        'afterPositionMs': _player.position.inMilliseconds,
-        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
-        'afterSourceKind': _currentSourceKind,
-        'elapsedMs': DateTime.now()
-            .toUtc()
-            .difference(startedAt)
-            .inMilliseconds,
-        'lockCachingBypassed':
-            !(_snapshot.currentSongId == null) &&
-            _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
-      });
-      return;
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    token.checkCancelled();
-    if (!_isCurrentTransportIntent(transportGeneration)) {
-      return;
-    }
-    final actualPosition = _player.position;
-    if (!navisShouldRecoverSeekToDirectStream(
-      sourceKind: sourceKind,
-      requestedPosition: position,
-      actualPosition: actualPosition,
-    )) {
-      _recordSeekDiagnosticsEvent(<String, Object?>{
-        'at': startedAt.toIso8601String(),
-        'path': path,
-        'requestedPositionMs': position.inMilliseconds,
-        'beforePositionMs': beforePosition.inMilliseconds,
-        'beforeBufferedMs': beforeBuffered.inMilliseconds,
-        'beforeSourceKind': beforeSourceKind,
-        'afterPositionMs': actualPosition.inMilliseconds,
-        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
-        'afterSourceKind': _currentSourceKind,
-        'elapsedMs': DateTime.now()
-            .toUtc()
-            .difference(startedAt)
-            .inMilliseconds,
-        'lockCachingBypassed':
-            !(_snapshot.currentSongId == null) &&
-            _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
-      });
-      return;
-    }
-
-    // Prefer a completed sidecar/local cache file — those seek without a
-    // network round-trip and avoid progressive-stream seek failures.
-    if (await _trySeekViaCompletedSidecarFile(
+    _checkSeekCurrent(seekRequest, token);
+    seekRequest.recoveryAttempts = 1;
+    seekRequest.stage = 'recovering';
+    final fromFile = await _trySeekViaCompletedSidecarFile(
       position,
-      autoPlay: autoPlayAfterRecovery,
+      autoPlay: _requestedPlaying,
       token: token,
       transportGeneration: transportGeneration,
-    )) {
-      path = 'sidecar_file';
-      _recordSeekDiagnosticsEvent(<String, Object?>{
-        'at': startedAt.toIso8601String(),
-        'path': path,
-        'requestedPositionMs': position.inMilliseconds,
-        'beforePositionMs': beforePosition.inMilliseconds,
-        'beforeBufferedMs': beforeBuffered.inMilliseconds,
-        'beforeSourceKind': beforeSourceKind,
-        'landedPositionMs': actualPosition.inMilliseconds,
-        'afterPositionMs': _player.position.inMilliseconds,
-        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
-        'afterSourceKind': _currentSourceKind,
-        'elapsedMs': DateTime.now()
-            .toUtc()
-            .difference(startedAt)
-            .inMilliseconds,
-        'lockCachingBypassed': false,
-      });
-      return;
+      seekRequest: seekRequest,
+    );
+    if (!fromFile) {
+      await _rebuildQueueForSeekRecovery(
+        position,
+        autoPlay: _requestedPlaying,
+        token: token,
+        transportGeneration: transportGeneration,
+        seekRequest: seekRequest,
+      );
     }
+    _checkSeekCurrent(seekRequest, token);
+    if (!await _waitForSeekSettlement(seekRequest, token)) {
+      throw StateError('Seek failed after source recovery.');
+    }
+  }
 
-    path = 'reactive_rebuild';
-    AppLogger.warning(
-      'Seek landed at $actualPosition instead of $position on a remote '
-      'source. Reloading the active item at the requested position.',
+  Future<void> _runNativeSeek(
+    _PendingSeek request,
+    OperationToken token, {
+    required String operation,
+  }) => _queueLane.enqueue((_) async {
+    // Native seeks share the queue mutation lane. A selection cannot load a
+    // new source into an engine whose previous seek has not returned; a hung
+    // call retires that engine before the next queued operation proceeds.
+    _checkSeekCurrent(request, token);
+    await _runTimedPlayerOperation(
+      generation: _activeLoadGeneration,
+      operation: operation,
+      action: () => _player.seek(request.position),
+      songId: request.songId,
+      timeout: _timeouts.control,
+      reloadQueueOnTimeout: true,
     );
-    await _rebuildQueueForSeekRecovery(
-      position,
-      autoPlay: autoPlayAfterRecovery,
-      token: token,
-      transportGeneration: transportGeneration,
-    );
-    _recordSeekDiagnosticsEvent(<String, Object?>{
-      'at': startedAt.toIso8601String(),
-      'path': path,
-      'requestedPositionMs': position.inMilliseconds,
-      'beforePositionMs': beforePosition.inMilliseconds,
-      'beforeBufferedMs': beforeBuffered.inMilliseconds,
-      'beforeSourceKind': beforeSourceKind,
-      'landedPositionMs': actualPosition.inMilliseconds,
-      'afterPositionMs': _player.position.inMilliseconds,
-      'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
-      'afterSourceKind': _currentSourceKind,
-      'elapsedMs': DateTime.now().toUtc().difference(startedAt).inMilliseconds,
-      'lockCachingBypassed':
-          !(_snapshot.currentSongId == null) &&
-          _lockCachingBypassedSongIds.contains(_snapshot.currentSongId),
-    });
+    _checkSeekCurrent(request, token);
+    if (_requestedPlaying && !_player.playing) unawaited(_player.play());
+    if (!_requestedPlaying && _player.playing) {
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: 'pause after seek',
+        action: _player.pause,
+        timeout: _timeouts.control,
+        reloadQueueOnTimeout: true,
+      );
+    }
+  });
+
+  // just_audio interpolates position while ready. Desktop settlement uses
+  // backend position events so that an optimistic clock cannot certify audio
+  // that is still waiting on a Range response. ExoPlayer readiness is native.
+  Duration get _seekSettlementPosition => _isDesktopRuntime
+      ? _player.playbackEvent.updatePosition
+      : _player.position;
+
+  Future<bool> _waitForSeekSettlement(
+    _PendingSeek request,
+    OperationToken token,
+  ) async {
+    request.stage = 'confirming';
+    final elapsed = Stopwatch()..start();
+    var lastProgress = Duration.zero;
+    var lastPosition = _seekSettlementPosition;
+    var lastBuffer = _player.bufferedPosition;
+    Duration? nearSince;
+    Duration? nearPosition;
+    while (elapsed.elapsed < _playerLoadTimeout) {
+      _checkSeekCurrent(request, token);
+      final position = _seekSettlementPosition;
+      final buffer = _player.bufferedPosition;
+      final processing = _player.processingState;
+      final near =
+          (position - request.position).abs() < const Duration(seconds: 2);
+      final atEnd =
+          processing == ProcessingState.completed &&
+          _player.duration != null &&
+          (request.position - _player.duration!).abs() <
+              const Duration(seconds: 2);
+      final ready = processing == ProcessingState.ready || atEnd;
+      if (near && ready) {
+        nearSince ??= elapsed.elapsed;
+        nearPosition ??= position;
+        final transportSettled = _requestedPlaying
+            ? _player.playing &&
+                  (atEnd ||
+                      position - nearPosition >=
+                          const Duration(milliseconds: 50))
+            : !_player.playing;
+        if (transportSettled &&
+            elapsed.elapsed - nearSince >= const Duration(milliseconds: 100)) {
+          return true;
+        }
+      } else {
+        nearSince = null;
+        nearPosition = null;
+      }
+      if (buffer != lastBuffer || position != lastPosition) {
+        lastProgress = elapsed.elapsed;
+        lastBuffer = buffer;
+        lastPosition = position;
+      }
+      // A decoder may probe several HTTP ranges before producing a packet.
+      // During native buffering, unchanged packet positions are inconclusive:
+      // allow the load deadline instead of interrupting an active range search.
+      // A ready player that misses the target or stops moving stalls sooner.
+      if (processing != ProcessingState.buffering &&
+          ((!near &&
+                  ready &&
+                  elapsed.elapsed >= _seekBufferingRecoveryTimeout) ||
+              elapsed.elapsed - lastProgress >=
+                  _seekBufferingRecoveryTimeout)) {
+        return false;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    return false;
   }
 
   /// Reloads the queue with the current song played from its completed
@@ -7707,6 +7849,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool autoPlay,
     required OperationToken token,
     required int transportGeneration,
+    _PendingSeek? seekRequest,
   }) async {
     final item = _currentMediaItem;
     if (item == null) {
@@ -7717,6 +7860,36 @@ class NavisAudioHandler extends BaseAudioHandler
       return false;
     }
     final cacheFile = File(sidecarPath);
+    final activity = _rollingCacheActivities[sidecarPath];
+    if (seekRequest != null &&
+        !cacheFile.existsSync() &&
+        _sidecarDownloader.activeSongId == item.id &&
+        activity?.songId == item.id &&
+        (activity?.progress ?? 0) >= 0.5) {
+      // A delayed range search may exhaust its deadline while the independent
+      // cache download is nearing completion. Give that progressing download
+      // one load deadline, without exposing its partial file as playable.
+      seekRequest.stage = 'waiting for cache';
+      final wait = Stopwatch()..start();
+      var lastProgress = activity!.progress ?? 0;
+      var progressedAt = Duration.zero;
+      while (!cacheFile.existsSync() &&
+          _sidecarDownloader.activeSongId == item.id &&
+          wait.elapsed < _playerLoadTimeout) {
+        _checkSeekCurrent(seekRequest, token);
+        final progress = _rollingCacheActivities[sidecarPath]?.progress;
+        if (progress != null && progress > lastProgress) {
+          lastProgress = progress;
+          progressedAt = wait.elapsed;
+        }
+        if (wait.elapsed - progressedAt >= _seekBufferingRecoveryTimeout) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      _checkSeekCurrent(seekRequest, token);
+      seekRequest.stage = 'recovering';
+    }
     if (!cacheFile.existsSync() || cacheFile.lengthSync() <= 0) {
       return false;
     }
@@ -7750,6 +7923,7 @@ class NavisAudioHandler extends BaseAudioHandler
         autoPlay: autoPlay,
         token: token,
         transportGeneration: transportGeneration,
+        seekRequest: seekRequest,
         preparedStart: _PreparedQueueItem(
           song: song,
           source: source,
@@ -7760,6 +7934,7 @@ class NavisAudioHandler extends BaseAudioHandler
     } on OperationCancelledException {
       rethrow;
     } on Object catch (error, stackTrace) {
+      if (seekRequest != null) rethrow;
       AppLogger.debug(
         'Sidecar file seek fallback failed for ${song.id}: '
         '$error\n$stackTrace',
@@ -7783,6 +7958,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool autoPlay,
     required OperationToken token,
     required int transportGeneration,
+    _PendingSeek? seekRequest,
     String reason = 'seek recovery — switched to direct stream',
     _PreparedQueueItem? preparedStart,
   }) async {
@@ -7816,7 +7992,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // bypass lock-caching for the song: desktop now uses sidecar caching with
     // native HTTPS seeks, and mobile lock-cache can still serve later plays.
     token.checkCancelled();
-    if (!_isCurrentTransportIntent(transportGeneration)) {
+    if (!_isCurrentSeekOrTransport(transportGeneration, seekRequest)) {
       return false;
     }
     // Superseding cancels the fill, so read its rows first: without all of
@@ -7828,7 +8004,7 @@ class NavisAudioHandler extends BaseAudioHandler
           await _libraryDao.getSongsByIds(pendingIds);
       token.checkCancelled();
       if (!identical(_pendingLogicalQueueSongIds, pendingIds) ||
-          !_isCurrentTransportIntent(transportGeneration)) {
+          !_isCurrentSeekOrTransport(transportGeneration, seekRequest)) {
         // The fill completed or a newer command replaced the queue meanwhile.
         return false;
       }
@@ -7968,6 +8144,7 @@ class NavisAudioHandler extends BaseAudioHandler
         rebuilt = true;
         final reloaded = startItem;
         if (reloaded == null || orderedSongs.length <= 1) {
+          _recoveryStage = 'done';
           _completeQueueLoad(queueGeneration);
           return;
         }
@@ -8031,20 +8208,41 @@ class NavisAudioHandler extends BaseAudioHandler
       _completeQueueLoad(queueGeneration);
       return false;
     }
-    if (token.isCancelled || !_isCurrentTransportIntent(transportGeneration)) {
+    if (token.isCancelled ||
+        !_isCurrentSeekOrTransport(transportGeneration, seekRequest)) {
       return true;
     }
     await _syncNativeLoopMode();
-    // media_kit can drop initialPosition; correct before resuming playback.
+    // Correct a dropped initial position only after queue fill has released
+    // the native engine. A timeout must retire it before another mutation.
     final landed = _player.position;
     if ((position - landed).abs() >= const Duration(seconds: 2)) {
-      await _player.seek(position);
+      if (seekRequest != null) {
+        await _runNativeSeek(
+          seekRequest,
+          token,
+          operation: 'seek recovery correction',
+        );
+      } else {
+        await _queueLane.enqueue((_) async {
+          token.checkCancelled();
+          if (!_isCurrentTransportIntent(transportGeneration)) return;
+          await _runTimedPlayerOperation(
+            generation: queueGeneration,
+            operation: 'seek recovery correction',
+            action: () => _player.seek(position),
+            timeout: _timeouts.control,
+            reloadQueueOnTimeout: true,
+          );
+        });
+      }
       if (token.isCancelled ||
-          !_isCurrentTransportIntent(transportGeneration)) {
+          !_isCurrentSeekOrTransport(transportGeneration, seekRequest)) {
         return true;
       }
     }
-    if (autoPlay) {
+
+    if (seekRequest == null ? autoPlay : _requestedPlaying) {
       unawaited(_player.play());
     }
     return true;
@@ -8092,7 +8290,10 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _syncRemotePlaybackStallWatchdog() {
-    if (_radioStation != null || _queueItems.isEmpty) {
+    if (_pendingSeek != null ||
+        _seekFailureBlocksRecovery ||
+        _radioStation != null ||
+        _queueItems.isEmpty) {
       _cancelRemotePlaybackStallWatchdog();
       return;
     }
@@ -8138,48 +8339,6 @@ class NavisAudioHandler extends BaseAudioHandler
     _remotePlaybackStallBufferedPosition = null;
   }
 
-  void _scheduleSeekBufferingRecovery({
-    required Duration requestedPosition,
-    required int transportGeneration,
-  }) {
-    _cancelSeekBufferingRecovery();
-    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
-    if (songId == null ||
-        !navisShouldWatchRemotePlaybackForStall(
-          sourceKind: _currentSourceKind,
-          processingState: _mapProcessingState(_player.processingState),
-        )) {
-      return;
-    }
-    _seekBufferingRecoveryTimer = Timer(_seekBufferingRecoveryTimeout, () {
-      if (!navisShouldRecoverBufferedSeek(
-        sourceKind: _currentSourceKind,
-        processingState: _mapProcessingState(_player.processingState),
-        requestedPosition: requestedPosition,
-        actualPosition: _player.position,
-        isCurrentTransportIntent: _isCurrentTransportIntent(
-          transportGeneration,
-        ),
-        isCurrentSong: _resolveCurrentQueueMetadata().mediaItem?.id == songId,
-      )) {
-        return;
-      }
-      unawaited(
-        _recoverCurrentSongFromRemotePlaybackFailure(
-          reason: 'seek remained buffering',
-          intendedPosition: requestedPosition,
-          expectedSongId: songId,
-          expectedTransportGeneration: transportGeneration,
-        ),
-      );
-    });
-  }
-
-  void _cancelSeekBufferingRecovery() {
-    _seekBufferingRecoveryTimer?.cancel();
-    _seekBufferingRecoveryTimer = null;
-  }
-
   Future<void> _recoverCurrentSongFromRemotePlaybackFailure({
     required String reason,
     Object? error,
@@ -8188,7 +8347,10 @@ class NavisAudioHandler extends BaseAudioHandler
     String? expectedSongId,
     int? expectedTransportGeneration,
   }) async {
-    if (_remotePlaybackRecoveryInProgress || _radioStation != null) {
+    if (_pendingSeek != null ||
+        _seekFailureBlocksRecovery ||
+        _remotePlaybackRecoveryInProgress ||
+        _radioStation != null) {
       return;
     }
     final sourceKind = _currentSourceKind;
@@ -8208,7 +8370,6 @@ class NavisAudioHandler extends BaseAudioHandler
 
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
-    _cancelSeekBufferingRecovery();
     final songId = _queueItems[currentIndex].id;
     if (expectedSongId != null && songId != expectedSongId) {
       _remotePlaybackRecoveryInProgress = false;
@@ -8628,7 +8789,6 @@ class NavisAudioHandler extends BaseAudioHandler
     _artCache?.dispose();
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
-    _cancelSeekBufferingRecovery();
     await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
@@ -8676,7 +8836,6 @@ class NavisAudioHandler extends BaseAudioHandler
     _disposeHandlerStarted = true;
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
-    _cancelSeekBufferingRecovery();
     unawaited(_disposeInactiveCrossfadeDeck());
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();

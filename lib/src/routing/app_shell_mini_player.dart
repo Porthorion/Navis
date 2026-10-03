@@ -450,6 +450,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                   child: Consumer(
                     builder: (context, ref, _) {
                       final position =
+                          playback.pendingSeekPosition ??
                           ref.watch(playbackPositionProvider).asData?.value ??
                           playback.position;
                       final bufferState =

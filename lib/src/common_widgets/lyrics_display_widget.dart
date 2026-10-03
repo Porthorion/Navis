@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -63,6 +64,10 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
   int? _currentLineIndex;
   bool _autoScroll = true;
+  bool _manualScrollActive = false;
+  bool _panZoomActive = false;
+  bool _followAnimationActive = false;
+  int _scrollRevision = 0;
   Timer? _autoScrollReengageTimer;
 
   /// Grace period before auto-scroll re-engages after a user interaction.
@@ -77,7 +82,14 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   @override
   void didUpdateWidget(LyricsDisplayWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.currentPosition != oldWidget.currentPosition) {
+    if (widget.lyrics != oldWidget.lyrics) {
+      _pauseFollowing();
+      _autoScroll = true;
+      _manualScrollActive = _panZoomActive = false;
+      _currentLineIndex = null;
+    }
+    if (widget.currentPosition != oldWidget.currentPosition ||
+        widget.lyrics != oldWidget.lyrics) {
       _updateCurrentLine(animate: true);
     }
   }
@@ -119,10 +131,15 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   }
 
   void _scrollToLine(int index, {required bool animate}) {
+    final revision = ++_scrollRevision;
     if (!_itemScrollController.isAttached) {
       // Controller not yet attached — retry after the first frame.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _itemScrollController.isAttached) {
+        if (mounted &&
+            _autoScroll &&
+            revision == _scrollRevision &&
+            _currentLineIndex == index &&
+            _itemScrollController.isAttached) {
           _scrollToLine(index, animate: false);
         }
       });
@@ -130,23 +147,52 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     }
 
     if (animate) {
+      _followAnimationActive = true;
       unawaited(
-        _itemScrollController.scrollTo(
-          index: index,
-          alignment: 0.4,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOutCubic,
-        ),
+        _itemScrollController
+            .scrollTo(
+              index: index,
+              alignment: 0.4,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOutCubic,
+            )
+            .whenComplete(() {
+              if (revision == _scrollRevision) _followAnimationActive = false;
+            }),
       );
     } else {
       _itemScrollController.jumpTo(index: index, alignment: 0.4);
     }
   }
 
+  void _pauseFollowing({bool stopAnimation = true}) {
+    _autoScrollReengageTimer?.cancel();
+    _scrollRevision++;
+    if (stopAnimation &&
+        _followAnimationActive &&
+        _itemScrollController.isAttached) {
+      // Jump to the same visible item's alignment to stop an outstanding
+      // automatic animation without pulling the reader back to the song.
+      final visible = _itemPositionsListener.itemPositions.value
+          .where(
+            (item) => item.itemLeadingEdge >= 0 && item.itemLeadingEdge < 1,
+          )
+          .firstOrNull;
+      if (visible != null) {
+        _itemScrollController.jumpTo(
+          index: visible.index,
+          alignment: visible.itemLeadingEdge,
+        );
+      }
+    }
+    _followAnimationActive = false;
+    if (_autoScroll) setState(() => _autoScroll = false);
+  }
+
   void _startAutoScrollReengageTimer() {
     _autoScrollReengageTimer?.cancel();
     _autoScrollReengageTimer = Timer(_autoScrollReengageDelay, () {
-      if (!mounted) return;
+      if (!mounted || _manualScrollActive) return;
       setState(() {
         _autoScroll = true;
       });
@@ -201,79 +247,96 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
           onNotification: (notification) {
             if (notification is ScrollStartNotification &&
                 notification.dragDetails != null) {
-              // User started a manual drag - pause auto-scroll.
-              _autoScrollReengageTimer?.cancel();
-              if (_autoScroll) {
-                setState(() => _autoScroll = false);
-              }
-            } else if (notification is ScrollEndNotification && !_autoScroll) {
-              // User lifted finger - start grace-period timer before re-engaging.
+              _manualScrollActive = true;
+              // A touch drag already replaced the automatic scroll activity.
+              _pauseFollowing(stopAnimation: false);
+            } else if (notification is ScrollEndNotification &&
+                !_autoScroll &&
+                !_panZoomActive) {
+              _manualScrollActive = false;
               _startAutoScrollReengageTimer();
             }
             return false;
           },
-          child: Stack(
-            children: [
-              ScrollablePositionedList.builder(
-                itemScrollController: _itemScrollController,
-                itemPositionsListener: _itemPositionsListener,
-                padding: const EdgeInsets.symmetric(vertical: 100),
-                itemCount: lines.length + (hasFooter ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (hasFooter && index == lines.length) {
-                    return _buildFooter(context);
-                  }
-                  final line = lines[index];
-                  final isActive = index == _currentLineIndex;
+          child: Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                _pauseFollowing();
+                if (!_manualScrollActive) _startAutoScrollReengageTimer();
+              }
+            },
+            onPointerPanZoomStart: (_) {
+              _manualScrollActive = _panZoomActive = true;
+              _pauseFollowing();
+            },
+            onPointerPanZoomUpdate: (_) => _pauseFollowing(),
+            onPointerPanZoomEnd: (_) {
+              _manualScrollActive = _panZoomActive = false;
+              _startAutoScrollReengageTimer();
+            },
+            child: Stack(
+              children: [
+                ScrollablePositionedList.builder(
+                  itemScrollController: _itemScrollController,
+                  itemPositionsListener: _itemPositionsListener,
+                  padding: const EdgeInsets.symmetric(vertical: 100),
+                  itemCount: lines.length + (hasFooter ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (hasFooter && index == lines.length) {
+                      return _buildFooter(context);
+                    }
+                    final line = lines[index];
+                    final isActive = index == _currentLineIndex;
 
-                  return InkWell(
-                    onTap: widget.onSeek != null && line.start != null
-                        ? () => widget.onSeek!(
-                            Duration(milliseconds: line.start!),
-                          )
-                        : null,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: horizontalPadding,
-                        vertical: verticalPadding,
+                    return InkWell(
+                      onTap: widget.onSeek != null && line.start != null
+                          ? () => widget.onSeek!(
+                              Duration(milliseconds: line.start!),
+                            )
+                          : null,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: horizontalPadding,
+                          vertical: verticalPadding,
+                        ),
+                        child: Text(
+                          line.value ?? '',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: isActive
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.onSurface
+                                          .withValues(alpha: 0.6),
+                                fontWeight: isActive
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: isActive
+                                    ? activeFontSize
+                                    : inactiveFontSize,
+                              ),
+                        ),
                       ),
-                      child: Text(
-                        line.value ?? '',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: isActive
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
-                              fontWeight: isActive
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              fontSize: isActive
-                                  ? activeFontSize
-                                  : inactiveFontSize,
-                            ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              if (!_autoScroll)
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: FloatingActionButton.small(
-                    onPressed: () {
-                      _autoScrollReengageTimer?.cancel();
-                      setState(() => _autoScroll = true);
-                      if (_currentLineIndex != null) {
-                        _scrollToLine(_currentLineIndex!, animate: true);
-                      }
-                    },
-                    child: const Icon(Icons.my_location),
-                  ),
+                    );
+                  },
                 ),
-            ],
+                if (!_autoScroll)
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: FloatingActionButton.small(
+                      onPressed: () {
+                        _autoScrollReengageTimer?.cancel();
+                        setState(() => _autoScroll = true);
+                        if (_currentLineIndex != null) {
+                          _scrollToLine(_currentLineIndex!, animate: true);
+                        }
+                      },
+                      child: const Icon(Icons.my_location),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },

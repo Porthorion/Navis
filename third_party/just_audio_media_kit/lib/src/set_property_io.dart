@@ -55,3 +55,20 @@ Future<void> verifyOwnedAudioChain(
         'The audio backend did not apply the requested filter chain');
   }
 }
+
+/// Enables MP3 table-of-contents seeks and observes native seek completion.
+///
+/// FFmpeg otherwise builds a precise MP3 index by reading from the beginning,
+/// which can stall an uncached HTTP seek. This option belongs only to its MP3
+/// demuxer; the existing protocol and streaming options remain intact.
+Future<void> configureNativeSeeking(
+    Player player, void Function(bool) onSeeking) async {
+  final native = player.platform;
+  if (native is! NativePlayer) return;
+  // Mutate the native list directly. String round-tripping loses escaping in
+  // values such as the comma-separated protocol whitelist.
+  await native.command(['change-list', 'demuxer-lavf-o', 'append', 'usetoc=1']);
+  await native.observeProperty('seeking', (value) async {
+    onSeeking(value == 'yes');
+  });
+}

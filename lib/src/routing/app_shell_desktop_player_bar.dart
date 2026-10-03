@@ -577,7 +577,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                 .toDouble()
                                           : 0.0;
                                       final sliderValue = canSeek
-                                          ? ((_dragSliderValue ?? positionMs)
+                                          ? ((_dragSliderValue ??
+                                                    playback
+                                                        .pendingSeekPosition
+                                                        ?.inMilliseconds
+                                                        .toDouble() ??
+                                                    positionMs)
                                                 .clamp(0.0, sliderMax))
                                           : 0.0;
                                       final bufferedValue =

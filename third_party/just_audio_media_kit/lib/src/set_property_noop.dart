@@ -12,3 +12,6 @@ Future<void> verifyPlaybackAdjustments(Player player) async {}
 Future<void> verifyOwnedAudioChain(
         Player player, String expected, double pitch) async =>
     throw UnsupportedError('Native audio required');
+
+Future<void> configureNativeSeeking(
+    Player player, void Function(bool) onSeeking) async {}

@@ -129,6 +129,7 @@ class PlaybackSnapshot {
     this.isLoading = false,
     this.hasPendingLogicalQueue = false,
     this.pendingQueueIndex,
+    this.pendingSeekPosition,
     this.loadingSongId,
     this.lastFailedSongId,
   });
@@ -149,6 +150,7 @@ class PlaybackSnapshot {
       isLoading = false,
       hasPendingLogicalQueue = false,
       pendingQueueIndex = null,
+      pendingSeekPosition = null,
       loadingSongId = null,
       lastFailedSongId = null;
 
@@ -176,6 +178,9 @@ class PlaybackSnapshot {
 
   /// Latest requested queue entry while the player confirms a transition.
   final int? pendingQueueIndex;
+
+  /// Target retained while the selected source loads or confirms a seek.
+  final Duration? pendingSeekPosition;
 
   /// Song id currently being loaded, if known.
   final String? loadingSongId;
@@ -207,6 +212,7 @@ class PlaybackSnapshot {
     bool? isLoading,
     bool? hasPendingLogicalQueue,
     Object? pendingQueueIndex = _unmodifiedPendingQueueIndex,
+    Object? pendingSeekPosition = _unmodifiedPendingQueueIndex,
     String? loadingSongId,
     String? lastFailedSongId,
   }) {
@@ -230,6 +236,10 @@ class PlaybackSnapshot {
           identical(pendingQueueIndex, _unmodifiedPendingQueueIndex)
           ? this.pendingQueueIndex
           : pendingQueueIndex as int?,
+      pendingSeekPosition:
+          identical(pendingSeekPosition, _unmodifiedPendingQueueIndex)
+          ? this.pendingSeekPosition
+          : pendingSeekPosition as Duration?,
       loadingSongId: loadingSongId ?? this.loadingSongId,
       lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
     );
@@ -251,6 +261,8 @@ class PlaybackSnapshot {
       isCurrentSongLiked: isCurrentSongLiked,
       isLoading: isLoading,
       hasPendingLogicalQueue: hasPendingLogicalQueue,
+      pendingQueueIndex: pendingQueueIndex,
+      pendingSeekPosition: pendingSeekPosition,
       loadingSongId: loadingSongId,
       lastFailedSongId: lastFailedSongId,
     );

@@ -1013,17 +1013,42 @@ current, paused, and switched states, and repeats after a clean restart. Its
 app-owned screenshots and widget semantics are the canonical visual evidence;
 do not attempt native desktop automation.
 
-For desktop seek and remote-recovery changes, run:
+For seek and remote-recovery changes, use the synthetic fixture gate:
 
 ```bash
-python3 tool/seek_cache_diag.py
+python3 tool/seek_reliability_diagnostics.py --platform linux
+python3 tool/seek_reliability_diagnostics.py --platform android \
+  --android-serial emulator-5590
 ```
 
-The clone-only scenario sets the application volume to zero and verifies the
-effective player volume before it starts media. It records seeks past the
-current buffer, recovery events, and the post-seek transport state under
-`build/sync-diagnostics/`; do not use it as evidence if mute verification
-fails.
+The runner builds a profile with an isolated database and cache, verifies mute
+before playback, and exercises WAV, MP3, FLAC and Opus streams. It covers early
+and overlapping seeks, backward bursts, paused playback, completed cache files,
+and delayed, unsupported and failing Range responses. Two clean process starts
+are the default; fresh song IDs keep early cases uncached. Android installs a
+unique sidecar package, without clearing another app's data. Use a disposable
+emulator created and removed according to the instructions above. `ffmpeg` and
+Flutter are required. `--codecs` narrows a diagnostic rerun. Each invocation
+requires a fresh output directory and uses new song IDs; reusing an authenticated
+fixture profile is rejected so old connection state cannot affect results.
+
+Evidence lives under `build/seek-reliability/`: `report.json` records the requested
+target, generation/stage/outcome, settled position, subsequent motion, transport
+state, queue identity and synthetic Range requests. Supported/delayed cases must
+settle within two seconds of the final target, advance when playing and remain
+still when paused.
+Delayed decoder range searches can use the load deadline and then wait for a
+progressing, at least half-complete desktop cache download. The cache wait also
+has the load deadline and ends after three seconds without progress; only the
+completed file can be used for recovery.
+Unsupported/failing Range results remain separately visible; they cannot
+certify a working server and are never included as passing supported
+seek coverage. Review these outcomes for bounded failures and queue/transport
+preservation. Screenshots come from `POST /v1/presentation/screenshot`; inspect
+the relevant player and lyrics views as well as the runner's startup view.
+`seek_cache_diag.py` remains available for a private real-server clone, but the
+synthetic gate requires no production credentials. Platform results must be
+reported separately; Linux/Android evidence does not certify Windows or Apple.
 
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.

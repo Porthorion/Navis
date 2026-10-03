@@ -488,15 +488,14 @@ void main() {
         isFalse,
       );
 
-      // Overshoot: actual > requested — no recovery (shouldn't happen, but
-      // guard against false positives).
+      // Backward no-op: staying above the requested target needs recovery.
       expect(
         navisShouldRecoverSeekToDirectStream(
           sourceKind: 'lockCachedStream',
           requestedPosition: const Duration(seconds: 30),
           actualPosition: const Duration(seconds: 32),
         ),
-        isFalse,
+        isTrue,
       );
     });
 

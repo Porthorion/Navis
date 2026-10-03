@@ -26,6 +26,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -83,9 +84,14 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
 class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
   int toggleLikeCalls = 0;
   Duration? sought;
+  int seekCalls = 0;
+  PlaybackSnapshot playback = _activePlayback;
 
   @override
-  Future<void> seek(Duration position) async => sought = position;
+  Future<void> seek(Duration position) async {
+    sought = position;
+    seekCalls++;
+  }
 
   @override
   Future<void> toggleLike() async {
@@ -96,7 +102,8 @@ class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.isGetter) {
       return switch (invocation.memberName) {
-        #snapshot => _activePlayback,
+        #equalizerCapabilities => EqCapabilities.unavailable,
+        #snapshot => playback,
         #snapshotStream => const Stream<PlaybackSnapshot>.empty(),
         #transportVisualCueStream => const Stream<TransportVisualCue>.empty(),
         #positionStream => const Stream<Duration>.empty(),
@@ -777,6 +784,56 @@ void main() {
       find.byKey(const ValueKey('desktopMiniPlayerSurface')),
       matchesGoldenFile('goldens/mini_player_empty_720x405.png'),
     );
+  });
+
+  testWidgets('compact Mini Player previews dragging and commits once', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final handler = _RecordingLikePlaybackHandler()
+      ..playback = _activePlayback.copyWith(
+        pendingSeekPosition: const Duration(seconds: 90),
+      );
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: handler.playback,
+        ),
+        desktopWindowControllerProvider.overrideWith((ref) => windowController),
+        audioHandlerProvider.overrideWith((ref) => handler),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    final slider = find.byKey(const ValueKey('desktopMiniPlayerSeekSlider'));
+    expect(slider, findsOneWidget);
+    expect(tester.widget<Slider>(slider).value, 90000);
+    final gesture = await tester.startGesture(tester.getCenter(slider));
+    await gesture.moveBy(const Offset(50, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(50, 0));
+    await tester.pump();
+    final intermediateCalls = handler.seekCalls;
+    await gesture.up();
+    await tester.pump();
+    expect(
+      intermediateCalls,
+      0,
+      reason: 'Dragging should only preview the target, without repeatedly seeking the native player.',
+    );
+    expect(handler.seekCalls, 1);
   });
 
   testWidgets(

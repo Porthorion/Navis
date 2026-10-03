@@ -108,3 +108,22 @@ class NavisPlaybackTimeouts {
   /// A single transport control call.
   final Duration control;
 }
+
+/// A request belongs to the selected queue occurrence, independent of whether
+/// the native player is temporarily paused while loading or recovering.
+class _PendingSeek {
+  new({
+    required this.generation,
+    required this.songId,
+    required this.queueIndex,
+    required this.position,
+  });
+
+  final int generation;
+  final String songId;
+  int? queueIndex;
+  final Duration position;
+  String stage = 'waiting for source';
+  String? outcome;
+  int recoveryAttempts = 0;
+}

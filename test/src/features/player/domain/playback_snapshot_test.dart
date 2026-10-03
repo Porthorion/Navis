@@ -4,6 +4,24 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
   group('PlaybackSnapshot', () {
+    test('pending seek is preserved unless explicitly cleared', () {
+      final pending = const PlaybackSnapshot.idle().copyWith(
+        pendingSeekPosition: const Duration(seconds: 90),
+      );
+      expect(
+        pending.copyWith(playing: true).pendingSeekPosition,
+        const Duration(seconds: 90),
+      );
+      expect(
+        pending.copyWith(pendingSeekPosition: null).pendingSeekPosition,
+        isNull,
+      );
+      expect(
+        pending.clearRadioStation().pendingSeekPosition,
+        const Duration(seconds: 90),
+      );
+    });
+
     test('idle snapshot defaults isCurrentSongLiked to false', () {
       const snapshot = PlaybackSnapshot.idle();
       expect(snapshot.isCurrentSongLiked, isFalse);
