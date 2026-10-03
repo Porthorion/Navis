@@ -405,6 +405,58 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('playback setting toggle flips only the keyed switch', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync(
+      'navis_playback_setting_test_',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pump(),
+    );
+    final changes = <bool>[];
+    var decoys = 0;
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                SwitchListTile(
+                  value: true,
+                  onChanged: (_) => decoys++,
+                  title: const Text('Other switch'),
+                ),
+                SwitchListTile(
+                  key: const ValueKey('playbackSettingsScrobbleToggle'),
+                  value: true,
+                  onChanged: changes.add,
+                  title: const Text('Enable Scrobbling'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await controller.togglePlaybackSetting(setting: 'scrobble');
+    expect(changes, [false]);
+    expect(decoys, 0);
+    await expectLater(
+      controller.togglePlaybackSetting(setting: 'gapless'),
+      throwsFormatException,
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: SizedBox())),
+    );
+    await expectLater(
+      controller.togglePlaybackSetting(setting: 'scrobble'),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('tooltip control drives real hover below excluded semantics', (
     tester,
   ) async {

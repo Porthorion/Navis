@@ -269,6 +269,17 @@ It launches the Linux profile app against an isolated clone, authenticates via
 the app API, and verifies volume, mute, Unmute, persistence, and clean restart.
 It supplements but does not replace `./tool/check.sh`.
 
+Playback settings autosave has a focused manual runtime gate:
+
+```bash
+./tool/playback_settings_diagnostics.sh
+```
+
+It signs an isolated clone in to the loopback fixture, flips Scrobbling on the
+mounted Playback settings screen, and verifies that the ListenBrainz account,
+unmetered-only background sync and desktop volume survive the save and a clean
+restart. It supplements but does not replace `./tool/check.sh`.
+
 Current-song row presentation has a focused isolated Linux runtime gate:
 
 ```bash

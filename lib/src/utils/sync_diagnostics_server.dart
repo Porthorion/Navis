@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -683,6 +684,45 @@ class SyncDiagnosticsServer {
           'showRadioPage': settings?.showRadioPage ?? true,
           'homeRecommendationsAutoAdvance':
               settings?.homeRecommendationsAutoAdvance ?? false,
+        });
+        return;
+      }
+      if ((request.method == 'GET' || request.method == 'POST') &&
+          path == '/v1/presentation/playback-settings') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        if (request.method == 'POST') {
+          final body = await _readJson(request);
+          final toggle = body['toggle'];
+          if (body.length != 1 ||
+              toggle is! String ||
+              !DiagnosticsPresentationController.playbackSettingToggles
+                  .containsKey(toggle)) {
+            throw const FormatException();
+          }
+          final presentation = presentationController;
+          if (presentation == null) {
+            await _presentationUnavailable(request);
+            return;
+          }
+          await presentation.togglePlaybackSetting(setting: toggle);
+        }
+        final settings = await _container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .getSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'scrobbleEnabled': settings?.scrobbleEnabled ?? true,
+          'backgroundSyncUnmeteredOnly':
+              settings?.backgroundSyncUnmeteredOnly ?? true,
+          'listenBrainzTokenValid': settings?.listenBrainzTokenValid ?? false,
+          'listenBrainzAccountStored':
+              settings?.listenBrainzUserName?.isNotEmpty ?? false,
+          'persistedVolume':
+              settings?.desktopPlaybackVolume ??
+              AppSettingsDao.defaultDesktopPlaybackVolume,
         });
         return;
       }

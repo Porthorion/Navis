@@ -1679,6 +1679,119 @@ void main() {
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
+  test(
+    'playback settings toggle is bounded and reports persisted fields',
+    () async {
+      final presentation = _MockPresentationController();
+      when(() => presentation.togglePlaybackSetting(setting: 'scrobble'))
+          .thenAnswer((_) async {});
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+      await dao.saveSettings(
+        cachedPlaybackFirst: false,
+        scrobbleEnabled: false,
+        gaplessEnabled: true,
+        skipSilenceEnabled: false,
+        showAlbumsPage: true,
+        showRadioPage: true,
+        showPlaylistsPage: true,
+        showArtistsPage: true,
+        showLikedPage: true,
+        wifiOnlyDownloads: true,
+        autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        themeMode: 'dark',
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        artTintedNowPlaying: true,
+        dynamicAlbumColorEnabled: false,
+        updateCheckEnabled: true,
+        updateChannel: 'stable',
+        audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
+        backgroundSyncUnmeteredOnly: false,
+        useLrclib: true,
+        legacyInstantMixEnabled: false,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        coverArtShape: 'square',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
+        desktopPlaybackVolume: 0.37,
+        desktopLastAudibleVolume: 0.37,
+        homeDensity: 'comfortable',
+        listenBrainzTokenValid: true,
+        listenBrainzUserName: 'fixture-listener',
+      );
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        method: 'POST',
+        body: const {'toggle': 'scrobble'},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      for (final body in <Map<String, Object?>>[
+        {},
+        {'toggle': 42},
+        {'toggle': 'gapless'},
+        {'toggle': 'scrobble', 'value': true},
+      ]) {
+        final response = await _request(
+          fixture.port,
+          '/v1/presentation/playback-settings',
+          method: 'POST',
+          token: fixture.token,
+          body: body,
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+      }
+      final toggled = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        method: 'POST',
+        token: fixture.token,
+        body: const {'toggle': 'scrobble'},
+      );
+      expect(toggled.statusCode, HttpStatus.ok);
+      verify(() => presentation.togglePlaybackSetting(setting: 'scrobble'))
+          .called(1);
+      final observed = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        token: fixture.token,
+      );
+      expect(observed.body, {
+        'scrobbleEnabled': false,
+        'backgroundSyncUnmeteredOnly': false,
+        'listenBrainzTokenValid': true,
+        'listenBrainzAccountStored': true,
+        'persistedVolume': 0.37,
+      });
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        presentationController: presentation,
+      );
+      addTearDown(primary.close);
+      for (final method in ['GET', 'POST']) {
+        final forbidden = await _request(
+          primary.port,
+          '/v1/presentation/playback-settings',
+          method: method,
+          token: primary.token,
+          body: method == 'POST' ? const {'toggle': 'scrobble'} : null,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden);
+      }
+    },
+  );
+
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();
     when(() => presentation.hoverTooltip(target: 'lyrics'))

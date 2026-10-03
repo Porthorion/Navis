@@ -108,6 +108,11 @@ class DiagnosticsPresentationController {
 
   static const artistActions = {'play', 'shuffle', 'cancel', 'queue'};
 
+  /// Playback settings switches the diagnostics API may flip, by widget key.
+  static const playbackSettingToggles = <String, String>{
+    'scrobble': 'playbackSettingsScrobbleToggle',
+  };
+
   Future<void> activateArtistControl({required String action}) async {
     if (!artistActions.contains(action)) throw const FormatException();
     final root = _boundaryKey.currentContext;
@@ -615,6 +620,29 @@ class DiagnosticsPresentationController {
     }
     if (callback == null) throw const DiagnosticsPresentationUnavailable();
     callback();
+    await waitForFrame();
+  }
+
+  /// Flips a mounted Playback settings switch through its own callback, so
+  /// the screen's debounced autosave persists the change.
+  Future<void> togglePlaybackSetting({required String setting}) async {
+    final key = playbackSettingToggles[setting];
+    if (key == null) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final tile =
+        _findElement(
+              root,
+              (element) =>
+                  element.widget.key == ValueKey<String>(key) &&
+                  element.widget is SwitchListTile,
+            )?.widget
+            as SwitchListTile?;
+    final onChanged = tile?.onChanged;
+    if (tile == null || onChanged == null) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    onChanged(!tile.value);
     await waitForFrame();
   }
 
