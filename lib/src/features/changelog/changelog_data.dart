@@ -175,6 +175,10 @@ const List<ChangelogVersion> changelogs = [
         'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Bluetooth car stereos and Android Auto show cover art again after a track change, instead of staying blank for songs whose cover had not been downloaded yet',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

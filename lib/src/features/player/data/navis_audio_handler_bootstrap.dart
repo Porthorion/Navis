@@ -153,6 +153,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                         : AndroidSystemArt(
                             authority: '$packageName.artwork',
                             fetch: base.cacheSystemArtwork,
+                            cachedPath: base.cachedSystemArtwork,
                           ),
                   );
                 },

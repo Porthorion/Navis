@@ -1882,12 +1882,22 @@ every credential-bearing `artUri` it publishes (metadata, the queue window,
 browse, search and `getMediaItem` results) through `AndroidSystemArt` to
 `content://<applicationId>.artwork/cover/<key>`, served read-only by the
 exported `NavisArtworkProvider` from the same cache, which Android Auto can
-open from its own process. Browse lists wait up to 1.5 s for their covers to
-download (six at a time); a cover not cached yet appears the next time the
-list is shown, and queue entries show art once it has been cached. The app
-itself keeps the HTTP `artUri`. Before any network fetch, `PlaybackArtCache`
-copies a downloaded song's cover from the permanent artwork store (see Cache
-Flow), so downloaded music shows its cover offline on every system surface.
+open from its own process. The content URI is published only once the cover
+is on disk (the item carries `artCacheFile`, or `PlaybackArtCache.cachedPath`
+knows it); until then the item has no art and the download starts. A URI the
+provider cannot open yet made audio_service store empty
+`METADATA_KEY_ALBUM_ART`, and the following update with the bitmap kept the
+same URI, which Bluetooth AVRCP (Android 14+) treats as unchanged and
+Android Auto does not reload, so both stayed blank in 1.4.0; a change from
+no art to art is shown by both. Browse lists wait up to 1.5 s for their
+covers to download (six at a time); a cover not cached yet appears the next
+time the list is shown, and queue entries show art once it has been cached.
+Before any network fetch, `PlaybackArtCache` copies a downloaded song's cover
+from the permanent artwork store (see Cache Flow), so downloaded music shows
+its cover offline on every system surface. Both the copy and a download are
+written to `<file>.part` and renamed when complete, so the provider and later
+launches never use a partial file, and a download whose body stops arriving
+for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
