@@ -21,7 +21,7 @@
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true on Forgejo release
-#   --allow-existing-version   Allow rebuilding when pubspec already has this version
+#   --allow-existing-version   Rebuild or retry a version whose release tag already exists
 #
 # Examples:
 #   ./tool/release.sh v0.3.0
@@ -343,13 +343,18 @@ fi
 CURRENT_BRANCH="$(git branch --show-current)"
 
 # ─── Existing version guard ─────────────────────────────────────────────────
+# A version has shipped once its tag exists. pubspec.yaml is not the signal:
+# development sets it to the coming version as soon as work on it starts.
 PUBSPEC="${SCRIPT_DIR}/../pubspec.yaml"
 REQUESTED_PUBSPEC_VERSION="${SEMVER}+${BUILD_NUMBER}"
 CURRENT_PUBSPEC_VERSION="$(sed -n 's/^version: //p' "${PUBSPEC}" | head -1)"
-if [[ "${CURRENT_PUBSPEC_VERSION}" == "${REQUESTED_PUBSPEC_VERSION}" && "${ALLOW_EXISTING_VERSION}" == "false" ]]; then
-  echo "Error: pubspec.yaml already has version ${REQUESTED_PUBSPEC_VERSION}."
-  echo "Use a new release version, or pass --allow-existing-version for an intentional rebuild/retry."
-  exit 1
+TAG_GUARD_ARGS=("${VERSION}")
+if [[ "${ALLOW_EXISTING_VERSION}" == "true" ]]; then
+  TAG_GUARD_ARGS+=("--allow-existing-version")
+fi
+"${SCRIPT_DIR}/release_tag_guard.sh" "${TAG_GUARD_ARGS[@]}"
+if [[ "${CURRENT_PUBSPEC_VERSION}" == "${REQUESTED_PUBSPEC_VERSION}" ]]; then
+  echo "==> pubspec.yaml is already at ${REQUESTED_PUBSPEC_VERSION} (set during development)."
 fi
 
 # ─── Checks ─────────────────────────────────────────────────────────────────
@@ -773,8 +778,13 @@ echo "==> Merging ${CURRENT_BRANCH} -> main..."
 git checkout main
 git merge --ff-only "${CURRENT_BRANCH}"
 
-echo "==> Tagging ${VERSION} on main..."
-git tag -a "${VERSION}" -m "Release ${VERSION} (${UPDATE_CHANNEL})"
+if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+  # Only reachable with --allow-existing-version (see the version guard).
+  echo "==> Reusing existing tag ${VERSION}."
+else
+  echo "==> Tagging ${VERSION} on main..."
+  git tag -a "${VERSION}" -m "Release ${VERSION} (${UPDATE_CHANNEL})"
+fi
 
 echo "==> Pushing main, ${CURRENT_BRANCH}, and tag ${VERSION}..."
 git push origin main

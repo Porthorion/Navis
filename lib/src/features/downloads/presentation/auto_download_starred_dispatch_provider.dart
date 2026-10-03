@@ -79,10 +79,16 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
           ref.read(appSettingsProvider).asData?.value ??
           const AppSettingsModel.defaults();
       final useMobileQuality = networkType == NetworkType.cellular;
+      // Off mobile data, a saved download quality applies; "ask" keeps the
+      // original files, since nobody is there to ask.
+      final saved = useMobileQuality
+          ? null
+          : (await db.appSettingsDao.getDownloadQualityPreference())
+                .savedChoice;
       final quality = useMobileQuality
           ? settings.cellularMaxBitRate?.toString()
-          : null;
-      final format = useMobileQuality ? settings.cellularFormat : null;
+          : saved?.quality;
+      final format = useMobileQuality ? settings.cellularFormat : saved?.format;
       final likedAlbums = await db.libraryDao.getLikedAlbums();
       final likedSongs = await db.libraryDao.getAllStarredSongs();
 

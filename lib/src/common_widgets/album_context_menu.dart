@@ -300,7 +300,7 @@ Future<void> _downloadAlbumFromMenu(
   String albumId,
 ) async {
   if (!context.mounted) return;
-  final choice = await showDownloadQualitySheet(context);
+  final choice = await requestDownloadQuality(context, ref);
   if (choice == null || !context.mounted) return;
   final service = ref.read(downloadServiceProvider);
   final count = await service.enqueueAlbum(
@@ -312,7 +312,11 @@ Future<void> _downloadAlbumFromMenu(
   final l10n = AppLocalizations.of(context)!;
   showAppNotice(
     context,
-    message: l10n.downloadAlbumQueued(count),
+    message: downloadQueuedNotice(
+      l10n,
+      l10n.downloadAlbumQueued(count),
+      choice,
+    ),
     level: AppNoticeLevel.success,
   );
 }

@@ -205,6 +205,110 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('autosave preserves settings owned by other screens', (
+      tester,
+    ) async {
+      final storedSettings = initialSettings.copyWith(
+        wifiMaxBitRate: 256,
+        wifiFormat: 'opus',
+        showRadioPage: false,
+        backgroundSyncUnmeteredOnly: false,
+        listenBrainzScrobblingEnabled: true,
+        listenBrainzTokenValid: true,
+        listenBrainzUserName: 'navis-listener',
+        desktopPlaybackVolume: 0.4,
+        desktopLastAudibleVolume: 0.6,
+        playbackPitchSemitones: 2,
+        lockPitchToSpeed: true,
+        selectedPlaybackPresetId: 'preset-1',
+      );
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(AsyncData(storedSettings)),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scrobbleToggle = find.widgetWithText(
+        SwitchListTile,
+        'Enable Scrobbling',
+      );
+      await tester.ensureVisible(scrobbleToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(scrobbleToggle);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel, isNotNull);
+      expect(savedModel!.scrobbleEnabled, isFalse);
+      expect(savedModel!.wifiMaxBitRate, 256);
+      expect(savedModel!.wifiFormat, 'opus');
+      expect(savedModel!.showRadioPage, isFalse);
+      expect(savedModel!.backgroundSyncUnmeteredOnly, isFalse);
+      expect(savedModel!.listenBrainzScrobblingEnabled, isTrue);
+      expect(savedModel!.listenBrainzTokenValid, isTrue);
+      expect(savedModel!.listenBrainzUserName, 'navis-listener');
+      expect(savedModel!.desktopPlaybackVolume, 0.4);
+      expect(savedModel!.desktopLastAudibleVolume, 0.6);
+      expect(savedModel!.playbackPitchSemitones, 2);
+      expect(savedModel!.lockPitchToSpeed, isTrue);
+      expect(savedModel!.selectedPlaybackPresetId, 'preset-1');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('autosave clears wifi limits reset to original quality', (
+      tester,
+    ) async {
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                initialSettings.copyWith(
+                  wifiMaxBitRate: 256,
+                  wifiFormat: 'opus',
+                ),
+              ),
+            ),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Original quality').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Server default').last);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel, isNotNull);
+      expect(savedModel!.wifiMaxBitRate, isNull);
+      expect(savedModel!.wifiFormat, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('autosave persists Vorbis as a streaming transcode format', (
       tester,
     ) async {

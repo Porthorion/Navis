@@ -104,9 +104,19 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     if (ids.isEmpty) {
       return;
     }
-    await (delete(
-      cachedTracksTable,
-    )..where((table) => table.songId.isIn(ids))).go();
+    // In batches: a download folder can name more songs than SQLite binds
+    // in one statement.
+    await transaction(() async {
+      for (var start = 0; start < ids.length; start += 500) {
+        final batch = ids.sublist(
+          start,
+          start + 500 < ids.length ? start + 500 : ids.length,
+        );
+        await (delete(
+          cachedTracksTable,
+        )..where((table) => table.songId.isIn(batch))).go();
+      }
+    });
   }
 
   Future<void> touchTrack(String songId) async {

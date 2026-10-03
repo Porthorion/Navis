@@ -85,6 +85,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required this._starSyncDao,
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
+    Future<File?> Function(String coverArtId)? readPermanentArtwork,
     this._reportRollingCacheActivity,
     this._startPersonalRadio,
     Future<void> Function(String)? startPreferredMix,
@@ -108,7 +109,10 @@ class NavisAudioHandler extends BaseAudioHandler
        // A local cover file for the system media controls: Android's
        // bitmap, and MPRIS and SMTC art without the credential-bearing URL.
        _artCache = _isAndroidRuntime || _isLinuxRuntime || _isWindowsRuntime
-           ? PlaybackArtCache(reportNetworkUsage: reportNetworkUsage)
+           ? PlaybackArtCache(
+               reportNetworkUsage: reportNetworkUsage,
+               readPermanentArtwork: readPermanentArtwork,
+             )
            : null {
     final runtime = _readRuntimeSettings();
     _desiredEqualizer = runtime.equalizer ?? EqConfiguration.flat();

@@ -350,7 +350,23 @@ bundle instead of `flutter run`.
 Clone-only `POST /v1/downloads/enqueue {"songIds": [...]}` queues permanent
 downloads through the production download service (a song already in the
 rolling cache is promoted instead of downloaded), for download and
-interruption checks without driving the UI.
+interruption checks without driving the UI. Optional `"quality": <kbps>` and
+`"format": "mp3"|"aac"|"opus"` request a transcode; `"usePreference": true`
+applies the saved download quality instead, as the app's download actions do.
+
+`GET /v1/downloads/status` reports the queue (counts by status and each item's
+id, song, status, quality, format and retry count), whether it is paused, the
+configured and effective concurrency, the queue ids in progress, the most
+downloads seen running at once (`peakActive`), the saved quality preference
+and prompt flag, permanent downloads (song, format, bitrate and file base name
+only) and the number of stored download covers. Clone-only
+`POST /v1/downloads/settings` accepts any of `maxConcurrent`, `paused`,
+`qualityMode` (`ask`|`original`|`transcode`), `bitRate`, `format`, `prompted`
+and `resetPeak`, through the same service and settings methods as the
+Downloads screen, and clone-only `POST /v1/downloads/cancel {"queueId": n}`
+cancels one item like the queue's Cancel button. Both return the status.
+`tool/download_preferences_diagnostics.sh` drives these against the loopback
+fixture server.
 
 A clone copies the source profile's settings, including a custom Downloads
 folder that is the user's real one. The download service starts at launch and
@@ -778,9 +794,17 @@ animation duration.
 
 For mobile track-layout diagnostics, clone-only
 `POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
-`revealFirst`, `more`, `download`, `downloadedTab`, or `dragFirstToLast`. It
+`revealFirst`, `more`, `download`, `downloadedTab`, `downloadsSettingsTab`,
+`downloadsQueueTab`, `customFolderOff`, `confirmCustomFolderOff`, `dragFirstToLast`,
+`downloadQuality320`, `downloadQualityAlwaysUse`, or
+`downloadQualityAlwaysAsk`. It
 exercises mounted shared rows through their scroll owner, menu/download callbacks, Downloads tab
-controller, or Flutter touch events on the playlist drag handle. It accepts no
+controller, or Flutter touch events on the playlist drag handle. The custom
+folder actions call the Downloads settings switch's own callback, only when it
+is on (turning it on would open the system folder picker), and press the
+turn-off dialog's own confirm button. The download-quality actions call the
+open quality picker's 320 kbps row and the one-time "always download in this
+quality?" dialog's own buttons. It accepts no
 coordinates, arbitrary widget keys, track IDs or destructive delete action.
 Missing controls fail explicitly; primary diagnostics reject every mutation.
 Use a populated isolated emulator fixture, inspect app-owned captures at phone
@@ -895,6 +919,48 @@ It launches a Linux profile build against one isolated clone three times. The
 scenario sets 37%, verifies a clean restart, persists mute across another
 restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
 the local app log are retained under `build/volume-memory-diagnostics/`.
+
+Use the focused playback-settings scenario when changing how the Playback
+settings screen saves, or what restarts weekly ListenBrainz discovery:
+
+```bash
+./tool/playback_settings_diagnostics.sh
+```
+
+It signs an isolated clone in to the local loopback fixture, with the
+ListenBrainz account, unmetered-only background sync off and the desktop volume
+seeded before launch. It flips Scrobbling on the mounted Playback settings
+screen, then requires those three settings to survive the autosave and a clean
+restart. The authenticated clone-only `GET/POST /v1/presentation/playback-settings`
+endpoint accepts exactly one `toggle`, `scrobble`, which invokes the keyed
+production switch's own callback; it returns only Scrobbling, unmetered-only
+sync, ListenBrainz token validity, whether an account name is stored (never the
+name), and the persisted desktop volume. Primary certification rejects both
+methods. The scenario also requires that neither the desktop volume write nor
+either autosave, before and after the restart, restarts weekly ListenBrainz
+discovery. It reads the clone-only
+`GET /v1/presentation/listenbrainz-discover`, which reads the production
+discovery stream (applying any restart still pending while Home is hidden) and
+returns only `streamBuilds`, the process-lifetime number of discovery starts,
+its `state` (`loading`, `data` or `error`) and `playlistCount`. Primary
+certification rejects it. Output is retained under
+`build/playback-settings-diagnostics/`.
+
+Use the focused download-folder scenario after changing how Navis enters,
+leaves or switches a custom download folder:
+
+```bash
+./tool/download_folder_diagnostics.sh
+```
+
+It needs no credential file or source profile: an empty clone signs in to the
+loopback lifecycle fixture, and both fixture folders live inside the run root,
+so the user's real download folder is never involved. It drives the Downloads
+settings switch through `POST /v1/presentation/track-action`
+(`downloadsSettingsTab`, `customFolderOff`, `confirmCustomFolderOff`), checks
+`GET /v1/cache/status` and the clone's settings row, and compares folder
+snapshots across a clean restart. Results and screenshots stay under
+`build/download-folder-diagnostics/`.
 
 Use the focused desktop window scenario for shell, bottom-player, resize-gate,
 or Mini Player changes:
@@ -1075,11 +1141,13 @@ building, removes an existing same-name root release asset before copying, and
 fails publication if the final APK metadata/signature or release string
 sentinels do not match the expected release.
 
-`tool/release.sh` fails when `pubspec.yaml` already contains the exact requested
-release version. Use a new version for normal releases; reserve
-`--allow-existing-version` for intentional rebuilds, failed-release retries, or
-a version that release preparation already bumped on `dev` and has no tag yet
-(see [ci-cd.md](ci-cd.md#what-it-does)).
+`tool/release.sh` fails when the requested version's release tag already
+exists, locally or on origin. A version that `dev` already names in
+`pubspec.yaml`, because work on it started there, releases normally; reserve
+`--allow-existing-version` for intentional rebuilds and failed-release
+retries (see [ci-cd.md](ci-cd.md#what-it-does)). Which version to start, and
+when, is set out in "Versioning" in
+[agentic-engineering.md](agentic-engineering.md).
 
 Advanced release packaging options:
 

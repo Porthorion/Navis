@@ -163,7 +163,7 @@ class DesktopSongActions extends ConsumerWidget {
   }
 
   Future<void> _download(BuildContext context, WidgetRef ref) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !context.mounted) return;
     await ref
         .read(downloadServiceProvider)
@@ -171,7 +171,11 @@ class DesktopSongActions extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadSongQueued,
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadSongQueued,
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }

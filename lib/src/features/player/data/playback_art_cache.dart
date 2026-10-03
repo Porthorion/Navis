@@ -27,6 +27,7 @@ import 'package:path_provider/path_provider.dart';
 class PlaybackArtCache {
   new({
     this._reportNetworkUsage,
+    this._readPermanentArtwork,
     this.bodyIdleTimeout = const Duration(seconds: 30),
   });
 
@@ -45,6 +46,11 @@ class PlaybackArtCache {
   final Duration bodyIdleTimeout;
 
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  /// The durable cover of a downloaded song, used before any network fetch
+  /// so downloaded music shows its cover offline (Bluetooth/AVRCP, Android
+  /// Auto, MPRIS, SMTC).
+  final Future<File?> Function(String coverArtId)? _readPermanentArtwork;
 
   /// Shared client, so consecutive track changes reuse a keep-alive
   /// connection instead of paying a TCP and TLS handshake each time.
@@ -110,6 +116,30 @@ class PlaybackArtCache {
           return file.path;
         }
         await file.delete();
+      }
+
+      final permanent = await _readPermanentArtwork?.call(coverArtId);
+      if (permanent != null) {
+        // Copied beside the final name and renamed, like a download, so the
+        // provider never serves a half-copied cover.
+        final partial = File('${file.path}.part');
+        try {
+          await permanent.copy(partial.path);
+          await partial.rename(file.path);
+          _mem[coverArtId] = file.path;
+          AppLogger.debug(
+            'PlaybackArtCache: art for $coverArtId → ${file.path} '
+            '(download artwork)',
+          );
+          return file.path;
+        } on FileSystemException catch (error) {
+          AppLogger.warning(
+            'PlaybackArtCache: download artwork copy failed: $error',
+          );
+          // Keep metadata access asynchronous so storage latency cannot stall UI.
+          // ignore: avoid_slow_async_io
+          if (await partial.exists()) await partial.delete();
+        }
       }
 
       // Download using dart:io HttpClient so we use the same platform HTTP

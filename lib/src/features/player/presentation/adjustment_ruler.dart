@@ -340,20 +340,11 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                 : null,
             onHorizontalDragEnd: widget.enabled ? (_) => _endDrag() : null,
             onHorizontalDragCancel: widget.enabled ? _endDrag : null,
+            // Flat on the panel: the outline appears only as a focus ring.
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    colors.surfaceContainerLowest,
-                    colors.surfaceContainerHigh,
-                  ],
-                ),
                 borderRadius: NavisRadius.mdAll,
-                border: Border.all(
-                  color: _focused ? colors.primary : colors.outlineVariant,
-                ),
+                border: _focused ? Border.all(color: colors.primary) : null,
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -370,11 +361,17 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                     painter: _RulerPainter(
                       value: _visualValue,
                       range: widget.range,
+                      resetValue: widget.resetValue,
                       pixelsPerUnit: widget.pixelsPerUnit,
                       color: widget.enabled || widget.readOnly
                           ? colors.onSurfaceVariant
                           : colors.outline,
-                      accent: colors.primary,
+                      accent: widget.enabled || widget.readOnly
+                          ? colors.primary
+                          : colors.outline,
+                      labelStyle:
+                          Theme.of(context).textTheme.labelSmall ??
+                          const TextStyle(),
                       textDirection: Directionality.of(context),
                       textScaler: MediaQuery.textScalerOf(context),
                     ),
@@ -400,17 +397,24 @@ class _RulerPainter extends CustomPainter {
   new({
     required this.value,
     required this.range,
+    required this.resetValue,
     required this.pixelsPerUnit,
     required this.color,
     required this.accent,
+    required this.labelStyle,
     required this.textDirection,
     required this.textScaler,
   });
   final double value;
   final AdjustmentRange range;
+  final double resetValue;
   final double pixelsPerUnit;
   final Color color;
+
+  /// Reserved for the marker and the neutral line, so accent always means
+  /// "you are here" or "normal".
   final Color accent;
+  final TextStyle labelStyle;
   final TextDirection textDirection;
   final TextScaler textScaler;
 
@@ -420,26 +424,23 @@ class _RulerPainter extends CustomPainter {
     final radius = size.width / (2 * pixelsPerUnit);
     final start = ((value - radius) * 100).floor();
     final end = ((value + radius) * 100).ceil();
+    final neutral = (resetValue * 100).round();
     final paint = Paint()..strokeWidth = 1;
-    final glow = Paint()
-      ..shader = RadialGradient(
-        colors: [accent.withValues(alpha: 0.13), accent.withValues(alpha: 0)],
-      ).createShader(Rect.fromCircle(center: Offset(center, 26), radius: 45));
-    canvas.drawCircle(Offset(center, 26), 45, glow);
     for (var tick = start; tick <= end; tick++) {
       final tickValue = tick / 100;
       if (!range.contains(tickValue)) continue;
       final x = center + (tickValue - value) * pixelsPerUnit;
       final edge = math.min(x, size.width - x) / (size.width * 0.15);
       final opacity = edge.clamp(0.0, 1.0);
-      final major = tick % 10 == 0;
-      final centered = (tickValue - value).abs() < 0.005;
+      final isNeutral = tick == neutral;
+      final major = tick % 10 == 0 || isNeutral;
       final endpoint = tickValue == range.minimum || tickValue == range.maximum;
-      paint.color = (centered || endpoint ? accent : color).withValues(
+      paint.color = (isNeutral ? accent : color).withValues(
         alpha: opacity * (major ? 1 : 0.7),
       );
+      // The neutral line rises above the scale, like a detent mark.
       canvas.drawLine(
-        Offset(x, 12),
+        Offset(x, isNeutral ? 4 : 12),
         Offset(x, major || endpoint ? 36 : 25),
         paint,
       );
@@ -447,7 +448,7 @@ class _RulerPainter extends CustomPainter {
         final label = TextPainter(
           text: TextSpan(
             text: tickValue.toStringAsFixed(2),
-            style: TextStyle(color: paint.color, fontSize: 11),
+            style: labelStyle.copyWith(color: paint.color),
           ),
           textDirection: textDirection,
           textScaler: textScaler,
@@ -458,15 +459,16 @@ class _RulerPainter extends CustomPainter {
     paint
       ..color = accent
       ..strokeWidth = 2;
-    canvas.drawLine(Offset(center, 5), Offset(center, 38), paint);
-    canvas.drawCircle(Offset(center, 6), 3, paint);
+    canvas.drawLine(Offset(center, 0), Offset(center, 40), paint);
   }
 
   @override
   bool shouldRepaint(_RulerPainter old) =>
       value != old.value ||
+      resetValue != old.resetValue ||
       color != old.color ||
       accent != old.accent ||
+      labelStyle != old.labelStyle ||
       pixelsPerUnit != old.pixelsPerUnit ||
       textDirection != old.textDirection ||
       textScaler != old.textScaler ||

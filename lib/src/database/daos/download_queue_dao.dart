@@ -128,10 +128,17 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
 
   /// Update status and increment retry count atomically.
   Future<void> markForRetry(int id) async {
-    await customStatement(
+    // A custom update that names its table, so queue watchers (the Downloads
+    // screen) see the row return to the queue.
+    await customUpdate(
       'UPDATE download_queue SET status = ?, progress = 0, '
       'retry_count = retry_count + 1 WHERE id = ?',
-      [DownloadStatus.queued.name, id],
+      variables: <Variable<Object>>[
+        Variable<String>(DownloadStatus.queued.name),
+        Variable<int>(id),
+      ],
+      updates: <TableInfo<Table, Object?>>{downloadQueueTable},
+      updateKind: UpdateKind.update,
     );
   }
 }
