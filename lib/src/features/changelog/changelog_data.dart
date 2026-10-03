@@ -143,6 +143,10 @@ const List<ChangelogVersion> changelogs = [
         'Turning off the custom download folder now asks first and explains that its files stay where they are',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

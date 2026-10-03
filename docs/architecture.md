@@ -2174,7 +2174,11 @@ states without starting audio or modifying a queue.
 11. Home ListenBrainz discovery polls the startup sync gate and uses the sync
     completion bridge for refreshes instead of subscribing the stream to sync
     progress. Its derived showcase watches the discovery stream once, avoiding
-    a reactive dependency diamond during large repairs.
+    a reactive dependency diamond during large repairs. From app settings the
+    stream selects only the ListenBrainz user name and token-valid flag, so
+    unrelated saves (Playback autosave, appearance, desktop volume persistence)
+    do not restart it; a validated token refreshes it through
+    `listenBrainzDiscoverRefreshEpochProvider`.
 
 The provider fast/compatibility split and explicit repair terminology follow
 the public principles documented by

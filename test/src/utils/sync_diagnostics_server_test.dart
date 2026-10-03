@@ -30,12 +30,17 @@ import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
 
@@ -1792,6 +1797,92 @@ void main() {
     },
   );
 
+  test(
+    'ListenBrainz discover observation counts restarts and is clone-only',
+    () async {
+      const path = '/v1/presentation/listenbrainz-discover';
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: <Override>[
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+        ],
+      );
+      addTearDown(fixture.close);
+      // The running app always has settings listeners; mirror that so a save
+      // reaches the discovery stream's dependency.
+      final settings = fixture.container.listen(appSettingsProvider, (_, _) {});
+      addTearDown(settings.close);
+      await fixture.container.read(appSettingsProvider.future);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+
+      Future<void> settingsApplied(
+        bool Function(AppSettingsModel settings) applied,
+      ) async {
+        while (!applied(
+          fixture.container.read(appSettingsProvider).requireValue,
+        )) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      final unauthorized = await _request(fixture.port, path);
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final first = await _request(fixture.port, path, token: fixture.token);
+      expect(first.statusCode, HttpStatus.ok);
+      expect(first.body.keys, <String>[
+        'streamBuilds',
+        'state',
+        'playlistCount',
+      ]);
+      expect(first.body['state'], isIn(<String>['loading', 'data', 'error']));
+      final builds = first.body['streamBuilds'] as int;
+
+      final repeated = await _request(fixture.port, path, token: fixture.token);
+      expect(repeated.body['streamBuilds'], builds);
+
+      await dao.updateGridArtworkSize('large');
+      await settingsApplied(
+        (settings) => settings.gridArtworkSize == GridArtworkSize.large,
+      );
+      final unrelated = await _request(
+        fixture.port,
+        path,
+        token: fixture.token,
+      );
+      expect(unrelated.body['streamBuilds'], builds);
+
+      await dao.updateListenBrainzScrobblingState(
+        tokenValid: true,
+        userName: 'fixture-listener',
+      );
+      await settingsApplied(
+        (settings) => settings.listenBrainzUserName == 'fixture-listener',
+      );
+      final restarted = await _request(
+        fixture.port,
+        path,
+        token: fixture.token,
+      );
+      expect(restarted.body['streamBuilds'], builds + 1);
+
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      final forbidden = await _request(
+        primary.port,
+        path,
+        token: primary.token,
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+    },
+  );
+
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();
     when(() => presentation.hoverTooltip(target: 'lyrics'))
@@ -2336,6 +2427,7 @@ Future<_DiagnosticsFixture> _startFixture(
   DiagnosticsPresentationController? presentationController,
   DiagnosticsNavigationDriver? navigationDriver,
   ServerConfigModel? serverConfig,
+  List<Override> overrides = const <Override>[],
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
@@ -2354,6 +2446,7 @@ Future<_DiagnosticsFixture> _startFixture(
       if (api != null) searchIsOfflineProvider.overrideWithValue(false),
       if (librarySyncEngine != null)
         librarySyncEngineProvider.overrideWithValue(librarySyncEngine),
+      ...overrides,
     ],
   );
   final handshake = File(p.join(temp.path, 'handshake.json'));

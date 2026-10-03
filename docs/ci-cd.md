@@ -297,7 +297,8 @@ Playback settings autosave has a focused manual runtime gate:
 It signs an isolated clone in to the loopback fixture, flips Scrobbling on the
 mounted Playback settings screen, and verifies that the ListenBrainz account,
 unmetered-only background sync and desktop volume survive the save and a clean
-restart. It supplements but does not replace `./tool/check.sh`.
+restart, and that neither the save nor a desktop volume write restarts weekly
+ListenBrainz discovery. It supplements but does not replace `./tool/check.sh`.
 
 Current-song row presentation has a focused isolated Linux runtime gate:
 
