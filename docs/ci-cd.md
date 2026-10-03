@@ -259,6 +259,25 @@ artist Top Tracks route. That fixture supplies deterministic rows through the
 production provider and never requires a Last.fm key or contacts the configured
 server.
 
+Leaving a custom download folder has a focused isolated Linux gate:
+
+```bash
+./tool/download_folder_diagnostics.sh
+```
+
+An empty clone profile signs in to the loopback lifecycle fixture and
+downloads the fixture song into app storage. It then chooses a fixture folder
+inside the run root that already holds a user's copy of the song, and turns
+the folder off through the Downloads settings switch and its confirmation
+dialog. After a clean restart it chooses the folder again, then switches to a
+second folder that holds its own copy of the song, which must be adopted in
+place. The gate snapshots every file in both folders (path, size, sha256) and
+requires the snapshots to stay unchanged from the moment each folder is
+chosen. It never reads the primary profile or a real download
+folder. Open the `folder-on`, `turn-off-dialog`, `folder-off` and
+`restart-folder-off` screenshots. It supplements but does not replace
+`./tool/check.sh`, and does not cover Android SAF folders.
+
 Desktop volume restart behavior has a focused manual runtime gate:
 
 ```bash

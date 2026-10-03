@@ -4838,7 +4838,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsCustomFolderSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.'**
+  /// **'Store permanent downloads in a folder you choose. Navis moves its downloads there into artist folders; files already in the folder keep their names.'**
   String get downloadsCustomFolderSubtitle;
 
   /// No description provided for @downloadsCustomFolderUnsupported.
@@ -4864,6 +4864,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Custom download folder disabled.'**
   String get downloadsCustomFolderDisabled;
+
+  /// No description provided for @downloadsCustomFolderDisableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Off Custom Folder?'**
+  String get downloadsCustomFolderDisableTitle;
+
+  /// No description provided for @downloadsCustomFolderDisableConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.'**
+  String get downloadsCustomFolderDisableConfirm;
+
+  /// No description provided for @downloadsCustomFolderDisableAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Off'**
+  String get downloadsCustomFolderDisableAction;
 
   /// No description provided for @downloadsCustomFolderUpdating.
   ///

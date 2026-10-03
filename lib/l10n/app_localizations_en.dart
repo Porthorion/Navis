@@ -3037,7 +3037,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsCustomFolderSubtitle =>
-      'Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.';
+      'Store permanent downloads in a folder you choose. Navis moves its downloads there into artist folders; files already in the folder keep their names.';
 
   @override
   String get downloadsCustomFolderUnsupported =>
@@ -3052,6 +3052,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get downloadsCustomFolderDisabled =>
       'Custom download folder disabled.';
+
+  @override
+  String get downloadsCustomFolderDisableTitle => 'Turn Off Custom Folder?';
+
+  @override
+  String get downloadsCustomFolderDisableConfirm =>
+      'Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.';
+
+  @override
+  String get downloadsCustomFolderDisableAction => 'Turn Off';
 
   @override
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';

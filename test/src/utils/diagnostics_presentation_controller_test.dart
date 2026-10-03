@@ -300,7 +300,14 @@ void main() {
     await tester.pump();
     await scrolling;
     expect(scroll.offset, scroll.position.maxScrollExtent);
-    for (final action in ['download', 'downloadedTab', 'dragFirstToLast']) {
+    for (final action in [
+      'download',
+      'downloadedTab',
+      'downloadsSettingsTab',
+      'customFolderOff',
+      'confirmCustomFolderOff',
+      'dragFirstToLast',
+    ]) {
       await expectLater(
         controller.activateTrackControl(action: action),
         throwsA(isA<DiagnosticsPresentationUnavailable>()),
@@ -310,6 +317,57 @@ void main() {
       controller.activateTrackControl(action: 'arbitraryClick'),
       throwsFormatException,
     );
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('custom folder actions only ever turn the folder off', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_folder_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    final changes = <bool>[];
+    var confirms = 0;
+    Future<void> pumpFolder({required bool enabled}) => tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                SwitchListTile(
+                  key: const ValueKey<String>('downloadsCustomFolderSwitch'),
+                  title: const Text('Custom Folder'),
+                  value: enabled,
+                  onChanged: changes.add,
+                ),
+                FilledButton(
+                  key: const ValueKey<String>(
+                    'downloadsCustomFolderDisableConfirm',
+                  ),
+                  onPressed: () => confirms++,
+                  child: const Text('Turn Off'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await pumpFolder(enabled: true);
+    await controller.activateTrackControl(action: 'customFolderOff');
+    await controller.activateTrackControl(action: 'confirmCustomFolderOff');
+    expect(changes, [false]);
+    expect(confirms, 1);
+
+    await pumpFolder(enabled: false);
+    await expectLater(
+      controller.activateTrackControl(action: 'customFolderOff'),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+    expect(changes, [false]);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(

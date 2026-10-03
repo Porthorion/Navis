@@ -3,11 +3,13 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -364,7 +366,76 @@ void main() {
     expect(find.text(song.title), findsOneWidget);
     expect(find.textContaining('No results for "missing"'), findsNothing);
   });
+
+  testWidgets('turning off the custom folder asks first', (tester) async {
+    final service = _MockDownloadService();
+    when(
+      () => service.configureCustomDownloadFolder(
+        enabled: any(named: 'enabled'),
+        path: any(named: 'path'),
+      ),
+    ).thenAnswer((_) async {});
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadServiceProvider.overrideWithValue(service),
+            customDownloadFolderEnabledProvider.overrideWithValue(true),
+            customDownloadFolderPathProvider.overrideWithValue('/music/Navis'),
+            downloadQueueProvider.overrideWithValue(
+              const AsyncData(<DownloadQueueTableData>[]),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(
+              const AsyncData(<CachedTracksTableData>[]),
+            ),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: false,
+              viewportSize: const Size(800, 600),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: const DownloadsScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final folderSwitch = find.widgetWithText(SwitchListTile, 'Custom Folder');
+
+    await tester.tap(folderSwitch);
+    await tester.pumpAndSettle();
+    expect(find.text('Turn Off Custom Folder?'), findsOneWidget);
+    expect(
+      find.textContaining('Files in this folder stay where they are'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    verifyNever(
+      () => service.configureCustomDownloadFolder(
+        enabled: any(named: 'enabled'),
+        path: any(named: 'path'),
+      ),
+    );
+
+    await tester.tap(folderSwitch);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Turn Off'));
+    await tester.pumpAndSettle();
+    verify(() => service.configureCustomDownloadFolder(enabled: false))
+        .called(1);
+  });
 }
+
+class _MockDownloadService extends Mock implements DownloadService {}
 
 PlaybackSnapshot _pausedSnapshot(String songId) {
   return PlaybackSnapshot(

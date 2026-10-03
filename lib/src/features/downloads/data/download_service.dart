@@ -245,7 +245,14 @@ class DownloadService {
             'This Android folder cannot safely store Navis downloads.',
           );
         }
-        await _relocatePermanentDownloadsToSaf(safPath);
+        final leftInUserFolder = await _songIdsLeftInUserFolder(
+          targetSafTree: safPath,
+        );
+        await _relocatePermanentDownloadsToSaf(
+          safPath,
+          leaveSongIds: leftInUserFolder,
+        );
+        await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
         await _appSettingsDao.updateCustomDownloadFolderPath(safPath);
         await _appSettingsDao.updateCustomDownloadFolderStorageKind(
           'androidSaf',
@@ -261,12 +268,20 @@ class DownloadService {
         customDownloadFolderEnabled: enabled,
         customDownloadFolderPath: enabled ? normalizedPath : null,
       );
+      final leftInUserFolder = await _songIdsLeftInUserFolder(
+        targetDirectory: enabled ? targetDirectory.path : null,
+      );
       await _relocatePermanentDownloads(
         targetDirectory: targetDirectory,
         customDownloadFolderEnabled: enabled,
         customDownloadFolderPath: enabled ? normalizedPath : null,
         rollbackOnFailure: true,
+        keepEntriesInsideTarget: enabled,
+        leaveSongIds: leftInUserFolder,
       );
+      // Forgotten before the setting changes: a row left pointing into the
+      // old folder would be moved out of it by the next startup.
+      await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
       await _appSettingsDao.updateCustomDownloadFolderPath(
         enabled ? normalizedPath : null,
       );
@@ -1283,8 +1298,68 @@ class DownloadService {
     }
   }
 
-  Future<void> _relocatePermanentDownloadsToSaf(String treeUri) async {
-    final entries = await _cacheDao.getPermanentEntries();
+  /// Permanent downloads in the user folder Navis is about to stop using: the
+  /// active custom folder, and any Android folder documents, except those
+  /// inside the new target. The folder is the user's, whether Navis downloaded
+  /// a file or adopted it, so those files stay where they are and Navis only
+  /// forgets them. The folder's index still names them, so choosing the folder
+  /// again adopts them back.
+  Future<Set<String>> _songIdsLeftInUserFolder({
+    String? targetDirectory,
+    String? targetSafTree,
+  }) async {
+    final currentPath = _readCustomDownloadFolderPath()?.trim();
+    final currentFolder =
+        _readCustomDownloadFolderEnabled() &&
+            currentPath != null &&
+            currentPath.isNotEmpty &&
+            !_isSafRoot(currentPath)
+        ? await DownloadRootIdentity.resolve(currentPath)
+        : null;
+    final target = targetDirectory == null
+        ? null
+        : await DownloadRootIdentity.resolve(targetDirectory);
+    final leaving = <String>{};
+    for (final entry in await _cacheDao.getPermanentEntries()) {
+      if (_isSafRoot(entry.filePath)) {
+        if (targetSafTree == null ||
+            !await _safStorage.isDescendant(
+              treeUri: targetSafTree,
+              documentUri: entry.filePath,
+            )) {
+          leaving.add(entry.songId);
+        }
+      } else if (currentFolder?.keyFor(entry.filePath) != null &&
+          (target == null || !await _isInside(target, entry.filePath))) {
+        leaving.add(entry.songId);
+      }
+    }
+    return leaving;
+  }
+
+  /// Whether [path] is inside [folder], through any spelling of either: the
+  /// folder chosen again through a link, junction or mapped drive is still
+  /// the same folder.
+  static Future<bool> _isInside(
+    DownloadRootIdentity folder,
+    String path,
+  ) async {
+    if (folder.keyFor(path) != null) return true;
+    try {
+      return folder.keyFor(await File(path).resolveSymbolicLinks()) != null;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  Future<void> _relocatePermanentDownloadsToSaf(
+    String treeUri, {
+    Set<String> leaveSongIds = const <String>{},
+  }) async {
+    final entries = [
+      for (final entry in await _cacheDao.getPermanentEntries())
+        if (!leaveSongIds.contains(entry.songId)) entry,
+    ];
     if (entries.isEmpty) return;
     final songs = await _libraryDao.getSongsByIds(
       entries.map((entry) => entry.songId).toSet(),
@@ -1389,6 +1464,7 @@ class DownloadService {
     required String? customDownloadFolderPath,
     bool rollbackOnFailure = false,
     bool keepEntriesInsideTarget = false,
+    Set<String> leaveSongIds = const <String>{},
   }) async {
     final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
     final currentRootDirectory = currentRootIsSaf
@@ -1397,10 +1473,16 @@ class DownloadService {
             customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
             customDownloadFolderPath: _readCustomDownloadFolderPath(),
           );
-    final entries = await _cacheDao.getPermanentEntries();
+    final entries = [
+      for (final entry in await _cacheDao.getPermanentEntries())
+        if (!leaveSongIds.contains(entry.songId)) entry,
+    ];
     if (entries.isEmpty) {
       return;
     }
+    final targetIdentity = keepEntriesInsideTarget
+        ? await DownloadRootIdentity.resolve(targetDirectory.path)
+        : null;
 
     final songs = await _libraryDao.getSongsByIds(
       entries.map((entry) => entry.songId).toSet(),
@@ -1438,9 +1520,9 @@ class DownloadService {
           continue;
         }
 
-        if (keepEntriesInsideTarget &&
-            !sourceWasSaf &&
-            p.isWithin(targetDirectory.path, entry.filePath)) {
+        if (!sourceWasSaf &&
+            targetIdentity != null &&
+            await _isInside(targetIdentity, entry.filePath)) {
           reservedTargetPaths.add(entry.filePath);
           continue;
         }

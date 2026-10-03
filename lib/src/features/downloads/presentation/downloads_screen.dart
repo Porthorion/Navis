@@ -1019,6 +1019,26 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       await _pickCustomDownloadFolder();
       return;
     }
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.downloadsCustomFolderDisableTitle),
+        content: Text(l10n.downloadsCustomFolderDisableConfirm),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            key: const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.downloadsCustomFolderDisableAction),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
     await _applyCustomDownloadFolder(enabled: false);
   }
 
@@ -1223,6 +1243,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onChanged: _updateAutoDownloadLiked,
         ),
         SwitchListTile(
+          key: const ValueKey<String>('downloadsCustomFolderSwitch'),
           title: Text(l10n.downloadsCustomFolderTitle),
           subtitle:
               _supportsCustomDownloadFolderSelection &&

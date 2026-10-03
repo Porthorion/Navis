@@ -2340,6 +2340,19 @@ contract.
    sign-out or server switch) removes the library rows but deletes only
    Navis-owned audio files; files inside the custom folder and Android SAF
    documents stay where they are.
+   Leaving a custom folder follows the same rule. Turning it off (after a
+   confirmation) or choosing a different folder moves only downloads stored
+   in Navis's own directory. Every file in the folder being left, filesystem
+   or SAF, stays where it is under its own name, whether Navis downloaded or
+   adopted it; Navis records no difference between the two. Navis forgets
+   those `cached_tracks` rows before the setting changes, so startup
+   normalization never moves them out later. The folder's sidecar remains,
+   so choosing that folder again re-adopts the files through the usual scan.
+   That scan runs before the switch, so the import checks registration again
+   when it commits: a file whose song lost its download in the switch is
+   adopted rather than skipped as already registered. Choosing the active
+   folder again moves nothing. Files count as inside the new folder through
+   any spelling of its path or theirs, links resolved.
    Android uses a persisted Storage Access Framework tree URI rather than a
    filesystem path. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,

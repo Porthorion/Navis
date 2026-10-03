@@ -131,6 +131,14 @@ const List<ChangelogVersion> changelogs = [
         'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Turning off, changing or choosing your custom download folder again no longer moves or renames the files already in it: they stay where they are, and choosing that folder again picks them back up as downloads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Turning off the custom download folder now asks first and explains that its files stay where they are',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(
