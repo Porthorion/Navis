@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:path/path.dart' as p;
 
@@ -1276,6 +1277,292 @@ void main() {
       expect(settings?.customDownloadFolderEnabled, isFalse);
       expect(settings?.customDownloadFolderPath, isNull);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    group('leaving a custom folder', () {
+      late Directory supportDir;
+      late Directory customDir;
+      late File adopted;
+      var customEnabled = true;
+      String? customPath;
+      late DownloadService folderService;
+
+      setUp(() async {
+        supportDir = await Directory.systemTemp.createTemp(
+          'navis_default_support_',
+        );
+        customDir = await Directory.systemTemp.createTemp(
+          'navis_custom_adopted_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => customDir.delete(recursive: true));
+        adopted = File('${customDir.path}/Album X/01 Duality.mp3')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[4, 5, 6]);
+        customEnabled = true;
+        customPath = customDir.path;
+        folderService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customEnabled,
+          readCustomDownloadFolderPath: () => customPath,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(folderService.stop);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Duality',
+            artistName: const Value('Slipknot'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-2',
+            title: 'Psychosocial',
+            artistName: const Value('Slipknot'),
+          ),
+        ]);
+      });
+
+      /// The Downloads settings sequence: scan, switch, adopt.
+      Future<int> chooseFolder(
+        String path, {
+        Map<String, String> manualSongIds = const <String, String>{},
+      }) async {
+        final preview = await folderService.previewCustomDownloadFolder(path);
+        await folderService.configureCustomDownloadFolder(
+          enabled: true,
+          path: path,
+        );
+        customEnabled = true;
+        customPath = path;
+        final result = await folderService.importCustomDownloadFolder(
+          preview,
+          manualSongIds: manualSongIds,
+        );
+        return result.importedCount;
+      }
+
+      Future<void> adoptFile() async {
+        final preview = await folderService.previewCustomDownloadFolder(
+          customDir.path,
+        );
+        final result = await folderService.importCustomDownloadFolder(
+          preview,
+          manualSongIds: <String, String>{'Album X/01 Duality.mp3': 'song-1'},
+        );
+        expect(result.importedCount, 1);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+          adopted.path,
+        );
+      }
+
+      Future<File> addPermanentDownload(String path, String songId) async {
+        final file = File(path)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[7, 8, 9]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: songId,
+            filePath: file.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        return file;
+      }
+
+      test('turning it off leaves every file there and forgets it', () async {
+        await adoptFile();
+        final downloaded = await addPermanentDownload(
+          '${customDir.path}/Slipknot/Psychosocial.mp3',
+          'song-2',
+        );
+
+        await folderService.configureCustomDownloadFolder(enabled: false);
+        customEnabled = false;
+        customPath = null;
+
+        expect(adopted.existsSync(), isTrue);
+        expect(downloaded.existsSync(), isTrue);
+        expect(
+          File(p.join(customDir.path, permanentDownloadManifestFileName))
+              .existsSync(),
+          isTrue,
+        );
+        expect(await database.cacheDao.getPermanentEntries(), isEmpty);
+        expect(
+          Directory('${supportDir.path}/audio/permanent').existsSync() &&
+              Directory('${supportDir.path}/audio/permanent')
+                  .listSync(recursive: true)
+                  .whereType<File>()
+                  .isNotEmpty,
+          isFalse,
+        );
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderEnabled, isFalse);
+        expect(settings?.customDownloadFolderPath, isNull);
+
+        // A later start must not move anything out of the folder either.
+        await folderService.start();
+        expect(adopted.existsSync(), isTrue);
+        expect(downloaded.existsSync(), isTrue);
+
+        // Choosing the folder again adopts the file back from its index.
+        expect(await chooseFolder(customDir.path), greaterThanOrEqualTo(1));
+        expect(
+          (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+          adopted.path,
+        );
+      }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+      test('switching folders leaves the old folder alone and moves app-stored '
+          'downloads', () async {
+        await adoptFile();
+        final appStored = await addPermanentDownload(
+          '${supportDir.path}/audio/permanent/song-2_legacy.mp3',
+          'song-2',
+        );
+        final otherDir = await Directory.systemTemp.createTemp(
+          'navis_custom_other_',
+        );
+        addTearDown(() => otherDir.delete(recursive: true));
+
+        await chooseFolder(otherDir.path);
+
+        expect(adopted.existsSync(), isTrue);
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        expect(appStored.existsSync(), isFalse);
+        final moved = await database.cacheDao.getCachedTrack('song-2');
+        expect(moved?.filePath, '${otherDir.path}/Slipknot/Psychosocial.mp3');
+        expect(File(moved!.filePath).existsSync(), isTrue);
+        expect(Directory('${otherDir.path}/Slipknot').listSync(), hasLength(1));
+      }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+      test(
+        'switching to a folder that holds copies of its songs adopts them',
+        () async {
+          await adoptFile();
+          final otherDir = await Directory.systemTemp.createTemp(
+            'navis_custom_copy_',
+          );
+          addTearDown(() => otherDir.delete(recursive: true));
+          final copy = File('${otherDir.path}/Slipknot/Duality.mp3')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(<int>[4, 5, 6]);
+
+          // The scan runs before the switch, while song-1 is still a
+          // download in the first folder.
+          expect(await chooseFolder(otherDir.path), 1);
+
+          expect(
+            (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+            copy.path,
+          );
+          expect(adopted.existsSync(), isTrue);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+
+      test('choosing the same folder through another spelling keeps its '
+          'downloads', () async {
+        await adoptFile();
+        final linkRoot = await Directory.systemTemp.createTemp(
+          'navis_custom_link_',
+        );
+        addTearDown(() => linkRoot.delete(recursive: true));
+        final link = Link('${linkRoot.path}/Music')..createSync(customDir.path);
+        // The folder was first chosen through the link.
+        customPath = link.path;
+        final downloaded = await addPermanentDownload(
+          '${link.path}/Slipknot/Psychosocial.mp3',
+          'song-2',
+        );
+        final before = customDir
+            .listSync(recursive: true)
+            .map((entity) => entity.path)
+            .toSet();
+
+        await chooseFolder(customDir.path);
+
+        expect(
+          (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+          adopted.path,
+        );
+        expect(
+          (await database.cacheDao.getCachedTrack('song-2'))?.filePath,
+          downloaded.path,
+        );
+        expect(
+          customDir
+              .listSync(recursive: true)
+              .map((entity) => entity.path)
+              .toSet(),
+          before,
+        );
+      }, skip: !sqliteAvailable || Platform.isWindows);
+
+      test('a failed switch keeps the old folder and its downloads', () async {
+        await adoptFile();
+        final appStored = await addPermanentDownload(
+          '${supportDir.path}/audio/permanent/song-2_legacy.mp3',
+          'song-2',
+        );
+        final otherDir = await Directory.systemTemp.createTemp(
+          'navis_custom_blocked_',
+        );
+        addTearDown(() => otherDir.delete(recursive: true));
+        // A file where the artist folder must go makes the move fail.
+        File('${otherDir.path}/Slipknot').writeAsStringSync('blocking');
+
+        await expectLater(
+          folderService.configureCustomDownloadFolder(
+            enabled: true,
+            path: otherDir.path,
+          ),
+          throwsA(isA<FileSystemException>()),
+        );
+
+        expect(
+          (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+          adopted.path,
+        );
+        expect(adopted.existsSync(), isTrue);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-2'))?.filePath,
+          appStored.path,
+        );
+        expect(appStored.existsSync(), isTrue);
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderPath, isNot(otherDir.path));
+      }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+      test(
+        'choosing the same folder again keeps adopted files where they are',
+        () async {
+          await adoptFile();
+
+          await chooseFolder(customDir.path);
+
+          expect(
+            (await database.cacheDao.getCachedTrack('song-1'))?.filePath,
+            adopted.path,
+          );
+          expect(adopted.existsSync(), isTrue);
+          expect(Directory('${customDir.path}/Slipknot').existsSync(), isFalse);
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+    });
 
     test(
       'start leaves files inside a custom download folder where they are',

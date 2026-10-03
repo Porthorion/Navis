@@ -778,9 +778,13 @@ animation duration.
 
 For mobile track-layout diagnostics, clone-only
 `POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
-`revealFirst`, `more`, `download`, `downloadedTab`, or `dragFirstToLast`. It
+`revealFirst`, `more`, `download`, `downloadedTab`, `downloadsSettingsTab`,
+`customFolderOff`, `confirmCustomFolderOff`, or `dragFirstToLast`. It
 exercises mounted shared rows through their scroll owner, menu/download callbacks, Downloads tab
-controller, or Flutter touch events on the playlist drag handle. It accepts no
+controller, or Flutter touch events on the playlist drag handle. The custom
+folder actions call the Downloads settings switch's own callback, only when it
+is on (turning it on would open the system folder picker), and press the
+turn-off dialog's own confirm button. It accepts no
 coordinates, arbitrary widget keys, track IDs or destructive delete action.
 Missing controls fail explicitly; primary diagnostics reject every mutation.
 Use a populated isolated emulator fixture, inspect app-owned captures at phone
@@ -913,6 +917,22 @@ production switch's own callback; it returns only Scrobbling, unmetered-only
 sync, ListenBrainz token validity, whether an account name is stored (never the
 name), and the persisted desktop volume. Primary certification rejects both
 methods. Output is retained under `build/playback-settings-diagnostics/`.
+
+Use the focused download-folder scenario after changing how Navis enters,
+leaves or switches a custom download folder:
+
+```bash
+./tool/download_folder_diagnostics.sh
+```
+
+It needs no credential file or source profile: an empty clone signs in to the
+loopback lifecycle fixture, and both fixture folders live inside the run root,
+so the user's real download folder is never involved. It drives the Downloads
+settings switch through `POST /v1/presentation/track-action`
+(`downloadsSettingsTab`, `customFolderOff`, `confirmCustomFolderOff`), checks
+`GET /v1/cache/status` and the clone's settings row, and compares folder
+snapshots across a clean restart. Results and screenshots stay under
+`build/download-folder-diagnostics/`.
 
 Use the focused desktop window scenario for shell, bottom-player, resize-gate,
 or Mini Player changes:

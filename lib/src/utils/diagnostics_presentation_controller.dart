@@ -103,6 +103,9 @@ class DiagnosticsPresentationController {
     'more',
     'download',
     'downloadedTab',
+    'downloadsSettingsTab',
+    'customFolderOff',
+    'confirmCustomFolderOff',
     'dragFirstToLast',
   };
 
@@ -142,7 +145,7 @@ class DiagnosticsPresentationController {
     if (!trackActions.contains(action)) throw const FormatException();
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    if (action == 'downloadedTab') {
+    if (action == 'downloadedTab' || action == 'downloadsSettingsTab') {
       final downloads = _findElement(
         root,
         (element) =>
@@ -154,7 +157,30 @@ class DiagnosticsPresentationController {
           : _findElement(downloads, (element) => element.widget is TabBar);
       final controller = (tabs?.widget as TabBar?)?.controller;
       if (controller == null) throw const DiagnosticsPresentationUnavailable();
-      controller.animateTo(1);
+      controller.animateTo(action == 'downloadedTab' ? 1 : 2);
+    } else if (action == 'customFolderOff') {
+      final tile = _findElement(
+        root,
+        (element) =>
+            element.widget.key ==
+                const ValueKey<String>('downloadsCustomFolderSwitch') &&
+            ModalRoute.of(element)?.isCurrent != false,
+      );
+      final widget = tile?.widget as SwitchListTile?;
+      // Only ever off: turning the folder on opens the system folder picker.
+      final onChanged = widget?.value == true ? widget?.onChanged : null;
+      if (onChanged == null) throw const DiagnosticsPresentationUnavailable();
+      onChanged(false);
+    } else if (action == 'confirmCustomFolderOff') {
+      final button = _findElement(
+        root,
+        (element) =>
+            element.widget.key ==
+            const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
+      );
+      final onPressed = (button?.widget as ButtonStyleButton?)?.onPressed;
+      if (onPressed == null) throw const DiagnosticsPresentationUnavailable();
+      onPressed();
     } else {
       final rows = <Element>[];
       void collect(Element element) {
