@@ -148,6 +148,9 @@ const List<ChangelogVersion> changelogs = [
         'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
+      ),
     ],
   ),
   ChangelogVersion(
