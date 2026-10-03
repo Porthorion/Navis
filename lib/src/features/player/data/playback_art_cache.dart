@@ -25,7 +25,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
-  new({this._reportNetworkUsage});
+  new({
+    this._reportNetworkUsage,
+    this._readPermanentArtwork,
+    this.bodyIdleTimeout = const Duration(seconds: 30),
+  });
 
   /// The file-name key of [coverArtId]'s cached file
   /// (`<temporary dir>/navis_art_<key>.jpg`). Android's
@@ -37,7 +41,16 @@ class PlaybackArtCache {
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
 
+  /// A body that stops arriving for this long is abandoned; it would
+  /// otherwise keep this cover pending for the rest of the session.
+  final Duration bodyIdleTimeout;
+
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  /// The durable cover of a downloaded song, used before any network fetch
+  /// so downloaded music shows its cover offline (Bluetooth/AVRCP, Android
+  /// Auto, MPRIS, SMTC).
+  final Future<File?> Function(String coverArtId)? _readPermanentArtwork;
 
   /// Shared client, so consecutive track changes reuse a keep-alive
   /// connection instead of paying a TCP and TLS handshake each time.
@@ -53,6 +66,10 @@ class PlaybackArtCache {
   /// ID. Using [Completer] (not `Future`) avoids the `unawaited_futures` lint
   /// when removing from the map.
   final Map<String, Completer<String?>> _pending = {};
+
+  /// The local file of [coverArtId]'s cover once this cache has it on disk,
+  /// without downloading; `null` otherwise.
+  String? cachedPath(String coverArtId) => _mem[coverArtId];
 
   /// Returns the local file path for [coverArtId], downloading from [artUri]
   /// on the first call. Returns `null` if the download fails.
@@ -101,6 +118,30 @@ class PlaybackArtCache {
         await file.delete();
       }
 
+      final permanent = await _readPermanentArtwork?.call(coverArtId);
+      if (permanent != null) {
+        // Copied beside the final name and renamed, like a download, so the
+        // provider never serves a half-copied cover.
+        final partial = File('${file.path}.part');
+        try {
+          await permanent.copy(partial.path);
+          await partial.rename(file.path);
+          _mem[coverArtId] = file.path;
+          AppLogger.debug(
+            'PlaybackArtCache: art for $coverArtId → ${file.path} '
+            '(download artwork)',
+          );
+          return file.path;
+        } on FileSystemException catch (error) {
+          AppLogger.warning(
+            'PlaybackArtCache: download artwork copy failed: $error',
+          );
+          // Keep metadata access asynchronous so storage latency cannot stall UI.
+          // ignore: avoid_slow_async_io
+          if (await partial.exists()) await partial.delete();
+        }
+      }
+
       // Download using dart:io HttpClient so we use the same platform HTTP
       // stack as the rest of the app (SSL certificates, proxy settings, etc.).
       final client = _client ??= HttpClient()
@@ -130,13 +171,29 @@ class PlaybackArtCache {
           return null;
         }
 
-        final sink = file.openWrite();
-        await response.pipe(sink);
+        // Write beside the final name and rename once complete: Android's
+        // NavisArtworkProvider serves the final name to other apps, and a
+        // later launch reuses any non-empty file there as the cover.
+        final partial = File('${file.path}.part');
+        final int written;
+        try {
+          final sink = partial.openWrite();
+          try {
+            // The stream's own timeout fails the pipe, which releases the
+            // sink before it is closed here.
+            await response.timeout(bodyIdleTimeout).pipe(sink);
+          } finally {
+            await sink.close().catchError((Object _) {});
+          }
+          written = await partial.length();
+          if (written > 0) await partial.rename(file.path);
+        } finally {
+          // Keep metadata access asynchronous so storage latency cannot stall UI.
+          // ignore: avoid_slow_async_io
+          if (await partial.exists()) await partial.delete();
+        }
 
-        // Sanity-check: ensure we actually wrote something.
-        final written = await file.length();
         if (written == 0) {
-          await file.delete();
           AppLogger.warning(
             'PlaybackArtCache: zero bytes written for $coverArtId',
           );

@@ -61,6 +61,12 @@ String? _imageExtension(String path) {
   } on FileSystemException {
     return null;
   }
+  return imageExtensionForBytes(head);
+}
+
+/// The file extension (with dot) for the image signature at the start of
+/// [head], or null when it is not a known image.
+String? imageExtensionForBytes(List<int> head) {
   bool startsWith(List<int> bytes, [int offset = 0]) =>
       head.length >= offset + bytes.length &&
       Iterable<int>.generate(bytes.length)

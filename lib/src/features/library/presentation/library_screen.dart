@@ -50,6 +50,7 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 part 'library_support_widgets.dart';
 part 'library_tabs.dart';
@@ -2072,7 +2073,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Future<void> _downloadLikedSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
     final service = ref.read(downloadServiceProvider);
     unawaited(
@@ -2086,7 +2087,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadSongQueued,
+      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
       level: AppNoticeLevel.success,
     );
   }

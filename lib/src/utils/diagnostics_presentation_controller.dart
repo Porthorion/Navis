@@ -103,11 +103,22 @@ class DiagnosticsPresentationController {
     'more',
     'download',
     'downloadedTab',
-    'downloadSettingsTab',
+    'downloadsSettingsTab',
+    'downloadsQueueTab',
+    'customFolderOff',
+    'confirmCustomFolderOff',
     'dragFirstToLast',
+    'downloadQuality320',
+    'downloadQualityAlwaysUse',
+    'downloadQualityAlwaysAsk',
   };
 
   static const artistActions = {'play', 'shuffle', 'cancel', 'queue'};
+
+  /// Playback settings switches the diagnostics API may flip, by widget key.
+  static const playbackSettingToggles = <String, String>{
+    'scrobble': 'playbackSettingsScrobbleToggle',
+  };
 
   Future<void> activateArtistControl({required String action}) async {
     if (!artistActions.contains(action)) throw const FormatException();
@@ -138,7 +149,9 @@ class DiagnosticsPresentationController {
     if (!trackActions.contains(action)) throw const FormatException();
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    if (action == 'downloadedTab' || action == 'downloadSettingsTab') {
+    if (action == 'downloadedTab' ||
+        action == 'downloadsSettingsTab' ||
+        action == 'downloadsQueueTab') {
       final downloads = _findElement(
         root,
         (element) =>
@@ -150,7 +163,54 @@ class DiagnosticsPresentationController {
           : _findElement(downloads, (element) => element.widget is TabBar);
       final controller = (tabs?.widget as TabBar?)?.controller;
       if (controller == null) throw const DiagnosticsPresentationUnavailable();
-      controller.animateTo(action == 'downloadedTab' ? 1 : 2);
+      controller.animateTo(switch (action) {
+        'downloadsQueueTab' => 0,
+        'downloadedTab' => 1,
+        _ => 2,
+      });
+    } else if (action == 'customFolderOff') {
+      final tile = _findElement(
+        root,
+        (element) =>
+            element.widget.key ==
+                const ValueKey<String>('downloadsCustomFolderSwitch') &&
+            ModalRoute.of(element)?.isCurrent != false,
+      );
+      final widget = tile?.widget as SwitchListTile?;
+      // Only ever off: turning the folder on opens the system folder picker.
+      final onChanged = widget?.value == true ? widget?.onChanged : null;
+      if (onChanged == null) throw const DiagnosticsPresentationUnavailable();
+      onChanged(false);
+    } else if (action == 'downloadQuality320') {
+      // The picker's 320 kbps row (the picker is shown by 'download').
+      final row = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey<String>('downloadQuality:320'),
+      );
+      final onTap = (row?.widget as ListTile?)?.onTap;
+      if (onTap == null) throw const DiagnosticsPresentationUnavailable();
+      onTap();
+    } else if (action == 'downloadQualityAlwaysUse' ||
+        action == 'downloadQualityAlwaysAsk') {
+      // The one-time "always download in this quality?" answers.
+      final button = _findElement(
+        root,
+        (element) => element.widget.key == ValueKey<String>(action),
+      );
+      final onPressed = (button?.widget as ButtonStyleButton?)?.onPressed;
+      if (onPressed == null) throw const DiagnosticsPresentationUnavailable();
+      onPressed();
+    } else if (action == 'confirmCustomFolderOff') {
+      final button = _findElement(
+        root,
+        (element) =>
+            element.widget.key ==
+            const ValueKey<String>('downloadsCustomFolderDisableConfirm'),
+      );
+      final onPressed = (button?.widget as ButtonStyleButton?)?.onPressed;
+      if (onPressed == null) throw const DiagnosticsPresentationUnavailable();
+      onPressed();
     } else {
       final rows = <Element>[];
       void collect(Element element) {
@@ -313,6 +373,35 @@ class DiagnosticsPresentationController {
     }
     await waitForFrame();
     return null;
+  }
+
+  Element _boundaryElement() {
+    final boundary = _boundaryKey.currentContext;
+    if (boundary is! Element) throw const DiagnosticsPresentationUnavailable();
+    return boundary;
+  }
+
+  /// Opens only the phone Now Playing settings sheet (volume and Sound)
+  /// through its production button.
+  Future<void> openNowPlayingSettingsSheet() async {
+    final root = _boundaryElement();
+    final settingsAction = _findElement(
+      root,
+      (element) =>
+          element.widget.key == const ValueKey('nowPlayingSettingsAction') &&
+          element.widget is IconButton,
+    );
+    final callback = (settingsAction?.widget as IconButton?)?.onPressed;
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+    if (!root.mounted) throw const DiagnosticsPresentationUnavailable();
+    final sheet = _findElement(
+      root,
+      (element) =>
+          element.widget.key == const ValueKey('nowPlayingSettingsSheet'),
+    );
+    if (sheet == null) throw const DiagnosticsPresentationUnavailable();
   }
 
   Future<void> revealPlaybackAdjustments({required bool open}) async {
@@ -616,6 +705,29 @@ class DiagnosticsPresentationController {
     }
     if (callback == null) throw const DiagnosticsPresentationUnavailable();
     callback();
+    await waitForFrame();
+  }
+
+  /// Flips a mounted Playback settings switch through its own callback, so
+  /// the screen's debounced autosave persists the change.
+  Future<void> togglePlaybackSetting({required String setting}) async {
+    final key = playbackSettingToggles[setting];
+    if (key == null) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final tile =
+        _findElement(
+              root,
+              (element) =>
+                  element.widget.key == ValueKey<String>(key) &&
+                  element.widget is SwitchListTile,
+            )?.widget
+            as SwitchListTile?;
+    final onChanged = tile?.onChanged;
+    if (tile == null || onChanged == null) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    onChanged(!tile.value);
     await waitForFrame();
   }
 

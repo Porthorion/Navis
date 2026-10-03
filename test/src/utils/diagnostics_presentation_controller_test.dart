@@ -100,6 +100,61 @@ void main() {
     await container.read(playbackAdjustmentsProvider.notifier).flush();
   });
 
+  testWidgets('opens the Now Playing settings sheet by its button', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_np_sheet_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pumpAndSettle(),
+    );
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => IconButton(
+                key: const ValueKey('nowPlayingSettingsAction'),
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => ListView(
+                    key: const ValueKey('nowPlayingSettingsSheet'),
+                    children: const [Text('100%')],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await controller.openNowPlayingSettingsSheet();
+
+    expect(find.byKey(const ValueKey('nowPlayingSettingsSheet')), findsOne);
+  });
+
+  testWidgets('opening the settings sheet without its button is unavailable', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_np_sheet_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pumpAndSettle(),
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: Scaffold(body: SizedBox()))),
+    );
+
+    await expectLater(
+      controller.openNowPlayingSettingsSheet(),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+  });
+
   testWidgets('equalizer quick panel is opened and driven by its chips', (
     tester,
   ) async {
@@ -303,7 +358,9 @@ void main() {
     for (final action in [
       'download',
       'downloadedTab',
-      'downloadSettingsTab',
+      'downloadsSettingsTab',
+      'customFolderOff',
+      'confirmCustomFolderOff',
       'dragFirstToLast',
     ]) {
       await expectLater(
@@ -315,6 +372,57 @@ void main() {
       controller.activateTrackControl(action: 'arbitraryClick'),
       throwsFormatException,
     );
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('custom folder actions only ever turn the folder off', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_folder_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    final changes = <bool>[];
+    var confirms = 0;
+    Future<void> pumpFolder({required bool enabled}) => tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                SwitchListTile(
+                  key: const ValueKey<String>('downloadsCustomFolderSwitch'),
+                  title: const Text('Custom Folder'),
+                  value: enabled,
+                  onChanged: changes.add,
+                ),
+                FilledButton(
+                  key: const ValueKey<String>(
+                    'downloadsCustomFolderDisableConfirm',
+                  ),
+                  onPressed: () => confirms++,
+                  child: const Text('Turn Off'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await pumpFolder(enabled: true);
+    await controller.activateTrackControl(action: 'customFolderOff');
+    await controller.activateTrackControl(action: 'confirmCustomFolderOff');
+    expect(changes, [false]);
+    expect(confirms, 1);
+
+    await pumpFolder(enabled: false);
+    await expectLater(
+      controller.activateTrackControl(action: 'customFolderOff'),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+    expect(changes, [false]);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
@@ -410,6 +518,58 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('playback setting toggle flips only the keyed switch', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync(
+      'navis_playback_setting_test_',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pump(),
+    );
+    final changes = <bool>[];
+    var decoys = 0;
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                SwitchListTile(
+                  value: true,
+                  onChanged: (_) => decoys++,
+                  title: const Text('Other switch'),
+                ),
+                SwitchListTile(
+                  key: const ValueKey('playbackSettingsScrobbleToggle'),
+                  value: true,
+                  onChanged: changes.add,
+                  title: const Text('Enable Scrobbling'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await controller.togglePlaybackSetting(setting: 'scrobble');
+    expect(changes, [false]);
+    expect(decoys, 0);
+    await expectLater(
+      controller.togglePlaybackSetting(setting: 'gapless'),
+      throwsFormatException,
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: SizedBox())),
+    );
+    await expectLater(
+      controller.togglePlaybackSetting(setting: 'scrobble'),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('tooltip control drives real hover below excluded semantics', (
     tester,
   ) async {

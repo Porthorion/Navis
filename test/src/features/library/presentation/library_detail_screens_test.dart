@@ -708,7 +708,6 @@ void main() {
         find.byType(ArtistVirtualPlaylistArtwork),
       );
       expect(artwork.size, 260);
-      expect(artwork.borderRadius, 16);
       expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
       expect(find.text('Test Artist · 1 song'), findsOneWidget);
       expect(find.text('North Star'), findsOneWidget);

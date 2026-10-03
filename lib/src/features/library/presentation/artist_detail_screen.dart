@@ -31,6 +31,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
   const new({required this.artistId, super.key});
@@ -677,7 +678,7 @@ class _ArtistImageHeader extends StatelessWidget {
 }
 
 /// Fallback header shown when there is no artist photo.
-class _ArtistNameHeader extends StatelessWidget {
+class _ArtistNameHeader extends ConsumerWidget {
   const new({
     required this.name,
     required this.albumCount,
@@ -697,10 +698,11 @@ class _ArtistNameHeader extends StatelessWidget {
   final bool isExternalSource;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final artistShape = ref.watch(artistCardShapeProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 32, 12, 24),
@@ -708,9 +710,20 @@ class _ArtistNameHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: colorScheme.primaryContainer,
+          // Stands in for the artist photo, so it takes Artist Card Shape.
+          Container(
+            width: 72,
+            height: 72,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              shape: artistShape == 'circle'
+                  ? BoxShape.circle
+                  : BoxShape.rectangle,
+              borderRadius: artistShape == 'circle'
+                  ? null
+                  : artworkBorderRadius(artistShape, extent: 72),
+            ),
             child: Text(
               initial,
               style: TextStyle(
@@ -856,7 +869,6 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
                       coverArtIds: coverArtIds,
                       imageUrl: imageUrl,
                       size: 64,
-                      borderRadius: 6,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -1029,8 +1041,7 @@ class _SimilarArtistCard extends ConsumerWidget {
                 child: CoverArtImage(
                   coverArtId: artist.coverArt,
                   size: kCoverArtStandardSize,
-
-                  circular: true,
+                  shape: ArtworkShapeRole.artist,
                   placeholderIcon: Icons.person_outline,
                 ),
               ),

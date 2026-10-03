@@ -7,6 +7,8 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/test_theme.dart';
@@ -34,6 +36,10 @@ void main() {
           playlistSongsProvider(_playlistId)
               .overrideWith((ref) => Stream.value(const <SongsTableData>[])),
           playlistDetailSyncProvider(_playlistId).overrideWith((ref) async {}),
+          // The header cover reads the cover shape setting.
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
         ],
         child: MaterialApp(
           theme: testTheme(),

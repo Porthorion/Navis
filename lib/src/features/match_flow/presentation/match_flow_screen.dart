@@ -13,6 +13,7 @@ import 'package:navis/src/features/match_flow/presentation/match_flow_error_mess
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 final matchFlowsProvider = StreamProvider<List<MatchFlowWithSongs>>((ref) {
   return ref.watch(matchFlowDaoProvider).watchFlowsWithSongs();
@@ -621,7 +622,9 @@ class _MatchFlowSongTile extends ConsumerWidget {
                   child: CoverArtImage(
                     coverArtId: song.coverArt,
                     size: 80,
-                    borderRadius: BorderRadius.circular(6),
+                    width: 44,
+                    height: 44,
+                    shape: ArtworkShapeRole.cover,
                     isExternalSource: song.isExternal,
                     remoteSourceIndicatorPolicy:
                         RemoteSourceIndicatorPolicy.hidden,

@@ -23,6 +23,8 @@ import 'package:navis/src/features/downloads/data/download_path_identity.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -48,8 +50,12 @@ typedef _SafRelocatedPermanentDownload = ({
 
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
-/// The service processes one download at a time, pulling the next pending item
-/// from the download queue table and streaming it to disk via Dio.
+/// Up to [kMaxConcurrentDownloads] transfers run at once (the user's setting,
+/// one on cellular, none while paused). Each transfer streams to a part file
+/// via Dio; only the network transfer runs in parallel. Finishing a download
+/// (rename, tags, Android folder upload, database and folder index records)
+/// runs one download at a time, so two finishes never race on the same
+/// folder index or file name.
 ///
 /// Key design decisions:
 /// * Downloads survive library sync — the `cached_tracks` table has no FK to
@@ -78,13 +84,22 @@ class DownloadService {
     String? Function()? readProfileIdentity,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    PermanentArtworkStore? artworkStore,
     Dio? dio,
+    bool? isAndroid,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
        _dio = dio ?? Dio(),
+       _artworkStore =
+           artworkStore ??
+           PermanentArtworkStore(
+             readApplicationSupportDirectory: readApplicationSupportDirectory,
+             dio: dio,
+           ),
+       _isAndroid = isAndroid ?? Platform.isAndroid,
        _permanentPathResolver = PermanentDownloadPathResolver(
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
@@ -109,6 +124,7 @@ class DownloadService {
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
+  final bool _isAndroid;
 
   /// Folders this build must not use as the custom download folder (the
   /// user's own folders in a clone diagnostics build).
@@ -116,12 +132,45 @@ class DownloadService {
   final PermanentDownloadPathResolver _permanentPathResolver;
   final PermanentDownloadImportService _permanentDownloadImportService;
   final AndroidSafStorage _safStorage = const AndroidSafStorage();
+  final PermanentArtworkStore _artworkStore;
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
-  bool _processing = false;
+  final List<StreamSubscription<Object>> _settingsSubscriptions =
+      <StreamSubscription<Object>>[];
   bool _maintenanceInProgress = false;
   bool _stopped = false;
-  CancelToken? _activeCancelToken;
+  bool _paused = false;
+  int _maxConcurrent = kDefaultConcurrentDownloads;
+
+  /// Re-entrancy guard for [_processNext]; a request made while it runs is
+  /// remembered in [_pumpRequested] and served before it returns.
+  bool _pumping = false;
+  bool _pumpRequested = false;
+
+  /// Queue ids claimed by a running worker, with the worker's future.
+  final Map<int, Future<void>> _workers = <int, Future<void>>{};
+
+  /// Cancel tokens of transfers in flight, by queue id.
+  final Map<int, CancelToken> _activeTransfers = <int, CancelToken>{};
+
+  /// Why a claimed item is being cancelled, by queue id.
+  final Map<int, _CancelReason> _cancelReasons = <int, _CancelReason>{};
+
+  /// Failed items wait here until their backoff elapses, by queue id.
+  final Map<int, DateTime> _retryNotBefore = <int, DateTime>{};
+  Timer? _retryTimer;
+
+  /// Destination paths of transfers in flight, so two concurrent songs with
+  /// the same artist and title never resolve to the same file.
+  final Set<String> _reservedDownloadPaths = <String>{};
+
+  /// Serializes the finishing step of concurrent downloads.
+  Future<void> _finalizeTail = Future<void>.value();
+
+  /// Bytes received per transfer in flight, for the progress notification.
+  final Map<int, ({String title, int received, int total})> _transferProgress =
+      <int, ({String title, int received, int total})>{};
+
   Future<void>? _startInFlight;
   final Set<Future<void>> _backgroundTasks = <Future<void>>{};
   final Set<Future<void>> _pendingProgressWrites = <Future<void>>{};
@@ -151,29 +200,64 @@ class DownloadService {
     // Normalize older hashed permanent downloads into the current folder layout.
     await _normalizePermanentDownloads();
 
-    // Best-effort lyrics backfill for already-downloaded songs.
+    // Best-effort lyrics and cover art backfill for already-downloaded songs.
     _trackBackgroundTask(_backfillLyricsForDownloadedSongs());
+    _trackBackgroundTask(_backfillArtworkForDownloadedSongs());
+
+    // Read before the queue subscription starts, so a paused queue never
+    // begins a transfer while the setting streams are still loading.
+    _paused = await _appSettingsDao.getDownloadsPaused();
+    _maxConcurrent = await _appSettingsDao.getMaxConcurrentDownloads();
+    await _startSettingsSubscriptions();
 
     if (!_stopped) {
       await _startQueueSubscription();
     }
   }
 
+  Future<void> _startSettingsSubscriptions() async {
+    for (final subscription in _settingsSubscriptions) {
+      await subscription.cancel();
+    }
+    _settingsSubscriptions
+      ..clear()
+      ..add(
+        _appSettingsDao.watchDownloadsPaused().listen((paused) {
+          if (paused != _paused) unawaited(_applyPaused(paused));
+        }),
+      )
+      ..add(
+        _appSettingsDao.watchMaxConcurrentDownloads().listen((value) {
+          if (value == _maxConcurrent) return;
+          _maxConcurrent = value;
+          // Lowering the limit lets running transfers finish; it only stops
+          // new ones from starting.
+          unawaited(_processNext());
+        }),
+      );
+  }
+
   /// Versions before 1.2.8 stored Android picker fallbacks as ordinary paths.
   /// Scoped storage never granted Navis reliable access to those paths. Disable
   /// the setting instead of touching user files; the settings UI will ask for a
-  /// new persisted tree grant on the next selection.
+  /// new persisted tree grant on the next selection. Like leaving any custom
+  /// folder, Navis forgets the downloads in it and leaves the files there.
   Future<void> _migrateUnsafeAndroidCustomFolder() async {
-    if (!Platform.isAndroid ||
+    if (!_isAndroid ||
         !_readCustomDownloadFolderEnabled() ||
         _isSafRoot(_readCustomDownloadFolderPath())) {
       return;
     }
+    // Forgotten before the setting changes: startup normalization moves every
+    // row outside the active folder into Navis's own directory.
+    final leftInUserFolder = await _songIdsLeftInUserFolder();
+    await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
     await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: false);
     await _appSettingsDao.updateCustomDownloadFolderPath(null);
     await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
     AppLogger.info(
-      'Disabled legacy Android custom download folder without modifying files; '
+      'Disabled legacy Android custom download folder without modifying files '
+      '(downloads forgotten: ${leftInUserFolder.length}); '
       'a persisted SAF folder must be selected again.',
     );
   }
@@ -189,7 +273,13 @@ class DownloadService {
     _stopped = true;
     await _queueSubscription?.cancel();
     _queueSubscription = null;
-    _activeCancelToken?.cancel('Service stopped');
+    for (final subscription in _settingsSubscriptions) {
+      await subscription.cancel();
+    }
+    _settingsSubscriptions.clear();
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _cancelTransfers(_CancelReason.requeue);
     await _startInFlight;
     await _waitForCurrentWorkToStop();
     await _waitForBackgroundTasks();
@@ -251,7 +341,14 @@ class DownloadService {
             'This Android folder cannot safely store Navis downloads.',
           );
         }
-        await _relocatePermanentDownloadsToSaf(safPath);
+        final leftInUserFolder = await _songIdsLeftInUserFolder(
+          targetSafTree: safPath,
+        );
+        await _relocatePermanentDownloadsToSaf(
+          safPath,
+          leaveSongIds: leftInUserFolder,
+        );
+        await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
         await _appSettingsDao.updateCustomDownloadFolderPath(safPath);
         await _appSettingsDao.updateCustomDownloadFolderStorageKind(
           'androidSaf',
@@ -267,12 +364,20 @@ class DownloadService {
         customDownloadFolderEnabled: enabled,
         customDownloadFolderPath: enabled ? normalizedPath : null,
       );
+      final leftInUserFolder = await _songIdsLeftInUserFolder(
+        targetDirectory: enabled ? targetDirectory.path : null,
+      );
       await _relocatePermanentDownloads(
         targetDirectory: targetDirectory,
         customDownloadFolderEnabled: enabled,
         customDownloadFolderPath: enabled ? normalizedPath : null,
         rollbackOnFailure: true,
+        keepEntriesInsideTarget: enabled,
+        leaveSongIds: leftInUserFolder,
       );
+      // Forgotten before the setting changes: a row left pointing into the
+      // old folder would be moved out of it by the next startup.
+      await _cacheDao.deleteCachedTracksBySongIds(leftInUserFolder);
       await _appSettingsDao.updateCustomDownloadFolderPath(
         enabled ? normalizedPath : null,
       );
@@ -322,17 +427,11 @@ class DownloadService {
     return directory.path;
   }
 
-  Future<void> removeDownloadedTrack(String songId) async {
-    final track = await _cacheDao.getCachedTrack(songId);
-    if (track == null || track.cacheType != CacheType.permanent) {
-      await _cacheDao.removeCachedTrack(songId);
-      return;
-    }
-    await _deletePermanentLocator(track.filePath);
-    await _cacheDao.removeCachedTrack(songId);
-  }
+  Future<void> removeDownloadedTrack(String songId) =>
+      removeDownloadedTracks(<String>[songId]);
 
   Future<void> removeDownloadedTracks(Iterable<String> songIds) async {
+    var removedPermanent = false;
     for (final songId in songIds) {
       final track = await _cacheDao.getCachedTrack(songId);
       if (track == null || track.cacheType != CacheType.permanent) {
@@ -341,6 +440,115 @@ class DownloadService {
       }
       await _deletePermanentLocator(track.filePath);
       await _cacheDao.removeCachedTrack(songId);
+      removedPermanent = true;
+    }
+    if (removedPermanent) await pruneDownloadArtwork();
+  }
+
+  /// The durable cover art of permanent downloads.
+  PermanentArtworkStore get artworkStore => _artworkStore;
+
+  /// Deletes stored cover art no permanent download uses any more.
+  Future<void> pruneDownloadArtwork() async {
+    try {
+      final referenced = await _downloadCoverArtIds();
+      if (referenced != null) await _artworkStore.prune(referenced);
+    } on Object catch (error) {
+      AppLogger.warning('DownloadService: Artwork prune failed: $error');
+    }
+  }
+
+  /// The cover art ids of permanent downloads, or null when some download's
+  /// song is not in the library (during a library rebuild, for example): a
+  /// partial view must never delete a cover a download may still use.
+  Future<Set<String>?> _downloadCoverArtIds() async {
+    final songIds = await _cacheDao.getPermanentlyCachedSongIds();
+    if (songIds.isEmpty) return const <String>{};
+    final songs = await _libraryDao.getSongsByIds(songIds);
+    if (songs.length < songIds.length) return null;
+    return <String>{
+      for (final song in songs)
+        if (song.coverArt?.trim() case final id? when id.isNotEmpty) id,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Queue control
+  // ---------------------------------------------------------------------------
+
+  /// Whether the queue is paused.
+  bool get isPaused => _paused;
+
+  /// The configured number of concurrent downloads.
+  int get maxConcurrentDownloads => _maxConcurrent;
+
+  /// Queue ids with a transfer or finish in progress.
+  Set<int> get activeQueueIds => Set<int>.unmodifiable(_workers.keys);
+
+  /// The most downloads that ran at once since the last
+  /// [resetPeakActiveDownloads], for diagnostics.
+  int get peakActiveDownloads => _peakActiveDownloads;
+  int _peakActiveDownloads = 0;
+
+  void resetPeakActiveDownloads() => _peakActiveDownloads = _workers.length;
+
+  /// How many downloads may run right now: none while paused or held by the
+  /// Wi-Fi-only setting, one on cellular, otherwise the user's setting.
+  int get effectiveConcurrency {
+    if (_paused) return 0;
+    final onWifi = _readIsWifi();
+    if (_readWifiOnly() && !onWifi) return 0;
+    return onWifi ? _maxConcurrent : 1;
+  }
+
+  /// Pauses or resumes the whole queue. Pausing returns transfers in flight
+  /// to the queue; their part files are discarded.
+  Future<void> setPaused({required bool paused}) async {
+    await _appSettingsDao.updateDownloadsPaused(paused: paused);
+    await _applyPaused(paused);
+  }
+
+  Future<void> _applyPaused(bool paused) async {
+    _paused = paused;
+    if (paused) {
+      _cancelTransfers(_CancelReason.requeue);
+      await DownloadNotifier.dismissProgress().catchError((_) {});
+    } else {
+      await _processNext();
+    }
+  }
+
+  /// Saves the number of concurrent downloads and starts more if allowed.
+  Future<void> setMaxConcurrentDownloads(int value) async {
+    _maxConcurrent = sanitizeConcurrentDownloads(value);
+    await _appSettingsDao.updateMaxConcurrentDownloads(_maxConcurrent);
+    await _processNext();
+  }
+
+  /// Removes one queue item, stopping its transfer if one is in flight. The
+  /// partial file is deleted and nothing is registered.
+  Future<void> cancelQueueItem(int id) async {
+    _retryNotBefore.remove(id);
+    if (_workers.containsKey(id)) {
+      _cancelReasons[id] = _CancelReason.remove;
+      _activeTransfers[id]?.cancel('Download cancelled');
+    }
+    await _downloadQueueDao.remove(id);
+  }
+
+  /// Removes every queue item, stopping transfers in flight.
+  Future<void> clearQueue() async {
+    _retryNotBefore.clear();
+    _cancelTransfers(_CancelReason.remove);
+    await _downloadQueueDao.clearQueue();
+  }
+
+  /// Cancels every claimed item. Items without a transfer yet see the reason
+  /// before they start one.
+  void _cancelTransfers(_CancelReason reason) {
+    for (final id in _workers.keys) {
+      _cancelReasons[id] = reason;
+      _activeTransfers[id]?.cancel(reason.name);
     }
   }
 
@@ -352,11 +560,28 @@ class DownloadService {
     unawaited(_processNext());
   }
 
-  /// Trigger queue processing after external conditions change.
+  /// Trigger queue processing after external conditions change, and complete
+  /// once no download is running: the queue is empty, held (paused, Wi-Fi
+  /// only), or waiting out a retry backoff.
   ///
   /// The internal processing and Wi-Fi guards remain authoritative, so callers
   /// can invoke this optimistically when settings or connectivity change.
-  Future<void> processQueuedDownloads() => _processNext();
+  Future<void> processQueuedDownloads() async {
+    await _processNext();
+    await _waitForIdle();
+  }
+
+  Future<void> _waitForIdle() async {
+    while (true) {
+      if (_workers.isNotEmpty) {
+        await Future.wait<void>(_workers.values.toList(growable: false));
+      } else if (_pumping) {
+        await Future<void>.delayed(Duration.zero);
+      } else {
+        return;
+      }
+    }
+  }
 
   Future<T> _runWithQueuePaused<T>(Future<T> Function() action) async {
     if (_maintenanceInProgress) {
@@ -366,7 +591,7 @@ class DownloadService {
     final hadSubscription = _queueSubscription != null;
     await _queueSubscription?.cancel();
     _queueSubscription = null;
-    _activeCancelToken?.cancel('Download maintenance');
+    _cancelTransfers(_CancelReason.requeue);
     await _waitForCurrentWorkToStop();
     try {
       return await action();
@@ -379,8 +604,12 @@ class DownloadService {
   }
 
   Future<void> _waitForCurrentWorkToStop() async {
-    while (_processing || _activeCancelToken != null) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+    while (_workers.isNotEmpty || _pumping) {
+      if (_workers.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        continue;
+      }
+      await Future.wait<void>(_workers.values.toList(growable: false));
     }
   }
 
@@ -421,16 +650,17 @@ class DownloadService {
     // Also skip if already permanently cached (unless force re-download).
     if (!forceRedownload) {
       final cached = await _cacheDao.getCachedTrack(songId);
+      final song = libraryRows.firstOrNull;
       if (cached != null &&
           cached.cacheType == CacheType.permanent &&
-          _isCacheQualityCompatible(cached, quality, format)) {
+          _isCacheQualityCompatible(cached, quality, format, song: song)) {
         return;
       }
 
       // Smart download: if the song is in rolling cache with a compatible
       // quality, promote it to permanent storage instead of re-downloading.
       if (cached != null && cached.cacheType == CacheType.rolling) {
-        if (_isCacheQualityCompatible(cached, quality, format)) {
+        if (_isCacheQualityCompatible(cached, quality, format, song: song)) {
           final promoted = await promoteToPermanent(songId);
           if (promoted) {
             AppLogger.info(
@@ -524,6 +754,11 @@ class DownloadService {
     // Batch dedup: one query per data source instead of N queries per song.
     final activeSongIds = await _downloadQueueDao.getActiveSongIds();
     final cachedTracks = await _cacheDao.getCachedTracksForSongIds(songIds);
+    final songsById = <String, SongsTableData>{
+      if (cachedTracks.isNotEmpty)
+        for (final song in await _libraryDao.getSongsByIds(cachedTracks.keys))
+          song.id: song,
+    };
 
     final toEnqueue = <DownloadQueueTableCompanion>[];
     var promotedCount = 0;
@@ -534,14 +769,15 @@ class DownloadService {
 
       // Skip if already permanently cached.
       final cached = cachedTracks[songId];
+      final song = songsById[songId];
       if (cached?.cacheType == CacheType.permanent &&
-          _isCacheQualityCompatible(cached!, quality, format)) {
+          _isCacheQualityCompatible(cached!, quality, format, song: song)) {
         continue;
       }
 
       // Try rolling → permanent promotion.
       if (cached?.cacheType == CacheType.rolling &&
-          _isCacheQualityCompatible(cached!, quality, format)) {
+          _isCacheQualityCompatible(cached!, quality, format, song: song)) {
         final promoted = await promoteToPermanent(songId);
         if (promoted) {
           promotedCount++;
@@ -632,7 +868,7 @@ class DownloadService {
     );
     final api = _readApiClient();
     if (song != null && api != null) {
-      unawaited(_precacheCoverArt(song, api));
+      _trackBackgroundTask(_precacheCoverArt(song, api));
     }
     return true;
   }
@@ -648,26 +884,32 @@ class DownloadService {
   ///   further check bitrate: if the cached bitrate is null (original) or ≥
   ///   the requested bitrate, the cache is at least as good.
   /// * If no specific quality/format is requested (original download) the
-  ///   cached entry is compatible when it was also cached at original quality
-  ///   (null bitrate).
+  ///   cached entry is compatible when it is original: no bitrate, or the
+  ///   song's own format at no less than its bitrate (see
+  ///   [isOriginalQualityDownload]).
   bool _isCacheQualityCompatible(
     CachedTracksTableData cached,
     String? requestedQuality,
-    String? requestedFormat,
-  ) {
+    String? requestedFormat, {
+    SongsTableData? song,
+  }) {
     final requestedBitRate = requestedQuality != null
         ? int.tryParse(requestedQuality)
         : null;
 
     // User wants "original" quality (no transcoding).
     if (requestedBitRate == null && requestedFormat == null) {
-      // Only compatible if the cache is also original (no forced bitrate).
-      return cached.bitRate == null;
+      return isOriginalQualityDownload(
+        format: cached.format,
+        bitRate: cached.bitRate,
+        songSuffix: song?.suffix,
+        songBitRate: song?.bitRate,
+      );
     }
 
     // Check format compatibility.
     if (requestedFormat != null &&
-        cached.format.toLowerCase() != requestedFormat.toLowerCase()) {
+        !sameAudioFormat(cached.format, requestedFormat)) {
       return false;
     }
 
@@ -687,37 +929,113 @@ class DownloadService {
   // Processing
   // ---------------------------------------------------------------------------
 
+  /// Starts queued downloads until [effectiveConcurrency] are running.
+  ///
+  /// Called whenever the queue, the network, or a setting changes, and when a
+  /// worker finishes. Items still in their retry backoff are skipped, and a
+  /// timer starts the pump again when the earliest backoff ends.
   Future<void> _processNext() async {
-    if (_stopped || _processing || _maintenanceInProgress) return;
-
-    // Respect Wi-Fi-only setting.
-    if (_readWifiOnly() && !_readIsWifi()) {
-      AppLogger.debug('DownloadService: Wi-Fi-only mode, skipping processing');
+    if (_pumping) {
+      _pumpRequested = true;
       return;
     }
-
-    _processing = true;
-
+    _pumping = true;
     try {
-      while (true) {
-        if (_stopped) break;
-        final queue = await _downloadQueueDao.getQueuedItems();
-        if (queue.isEmpty) break;
-
-        final item = queue.first;
-        if (item.songId == null) {
-          // Malformed entry — remove.
-          await _downloadQueueDao.remove(item.id);
-          continue;
-        }
-        await _downloadItem(item);
-
-        // Yield to the event loop between downloads so the UI stays
-        // responsive and other microtasks can run.
-        await Future<void>.delayed(Duration.zero);
-      }
+      do {
+        _pumpRequested = false;
+        await _fillWorkers();
+      } while (_pumpRequested && !_stopped);
     } finally {
-      _processing = false;
+      _pumping = false;
+    }
+  }
+
+  Future<void> _fillWorkers() async {
+    if (_stopped || _maintenanceInProgress) return;
+    if (_workers.length >= effectiveConcurrency) {
+      if (effectiveConcurrency == 0) {
+        AppLogger.debug('DownloadService: queue held (paused or Wi-Fi only)');
+      }
+      return;
+    }
+    final queue = await _downloadQueueDao.getQueuedItems();
+    final now = DateTime.now();
+    DateTime? nextRetry;
+    for (final item in queue) {
+      if (_stopped || _maintenanceInProgress) return;
+      if (_workers.length >= effectiveConcurrency) break;
+      if (_workers.containsKey(item.id)) continue;
+      final notBefore = _retryNotBefore[item.id];
+      if (notBefore != null && notBefore.isAfter(now)) {
+        if (nextRetry == null || notBefore.isBefore(nextRetry)) {
+          nextRetry = notBefore;
+        }
+        continue;
+      }
+      _retryNotBefore.remove(item.id);
+      if (item.songId == null) {
+        // Malformed entry — remove.
+        await _downloadQueueDao.remove(item.id);
+        continue;
+      }
+      _startWorker(item);
+    }
+    _retryTimer?.cancel();
+    _retryTimer = nextRetry == null
+        ? null
+        : Timer(nextRetry.difference(now), () {
+            if (!_stopped) unawaited(_processNext());
+          });
+  }
+
+  void _startWorker(DownloadQueueTableData item) {
+    final worker = _downloadItem(item)
+        .catchError((Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'DownloadService: Worker for ${item.songId} failed: '
+            '$error\n$stackTrace',
+          );
+        })
+        .whenComplete(() {
+          _workers.removeWhere((id, _) => id == item.id);
+          _cancelReasons.remove(item.id);
+          if (!_stopped) unawaited(_processNext());
+        });
+    _workers[item.id] = worker;
+    if (_workers.length > _peakActiveDownloads) {
+      _peakActiveDownloads = _workers.length;
+    }
+  }
+
+  /// Runs [action] after every earlier finishing step has completed.
+  Future<T> _serializedFinalize<T>(Future<T> Function() action) {
+    final previous = _finalizeTail;
+    final done = Completer<void>();
+    _finalizeTail = done.future;
+    return previous.then((_) => action()).whenComplete(done.complete);
+  }
+
+  void _reportTransferProgress(int id, String title, int received, int total) {
+    _transferProgress[id] = (title: title, received: received, total: total);
+    final transfers = _transferProgress.values;
+    final totalBytes = transfers.fold<int>(0, (sum, t) => sum + t.total);
+    final receivedBytes = transfers.fold<int>(0, (sum, t) => sum + t.received);
+    unawaited(
+      DownloadNotifier.showProgress(
+        title: transfers.length == 1
+            ? transfers.single.title
+            : 'Downloading ${transfers.length} songs',
+        received: receivedBytes,
+        total: totalBytes,
+      ),
+    );
+  }
+
+  /// Forgets [id]'s progress; the notification goes when no transfer is left.
+  Future<void> _endTransferProgress(int id) async {
+    _transferProgress.remove(id);
+    if (_transferProgress.isEmpty) {
+      await DownloadNotifier.dismissProgress().catchError((_) {});
     }
   }
 
@@ -734,9 +1052,6 @@ class DownloadService {
       return;
     }
 
-    // Mark as downloading.
-    await _downloadQueueDao.updateStatus(item.id, DownloadStatus.downloading);
-
     // Resolve destination file early so we can clean up on failure. The
     // download is written to [partFile] and renamed to [destFile] only when
     // complete, so an interrupted download never looks like a finished file.
@@ -744,16 +1059,9 @@ class DownloadService {
     File? partFile;
     var renamed = false;
     var registered = false;
+    String? reservedPath;
 
     try {
-      // Resolve download URL.
-      final downloadUri = _resolveDownloadUri(
-        api: api,
-        songId: songId,
-        quality: item.quality,
-        format: item.format,
-      );
-
       // Resolve destination file.
       final songs = await _libraryDao.getSongsByIds(<String>[songId]);
       if (songs.isEmpty || songs.first.serverDeletedAt != null) {
@@ -765,10 +1073,33 @@ class DownloadService {
       }
       final song = songs.first;
       final songTitle = song.title;
-      destFile = await _resolveDownloadFile(song, item);
-      partFile = File('${destFile.path}$downloadPartSuffix');
 
-      _activeCancelToken = CancelToken();
+      // Cancelled (removed, paused, stopped) before the transfer started.
+      if (_stopped || _cancelReasons.containsKey(item.id)) {
+        if (_cancelReasons[item.id] == _CancelReason.remove) {
+          await _downloadQueueDao.remove(item.id);
+        }
+        return;
+      }
+
+      // Mark as downloading.
+      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.downloading);
+
+      final downloadUri = _resolveDownloadUri(
+        api: api,
+        songId: songId,
+        quality: item.quality,
+        format: item.format,
+      );
+      final resolvedDest = destFile = await _resolveDownloadFile(song, item);
+      reservedPath = resolvedDest.path;
+      _reservedDownloadPaths.add(reservedPath);
+      final part = partFile = File('${resolvedDest.path}$downloadPartSuffix');
+
+      final cancelToken = _activeTransfers[item.id] = CancelToken();
+      if (_cancelReasons[item.id] case final reason?) {
+        cancelToken.cancel(reason.name);
+      }
       // Dio reports every received chunk. Persist progress at most twice a
       // second, in whole percent steps: each write re-emits the download
       // queue and album download badges to every watching screen.
@@ -776,8 +1107,8 @@ class DownloadService {
       final sincePersisted = Stopwatch()..start();
       final response = await _dio.downloadUri(
         downloadUri,
-        partFile.path,
-        cancelToken: _activeCancelToken,
+        part.path,
+        cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           if (!_stopped && total > 0) {
             final progress = (received / total).clamp(0.0, 1.0);
@@ -793,146 +1124,180 @@ class DownloadService {
             _trackProgressWrite(
               _downloadQueueDao.updateProgress(item.id, progress),
             );
-            unawaited(
-              DownloadNotifier.showProgress(
-                title: songTitle,
-                received: received,
-                total: total,
-              ),
-            );
+            _reportTransferProgress(item.id, songTitle, received, total);
           }
         },
       );
+      _activeTransfers.remove(item.id);
 
       if (_stopped) {
         await tryDeleteFile(partFile);
         return;
       }
 
-      if (response.statusCode != null &&
-          response.statusCode! >= 200 &&
-          response.statusCode! < 300) {
-        await _renameIntoPlace(partFile, destFile);
-        renamed = true;
-        // Tag before measuring, so the registered size is the final one.
-        // Tags only help a later rescan; they never cost the download.
-        try {
-          await _permanentDownloadImportService.writeIdentityTags(
-            destFile,
-            songId,
-          );
-        } on Object catch (error) {
-          AppLogger.warning(
-            'DownloadService: Identity tags not written for $songId: $error',
-          );
-        }
-        // Register in cached_tracks as permanent.
-        // Keep metadata access asynchronous so storage latency cannot stall UI.
-        // ignore: avoid_slow_async_io
-        final stat = await destFile.stat();
-        _reportNetworkUsage?.call(
-          category: NetworkUsageCategory.download,
-          bytes: stat.size,
-        );
-        final format = _resolveFormat(song, item);
-        final bitRate = _resolveBitRate(song, item);
-
-        if (_isSafRoot(_readCustomDownloadFolderPath())) {
-          final treeUri = _readCustomDownloadFolderPath()!;
-          final relativePath = _safRelativePathFor(song, format);
-          // The local file was tagged before its single upload; a document
-          // is never copied back out to be tagged.
-          final locator = await _safStorage.writeFromFile(
-            treeUri: treeUri,
-            relativePath: relativePath,
-            source: destFile,
-            mimeType: _mimeTypeFor(format),
-            replace: false,
-          );
-          await tryDeleteFile(destFile);
-          await _permanentDownloadImportService.recordDownloadedSafEntries(
-            treeUri: treeUri,
-            entries: [
-              (
-                relativePath: relativePath,
-                fileSize: stat.size,
-                songId: songId,
-                format: format,
+      final statusCode = response.statusCode;
+      final contentType = response.headers.value(Headers.contentTypeHeader);
+      if (statusCode != null &&
+          statusCode >= 200 &&
+          statusCode < 300 &&
+          isNonAudioContentType(contentType)) {
+        // A Subsonic error document (XML/JSON/HTML) with a success status is
+        // never registered as audio.
+        await tryDeleteFile(partFile);
+        await _handleFailure(item, 'Server returned $contentType');
+      } else if (statusCode != null && statusCode >= 200 && statusCode < 300) {
+        final transcoded = item.quality != null || item.format != null;
+        final requestedFormat = _resolveFormat(song, item);
+        // The server names what it actually sent: a server without the
+        // requested encoder may send the original file instead.
+        final format = transcoded
+            ? downloadedFormatFor(
+                requested: requestedFormat,
+                contentType: contentType,
+              )
+            : requestedFormat;
+        final bitRate = format == requestedFormat
+            ? _resolveBitRate(song, item)
+            : song.bitRate;
+        var target = resolvedDest;
+        await _serializedFinalize(() async {
+          if (_stopped || _cancelReasons[item.id] == _CancelReason.remove) {
+            await tryDeleteFile(part);
+            if (!_stopped) await _downloadQueueDao.remove(item.id);
+            return;
+          }
+          if (format != requestedFormat &&
+              !_isSafRoot(_readCustomDownloadFolderPath())) {
+            target = File(
+              await _permanentPathResolver.resolveSongPath(
+                song: song,
+                extension: format,
+                reservedPaths: _reservedDownloadPaths,
               ),
-            ],
-          );
-          await _cacheDao.upsertCachedTrack(
-            CachedTracksTableCompanion.insert(
-              songId: songId,
-              filePath: locator,
-              storageKind: const Value('androidSaf'),
-              fileSize: stat.size,
-              format: format,
-              bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
-              cacheType: CacheType.permanent,
-              downloadStatus: DownloadStatus.complete,
-              lastAccessedAt: DateTime.now(),
-            ),
-          );
-        } else {
-          await _cacheDao.upsertCachedTrack(
-            CachedTracksTableCompanion.insert(
-              songId: songId,
-              filePath: destFile.path,
-              fileSize: stat.size,
-              format: format,
-              bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
-              cacheType: CacheType.permanent,
-              downloadStatus: DownloadStatus.complete,
-              lastAccessedAt: DateTime.now(),
-            ),
-          );
-          registered = true;
-          // The download is registered; the sidecar record and identity tags
-          // are bookkeeping and must never cost the user the finished file
-          // (for example while antivirus briefly locks the sidecar).
-          try {
-            await _permanentDownloadImportService.recordDownloaded(
-              root: await _permanentDirectory(),
-              file: destFile,
-              songId: songId,
-              format: format,
-            );
-          } on Object catch (error, stackTrace) {
-            AppLogger.warning(
-              'DownloadService: Could not record $songId in the download '
-              'folder sidecar: $error\n$stackTrace',
             );
           }
-        }
+          await _renameIntoPlace(part, target);
+          destFile = target;
+          renamed = true;
+          // Tag before measuring, so the registered size is the final one.
+          // Tags only help a later rescan; they never cost the download.
+          try {
+            await _permanentDownloadImportService.writeIdentityTags(
+              target,
+              songId,
+            );
+          } on Object catch (error) {
+            AppLogger.warning(
+              'DownloadService: Identity tags not written for $songId: $error',
+            );
+          }
+          // Register in cached_tracks as permanent.
+          // Keep metadata access asynchronous so storage latency cannot stall UI.
+          // ignore: avoid_slow_async_io
+          final stat = await target.stat();
+          _reportNetworkUsage?.call(
+            category: NetworkUsageCategory.download,
+            bytes: stat.size,
+          );
 
-        // Remove from queue.
-        await _downloadQueueDao.remove(item.id);
+          if (_isSafRoot(_readCustomDownloadFolderPath())) {
+            final treeUri = _readCustomDownloadFolderPath()!;
+            final relativePath = _safRelativePathFor(song, format);
+            // The local file was tagged before its single upload; a document
+            // is never copied back out to be tagged.
+            final locator = await _safStorage.writeFromFile(
+              treeUri: treeUri,
+              relativePath: relativePath,
+              source: target,
+              mimeType: _mimeTypeFor(format),
+              replace: false,
+            );
+            await tryDeleteFile(target);
+            await _permanentDownloadImportService.recordDownloadedSafEntries(
+              treeUri: treeUri,
+              entries: [
+                (
+                  relativePath: relativePath,
+                  fileSize: stat.size,
+                  songId: songId,
+                  format: format,
+                ),
+              ],
+            );
+            await _cacheDao.upsertCachedTrack(
+              CachedTracksTableCompanion.insert(
+                songId: songId,
+                filePath: locator,
+                storageKind: const Value('androidSaf'),
+                fileSize: stat.size,
+                format: format,
+                bitRate: bitRate == null
+                    ? const Value.absent()
+                    : Value(bitRate),
+                cacheType: CacheType.permanent,
+                downloadStatus: DownloadStatus.complete,
+                lastAccessedAt: DateTime.now(),
+              ),
+            );
+          } else {
+            await _cacheDao.upsertCachedTrack(
+              CachedTracksTableCompanion.insert(
+                songId: songId,
+                filePath: target.path,
+                fileSize: stat.size,
+                format: format,
+                bitRate: bitRate == null
+                    ? const Value.absent()
+                    : Value(bitRate),
+                cacheType: CacheType.permanent,
+                downloadStatus: DownloadStatus.complete,
+                lastAccessedAt: DateTime.now(),
+              ),
+            );
+            registered = true;
+            // The download is registered; the sidecar record and identity
+            // tags are bookkeeping and must never cost the user the finished
+            // file (for example while antivirus briefly locks the sidecar).
+            try {
+              await _permanentDownloadImportService.recordDownloaded(
+                root: await _permanentDirectory(),
+                file: target,
+                songId: songId,
+                format: format,
+              );
+            } on Object catch (error, stackTrace) {
+              AppLogger.warning(
+                'DownloadService: Could not record $songId in the download '
+                'folder sidecar: $error\n$stackTrace',
+              );
+            }
+          }
 
-        // Pre-cache cover art alongside the audio file (best-effort).
-        _trackBackgroundTask(_precacheCoverArt(song, api));
+          // Remove from queue.
+          await _downloadQueueDao.remove(item.id);
 
-        _trackBackgroundTask(
-          DownloadNotifier.dismissProgress().catchError((_) {}),
-        );
-        _trackBackgroundTask(
-          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
-              .catchError((_) {}),
-        );
+          // Keep cover art alongside the audio (best-effort).
+          _trackBackgroundTask(_precacheCoverArt(song, api));
 
-        // Best-effort: pre-fetch lyrics so they're available offline.
-        _trackBackgroundTask(_prefetchLyrics(songId, song, api));
+          _trackBackgroundTask(
+            DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
+                .catchError((_) {}),
+          );
 
-        AppLogger.info(
-          'DownloadService: Completed download for $songId '
-          '(${stat.size} bytes)',
-        );
+          // Best-effort: pre-fetch lyrics so they're available offline.
+          _trackBackgroundTask(_prefetchLyrics(songId, song, api));
+
+          AppLogger.info(
+            'DownloadService: Completed download for $songId '
+            '(${stat.size} bytes, $format)',
+          );
+        });
       } else {
         await tryDeleteFile(partFile);
         // 404 Not Found / 410 Gone — resource is permanently unavailable, no point retrying.
-        if (response.statusCode == 404 || response.statusCode == 410) {
+        if (statusCode == 404 || statusCode == 410) {
           AppLogger.warning(
-            'DownloadService: Source not found (${response.statusCode}) for $songId — marking as permanently failed',
+            'DownloadService: Source not found ($statusCode) for $songId — marking as permanently failed',
           );
           // An isolated media 404 is suspicion evidence only (plan E2):
           // validated catalog evidence must confirm absence.
@@ -940,15 +1305,16 @@ class DownloadService {
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
           await DownloadNotifier.showFailed().catchError((_) {});
         } else {
-          await _handleFailure(item, 'HTTP ${response.statusCode}');
+          await _handleFailure(item, 'HTTP $statusCode');
         }
       }
     } on DioException catch (e) {
-      await DownloadNotifier.dismissProgress().catchError((_) {});
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
         await tryDeleteFile(partFile);
-        if (!_stopped) {
+        if (_cancelReasons[item.id] == _CancelReason.remove) {
+          await _downloadQueueDao.remove(item.id);
+        } else if (!_stopped) {
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
         }
       } else {
@@ -967,7 +1333,9 @@ class DownloadService {
       if (renamed && !registered) await tryDeleteFile(destFile);
       await _handleFailure(item, e.toString());
     } finally {
-      _activeCancelToken = null;
+      _activeTransfers.remove(item.id);
+      if (reservedPath != null) _reservedDownloadPaths.remove(reservedPath);
+      await _endTransferProgress(item.id);
     }
   }
 
@@ -1026,7 +1394,14 @@ class DownloadService {
       return false;
     }
 
-    if (!_isCacheQualityCompatible(cached, item.quality, item.format)) {
+    final song = (await _libraryDao.getSongsByIds(<String>[songId]))
+        .firstOrNull;
+    if (!_isCacheQualityCompatible(
+      cached,
+      item.quality,
+      item.format,
+      song: song,
+    )) {
       return false;
     }
 
@@ -1075,19 +1450,22 @@ class DownloadService {
         'song=${song.id} coverArt=$coverArtId: $error\n$stackTrace',
       );
     }
+    // The cache entry above speeds up the first display; the durable copy
+    // serves offline browsing and the system media controls for as long as
+    // the download exists.
+    await _artworkStore.ensure(coverArtId, api);
   }
 
   /// Handle a download failure with automatic retry logic.
   ///
   /// If the item has been retried fewer than [maxRetries] times, it is
-  /// re-queued with an incremented retry count and a backoff delay.
-  /// Otherwise it is marked as permanently [DownloadStatus.failed].
+  /// re-queued with an incremented retry count and waits out a backoff before
+  /// the pump starts it again. Otherwise it is marked as permanently
+  /// [DownloadStatus.failed].
   Future<void> _handleFailure(
     DownloadQueueTableData item,
     String reason,
   ) async {
-    await DownloadNotifier.dismissProgress().catchError((_) {});
-
     if (item.retryCount < maxRetries) {
       // Exponential backoff: 5s, 10s, 20s, ...
       final backoff = Duration(seconds: 5 * (1 << item.retryCount));
@@ -1096,15 +1474,11 @@ class DownloadService {
         '(attempt ${item.retryCount + 1}/$maxRetries) '
         'after ${backoff.inSeconds}s',
       );
+      // Recorded before the row returns to the queue, so the pump that the
+      // queue change triggers already skips it. The pump's timer starts it
+      // again once the backoff ends.
+      _retryNotBefore[item.id] = DateTime.now().add(backoff);
       await _downloadQueueDao.markForRetry(item.id);
-
-      // Schedule a delayed re-trigger. The queue subscription would
-      // eventually pick it up, but the backoff delay adds some spacing.
-      Future<void>.delayed(backoff, () {
-        if (!_stopped) {
-          unawaited(_processNext());
-        }
-      });
     } else {
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
       await DownloadNotifier.showFailed().catchError((_) {});
@@ -1234,6 +1608,39 @@ class DownloadService {
     }
   }
 
+  /// On app boot, stores the cover art of permanent downloads that have none
+  /// yet (downloads from before the artwork store, and adopted files), then
+  /// deletes stored covers no download uses. Fetches only on Wi-Fi. Never
+  /// throws.
+  Future<void> _backfillArtworkForDownloadedSongs() async {
+    try {
+      final referenced = await _downloadCoverArtIds();
+      if (referenced != null) await _artworkStore.prune(referenced);
+      final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
+      final coverArtIds = <String>{
+        for (final song in await _libraryDao.getSongsByIds(permanentIds))
+          if (song.coverArt?.trim() case final id? when id.isNotEmpty) id,
+      };
+      final api = _readApiClient();
+      if (api == null || !_readIsWifi()) return;
+      var stored = 0;
+      for (final id in coverArtIds) {
+        if (_stopped) return;
+        if (await _artworkStore.fileFor(id) != null) continue;
+        if (await _artworkStore.ensure(id, api)) stored++;
+        // Throttle to avoid hammering the server.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (stored > 0) {
+        AppLogger.info(
+          'DownloadService: Artwork backfill stored $stored covers.',
+        );
+      }
+    } on Object catch (e) {
+      AppLogger.warning('DownloadService: Artwork backfill error: $e');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lyrics prefetch
   // ---------------------------------------------------------------------------
@@ -1303,8 +1710,68 @@ class DownloadService {
     }
   }
 
-  Future<void> _relocatePermanentDownloadsToSaf(String treeUri) async {
-    final entries = await _cacheDao.getPermanentEntries();
+  /// Permanent downloads in the user folder Navis is about to stop using: the
+  /// active custom folder, and any Android folder documents, except those
+  /// inside the new target. The folder is the user's, whether Navis downloaded
+  /// a file or adopted it, so those files stay where they are and Navis only
+  /// forgets them. The folder's index still names them, so choosing the folder
+  /// again adopts them back.
+  Future<Set<String>> _songIdsLeftInUserFolder({
+    String? targetDirectory,
+    String? targetSafTree,
+  }) async {
+    final currentPath = _readCustomDownloadFolderPath()?.trim();
+    final currentFolder =
+        _readCustomDownloadFolderEnabled() &&
+            currentPath != null &&
+            currentPath.isNotEmpty &&
+            !_isSafRoot(currentPath)
+        ? await DownloadRootIdentity.resolve(currentPath)
+        : null;
+    final target = targetDirectory == null
+        ? null
+        : await DownloadRootIdentity.resolve(targetDirectory);
+    final leaving = <String>{};
+    for (final entry in await _cacheDao.getPermanentEntries()) {
+      if (_isSafRoot(entry.filePath)) {
+        if (targetSafTree == null ||
+            !await _safStorage.isDescendant(
+              treeUri: targetSafTree,
+              documentUri: entry.filePath,
+            )) {
+          leaving.add(entry.songId);
+        }
+      } else if (currentFolder?.keyFor(entry.filePath) != null &&
+          (target == null || !await _isInside(target, entry.filePath))) {
+        leaving.add(entry.songId);
+      }
+    }
+    return leaving;
+  }
+
+  /// Whether [path] is inside [folder], through any spelling of either: the
+  /// folder chosen again through a link, junction or mapped drive is still
+  /// the same folder.
+  static Future<bool> _isInside(
+    DownloadRootIdentity folder,
+    String path,
+  ) async {
+    if (folder.keyFor(path) != null) return true;
+    try {
+      return folder.keyFor(await File(path).resolveSymbolicLinks()) != null;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  Future<void> _relocatePermanentDownloadsToSaf(
+    String treeUri, {
+    Set<String> leaveSongIds = const <String>{},
+  }) async {
+    final entries = [
+      for (final entry in await _cacheDao.getPermanentEntries())
+        if (!leaveSongIds.contains(entry.songId)) entry,
+    ];
     if (entries.isEmpty) return;
     final songs = await _libraryDao.getSongsByIds(
       entries.map((entry) => entry.songId).toSet(),
@@ -1409,6 +1876,7 @@ class DownloadService {
     required String? customDownloadFolderPath,
     bool rollbackOnFailure = false,
     bool keepEntriesInsideTarget = false,
+    Set<String> leaveSongIds = const <String>{},
   }) async {
     final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
     final currentRootDirectory = currentRootIsSaf
@@ -1417,10 +1885,16 @@ class DownloadService {
             customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
             customDownloadFolderPath: _readCustomDownloadFolderPath(),
           );
-    final entries = await _cacheDao.getPermanentEntries();
+    final entries = [
+      for (final entry in await _cacheDao.getPermanentEntries())
+        if (!leaveSongIds.contains(entry.songId)) entry,
+    ];
     if (entries.isEmpty) {
       return;
     }
+    final targetIdentity = keepEntriesInsideTarget
+        ? await DownloadRootIdentity.resolve(targetDirectory.path)
+        : null;
 
     final songs = await _libraryDao.getSongsByIds(
       entries.map((entry) => entry.songId).toSet(),
@@ -1458,9 +1932,9 @@ class DownloadService {
           continue;
         }
 
-        if (keepEntriesInsideTarget &&
-            !sourceWasSaf &&
-            p.isWithin(targetDirectory.path, entry.filePath)) {
+        if (!sourceWasSaf &&
+            targetIdentity != null &&
+            await _isInside(targetIdentity, entry.filePath)) {
           reservedTargetPaths.add(entry.filePath);
           continue;
         }
@@ -1730,12 +2204,13 @@ class DownloadService {
     final targetPath = await _permanentPathResolver.resolveSongPath(
       song: song,
       extension: ext,
+      reservedPaths: _reservedDownloadPaths,
     );
     return File(targetPath);
   }
 
   bool _isSafRoot(String? value) =>
-      Platform.isAndroid && (value?.startsWith('content://') ?? false);
+      _isAndroid && (value?.startsWith('content://') ?? false);
 
   Future<void> _deletePermanentLocator(String locator) async {
     if (_isSafRoot(locator)) {
@@ -1769,8 +2244,10 @@ class DownloadService {
   String _mimeTypeFor(String format) => switch (format.toLowerCase()) {
     'flac' => 'audio/flac',
     'mp3' => 'audio/mpeg',
-    'm4a' => 'audio/mp4',
+    'm4a' || 'mp4' => 'audio/mp4',
+    'aac' => 'audio/aac',
     'ogg' || 'opus' => 'audio/ogg',
+    'wav' => 'audio/wav',
     _ => 'application/octet-stream',
   };
 
@@ -1784,9 +2261,16 @@ class DownloadService {
     if (quality == null && format == null) {
       return api.downloadUrl(id: songId);
     }
-    // Otherwise use stream.view with transcoding params.
+    // Otherwise use stream.view with transcoding params. A transcoded stream
+    // has no known length unless the server estimates one, and without a
+    // length the download cannot report progress.
     final maxBitRate = quality != null ? int.tryParse(quality) : null;
-    return api.streamUrl(id: songId, maxBitRate: maxBitRate, format: format);
+    return api.streamUrl(
+      id: songId,
+      maxBitRate: maxBitRate,
+      format: format,
+      estimateContentLength: true,
+    );
   }
 
   /// Resolve the file format/extension for a download item.
@@ -1806,6 +2290,53 @@ class DownloadService {
     }
     return song.bitRate;
   }
+}
+
+/// Why a claimed download is being cancelled.
+enum _CancelReason {
+  /// Return the item to the queue (pause, maintenance, stop).
+  requeue,
+
+  /// Drop the item (the user cancelled it or cleared the queue).
+  remove,
+}
+
+/// Whether a response's content type is certainly not audio: a Subsonic error
+/// document or web page. Unknown and missing types are allowed through.
+bool isNonAudioContentType(String? contentType) {
+  final type = contentType?.split(';').first.trim().toLowerCase();
+  if (type == null || type.isEmpty) return false;
+  return type.startsWith('text/') ||
+      type == 'application/json' ||
+      type == 'application/xml' ||
+      type.endsWith('+xml') ||
+      type.endsWith('+json');
+}
+
+/// The file format of a transcoded download, from the response's content
+/// type: [requested] when the type agrees with it or is unknown, otherwise
+/// the format the server actually sent (for example the original file from a
+/// server without the requested encoder).
+String downloadedFormatFor({
+  required String requested,
+  required String? contentType,
+}) {
+  final type = contentType?.split(';').first.trim().toLowerCase();
+  final sent = switch (type) {
+    'audio/mpeg' || 'audio/mp3' || 'audio/mpeg3' => 'mp3',
+    'audio/ogg' ||
+    'audio/opus' ||
+    'audio/x-opus' ||
+    'application/ogg' => requested.toLowerCase() == 'opus' ? 'opus' : 'ogg',
+    'audio/mp4' || 'audio/m4a' || 'audio/x-m4a' => 'm4a',
+    'audio/aac' || 'audio/aacp' || 'audio/x-aac' => 'aac',
+    'audio/flac' || 'audio/x-flac' => 'flac',
+    'audio/wav' || 'audio/x-wav' || 'audio/wave' => 'wav',
+    _ => null,
+  };
+  if (sent == null) return requested;
+  // An AAC request answered as MP4 is stored as .m4a.
+  return sent == requested.toLowerCase() ? requested : sent;
 }
 
 /// Whether a download progress update is worth persisting: completion, or at

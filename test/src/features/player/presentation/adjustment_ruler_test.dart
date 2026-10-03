@@ -228,6 +228,43 @@ void main() {
     expect(changes, 0);
   });
 
+  testWidgets('the scale sits flat and outlines itself only when focused', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdjustmentRuler(
+            value: 1,
+            label: 'Speed',
+            valueLabel: '1.00',
+            resetValue: 1,
+            onChanged: (_) {},
+            onChangeEnd: () {},
+          ),
+        ),
+      ),
+    );
+    BoxDecoration decoration() =>
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: find.byType(AdjustmentRuler),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(decoration().gradient, isNull);
+    expect(decoration().color, isNull);
+    expect(decoration().border, isNull);
+    await tester.tap(find.byType(AdjustmentRuler));
+    await tester.pump();
+    expect(decoration().border, isNotNull);
+  });
+
   group('external value changes glide like a swipe', () {
     Future<(List<Object?>, double Function(), void Function(double))> pumpRuler(
       WidgetTester tester, {

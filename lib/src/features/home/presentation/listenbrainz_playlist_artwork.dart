@@ -1,25 +1,27 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
-class ListenBrainzPlaylistArtwork extends StatelessWidget {
-  const new({
-    required this.playlist,
-    required this.size,
-    this.borderRadius = 8,
-    super.key,
-  });
+/// A weekly playlist's cover, shaped by the Cover Art Shape setting.
+class ListenBrainzPlaylistArtwork extends ConsumerWidget {
+  const new({required this.playlist, required this.size, super.key});
 
   final ListenBrainzDiscoverPlaylist playlist;
   final double size;
-  final double borderRadius;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final borderRadius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: size,
+    );
     final image = playlist.playlist.image;
     if (image != null && Uri.tryParse(image)?.hasAbsolutePath == true) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRadius,
         child: Image.network(
           image,
           width: size,
@@ -50,7 +52,7 @@ class _ListenBrainzArtworkMosaic extends StatelessWidget {
 
   final ListenBrainzDiscoverPlaylist playlist;
   final double size;
-  final double borderRadius;
+  final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +73,7 @@ class _ListenBrainzArtworkMosaic extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRadius,
       ),
       child: Icon(
         Icons.auto_awesome_outlined,
@@ -83,7 +85,7 @@ class _ListenBrainzArtworkMosaic extends StatelessWidget {
       return fallback;
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
+      borderRadius: borderRadius,
       child: SizedBox.square(
         dimension: size,
         child: GridView.count(

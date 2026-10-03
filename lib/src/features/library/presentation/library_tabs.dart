@@ -18,7 +18,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shape = ref.watch(artistCardShapeProvider);
-    final borderRadius = coverArtShapeToRadius(shape);
+    final borderRadius = artworkBorderRadius(shape, extent: artworkExtent);
     final textStyle = Theme.of(context).textTheme.bodySmall;
 
     return InkWell(
@@ -231,11 +231,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     return ListTile(
       minLeadingWidth: 48,
       horizontalTitleGap: 12,
-      leading: ListenBrainzPlaylistArtwork(
-        playlist: virtual,
-        size: 48,
-        borderRadius: 6,
-      ),
+      leading: ListenBrainzPlaylistArtwork(playlist: virtual, size: 48),
       title: Text(item.name),
       subtitle: Text(
         '${listenBrainzPlaylistAvailabilityLabel(virtual)} · ListenBrainz',
@@ -257,13 +253,13 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       leading: SizedBox(
         width: 48,
         height: 48,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: CoverArtImage(
-            coverArtId: playlist.coverArt,
-            size: 48,
-            semanticLabel: playlist.name,
-          ),
+        child: CoverArtImage(
+          coverArtId: playlist.coverArt,
+          size: 48,
+          width: 48,
+          height: 48,
+          shape: ArtworkShapeRole.cover,
+          semanticLabel: playlist.name,
         ),
       ),
       title: Text(playlist.name),

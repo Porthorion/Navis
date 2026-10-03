@@ -24,8 +24,8 @@ import 'package:rxdart/rxdart.dart';
 /// growing queue blocked the UI thread; the window is republished only when
 /// its songs change, and system queue indices are mapped back to the full
 /// queue. With [systemArt] (Android), cover art that would carry the account
-/// token is published as a content URI instead (see [AndroidSystemArt]),
-/// including browse and search results. Everything else is forwarded
+/// token is published as a content URI instead, and only once the cover is
+/// cached (see [AndroidSystemArt]), including browse and search results. Everything else is forwarded
 /// unchanged.
 class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
   new(this.inner, {this.systemArt}) : super(inner) {

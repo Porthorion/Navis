@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// A grid-friendly artist card with a configurable shape avatar and the artist
 /// name centered below. Suitable for use inside a `SliverGrid`.
@@ -27,7 +28,7 @@ class ArtistGridCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shape = ref.watch(artistCardShapeProvider);
-    final borderRadius = coverArtShapeToRadius(shape);
+    final borderRadius = artworkBorderRadius(shape, extent: double.infinity);
 
     return InkWell(
       borderRadius: NavisRadius.mdAll,

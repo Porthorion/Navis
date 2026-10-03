@@ -23,8 +23,8 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
   const new({required this.artistId, super.key});
@@ -146,7 +146,6 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                           coverArtIds: coverArtIds,
                           imageUrl: imageUrl,
                           size: 260,
-                          borderRadius: 16,
                         ),
                         const SizedBox(width: 28),
                         Expanded(
@@ -185,7 +184,6 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                           coverArtIds: coverArtIds,
                           imageUrl: imageUrl,
                           size: 180,
-                          borderRadius: 12,
                         ),
                       ),
                     ),
@@ -271,7 +269,7 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     WidgetRef ref,
     List<Song> songs,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !context.mounted) return;
     final service = ref.read(downloadServiceProvider);
     for (final song in songs) {
@@ -284,8 +282,11 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!
-          .downloadPlaylistQueued(songs.length),
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadPlaylistQueued(songs.length),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }
@@ -412,7 +413,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               size: 80,
               width: 44,
               height: 44,
-              borderRadius: NavisRadius.xsAll,
+              shape: ArtworkShapeRole.cover,
               placeholderIcon: Icons.music_note_outlined,
               isExternalSource: isRemote,
               remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
@@ -453,7 +454,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
     WidgetRef ref,
     String songId,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !context.mounted) return;
     await ref
         .read(downloadServiceProvider)
@@ -461,7 +462,11 @@ class _RankedTopTrackRow extends ConsumerWidget {
     if (!context.mounted) return;
     showAppNotice(
       context,
-      message: AppLocalizations.of(context)!.downloadSongQueued,
+      message: downloadQueuedNotice(
+        AppLocalizations.of(context)!,
+        AppLocalizations.of(context)!.downloadSongQueued,
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }

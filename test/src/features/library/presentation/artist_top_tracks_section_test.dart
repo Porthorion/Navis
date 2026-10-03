@@ -11,6 +11,7 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_provid
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -68,6 +69,9 @@ Future<_QueueSpyController> _pumpTopTracksSection(
     ProviderScope(
       overrides: [
         albumQueueEnabledProvider.overrideWithValue(albumQueueEnabled),
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
         artistTopTracksProvider.overrideWith((ref, artistName) async => tracks),
         queueProvider.overrideWith(_QueueSpyController.new),
         songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),

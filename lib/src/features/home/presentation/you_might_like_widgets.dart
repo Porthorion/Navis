@@ -63,7 +63,10 @@ class _ShowcaseCoverCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final radius = coverArtShapeToRadius(ref.watch(coverArtShapeProvider));
+    final radius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: double.infinity,
+    );
     final motion = MotionPolicy.of(context);
     final item = this.item;
 

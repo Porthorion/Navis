@@ -12,7 +12,6 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
-import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
@@ -37,6 +36,8 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
@@ -65,6 +66,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
@@ -864,6 +866,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       starSyncDao: database.starSyncDao,
       initialVolume: initialVolume,
       reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+      readPermanentArtwork: ref.read(permanentArtworkStoreProvider).fileFor,
       reportRollingCacheActivity: (activity) {
         if (!ref.mounted) {
           return;
@@ -2253,6 +2256,31 @@ final permanentCachedTracksProvider =
       return dao.watchCachedTracksByType(CacheType.permanent);
     });
 
+/// Clone diagnostics keep downloads and their artwork inside the run root.
+final Future<Directory> Function()? _downloadSupportDirectoryOverride =
+    _syncDiagnosticsEnabled &&
+        _syncDiagnosticsMode == 'clone' &&
+        _syncDiagnosticsRoot.isNotEmpty
+    ? () async {
+        final directory = Directory('$_syncDiagnosticsRoot/support');
+        await directory.create(recursive: true);
+        return directory;
+      }
+    : null;
+
+/// Durable cover art of permanent downloads, shared by the download service,
+/// cover art widgets, and the system media art cache.
+final permanentArtworkStoreProvider = Provider<PermanentArtworkStore>((ref) {
+  return PermanentArtworkStore(
+    readApplicationSupportDirectory: _downloadSupportDirectoryOverride,
+    // Resolved on first use: cover widgets read this store, and the meter
+    // opens the database.
+    reportNetworkUsage: ({required category, required bytes, operation}) => ref
+        .read(networkUsageMeterProvider)
+        .record(category: category, bytes: bytes, operation: operation),
+  );
+});
+
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
@@ -2276,16 +2304,8 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       final config = ref.read(serverConfigProvider).asData?.value;
       return config == null ? null : '${config.url}|${config.username}';
     },
-    readApplicationSupportDirectory:
-        _syncDiagnosticsEnabled &&
-            _syncDiagnosticsMode == 'clone' &&
-            _syncDiagnosticsRoot.isNotEmpty
-        ? () async {
-            final directory = Directory('$_syncDiagnosticsRoot/support');
-            await directory.create(recursive: true);
-            return directory;
-          }
-        : null,
+    readApplicationSupportDirectory: _downloadSupportDirectoryOverride,
+    artworkStore: ref.read(permanentArtworkStoreProvider),
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
@@ -2331,6 +2351,28 @@ final customDownloadFolderEnabledProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.customDownloadFolderEnabled;
+});
+
+/// The saved download quality (and whether its one-time prompt was answered).
+final downloadQualityPreferenceProvider =
+    StreamProvider<DownloadQualityPreference>((ref) {
+      return ref
+          .watch(navisDatabaseProvider)
+          .appSettingsDao
+          .watchDownloadQualityPreference();
+    });
+
+/// The configured number of concurrent downloads (1 to 4).
+final maxConcurrentDownloadsProvider = StreamProvider<int>((ref) {
+  return ref
+      .watch(navisDatabaseProvider)
+      .appSettingsDao
+      .watchMaxConcurrentDownloads();
+});
+
+/// Whether the download queue is paused.
+final downloadsPausedProvider = StreamProvider<bool>((ref) {
+  return ref.watch(navisDatabaseProvider).appSettingsDao.watchDownloadsPaused();
 });
 
 final customDownloadFolderPathProvider = Provider<String?>((ref) {
@@ -2416,22 +2458,6 @@ final albumGridDensityProvider = Provider<int?>((ref) {
   return settings.albumGridDensity;
 });
 
-/// Converts a shape preset string to a [BorderRadius].
-///
-/// - 'square'  → [BorderRadius.zero]
-/// - 'circle'  → very large radius (effectively circular)
-/// - 'rounded' or any other → [BorderRadius.circular(12)]
-BorderRadius coverArtShapeToRadius(String shape) {
-  switch (shape) {
-    case 'square':
-      return BorderRadius.zero;
-    case 'circle':
-      return BorderRadius.circular(9999);
-    default:
-      return BorderRadius.circular(12);
-  }
-}
-
 /// Shape preset for cover art in library / carousel cards.
 final coverArtShapeProvider = Provider<String>((ref) {
   final settings =
@@ -2455,6 +2481,16 @@ final artistCardShapeProvider = Provider<String>((ref) {
       const AppSettingsModel.defaults();
   return settings.artistCardShape;
 });
+
+/// The shape setting [ArtworkShapeRole] artwork follows; map it to corners
+/// with [artworkBorderRadius].
+final artworkShapeProvider = Provider.family<String, ArtworkShapeRole>(
+  (ref, role) => switch (role) {
+    ArtworkShapeRole.cover => ref.watch(coverArtShapeProvider),
+    ArtworkShapeRole.nowPlaying => ref.watch(nowPlayingArtShapeProvider),
+    ArtworkShapeRole.artist => ref.watch(artistCardShapeProvider),
+  },
+);
 
 /// Artist view layout: 'list' or 'grid'.
 final artistViewModeProvider = Provider<String>((ref) {
