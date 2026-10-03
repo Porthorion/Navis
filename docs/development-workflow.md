@@ -901,7 +901,7 @@ restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
 the local app log are retained under `build/volume-memory-diagnostics/`.
 
 Use the focused playback-settings scenario when changing how the Playback
-settings screen saves:
+settings screen saves, or what restarts weekly ListenBrainz discovery:
 
 ```bash
 ./tool/playback_settings_diagnostics.sh
@@ -916,7 +916,15 @@ endpoint accepts exactly one `toggle`, `scrobble`, which invokes the keyed
 production switch's own callback; it returns only Scrobbling, unmetered-only
 sync, ListenBrainz token validity, whether an account name is stored (never the
 name), and the persisted desktop volume. Primary certification rejects both
-methods. Output is retained under `build/playback-settings-diagnostics/`.
+methods. The scenario also requires that neither the desktop volume write nor
+either autosave, before and after the restart, restarts weekly ListenBrainz
+discovery. It reads the clone-only
+`GET /v1/presentation/listenbrainz-discover`, which reads the production
+discovery stream (applying any restart still pending while Home is hidden) and
+returns only `streamBuilds`, the process-lifetime number of discovery starts,
+its `state` (`loading`, `data` or `error`) and `playlistCount`. Primary
+certification rejects it. Output is retained under
+`build/playback-settings-diagnostics/`.
 
 Use the focused download-folder scenario after changing how Navis enters,
 leaves or switches a custom download folder:
