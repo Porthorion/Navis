@@ -18,6 +18,8 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -30,18 +32,155 @@ import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
+
+  test(
+    'download control is clone-only; download status is observable',
+    () async {
+      final primaryService = _downloadServiceStub();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        downloadService: primaryService,
+      );
+      for (final (path, body) in <(String, Map<String, Object?>)>[
+        ('/v1/downloads/settings', {'paused': true}),
+        ('/v1/downloads/cancel', {'queueId': 1}),
+        (
+          '/v1/downloads/enqueue',
+          {
+            'songIds': ['s1'],
+          },
+        ),
+      ]) {
+        final forbidden = await _request(
+          primary.port,
+          path,
+          method: 'POST',
+          token: primary.token,
+          body: body,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden, reason: path);
+      }
+      final observed = await _request(
+        primary.port,
+        '/v1/downloads/status',
+        token: primary.token,
+      );
+      expect(observed.statusCode, HttpStatus.ok);
+      expect(observed.body['qualityPreference'], containsPair('mode', 'ask'));
+      verifyNever(() => primaryService.setPaused(paused: any(named: 'paused')));
+      await primary.close();
+
+      final service = _downloadServiceStub();
+      final clone = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        downloadService: service,
+      );
+      addTearDown(clone.close);
+      for (final body in <Map<String, Object?>>[
+        {'maxConcurrent': 'many'},
+        {'paused': 'yes'},
+        {'qualityMode': 'lossy'},
+        {'qualityMode': 'transcode', 'bitRate': 100},
+        {'format': 'wma'},
+        {'prompted': 1},
+      ]) {
+        final invalid = await _request(
+          clone.port,
+          '/v1/downloads/settings',
+          method: 'POST',
+          token: clone.token,
+          body: body,
+        );
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+      final invalidCancel = await _request(
+        clone.port,
+        '/v1/downloads/cancel',
+        method: 'POST',
+        token: clone.token,
+        body: {'queueId': '1'},
+      );
+      expect(invalidCancel.statusCode, HttpStatus.badRequest);
+
+      final saved = await _request(
+        clone.port,
+        '/v1/downloads/settings',
+        method: 'POST',
+        token: clone.token,
+        body: {
+          'maxConcurrent': 3,
+          'paused': true,
+          'qualityMode': 'transcode',
+          'bitRate': 192,
+          'format': 'opus',
+          'prompted': true,
+        },
+      );
+      expect(saved.statusCode, HttpStatus.ok);
+      verify(() => service.setMaxConcurrentDownloads(3)).called(1);
+      verify(() => service.setPaused(paused: true)).called(1);
+      expect(saved.body['qualityPreference'], <String, Object?>{
+        'mode': 'transcode',
+        'bitRate': 192,
+        'format': 'opus',
+        'prompted': true,
+      });
+      for (final key in const [
+        'paused',
+        'maxConcurrent',
+        'effectiveConcurrency',
+        'activeQueueIds',
+        'peakActive',
+        'queue',
+        'queueItems',
+        'permanentDownloads',
+        'permanentArtworkCount',
+      ]) {
+        expect(saved.body, contains(key));
+      }
+
+      final enqueued = await _request(
+        clone.port,
+        '/v1/downloads/enqueue',
+        method: 'POST',
+        token: clone.token,
+        body: {
+          'songIds': ['s1'],
+          'usePreference': true,
+        },
+      );
+      expect(enqueued.statusCode, HttpStatus.accepted);
+      verify(() => service.enqueueSong('s1', quality: '192', format: 'opus'))
+          .called(1);
+
+      final cancelled = await _request(
+        clone.port,
+        '/v1/downloads/cancel',
+        method: 'POST',
+        token: clone.token,
+        body: {'queueId': 4},
+      );
+      expect(cancelled.statusCode, HttpStatus.ok);
+      verify(() => service.cancelQueueItem(4)).called(1);
+    },
+  );
 
   test(
     'artist diagnostics reject primary mutation and invalid clone commands',
@@ -588,7 +727,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 89);
+    expect(authorized.body['schemaVersion'], 90);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -1705,6 +1844,205 @@ void main() {
     );
   });
 
+  test(
+    'playback settings toggle is bounded and reports persisted fields',
+    () async {
+      final presentation = _MockPresentationController();
+      when(() => presentation.togglePlaybackSetting(setting: 'scrobble'))
+          .thenAnswer((_) async {});
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+      await dao.saveSettings(
+        cachedPlaybackFirst: false,
+        scrobbleEnabled: false,
+        gaplessEnabled: true,
+        skipSilenceEnabled: false,
+        showAlbumsPage: true,
+        showRadioPage: true,
+        showPlaylistsPage: true,
+        showArtistsPage: true,
+        showLikedPage: true,
+        wifiOnlyDownloads: true,
+        autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        themeMode: 'dark',
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        artTintedNowPlaying: true,
+        dynamicAlbumColorEnabled: false,
+        updateCheckEnabled: true,
+        updateChannel: 'stable',
+        audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
+        backgroundSyncUnmeteredOnly: false,
+        useLrclib: true,
+        legacyInstantMixEnabled: false,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        coverArtShape: 'square',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
+        desktopPlaybackVolume: 0.37,
+        desktopLastAudibleVolume: 0.37,
+        homeDensity: 'comfortable',
+        listenBrainzTokenValid: true,
+        listenBrainzUserName: 'fixture-listener',
+      );
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        method: 'POST',
+        body: const {'toggle': 'scrobble'},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      for (final body in <Map<String, Object?>>[
+        {},
+        {'toggle': 42},
+        {'toggle': 'gapless'},
+        {'toggle': 'scrobble', 'value': true},
+      ]) {
+        final response = await _request(
+          fixture.port,
+          '/v1/presentation/playback-settings',
+          method: 'POST',
+          token: fixture.token,
+          body: body,
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+      }
+      final toggled = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        method: 'POST',
+        token: fixture.token,
+        body: const {'toggle': 'scrobble'},
+      );
+      expect(toggled.statusCode, HttpStatus.ok);
+      verify(() => presentation.togglePlaybackSetting(setting: 'scrobble'))
+          .called(1);
+      final observed = await _request(
+        fixture.port,
+        '/v1/presentation/playback-settings',
+        token: fixture.token,
+      );
+      expect(observed.body, {
+        'scrobbleEnabled': false,
+        'backgroundSyncUnmeteredOnly': false,
+        'listenBrainzTokenValid': true,
+        'listenBrainzAccountStored': true,
+        'persistedVolume': 0.37,
+      });
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        presentationController: presentation,
+      );
+      addTearDown(primary.close);
+      for (final method in ['GET', 'POST']) {
+        final forbidden = await _request(
+          primary.port,
+          '/v1/presentation/playback-settings',
+          method: method,
+          token: primary.token,
+          body: method == 'POST' ? const {'toggle': 'scrobble'} : null,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden);
+      }
+    },
+  );
+
+  test(
+    'ListenBrainz discover observation counts restarts and is clone-only',
+    () async {
+      const path = '/v1/presentation/listenbrainz-discover';
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: <Override>[
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            CloneDiagnosticsExternalScrobbleCredentialStore(),
+          ),
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+        ],
+      );
+      addTearDown(fixture.close);
+      // The running app always has settings listeners; mirror that so a save
+      // reaches the discovery stream's dependency.
+      final settings = fixture.container.listen(appSettingsProvider, (_, _) {});
+      addTearDown(settings.close);
+      await fixture.container.read(appSettingsProvider.future);
+      final dao = fixture.container.read(navisDatabaseProvider).appSettingsDao;
+
+      Future<void> settingsApplied(
+        bool Function(AppSettingsModel settings) applied,
+      ) async {
+        while (!applied(
+          fixture.container.read(appSettingsProvider).requireValue,
+        )) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      final unauthorized = await _request(fixture.port, path);
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final first = await _request(fixture.port, path, token: fixture.token);
+      expect(first.statusCode, HttpStatus.ok);
+      expect(first.body.keys, <String>[
+        'streamBuilds',
+        'state',
+        'playlistCount',
+      ]);
+      expect(first.body['state'], isIn(<String>['loading', 'data', 'error']));
+      final builds = first.body['streamBuilds'] as int;
+
+      final repeated = await _request(fixture.port, path, token: fixture.token);
+      expect(repeated.body['streamBuilds'], builds);
+
+      await dao.updateGridArtworkSize('large');
+      await settingsApplied(
+        (settings) => settings.gridArtworkSize == GridArtworkSize.large,
+      );
+      final unrelated = await _request(
+        fixture.port,
+        path,
+        token: fixture.token,
+      );
+      expect(unrelated.body['streamBuilds'], builds);
+
+      await dao.updateListenBrainzScrobblingState(
+        tokenValid: true,
+        userName: 'fixture-listener',
+      );
+      await settingsApplied(
+        (settings) => settings.listenBrainzUserName == 'fixture-listener',
+      );
+      final restarted = await _request(
+        fixture.port,
+        path,
+        token: fixture.token,
+      );
+      expect(restarted.body['streamBuilds'], builds + 1);
+
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      final forbidden = await _request(
+        primary.port,
+        path,
+        token: primary.token,
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+    },
+  );
+
   test('tooltip control validates its bounded targets', () async {
     final presentation = _MockPresentationController();
     when(() => presentation.hoverTooltip(target: 'lyrics'))
@@ -2249,6 +2587,8 @@ Future<_DiagnosticsFixture> _startFixture(
   DiagnosticsPresentationController? presentationController,
   DiagnosticsNavigationDriver? navigationDriver,
   ServerConfigModel? serverConfig,
+  DownloadService? downloadService,
+  List<Override> overrides = const <Override>[],
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
@@ -2267,6 +2607,9 @@ Future<_DiagnosticsFixture> _startFixture(
       if (api != null) searchIsOfflineProvider.overrideWithValue(false),
       if (librarySyncEngine != null)
         librarySyncEngineProvider.overrideWithValue(librarySyncEngine),
+      if (downloadService != null)
+        downloadServiceProvider.overrideWithValue(downloadService),
+      ...overrides,
     ],
   );
   final handshake = File(p.join(temp.path, 'handshake.json'));
@@ -2293,6 +2636,34 @@ Future<_DiagnosticsFixture> _startFixture(
 }
 
 class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler;
+
+class _MockDownloadService extends Mock implements DownloadService;
+
+_MockDownloadService _downloadServiceStub() {
+  final service = _MockDownloadService();
+  when(() => service.isPaused).thenReturn(false);
+  when(() => service.maxConcurrentDownloads).thenReturn(2);
+  when(() => service.effectiveConcurrency).thenReturn(2);
+  when(() => service.activeQueueIds).thenReturn(const <int>{});
+  when(() => service.peakActiveDownloads).thenReturn(0);
+  when(() => service.artworkStore).thenReturn(
+    PermanentArtworkStore(
+      readApplicationSupportDirectory: Directory.systemTemp.createTemp,
+    ),
+  );
+  when(() => service.setMaxConcurrentDownloads(any())).thenAnswer((_) async {});
+  when(() => service.setPaused(paused: any(named: 'paused')))
+      .thenAnswer((_) async {});
+  when(() => service.cancelQueueItem(any())).thenAnswer((_) async {});
+  when(
+    () => service.enqueueSong(
+      any(),
+      quality: any(named: 'quality'),
+      format: any(named: 'format'),
+    ),
+  ).thenAnswer((_) async {});
+  return service;
+}
 
 class _MockPresentationController extends Mock
     implements DiagnosticsPresentationController;

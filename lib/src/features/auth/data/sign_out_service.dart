@@ -42,7 +42,11 @@ final sessionTransitionProvider =
 final serverDataResetServiceProvider = Provider<ServerDataResetService>((ref) {
   return ServerDataResetService(
     database: ref.watch(navisDatabaseProvider),
-    clearCoverArt: () => ref.read(coverArtCacheManagerProvider).emptyCache(),
+    // Download artwork is Navis-owned and belongs to the server's downloads.
+    clearCoverArt: () async {
+      await ref.read(coverArtCacheManagerProvider).emptyCache();
+      await ref.read(permanentArtworkStoreProvider).clear();
+    },
   );
 });
 

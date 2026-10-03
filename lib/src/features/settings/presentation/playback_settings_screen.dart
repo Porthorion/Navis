@@ -233,6 +233,7 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 24),
                   SwitchListTile(
+                    key: const ValueKey('playbackSettingsScrobbleToggle'),
                     contentPadding: EdgeInsets.zero,
                     value: _scrobbleEnabled,
                     onChanged: _isSaving
@@ -696,77 +697,34 @@ class _PlaybackSettingsScreenState
           ref.read(appSettingsProvider).asData?.value ??
           const AppSettingsModel.defaults();
       final legacyInstantMixLocked = ref.read(legacyInstantMixLockedProvider);
-      final settings = AppSettingsModel(
+      final wifiFormat = _normalizeFormat(_wifiFormat);
+      final cellularFormat = _normalizeFormat(_cellularFormat);
+      // Copy the stored row so fields owned by other screens (ListenBrainz,
+      // sync, desktop volume, appearance) survive this full-row write.
+      final settings = currentSettings.copyWith(
         wifiMaxBitRate: _wifiBitRate,
-        wifiFormat: _normalizeFormat(_wifiFormat),
+        clearWifiBitRate: _wifiBitRate == null,
+        wifiFormat: wifiFormat,
+        clearWifiFormat: wifiFormat == null,
         cellularMaxBitRate: _cellularBitRate,
-        cellularFormat: _normalizeFormat(_cellularFormat),
+        clearCellularBitRate: _cellularBitRate == null,
+        cellularFormat: cellularFormat,
+        clearCellularFormat: cellularFormat == null,
         cachedPlaybackFirst: _cachedPlaybackFirst,
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
         skipSilenceEnabled: _fullscreenModeLyrics,
-        showAlbumsPage: ref.read(showAlbumsPageProvider),
-        showRadioPage: ref.read(showRadioPageProvider),
-        showPlaylistsPage: ref.read(showPlaylistsPageProvider),
-        showArtistsPage: ref.read(showArtistsPageProvider),
-        showLikedPage: ref.read(showLikedPageProvider),
-
-        wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
-        autoDownloadStarredOnWifi: currentSettings.autoDownloadStarredOnWifi,
-        customDownloadFolderEnabled:
-            currentSettings.customDownloadFolderEnabled,
-        customDownloadFolderPath: currentSettings.customDownloadFolderPath,
-        themeMode: ref.read(themeModeProvider),
-        colorSchemeSeed: ref.read(colorSchemeSeedProvider),
-        appLocale: ref.read(appLocaleProvider),
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
-        artTintedNowPlaying: ref.read(artTintedNowPlayingProvider),
-        dynamicAlbumColorEnabled: currentSettings.dynamicAlbumColorEnabled,
-        updateCheckEnabled: currentSettings.updateCheckEnabled,
-        updateChannel: currentSettings.updateChannel,
-        audioMuseServerUrl: currentSettings.audioMuseServerUrl,
-        audioMuseApiKey: currentSettings.audioMuseApiKey,
-        audioMuseEnabled: currentSettings.audioMuseEnabled,
-        syncIntervalMinutes: currentSettings.syncIntervalMinutes,
         useLrclib: _useLrclib,
         legacyInstantMixEnabled:
             legacyInstantMixLocked || _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
-        playbackSpeed: currentSettings.playbackSpeed,
-        albumGridDensity: currentSettings.albumGridDensity,
-        gridArtworkSize: currentSettings.gridArtworkSize,
-        homeRecommendationsAutoAdvance:
-            currentSettings.homeRecommendationsAutoAdvance,
-        coverArtShape: currentSettings.coverArtShape,
-        nowPlayingArtShape: currentSettings.nowPlayingArtShape,
-        artistCardShape: currentSettings.artistCardShape,
-        artistViewMode: currentSettings.artistViewMode,
-        desktopFocusPlayerModeEnabled:
-            currentSettings.desktopFocusPlayerModeEnabled,
-        homeDensity: currentSettings.homeDensity,
-        homeSectionOrder: currentSettings.homeSectionOrder,
-        homeSectionsHidden: currentSettings.homeSectionsHidden,
-        libraryPageOrder: currentSettings.libraryPageOrder,
-        desktopNavbarStyle: currentSettings.desktopNavbarStyle,
-        desktopNavbarAutohide: currentSettings.desktopNavbarAutohide,
         albumQueueEnabled: _albumQueueEnabled,
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
-        lastFmApiKey: currentSettings.lastFmApiKey,
-        lastFmScrobblingEnabled: false,
-        lastFmSessionConnected: false,
-        listenBrainzScrobblingEnabled:
-            currentSettings.listenBrainzScrobblingEnabled,
-        listenBrainzTokenValid: currentSettings.listenBrainzTokenValid,
-        customVoyageServers: const <CustomVoyageServer>[],
-        groupListeningEnabled: false,
-        voyageServerUrl: null,
-        voyageDisplayName: null,
-        voyageDeviceLabel: null,
-        voyageAutoFollowHost: true,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

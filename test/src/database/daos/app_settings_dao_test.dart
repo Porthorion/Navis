@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -242,5 +243,68 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test('download preferences are written by targeted updates', () async {
+      final dao = database.appSettingsDao;
+      expect(
+        await dao.getDownloadQualityPreference(),
+        const DownloadQualityPreference(),
+      );
+
+      await dao.updateDownloadQuality(
+        mode: DownloadQualityMode.transcode,
+        bitRate: 192,
+        format: 'opus',
+      );
+      await dao.updateDownloadQualityPrompted(prompted: true);
+      await dao.updateMaxConcurrentDownloads(9);
+      await dao.updateDownloadsPaused(paused: true);
+
+      final preference = await dao.getDownloadQualityPreference();
+      expect(preference.mode, DownloadQualityMode.transcode);
+      expect(preference.bitRate, 192);
+      expect(preference.format, 'opus');
+      expect(preference.prompted, isTrue);
+      expect(await dao.getMaxConcurrentDownloads(), kMaxConcurrentDownloads);
+      expect(await dao.getDownloadsPaused(), isTrue);
+
+      // Choosing Original keeps the transcode format for the picker.
+      await dao.updateDownloadQuality(mode: DownloadQualityMode.original);
+      expect((await dao.getDownloadQualityPreference()).format, 'opus');
+      await dao.updateDownloadFormat('aac');
+      expect((await dao.getDownloadQualityPreference()).format, 'aac');
+    });
+
+    test('settings resets leave the download preferences alone', () async {
+      final dao = database.appSettingsDao;
+      await dao.updateDownloadQuality(mode: DownloadQualityMode.original);
+      await dao.updateDownloadQualityPrompted(prompted: true);
+      await dao.updateMaxConcurrentDownloads(3);
+
+      await dao.resetDefaults();
+
+      final preference = await dao.getDownloadQualityPreference();
+      expect(preference.mode, DownloadQualityMode.original);
+      expect(preference.prompted, isTrue);
+      expect(await dao.getMaxConcurrentDownloads(), 3);
+    });
+
+    test('download preference watchers emit changes', () async {
+      final dao = database.appSettingsDao;
+      final modes = dao
+          .watchDownloadQualityPreference()
+          .map((p) => p.mode)
+          .take(2)
+          .toList();
+      final paused = dao.watchDownloadsPaused().take(2).toList();
+      await pumpEventQueue();
+      await dao.updateDownloadQuality(mode: DownloadQualityMode.original);
+      await dao.updateDownloadsPaused(paused: true);
+      expect(await modes, <DownloadQualityMode>[
+        DownloadQualityMode.ask,
+        DownloadQualityMode.original,
+      ]);
+      expect(await paused, <bool>[false, true]);
+    });
   });
 }

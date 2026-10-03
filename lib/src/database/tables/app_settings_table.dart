@@ -69,6 +69,30 @@ class AppSettingsTable extends Table {
   TextColumn get customDownloadFolderStorageKind =>
       text().withDefault(const Constant('filesystem'))();
 
+  /// `ask` (show the quality picker), `original`, or `transcode`.
+  TextColumn get downloadQualityMode =>
+      text().withDefault(const Constant('ask'))();
+
+  /// Bitrate (kbps) of transcoded downloads when the mode is `transcode`.
+  IntColumn get downloadMaxBitRate =>
+      integer().withDefault(const Constant(320))();
+
+  /// Transcode format offered by the quality picker and used by `transcode`.
+  TextColumn get downloadFormat => text().withDefault(const Constant('mp3'))();
+
+  /// True once the one-time "always download in this quality?" prompt has
+  /// been answered. Defaults to false so existing installs see it once.
+  BoolColumn get downloadQualityPrompted =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Number of downloads transferred at once (1 to 4). Cellular uses 1.
+  IntColumn get maxConcurrentDownloads =>
+      integer().withDefault(const Constant(2))();
+
+  /// When true, queued downloads wait until the user resumes them.
+  BoolColumn get downloadsPaused =>
+      boolean().withDefault(const Constant(false))();
+
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 

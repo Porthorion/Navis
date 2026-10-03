@@ -953,7 +953,7 @@ void _showNowPlayingSettingsSheet(
                         return;
                       }
                       Navigator.of(sheetContext).pop();
-                      final choice = await showDownloadQualitySheet(context);
+                      final choice = await requestDownloadQuality(context, ref);
                       if (choice == null || !context.mounted) return;
                       final service = ref.read(downloadServiceProvider);
                       await service.enqueueSong(
@@ -964,7 +964,11 @@ void _showNowPlayingSettingsSheet(
                       if (context.mounted) {
                         showAppNotice(
                           context,
-                          message: l10n.downloadSongQueued,
+                          message: downloadQueuedNotice(
+                            l10n,
+                            l10n.downloadSongQueued,
+                            choice,
+                          ),
                           level: AppNoticeLevel.success,
                         );
                       }

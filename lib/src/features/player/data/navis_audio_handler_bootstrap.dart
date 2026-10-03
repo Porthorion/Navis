@@ -83,6 +83,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required StarSyncDao starSyncDao,
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
+  Future<File?> Function(String coverArtId)? readPermanentArtwork,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
   // Keep the existing method and callback call contract for callers.
   // ignore: avoid_positional_boolean_parameters
@@ -112,6 +113,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       starSyncDao: starSyncDao,
       initialVolume: initialVolume,
       reportNetworkUsage: reportNetworkUsage,
+      readPermanentArtwork: readPermanentArtwork,
       reportRollingCacheActivity: reportRollingCacheActivity,
       startPersonalRadio: startPersonalRadio,
       startPreferredMix: startPreferredMix,
@@ -151,6 +153,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                         : AndroidSystemArt(
                             authority: '$packageName.artwork',
                             fetch: base.cacheSystemArtwork,
+                            cachedPath: base.cachedSystemArtwork,
                           ),
                   );
                 },

@@ -541,6 +541,9 @@ class PermanentDownloadImportService {
     }
     final root = Directory(preview.rootPath);
     final identity = await DownloadRootIdentity.resolve(preview.rootPath);
+    // The scan can predate a folder switch that forgot a song's download, so
+    // registration is checked again now.
+    final registered = await _cacheDao.getPermanentlyCachedSongIds();
     final manifest = _openManifest(root);
     var imported = 0;
     var skipped = 0;
@@ -572,6 +575,20 @@ class PermanentDownloadImportService {
                   updatedAt: DateTime.now(),
                 ),
               );
+              if (registered.add(songId)) {
+                rows.add(
+                  CachedTracksTableCompanion.insert(
+                    songId: songId,
+                    filePath: file.path,
+                    fileSize: stat.size,
+                    format: item.format,
+                    cacheType: CacheType.permanent,
+                    downloadStatus: DownloadStatus.complete,
+                    lastAccessedAt: DateTime.now(),
+                  ),
+                );
+                imported++;
+              }
             }
           }
           continue;
@@ -638,6 +655,7 @@ class PermanentDownloadImportService {
     required bool includeRecognized,
   }) async {
     final (manifestFile, manifest) = await _openSafManifest(preview.rootPath);
+    final registered = await _cacheDao.getPermanentlyCachedSongIds();
     var imported = 0;
     var skipped = 0;
     final rows = <CachedTracksTableCompanion>[];
@@ -663,6 +681,22 @@ class PermanentDownloadImportService {
                 updatedAt: DateTime.now(),
               ),
             );
+            if (item.sourceUri case final document?
+                when registered.add(songId)) {
+              rows.add(
+                CachedTracksTableCompanion.insert(
+                  songId: songId,
+                  filePath: document,
+                  storageKind: const Value('androidSaf'),
+                  fileSize: item.fileSize,
+                  format: item.format,
+                  cacheType: CacheType.permanent,
+                  downloadStatus: DownloadStatus.complete,
+                  lastAccessedAt: DateTime.now(),
+                ),
+              );
+              imported++;
+            }
           }
           continue;
         }

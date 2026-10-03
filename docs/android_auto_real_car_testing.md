@@ -134,7 +134,11 @@ With the Play-installed build and Unknown sources off:
 - Tapping a playable item starts playback.
 - Selecting a playlist song preserves playlist order from the selected song.
 - Play, pause, next, previous, and seek work from the head unit.
-- Now-playing metadata and artwork update.
+- Now-playing metadata and artwork update, including for a song whose cover
+  was never played before. If a head unit or Bluetooth stereo keeps the
+  previous cover or none, `./tool/diagnose_android_auto.sh <package>` includes
+  the `MediaPlayerWrapper` and `AvrcpTargetService` logcat lines; "tried to
+  update with no new data" means AVRCP ignored the cover update.
 - Disconnecting and reconnecting the phone preserves playback state.
 
 Repeat the same checklist for `com.navis.app.navis` and
