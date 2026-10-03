@@ -179,6 +179,10 @@ const List<ChangelogVersion> changelogs = [
         'Bluetooth car stereos and Android Auto show cover art again after a track change, instead of staying blank for songs whose cover had not been downloaded yet',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'On phones, the volume level in the Now Playing menu no longer wraps onto two lines with larger text sizes',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

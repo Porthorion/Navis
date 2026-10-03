@@ -100,6 +100,61 @@ void main() {
     await container.read(playbackAdjustmentsProvider.notifier).flush();
   });
 
+  testWidgets('opens the Now Playing settings sheet by its button', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_np_sheet_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pumpAndSettle(),
+    );
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => IconButton(
+                key: const ValueKey('nowPlayingSettingsAction'),
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => ListView(
+                    key: const ValueKey('nowPlayingSettingsSheet'),
+                    children: const [Text('100%')],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await controller.openNowPlayingSettingsSheet();
+
+    expect(find.byKey(const ValueKey('nowPlayingSettingsSheet')), findsOne);
+  });
+
+  testWidgets('opening the settings sheet without its button is unavailable', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_np_sheet_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pumpAndSettle(),
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: Scaffold(body: SizedBox()))),
+    );
+
+    await expectLater(
+      controller.openNowPlayingSettingsSheet(),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+  });
+
   testWidgets('equalizer quick panel is opened and driven by its chips', (
     tester,
   ) async {
