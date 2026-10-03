@@ -128,6 +128,26 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.1',
     entries: [
       ChangelogEntry(
+        'Choose a download quality once: your next download asks whether to always use that quality, and Downloads settings let you pick Ask every time, Original, or a bitrate',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloads can be converted to MP3, AAC or Opus at 96 to 320 kbps, and liked songs downloaded automatically on Wi-Fi follow your saved quality',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Up to four songs download at once (two by default, one on mobile data), and the download queue can be paused and resumed',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Downloaded songs keep their cover art, so covers show offline, on the lock screen and over Bluetooth or Android Auto',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cancelling a download that is in progress now stops it, failed downloads wait before retrying, songs downloaded in original quality are no longer downloaded again, and converted downloads show their progress',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
         type: ChangelogEntryType.fix,
       ),

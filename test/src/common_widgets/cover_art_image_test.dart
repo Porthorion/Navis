@@ -14,6 +14,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
@@ -115,6 +117,51 @@ void main() {
       );
 
       expect(find.byIcon(Icons.music_note_outlined), findsOneWidget);
+    });
+
+    testWidgets('a downloaded cover renders from disk without the network', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
+      final stored = File('${cacheDirectory.path}/stored-cover.png')
+        ..writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _StoredArtwork(<String, File>{'cover-1': stored}),
+            ),
+          ],
+          child: const CoverArtImage(
+            coverArtId: 'cover-1',
+            size: 80,
+            width: 64,
+            height: 64,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final image = tester.widget<Image>(find.byType(Image));
+      final provider = image.image;
+      final file = switch (provider) {
+        ResizeImage(imageProvider: FileImage(:final file)) => file,
+        FileImage(:final file) => file,
+        _ => null,
+      };
+      expect(file?.path, stored.path);
+      // No network load was requested for the downloaded cover.
+      expect(
+        coordinator.interestCount(coverArtImageCacheKey('cover-1', 80)),
+        1,
+      );
+      expect(find.byType(OctoImage), findsNothing);
     });
 
     testWidgets('visibility changes register and unregister interest', (
@@ -361,4 +408,18 @@ void main() {
       expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNothing);
     });
   });
+}
+
+/// A download artwork store holding fixed covers.
+class _StoredArtwork extends PermanentArtworkStore {
+  new(this._files)
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  final Map<String, File> _files;
+
+  @override
+  File? loadedFileFor(String? coverArtId) => _files[coverArtId];
+
+  @override
+  Future<File?> fileFor(String? coverArtId) async => _files[coverArtId];
 }

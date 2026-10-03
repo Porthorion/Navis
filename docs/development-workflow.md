@@ -350,7 +350,23 @@ bundle instead of `flutter run`.
 Clone-only `POST /v1/downloads/enqueue {"songIds": [...]}` queues permanent
 downloads through the production download service (a song already in the
 rolling cache is promoted instead of downloaded), for download and
-interruption checks without driving the UI.
+interruption checks without driving the UI. Optional `"quality": <kbps>` and
+`"format": "mp3"|"aac"|"opus"` request a transcode; `"usePreference": true`
+applies the saved download quality instead, as the app's download actions do.
+
+`GET /v1/downloads/status` reports the queue (counts by status and each item's
+id, song, status, quality, format and retry count), whether it is paused, the
+configured and effective concurrency, the queue ids in progress, the most
+downloads seen running at once (`peakActive`), the saved quality preference
+and prompt flag, permanent downloads (song, format, bitrate and file base name
+only) and the number of stored download covers. Clone-only
+`POST /v1/downloads/settings` accepts any of `maxConcurrent`, `paused`,
+`qualityMode` (`ask`|`original`|`transcode`), `bitRate`, `format`, `prompted`
+and `resetPeak`, through the same service and settings methods as the
+Downloads screen, and clone-only `POST /v1/downloads/cancel {"queueId": n}`
+cancels one item like the queue's Cancel button. Both return the status.
+`tool/download_preferences_diagnostics.sh` drives these against the loopback
+fixture server.
 
 A clone copies the source profile's settings, including a custom Downloads
 folder that is the user's real one. The download service starts at launch and
@@ -779,12 +795,16 @@ animation duration.
 For mobile track-layout diagnostics, clone-only
 `POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
 `revealFirst`, `more`, `download`, `downloadedTab`, `downloadsSettingsTab`,
-`customFolderOff`, `confirmCustomFolderOff`, or `dragFirstToLast`. It
+`customFolderOff`, `confirmCustomFolderOff`, `dragFirstToLast`,
+`downloadQuality320`, `downloadQualityAlwaysUse`, or
+`downloadQualityAlwaysAsk`. It
 exercises mounted shared rows through their scroll owner, menu/download callbacks, Downloads tab
 controller, or Flutter touch events on the playlist drag handle. The custom
 folder actions call the Downloads settings switch's own callback, only when it
 is on (turning it on would open the system folder picker), and press the
-turn-off dialog's own confirm button. It accepts no
+turn-off dialog's own confirm button. The download-quality actions call the
+open quality picker's 320 kbps row and the one-time "always download in this
+quality?" dialog's own buttons. It accepts no
 coordinates, arbitrary widget keys, track IDs or destructive delete action.
 Missing controls fail explicitly; primary diagnostics reject every mutation.
 Use a populated isolated emulator fixture, inspect app-owned captures at phone

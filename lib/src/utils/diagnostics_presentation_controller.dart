@@ -107,6 +107,9 @@ class DiagnosticsPresentationController {
     'customFolderOff',
     'confirmCustomFolderOff',
     'dragFirstToLast',
+    'downloadQuality320',
+    'downloadQualityAlwaysUse',
+    'downloadQualityAlwaysAsk',
   };
 
   static const artistActions = {'play', 'shuffle', 'cancel', 'queue'};
@@ -171,6 +174,26 @@ class DiagnosticsPresentationController {
       final onChanged = widget?.value == true ? widget?.onChanged : null;
       if (onChanged == null) throw const DiagnosticsPresentationUnavailable();
       onChanged(false);
+    } else if (action == 'downloadQuality320') {
+      // The picker's 320 kbps row (the picker is shown by 'download').
+      final row = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey<String>('downloadQuality:320'),
+      );
+      final onTap = (row?.widget as ListTile?)?.onTap;
+      if (onTap == null) throw const DiagnosticsPresentationUnavailable();
+      onTap();
+    } else if (action == 'downloadQualityAlwaysUse' ||
+        action == 'downloadQualityAlwaysAsk') {
+      // The one-time "always download in this quality?" answers.
+      final button = _findElement(
+        root,
+        (element) => element.widget.key == ValueKey<String>(action),
+      );
+      final onPressed = (button?.widget as ButtonStyleButton?)?.onPressed;
+      if (onPressed == null) throw const DiagnosticsPresentationUnavailable();
+      onPressed();
     } else if (action == 'confirmCustomFolderOff') {
       final button = _findElement(
         root,

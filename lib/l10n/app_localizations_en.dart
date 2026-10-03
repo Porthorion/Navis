@@ -2909,13 +2909,77 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadQualityOriginalSub => 'Lossless / as stored on server';
 
   @override
-  String get downloadQuality320 => '320 kbps MP3';
+  String downloadQualityTranscoded(int kbps, String format) {
+    return '$kbps kbps $format';
+  }
 
   @override
-  String get downloadQuality192 => '192 kbps MP3';
+  String downloadQualityAlwaysTitle(String quality) {
+    return 'Always download in $quality?';
+  }
 
   @override
-  String get downloadQuality128 => '128 kbps MP3';
+  String get downloadQualityAlwaysBody =>
+      'Navis will stop asking and download everything in this quality. You can change this anytime in Downloads settings.';
+
+  @override
+  String get downloadQualityAlwaysAsk => 'Ask every time';
+
+  @override
+  String get downloadQualityAlwaysUse => 'Always use';
+
+  @override
+  String downloadQueuedWithQuality(String message, String quality) {
+    return '$message · $quality';
+  }
+
+  @override
+  String get downloadsSettingsQualitySection => 'Quality';
+
+  @override
+  String get downloadsSettingsQualityLabel => 'Download quality';
+
+  @override
+  String get downloadsSettingsQualityAsk => 'Ask every time';
+
+  @override
+  String get downloadsSettingsFormatLabel => 'Transcode format';
+
+  @override
+  String get downloadsSettingsFormatHelper =>
+      'Used for downloads below original quality';
+
+  @override
+  String get downloadsSettingsConcurrentTitle => 'Concurrent downloads';
+
+  @override
+  String downloadsSettingsConcurrentValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count downloads at a time',
+      one: '1 download at a time',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsSettingsConcurrentCellular(String value) {
+    return '$value · 1 on mobile data';
+  }
+
+  @override
+  String get downloadsSettingsStorageSection => 'Storage';
+
+  @override
+  String get downloadsPauseAll => 'Pause';
+
+  @override
+  String get downloadsResumeAll => 'Resume';
+
+  @override
+  String get downloadsPausedBanner =>
+      'Downloads are paused. Resume to continue the queue.';
 
   @override
   String get downloadAction => 'Download';

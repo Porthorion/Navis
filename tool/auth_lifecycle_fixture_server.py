@@ -2,7 +2,6 @@
 """Small deterministic Subsonic fixture for auth lifecycle diagnostics."""
 
 import argparse
-import base64
 import io
 import json
 import math
@@ -10,6 +9,7 @@ import os
 import struct
 import time
 import wave
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -29,9 +29,34 @@ def _wav_bytes() -> bytes:
 
 
 AUDIO = _wav_bytes()
-PNG = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-)
+def _cover_png(size=48) -> bytes:
+    """A visible cover: orange and teal quarters, so screenshots can tell a
+    rendered cover from the placeholder."""
+    rows = bytearray()
+    for y in range(size):
+        rows.append(0)
+        for x in range(size):
+            orange = (x < size // 2) == (y < size // 2)
+            rows.extend((240, 120, 30) if orange else (20, 150, 150))
+
+    def chunk(kind, data):
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        )
+
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(rows)))
+        + chunk(b"IEND", b"")
+    )
+
+
+PNG = _cover_png()
 ARTIST = {
     "id": "fixture-artist",
     "name": "Fixture Artist",
@@ -76,6 +101,10 @@ FAILURE_FLAG = ""
 PARTIAL_ALBUM_FLAG = ""
 ALBUM_ERROR_FLAG = ""
 PARTIAL_ALBUM_ID = "fixture-incomplete-album"
+# Seconds each stream or download takes, so concurrent transfers overlap.
+MEDIA_SECONDS = 0.0
+# Extra songs of the fixture album (downloads scenario), by id.
+EXTRA_SONGS = {}
 
 
 def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
@@ -135,6 +164,21 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
     ALL_ALBUMS = [existing_album, ALBUM]
     # The diagnostics clone seeds the existing album with this song.
     ALBUM_SONG_IDS = {existing_album["id"]: "fixture-existing-song"}
+
+
+def _configure_downloads_fixture(song_count):
+    """One album of several songs, for concurrent download diagnostics."""
+    global ALBUM, EXTRA_SONGS
+    ALBUM = {**ALBUM, "songCount": song_count, "duration": 4 * song_count}
+    EXTRA_SONGS = {
+        f"fixture-song-{index}": {
+            **SONG,
+            "id": f"fixture-song-{index}",
+            "title": f"Lifecycle Tone {index}",
+            "track": index,
+        }
+        for index in range(2, song_count + 1)
+    }
 
 
 def _configure_partial_album_fixture():
@@ -204,7 +248,19 @@ class Handler(BaseHTTPRequestHandler):
         if range_header:
             self.send_header("Content-Range", f"bytes {start}-{end}/{len(data)}")
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            if MEDIA_SECONDS <= 0 or not content_type.startswith("audio/"):
+                self.wfile.write(body)
+                return
+            chunks = 20
+            size = max(1, len(body) // chunks)
+            for offset in range(0, len(body), size):
+                self.wfile.write(body[offset : offset + size])
+                self.wfile.flush()
+                time.sleep(MEDIA_SECONDS / chunks)
+        except (BrokenPipeError, ConnectionResetError):
+            # A cancelled or paused download closes its transfer.
+            return
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -277,12 +333,15 @@ class Handler(BaseHTTPRequestHandler):
                 "albumId": album_id, "album": album["name"],
             }
             songs = [song]
+            if album_id == ALBUM["id"]:
+                songs.extend(EXTRA_SONGS.values())
             if album_id == PARTIAL_ALBUM_ID and not os.path.exists(PARTIAL_ALBUM_FLAG):
                 songs.append({**song, "id": f"{album_id}-song-2", "track": 2})
             self._json(_root(album={**album, "song": songs}))
             return
         if endpoint == "getSong":
-            self._json(_root(song=SONG))
+            song_id = query.get("id", [""])[0]
+            self._json(_root(song=EXTRA_SONGS.get(song_id, SONG)))
             return
         if endpoint == "getStarred2":
             self._json(_root(starred2={"artist": [], "album": [], "song": []}))
@@ -324,14 +383,26 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global FAILURE_FLAG, PARTIAL_ALBUM_FLAG, ALBUM_ERROR_FLAG
+    global FAILURE_FLAG, PARTIAL_ALBUM_FLAG, ALBUM_ERROR_FLAG, MEDIA_SECONDS
     parser = argparse.ArgumentParser()
     parser.add_argument("--handshake", required=True)
     parser.add_argument("--failure-flag", required=True)
     parser.add_argument(
         "--scenario",
-        choices=("auth-lifecycle", "manual-discovery", "partial-album"),
+        choices=("auth-lifecycle", "manual-discovery", "partial-album", "downloads"),
         default="auth-lifecycle",
+    )
+    parser.add_argument(
+        "--song-count",
+        type=int,
+        default=8,
+        help="Songs on the fixture album in downloads mode.",
+    )
+    parser.add_argument(
+        "--media-seconds",
+        type=float,
+        default=0.0,
+        help="Seconds each audio stream or download takes.",
     )
     parser.add_argument(
         "--omit-existing-artist-album",
@@ -358,6 +429,9 @@ def main():
         if args.album_error_flag is not None
         else ""
     )
+    MEDIA_SECONDS = max(0.0, args.media_seconds)
+    if args.scenario == "downloads":
+        _configure_downloads_fixture(max(1, args.song_count))
     if args.scenario == "manual-discovery":
         _configure_manual_discovery_fixture(args.omit_existing_artist_album)
     if args.scenario == "partial-album":

@@ -4631,23 +4631,113 @@ abstract class AppLocalizations {
   /// **'Lossless / as stored on server'**
   String get downloadQualityOriginalSub;
 
-  /// No description provided for @downloadQuality320.
+  /// No description provided for @downloadQualityTranscoded.
   ///
   /// In en, this message translates to:
-  /// **'320 kbps MP3'**
-  String get downloadQuality320;
+  /// **'{kbps} kbps {format}'**
+  String downloadQualityTranscoded(int kbps, String format);
 
-  /// No description provided for @downloadQuality192.
+  /// No description provided for @downloadQualityAlwaysTitle.
   ///
   /// In en, this message translates to:
-  /// **'192 kbps MP3'**
-  String get downloadQuality192;
+  /// **'Always download in {quality}?'**
+  String downloadQualityAlwaysTitle(String quality);
 
-  /// No description provided for @downloadQuality128.
+  /// No description provided for @downloadQualityAlwaysBody.
   ///
   /// In en, this message translates to:
-  /// **'128 kbps MP3'**
-  String get downloadQuality128;
+  /// **'Navis will stop asking and download everything in this quality. You can change this anytime in Downloads settings.'**
+  String get downloadQualityAlwaysBody;
+
+  /// No description provided for @downloadQualityAlwaysAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask every time'**
+  String get downloadQualityAlwaysAsk;
+
+  /// No description provided for @downloadQualityAlwaysUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Always use'**
+  String get downloadQualityAlwaysUse;
+
+  /// No description provided for @downloadQueuedWithQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'{message} · {quality}'**
+  String downloadQueuedWithQuality(String message, String quality);
+
+  /// No description provided for @downloadsSettingsQualitySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality'**
+  String get downloadsSettingsQualitySection;
+
+  /// No description provided for @downloadsSettingsQualityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Download quality'**
+  String get downloadsSettingsQualityLabel;
+
+  /// No description provided for @downloadsSettingsQualityAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask every time'**
+  String get downloadsSettingsQualityAsk;
+
+  /// No description provided for @downloadsSettingsFormatLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcode format'**
+  String get downloadsSettingsFormatLabel;
+
+  /// No description provided for @downloadsSettingsFormatHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for downloads below original quality'**
+  String get downloadsSettingsFormatHelper;
+
+  /// No description provided for @downloadsSettingsConcurrentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Concurrent downloads'**
+  String get downloadsSettingsConcurrentTitle;
+
+  /// No description provided for @downloadsSettingsConcurrentValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 download at a time} other{{count} downloads at a time}}'**
+  String downloadsSettingsConcurrentValue(int count);
+
+  /// No description provided for @downloadsSettingsConcurrentCellular.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} · 1 on mobile data'**
+  String downloadsSettingsConcurrentCellular(String value);
+
+  /// No description provided for @downloadsSettingsStorageSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get downloadsSettingsStorageSection;
+
+  /// No description provided for @downloadsPauseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get downloadsPauseAll;
+
+  /// No description provided for @downloadsResumeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get downloadsResumeAll;
+
+  /// No description provided for @downloadsPausedBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads are paused. Resume to continue the queue.'**
+  String get downloadsPausedBanner;
 
   /// No description provided for @downloadAction.
   ///
