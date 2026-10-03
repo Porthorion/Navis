@@ -693,6 +693,10 @@ Future<void> _pumpWeeklyDetail(
               listenBrainzDiscoverStreamProvider.overrideWith(
                 (ref) => playlists,
               ),
+              // The playlist artwork reads the cover shape setting.
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(AppSettingsModel.defaults()),
+              ),
             ]
           : withTestDatabase(
               database,

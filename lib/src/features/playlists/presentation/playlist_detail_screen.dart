@@ -24,7 +24,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const new({required this.playlistId, super.key});
@@ -180,7 +180,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 220,
-                            borderRadius: NavisRadius.lgAll,
+                            shape: ArtworkShapeRole.cover,
                             placeholderIcon: Icons.queue_music,
                           ),
                           const SizedBox(width: 24),
@@ -236,7 +236,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 180,
-                            borderRadius: NavisRadius.mdAll,
+                            shape: ArtworkShapeRole.cover,
                             placeholderIcon: Icons.queue_music,
                           ),
                         ),
@@ -880,7 +880,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     PlaylistsTableData playlist,
     List<SongsTableData> songs,
   ) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
@@ -895,7 +895,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadPlaylistQueued(count),
+      message: downloadQueuedNotice(
+        l10n,
+        l10n.downloadPlaylistQueued(count),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }
@@ -928,7 +932,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
@@ -941,7 +945,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadSongQueued,
+      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
       level: AppNoticeLevel.success,
     );
   }

@@ -559,7 +559,20 @@ target-selection rules.
     hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
     warning container and the `success` foreground for completed or
     confirmed states. Read it with `NavisTokens.of(context)`.
-  - Artwork radii follow the user's cover-shape preference, not these scales.
+  - Artwork radii follow the user's Appearance shape settings, not these
+    scales. `artwork_shape.dart` maps a setting (`square`, `rounded`,
+    `circle`) and the artwork's rendered size to corners with
+    `artworkBorderRadius`: rounded is 4 below 40 px, 8 below 96 px and 12
+    otherwise, so row thumbnails and cards share one look. `ArtworkShapeRole`
+    names the setting a surface follows (Cover Art Shape for album, song and
+    playlist art, Now Playing Art Shape, Artist Card Shape), and
+    `artworkShapeProvider(role)` reads it. `CoverArtImage(shape: role)`
+    shapes itself from its width and height; surfaces that clip or decorate
+    the artwork themselves (cards, Hero covers, playlist mosaics, the mini
+    player's radio and remote art, empty artwork slots) call
+    `artworkBorderRadius` with their own size. Full-bleed headers and the
+    full-screen cover viewer stay unshaped. Before 1.4.1 most rows, the
+    queue, the players and Now Playing song covers ignored these settings.
 - `motion_policy.dart`: owns every duration, including the reduced-motion
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
@@ -1497,8 +1510,13 @@ rename or delete (with confirmation) the current or originating preset. Exact en
 commas, validated inline.
 
 Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
-0.10 (eight logical pixels per minor tick). A recessed themed surface, center
-highlight and outer 15% fades keep the center readable. Release settles onto the
+0.10 (eight logical pixels per minor tick). They sit flat on the panel with no
+fill, glow or outline; a `primary` outline appears only as the keyboard focus
+ring, and outer 15% fades show the scale continues. Accent is reserved for the
+plain 2 px marker and the neutral line (1.00× speed, 0 semitones), which rises
+above the other ticks as a detent mark; range endpoints keep a long tick in the
+base color. Tick labels and the value readouts use tabular figures so they do
+not shift while dragging. Release settles onto the
 nearest supported tick over 140 ms with ease-out motion; the animation never
 writes to the engine. Values chosen elsewhere (chips, presets, reset, the − and +
 buttons, or pitch following speed) cancel any gesture and glide to the new value.
@@ -1510,9 +1528,12 @@ finite bounds so reversing at an endpoint responds immediately. While dragging,
 0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
 0.10 lines a light impact and the neutral value a medium impact; release
 settling and keyboard steps stay silent, and the platform touch-feedback setting
-applies. Endpoint feedback and the
+applies. The − and + buttons sit at the ends of the ruler they move, in a row
+kept left-to-right because the scale always puts lower values on the left.
+Speed has no separate Reset (its 1× chip does that); Pitch shows Reset beside
+its heading only while it differs from 0 semitones. Endpoint feedback and the
 available bounds appear only once a limit is reached, explaining the disabled
-button. With Pitch Lock on, the pitch heading shows a link icon ("Follows playback speed" as tooltip and label), the ruler is read-only at full contrast (`AdjustmentRuler.readOnly`) and still glides with speed, and the inert −/Reset/+ row is hidden; unsupported
+button. With Pitch Lock on, the pitch heading shows a link icon ("Follows playback speed" as tooltip and label), the ruler is read-only at full contrast (`AdjustmentRuler.readOnly`) and still glides with speed, and the inert − and + buttons and Reset are hidden; invisible stand-ins keep the pitch ruler as wide as the speed ruler. Unsupported
 backends hide the pitch control and lock and show a single availability note.
 
 Capabilities follow the initialized backend, including debug macOS and fallback.
@@ -1874,10 +1895,22 @@ every credential-bearing `artUri` it publishes (metadata, the queue window,
 browse, search and `getMediaItem` results) through `AndroidSystemArt` to
 `content://<applicationId>.artwork/cover/<key>`, served read-only by the
 exported `NavisArtworkProvider` from the same cache, which Android Auto can
-open from its own process. Browse lists wait up to 1.5 s for their covers to
-download (six at a time); a cover not cached yet appears the next time the
-list is shown, and queue entries show art once it has been cached. The app
-itself keeps the HTTP `artUri`.
+open from its own process. The content URI is published only once the cover
+is on disk (the item carries `artCacheFile`, or `PlaybackArtCache.cachedPath`
+knows it); until then the item has no art and the download starts. A URI the
+provider cannot open yet made audio_service store empty
+`METADATA_KEY_ALBUM_ART`, and the following update with the bitmap kept the
+same URI, which Bluetooth AVRCP (Android 14+) treats as unchanged and
+Android Auto does not reload, so both stayed blank in 1.4.0; a change from
+no art to art is shown by both. Browse lists wait up to 1.5 s for their
+covers to download (six at a time); a cover not cached yet appears the next
+time the list is shown, and queue entries show art once it has been cached.
+Before any network fetch, `PlaybackArtCache` copies a downloaded song's cover
+from the permanent artwork store (see Cache Flow), so downloaded music shows
+its cover offline on every system surface. Both the copy and a download are
+written to `<file>.part` and renamed when complete, so the provider and later
+launches never use a partial file, and a download whose body stops arriving
+for 30 s is abandoned. The app itself keeps the HTTP `artUri`.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
@@ -2174,7 +2207,11 @@ states without starting audio or modifying a queue.
 11. Home ListenBrainz discovery polls the startup sync gate and uses the sync
     completion bridge for refreshes instead of subscribing the stream to sync
     progress. Its derived showcase watches the discovery stream once, avoiding
-    a reactive dependency diamond during large repairs.
+    a reactive dependency diamond during large repairs. From app settings the
+    stream selects only the ListenBrainz user name and token-valid flag, so
+    unrelated saves (Playback autosave, appearance, desktop volume persistence)
+    do not restart it; a validated token refreshes it through
+    `listenBrainzDiscoverRefreshEpochProvider`.
 
 The provider fast/compatibility split and explicit repair terminology follow
 the public principles documented by
@@ -2313,9 +2350,11 @@ contract.
    builds, and the desktop sidecar refuses HTML, JSON and XML responses before
    writing anything.
 3. Cache manager reads the current budget and enforces it via LRU eviction
-4. User pins content → Download to permanent cache
+4. User pins content → Download to permanent cache (see **Download quality,
+   concurrency and artwork** below)
 5. Permanent download completion and rolling→permanent promotion pre-cache
-   cover art using `kCoverArtStandardSize`
+   cover art using `kCoverArtStandardSize` and keep a durable copy in the
+   permanent artwork store
 6. A custom permanent-download root is user-owned: Navis records known files
    in its root `.navis-downloads.sqlite` sidecar and can adopt existing files
    only after an explicit preview/confirmation. The sidecar maps relative file
@@ -2340,8 +2379,25 @@ contract.
    sign-out or server switch) removes the library rows but deletes only
    Navis-owned audio files; files inside the custom folder and Android SAF
    documents stay where they are.
+   Leaving a custom folder follows the same rule. Turning it off (after a
+   confirmation) or choosing a different folder moves only downloads stored
+   in Navis's own directory. Every file in the folder being left, filesystem
+   or SAF, stays where it is under its own name, whether Navis downloaded or
+   adopted it; Navis records no difference between the two. Navis forgets
+   those `cached_tracks` rows before the setting changes, so startup
+   normalization never moves them out later. The folder's sidecar remains,
+   so choosing that folder again re-adopts the files through the usual scan.
+   That scan runs before the switch, so the import checks registration again
+   when it commits: a file whose song lost its download in the switch is
+   adopted rather than skipped as already registered. Choosing the active
+   folder again moves nothing. Files count as inside the new folder through
+   any spelling of its path or theirs, links resolved.
    Android uses a persisted Storage Access Framework tree URI rather than a
-   filesystem path. The cached-track storage kind distinguishes Android SAF
+   filesystem path. A folder that a version before 1.2.8 stored as a plain
+   path is turned off at startup under the same leaving rule: Navis forgets
+   the downloads inside it before the setting changes and leaves the files
+   where they are, and choosing the folder again as an Android folder runs
+   the usual scan. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
    relocation, deletion, and offline playback go through the Android
    ContentResolver bridge and never overwrite unmanaged documents. Before a
@@ -2372,7 +2428,17 @@ contract.
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit
    mapping; completing mappings reduces that count, while a new rescan replaces
-   the transient queue.
+   the transient queue. Choosing, disabling and rescanning the folder run in
+   the app-lifetime `CustomDownloadFolderController`, one at a time, not in the
+   settings page: that page is a tab disposed as soon as another tab is
+   shown, and leaving it during a long scan used to stop setup before the
+   folder was saved or before Manual Matching was filled in (issue #45). The
+   page shows the controller's `busy` state. A clone diagnostics build reads a
+   filesystem folder outside its run root as unset
+   (`cloneDownloadFolderOutsideRoot`), and `DownloadService` refuses to scan
+   or configure such a folder with a `FileSystemException` before any work,
+   so a clone can no longer adopt the user's files and then show the folder
+   as off.
 7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
@@ -2398,6 +2464,74 @@ contract.
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
    and their files; the upgrade marker is written only after that full scan.
+
+### Download quality, concurrency and artwork
+
+**Quality preference.** Every download action calls `requestDownloadQuality`
+(`download_quality_sheet.dart`). It reads the saved preference from the
+targeted-only `app_settings` columns `download_quality_mode` (`ask`,
+`original`, `transcode`), `download_max_bit_rate` and `download_format`. A
+saved mode returns its choice without UI and the queued notice names the
+quality (`downloadQueuedNotice`); `ask` shows the picker: Original plus
+96–320 kbps in the saved transcode format (MP3, AAC or Opus). While
+`download_quality_prompted` is false, the first pick is followed by a
+one-time "Always download in …?" dialog. Either answer sets the flag; accepting
+saves the mode. Schema 90 adds the columns with the flag false, so every
+existing install, with or without downloads, is asked once. Choosing a quality
+in Downloads settings also sets the flag. "Change quality" on a downloaded
+track always opens the picker. Auto-downloads of liked items use the saved
+quality on Wi-Fi (original when the mode is `ask`) and the cellular streaming
+profile on mobile data. Full settings drafts never write these columns.
+
+**Original detection.** An original download records the song's bitrate, so
+`isOriginalQualityDownload` treats a stored download as original when it has
+no bitrate, or the song's own format (`sameAudioFormat`: `m4a`/`mp4`/`aac`
+are one family) at no less than the song's bitrate. Enqueueing at Original
+therefore skips songs already downloaded in original quality.
+
+**Transcoded transfers.** `stream.view` requests carry
+`estimateContentLength=true` so transfers report progress; a transfer without
+a length shows an indeterminate bar. After a 2xx response the
+`content-type` names the stored format (`downloadedFormatFor`): a server
+without the requested encoder that sends the original file stores it under
+its real extension and bitrate. HTML, JSON and XML responses are failures and
+never registered.
+
+**Concurrency.** `DownloadService` runs a worker pool. `effectiveConcurrency`
+is 0 while paused or held by Wi-Fi-only, 1 on cellular, otherwise
+`max_concurrent_downloads` (1–4, default 2; `kMaxConcurrentDownloads` bounds
+server encoders, device I/O and streaming bandwidth). The pump runs on queue,
+network and setting changes and when a worker ends. Only the network transfer
+runs in parallel: the finishing step (rename, identity tags, SAF upload,
+`cached_tracks` upsert, folder sidecar record, queue row removal) runs one at
+a time, and destination paths of transfers in flight are reserved, so two
+songs with the same artist and title take the resolver's collision suffix.
+Each transfer has its own `CancelToken`. Cancelling an item
+(`cancelQueueItem`, `clearQueue`) stops its transfer, deletes the part file
+and removes the row. Pausing (`setPaused`, persisted in `downloads_paused`
+and read at start before the queue subscription) cancels transfers in flight
+and returns their rows to the queue. A failed item waits out its backoff
+(5 s × 2^retry, in memory; a restart retries at once) before the pump starts
+it again, and `markForRetry` notifies queue watchers. `processQueuedDownloads`
+completes once no worker is running. The Android progress notification
+aggregates every transfer in flight.
+
+**Permanent artwork store.** `PermanentArtworkStore` keeps one 768 px copy of
+each downloaded song's cover in `<app support>/artwork/permanent/<key>.<ext>`
+(clone runs: inside the run root), named for its image signature, written
+through a part file, and never a non-image payload. It is Navis-owned and
+outside any user download folder, so it never becomes an import candidate.
+Downloads and promotions store the cover; startup stores covers missing for
+existing and adopted downloads (Wi-Fi only) and deletes covers no permanent
+download uses; removing downloads prunes it, but never while a download's
+song is missing from the library (a rebuild in progress). `CoverArtImage`
+renders a stored cover (resized to the requested size): at refresh revision 0
+whenever the cache has no entry for that size; at a bumped revision only when
+the network load fails, so a refreshed cover still loads fresh online; and
+always when there is no server connection. `PlaybackArtCache` copies it for
+the system media controls. Reset
+Caches and Clear Cover Art keep the store, like permanent downloads; a server
+data reset clears it.
 
 Interactive Linux sync presets in `tool/dev_app.sh` run against a disposable
 diagnostics clone. The cloned database drops cached-file references, outbound

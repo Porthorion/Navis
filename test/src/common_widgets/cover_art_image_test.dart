@@ -10,10 +10,13 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
+import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
@@ -115,6 +118,181 @@ void main() {
       );
 
       expect(find.byIcon(Icons.music_note_outlined), findsOneWidget);
+    });
+
+    testWidgets('a downloaded cover renders from disk without the network', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
+      final stored = File('${cacheDirectory.path}/stored-cover.png')
+        ..writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _StoredArtwork(<String, File>{'cover-1': stored}),
+            ),
+          ],
+          child: const CoverArtImage(
+            coverArtId: 'cover-1',
+            size: 80,
+            width: 64,
+            height: 64,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final image = tester.widget<Image>(find.byType(Image));
+      final provider = image.image;
+      final file = switch (provider) {
+        ResizeImage(imageProvider: FileImage(:final file)) => file,
+        FileImage(:final file) => file,
+        _ => null,
+      };
+      expect(file?.path, stored.path);
+      // No network load was requested for the downloaded cover.
+      expect(
+        coordinator.interestCount(coverArtImageCacheKey('cover-1', 80)),
+        1,
+      );
+      expect(find.byType(OctoImage), findsNothing);
+    });
+
+    testWidgets('a hero album cover renders a downloaded cover', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
+      final stored = File('${cacheDirectory.path}/stored-hero.png')
+        ..writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _StoredArtwork(<String, File>{'cover-1': stored}),
+            ),
+          ],
+          child: const HeroCoverArt(
+            coverArtId: 'cover-1',
+            heroTag: 'album-cover',
+            size: kCoverArtStandardSize,
+            width: 300,
+            height: 300,
+            loadPriority: CoverArtLoadPriority.critical,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+
+      expect(find.byType(OctoImage), findsNothing);
+      final image = tester.widget<Image>(find.byType(Image));
+      final file = switch (image.image) {
+        ResizeImage(imageProvider: FileImage(:final file)) => file,
+        FileImage(:final file) => file,
+        _ => null,
+      };
+      expect(file?.path, stored.path);
+    });
+
+    testWidgets('a downloaded cover renders without a server connection', (
+      tester,
+    ) async {
+      final stored = File('${cacheDirectory.path}/stored-offline.png')
+        ..writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWith((_) => null),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _StoredArtwork(<String, File>{'cover-1': stored}),
+            ),
+          ],
+          child: const CoverArtImage(
+            coverArtId: 'cover-1',
+            size: 600,
+            width: 64,
+            height: 64,
+            placeholderIcon: Icons.music_note_outlined,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.music_note_outlined), findsNothing);
+      final image = tester.widget<Image>(find.byType(Image));
+      final file = switch (image.image) {
+        ResizeImage(imageProvider: FileImage(:final file)) => file,
+        FileImage(:final file) => file,
+        _ => null,
+      };
+      expect(file?.path, stored.path);
+    });
+
+    testWidgets('a refreshed cover that cannot load shows the downloaded one', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = await _createCacheManager(tester, coordinator);
+      addTearDown(manager.dispose);
+      final stored = File('${cacheDirectory.path}/stored-revision.png')
+        ..writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _StoredArtwork(<String, File>{'cover-1': stored}),
+            ),
+          ],
+          child: const CoverArtImage(
+            coverArtId: 'cover-1',
+            revision: 1,
+            size: 600,
+            width: 64,
+            height: 64,
+            placeholderIcon: Icons.music_note_outlined,
+            loadPriority: CoverArtLoadPriority.critical,
+          ),
+        ),
+      );
+      // A refreshed revision tries the network first.
+      expect(find.byType(OctoImage), findsOneWidget);
+      // The test binding answers every HTTP request with 400.
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+      }
+
+      expect(find.byIcon(Icons.music_note_outlined), findsNothing);
+      final files = tester
+          .widgetList<Image>(find.byType(Image))
+          .map(
+            (image) => switch (image.image) {
+              ResizeImage(imageProvider: FileImage(:final file)) => file.path,
+              FileImage(:final file) => file.path,
+              _ => null,
+            },
+          );
+      expect(files, contains(stored.path));
     });
 
     testWidgets('visibility changes register and unregister interest', (
@@ -361,4 +539,18 @@ void main() {
       expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNothing);
     });
   });
+}
+
+/// A download artwork store holding fixed covers.
+class _StoredArtwork extends PermanentArtworkStore {
+  new(this._files)
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  final Map<String, File> _files;
+
+  @override
+  File? loadedFileFor(String? coverArtId) => _files[coverArtId];
+
+  @override
+  Future<File?> fileFor(String? coverArtId) async => _files[coverArtId];
 }

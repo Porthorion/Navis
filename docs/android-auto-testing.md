@@ -69,7 +69,9 @@ cover art: every session metadata value and the icon URIs of the root and
 first-level browse items. It fails on any `u`, `t`, `s`, `p` or `apiKey`
 query parameter or Subsonic `/rest/` URL, requires the session cover to be
 `content://<package>.artwork/…` (served by `NavisArtworkProvider`), and
-requires at least one such content URI. It is opt-in:
+requires at least one such content URI. Every content URI it finds must open
+from the test client's process, and the session cover URI must come with a
+non-null `METADATA_KEY_ALBUM_ART` bitmap. It is opt-in:
 
 ```bash
 cd android
@@ -78,6 +80,14 @@ cd android
   -Pandroid.testInstrumentationRunnerArguments.navisArtworkCheck=true \
   -Pandroid.testInstrumentationRunnerArguments.class=com.navis.app.autotestclient.NavisMediaSessionArtworkTest
 ```
+
+`trackChangeNeverPublishesUnopenableArt`, enabled with
+`navisArtworkTrackChange=true`, skips to the next song and records every
+session metadata update for 10 s: no update may carry a cover URI without
+the bitmap, and the last one must have both. Queue a song whose cover has
+never been played (no `navis_art_*.jpg` in the sidecar cache) so the change
+exercises the download. A URI published before the cover was cached is what
+left Bluetooth and Android Auto without art in 1.4.0.
 
 On 2026-10-02 it passed against a 1.4.0 profile sidecar upgraded in place
 from 1.3.1 and failed against 1.3.1 itself, which published the

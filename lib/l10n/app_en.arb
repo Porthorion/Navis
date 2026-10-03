@@ -1278,9 +1278,51 @@
   "downloadQualityTitle": "Download Quality",
   "downloadQualityOriginal": "Original quality",
   "downloadQualityOriginalSub": "Lossless / as stored on server",
-  "downloadQuality320": "320 kbps MP3",
-  "downloadQuality192": "192 kbps MP3",
-  "downloadQuality128": "128 kbps MP3",
+  "downloadQualityTranscoded": "{kbps} kbps {format}",
+  "@downloadQualityTranscoded": {
+    "placeholders": {
+      "kbps": { "type": "int" },
+      "format": { "type": "String" }
+    }
+  },
+  "downloadQualityAlwaysTitle": "Always download in {quality}?",
+  "@downloadQualityAlwaysTitle": {
+    "placeholders": {
+      "quality": { "type": "String" }
+    }
+  },
+  "downloadQualityAlwaysBody": "Navis will stop asking and download everything in this quality. You can change this anytime in Downloads settings.",
+  "downloadQualityAlwaysAsk": "Ask every time",
+  "downloadQualityAlwaysUse": "Always use",
+  "downloadQueuedWithQuality": "{message} · {quality}",
+  "@downloadQueuedWithQuality": {
+    "placeholders": {
+      "message": { "type": "String" },
+      "quality": { "type": "String" }
+    }
+  },
+  "downloadsSettingsQualitySection": "Quality",
+  "downloadsSettingsQualityLabel": "Download quality",
+  "downloadsSettingsQualityAsk": "Ask every time",
+  "downloadsSettingsFormatLabel": "Transcode format",
+  "downloadsSettingsFormatHelper": "Used for downloads below original quality",
+  "downloadsSettingsConcurrentTitle": "Concurrent downloads",
+  "downloadsSettingsConcurrentValue": "{count, plural, =1{1 download at a time} other{{count} downloads at a time}}",
+  "@downloadsSettingsConcurrentValue": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadsSettingsConcurrentCellular": "{value} · 1 on mobile data",
+  "@downloadsSettingsConcurrentCellular": {
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+  "downloadsSettingsStorageSection": "Storage",
+  "downloadsPauseAll": "Pause",
+  "downloadsResumeAll": "Resume",
+  "downloadsPausedBanner": "Downloads are paused. Resume to continue the queue.",
   "downloadAction": "Download",
   "downloadSongQueued": "Download queued.",
   "downloadAlbumQueued": "{count, plural, =0{All tracks already downloaded} =1{1 track queued for download} other{{count} tracks queued for download}}",
@@ -1329,13 +1371,27 @@
   "downloadsQueueSearchHint": "Search queue...",
   "downloadsSearchHint": "Search downloads...",
   "downloadsCustomFolderTitle": "Custom Folder",
-  "downloadsCustomFolderSubtitle": "Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.",
+  "downloadsCustomFolderSubtitle": "Store permanent downloads in a folder you choose. Navis moves its downloads there into artist folders; files already in the folder keep their names.",
   "downloadsCustomFolderUnsupported": "Custom download folders are not available on this platform.",
   "downloadsCustomFolderChooseAction": "Choose Folder",
   "downloadsCustomFolderSaved": "Download folder updated.",
   "downloadsCustomFolderDisabled": "Custom download folder disabled.",
+  "downloadsCustomFolderDisableTitle": "Turn Off Custom Folder?",
+  "downloadsCustomFolderDisableConfirm": "Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.",
+  "downloadsCustomFolderDisableAction": "Turn Off",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
   "downloadsScanError": "Could not scan the downloads folder.",
+  "downloadsRescanTitle": "Rescan Existing Downloads",
+  "downloadsRescanSubtitle": "Import tracks already in this folder",
+  "downloadsManualMatchingTitle": "Manual Matching",
+  "downloadsManualMatchingPending": "{count, plural, =1{1 song from the last scan needs to be matched by hand.} other{{count} songs from the last scan need to be matched by hand.}}",
+  "@downloadsManualMatchingPending": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsManualMatchingNone": "No songs need manual matching from the most recent scan.",
+  "downloadsCustomFolderSelected": "Selected folder",
   "downloadsRescanImported": "{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}",
   "@downloadsRescanImported": {
     "placeholders": {

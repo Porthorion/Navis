@@ -252,7 +252,7 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
         size: kCoverArtStandardSize,
         width: 156,
         height: 156,
-        borderRadius: NavisRadius.mdAll,
+        shape: ArtworkShapeRole.cover,
         loadPriority: CoverArtLoadPriority.critical,
         isExternalSource: isExternalSource,
         remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,

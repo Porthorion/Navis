@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class ArtistCard extends StatelessWidget {
   const new({
@@ -37,7 +38,7 @@ class ArtistCard extends StatelessWidget {
         size: 96,
         width: 40,
         height: 40,
-        circular: true,
+        shape: ArtworkShapeRole.artist,
         placeholderIcon: Icons.person_outline,
         isExternalSource: artist.isExternal,
       ),

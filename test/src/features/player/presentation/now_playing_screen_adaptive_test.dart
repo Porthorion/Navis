@@ -1,4 +1,6 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +12,10 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -95,13 +100,16 @@ Future<void> _pumpNowPlaying(
   TextScaler? textScaler,
   Brightness brightness = Brightness.light,
   TargetPlatform platform = TargetPlatform.linux,
+  ThemeData? theme,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: ThemeData(platform: platform, brightness: brightness),
+        theme:
+            theme?.copyWith(platform: platform) ??
+            ThemeData(platform: platform, brightness: brightness),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
@@ -152,6 +160,34 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('the cover follows Now Playing Art Shape', (tester) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await container
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .updateNowPlayingArtShape('circle');
+    await _pumpNowPlaying(tester, container);
+
+    final cover = find.byWidgetPredicate(
+      (widget) =>
+          widget is CoverArtImage &&
+          widget.shape == ArtworkShapeRole.nowPlaying,
+    );
+    expect(cover, findsOneWidget);
+    // Without a server the cover shows its placeholder tile, which carries
+    // the cover's shape (1.4.0 drew song covers square whatever the setting).
+    final tile = tester.widget<Container>(
+      find.descendant(of: cover, matching: find.byType(Container)).first,
+    );
+    expect((tile.decoration! as BoxDecoration).shape, BoxShape.circle);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('split layout lyrics action opens fullscreen lyrics page', (
     tester,
@@ -662,6 +698,8 @@ void main() {
     Future<ProviderContainer> openSheet(
       WidgetTester tester, {
       required bool eqSupported,
+      ThemeData? theme,
+      TextScaler? textScaler,
     }) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final container = _createContainer(
@@ -686,6 +724,8 @@ void main() {
         tester,
         container,
         platform: TargetPlatform.android,
+        theme: theme,
+        textScaler: textScaler,
       );
       await tester.tap(find.byKey(const ValueKey('nowPlayingSettingsAction')));
       await tester.pumpAndSettle();
@@ -710,6 +750,39 @@ void main() {
         matchesGoldenFile('goldens/now_playing_settings_sound_390x844.png'),
       );
     });
+
+    for (final scale in <double>[1, 1.3, 2]) {
+      testWidgets('the volume level stays on one line at ${scale}x text', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) {
+          return;
+        }
+        // The bundled Inter font with tabular figures made "100%" wider than
+        // its old fixed 40 px slot from about 1.13x text scale (1.4.0).
+        final inter = FontLoader(navisFontFamily)
+          ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
+        await inter.load();
+        await openSheet(
+          tester,
+          eqSupported: false,
+          theme: buildLightTheme(Colors.indigo),
+          textScaler: TextScaler.linear(scale),
+        );
+
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text('100%'),
+        );
+        final oneLine = TextPainter(
+          text: paragraph.text,
+          textDirection: TextDirection.ltr,
+          textScaler: paragraph.textScaler,
+        )..layout();
+        expect(paragraph.size.height, closeTo(oneLine.height, 0.5));
+        oneLine.dispose();
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('Speed & Pitch opens after the settings sheet closes', (
       tester,

@@ -39,6 +39,7 @@ import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
   const new({
@@ -104,7 +105,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
         : const <String>{};
     final coverShape = ref.watch(coverArtShapeProvider);
-    final coverRadius = coverArtShapeToRadius(coverShape);
+    final coverRadius = artworkBorderRadius(
+      coverShape,
+      extent: double.infinity,
+    );
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;
@@ -1814,7 +1818,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   Future<void> _downloadSong(SongsTableData song) async {
-    final choice = await showDownloadQualitySheet(context);
+    final choice = await requestDownloadQuality(context, ref);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
@@ -1831,7 +1835,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     showAppNotice(
       context,
-      message: l10n.downloadSongQueued,
+      message: downloadQueuedNotice(l10n, l10n.downloadSongQueued, choice),
       level: AppNoticeLevel.success,
     );
   }
@@ -2311,7 +2315,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   /// Downloads all tracks in the current album (same logic as the old inline
   /// download button).
   Future<void> _downloadAlbumSongs(BuildContext ctx) async {
-    final choice = await showDownloadQualitySheet(ctx);
+    final choice = await requestDownloadQuality(ctx, ref);
     if (choice == null || !ctx.mounted) return;
     final service = ref.read(downloadServiceProvider);
     final count = await service.enqueueAlbum(
@@ -2323,7 +2327,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     final l10n = AppLocalizations.of(ctx)!;
     showAppNotice(
       ctx,
-      message: l10n.downloadAlbumQueued(count),
+      message: downloadQueuedNotice(
+        l10n,
+        l10n.downloadAlbumQueued(count),
+        choice,
+      ),
       level: AppNoticeLevel.success,
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 
 /// A release's square "cover", shaped like album art.
 ///
@@ -18,7 +19,10 @@ class ChangelogReleaseCover extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final radius = coverArtShapeToRadius(ref.watch(coverArtShapeProvider));
+    final radius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: size,
+    );
     final colorScheme = Theme.of(context).colorScheme;
     final asset = version.iconAsset;
     final typographic = _TypographicCover(version: version, size: size);

@@ -560,12 +560,20 @@ class SubsonicApiClient {
     );
   }
 
-  Uri streamUrl({required String id, int? maxBitRate, String? format}) {
+  /// [estimateContentLength] asks the server to send a Content-Length for a
+  /// transcoded stream, so a download can report progress.
+  Uri streamUrl({
+    required String id,
+    int? maxBitRate,
+    String? format,
+    bool estimateContentLength = false,
+  }) {
     final query = _buildMediaAuthQuery()
       ..['id'] = id
       ..addAll({
         if (maxBitRate != null) 'maxBitRate': '$maxBitRate',
         'format': ?format,
+        if (estimateContentLength) 'estimateContentLength': 'true',
       });
     return _buildMediaUri('/rest/stream.view', query);
   }

@@ -167,7 +167,7 @@ void main() {
             .pitchSemitones,
         pitch,
       );
-      await tester.tap(find.byKey(const ValueKey('adjustment-speed-reset')));
+      await tester.tap(find.byKey(const ValueKey('adjustment-speed-chip-1')));
       await tester.pumpAndSettle();
       expect(
         container.read(playbackAdjustmentsProvider).requireValue.values.speed,
@@ -248,6 +248,65 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-minus')));
     await tester.pumpAndSettle();
     expect(find.text('0.90×'), findsOneWidget);
+  });
+
+  testWidgets(
+    'speed resets through its 1× chip; pitch offers Reset once changed',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = await mount(tester);
+      PlaybackAdjustments values() =>
+          container.read(playbackAdjustmentsProvider).requireValue.values;
+      expect(
+        find.byKey(const ValueKey('adjustment-speed-reset')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('adjustment-pitch-reset')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('adjustment-pitch-plus')),
+      );
+      await tester.tap(find.byKey(const ValueKey('adjustment-pitch-plus')));
+      await tester.pumpAndSettle();
+      expect(values().pitchSemitones, 1);
+      expect(
+        find.byKey(const ValueKey('adjustment-speed-reset')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('adjustment-pitch-reset')));
+      await tester.pumpAndSettle();
+      expect(values().pitchSemitones, 0);
+      expect(values().speedPercent, closeTo(10, 0.000001));
+      expect(
+        find.byKey(const ValueKey('adjustment-pitch-reset')),
+        findsNothing,
+      );
+      // Linked pitch follows the 1.1× speed, but it is not the user's to
+      // reset there.
+      await tester.tap(find.byKey(const ValueKey('playback-pitch-lock')));
+      await tester.pumpAndSettle();
+      expect(values().pitchSemitones, isNot(0));
+      expect(
+        find.byKey(const ValueKey('adjustment-pitch-reset')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('speed and pitch rulers keep one width, linked or not', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await mount(tester);
+    double width(String key) => tester.getSize(find.byKey(ValueKey(key))).width;
+    expect(width('adjustment-pitch-ruler'), width('adjustment-speed-ruler'));
+    await tester.tap(find.byKey(const ValueKey('playback-pitch-lock')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('adjustment-pitch-minus')), findsNothing);
+    expect(width('adjustment-pitch-ruler'), width('adjustment-speed-ruler'));
   });
 
   testWidgets('every chip or preset change glides the ruler with haptics', (
@@ -497,7 +556,7 @@ void main() {
           .onPressed,
       isNull,
     );
-    await tester.tap(find.byKey(const ValueKey('adjustment-speed-reset')));
+    await tester.tap(find.byKey(const ValueKey('adjustment-speed-chip-1')));
     await tester.pumpAndSettle();
     expect(
       container

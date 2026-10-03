@@ -69,4 +69,26 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('deletes more tracks than SQLite binds in one statement', () async {
+    final ids = [for (var i = 0; i < 33000; i++) 'song-$i'];
+    await database.cacheDao.upsertCachedTracks([
+      for (final id in ids)
+        CachedTracksTableCompanion.insert(
+          songId: id,
+          filePath: '/music/$id.flac',
+          fileSize: 1,
+          format: 'flac',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+    ]);
+    await cache('kept', '/music/kept.flac', CacheType.permanent);
+
+    await database.cacheDao.deleteCachedTracksBySongIds(ids);
+
+    final rows = await database.select(database.cachedTracksTable).get();
+    expect(rows.map((row) => row.songId), ['kept']);
+  });
 }

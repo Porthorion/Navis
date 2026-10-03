@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 void main() {
@@ -274,7 +275,13 @@ Future<void> _pumpTile(
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: [playerStateProvider.overrideWithValue(snapshot)],
+      overrides: [
+        playerStateProvider.overrideWithValue(snapshot),
+        // Artwork reads the shape settings.
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
+      ],
       child: MaterialApp(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
