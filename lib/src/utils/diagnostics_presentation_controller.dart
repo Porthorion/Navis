@@ -104,6 +104,7 @@ class DiagnosticsPresentationController {
     'download',
     'downloadedTab',
     'downloadsSettingsTab',
+    'downloadsQueueTab',
     'customFolderOff',
     'confirmCustomFolderOff',
     'dragFirstToLast',
@@ -148,7 +149,9 @@ class DiagnosticsPresentationController {
     if (!trackActions.contains(action)) throw const FormatException();
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    if (action == 'downloadedTab' || action == 'downloadsSettingsTab') {
+    if (action == 'downloadedTab' ||
+        action == 'downloadsSettingsTab' ||
+        action == 'downloadsQueueTab') {
       final downloads = _findElement(
         root,
         (element) =>
@@ -160,7 +163,11 @@ class DiagnosticsPresentationController {
           : _findElement(downloads, (element) => element.widget is TabBar);
       final controller = (tabs?.widget as TabBar?)?.controller;
       if (controller == null) throw const DiagnosticsPresentationUnavailable();
-      controller.animateTo(action == 'downloadedTab' ? 1 : 2);
+      controller.animateTo(switch (action) {
+        'downloadsQueueTab' => 0,
+        'downloadedTab' => 1,
+        _ => 2,
+      });
     } else if (action == 'customFolderOff') {
       final tile = _findElement(
         root,

@@ -107,8 +107,14 @@ Future<bool> _showAlwaysDownloadPrompt(
     useRootNavigator: true,
     builder: (dialogContext) => AlertDialog(
       key: const ValueKey<String>('downloadQualityAlwaysPrompt'),
-      title: Text(l10n.downloadQualityAlwaysTitle(label)),
-      content: Text(l10n.downloadQualityAlwaysBody),
+      title: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Text(l10n.downloadQualityAlwaysTitle(label)),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Text(l10n.downloadQualityAlwaysBody),
+      ),
       actions: <Widget>[
         TextButton(
           key: const ValueKey<String>('downloadQualityAlwaysAsk'),

@@ -168,8 +168,10 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
 
 def _configure_downloads_fixture(song_count):
     """One album of several songs, for concurrent download diagnostics."""
-    global ALBUM, EXTRA_SONGS
+    global ALBUM, ALL_ALBUMS, ARTIST_ALBUMS, EXTRA_SONGS
     ALBUM = {**ALBUM, "songCount": song_count, "duration": 4 * song_count}
+    ARTIST_ALBUMS = [ALBUM]
+    ALL_ALBUMS = [ALBUM]
     EXTRA_SONGS = {
         f"fixture-song-{index}": {
             **SONG,

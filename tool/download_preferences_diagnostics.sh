@@ -139,7 +139,12 @@ api() {
   if [[ -n "$body" ]]; then
     args+=(-H 'Content-Type: application/json' -d "$body")
   fi
-  curl "${args[@]}" "$BASE_URL$route"
+  local output
+  if ! output="$(curl "${args[@]}" "$BASE_URL$route")"; then
+    echo "download-preferences: $method $route failed: $output" >&2
+    return 22
+  fi
+  printf '%s\n' "$output"
 }
 
 # Polls GET $1 until the Python expression $2 (over `v`) holds.
@@ -183,7 +188,59 @@ PY
 )")
 }
 
-STATUS="$OUTPUT_ROOT/status.json"
+# Counts pixels of the fixture cover's orange and teal in a screenshot (an
+# RGBA PNG), so a placeholder where the cover belongs fails the run.
+cover_pixels() {
+  python3 - "$1" <<'PY'
+import struct, sys, zlib
+data = open(sys.argv[1], "rb").read()
+pos, idat = 8, b""
+while pos < len(data):
+    length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+    body = data[pos + 8:pos + 8 + length]
+    if kind == b"IHDR":
+        width, height, depth, color = struct.unpack(">IIBB", body[:10])
+    elif kind == b"IDAT":
+        idat += body
+    pos += 12 + length
+assert depth == 8 and color in (2, 6), (depth, color)
+bpp = 4 if color == 6 else 3
+raw, stride, rows, prev = zlib.decompress(idat), width * bpp, [], bytearray(width * bpp)
+for y in range(height):
+    kind, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+    for i in range(stride):
+        a = line[i - bpp] if i >= bpp else 0
+        b, c = prev[i], prev[i - bpp] if i >= bpp else 0
+        if kind == 1: line[i] = (line[i] + a) & 255
+        elif kind == 2: line[i] = (line[i] + b) & 255
+        elif kind == 3: line[i] = (line[i] + (a + b) // 2) & 255
+        elif kind == 4:
+            p = a + b - c
+            pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+            line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+    rows.append(line); prev = line
+def near(px, ref): return all(abs(px[k] - ref[k]) <= 24 for k in range(3))
+orange = teal = 0
+for line in rows:
+    for x in range(0, stride, bpp):
+        px = line[x:x + 3]
+        orange += near(px, (240, 120, 30)); teal += near(px, (20, 150, 150))
+print(min(orange, teal))
+PY
+}
+
+# Retries a presentation action until its control is mounted (bounded).
+act() {
+  local action="$1" deadline=$((SECONDS + ${2:-30}))
+  while (( SECONDS < deadline )); do
+    if api POST /v1/presentation/track-action "{\"action\":\"$action\"}" \
+      >/dev/null 2>"$OUTPUT_ROOT/last-action-error.txt"; then
+      return
+    fi
+    sleep 1
+  done
+  fail "track action $action never found its control ($(cat "$OUTPUT_ROOT/last-action-error.txt"))"
+}
 
 start_fixture
 launch_app first
@@ -207,15 +264,28 @@ check "$OUTPUT_ROOT/initial.json" \
 
 # 2. The first download opens the picker, then asks once whether to always
 #    use the picked quality; "Always use" saves it.
-api POST /v1/presentation/navigate \
-  '{"location":"/library/albums/fixture-album"}' >/dev/null
-sleep 2
-api POST /v1/presentation/track-action '{"action":"download"}' >/dev/null
+# Wide rows show the song's direct download control.
+api POST /v1/presentation/window '{"width":1440,"height":900}' >/dev/null
+# The album opens once its songs are in the library; startup work may still
+# move the route, so navigate until the album stays current.
+deadline=$((SECONDS + 90))
+until api POST /v1/presentation/navigate \
+    '{"location":"/library/albums/fixture-album"}' >/dev/null &&
+  sleep 2 &&
+  api GET /v1/presentation/status > "$OUTPUT_ROOT/presentation.json" &&
+  python3 -c 'import json,sys; raise SystemExit(0 if "/library/albums/fixture-album" in (json.load(open(sys.argv[1])).get("route") or "") else 1)' \
+    "$OUTPUT_ROOT/presentation.json" &&
+  api POST /v1/presentation/track-action '{"action":"revealFirst"}' \
+    >/dev/null 2>&1; do
+  (( SECONDS < deadline )) || fail "the album page never showed its songs"
+  sleep 2
+done
+screenshot album-page
+act download 30
 screenshot quality-picker
-api POST /v1/presentation/track-action '{"action":"downloadQuality320"}' >/dev/null
+act downloadQuality320
 screenshot always-prompt
-api POST /v1/presentation/track-action \
-  '{"action":"downloadQualityAlwaysUse"}' >/dev/null
+act downloadQualityAlwaysUse
 wait_for /v1/downloads/status \
   'v["qualityPreference"] == {"mode": "transcode", "bitRate": 320, "format": "mp3", "prompted": True}' \
   "$OUTPUT_ROOT/preference-saved.json" 30
@@ -248,6 +318,7 @@ api POST /v1/downloads/enqueue \
 wait_for /v1/downloads/status 'len(v["activeQueueIds"]) == 3' \
   "$OUTPUT_ROOT/three-active.json" 60
 api POST /v1/presentation/navigate '{"location":"/settings/downloads"}' >/dev/null
+act downloadsQueueTab
 screenshot queue-three-active
 wait_for /v1/downloads/status \
   'len(v["permanentDownloads"]) == 7 and sum(v["queue"].values()) == 0' \
@@ -326,6 +397,9 @@ api POST /v1/presentation/navigate \
   '{"location":"/library/albums/fixture-album"}' >/dev/null
 sleep 3
 screenshot offline-album
+OFFLINE_COVER="$(cover_pixels "${SCREENSHOTS[-1]}")"
+(( OFFLINE_COVER > 5000 )) ||
+  fail "the offline album shows no download cover ($OFFLINE_COVER cover pixels)"
 stop_app
 
 if grep -l 'EXCEPTION CAUGHT BY' "$OUTPUT_ROOT"/*-navis.log >/dev/null 2>&1; then

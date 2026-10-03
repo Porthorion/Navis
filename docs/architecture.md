@@ -2482,9 +2482,13 @@ through a part file, and never a non-image payload. It is Navis-owned and
 outside any user download folder, so it never becomes an import candidate.
 Downloads and promotions store the cover; startup stores covers missing for
 existing and adopted downloads (Wi-Fi only) and deletes covers no permanent
-download uses; removing downloads prunes it. `CoverArtImage` renders a stored
-cover (resized to the requested size) when the cache has no entry for that
-size, and `PlaybackArtCache` copies it for the system media controls. Reset
+download uses; removing downloads prunes it, but never while a download's
+song is missing from the library (a rebuild in progress). `CoverArtImage`
+renders a stored cover (resized to the requested size): at refresh revision 0
+whenever the cache has no entry for that size; at a bumped revision only when
+the network load fails, so a refreshed cover still loads fresh online; and
+always when there is no server connection. `PlaybackArtCache` copies it for
+the system media controls. Reset
 Caches and Clear Cover Art keep the store, like permanent downloads; a server
 data reset clears it.
 

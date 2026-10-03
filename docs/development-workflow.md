@@ -795,7 +795,7 @@ animation duration.
 For mobile track-layout diagnostics, clone-only
 `POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
 `revealFirst`, `more`, `download`, `downloadedTab`, `downloadsSettingsTab`,
-`customFolderOff`, `confirmCustomFolderOff`, `dragFirstToLast`,
+`downloadsQueueTab`, `customFolderOff`, `confirmCustomFolderOff`, `dragFirstToLast`,
 `downloadQuality320`, `downloadQualityAlwaysUse`, or
 `downloadQualityAlwaysAsk`. It
 exercises mounted shared rows through their scroll owner, menu/download callbacks, Downloads tab

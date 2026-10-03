@@ -165,9 +165,26 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       );
     }
 
+    _startPermanentProbe(id);
     final api = ref.watch(subsonicApiProvider);
     if (api == null) {
       _clearInterest();
+      // A downloaded song's cover needs no server connection.
+      final permanentFile = _permanentFile;
+      if (permanentFile != null) {
+        return _withRemoteSourceIndicator(
+          context,
+          _withSemantics(
+            _buildFileImageChild(
+              context,
+              permanentFile,
+              widget.lockedSize ?? widget.size,
+              null,
+              recoverCacheEntry: false,
+            ),
+          ),
+        );
+      }
       return _withRemoteSourceIndicator(
         context,
         _withSemantics(_fallback(context)),
@@ -224,7 +241,6 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     );
     _scheduleLoadWindowCheck();
     _startCacheProbe(cacheManager, cacheKey);
-    _startPermanentProbe(id);
     _syncInterest(coordinator, cacheKey, _activePriority);
 
     final wantsNetwork =
@@ -234,7 +250,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final cachedFile = _cachedFileInfo?.file;
     final networkAllowed = wantsNetwork || _renderedNetworkCacheKey == cacheKey;
     // A downloaded song's cover is kept on disk; it serves every size offline
-    // and saves the network fetch. A refreshed revision still loads fresh.
+    // and saves the network fetch. A refreshed revision still loads fresh and
+    // falls back to the stored cover only when the network load fails.
     final permanentFile = _permanentFile;
     if (permanentFile != null &&
         cachedFile == null &&
@@ -483,9 +500,22 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       placeholderBuilder: (_) => widget.showLoadingPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),
-      errorBuilder: (_, _, _) => widget.showErrorPlaceholder
-          ? _fallback(context)
-          : _emptyPlaceholder(),
+      errorBuilder: (_, _, _) {
+        // Offline or unreachable: a downloaded song still has its cover.
+        final permanentFile = _permanentFile;
+        if (permanentFile != null) {
+          return _buildFileImageChild(
+            context,
+            permanentFile,
+            resolvedSize,
+            cacheManager,
+            recoverCacheEntry: false,
+          );
+        }
+        return widget.showErrorPlaceholder
+            ? _fallback(context)
+            : _emptyPlaceholder();
+      },
     );
     return _clip(image);
   }
@@ -507,7 +537,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     BuildContext context,
     File file,
     int? resolvedSize,
-    CacheManager cacheManager, {
+    CacheManager? cacheManager, {
     bool recoverCacheEntry = true,
   }) {
     final image = Image(
@@ -527,7 +557,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
               if (mounted) setState(() => _permanentFile = null);
             });
           }
-        } else if (cacheKey != null) {
+        } else if (cacheKey != null && cacheManager != null) {
           unawaited(
             ref
                 .read(coverArtRecoveryProvider)
