@@ -4,10 +4,11 @@
 /// the Forgejo release notes (`tool/generate_release_notes.dart` imports it),
 /// so it must stay plain Dart with no imports.
 ///
-/// When preparing a release, add a new [ChangelogVersion] at the top of
-/// [changelogs]. Every `x.y.0` release is a major release: give it 3–5
-/// [ChangelogVersion.highlights] and, optionally, a [ChangelogVersion.codename]
-/// and [ChangelogVersion.iconAsset].
+/// When work on a new version starts, add its [ChangelogVersion] at the top
+/// of [changelogs] together with the `pubspec.yaml` bump (see "Versioning" in
+/// `docs/agentic-engineering.md`). Every `x.y.0` release is a major release:
+/// give it 3–5 [ChangelogVersion.highlights] and, optionally, a
+/// [ChangelogVersion.codename] and [ChangelogVersion.iconAsset].
 class ChangelogVersion {
   const new({
     required this.version,
