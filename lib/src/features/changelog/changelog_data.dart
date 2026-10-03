@@ -136,6 +136,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        "On Android, if you chose a custom download folder in a version before 1.2.8, updating no longer moves the downloads in it into Navis's own storage: they stay in that folder, and choosing it again lets Navis pick them back up",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Turning off the custom download folder now asks first and explains that its files stay where they are',
         type: ChangelogEntryType.improvement,
       ),

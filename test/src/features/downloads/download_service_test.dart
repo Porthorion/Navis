@@ -12,6 +12,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -26,6 +27,28 @@ class _MockCacheManager extends Mock implements BaseCacheManager;
 class _MockLrclibClient extends Mock implements LrclibClient;
 
 class _MockDio extends Mock implements Dio;
+
+/// Hands each custom folder setting write to [_follow], as the app's settings
+/// providers see it once the settings stream re-reads the row.
+class _FollowedSettingsDao extends AppSettingsDao {
+  new(super.attachedDatabase, this._follow);
+
+  final void Function(AppSettingsTableData settings) _follow;
+
+  @override
+  Future<void> updateCustomDownloadFolderEnabled({
+    required bool enabled,
+  }) async {
+    await super.updateCustomDownloadFolderEnabled(enabled: enabled);
+    _follow((await getSettings())!);
+  }
+
+  @override
+  Future<void> updateCustomDownloadFolderPath(String? path) async {
+    await super.updateCustomDownloadFolderPath(path);
+    _follow((await getSettings())!);
+  }
+}
 
 void main() {
   group('DownloadService', () {
@@ -1562,6 +1585,73 @@ void main() {
         },
         skip: sqliteAvailable ? null : 'sqlite3 not available',
       );
+
+      test('start forgets a pre-1.2.8 Android folder path and leaves its '
+          'files there', () async {
+        // Before 1.2.8 the Android folder picker stored a plain path, not a
+        // persisted SAF tree.
+        await database.appSettingsDao.updateCustomDownloadFolderPath(
+          customDir.path,
+        );
+        await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: true,
+        );
+        expect(
+          (await database.appSettingsDao.getSettings())
+              ?.customDownloadFolderEnabled,
+          isTrue,
+        );
+        await addPermanentDownload(
+          '${customDir.path}/Slipknot/Duality.mp3',
+          'song-1',
+        );
+        final appStored = await addPermanentDownload(
+          '${supportDir.path}/audio/permanent/Slipknot/Psychosocial.mp3',
+          'song-2',
+        );
+        Set<String> folderContents() => customDir
+            .listSync(recursive: true)
+            .map((entity) => entity.path)
+            .toSet();
+        final before = folderContents();
+        final androidService = DownloadService(
+          appSettingsDao: _FollowedSettingsDao(database, (settings) {
+            customEnabled = settings.customDownloadFolderEnabled;
+            customPath = settings.customDownloadFolderPath;
+          }),
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customEnabled,
+          readCustomDownloadFolderPath: () => customPath,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          isAndroid: true,
+        );
+        addTearDown(androidService.stop);
+
+        await androidService.start();
+
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderEnabled, isFalse);
+        expect(settings?.customDownloadFolderPath, isNull);
+        expect(folderContents(), before);
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-2'))?.filePath,
+          appStored.path,
+        );
+        expect(appStored.existsSync(), isTrue);
+
+        // A later start must not move anything out of the folder either.
+        await androidService.stop();
+        await androidService.start();
+        expect(folderContents(), before);
+      }, skip: sqliteAvailable ? null : 'sqlite3 not available');
     });
 
     test(
