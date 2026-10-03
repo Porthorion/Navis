@@ -145,11 +145,18 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Cancelling a download that is in progress now stops it, failed downloads wait before retrying, songs downloaded in original quality are no longer downloaded again, and converted downloads show their progress',
+        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
+      ),
+      ChangelogEntry(
+        'Turning off the custom download folder now asks first and explains that its files stay where they are',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cancelling a download that is in progress now stops it, instead of the song finishing and being saved anyway',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        'Failed downloads now wait before retrying, songs already downloaded in original quality are no longer downloaded again, and converted downloads show their progress',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -161,15 +168,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Turning off the custom download folder now asks first and explains that its files stay where they are',
-        type: ChangelogEntryType.improvement,
+        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Changing another setting or the desktop volume no longer restarts loading your weekly ListenBrainz playlists, so Weekly Jams and Weekly Exploration stay put in Playlists',
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Speed & Pitch is calmer: the rulers sit flat without a glow, a line marks 1.00× and zero pitch, − and + sit at the ends of the ruler they move, numbers no longer shift while you drag, and Reset appears beside Pitch only once you change it (the 1× chip resets speed)',
       ),
     ],
   ),
