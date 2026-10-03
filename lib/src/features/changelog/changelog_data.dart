@@ -187,6 +187,14 @@ const List<ChangelogVersion> changelogs = [
         'Appearance shape settings now apply everywhere: Cover Art Shape also shapes song lists, the queue, the mini player and player bar, playlists and downloads, Now Playing Art Shape shapes the Now Playing cover again, and Artist Card Shape applies to artist lists and similar artists. Small covers follow the shape too, with corners scaled to their size',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Choosing a custom download folder now finishes setting it up, shows the folder as on and lists files for Manual Matching even if you switch Downloads tabs while Navis scans it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Custom Folder settings (Rescan, Manual Matching and the number of songs left to match) can now be translated',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

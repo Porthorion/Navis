@@ -1381,6 +1381,17 @@
   "downloadsCustomFolderDisableAction": "Turn Off",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
   "downloadsScanError": "Could not scan the downloads folder.",
+  "downloadsRescanTitle": "Rescan Existing Downloads",
+  "downloadsRescanSubtitle": "Import tracks already in this folder",
+  "downloadsManualMatchingTitle": "Manual Matching",
+  "downloadsManualMatchingPending": "{count, plural, =1{1 song from the last scan needs to be matched by hand.} other{{count} songs from the last scan need to be matched by hand.}}",
+  "@downloadsManualMatchingPending": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsManualMatchingNone": "No songs need manual matching from the most recent scan.",
+  "downloadsCustomFolderSelected": "Selected folder",
   "downloadsRescanImported": "{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}",
   "@downloadsRescanImported": {
     "placeholders": {

@@ -22,28 +22,52 @@ const String _diagnosticsRoot = String.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS_ROOT',
 );
 
+/// Whether a clone diagnostics build must not use [path] as its download
+/// folder: a filesystem folder outside the diagnostics root, which can only
+/// be the user's own. Android tree URIs, whose grants belong to the real app,
+/// and folders the diagnostics create inside the root are allowed.
+@visibleForTesting
+bool cloneDownloadFolderOutsideRoot(
+  String? path, {
+  required bool cloneDiagnostics,
+  required String diagnosticsRoot,
+}) {
+  final folder = path?.trim();
+  return cloneDiagnostics &&
+      diagnosticsRoot.isNotEmpty &&
+      folder != null &&
+      folder.isNotEmpty &&
+      !folder.startsWith('content://') &&
+      !p.isWithin(
+        p.normalize(p.absolute(diagnosticsRoot)),
+        p.normalize(p.absolute(folder)),
+      );
+}
+
+/// [cloneDownloadFolderOutsideRoot] for this build; always false outside
+/// clone diagnostics.
+bool cloneRejectsDownloadFolder(String path) => cloneDownloadFolderOutsideRoot(
+  path,
+  cloneDiagnostics: _cloneDiagnostics,
+  diagnosticsRoot: _diagnosticsRoot,
+);
+
 /// A clone diagnostics profile is a copy of a real profile, so its settings
 /// can name the user's own downloads folder, and the download service would
-/// move the clone's downloads into it. In a clone, a filesystem download
-/// folder outside the diagnostics root therefore reads as unset; folders the
-/// diagnostics create inside the root, and Android tree URIs (whose grants
-/// belong to the real app), are kept.
+/// move the clone's downloads into it. In a clone, such a folder (see
+/// [cloneDownloadFolderOutsideRoot]) therefore reads as unset, and the
+/// download service refuses to choose one.
 @visibleForTesting
 AppSettingsTableData? isolateCloneDownloadFolder(
   AppSettingsTableData? row, {
   required bool cloneDiagnostics,
   required String diagnosticsRoot,
 }) {
-  final path = row?.customDownloadFolderPath?.trim();
   if (row == null ||
-      !cloneDiagnostics ||
-      diagnosticsRoot.isEmpty ||
-      path == null ||
-      path.isEmpty ||
-      path.startsWith('content://') ||
-      p.isWithin(
-        p.normalize(p.absolute(diagnosticsRoot)),
-        p.normalize(p.absolute(path)),
+      !cloneDownloadFolderOutsideRoot(
+        row.customDownloadFolderPath,
+        cloneDiagnostics: cloneDiagnostics,
+        diagnosticsRoot: diagnosticsRoot,
       )) {
     return row;
   }

@@ -3134,6 +3134,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsScanError => 'Could not scan the downloads folder.';
 
   @override
+  String get downloadsRescanTitle => 'Rescan Existing Downloads';
+
+  @override
+  String get downloadsRescanSubtitle => 'Import tracks already in this folder';
+
+  @override
+  String get downloadsManualMatchingTitle => 'Manual Matching';
+
+  @override
+  String downloadsManualMatchingPending(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs from the last scan need to be matched by hand.',
+      one: '1 song from the last scan needs to be matched by hand.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadsManualMatchingNone =>
+      'No songs need manual matching from the most recent scan.';
+
+  @override
+  String get downloadsCustomFolderSelected => 'Selected folder';
+
+  @override
   String downloadsRescanImported(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

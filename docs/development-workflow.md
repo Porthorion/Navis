@@ -48,8 +48,19 @@ launching the app:
 `./tool/dev_app.sh linux` performs the same refresh automatically. The
 installed desktop file uses an absolute `Exec` path to that launcher so GLib
 2.88+ and KDE/GNOME can resolve it even when `navis` is not on `PATH`. The
-launcher execs the newest built
-`build/linux/x64/{release,profile,debug}/bundle/navis`.
+launcher execs only `build/linux/x64/release/bundle/navis`; build it with
+
+```bash
+./tool/dev_app.sh linux-release
+```
+
+which builds the app's own identity on the stable update channel (the
+`tool/release.sh` defines) and refreshes the desktop entry. Until 1.4.1 the
+launcher ran whichever release, profile or debug bundle was newest, and
+every Linux diagnostics script rebuilds the profile bundle as a "Navis
+Diagnostics" clone of a copied profile, so the desktop entry quietly opened
+the last diagnostics clone, with its own database and the clone's download
+folder rules (issue #45).
 The content-derived icon name prevents Wayland compositor caches from retaining a
 previous brand asset under the generic `navis` name.
 
@@ -468,8 +479,12 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   (`"settle": false` on `POST /v1/presentation/player-overlay`).
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
-  header) and adopts them through `POST /v1/downloads/folder/adopt`, the same
-  preview, configure and import sequence as choosing a folder in Downloads.
+  header) and adopts them through `POST /v1/downloads/folder/adopt`, which
+  runs the same `CustomDownloadFolderController.choose` as choosing a folder
+  in Downloads (preview, configure, import, then the Manual Matching scan) and
+  reports `totalMs`, item dispositions and `manualMatchingPending`.
+  `GET /v1/downloads/folder/status` reports `enabled`, `configured` (no path),
+  `busy` and `manualMatchingPending` from the persisted settings.
   On Android it stages them into the profile-only SAF fixture provider and
   writes `NAVIS_PERF_SAF_LATENCY_MS` (default 2) as a per-call delay, so the
   in-process fixture behaves like the real external-storage provider.

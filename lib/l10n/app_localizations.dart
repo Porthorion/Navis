@@ -4985,6 +4985,42 @@ abstract class AppLocalizations {
   /// **'Could not scan the downloads folder.'**
   String get downloadsScanError;
 
+  /// No description provided for @downloadsRescanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rescan Existing Downloads'**
+  String get downloadsRescanTitle;
+
+  /// No description provided for @downloadsRescanSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import tracks already in this folder'**
+  String get downloadsRescanSubtitle;
+
+  /// No description provided for @downloadsManualMatchingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual Matching'**
+  String get downloadsManualMatchingTitle;
+
+  /// No description provided for @downloadsManualMatchingPending.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 song from the last scan needs to be matched by hand.} other{{count} songs from the last scan need to be matched by hand.}}'**
+  String downloadsManualMatchingPending(int count);
+
+  /// No description provided for @downloadsManualMatchingNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No songs need manual matching from the most recent scan.'**
+  String get downloadsManualMatchingNone;
+
+  /// No description provided for @downloadsCustomFolderSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected folder'**
+  String get downloadsCustomFolderSelected;
+
   /// No description provided for @downloadsRescanImported.
   ///
   /// In en, this message translates to:

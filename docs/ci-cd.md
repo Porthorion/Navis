@@ -400,6 +400,9 @@ On Linux, `./tool/dev_app.sh linux` installs a content-addressed user icon, a
 `~/.local/bin/navis` launcher, and a desktop file whose `Exec` is that
 absolute launcher path, then refreshes the desktop/icon caches before launch.
 Use `./tool/dev_app.sh linux-icon` to perform only that cache-safe refresh.
+The launcher runs only the release bundle (`./tool/dev_app.sh linux-release`);
+`tool/linux_desktop_entry_test.sh` fails if it can run a profile or debug
+bundle, which diagnostics scripts overwrite with clone builds.
 
 ### Core Gate
 

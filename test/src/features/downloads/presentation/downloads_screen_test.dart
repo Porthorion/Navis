@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +13,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -29,6 +33,79 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  testWidgets(
+    'a custom folder finishes setting up when the Settings tab is left',
+    (tester) async {
+      // Tall enough for every folder setting below the download options.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 1800);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      final picker = _FakeFilePicker('/music/navis');
+      final previous = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = picker;
+      addTearDown(() => FilePickerPlatform.instance = previous);
+      final service = _FolderService(database);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadServiceProvider.overrideWithValue(service),
+              downloadQueueProvider.overrideWithValue(
+                const AsyncData(<DownloadQueueTableData>[]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                const AsyncData(<CachedTracksTableData>[]),
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const DownloadsScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(SwitchListTile, 'Custom Folder'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Moving downloaded tracks...'), findsOneWidget);
+
+      // Leaving the tab disposes it while the folder is still being scanned.
+      await tester.tap(find.text('Downloaded'));
+      await tester.pumpAndSettle();
+      service.previewGate.complete();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      final toggle = tester.widget<SwitchListTile>(
+        find.widgetWithText(SwitchListTile, 'Custom Folder'),
+      );
+      expect(toggle.value, isTrue);
+      expect(find.text('/music/navis'), findsWidgets);
+      final matching = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, 'Manual Matching'),
+      );
+      expect(matching.enabled, isTrue);
+      expect(service.calls, <String>[
+        'preview /music/navis',
+        'configure true /music/navis',
+        'import /music/navis',
+      ]);
+    },
+  );
 
   testWidgets('download queue marks the paused current song', (tester) async {
     const song = SongsTableData(
@@ -627,4 +704,74 @@ PlaybackSnapshot _pausedSnapshot(String songId) {
     shuffleMode: AudioServiceShuffleMode.none,
     repeatMode: AudioServiceRepeatMode.none,
   );
+}
+
+class _FakeFilePicker extends FilePickerPlatform {
+  new(this.path);
+
+  final String path;
+
+  @override
+  Future<String?> getDirectoryPath({
+    String? dialogTitle,
+    String? initialDirectory,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => path;
+}
+
+/// Stands in for the folder steps of [DownloadService], saving the folder in
+/// the test database as the real service does.
+class _FolderService extends Fake implements DownloadService {
+  new(this.database);
+
+  final NavisDatabase database;
+  final List<String> calls = <String>[];
+  final Completer<void> previewGate = Completer<void>();
+
+  @override
+  Future<PermanentDownloadImportPreview> previewCustomDownloadFolder(
+    String path,
+  ) async {
+    calls.add('preview $path');
+    await previewGate.future;
+    return PermanentDownloadImportPreview(
+      rootPath: path,
+      items: const <PermanentDownloadImportItem>[
+        PermanentDownloadImportItem(
+          relativePath: 'unknown.flac',
+          fileSize: 1,
+          format: 'flac',
+          disposition: PermanentDownloadImportDisposition.unmatched,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> configureCustomDownloadFolder({
+    required bool enabled,
+    String? path,
+  }) async {
+    calls.add('configure $enabled $path');
+    await database.appSettingsDao.updateCustomDownloadFolderPath(path);
+    await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+      enabled: enabled,
+    );
+  }
+
+  @override
+  Future<PermanentDownloadImportResult> importCustomDownloadFolder(
+    PermanentDownloadImportPreview preview, {
+    Map<String, String> manualSongIds = const <String, String>{},
+    bool includeRecognized = true,
+  }) async {
+    calls.add('import ${preview.rootPath}');
+    return const PermanentDownloadImportResult(
+      importedCount: 0,
+      skippedCount: 0,
+    );
+  }
 }

@@ -1250,6 +1250,79 @@ void main() {
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
+    test(
+      'a folder the clone guard rejects is neither scanned nor configured',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_default_support_',
+        );
+        final userDir = await Directory.systemTemp.createTemp(
+          'navis_user_downloads_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => userDir.delete(recursive: true));
+        final userFile = File('${userDir.path}/Artist/Song.mp3')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        final legacyDir = Directory('${supportDir.path}/audio/permanent')
+          ..createSync(recursive: true);
+        final legacyFile = File('${legacyDir.path}/song-1_legacy.mp3')
+          ..writeAsBytesSync(<int>[7, 8, 9]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Duality'),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: legacyFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        final guardedService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          rejectsCustomFolder: (path) => path == userDir.path,
+        );
+        addTearDown(guardedService.stop);
+
+        await expectLater(
+          guardedService.previewCustomDownloadFolder(userDir.path),
+          throwsA(isA<FileSystemException>()),
+        );
+        await expectLater(
+          guardedService.configureCustomDownloadFolder(
+            enabled: true,
+            path: userDir.path,
+          ),
+          throwsA(isA<FileSystemException>()),
+        );
+
+        expect(legacyFile.existsSync(), isTrue);
+        expect(userFile.existsSync(), isTrue);
+        expect(userDir.listSync(recursive: true), hasLength(2));
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderEnabled, isFalse);
+        expect(settings?.customDownloadFolderPath, isNull);
+        // Turning the folder off is never blocked.
+        await guardedService.configureCustomDownloadFolder(enabled: false);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
     test('configureCustomDownloadFolder rolls back moved files when relocation fails', () async {
       final supportDir = await Directory.systemTemp.createTemp(
         'navis_default_support_',

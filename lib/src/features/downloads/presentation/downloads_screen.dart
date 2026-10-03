@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -23,7 +24,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
-import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
@@ -963,7 +963,6 @@ class _DownloadSettingsTab extends ConsumerStatefulWidget {
 
 class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
   bool _clearing = false;
-  bool _updatingFolder = false;
 
   bool get _supportsCustomDownloadFolderSelection =>
       Platform.isAndroid ||
@@ -1116,42 +1115,24 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     await _applyCustomDownloadFolder(enabled: true, path: selectedPath);
   }
 
+  /// Folder changes run in [customDownloadFolderControllerProvider], so they
+  /// finish (and fill Manual Matching) even if this tab is left mid-scan;
+  /// only the notice needs the tab to still be shown.
   Future<void> _applyCustomDownloadFolder({
     required bool enabled,
     String? path,
   }) async {
-    final l10n = AppLocalizations.of(context)!;
-    setState(() => _updatingFolder = true);
+    final controller = ref.read(
+      customDownloadFolderControllerProvider.notifier,
+    );
     try {
-      final service = ref.read(downloadServiceProvider);
-      PermanentDownloadImportPreview? preview;
       if (enabled && path != null) {
-        preview = await service.previewCustomDownloadFolder(path);
-        if (!mounted) return;
-        await service.configureCustomDownloadFolder(
-          enabled: enabled,
-          path: path,
-        );
-        final automatic = await service.importCustomDownloadFolder(preview);
-        if (!mounted) return;
-        ref
-            .read(manualDownloadMatchingProvider.notifier)
-            .recordScan(
-              preview,
-              automaticallyImported: automatic.importedCount,
-            );
+        await controller.choose(path);
       } else {
-        await service.configureCustomDownloadFolder(
-          enabled: enabled,
-          path: path,
-        );
-        if (!enabled) {
-          ref.read(manualDownloadMatchingProvider.notifier).clear();
-        }
+        await controller.disable();
       }
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       AppNoticeMessenger.of(context).clearSnackBars();
       showAppNotice(
         context,
@@ -1162,9 +1143,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning('Download folder update failed. $error\n$stackTrace');
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       AppNoticeMessenger.of(context).clearSnackBars();
       showAppNotice(
         context,
@@ -1173,29 +1153,19 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             : l10n.downloadsScanError,
         level: AppNoticeLevel.error,
       );
-    } finally {
-      if (mounted) {
-        setState(() => _updatingFolder = false);
-      }
     }
   }
 
   Future<void> _rescanCustomDownloadFolder() async {
-    final path = ref.read(customDownloadFolderPathProvider);
-    if (path == null || path.trim().isEmpty) return;
-    setState(() => _updatingFolder = true);
     try {
-      final service = ref.read(downloadServiceProvider);
-      final preview = await service.previewCustomDownloadFolder(path);
-      final automatic = await service.importCustomDownloadFolder(preview);
-      ref
-          .read(manualDownloadMatchingProvider.notifier)
-          .recordScan(preview, automaticallyImported: automatic.importedCount);
-      if (!mounted) return;
+      final result = await ref
+          .read(customDownloadFolderControllerProvider.notifier)
+          .rescan();
+      if (result == null || !mounted) return;
       showAppNotice(
         context,
         message: AppLocalizations.of(context)!
-            .downloadsRescanImported(automatic.importedCount),
+            .downloadsRescanImported(result.importedCount),
         level: AppNoticeLevel.success,
       );
     } on Object catch (error, stackTrace) {
@@ -1207,8 +1177,6 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           level: AppNoticeLevel.error,
         );
       }
-    } finally {
-      if (mounted) setState(() => _updatingFolder = false);
     }
   }
 
@@ -1263,8 +1231,11 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     final customFolderEnabled = ref.watch(customDownloadFolderEnabledProvider);
     final customFolderPath = ref.watch(customDownloadFolderPathProvider);
     final manualMatching = ref.watch(manualDownloadMatchingProvider);
+    final updatingFolder = ref
+        .watch(customDownloadFolderControllerProvider)
+        .busy;
 
-    if (_clearing || _updatingFolder) {
+    if (_clearing || updatingFolder) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1272,7 +1243,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             const CircularProgressIndicator(),
             const SizedBox(height: 12),
             Text(
-              _updatingFolder
+              updatingFolder
                   ? l10n.downloadsCustomFolderUpdating
                   : l10n.cacheSettingsClearPermanent,
             ),
@@ -1327,19 +1298,21 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
           ListTile(
             leading: const Icon(Icons.manage_search_outlined),
-            title: const Text('Rescan Existing Downloads'),
-            subtitle: const Text('Import tracks already in this folder'),
+            title: Text(l10n.downloadsRescanTitle),
+            subtitle: Text(l10n.downloadsRescanSubtitle),
             onTap: _rescanCustomDownloadFolder,
           ),
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
           ListTile(
             enabled: manualMatching.needsManualMatching,
             leading: const Icon(Icons.rule_folder_outlined),
-            title: const Text('Manual Matching'),
+            title: Text(l10n.downloadsManualMatchingTitle),
             subtitle: Text(
               manualMatching.needsManualMatching
-                  ? 'You have ${manualMatching.pendingCount} amount of songs that need to be manually matched.'
-                  : 'No songs need manual matching from the most recent scan.',
+                  ? l10n.downloadsManualMatchingPending(
+                      manualMatching.pendingCount,
+                    )
+                  : l10n.downloadsManualMatchingNone,
             ),
             trailing: _ManualMatchingCount(
               count: manualMatching.pendingCount,
@@ -1571,7 +1544,8 @@ class _CustomFolderLabel extends StatelessWidget {
             throw error;
           }),
       builder: (context, snapshot) => Text(
-        snapshot.data?.displayName ?? 'Selected folder',
+        snapshot.data?.displayName ??
+            AppLocalizations.of(context)!.downloadsCustomFolderSelected,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
