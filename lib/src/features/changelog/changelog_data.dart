@@ -124,7 +124,15 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.1', entries: []),
+  ChangelogVersion(
+    version: '1.4.1',
+    entries: [
+      ChangelogEntry(
+        'Changing a playback setting no longer forgets your ListenBrainz account name, turns Background Sync Only on Unmetered Networks back on, or resets the desktop volume Navis restores at launch',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.0',
     released: '2026-10-02',

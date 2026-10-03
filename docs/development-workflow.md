@@ -896,6 +896,24 @@ scenario sets 37%, verifies a clean restart, persists mute across another
 restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
 the local app log are retained under `build/volume-memory-diagnostics/`.
 
+Use the focused playback-settings scenario when changing how the Playback
+settings screen saves:
+
+```bash
+./tool/playback_settings_diagnostics.sh
+```
+
+It signs an isolated clone in to the local loopback fixture, with the
+ListenBrainz account, unmetered-only background sync off and the desktop volume
+seeded before launch. It flips Scrobbling on the mounted Playback settings
+screen, then requires those three settings to survive the autosave and a clean
+restart. The authenticated clone-only `GET/POST /v1/presentation/playback-settings`
+endpoint accepts exactly one `toggle`, `scrobble`, which invokes the keyed
+production switch's own callback; it returns only Scrobbling, unmetered-only
+sync, ListenBrainz token validity, whether an account name is stored (never the
+name), and the persisted desktop volume. Primary certification rejects both
+methods. Output is retained under `build/playback-settings-diagnostics/`.
+
 Use the focused desktop window scenario for shell, bottom-player, resize-gate,
 or Mini Player changes:
 
