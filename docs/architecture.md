@@ -2153,7 +2153,16 @@ states without starting audio or modifying a queue.
    Remote-only songs receive no local-server controls. Whole-entity playback preserves a mixed
    supplied local/remote list without identity-canonicalizing it into local
    rows or applying ID-based Match Flow expansion, so a matched remote source
-   remains in the requested queue.
+   remains in the requested queue. ListenBrainz weekly playlists follow this:
+   Play and Shuffle queue every matched song in playlist order
+   (`ListenBrainzDiscoverPlaylist.playableSongs`, on the server or remote)
+   through `replaceWithSongs`, which saves remote rows as provisional first,
+   while Download takes only songs on the server. A row tap in the weekly page
+   or the desktop Home panel follows Album Queue
+   (`listenBrainzPlaybackFrom`): on, it queues the playlist's matched songs
+   from that row, as Artist Top Tracks does; off, only that song. Before
+   1.4.1 Play and Shuffle skipped remote matches and taps always played one
+   song (single-song taps came from commit `a8b639af`).
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
