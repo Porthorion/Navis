@@ -243,6 +243,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
     this.contentPadding,
     this.horizontalTitleGap = 6,
     this.minHeight = 64,
+    super.key,
   });
 
   final ListenBrainzResolvedRecommendation recommendation;

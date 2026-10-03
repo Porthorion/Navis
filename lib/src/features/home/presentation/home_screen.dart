@@ -536,6 +536,7 @@ class _ListenBrainzWeeklyDetailContentState
         crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
           IconButton(
+            key: const ValueKey<String>('weeklyPlayButton'),
             tooltip: l10n.albumDetailPlayAction,
             icon: const Icon(Icons.play_arrow),
             onPressed: playableSongs.isEmpty
@@ -574,6 +575,7 @@ class _ListenBrainzWeeklyDetailContentState
       runSpacing: 10,
       children: <Widget>[
         FilledButton.icon(
+          key: const ValueKey<String>('weeklyPlayButton'),
           onPressed: playableSongs.isEmpty
               ? null
               : () => _queueSongs(playableSongs, shuffle: false),
@@ -623,8 +625,11 @@ class _ListenBrainzWeeklyDetailContentState
         }
         final recommendation = playlist.recommendations[index - 1];
         final tableSong = recommendation.tableSong;
+        // Keyed by recommendation for the clone-only weeklyLastRow action.
+        final rowKey = ValueKey<String>('weekly-row-${index - 1}');
         if (recommendation.hasServerSong && tableSong != null) {
           return TrackListTile(
+            key: rowKey,
             song: tableSong.copyWith(track: Value(index)),
             contentPadding: compact
                 ? const EdgeInsetsDirectional.only(start: 8, end: 4)
@@ -673,6 +678,7 @@ class _ListenBrainzWeeklyDetailContentState
           );
         }
         return _ListenBrainzRecommendationTile(
+          key: rowKey,
           recommendation: recommendation,
           index: index,
           contentPadding: compact

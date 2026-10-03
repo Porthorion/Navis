@@ -100,6 +100,67 @@ void main() {
     await container.read(playbackAdjustmentsProvider.notifier).flush();
   });
 
+  testWidgets('weekly actions press Play and the last playable row', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_weekly_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pumpAndSettle(),
+    );
+    final tapped = <String>[];
+    var plays = 0;
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ListView(
+              children: [
+                FilledButton(
+                  key: const ValueKey<String>('weeklyPlayButton'),
+                  onPressed: () => plays++,
+                  child: const Text('Play'),
+                ),
+                for (final (index, playable) in const [
+                  (0, true),
+                  (1, true),
+                  (2, false),
+                ])
+                  KeyedSubtree(
+                    key: ValueKey<String>('weekly-row-$index'),
+                    child: AdaptiveTrackRow(
+                      title: 'Track $index',
+                      onTap: playable ? () => tapped.add('$index') : null,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await controller.activateLibraryControl(action: 'weeklyPlay');
+    await controller.activateLibraryControl(action: 'weeklyLastRow');
+
+    expect(plays, 1);
+    // Row 2 cannot be played, so the last playable row is row 1.
+    expect(tapped, <String>['1']);
+
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: SizedBox())),
+    );
+    for (final action in ['weeklyPlay', 'weeklyLastRow']) {
+      await expectLater(
+        controller.activateLibraryControl(action: action),
+        throwsA(isA<DiagnosticsPresentationUnavailable>()),
+      );
+    }
+  });
+
   testWidgets('opens the Now Playing settings sheet by its button', (
     tester,
   ) async {
