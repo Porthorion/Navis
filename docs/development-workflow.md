@@ -796,12 +796,16 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
 ```
 
 Its authenticated clone-only `POST /v1/presentation/library-action` accepts
-exactly one `action`: `openFirstAlbum`, `nextLikedAlbums` or
-`toggleFirstRadioStation`. It invokes only the existing onstage album-card
-callback, the Next button within the keyed Liked Albums shelf, or the first
-onstage Radio station card's own tap callback (which plays that station, or
-stops it when it is already playing); arbitrary keys, coordinates and other
-actions are rejected.
+exactly one `action`: `openFirstAlbum`, `nextLikedAlbums`,
+`toggleFirstRadioStation`, `weeklyPlay` or `weeklyLastRow`. It invokes only
+the existing onstage album-card callback, the Next button within the keyed
+Liked Albums shelf, the first onstage Radio station card's own tap callback
+(which plays that station, or stops it when it is already playing), the weekly
+playlist page's Play button (`weeklyPlayButton`), or the tap callback of the
+last weekly track row that can be played (`weekly-row-<index>`, which follows
+Album Queue); arbitrary keys, coordinates and other actions are rejected.
+With `cachedListenBrainzPresentation` and a seeded weekly cache, read
+`GET /v1/playback/status` afterwards for the queued song ids and start index.
 Unavailable controls fail explicitly. The endpoint does not construct a queue,
 directly write library data or bypass navigation owners. Inspect every extra screenshot,
 including the wide numbered header and the before/after paged shelf. Timed

@@ -86,8 +86,12 @@ cd android
 session metadata update for 10 s: no update may carry a cover URI without
 the bitmap, and the last one must have both. Queue a song whose cover has
 never been played (no `navis_art_*.jpg` in the sidecar cache) so the change
-exercises the download. A URI published before the cover was cached is what
-left Bluetooth and Android Auto without art in 1.4.0.
+exercises the download: `tool/auth_lifecycle_fixture_server.py --scenario
+downloads --distinct-covers` gives every fixture song its own cover id. A URI
+published before the cover was cached is what left Bluetooth and Android Auto
+without art in 1.4.0. On 2026-10-03 both tests passed, none skipped, against
+a 1.4.1 `.dev` profile clone sidecar on a temporary API 37 emulator that was
+signed in to that fixture and playing its four songs.
 
 On 2026-10-02 it passed against a 1.4.0 profile sidecar upgraded in place
 from 1.3.1 and failed against 1.3.1 itself, which published the

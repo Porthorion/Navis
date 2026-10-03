@@ -166,8 +166,12 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
     ALBUM_SONG_IDS = {existing_album["id"]: "fixture-existing-song"}
 
 
-def _configure_downloads_fixture(song_count):
-    """One album of several songs, for concurrent download diagnostics."""
+def _configure_downloads_fixture(song_count, distinct_covers=False):
+    """One album of several songs, for concurrent download diagnostics.
+
+    With distinct_covers every extra song names its own cover id (the image is
+    the same), so changing track reaches a cover that is not cached yet.
+    """
     global ALBUM, ALL_ALBUMS, ARTIST_ALBUMS, EXTRA_SONGS
     ALBUM = {**ALBUM, "songCount": song_count, "duration": 4 * song_count}
     ARTIST_ALBUMS = [ALBUM]
@@ -178,6 +182,7 @@ def _configure_downloads_fixture(song_count):
             "id": f"fixture-song-{index}",
             "title": f"Lifecycle Tone {index}",
             "track": index,
+            **({"coverArt": f"fixture-cover-{index}"} if distinct_covers else {}),
         }
         for index in range(2, song_count + 1)
     }
@@ -411,6 +416,11 @@ def main():
         action="store_true",
         help="Return a partial getArtist album list in manual-discovery mode.",
     )
+    parser.add_argument(
+        "--distinct-covers",
+        action="store_true",
+        help="Give each extra song in downloads mode its own cover id.",
+    )
     parser.add_argument("--annotation-log")
     parser.add_argument("--partial-album-flag")
     parser.add_argument(
@@ -433,7 +443,9 @@ def main():
     )
     MEDIA_SECONDS = max(0.0, args.media_seconds)
     if args.scenario == "downloads":
-        _configure_downloads_fixture(max(1, args.song_count))
+        _configure_downloads_fixture(
+            max(1, args.song_count), distinct_covers=args.distinct_covers
+        )
     if args.scenario == "manual-discovery":
         _configure_manual_discovery_fixture(args.omit_existing_artist_album)
     if args.scenario == "partial-album":

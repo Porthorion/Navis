@@ -96,6 +96,8 @@ class DiagnosticsPresentationController {
     'openFirstAlbum',
     'nextLikedAlbums',
     'toggleFirstRadioStation',
+    'weeklyPlay',
+    'weeklyLastRow',
   };
   static const trackActions = {
     'scrollToLast',
@@ -672,6 +674,44 @@ class DiagnosticsPresentationController {
             onstage(element),
       );
       callback = (element?.widget as InkWell?)?.onTap;
+    } else if (action == 'weeklyPlay') {
+      // The weekly playlist page's own Play button.
+      final element = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey<String>('weeklyPlayButton') &&
+            onstage(element),
+      );
+      callback = switch (element?.widget) {
+        ButtonStyleButton(:final onPressed) => onPressed,
+        IconButton(:final onPressed) => onPressed,
+        _ => null,
+      };
+    } else if (action == 'weeklyLastRow') {
+      // The last weekly track that can be played, through its row's own tap.
+      var lastIndex = -1;
+      root.visitChildElements((child) {
+        void visit(Element element) {
+          final key = element.widget.key;
+          if (key is ValueKey<String> &&
+              key.value.startsWith('weekly-row-') &&
+              onstage(element)) {
+            final index = int.tryParse(key.value.substring(11)) ?? -1;
+            final row = _findElement(
+              element,
+              (row) => row.widget is AdaptiveTrackRow,
+            );
+            final onTap = (row?.widget as AdaptiveTrackRow?)?.onTap;
+            if (onTap != null && index > lastIndex) {
+              lastIndex = index;
+              callback = onTap;
+            }
+          }
+          element.visitChildElements(visit);
+        }
+
+        visit(child);
+      });
     } else if (action == 'toggleFirstRadioStation') {
       // The card's own tap callback plays the station, or stops it when it
       // is already playing.
@@ -703,8 +743,10 @@ class DiagnosticsPresentationController {
             );
       callback = (button?.widget as IconButton?)?.onPressed;
     }
-    if (callback == null) throw const DiagnosticsPresentationUnavailable();
-    callback();
+    // A local copy: the row search assigns [callback] from a closure.
+    final resolved = callback;
+    if (resolved == null) throw const DiagnosticsPresentationUnavailable();
+    resolved();
     await waitForFrame();
   }
 
