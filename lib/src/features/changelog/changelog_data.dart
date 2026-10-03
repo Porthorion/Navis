@@ -127,6 +127,7 @@ enum ChangelogHighlightIcon {
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.4.2',
+    released: '2026-10-03',
     entries: [
       ChangelogEntry(
         'Seeking while a song loads keeps your latest position and preserves Play or Pause; stalled seeks recover without losing the queue',
