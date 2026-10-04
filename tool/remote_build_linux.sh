@@ -18,7 +18,7 @@ Options:
                            Optional local mode-600 JSON of the masked Last.fm
                            key defines (see tool/lib/lastfm_key_defines.sh).
                            Sent over ssh stdin into a mode-600 remote file that
-                           is deleted when the build ends; never put on argv.
+                           is deleted when the build ends; not put on argv.
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-linux-build)
   --repo-root=<path>       Local repo root (default: script/..)

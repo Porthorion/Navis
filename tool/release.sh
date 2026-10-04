@@ -336,7 +336,7 @@ fi
 DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 
 # The Last.fm key is bundled masked (key XOR a per-build random pad) through a
-# private defines file, never on a command line. This deters casual extraction;
+# private defines file, not on the script's own command lines. This deters casual extraction;
 # it is not secrecy. See docs/release-secrets.md.
 SECRET_TMP_DIR=""
 LASTFM_DEFINES_FILE=""

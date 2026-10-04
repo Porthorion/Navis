@@ -88,6 +88,104 @@ mkdir -p "${tmp}/bundle/data"
 cp "${tmp}/leaky.apk" "${tmp}/bundle/data/asset.apk"
 expect_status 1 "${tmp}/bundle" "directory carrying a leaky archive"
 
+# 4b. Compressed tarballs other than gzip, and debs read without dpkg-deb
+# (the `ar x` path used on hosts such as macOS, whose data.tar.* is xz/zstd).
+python3 - "${tmp}" "${FAKE_KEY}" <<'PY'
+import io, lzma, sys, tarfile
+tmp, key = sys.argv[1], sys.argv[2]
+
+def tar_bytes(payload, mode):
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode=mode) as t:
+        info = tarfile.TarInfo("opt/navis/libapp.so")
+        info.size = len(payload)
+        t.addfile(info, io.BytesIO(payload))
+    return buf.getvalue()
+
+leaky = (b"padding " * 400) + key.encode() + (b" padding" * 400)
+clean = b"padding " * 800
+
+def ar(path, members):
+    out = bytearray(b"!<arch>\n")
+    for name, data in members:
+        out += b"%-16s%-12d%-6d%-6d%-8s%-10d`\n" % (name.encode(), 0, 0, 0, b"100644", len(data))
+        out += data
+        if len(data) % 2:
+            out += b"\n"
+    open(path, "wb").write(bytes(out))
+
+for label, payload in (("leaky", leaky), ("clean", clean)):
+    xz = lzma.compress(tar_bytes(payload, "w"))
+    open(f"{tmp}/{label}.tar.xz", "wb").write(xz)
+    ar(f"{tmp}/{label}.deb", [
+        ("debian-binary", b"2.0\n"),
+        ("control.tar.xz", lzma.compress(tar_bytes(b"Package: navis\n", "w"))),
+        ("data.tar.xz", xz),
+    ])
+open(f"{tmp}/leaky.tar.bz2", "wb").write(
+    __import__("bz2").compress(tar_bytes(leaky, "w")))
+PY
+expect_status 1 "${tmp}/leaky.tar.xz" "tar.xz with the secret"
+expect_status 0 "${tmp}/clean.tar.xz" "clean tar.xz"
+expect_status 1 "${tmp}/leaky.tar.bz2" "tar.bz2 with the secret"
+if command -v zstd >/dev/null 2>&1; then
+  python3 - "${tmp}" <<'PY'
+import subprocess, sys
+tmp = sys.argv[1]
+subprocess.run(["tar", "--zstd", "-cf", tmp + "/leaky.tar.zst", "-C", tmp + "/src", "lib"], check=True)
+PY
+  expect_status 1 "${tmp}/leaky.tar.zst" "tar.zst with the secret"
+fi
+
+# A PATH holding only what the scanner needs, with no dpkg-deb, forces the
+# `ar x` fallback; a second one without xz proves an unreadable data.tar.xz
+# fails the scan instead of passing it.
+make_shim() {
+  local dir="$1" tool path
+  shift
+  mkdir -p "${dir}"
+  for tool in "$@"; do
+    path="$(command -v "${tool}" 2>/dev/null || true)"
+    [[ -n "${path}" ]] && ln -sf "${path}" "${dir}/${tool}"
+  done
+}
+shim_tools="grep tar unzip ar find mktemp tr basename dirname rm cat gzip bzip2 zstd xz"
+make_shim "${tmp}/shim-with-xz" ${shim_tools}
+make_shim "${tmp}/shim-no-xz" ${shim_tools/ xz/}
+[[ ! -e "${tmp}/shim-with-xz/dpkg-deb" ]] || fail "shim must not provide dpkg-deb"
+
+# expect_status_on_path <path> <want> <artifact> <description>
+expect_status_on_path() {
+  local scan_path="$1" want="$2" artifact="$3" what="$4" got=0
+  (
+    PATH="${scan_path}"
+    scan_artifact_for_secret "${artifact}" "${FAKE_KEY}"
+  ) >"${out}" 2>&1 || got=$?
+  [[ "${got}" -eq "${want}" ]] || fail "${what}: wanted status ${want}, got ${got}"
+  if grep -qF -- "${FAKE_KEY}" "${out}"; then
+    fail "${what}: scanner output leaked the secret"
+  fi
+}
+expect_status_on_path "${tmp}/shim-with-xz" 1 "${tmp}/leaky.deb" "deb (ar path) with the secret"
+expect_status_on_path "${tmp}/shim-with-xz" 0 "${tmp}/clean.deb" "clean deb (ar path)"
+expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.deb" "deb (ar path) without xz"
+expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.tar.xz" "tar.xz without xz"
+expect_status 1 "${tmp}/leaky.deb" "deb with the secret"
+
+# Nesting deeper than the cap is unscannable, not clean.
+python3 - "${tmp}" <<'PY'
+import io, sys, zipfile
+tmp = sys.argv[1]
+data = b"nothing here"
+for _ in range(6):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("inner.zip" if _ else "leaf.txt", data)
+    data = buf.getvalue()
+open(tmp + "/deep.zip", "wb").write(data)
+PY
+expect_status 2 "${tmp}/deep.zip" "archive nested beyond the depth cap"
+
 # 5. A corrupt archive must not be reported clean.
 printf 'this is not a zip' >"${tmp}/corrupt.apk"
 expect_status 2 "${tmp}/corrupt.apk" "corrupt apk"

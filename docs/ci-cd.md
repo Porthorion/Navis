@@ -514,11 +514,14 @@ make release VERSION=v0.2.0
 
 After each artifact is built, `release.sh` searches it for the plaintext
 Last.fm key and fails the release before anything is tagged or uploaded if it
-appears. APK, AAB, IPA, macOS zip and Windows zip are unpacked, tarballs and
-`.deb` files are extracted, and nested archives are followed. A Windows Inno
+appears. APK, AAB, IPA, macOS zip and Windows zip are unpacked; tarballs
+(gzip, xz, zstd, bzip2) and `.deb` files (via `dpkg-deb`, or `ar` plus the
+compressed `data.tar.*` inside) are extracted; nested archives are followed up
+to four levels deep. A Windows Inno
 Setup `.exe` is compressed and can only be scanned as raw bytes, so a clean
-result for it is weaker evidence. An artifact that cannot be unpacked fails the
-scan rather than passing it.
+result for it is weaker evidence. An artifact that cannot be unpacked (a missing
+decompressor such as `xz` or `zstd`, a corrupt archive, or nesting beyond the
+depth cap) fails the scan rather than passing it.
 
 Use `--allow-existing-version` only when intentionally rebuilding a version
 that was already tagged, such as retrying failed artifact publication. Normal
@@ -569,8 +572,9 @@ do not pass it as `--dart-define=NAVIS_LASTFM_API_KEY=...`:
 - `tool/lib/lastfm_key_defines.sh` generates a fresh random pad per build and
   writes `NAVIS_LASTFM_API_KEY_MASKED` (key XOR pad) and
   `NAVIS_LASTFM_API_KEY_PAD` (both hex) to a mode-600 JSON file passed with
-  `--dart-define-from-file`, so neither value is on a command line. The file is
-  deleted when the script exits.
+  `--dart-define-from-file`, so neither value is on the scripts' own command
+  lines (Flutter may forward defines to its child processes, so this is hygiene,
+  not a guarantee). The file is deleted when the script exits.
 - `AppConstants.lastFmApiKey` XORs the pair back at runtime. A plain
   `NAVIS_LASTFM_API_KEY` define is still accepted when the pair is absent, so
   local `flutter run --dart-define=...` keeps working.

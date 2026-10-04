@@ -41,9 +41,9 @@ NAVIS_LASTFM_API_KEY="<lastfm-api-key>"
 Required for Android and Google Play builds; bundled in every target when set.
 Builds bundle it masked, not in plaintext: a fresh random pad per build, with
 `NAVIS_LASTFM_API_KEY_MASKED` (key XOR pad) and `NAVIS_LASTFM_API_KEY_PAD`
-handed to Flutter through a mode-600 `--dart-define-from-file` that is deleted
+handed to Flutter through a mode-600 `--dart-define-from-file` (so they are not on the scripts' own command lines; Flutter may forward them to its child processes) that is deleted
 when the script exits. Remote builders receive that file over ssh stdin (Linux)
-or scp (Windows), never on a command line, and delete it after the build.
+or scp (Windows), not on the scripts' own command lines, and delete it after the build.
 `tool/release.sh` and `tool/play_release.sh` then scan every artifact for the
 plaintext key and fail the release if it appears.
 

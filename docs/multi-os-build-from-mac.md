@@ -35,7 +35,7 @@ the repository root, and uploads them to the Forgejo release.
 Do not store secrets on the remote builders unless the platform build itself
 requires them. The host passes the release channel to the remote scripts as
 arguments. The masked Last.fm key defines travel as a private file (ssh stdin to
-the Linux builder, scp to the Windows builder), never on a command line, and the
+the Linux builder, scp to the Windows builder), not on the scripts' own command lines, and the
 builder deletes the file when the build ends; `tool/release.env` is excluded
 from the source archive.
 

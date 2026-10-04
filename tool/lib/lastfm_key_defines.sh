@@ -4,14 +4,15 @@
 # The bundled Last.fm API key is passed to `flutter` as two hex dart-defines,
 # NAVIS_LASTFM_API_KEY_MASKED (key XOR pad) and NAVIS_LASTFM_API_KEY_PAD (a
 # fresh random pad per build). lib/src/utils/constants.dart XORs them back at
-# runtime. This keeps the plaintext key out of the binary's string table and
-# out of `ps`, which deters casual extraction. It is NOT secrecy: the app must
-# hold the key to use it, and a Last.fm API key is a client identifier, not a
-# credential (no shared secret is used).
+# runtime. This keeps the plaintext key out of the binary's string table, which
+# deters casual extraction. It is NOT secrecy: the app must hold the key to use
+# it, and a Last.fm API key is a client identifier, not a credential (no shared
+# secret is used).
 #
 # The defines are written to a private (mode 600) JSON file and handed to
-# flutter with --dart-define-from-file, so neither the key nor the pad is ever
-# on a command line.
+# flutter with --dart-define-from-file, so neither the key nor the pad is on the
+# scripts' own command lines. (flutter_tools reads the file and may forward the
+# values to its child processes, so this is hygiene, not a guarantee.)
 #
 # Never echo, log or `set -x` around these functions: they handle the key.
 

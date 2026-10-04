@@ -18,7 +18,7 @@ Options:
                            Optional local mode-600 JSON of the masked Last.fm
                            key defines (see tool/lib/lastfm_key_defines.sh).
                            Copied with scp into the private remote work dir and
-                           deleted when the build ends; never put on argv.
+                           deleted when the build ends; not put on argv.
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-windows-build)
   --flutter-dir=<path>     Optional Flutter SDK directory on the Windows host
@@ -489,7 +489,7 @@ scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.p
 scp "${_sqlite3_dll_tmp}" "${SSH_TARGET}:${REMOTE_DIR}/${_sqlite3_dll_name}" >/dev/null
 
 # The masked Last.fm key defines go into the remote work dir (under the remote
-# user's profile, so private to that account) and are never on a command line.
+# user's profile, so private to that account) and are not on the scripts' own command lines.
 # The remote script deletes the file when the build ends; cleanup() covers a
 # dropped session.
 _remote_defines_name="lastfm-defines.json"

@@ -55,8 +55,8 @@ DART_DEFINE_ARGS=(
 export NAVIS_SELF_UPDATE=true
 
 # The Last.fm key is bundled masked (key XOR a per-run random pad) through a
-# private defines file that is deleted when this script exits, so it is never on
-# a command line. This deters casual extraction; it is not secrecy.
+# private defines file that is deleted when this script exits, so it is not on this
+# script's own command lines. This deters casual extraction; it is not secrecy.
 SECRET_TMP_DIR=""
 cleanup_secrets() {
   if [[ -n "${SECRET_TMP_DIR}" ]]; then

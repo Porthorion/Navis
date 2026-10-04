@@ -82,7 +82,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Masked (key XOR a per-build random pad) through a private defines file that is
-# deleted on exit, never on a command line. This deters casual extraction; it is
+# deleted on exit, not on the script's own command lines. This deters casual extraction; it is
 # not secrecy. See docs/release-secrets.md.
 mkdir -p "${ROOT}/build"
 SECRET_TMP_DIR="$(mktemp -d "${ROOT}/build/navis-secrets.XXXXXX")"
