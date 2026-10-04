@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 const int kLocalTrackMatcherSnapshotYieldChunkSize = 1500;
 const double kLocalTrackMatcherMinimumScore = 0.75;
@@ -94,6 +94,10 @@ class TrackMatchCandidate {
   final String normalizedTitle;
   final String normalizedArtist;
   final String normalizedAlbum;
+
+  /// The title with its edition qualifiers, in the
+  /// `normalizeMetadataKeepingEdition` form.
+  String get editionTitle => normalizeMetadataKeepingEdition(song.title);
 }
 
 class TrackMatchResult {
@@ -261,6 +265,7 @@ TrackMatchResult pickBestTrackMatch({
     ));
   }
 
+  _dropOtherEditions(scored, track: track, expectedTitle: expectedTitle);
   scored.sort((a, b) => b.score.compareTo(a.score));
   if (scored.isEmpty || scored.first.score < kLocalTrackMatcherMinimumScore) {
     return const TrackMatchResult.unmatched();
@@ -285,6 +290,33 @@ TrackMatchResult pickBestTrackMatch({
   return TrackMatchResult.matched(
     song: scored.first.candidate.song,
     tableSong: scored.first.candidate.tableSong,
+  );
+}
+
+/// Removes candidates that share the expected title's fuzzy key but are a
+/// different edition ("Wonder (Japanese Version)" for "Wonder") when a
+/// passing candidate is the same edition. A different edition is thus only
+/// matched as a last resort.
+void _dropOtherEditions(
+  List<({TrackMatchCandidate candidate, double score, double albumScore})>
+  scored, {
+  required TrackMatchQuery track,
+  required String expectedTitle,
+}) {
+  final expectedEdition = normalizeMetadataKeepingEdition(track.title);
+  bool sameTitle(TrackMatchCandidate candidate) =>
+      candidate.normalizedTitle == expectedTitle;
+  final hasSameEdition = scored.any(
+    (entry) =>
+        entry.score >= kLocalTrackMatcherMinimumScore &&
+        sameTitle(entry.candidate) &&
+        entry.candidate.editionTitle == expectedEdition,
+  );
+  if (!hasSameEdition) return;
+  scored.removeWhere(
+    (entry) =>
+        sameTitle(entry.candidate) &&
+        entry.candidate.editionTitle != expectedEdition,
   );
 }
 

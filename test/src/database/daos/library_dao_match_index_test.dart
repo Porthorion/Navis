@@ -333,4 +333,123 @@ void main() {
       }
     });
   });
+
+  group('non-Latin metadata', () {
+    setUp(() async {
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'oor', name: 'ワンオクロック'),
+        ArtistsTableCompanion.insert(id: 'oor-latin', name: 'ONE OK ROCK'),
+      ]);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          _album('jp-name', artistName: 'ワンオクロック'),
+          _album('full-width', artistName: 'ＯＮＥ　ＯＫ　ＲＯＣＫ'),
+        ]),
+      );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        _song('jp1', '残響リファレンス', artistName: 'ワンオクロック'),
+        _song('jp2', '完全感覚Dreamer', artistName: 'ワンオクロック'),
+        _song('beyonce', 'Halo', artistName: 'Beyoncé'),
+      ]);
+    });
+
+    test('Japanese titles and artists are track-match candidates', () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      const tracks = <({String title, String artist})>[
+        (title: '「残響リファレンス」', artist: 'ワンオクロック'),
+      ];
+      final candidates = await database.libraryDao.getTrackMatchCandidates(
+        tracks,
+      );
+      expect(
+        candidates.map((song) => song.id).toSet(),
+        containsAll(<String>['jp1', 'jp2']),
+      );
+      expect(candidates.map((song) => song.id), isNot(contains('beyonce')));
+      final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync(candidates);
+      const query = TrackMatchQuery(title: '「残響リファレンス」', artist: 'ワンオクロック');
+      expect(
+        pickBestTrackMatch(
+          track: query,
+          candidates: snapshot.candidatesFor(query),
+        ).song?.id,
+        'jp1',
+      );
+    });
+
+    test('keys written by an older normalizer are re-keyed', () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      // What a build with the ASCII-only normalizer stored: the plain source
+      // and keys with every non-ASCII letter stripped.
+      await database.customStatement(
+        'UPDATE song_search_text SET source = (SELECT songs.title || char(31) '
+        "|| ifnull(songs.artist_name, '') || char(31) "
+        "|| ifnull(songs.album_name, '') FROM songs "
+        'WHERE songs.id = song_search_text.song_id), '
+        "match_title = '', match_artist = '' "
+        "WHERE song_id IN ('jp1', 'beyonce')",
+      );
+      expect(await database.libraryDao.refreshSongSearchIndex(), 2);
+      final rows = await database
+          .customSelect(
+            'SELECT song_id, match_title, match_artist FROM song_search_text '
+            "WHERE song_id IN ('jp1', 'beyonce') ORDER BY song_id",
+          )
+          .get();
+      expect(
+        rows.map(
+          (row) => (
+            row.read<String>('match_title'),
+            row.read<String>('match_artist'),
+          ),
+        ),
+        <(String, String)>[('halo', 'beyonce'), ('残響リファレンス', 'ワンオクロック')],
+      );
+    });
+
+    test('a Japanese name-only album is on its artist page, even from an '
+        'index written by an older normalizer', () async {
+      Future<Set<String>> primary(String artistId) async =>
+          (await database.libraryDao.watchArtistAlbumBuckets(artistId).first)
+              .primaryAlbums
+              .map((album) => album.id)
+              .toSet();
+
+      expect(await primary('oor'), contains('jp-name'));
+      expect(await primary('oor-latin'), contains('full-width'));
+      await expectBucketsMatchFullScan('oor');
+
+      // What a build with the ASCII-only normalizer stored: the plain source
+      // and no name key for a Japanese album artist.
+      await database.customStatement(
+        "UPDATE album_artist_index SET artist_keys = '', source = "
+        "(SELECT ifnull(a.artist_id, '') || char(31) "
+        "|| ifnull(a.artist_name, '') || char(31) || a.artists "
+        'FROM albums a WHERE a.id = album_artist_index.album_id) '
+        "WHERE album_id = 'jp-name'",
+      );
+      expect(await primary('oor'), contains('jp-name'));
+    });
+
+    test('an exact lookup prefers the same language version', () async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        _song('wonder', 'Wonder', artistName: 'ONE OK ROCK'),
+        _song(
+          'wonder-jp',
+          'Wonder (Japanese Version)',
+          artistName: 'ONE OK ROCK',
+        ),
+      ]);
+      Future<String?> lookup(String title) async =>
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            title,
+            artistName: 'ONE OK ROCK',
+          ))?.id;
+
+      expect(await lookup('Wonder (Japanese Version)'), 'wonder-jp');
+      expect(await lookup('Wonder'), 'wonder');
+      // Neither is the English version, so the lookup stays ambiguous.
+      expect(await lookup('Wonder (English Version)'), isNull);
+    });
+  });
 }

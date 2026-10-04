@@ -155,6 +155,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Japanese and other non-Latin titles now match correctly (top songs, ListenBrainz playlists, mixes), and language versions are no longer mixed up',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Android, skipping songs on a slow connection no longer leaves the previous songs downloading in the background and stalls the new one',
         type: ChangelogEntryType.improvement,
       ),

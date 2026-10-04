@@ -29,8 +29,7 @@ import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart'
-    show normalizeMetadata;
+import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -393,9 +392,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<int>? _albumArtistIndexRefresh;
 
+  // The trailing key version makes rows keyed by an older normalizer stale.
   static const String _albumArtistSourceSql =
       "ifnull(a.artist_id, '') || char(31) || ifnull(a.artist_name, '') "
-      '|| char(31) || a.artists';
+      "|| char(31) || a.artists || char(31) || '$metadataKeyVersion'";
 
   /// Writes every missing or stale `album_artist_index` row. Single-flight;
   /// concurrent callers share one refresh. Returns the rows written.
@@ -2456,11 +2456,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           })
           .toList(growable: false);
       if (contextMatches.isNotEmpty) {
-        return contextMatches.length == 1 ? contextMatches.single : null;
+        return _singleOrSameEdition(
+          contextMatches,
+          albumName,
+          (album) => album.name,
+        );
       }
     }
 
-    return exactAlbums.length == 1 ? exactAlbums.single : null;
+    return _singleOrSameEdition(exactAlbums, albumName, (album) => album.name);
   }
 
   Future<List<AlbumsTableData>> getLikedAlbums() {
@@ -2592,10 +2596,28 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (matches.isEmpty) {
         continue;
       }
-      return matches.length == 1 ? matches.single : null;
+      return _singleOrSameEdition(matches, title, (song) => song.title);
     }
 
-    return exactSongs.length == 1 ? exactSongs.single : null;
+    return _singleOrSameEdition(exactSongs, title, (song) => song.title);
+  }
+
+  /// The only entry of [matches], which share [name]'s normalized key, or
+  /// else the only one that is also the same edition as [name] ("Wonder
+  /// (Japanese Version)" rather than "Wonder"). Null when still ambiguous.
+  static T? _singleOrSameEdition<T>(
+    List<T> matches,
+    String name,
+    String Function(T) nameOf,
+  ) {
+    if (matches.length == 1) return matches.single;
+    final edition = normalizeMetadataKeepingEdition(name);
+    final sameEdition = matches
+        .where(
+          (match) => normalizeMetadataKeepingEdition(nameOf(match)) == edition,
+        )
+        .toList(growable: false);
+    return sameEdition.length == 1 ? sameEdition.single : null;
   }
 
   /// Return a map of albumId → set of songIds for the given album IDs.
@@ -3668,15 +3690,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  // The trailing key version makes rows keyed by an older normalizer stale.
   static const String _songSearchSourceSql =
       "songs.title || char(31) || ifnull(songs.artist_name, '') || char(31) "
-      "|| ifnull(songs.album_name, '')";
+      "|| ifnull(songs.album_name, '') || char(31) || '$metadataKeyVersion'";
 
   static String _songSearchSource(
     String title,
     String? artistName,
     String? albumName,
-  ) => '$title\u001f${artistName ?? ''}\u001f${albumName ?? ''}';
+  ) =>
+      '$title\u001f${artistName ?? ''}\u001f${albumName ?? ''}'
+      '\u001f$metadataKeyVersion';
 
   int? _songSearchScore(String searchText, String query, List<String> tokens) {
     final fields = searchText.split(songSearchFieldSeparator);
@@ -4218,7 +4243,7 @@ SongSearchIndexEntry songSearchIndexEntry(
   final (id, title, artistName, albumName) = song;
   return (
     songId: id,
-    source: '$title\u001f${artistName ?? ''}\u001f${albumName ?? ''}',
+    source: LibraryDao._songSearchSource(title, artistName, albumName),
     searchText: buildSongSearchText(
       title: title,
       artistName: artistName,
@@ -4261,7 +4286,9 @@ AlbumArtistIndexEntry albumArtistIndexEntry(
   }
   return (
     albumId: id,
-    source: '${artistId ?? ''}\u001f${artistName ?? ''}\u001f$artistsJson',
+    source:
+        '${artistId ?? ''}\u001f${artistName ?? ''}\u001f$artistsJson'
+        '\u001f$metadataKeyVersion',
     artistKeys: keys.isEmpty ? '' : '\u001f${keys.join('\u001f')}\u001f',
   );
 }

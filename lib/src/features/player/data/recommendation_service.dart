@@ -13,6 +13,7 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 enum RecommendationSource { server, instantMix, lastFm, localTaste, shuffle }
 
@@ -413,9 +414,12 @@ class RecommendationService {
     }
   }
 
+  /// One recording's artist and title, ignoring case, spacing, punctuation,
+  /// diacritics, width and featured credits but keeping edition qualifiers
+  /// such as "(Japanese Version)". Letters of every script count.
   static String _identity(String artist, String title) =>
-      '${artist.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '')}:'
-      '${title.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '')}';
+      '${normalizeMetadataKeepingEdition(artist).replaceAll(' ', '')}:'
+      '${normalizeMetadataKeepingEdition(title).replaceAll(' ', '')}';
 
   static String _recordingRow(SongsTableData song) {
     final mbid = song.recordingMbid?.trim().toLowerCase();

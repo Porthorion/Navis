@@ -86,6 +86,22 @@ void main() {
     expect(batch, hasLength(3));
   });
 
+  test('songs with non-Latin titles are different recordings', () {
+    final batch = composeRadioBatch(
+      related: const <Song>[
+        Song(id: 'arashi', title: '花', artist: '嵐'),
+        Song(id: 'oor', title: '残響リファレンス', artist: 'ワンオクロック'),
+        Song(id: 'bts', title: '봄날', artist: '방탄소년단'),
+        Song(id: 'oor-again', title: '「残響リファレンス」', artist: 'ワンオクロック'),
+      ],
+      familiar: const <Song>[],
+      shuffle: const <Song>[],
+      excludedIds: const <String>{},
+    );
+
+    expect(batch.map((song) => song.id), <String>['arashi', 'oor', 'bts']);
+  });
+
   test(
     'server mix calls generic similarity first and accepts an empty result',
     () async {

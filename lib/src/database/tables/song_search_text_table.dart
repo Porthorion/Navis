@@ -4,7 +4,8 @@ import 'package:drift/drift.dart';
 ///
 /// Rows are derived data and are maintained lazily: a row is current only
 /// while [source] equals the song's raw title, artist, and album joined by
-/// U+001F. Any songs write path can therefore change metadata without knowing
+/// U+001F, followed by the `metadataKeyVersion` its match keys were built
+/// with. Any songs write path can therefore change metadata without knowing
 /// about this table; searches treat mismatched or missing rows as stale,
 /// normalize them in Dart, and store the result.
 class SongSearchTextTable extends Table {

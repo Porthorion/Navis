@@ -1,5 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:navis/src/utils/metadata_normalization.dart';
+
+// Re-exported so importers of the lyrics matcher keep the shared normalizer.
+export 'package:navis/src/utils/metadata_normalization.dart'
+    show normalizeMetadata;
+
 class LrclibMatchCandidate {
   const new({
     required this.artist,
@@ -15,24 +21,16 @@ class LrclibMatchCandidate {
 }
 
 class LrclibMatchScore {
-  const new({required this.value});
+  const new({required this.value, this.sameEdition = false});
 
   final double value;
 
+  /// Whether the titles also agree on edition qualifiers such as
+  /// "(Japanese Version)", which [value] ignores. Callers prefer such a
+  /// result over a different version of the same song.
+  final bool sameEdition;
+
   bool passes([double threshold = 0.7]) => value >= threshold;
-}
-
-final _parenthesesRegex = RegExp(r'\([^)]*\)');
-final _featRegex = RegExp(r'\b(feat\.?|ft\.?)\b.*$');
-final _punctRegex = RegExp(r'[^a-z0-9\s]');
-final _whitespaceRegex = RegExp(r'\s+');
-
-String normalizeMetadata(String value) {
-  final lower = value.toLowerCase().trim();
-  final withoutParen = lower.replaceAll(_parenthesesRegex, ' ');
-  final withoutFeat = withoutParen.replaceAll(_featRegex, ' ');
-  final withoutPunct = withoutFeat.replaceAll(_punctRegex, ' ');
-  return withoutPunct.replaceAll(_whitespaceRegex, ' ').trim();
 }
 
 LrclibMatchScore scoreCandidate({
@@ -67,5 +65,10 @@ LrclibMatchScore scoreCandidate({
     score += 0.1;
   }
 
-  return LrclibMatchScore(value: math.max(0, math.min(1, score)));
+  return LrclibMatchScore(
+    value: math.max(0, math.min(1, score)),
+    sameEdition:
+        normalizeMetadataKeepingEdition(expected.title) ==
+        normalizeMetadataKeepingEdition(candidate.title),
+  );
 }

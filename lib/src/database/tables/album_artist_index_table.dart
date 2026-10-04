@@ -5,7 +5,8 @@ import 'package:drift/drift.dart';
 ///
 /// Rows are derived data maintained lazily, like `song_search_text`: a row is
 /// current only while [source] equals the album's raw artist id, artist name,
-/// and artist credits joined by U+001F. Readers repair stale or missing rows
+/// and artist credits joined by U+001F, followed by the `metadataKeyVersion`
+/// its name keys were built with. Readers repair stale or missing rows
 /// before querying, so album write paths need not know about this table.
 class AlbumArtistIndexTable extends Table {
   @override

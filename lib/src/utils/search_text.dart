@@ -6,8 +6,17 @@
 /// are kept, so Arabic, CJK, and accented titles remain searchable.
 String normalizeSearchText(String value) {
   if (value.isEmpty) return '';
+  return foldSearchLetters(value.toLowerCase())
+      .replaceAll(_separators, ' ')
+      .trim();
+}
+
+/// Folds common Latin diacritics (é → e, ß → ss) and Arabic letter variants
+/// in lowercased [value], and removes combining marks and the Arabic tatweel.
+/// Every other character is kept.
+String foldSearchLetters(String value) {
   final buffer = StringBuffer();
-  for (final rune in value.toLowerCase().runes) {
+  for (final rune in value.runes) {
     final folded = _foldedRunes[rune];
     if (folded != null) {
       buffer.write(folded);
@@ -15,11 +24,7 @@ String normalizeSearchText(String value) {
       buffer.writeCharCode(rune);
     }
   }
-  return buffer
-      .toString()
-      .replaceAll(_removedMarks, '')
-      .replaceAll(_separators, ' ')
-      .trim();
+  return buffer.toString().replaceAll(_removedMarks, '');
 }
 
 /// Separator between the normalized title, artist, and album stored in the

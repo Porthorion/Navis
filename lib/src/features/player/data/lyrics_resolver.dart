@@ -164,6 +164,7 @@ class LyricsResolver {
 
     LrclibLyrics? best;
     var bestScore = 0.0;
+    var bestSameEdition = false;
 
     final candidates = await _lrclibClient.searchLyrics(
       artist: metadata.artist,
@@ -171,9 +172,17 @@ class LyricsResolver {
     );
     for (final candidate in candidates) {
       final score = _scoreLrclibResult(expected, candidate);
-      if (score > bestScore && score >= 0.7) {
+      if (score.value < 0.7) continue;
+      // A different version of the song (another language, acoustic, ...)
+      // has other lyrics, so it is only used when no same-version result
+      // passes.
+      final better = score.sameEdition == bestSameEdition
+          ? score.value > bestScore
+          : score.sameEdition;
+      if (better) {
         best = candidate;
-        bestScore = score;
+        bestScore = score.value;
+        bestSameEdition = score.sameEdition;
       }
     }
     if (best != null) {
@@ -190,10 +199,10 @@ class LyricsResolver {
       return null;
     }
     final score = _scoreLrclibResult(expected, direct);
-    return score >= 0.7 ? direct : null;
+    return score.value >= 0.7 ? direct : null;
   }
 
-  double _scoreLrclibResult(
+  LrclibMatchScore _scoreLrclibResult(
     LrclibMatchCandidate expected,
     LrclibLyrics lyrics,
   ) {
@@ -205,7 +214,7 @@ class LyricsResolver {
         album: lyrics.albumName,
         durationSeconds: lyrics.duration,
       ),
-    ).value;
+    );
   }
 
   Future<LyricsResolution?> _resolveWithServer({

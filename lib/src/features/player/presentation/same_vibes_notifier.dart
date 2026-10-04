@@ -7,7 +7,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -956,6 +956,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     var bestScore = 0.0;
     var bestAlbumRank = -1;
     var bestAvailabilityRank = -1;
+    var bestSameEdition = false;
+    final expectedEdition = normalizeMetadataKeepingEdition(
+      recommendation.title,
+    );
 
     for (final candidate in songs) {
       final id = candidate.id.trim();
@@ -974,18 +978,24 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         candidate: candidate,
         albumSongCounts: albumSongCounts,
       );
+      final sameEdition =
+          normalizeMetadataKeepingEdition(candidate.title) == expectedEdition;
       final nearTie = (score - bestScore).abs() <= _kAvailabilityTieWindow;
-      final shouldReplace =
-          score > bestScore ||
-          (nearTie &&
-              (albumRank > bestAlbumRank ||
-                  (albumRank == bestAlbumRank &&
-                      availabilityRank > bestAvailabilityRank)));
+      // Among equally good matches the recommended version ("Wonder
+      // (Japanese Version)" rather than "Wonder") wins first.
+      final shouldReplace = nearTie && sameEdition != bestSameEdition
+          ? sameEdition
+          : score > bestScore ||
+                (nearTie &&
+                    (albumRank > bestAlbumRank ||
+                        (albumRank == bestAlbumRank &&
+                            availabilityRank > bestAvailabilityRank)));
       if (shouldReplace) {
         best = candidate;
         bestScore = score;
         bestAlbumRank = albumRank;
         bestAvailabilityRank = availabilityRank;
+        bestSameEdition = sameEdition;
       }
     }
 
