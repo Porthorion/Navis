@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -59,27 +56,6 @@ class LastFmArtistTopTrack {
 
   bool get isUsable =>
       rank > 0 && title.trim().isNotEmpty && artist.trim().isNotEmpty;
-}
-
-class LastFmAuthSession {
-  const new({required this.name, required this.key});
-
-  final String name;
-  final String key;
-}
-
-class LastFmApiException implements Exception {
-  const new(this.code, this.message);
-
-  final int? code;
-  final String message;
-
-  @override
-  String toString() => 'LastFmApiException($code)';
-}
-
-class LastFmInvalidSessionException extends LastFmApiException {
-  const new() : super(9, 'Invalid session key');
 }
 
 class LastFmApiKeyValidationResult {
@@ -175,137 +151,6 @@ class LastFmApiClient {
         message: 'Last.fm returned an unreadable response.',
       );
     }
-  }
-
-  Future<String> getAuthToken({required String sharedSecret}) async {
-    final response = await _signedPost(
-      <String, String>{'method': 'auth.getToken'},
-      sharedSecret: sharedSecret,
-      sessionKey: null,
-    );
-    return _asMap(response.data)['token']?.toString() ?? '';
-  }
-
-  Uri authorizationUrl(String token) {
-    return Uri.https('www.last.fm', '/api/auth/', <String, String>{
-      'api_key': _apiKey,
-      'token': token,
-    });
-  }
-
-  Future<LastFmAuthSession> getSession({
-    required String token,
-    required String sharedSecret,
-  }) async {
-    final response = await _signedPost(
-      <String, String>{'method': 'auth.getSession', 'token': token},
-      sharedSecret: sharedSecret,
-      sessionKey: null,
-    );
-    final session = _asMap(_asMap(response.data)['session']);
-    final name = session['name']?.toString() ?? '';
-    final key = session['key']?.toString() ?? '';
-    if (key.isEmpty) {
-      throw const LastFmApiException(null, 'Last.fm session key missing');
-    }
-    return LastFmAuthSession(name: name, key: key);
-  }
-
-  Future<void> updateNowPlaying({
-    required String artist,
-    required String track,
-    required String sessionKey,
-    required String sharedSecret,
-    String? album,
-    int? duration,
-  }) async {
-    await _signedPost(
-      <String, String>{
-        'method': 'track.updateNowPlaying',
-        'artist': artist,
-        'track': track,
-        if (album != null && album.trim().isNotEmpty) 'album': album.trim(),
-        if (duration != null && duration > 0) 'duration': '$duration',
-      },
-      sharedSecret: sharedSecret,
-      sessionKey: sessionKey,
-    );
-  }
-
-  Future<void> scrobble({
-    required String artist,
-    required String track,
-    required DateTime timestamp,
-    required String sessionKey,
-    required String sharedSecret,
-    String? album,
-    int? duration,
-  }) async {
-    await _signedPost(
-      <String, String>{
-        'method': 'track.scrobble',
-        'artist': artist,
-        'track': track,
-        'timestamp': '${timestamp.toUtc().millisecondsSinceEpoch ~/ 1000}',
-        if (album != null && album.trim().isNotEmpty) 'album': album.trim(),
-        if (duration != null && duration > 0) 'duration': '$duration',
-      },
-      sharedSecret: sharedSecret,
-      sessionKey: sessionKey,
-    );
-  }
-
-  Future<Response<Map<String, dynamic>>> _signedPost(
-    Map<String, String> parameters, {
-    required String sharedSecret,
-    required String? sessionKey,
-  }) async {
-    final normalized = <String, String>{...parameters, 'api_key': _apiKey};
-    if (sessionKey != null) {
-      normalized['sk'] = sessionKey;
-    }
-    normalized['api_sig'] = buildApiSignature(normalized, sharedSecret);
-    normalized['format'] = 'json';
-    final response = await _dio.post<Map<String, dynamic>>(
-      '',
-      data: normalized,
-    );
-    final data = response.data;
-    if (data != null && data['error'] != null) {
-      final code = switch (data['error']) {
-        final int value => value,
-        final num value => value.toInt(),
-        final String value => int.tryParse(value),
-        _ => null,
-      };
-      if (code == 9) {
-        throw const LastFmInvalidSessionException();
-      }
-      throw LastFmApiException(
-        code,
-        data['message']?.toString() ?? 'Last.fm API error',
-      );
-    }
-    return response;
-  }
-
-  static String buildApiSignature(
-    Map<String, String> parameters,
-    String sharedSecret,
-  ) {
-    final keys =
-        parameters.keys
-            .where((key) => key != 'format' && key != 'callback')
-            .toList()
-          ..sort();
-    final buffer = StringBuffer();
-    for (final key in keys) {
-      buffer
-        ..write(key)
-        ..write(parameters[key]);
-    }
-    buffer.write(sharedSecret);
-    return md5.convert(utf8.encode(buffer.toString())).toString();
   }
 
   Future<List<LastFmTrackRecommendation>> getSimilarTracks({

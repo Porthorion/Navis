@@ -227,42 +227,6 @@ void main() {
   );
 
   group('Last.fm integration gates', () {
-    Future<_CountingLastFmApiClient> runSameVibes(
-      IntegrationPolicy policy,
-    ) async {
-      final database = createTestDatabase();
-      addTearDown(database.close);
-      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
-        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
-        SongsTableCompanion.insert(id: 'song-2', title: 'Two'),
-      ]);
-      final api = _MockSubsonicApiClient();
-      when(
-        () => api.getSimilarSongs2(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) async => <Song>[song('song-2', 'Artist')]);
-      final lastFm = _CountingLastFmApiClient();
-      final container = ProviderContainer(
-        overrides: withTestDatabase(
-          database,
-          overrides: [
-            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            subsonicApiProvider.overrideWithValue(api),
-            lastFmApiClientProvider.overrideWithValue(lastFm),
-            integrationPolicyProvider.overrideWithValue(policy),
-          ],
-        ),
-      );
-      addTearDown(container.dispose);
-      await container
-          .read(recommendationServiceProvider)
-          .sameVibes(song('song-1', 'Artist'));
-      return lastFm;
-    }
-
     Future<_CountingLastFmApiClient> runRadio(IntegrationPolicy policy) async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -295,30 +259,6 @@ void main() {
           .read(recommendationServiceProvider)
           .personalRadio(const RadioFilters(), excludedIds: const <String>{});
       return lastFm;
-    }
-
-    test('same vibes asks Last.fm while allowed', () async {
-      expect(
-        (await runSameVibes(const IntegrationPolicy(lastFmVerified: true)))
-            .similarTrackCalls,
-        1,
-      );
-    }, skip: !sqliteAvailable);
-
-    for (final entry in const <String, IntegrationPolicy>{
-      'the Same Vibes switch is off': IntegrationPolicy(
-        lastFmVerified: true,
-        disabledKeys: {'lastfm.sameVibes'},
-      ),
-      'the master switch is off': IntegrationPolicy(
-        lastFmVerified: true,
-        masterEnabled: false,
-      ),
-      'no key is verified': IntegrationPolicy(),
-    }.entries) {
-      test('same vibes never asks Last.fm when ${entry.key}', () async {
-        expect((await runSameVibes(entry.value)).similarTrackCalls, 0);
-      }, skip: !sqliteAvailable);
     }
 
     test('radio fill asks Last.fm while allowed', () async {

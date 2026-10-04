@@ -199,46 +199,6 @@ class RecommendationService {
     );
   }
 
-  Future<RecommendationBatch> sameVibes(
-    Song seed, {
-    int count = 5,
-    CancelToken? cancelToken,
-  }) async {
-    final eligible = await eligibleLibrary(const RadioFilters());
-    final matched = await _lastFmMatches(
-      seed,
-      eligible,
-      count: count,
-      feature: IntegrationFeature.lastFmSameVibes,
-    );
-    final collected = <Song>[...matched.songs];
-    if (collected.length < count &&
-        _ref.read(networkTypeProvider) != NetworkType.offline) {
-      final fallback = await serverMix(
-        seed.id,
-        count: count,
-        cancelToken: cancelToken,
-      );
-      _addEligible(
-        collected,
-        fallback.songs,
-        eligible.map((song) => song.id).toSet(),
-        seed.id,
-        count,
-      );
-      if (collected.isNotEmpty) {
-        return RecommendationBatch(
-          songs: collected,
-          source: matched.songs.isNotEmpty
-              ? RecommendationSource.lastFm
-              : fallback.source,
-        );
-      }
-      return fallback;
-    }
-    return matched;
-  }
-
   Future<RecommendationBatch> personalRadio(
     RadioFilters filters, {
     required Set<String> excludedIds,
@@ -335,7 +295,6 @@ class RecommendationService {
           _toSong(seed),
           pool,
           count: wantedRelated - related.length,
-          feature: IntegrationFeature.lastFmRadio,
         );
         _addEligible(
           related,
@@ -371,9 +330,10 @@ class RecommendationService {
     Song seed,
     List<SongsTableData> eligible, {
     required int count,
-    required IntegrationFeature feature,
   }) async {
-    if (!_ref.read(integrationPolicyProvider).allows(feature)) {
+    if (!_ref
+        .read(integrationPolicyProvider)
+        .allows(IntegrationFeature.lastFmRadio)) {
       // Turned off, or no key: the caller falls back to the server.
       return const RecommendationBatch(
         songs: <Song>[],

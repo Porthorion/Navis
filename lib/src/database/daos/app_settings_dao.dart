@@ -1111,22 +1111,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> updateLastFmScrobblingState({bool? enabled, bool? connected}) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        lastFmScrobblingEnabled: enabled == null
-            ? const Value.absent()
-            : Value(enabled),
-        lastFmSessionConnected: connected == null
-            ? const Value.absent()
-            : Value(connected),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
   Future<void> updateListenBrainzScrobblingState({
     bool? enabled,
     bool? tokenValid,
