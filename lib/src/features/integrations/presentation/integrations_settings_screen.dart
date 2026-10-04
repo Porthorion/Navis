@@ -449,15 +449,29 @@ class _IntegrationsSettingsScreenState
   Future<void> _clearListenBrainz() async {
     _listenBrainzTokenController.clear();
     setState(() => _listenBrainzError = null);
-    await ref
-        .read(externalScrobbleCredentialStoreProvider)
-        .clearListenBrainzToken();
-    await ref
-        .read(settingsRepositoryProvider)
-        .updateListenBrainzConnection(
-          tokenValid: false,
-          scrobblingEnabled: false,
-        );
+    try {
+      await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .clearListenBrainzToken();
+      await ref
+          .read(settingsRepositoryProvider)
+          .updateListenBrainzConnection(
+            tokenValid: false,
+            scrobblingEnabled: false,
+          );
+    } on Object catch (error, stackTrace) {
+      AppLogger.error(
+        'ListenBrainz token could not be cleared',
+        error,
+        stackTrace,
+      );
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(context)!.integrationsSaveError,
+        level: AppNoticeLevel.error,
+      );
+    }
   }
 
   Future<void> _openExternal(String url) async {
@@ -571,9 +585,10 @@ class _FeatureTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       // Locked by the master or service switch, a feature shows the choice
       // that returns when they are switched back on. Without a verified
-      // credential it cannot run at all, so it reads as off.
+      // credential it cannot run at all, so it reads as off whatever lock
+      // is shown, like its service switch.
       value:
-          lock != IntegrationLockReason.notVerified &&
+          policy.isVerified(feature.service) &&
           policy.isFeatureSwitchOn(feature),
       onChanged: lock == null ? onChanged : null,
       title: Text(copy.title),

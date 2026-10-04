@@ -1616,9 +1616,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationServerSection => 'Server';
 
   @override
-  String get configurationLastFmSection => 'Last.fm';
-
-  @override
   String get configurationLastFmApiKeyLabel => 'API Key';
 
   @override
@@ -1663,10 +1660,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get configurationListenBrainzTokenInvalid =>
       'Invalid ListenBrainz token.';
-
-  @override
-  String get configurationListenBrainzTokenValidated =>
-      'ListenBrainz token validated.';
 
   @override
   String get configurationListenBrainzUnavailable =>

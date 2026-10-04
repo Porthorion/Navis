@@ -192,8 +192,7 @@ void main() {
       'Sends an app version check to git.porthorion.com.',
       'Downloads headphone profiles from GitHub, only when you ask.',
       "Reads now-playing info from the station's server.",
-      'Loads images your server links from other sites, such as artist '
-          'photos.',
+      'Loads images your server links from other sites, such as artist photos.',
     ]) {
       await tester.scrollUntilVisible(
         find.text(line),
@@ -289,6 +288,49 @@ void main() {
     }
     for (final service in IntegrationService.values) {
       expect(h.serviceSwitch(service).onChanged, isNull, reason: service.key);
+    }
+  });
+
+  testWidgets('master off without a ListenBrainz token reads it as off', (
+    tester,
+  ) async {
+    final h = await _pump(
+      tester,
+      seed: (dao) => dao.setExternalIntegrationsEnabled(enabled: false),
+    );
+
+    expect(h.serviceSwitch(IntegrationService.listenBrainz).value, isFalse);
+    for (final feature in IntegrationFeature.forService(
+      IntegrationService.listenBrainz,
+    )) {
+      final tile = h.featureTile(feature);
+      expect(tile.value, isFalse, reason: feature.key);
+      expect(tile.onChanged, isNull, reason: feature.key);
+      // The master lock outranks the missing token in the reason.
+      expect((tile.subtitle! as Text).data, 'Online services are off.');
+    }
+    // Verified services still show the choice that comes back.
+    expect(h.featureTile(IntegrationFeature.lrclibLyrics).value, isTrue);
+  });
+
+  testWidgets('master off in a keyless build without a key reads Last.fm off', (
+    tester,
+  ) async {
+    final h = await _pump(
+      tester,
+      lastFmBundled: false,
+      lastFmApiKey: '',
+      seed: (dao) => dao.setExternalIntegrationsEnabled(enabled: false),
+    );
+
+    expect(h.serviceSwitch(IntegrationService.lastFm).value, isFalse);
+    for (final feature in IntegrationFeature.forService(
+      IntegrationService.lastFm,
+    )) {
+      final tile = h.featureTile(feature);
+      expect(tile.value, isFalse, reason: feature.key);
+      expect(tile.onChanged, isNull, reason: feature.key);
+      expect((tile.subtitle! as Text).data, 'Online services are off.');
     }
   });
 

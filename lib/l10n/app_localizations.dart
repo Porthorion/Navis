@@ -2508,12 +2508,6 @@ abstract class AppLocalizations {
   /// **'Server'**
   String get configurationServerSection;
 
-  /// No description provided for @configurationLastFmSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Last.fm'**
-  String get configurationLastFmSection;
-
   /// No description provided for @configurationLastFmApiKeyLabel.
   ///
   /// In en, this message translates to:
@@ -2597,12 +2591,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid ListenBrainz token.'**
   String get configurationListenBrainzTokenInvalid;
-
-  /// No description provided for @configurationListenBrainzTokenValidated.
-  ///
-  /// In en, this message translates to:
-  /// **'ListenBrainz token validated.'**
-  String get configurationListenBrainzTokenValidated;
 
   /// No description provided for @configurationListenBrainzUnavailable.
   ///
