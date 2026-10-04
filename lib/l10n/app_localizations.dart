@@ -523,7 +523,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsServerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Server connection, account, and external services.'**
+  /// **'Server connection and account.'**
   String get settingsServerSubtitle;
 
   /// No description provided for @settingsCacheTitle.
@@ -949,7 +949,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyAccountsBody.
   ///
   /// In en, this message translates to:
-  /// **'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.'**
+  /// **'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Your server password and ListenBrainz token are stored in the platform\'s secure credential store when available. A Last.fm API key you enter yourself is stored in the app database.'**
   String get privacyAccountsBody;
 
   /// No description provided for @privacyScrobblingTitle.
@@ -961,7 +961,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyScrobblingBody.
   ///
   /// In en, this message translates to:
-  /// **'If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.'**
+  /// **'With a validated ListenBrainz token, Navis sends listening activity for played tracks to ListenBrainz while Scrobbling is on. This can include track title, artist, album, duration, play time and now-playing status. While Likes is on, songs you like are sent as loved. Your ListenBrainz token stays on your device.'**
   String get privacyScrobblingBody;
 
   /// No description provided for @privacyDownloadsTitle.
@@ -991,7 +991,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacySummary.
   ///
   /// In en, this message translates to:
-  /// **'Navis does not operate a central account service for your music library. Data is exchanged with the servers and optional third-party services you configure.'**
+  /// **'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.'**
   String get privacySummary;
 
   /// No description provided for @syncSettingsTitle.
@@ -1560,18 +1560,6 @@ abstract class AppLocalizations {
   /// **'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.'**
   String get playbackSettingsScrobbleSubtitle;
 
-  /// No description provided for @playbackSettingsLrclibTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use LRCLIB Fallback'**
-  String get playbackSettingsLrclibTitle;
-
-  /// No description provided for @playbackSettingsLrclibSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'When server lyrics are unavailable, try LRCLIB and cache per song.'**
-  String get playbackSettingsLrclibSubtitle;
-
   /// No description provided for @playbackSettingsGaplessTitle.
   ///
   /// In en, this message translates to:
@@ -1583,36 +1571,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preload tracks to reduce gaps between songs.'**
   String get playbackSettingsGaplessSubtitle;
-
-  /// No description provided for @playbackSettingsLegacyInstantMixTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Server Mix'**
-  String get playbackSettingsLegacyInstantMixTitle;
-
-  /// No description provided for @playbackSettingsLegacyInstantMixSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use your server\'s song recommendations. Turn off for Last.fm · Same Vibes.'**
-  String get playbackSettingsLegacyInstantMixSubtitle;
-
-  /// No description provided for @playbackSettingsLastFmSameVibesTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Last.fm · Same Vibes'**
-  String get playbackSettingsLastFmSameVibesTitle;
-
-  /// No description provided for @playbackSettingsLastFmSameVibesSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Match Last.fm recommendations to your library. Turn on for Server Mix.'**
-  String get playbackSettingsLastFmSameVibesSubtitle;
-
-  /// No description provided for @playbackSettingsLegacyInstantMixLocked.
-  ///
-  /// In en, this message translates to:
-  /// **'This build has no Last.fm API key, so Server Mix is required.'**
-  String get playbackSettingsLegacyInstantMixLocked;
 
   /// No description provided for @playbackSettingsShowRadioPageTitle.
   ///
@@ -2550,12 +2508,6 @@ abstract class AppLocalizations {
   /// **'Server'**
   String get configurationServerSection;
 
-  /// No description provided for @configurationExternalServicesSection.
-  ///
-  /// In en, this message translates to:
-  /// **'External Services'**
-  String get configurationExternalServicesSection;
-
   /// No description provided for @configurationLastFmSection.
   ///
   /// In en, this message translates to:
@@ -2609,18 +2561,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not validate this Last.fm API key.'**
   String get configurationLastFmApiKeyValidationFailed;
-
-  /// No description provided for @configurationLastFmBundledNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'API key bundled with this build'**
-  String get configurationLastFmBundledNotice;
-
-  /// No description provided for @configurationLastFmBundledSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'This build includes a Last.fm API key. You do not need to provide your own.'**
-  String get configurationLastFmBundledSubtitle;
 
   /// No description provided for @configurationShowSecret.
   ///
@@ -2681,6 +2621,396 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Get Token'**
   String get configurationListenBrainzGetToken;
+
+  /// No description provided for @privacyOnlineServicesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Online Services'**
+  String get privacyOnlineServicesTitle;
+
+  /// No description provided for @privacyOnlineServicesBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
+  String get privacyOnlineServicesBody;
+
+  /// No description provided for @privacyOpenIntegrations.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Integrations'**
+  String get privacyOpenIntegrations;
+
+  /// No description provided for @integrationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Integrations'**
+  String get integrationsTitle;
+
+  /// No description provided for @integrationsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deezer, Last.fm, ListenBrainz and other online services.'**
+  String get integrationsSubtitle;
+
+  /// No description provided for @integrationsMasterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services'**
+  String get integrationsMasterTitle;
+
+  /// No description provided for @integrationsMasterSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: Navis only talks to your server.'**
+  String get integrationsMasterSubtitle;
+
+  /// No description provided for @integrationsServiceUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get integrationsServiceUpdates;
+
+  /// No description provided for @integrationsServiceRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet radio'**
+  String get integrationsServiceRadio;
+
+  /// No description provided for @integrationsServiceArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork'**
+  String get integrationsServiceArtwork;
+
+  /// No description provided for @integrationsServiceSwitchLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use {service}'**
+  String integrationsServiceSwitchLabel(String service);
+
+  /// No description provided for @integrationsDeezerSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends artist and track names to {host}.'**
+  String integrationsDeezerSends(String host);
+
+  /// No description provided for @integrationsLastFmSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends track and artist names to {host}.'**
+  String integrationsLastFmSends(String host);
+
+  /// No description provided for @integrationsListenBrainzSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends your listens and likes to {host}.'**
+  String integrationsListenBrainzSends(String host);
+
+  /// No description provided for @integrationsLrclibSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends track title, artist, album and duration to {host}.'**
+  String integrationsLrclibSends(String host);
+
+  /// No description provided for @integrationsUpdatesSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends an app version check to {host}.'**
+  String integrationsUpdatesSends(String host);
+
+  /// No description provided for @integrationsAutoEqSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads headphone profiles from GitHub, only when you ask.'**
+  String get integrationsAutoEqSends;
+
+  /// No description provided for @integrationsRadioSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Reads now-playing info from the station\'s server.'**
+  String get integrationsRadioSends;
+
+  /// No description provided for @integrationsArtworkSends.
+  ///
+  /// In en, this message translates to:
+  /// **'Loads images your server links from other sites, such as artist photos.'**
+  String get integrationsArtworkSends;
+
+  /// No description provided for @integrationsFeatureDeezerTopSongsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Top songs'**
+  String get integrationsFeatureDeezerTopSongsTitle;
+
+  /// No description provided for @integrationsFeatureDeezerTopSongsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular songs on artist pages.'**
+  String get integrationsFeatureDeezerTopSongsSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerArtistImagesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist photos'**
+  String get integrationsFeatureDeezerArtistImagesTitle;
+
+  /// No description provided for @integrationsFeatureDeezerArtistImagesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Header photo and fan count on artist pages.'**
+  String get integrationsFeatureDeezerArtistImagesSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerSimilarArtistsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fans also like'**
+  String get integrationsFeatureDeezerSimilarArtistsTitle;
+
+  /// No description provided for @integrationsFeatureDeezerSimilarArtistsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Related artists on artist pages.'**
+  String get integrationsFeatureDeezerSimilarArtistsSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerMissingAlbumsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing albums'**
+  String get integrationsFeatureDeezerMissingAlbumsTitle;
+
+  /// No description provided for @integrationsFeatureDeezerMissingAlbumsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'An artist\'s albums that aren\'t on your server.'**
+  String get integrationsFeatureDeezerMissingAlbumsSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerNewReleasesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New releases'**
+  String get integrationsFeatureDeezerNewReleasesTitle;
+
+  /// No description provided for @integrationsFeatureDeezerNewReleasesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New releases from your artists on Home.'**
+  String get integrationsFeatureDeezerNewReleasesSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerTrendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending'**
+  String get integrationsFeatureDeezerTrendingTitle;
+
+  /// No description provided for @integrationsFeatureDeezerTrendingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending songs in You Might Like.'**
+  String get integrationsFeatureDeezerTrendingSubtitle;
+
+  /// No description provided for @integrationsFeatureLastFmSameVibesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes mixes'**
+  String get integrationsFeatureLastFmSameVibesTitle;
+
+  /// No description provided for @integrationsFeatureLastFmSameVibesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server\'s mix.'**
+  String get integrationsFeatureLastFmSameVibesSubtitle;
+
+  /// No description provided for @integrationsFeatureLastFmRadioTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Radio'**
+  String get integrationsFeatureLastFmRadioTitle;
+
+  /// No description provided for @integrationsFeatureLastFmRadioSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds similar songs from Last.fm when your server\'s suggestions run short.'**
+  String get integrationsFeatureLastFmRadioSubtitle;
+
+  /// No description provided for @integrationsFeatureLastFmTopSongsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Top songs'**
+  String get integrationsFeatureLastFmTopSongsTitle;
+
+  /// No description provided for @integrationsFeatureLastFmTopSongsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular songs on artist pages when Deezer has none.'**
+  String get integrationsFeatureLastFmTopSongsSubtitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzScrobblingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrobbling'**
+  String get integrationsFeatureListenBrainzScrobblingTitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzScrobblingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends the songs you play.'**
+  String get integrationsFeatureListenBrainzScrobblingSubtitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzFeedbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get integrationsFeatureListenBrainzFeedbackTitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzFeedbackSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends the songs you like as loved.'**
+  String get integrationsFeatureListenBrainzFeedbackSubtitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzWeeklyPlaylistsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly playlists'**
+  String get integrationsFeatureListenBrainzWeeklyPlaylistsTitle;
+
+  /// No description provided for @integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your weekly ListenBrainz playlists on Home and in Library.'**
+  String get integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle;
+
+  /// No description provided for @integrationsFeatureLrclibLyricsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced lyrics'**
+  String get integrationsFeatureLrclibLyricsTitle;
+
+  /// No description provided for @integrationsFeatureLrclibLyricsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced lyrics from LRCLIB first, server lyrics as fallback.'**
+  String get integrationsFeatureLrclibLyricsSubtitle;
+
+  /// No description provided for @integrationsFeatureUpdatesAutomaticTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Check automatically'**
+  String get integrationsFeatureUpdatesAutomaticTitle;
+
+  /// No description provided for @integrationsFeatureUpdatesAutomaticSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks for a new version when Navis starts. Check now is in About.'**
+  String get integrationsFeatureUpdatesAutomaticSubtitle;
+
+  /// No description provided for @integrationsFeatureAutoEqCatalogueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Headphone profiles'**
+  String get integrationsFeatureAutoEqCatalogueTitle;
+
+  /// No description provided for @integrationsFeatureAutoEqCatalogueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh the catalogue and download profiles in the equalizer.'**
+  String get integrationsFeatureAutoEqCatalogueSubtitle;
+
+  /// No description provided for @integrationsFeatureRadioNowPlayingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Now playing'**
+  String get integrationsFeatureRadioNowPlayingTitle;
+
+  /// No description provided for @integrationsFeatureRadioNowPlayingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Song and artwork from the station while you listen.'**
+  String get integrationsFeatureRadioNowPlayingSubtitle;
+
+  /// No description provided for @integrationsFeatureArtworkServerLinkedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked images'**
+  String get integrationsFeatureArtworkServerLinkedTitle;
+
+  /// No description provided for @integrationsFeatureArtworkServerLinkedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist photos and other images hosted outside your server.'**
+  String get integrationsFeatureArtworkServerLinkedSubtitle;
+
+  /// No description provided for @integrationsLockedMasterOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services are off.'**
+  String get integrationsLockedMasterOff;
+
+  /// No description provided for @integrationsLockedServiceOff.
+  ///
+  /// In en, this message translates to:
+  /// **'{service} is off.'**
+  String integrationsLockedServiceOff(String service);
+
+  /// No description provided for @integrationsLockedNeedsLastFmKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs a verified Last.fm API key.'**
+  String get integrationsLockedNeedsLastFmKey;
+
+  /// No description provided for @integrationsLockedNeedsListenBrainzToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs a verified ListenBrainz token.'**
+  String get integrationsLockedNeedsListenBrainzToken;
+
+  /// No description provided for @integrationsLastFmKeyIncluded.
+  ///
+  /// In en, this message translates to:
+  /// **'Key included with this build'**
+  String get integrationsLastFmKeyIncluded;
+
+  /// No description provided for @integrationsSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save this change. Try again.'**
+  String get integrationsSaveError;
+
+  /// No description provided for @integrationsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load Integrations'**
+  String get integrationsLoadError;
+
+  /// No description provided for @listenBrainzConnectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz connected'**
+  String get listenBrainzConnectedTitle;
+
+  /// No description provided for @listenBrainzConnectedAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected as {account}.'**
+  String listenBrainzConnectedAs(String account);
+
+  /// No description provided for @listenBrainzConnectedNoAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your token is valid.'**
+  String get listenBrainzConnectedNoAccount;
+
+  /// No description provided for @listenBrainzUpdateToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get listenBrainzUpdateToken;
+
+  /// No description provided for @updateCheckOffInIntegrations.
+  ///
+  /// In en, this message translates to:
+  /// **'Update checks are off in Integrations.'**
+  String get updateCheckOffInIntegrations;
 
   /// No description provided for @commonQueued.
   ///
@@ -5552,7 +5882,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacySub.
   ///
   /// In en, this message translates to:
-  /// **'How Navis handles app data and optional service sharing.'**
+  /// **'How Navis handles your data and which online services it uses.'**
   String get privacySub;
 
   /// No description provided for @aboutCodename.
@@ -5884,18 +6214,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not open Google Play. Opening the release page instead.'**
   String get updatePlayStoreFallbackNotice;
-
-  /// No description provided for @updateAutoCheckTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically Check for Updates'**
-  String get updateAutoCheckTitle;
-
-  /// No description provided for @updateAutoCheckSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Check for new releases on each app launch.'**
-  String get updateAutoCheckSubtitle;
 
   /// No description provided for @updatesSettingsSectionLabel.
   ///

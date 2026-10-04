@@ -9,6 +9,7 @@ import 'package:navis/src/features/cache/presentation/library_cache_reset_provid
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/features/integrations/presentation/integrations_settings_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
@@ -390,6 +391,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
+                    path: AppRoutes.settingsIntegrationsSegment,
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: const IntegrationsSettingsScreen(),
+                    ),
+                  ),
+                  GoRoute(
                     path: AppRoutes.settingsUnavailableItemsSegment,
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
@@ -413,11 +422,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       child: const DownloadsScreen(),
                     ),
                   ),
-                  for (final retired in AppRoutes.retiredSettingsSegments)
+                  for (final retired
+                      in AppRoutes.retiredSettingsSegments.entries)
                     GoRoute(
-                      path: retired,
-                      redirect: (context, state) =>
-                          SettingsPage.server.location,
+                      path: retired.key,
+                      redirect: (context, state) => retired.value.location,
                     ),
                   GoRoute(
                     path: AppRoutes.settingsEqualizerSegment,

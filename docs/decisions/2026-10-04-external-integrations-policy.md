@@ -61,8 +61,8 @@ anything besides my server?" and no way to turn off one feature of a service.
   reads fresh settings).
 - Toggles are written only through `AppSettingsDao.setIntegrationEnabled`,
   `setExternalIntegrationsEnabled` and `updateIntegrationsNoticeDismissed`.
-- `legacyInstantMixLockedProvider` now means "the Same Vibes switch cannot be
-  changed" (master off, Last.fm off, or no key).
+  Settings › Integrations is the only screen that changes them; Playback and
+  About no longer hold copies of their switches.
 - `updateProvider` honours a manual "Check now" while automatic checks are off.
 - Clone diagnostics can read and change the policy through
   `GET/POST /v1/presentation/integrations`.

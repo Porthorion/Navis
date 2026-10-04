@@ -1,0 +1,778 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
+import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Settings › Integrations: which online services Navis may contact besides
+/// the user's server, per service and per feature.
+///
+/// Every switch writes at once through the targeted integration writers, so a
+/// choice made here can never be overwritten by another screen's full-row
+/// save. The page also owns the Last.fm key and ListenBrainz token setup,
+/// because their features stay locked until the credential is verified.
+class IntegrationsSettingsScreen extends ConsumerStatefulWidget {
+  const new({super.key});
+
+  @override
+  ConsumerState<IntegrationsSettingsScreen> createState() =>
+      _IntegrationsSettingsScreenState();
+}
+
+class _IntegrationsSettingsScreenState
+    extends ConsumerState<IntegrationsSettingsScreen> {
+  final _lastFmKeyController = TextEditingController();
+  final _listenBrainzTokenController = TextEditingController();
+  bool _hydrated = false;
+  bool _obscureLastFmKey = true;
+  bool _obscureListenBrainzToken = true;
+  bool _savingLastFmKey = false;
+  bool _listenBrainzBusy = false;
+  bool _lastFmKeySaved = false;
+  String? _lastFmKeyError;
+  String? _listenBrainzError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fill the credential fields once, outside build, from the first settings
+    // that arrive.
+    ref.listenManual<AsyncValue<AppSettingsModel>>(appSettingsProvider, (
+      _,
+      next,
+    ) {
+      final settings = next.asData?.value;
+      if (settings != null) unawaited(_hydrate(settings));
+    }, fireImmediately: true);
+  }
+
+  @override
+  void dispose() {
+    _lastFmKeyController.dispose();
+    _listenBrainzTokenController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _hydrate(AppSettingsModel settings) async {
+    if (_hydrated) return;
+    _hydrated = true;
+    _lastFmKeyController.text = settings.lastFmApiKey ?? '';
+    _lastFmKeySaved = (settings.lastFmApiKey ?? '').trim().isNotEmpty;
+    final token = await ref
+        .read(externalScrobbleCredentialStoreProvider)
+        .readListenBrainzToken();
+    if (!mounted) return;
+    setState(() => _listenBrainzTokenController.text = token ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
+              )
+            : null,
+        title: Text(l10n.integrationsTitle),
+      ),
+      body: settingsAsync.when(
+        data: (settings) => _buildContent(context, settings, desktopMode),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => ErrorState(
+          title: l10n.integrationsLoadError,
+          onRetry: () => ref.invalidate(appSettingsProvider),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    AppSettingsModel settings,
+    bool desktopMode,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    final policy = ref.watch(integrationPolicyProvider);
+    final horizontal = desktopMode ? NavisSpace.xl : NavisSpace.md;
+    // Matches About, which hides update controls where Navis cannot update
+    // itself.
+    final updatesAvailable =
+        !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1040),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            NavisSpace.xs,
+            horizontal,
+            NavisSpace.xxl,
+          ),
+          children: <Widget>[
+            SwitchListTile(
+              key: const ValueKey<String>('integrations-master'),
+              contentPadding: EdgeInsets.zero,
+              value: settings.externalIntegrationsEnabled,
+              onChanged: (value) => _write(
+                (repository) =>
+                    repository.setExternalIntegrationsEnabled(enabled: value),
+              ),
+              title: Text(l10n.integrationsMasterTitle),
+              subtitle: Text(l10n.integrationsMasterSubtitle),
+            ),
+            const Divider(height: NavisSpace.lg),
+            for (final service in IntegrationService.values)
+              if (service != IntegrationService.updates || updatesAvailable)
+                _ServiceSection(
+                  service: service,
+                  policy: policy,
+                  onServiceChanged: (value) => _write(
+                    (repository) => repository.setIntegrationEnabled(
+                      service.key,
+                      enabled: value,
+                    ),
+                  ),
+                  onFeatureChanged: (feature, {required enabled}) => _write(
+                    (repository) => repository.setIntegrationEnabled(
+                      feature.key,
+                      enabled: enabled,
+                    ),
+                  ),
+                  credential: switch (service) {
+                    IntegrationService.lastFm => _buildLastFmCredential(
+                      context,
+                      masterOn: policy.masterEnabled,
+                    ),
+                    IntegrationService.listenBrainz =>
+                      _buildListenBrainzCredential(
+                        context,
+                        settings,
+                        masterOn: policy.masterEnabled,
+                      ),
+                    _ => null,
+                  },
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLastFmCredential(
+    BuildContext context, {
+    required bool masterOn,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    if (ref.watch(lastFmBundledKeyProvider)) {
+      return Text(
+        l10n.integrationsLastFmKeyIncluded,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    final success = NavisTokens.of(context).success;
+    final savedText = _lastFmKeySaved
+        ? l10n.configurationLastFmApiKeySaved
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        TextField(
+          controller: _lastFmKeyController,
+          obscureText: _obscureLastFmKey,
+          decoration: InputDecoration(
+            labelText: l10n.configurationLastFmApiKeyLabel,
+            hintText: l10n.configurationLastFmApiKeyHint,
+            errorText: _lastFmKeyError,
+            helperText: _lastFmKeyError == null ? savedText : null,
+            helperStyle: TextStyle(color: success),
+            prefixIcon: const Icon(Icons.key_outlined),
+            suffixIcon: _SecretFieldActions(
+              controller: _lastFmKeyController,
+              obscured: _obscureLastFmKey,
+              onToggleObscured: () =>
+                  setState(() => _obscureLastFmKey = !_obscureLastFmKey),
+              onClear: _clearLastFmKey,
+            ),
+          ),
+        ),
+        const SizedBox(height: NavisSpace.sm),
+        Wrap(
+          spacing: NavisSpace.xs,
+          runSpacing: NavisSpace.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            FilledButton.tonal(
+              onPressed: _savingLastFmKey || !masterOn ? null : _saveLastFmKey,
+              child: _savingLastFmKey
+                  ? const _ButtonProgress()
+                  : Text(l10n.serverSettingsSave),
+            ),
+            TextButton.icon(
+              onPressed: () =>
+                  _openExternal('https://www.last.fm/api/accounts'),
+              icon: const Icon(Icons.open_in_new),
+              label: Text(l10n.configurationLastFmGetApiKey),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListenBrainzCredential(
+    BuildContext context,
+    AppSettingsModel settings, {
+    required bool masterOn,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final valid = settings.listenBrainzTokenValid;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        TextField(
+          controller: _listenBrainzTokenController,
+          obscureText: _obscureListenBrainzToken,
+          decoration: InputDecoration(
+            labelText: l10n.configurationListenBrainzTokenLabel,
+            // A working token is shown by the connection row below.
+            errorText: _listenBrainzError,
+            prefixIcon: const Icon(Icons.token_outlined),
+            suffixIcon: _SecretFieldActions(
+              controller: _listenBrainzTokenController,
+              obscured: _obscureListenBrainzToken,
+              onToggleObscured: () => setState(
+                () => _obscureListenBrainzToken = !_obscureListenBrainzToken,
+              ),
+              onClear: _clearListenBrainz,
+            ),
+          ),
+        ),
+        if (valid)
+          ListenBrainzConnectionStatus(
+            settings: settings,
+            enabled: !_listenBrainzBusy && masterOn,
+            onUpdate: _validateListenBrainz,
+          )
+        else
+          const SizedBox(height: NavisSpace.sm),
+        Wrap(
+          spacing: NavisSpace.xs,
+          runSpacing: NavisSpace.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            if (!valid)
+              FilledButton.tonal(
+                onPressed: _listenBrainzBusy || !masterOn
+                    ? null
+                    : _validateListenBrainz,
+                child: _listenBrainzBusy
+                    ? const _ButtonProgress()
+                    : Text(l10n.configurationListenBrainzValidateAndSave),
+              ),
+            TextButton.icon(
+              onPressed: () =>
+                  _openExternal('https://listenbrainz.org/settings/'),
+              icon: const Icon(Icons.open_in_new),
+              label: Text(l10n.configurationListenBrainzGetToken),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _write(
+    Future<void> Function(SettingsRepository repository) write,
+  ) async {
+    try {
+      await write(ref.read(settingsRepositoryProvider));
+    } on Object catch (error, stackTrace) {
+      AppLogger.error(
+        'Integration switch could not be saved',
+        error,
+        stackTrace,
+      );
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(context)!.integrationsSaveError,
+        level: AppNoticeLevel.error,
+      );
+    }
+  }
+
+  Future<void> _saveLastFmKey() async {
+    final l10n = AppLocalizations.of(context)!;
+    final key = _lastFmKeyController.text.trim();
+    setState(() => _savingLastFmKey = true);
+    try {
+      if (key.isNotEmpty) {
+        final result = await ref
+            .read(lastFmApiClientFactoryProvider)(key)
+            .validateApiKey();
+        if (!result.valid) {
+          if (!mounted) return;
+          setState(
+            () => _lastFmKeyError = lastFmApiKeyFailureMessage(result, l10n),
+          );
+          return;
+        }
+      }
+      // Read the row after the network wait so switches changed meanwhile
+      // are kept.
+      final current = await ref.read(settingsRepositoryProvider).getSettings();
+      await ref
+          .read(settingsRepositoryProvider)
+          .saveSettings(
+            current.copyWith(
+              lastFmApiKey: key.isEmpty ? null : key,
+              clearLastFmApiKey: key.isEmpty,
+              lastFmScrobblingEnabled: false,
+              lastFmSessionConnected: false,
+            ),
+          );
+      if (!mounted) return;
+      setState(() {
+        _lastFmKeyError = null;
+        _lastFmKeySaved = key.isNotEmpty;
+      });
+      showAppNotice(
+        context,
+        message: key.isEmpty
+            ? l10n.configurationLastFmApiKeyCleared
+            : l10n.configurationLastFmApiKeySaved,
+        level: AppNoticeLevel.success,
+      );
+    } on Object {
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: l10n.serverSettingsSaveError,
+        level: AppNoticeLevel.error,
+      );
+    } finally {
+      if (mounted) setState(() => _savingLastFmKey = false);
+    }
+  }
+
+  Future<void> _clearLastFmKey() async {
+    _lastFmKeyController.clear();
+    await _saveLastFmKey();
+  }
+
+  Future<void> _validateListenBrainz() async {
+    final l10n = AppLocalizations.of(context)!;
+    final token = _listenBrainzTokenController.text.trim();
+    if (token.isEmpty) {
+      setState(
+        () => _listenBrainzError = l10n.configurationListenBrainzTokenRequired,
+      );
+      return;
+    }
+    setState(() {
+      _listenBrainzBusy = true;
+      _listenBrainzError = null;
+    });
+    try {
+      final details = await ref
+          .read(listenBrainzApiClientProvider)
+          .validateTokenDetails(token, userInitiated: true);
+      final store = ref.read(externalScrobbleCredentialStoreProvider);
+      final repository = ref.read(settingsRepositoryProvider);
+      if (!details.valid) {
+        await store.clearListenBrainzToken();
+        await repository.updateListenBrainzConnection(
+          tokenValid: false,
+          scrobblingEnabled: false,
+        );
+        if (!mounted) return;
+        setState(
+          () => _listenBrainzError = l10n.configurationListenBrainzTokenInvalid,
+        );
+        return;
+      }
+      final wasConnected =
+          (await repository.getSettings()).listenBrainzTokenValid;
+      await store.saveListenBrainzToken(token);
+      await repository.updateListenBrainzConnection(
+        tokenValid: true,
+        // A new connection starts with scrobbling on, like every other
+        // feature; checking an existing token again keeps the user's choice.
+        scrobblingEnabled: wasConnected ? null : true,
+        userName: details.userName,
+      );
+      if (!mounted) return;
+      ref
+          .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+          .refreshAfterTokenValidation();
+    } on Object {
+      if (!mounted) return;
+      setState(
+        () => _listenBrainzError = l10n.configurationListenBrainzUnavailable,
+      );
+    } finally {
+      if (mounted) setState(() => _listenBrainzBusy = false);
+    }
+  }
+
+  Future<void> _clearListenBrainz() async {
+    _listenBrainzTokenController.clear();
+    setState(() => _listenBrainzError = null);
+    await ref
+        .read(externalScrobbleCredentialStoreProvider)
+        .clearListenBrainzToken();
+    await ref
+        .read(settingsRepositoryProvider)
+        .updateListenBrainzConnection(
+          tokenValid: false,
+          scrobblingEnabled: false,
+        );
+  }
+
+  Future<void> _openExternal(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+}
+
+/// One service: its heading with the service switch, what it sends and
+/// where, an optional credential, then one switch per feature.
+class _ServiceSection extends StatelessWidget {
+  const new({
+    required this.service,
+    required this.policy,
+    required this.onServiceChanged,
+    required this.onFeatureChanged,
+    this.credential,
+  });
+
+  final IntegrationService service;
+  final IntegrationPolicy policy;
+  final ValueChanged<bool> onServiceChanged;
+  final void Function(IntegrationFeature feature, {required bool enabled})
+  onFeatureChanged;
+
+  /// The key or token setup shown between the description and the features.
+  final Widget? credential;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final name = integrationServiceName(service, l10n);
+    final verified = policy.isVerified(service);
+    final serviceLocked = policy.serviceLockReason(service) != null;
+    final credential = this.credential;
+    return Padding(
+      padding: const EdgeInsets.only(top: NavisSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          NavisSectionHeader(
+            title: name,
+            compact: true,
+            trailing: <Widget>[
+              Semantics(
+                label: l10n.integrationsServiceSwitchLabel(name),
+                child: Switch(
+                  key: ValueKey<String>('integrations-service-${service.key}'),
+                  // An unverified service cannot run, so it reads as off
+                  // until its credential is verified.
+                  value: verified && policy.isServiceSwitchOn(service),
+                  onChanged: serviceLocked ? null : onServiceChanged,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            integrationServiceDescription(service, l10n),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (credential != null) ...<Widget>[
+            const SizedBox(height: NavisSpace.md),
+            // Keeps key and token fields at a readable width on desktop.
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: credential,
+              ),
+            ),
+          ],
+          const SizedBox(height: NavisSpace.xxs),
+          for (final feature in IntegrationFeature.forService(service))
+            _FeatureTile(
+              feature: feature,
+              policy: policy,
+              serviceName: name,
+              onChanged: (value) => onFeatureChanged(feature, enabled: value),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureTile extends StatelessWidget {
+  const new({
+    required this.feature,
+    required this.policy,
+    required this.serviceName,
+    required this.onChanged,
+  });
+
+  final IntegrationFeature feature;
+  final IntegrationPolicy policy;
+  final String serviceName;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final lock = policy.lockReason(feature);
+    final copy = integrationFeatureCopy(feature, l10n);
+    return SwitchListTile(
+      key: ValueKey<String>('integrations-feature-${feature.key}'),
+      contentPadding: EdgeInsets.zero,
+      // Locked by the master or service switch, a feature shows the choice
+      // that returns when they are switched back on. Without a verified
+      // credential it cannot run at all, so it reads as off.
+      value:
+          lock != IntegrationLockReason.notVerified &&
+          policy.isFeatureSwitchOn(feature),
+      onChanged: lock == null ? onChanged : null,
+      title: Text(copy.title),
+      subtitle: Text(
+        lock == null
+            ? copy.subtitle
+            : integrationLockReasonText(
+                lock,
+                service: feature.service,
+                serviceName: serviceName,
+                l10n: l10n,
+              ),
+      ),
+    );
+  }
+}
+
+/// Show/hide and clear actions inside a credential field.
+class _SecretFieldActions extends StatelessWidget {
+  const new({
+    required this.controller,
+    required this.obscured,
+    required this.onToggleObscured,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final bool obscured;
+  final VoidCallback onToggleObscured;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          IconButton(
+            icon: Icon(
+              obscured
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+            ),
+            tooltip: obscured
+                ? l10n.configurationShowSecret
+                : l10n.configurationHideSecret,
+            onPressed: onToggleObscured,
+          ),
+          if (value.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              tooltip: l10n.configurationClearSecret,
+              onPressed: onClear,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ButtonProgress extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.square(
+      dimension: NavisSpace.md,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
+  }
+}
+
+/// The heading shown for [service]. Brand names are not translated.
+@visibleForTesting
+String integrationServiceName(
+  IntegrationService service,
+  AppLocalizations l10n,
+) => switch (service) {
+  IntegrationService.updates => l10n.integrationsServiceUpdates,
+  IntegrationService.radioMetadata => l10n.integrationsServiceRadio,
+  IntegrationService.serverLinkedArtwork => l10n.integrationsServiceArtwork,
+  IntegrationService.deezer ||
+  IntegrationService.lastFm ||
+  IntegrationService.listenBrainz ||
+  IntegrationService.lrclib ||
+  IntegrationService.autoEq => service.displayName,
+};
+
+/// The one line saying what [service] receives and from or to where.
+@visibleForTesting
+String integrationServiceDescription(
+  IntegrationService service,
+  AppLocalizations l10n,
+) {
+  final host = service.host ?? '';
+  return switch (service) {
+    IntegrationService.deezer => l10n.integrationsDeezerSends(host),
+    IntegrationService.lastFm => l10n.integrationsLastFmSends(host),
+    IntegrationService.listenBrainz => l10n.integrationsListenBrainzSends(host),
+    IntegrationService.lrclib => l10n.integrationsLrclibSends(host),
+    IntegrationService.updates => l10n.integrationsUpdatesSends(host),
+    IntegrationService.autoEq => l10n.integrationsAutoEqSends,
+    IntegrationService.radioMetadata => l10n.integrationsRadioSends,
+    IntegrationService.serverLinkedArtwork => l10n.integrationsArtworkSends,
+  };
+}
+
+/// Title and short description of a feature switch.
+@visibleForTesting
+({String title, String subtitle}) integrationFeatureCopy(
+  IntegrationFeature feature,
+  AppLocalizations l10n,
+) => switch (feature) {
+  IntegrationFeature.deezerTopSongs => (
+    title: l10n.integrationsFeatureDeezerTopSongsTitle,
+    subtitle: l10n.integrationsFeatureDeezerTopSongsSubtitle,
+  ),
+  IntegrationFeature.deezerArtistImages => (
+    title: l10n.integrationsFeatureDeezerArtistImagesTitle,
+    subtitle: l10n.integrationsFeatureDeezerArtistImagesSubtitle,
+  ),
+  IntegrationFeature.deezerSimilarArtists => (
+    title: l10n.integrationsFeatureDeezerSimilarArtistsTitle,
+    subtitle: l10n.integrationsFeatureDeezerSimilarArtistsSubtitle,
+  ),
+  IntegrationFeature.deezerMissingAlbums => (
+    title: l10n.integrationsFeatureDeezerMissingAlbumsTitle,
+    subtitle: l10n.integrationsFeatureDeezerMissingAlbumsSubtitle,
+  ),
+  IntegrationFeature.deezerNewReleases => (
+    title: l10n.integrationsFeatureDeezerNewReleasesTitle,
+    subtitle: l10n.integrationsFeatureDeezerNewReleasesSubtitle,
+  ),
+  IntegrationFeature.deezerTrending => (
+    title: l10n.integrationsFeatureDeezerTrendingTitle,
+    subtitle: l10n.integrationsFeatureDeezerTrendingSubtitle,
+  ),
+  IntegrationFeature.lastFmSameVibes => (
+    title: l10n.integrationsFeatureLastFmSameVibesTitle,
+    subtitle: l10n.integrationsFeatureLastFmSameVibesSubtitle,
+  ),
+  IntegrationFeature.lastFmRadio => (
+    title: l10n.integrationsFeatureLastFmRadioTitle,
+    subtitle: l10n.integrationsFeatureLastFmRadioSubtitle,
+  ),
+  IntegrationFeature.lastFmTopSongs => (
+    title: l10n.integrationsFeatureLastFmTopSongsTitle,
+    subtitle: l10n.integrationsFeatureLastFmTopSongsSubtitle,
+  ),
+  IntegrationFeature.listenBrainzScrobbling => (
+    title: l10n.integrationsFeatureListenBrainzScrobblingTitle,
+    subtitle: l10n.integrationsFeatureListenBrainzScrobblingSubtitle,
+  ),
+  IntegrationFeature.listenBrainzFeedback => (
+    title: l10n.integrationsFeatureListenBrainzFeedbackTitle,
+    subtitle: l10n.integrationsFeatureListenBrainzFeedbackSubtitle,
+  ),
+  IntegrationFeature.listenBrainzWeeklyPlaylists => (
+    title: l10n.integrationsFeatureListenBrainzWeeklyPlaylistsTitle,
+    subtitle: l10n.integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle,
+  ),
+  IntegrationFeature.lrclibLyrics => (
+    title: l10n.integrationsFeatureLrclibLyricsTitle,
+    subtitle: l10n.integrationsFeatureLrclibLyricsSubtitle,
+  ),
+  IntegrationFeature.updatesAutomatic => (
+    title: l10n.integrationsFeatureUpdatesAutomaticTitle,
+    subtitle: l10n.integrationsFeatureUpdatesAutomaticSubtitle,
+  ),
+  IntegrationFeature.autoEqCatalogue => (
+    title: l10n.integrationsFeatureAutoEqCatalogueTitle,
+    subtitle: l10n.integrationsFeatureAutoEqCatalogueSubtitle,
+  ),
+  IntegrationFeature.radioNowPlaying => (
+    title: l10n.integrationsFeatureRadioNowPlayingTitle,
+    subtitle: l10n.integrationsFeatureRadioNowPlayingSubtitle,
+  ),
+  IntegrationFeature.artworkServerLinked => (
+    title: l10n.integrationsFeatureArtworkServerLinkedTitle,
+    subtitle: l10n.integrationsFeatureArtworkServerLinkedSubtitle,
+  ),
+};
+
+/// Why a switch cannot be changed, shown in place of its description.
+@visibleForTesting
+String integrationLockReasonText(
+  IntegrationLockReason reason, {
+  required IntegrationService service,
+  required String serviceName,
+  required AppLocalizations l10n,
+}) => switch (reason) {
+  IntegrationLockReason.masterOff => l10n.integrationsLockedMasterOff,
+  IntegrationLockReason.serviceOff => l10n.integrationsLockedServiceOff(
+    serviceName,
+  ),
+  IntegrationLockReason.notVerified =>
+    service.verification == IntegrationVerification.listenBrainzToken
+        ? l10n.integrationsLockedNeedsListenBrainzToken
+        : l10n.integrationsLockedNeedsLastFmKey,
+};

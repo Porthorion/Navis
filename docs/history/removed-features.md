@@ -142,3 +142,25 @@ layout replace them; the mode dropdown became a segmented control, and draft
 status moved beside the preset name. Saved presets, drafts, AutoEQ provenance,
 diagnostics actions, and audio behaviour are unchanged; no migration is needed.
 See [equalizer.md](../equalizer.md#editing-workspace).
+
+## 2026-10-05 — External-service switches moved to Settings › Integrations
+
+Before 1.4.3 the switches for online services were spread across three pages.
+Playback had "Use LRCLIB Fallback" and a Server Mix / Last.fm · Same Vibes
+switch, each held in the screen's own state and written by its debounced
+full-row autosave. Configuration had an "External Services" section with the
+Last.fm key card and a ListenBrainz card whose single switch turned
+scrobbling on or off. About had "Automatically Check for Updates".
+
+They are replaced by Settings › Integrations (`/settings/integrations`): a
+switch per service and per feature, a master "Online services" switch, the
+Last.fm key field (keyless builds only) and the ListenBrainz token field.
+LRCLIB is `lrclib.lyrics`, the mix mode is `lastfm.sameVibes` (on is Same
+Vibes, off is Server Mix), the automatic update check is `updates.automatic`
+and the ListenBrainz switch became scrobbling, likes and weekly-playlist
+switches. The stored columns did not change, so no migration was needed.
+Playback keeps no copy of these switches, so its autosave can no longer revert
+a choice made on the new page. Configuration keeps a link row, About keeps
+"Check now" (disabled while update checks are off) and a link, and the retired
+`/settings/external-services` path now redirects to Integrations. See
+[architecture.md](../architecture.md#external-integration-policy).

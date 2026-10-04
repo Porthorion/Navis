@@ -146,6 +146,29 @@ class SettingsRepository {
 
   Future<void> resetDefaults() => _dao.resetDefaults();
 
+  /// Switches one integration service or feature; see
+  /// [AppSettingsDao.setIntegrationEnabled].
+  Future<void> setIntegrationEnabled(String key, {required bool enabled}) =>
+      _dao.setIntegrationEnabled(key, enabled: enabled);
+
+  /// Writes the "Online services" master switch.
+  Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
+      _dao.setExternalIntegrationsEnabled(enabled: enabled);
+
+  /// Records the outcome of a ListenBrainz token check without a full-row
+  /// save, so a slow validation cannot overwrite switches changed meanwhile.
+  /// A null [scrobblingEnabled] leaves the scrobbling switch as it is.
+  Future<void> updateListenBrainzConnection({
+    required bool tokenValid,
+    bool? scrobblingEnabled,
+    String? userName,
+  }) => _dao.updateListenBrainzScrobblingState(
+    enabled: scrobblingEnabled,
+    tokenValid: tokenValid,
+    userName: userName,
+    clearUserName: !tokenValid,
+  );
+
   Future<void> saveDesktopPlaybackVolume({
     required double volume,
     required double lastAudibleVolume,

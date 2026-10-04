@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
@@ -37,8 +37,14 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final updateAsync = ref.watch(updateProvider);
-    final settingsAsync = ref.watch(appSettingsProvider);
-    final settings = settingsAsync.asData?.value;
+    // "Check now" is the user's own request, so only the master and updates
+    // service switches block it; the automatic check has its own switch in
+    // Integrations.
+    final checksAllowed = ref.watch(
+      integrationPolicyProvider.select(
+        (policy) => policy.isServiceEnabled(IntegrationService.updates),
+      ),
+    );
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
     final showUpdateControls =
@@ -104,17 +110,9 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
           );
           final updates = _AboutUpdates(
             visible: showUpdateControls,
-            settings: settings,
+            checksAllowed: checksAllowed,
             update: updateAsync,
             version: version,
-            onAutoCheckChanged: (value) {
-              if (settings == null) return;
-              unawaited(
-                ref
-                    .read(settingsRepositoryProvider)
-                    .saveSettings(settings.copyWith(updateCheckEnabled: value)),
-              );
-            },
             onCheckNow: () {
               setState(() => _userTriggeredCheck = true);
               ref.read(updateForceCheckProvider.notifier).requestForceCheck();
@@ -482,6 +480,17 @@ class _AboutInformation extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => NavService.openPrivacy(context, ref),
         ),
+        ListTile(
+          leading: const Icon(Icons.hub_outlined),
+          title: Text(l10n.integrationsTitle),
+          subtitle: Text(l10n.integrationsSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => NavService.openSettingsPage(
+            context,
+            ref,
+            SettingsPage.integrations,
+          ),
+        ),
       ],
     );
   }
@@ -490,19 +499,19 @@ class _AboutInformation extends ConsumerWidget {
 class _AboutUpdates extends StatelessWidget {
   const new({
     required this.visible,
-    required this.settings,
+    required this.checksAllowed,
     required this.update,
     required this.version,
-    required this.onAutoCheckChanged,
     required this.onCheckNow,
     required this.onInstall,
   });
 
   final bool visible;
-  final AppSettingsModel? settings;
+
+  /// False while Online services or update checks are off in Integrations.
+  final bool checksAllowed;
   final AsyncValue<UpdateInfo?> update;
   final String version;
-  final ValueChanged<bool> onAutoCheckChanged;
   final VoidCallback onCheckNow;
   final VoidCallback? onInstall;
 
@@ -527,24 +536,20 @@ class _AboutUpdates extends StatelessWidget {
             ),
           ),
         ),
-        SwitchListTile(
-          secondary: const Icon(Icons.system_update_outlined),
-          title: Text(l10n.updateAutoCheckTitle),
-          subtitle: Text(l10n.updateAutoCheckSubtitle),
-          value: settings?.updateCheckEnabled ?? true,
-          onChanged: settings == null ? null : onAutoCheckChanged,
-        ),
         ListTile(
+          enabled: checksAllowed,
           leading: const Icon(Icons.system_update_outlined),
           title: Text(l10n.updateCheckTitle),
           subtitle: Text(
-            update.when(
-              data: (info) => info != null
-                  ? l10n.updateAvailableBody(info.tagName)
-                  : l10n.updateUpToDate,
-              loading: () => l10n.updateCheckSub(version),
-              error: (_, _) => l10n.updateCheckSub(version),
-            ),
+            !checksAllowed
+                ? l10n.updateCheckOffInIntegrations
+                : update.when(
+                    data: (info) => info != null
+                        ? l10n.updateAvailableBody(info.tagName)
+                        : l10n.updateUpToDate,
+                    loading: () => l10n.updateCheckSub(version),
+                    error: (_, _) => l10n.updateCheckSub(version),
+                  ),
           ),
           trailing: update.isLoading
               ? const SizedBox(

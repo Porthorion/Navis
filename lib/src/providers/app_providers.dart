@@ -749,14 +749,6 @@ IntegrationPolicy integrationPolicyFromSettings(
   );
 }
 
-/// Whether the Same Vibes switch cannot be changed: the integrations master
-/// switch or the Last.fm switch is off, or no Last.fm key is available.
-final legacyInstantMixLockedProvider = Provider<bool>((ref) {
-  return !ref
-      .watch(integrationPolicyProvider)
-      .isUserToggleable(IntegrationFeature.lastFmSameVibes);
-});
-
 enum PreferredMixMode { sameVibes, legacyInstantMix }
 
 /// Same Vibes while the policy allows `lastfm.sameVibes`, the server's mix

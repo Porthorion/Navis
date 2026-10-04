@@ -25,14 +25,21 @@ class ListenBrainzApiClient {
     return (await validateTokenDetails(userToken)).valid;
   }
 
+  /// Checks [userToken] with ListenBrainz.
+  ///
+  /// Pass [userInitiated] when the person asked for the check, such as the
+  /// validate action in Settings or onboarding; only then does the request
+  /// bypass a switched-off ListenBrainz service. Automatic revalidation leaves
+  /// it false.
   Future<ListenBrainzTokenDetails> validateTokenDetails(
-    String userToken,
-  ) async {
+    String userToken, {
+    bool userInitiated = false,
+  }) async {
     try {
+      final options = _authOptions(userToken);
       final response = await _dio.get<Map<String, dynamic>>(
         '/validate-token',
-        // Validating a token is the user's own request.
-        options: userInitiatedOptions(_authOptions(userToken)),
+        options: userInitiated ? userInitiatedOptions(options) : options,
       );
       final data = response.data ?? const <String, dynamic>{};
       return ListenBrainzTokenDetails(

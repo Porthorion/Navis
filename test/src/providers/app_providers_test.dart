@@ -2383,36 +2383,6 @@ void main() {
         PreferredMixMode.legacyInstantMix,
       );
     });
-
-    test('the lock follows toggleability of Same Vibes', () {
-      ProviderContainer container(AppSettingsModel settings, String key) {
-        final c = ProviderContainer(
-          overrides: [
-            lastFmApiKeyProvider.overrideWithValue(key),
-            appSettingsProvider.overrideWithValue(AsyncData(settings)),
-          ],
-        );
-        addTearDown(c.dispose);
-        return c;
-      }
-
-      const defaults = AppSettingsModel.defaults();
-      expect(
-        container(defaults, 'k').read(legacyInstantMixLockedProvider),
-        isFalse,
-      );
-      expect(
-        container(defaults, '').read(legacyInstantMixLockedProvider),
-        isTrue,
-      );
-      expect(
-        container(
-          defaults.copyWith(externalIntegrationsEnabled: false),
-          'k',
-        ).read(legacyInstantMixLockedProvider),
-        isTrue,
-      );
-    });
   });
 
   group('updateProvider', () {

@@ -129,6 +129,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'New Settings › Integrations page: see what each online service receives and where, switch any service or feature off, or turn off Online services so Navis only talks to your server',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The LRCLIB lyrics, Same Vibes mix and automatic update check switches moved to Integrations, along with the Last.fm key and ListenBrainz token',
+      ),
+      ChangelogEntry(
+        'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Instant Radio only asks Last.fm while its switch is on',
+      ),
+      ChangelogEntry(
         'Seeking in a song that is still streaming no longer restarts it from the beginning, gets stuck on the seek bar or stops playback; on a slow connection the seek waits for the song instead of reloading it',
         type: ChangelogEntryType.fix,
       ),

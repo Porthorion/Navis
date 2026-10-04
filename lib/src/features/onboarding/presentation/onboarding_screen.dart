@@ -241,7 +241,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final details = await ref
           .read(listenBrainzApiClientProvider)
-          .validateTokenDetails(token);
+          .validateTokenDetails(token, userInitiated: true);
       if (!mounted) return;
       if (!details.valid) {
         setState(

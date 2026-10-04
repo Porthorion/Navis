@@ -140,21 +140,32 @@ Listen Together / Voyage is currently retired. Its backend integration, queue
 synchronization, settings, and user-visible entry points are disabled while a
 future implementation is reconsidered.
 
-## External Scrobbling
+## Integrations and Scrobbling
 
-Subsonic/OpenSubsonic server scrobbling remains independent from optional
-third-party scrobbling. Settings > External Services lets users configure:
+Besides your own server, Navis can use a few online services. Settings ›
+Integrations lists each one with what it sends and to which host, a switch per
+service and per feature, and a master "Online services" switch; with it off,
+Navis only talks to your server. Everything is on by default.
 
-- Last.fm API key, shared secret, browser authorization, and session
-  connection.
-- ListenBrainz User Token validation.
+- **Deezer** — artist top songs, artist photos, "Fans also like", missing
+  albums, new releases and trending songs.
+- **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
+  is your server's mix), the Instant Radio fill and a top-songs fallback. No
+  Last.fm scrobbling. Release builds include an API key; builds without one show
+  a field for your own key.
+- **ListenBrainz** — scrobbling, likes (sent as loved) and weekly playlists,
+  after its User Token validates.
+- **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,
+  **AutoEQ** headphone profiles, **internet radio** now-playing info and
+  **artwork** your server links from other sites.
 
-Last.fm shared secrets, Last.fm session keys, and ListenBrainz tokens are stored
-through platform secure storage. Drift stores only non-secret enabled/status
-flags. The scrobble queue stores resolved track metadata so Last.fm and
-ListenBrainz events can flush after reconnect even if the library row changes.
-Invalid Last.fm sessions or ListenBrainz tokens disable that provider until the
-user reconnects or validates a new token.
+A feature whose service needs a credential stays locked until the key or token
+is verified. Subsonic/OpenSubsonic server scrobbling stays independent of
+these switches. The ListenBrainz token is stored through platform secure
+storage; Drift stores only non-secret status flags. The scrobble queue stores
+resolved track metadata so ListenBrainz events can flush after reconnect even
+if the library row changes. A rejected ListenBrainz token disables it until the
+user validates a new one.
 
 ## Google Play Android Releases
 

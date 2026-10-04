@@ -12,7 +12,10 @@ import 'package:navis/src/providers/app_providers.dart';
 
 class _OfflineListenBrainz extends ListenBrainzApiClient {
   @override
-  Future<ListenBrainzTokenDetails> validateTokenDetails(String userToken) {
+  Future<ListenBrainzTokenDetails> validateTokenDetails(
+    String userToken, {
+    bool userInitiated = false,
+  }) {
     throw DioException(
       requestOptions: RequestOptions(path: '/1/validate-token'),
       type: DioExceptionType.connectionError,

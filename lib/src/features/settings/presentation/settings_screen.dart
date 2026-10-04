@@ -61,6 +61,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         group: groupConnection,
       ),
       _SettingsEntry(
+        icon: Icons.hub_outlined,
+        title: l10n.integrationsTitle,
+        subtitle: l10n.integrationsSubtitle,
+        page: SettingsPage.integrations,
+        group: groupConnection,
+      ),
+      _SettingsEntry(
         icon: Icons.folder_copy_outlined,
         title: l10n.settingsCacheTitle,
         subtitle: l10n.settingsCacheSubtitle,

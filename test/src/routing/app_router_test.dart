@@ -729,6 +729,62 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets('retired Settings paths redirect to their new pages', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    final router = container.read(appRouterProvider);
+    router.go('/settings/external-services');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(router.state.matchedLocation, '/settings/integrations');
+    expect(find.text('Online services'), findsOneWidget);
+
+    router.go('/settings/group-listening');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(router.state.matchedLocation, '/settings/server');
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
   testWidgets('hero-driven album detail does not fade the landing artwork', (
     tester,
   ) async {
@@ -1014,6 +1070,7 @@ void main() {
     expect(configuredLocations, contains('/library/playlists/:id'));
     expect(configuredLocations, contains('/settings'));
     expect(configuredLocations, contains('/settings/server'));
+    expect(configuredLocations, contains('/settings/integrations'));
     expect(configuredLocations, isNot(contains('/settings/audiomuse')));
     expect(configuredLocations, contains('/settings/cache'));
     expect(configuredLocations, contains('/settings/sync'));

@@ -1,12 +1,15 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
-class PrivacyScreen extends StatelessWidget {
+class PrivacyScreen extends ConsumerWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
@@ -14,6 +17,19 @@ class PrivacyScreen extends StatelessWidget {
       _PrivacySectionData(
         title: l10n.privacyAccountsTitle,
         body: l10n.privacyAccountsBody,
+      ),
+      _PrivacySectionData(
+        title: l10n.privacyOnlineServicesTitle,
+        body: l10n.privacyOnlineServicesBody,
+        action: TextButton.icon(
+          onPressed: () => NavService.openSettingsPage(
+            context,
+            ref,
+            SettingsPage.integrations,
+          ),
+          icon: const Icon(Icons.hub_outlined),
+          label: Text(l10n.privacyOpenIntegrations),
+        ),
       ),
       _PrivacySectionData(
         title: l10n.privacyScrobblingTitle,
@@ -53,16 +69,13 @@ class PrivacyScreen extends StatelessWidget {
                     for (final section in sections)
                       SizedBox(
                         width: availableWidth / 2,
-                        child: _PrivacySection(
-                          title: section.title,
-                          body: section.body,
-                        ),
+                        child: _PrivacySection(section: section),
                       ),
                   ],
                 )
               else
                 for (final section in sections)
-                  _PrivacySection(title: section.title, body: section.body),
+                  _PrivacySection(section: section),
               const Divider(height: 32),
               Text(
                 l10n.privacySummary,
@@ -79,21 +92,24 @@ class PrivacyScreen extends StatelessWidget {
 }
 
 class _PrivacySectionData {
-  const new({required this.title, required this.body});
+  const new({required this.title, required this.body, this.action});
 
   final String title;
   final String body;
+
+  /// An optional link shown under the body.
+  final Widget? action;
 }
 
 class _PrivacySection extends StatelessWidget {
-  const new({required this.title, required this.body});
+  const new({required this.section});
 
-  final String title;
-  final String body;
+  final _PrivacySectionData section;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final action = section.action;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -101,13 +117,14 @@ class _PrivacySection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            title,
+            section.title,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
-          Text(body, style: theme.textTheme.bodyMedium),
+          Text(section.body, style: theme.textTheme.bodyMedium),
+          if (action != null) ...<Widget>[const SizedBox(height: 4), action],
         ],
       ),
     );

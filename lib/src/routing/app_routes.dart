@@ -28,6 +28,7 @@ enum ShellBranch {
 /// Pages under Settings that can be opened directly.
 enum SettingsPage {
   server(AppRoutes.settingsServerSegment),
+  integrations(AppRoutes.settingsIntegrationsSegment),
   cache(AppRoutes.settingsCacheSegment),
   downloads(AppRoutes.settingsDownloadsSegment),
   sync(AppRoutes.settingsSyncSegment),
@@ -105,6 +106,7 @@ abstract final class AppRoutes {
   // Settings children (path segments relative to [settings])
   // ---------------------------------------------------------------------------
   static const settingsServerSegment = 'server';
+  static const settingsIntegrationsSegment = 'integrations';
   static const settingsCacheSegment = 'cache';
   static const settingsDownloadsSegment = 'downloads';
   static const settingsSyncSegment = 'sync';
@@ -120,11 +122,11 @@ abstract final class AppRoutes {
   static const changelogSegment = 'changelog';
   static const privacySegment = 'privacy';
 
-  /// Retired Settings paths that still redirect to Configuration.
-  static const retiredSettingsSegments = <String>[
-    'group-listening',
-    'external-services',
-  ];
+  /// Retired Settings paths and the page each one now redirects to.
+  static const retiredSettingsSegments = <String, SettingsPage>{
+    'group-listening': SettingsPage.server,
+    'external-services': SettingsPage.integrations,
+  };
 
   static String get equalizer => SettingsPage.equalizer.location;
   static String get unavailableItems => SettingsPage.unavailableItems.location;

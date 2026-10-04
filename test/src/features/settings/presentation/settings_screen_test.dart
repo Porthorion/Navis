@@ -139,4 +139,32 @@ void main() {
       lessThan(tester.getTopLeft(find.text('About')).dy),
     );
   });
+
+  testWidgets('lists Integrations under Connection after Configuration', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final connection = tester.getTopLeft(find.text('Connection')).dy;
+    final configuration = tester.getTopLeft(find.text('Configuration')).dy;
+    final integrations = tester.getTopLeft(find.text('Integrations')).dy;
+    final nextGroup = tester.getTopLeft(find.text('Device storage & cache')).dy;
+    expect(connection, lessThan(configuration));
+    expect(configuration, lessThan(integrations));
+    expect(integrations, lessThan(nextGroup));
+    expect(
+      find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
+      findsOneWidget,
+    );
+  });
 }

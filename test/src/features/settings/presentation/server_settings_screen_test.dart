@@ -3,29 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:navis/src/api/lastfm_api_client.dart';
-import 'package:navis/src/api/listenbrainz_api_client.dart';
-import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
-import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
-import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:url_launcher_platform_interface/link.dart';
-import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
-
-class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 class _FakeServerConnectionService extends ServerConnectionService {
   final result = const ServerConnectionProbeResult(
@@ -86,146 +76,7 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
 }
 
-class _FakeLastFmApiClient extends LastFmApiClient {
-  new({
-    this._validationResult = const LastFmApiKeyValidationResult(valid: true),
-    super.apiKey = 'fake-key',
-    List<Object> sessionResults = const <Object>[],
-  }) : _authToken = 'auth-token',
-       _authTokenError = null,
-       _sessionResults = List<Object>.of(sessionResults);
-
-  final LastFmApiKeyValidationResult _validationResult;
-  final String _authToken;
-  final LastFmApiException? _authTokenError;
-  final List<Object> _sessionResults;
-  int getSessionCalls = 0;
-
-  @override
-  Future<LastFmApiKeyValidationResult> validateApiKey() async {
-    return _validationResult;
-  }
-
-  @override
-  Future<String> getAuthToken({required String sharedSecret}) async {
-    final error = _authTokenError;
-    if (error != null) {
-      throw error;
-    }
-    return _authToken;
-  }
-
-  @override
-  Future<LastFmAuthSession> getSession({
-    required String token,
-    required String sharedSecret,
-  }) async {
-    getSessionCalls++;
-    final result = _sessionResults.isEmpty
-        ? const LastFmApiException(14, 'This token has not been authorized')
-        : _sessionResults.removeAt(0);
-    if (result is LastFmAuthSession) {
-      return result;
-    }
-    if (result is Exception) {
-      throw result;
-    }
-    throw StateError('Unexpected fake Last.fm session result: $result');
-  }
-}
-
-class _FakeUrlLauncherPlatform extends UrlLauncherPlatform {
-  final launchedUrls = <String>[];
-  bool canLaunchResponse = true;
-  bool launchResponse = true;
-
-  @override
-  LinkDelegate? get linkDelegate => null;
-
-  @override
-  Future<bool> canLaunch(String url) async => canLaunchResponse;
-
-  @override
-  Future<bool> launchUrl(String url, LaunchOptions options) async {
-    launchedUrls.add(url);
-    return launchResponse;
-  }
-
-  @override
-  Future<bool> launch(
-    String url, {
-    required bool useSafariVC,
-    required bool useWebView,
-    required bool enableJavaScript,
-    required bool enableDomStorage,
-    required bool universalLinksOnly,
-    required Map<String, String> headers,
-    String? webOnlyWindowName,
-  }) async {
-    launchedUrls.add(url);
-    return launchResponse;
-  }
-}
-
-class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
-  new({required this.valid});
-
-  final bool valid;
-
-  @override
-  Future<bool> validateToken(String userToken) async => valid;
-
-  @override
-  Future<ListenBrainzTokenDetails> validateTokenDetails(
-    String userToken,
-  ) async {
-    return ListenBrainzTokenDetails(
-      valid: valid,
-      userName: valid ? 'listenbrainz-user' : null,
-    );
-  }
-}
-
-class _MemoryExternalScrobbleCredentialStore
-    implements ExternalScrobbleCredentialStore {
-  String? listenBrainzToken;
-
-  @override
-  Future<void> clearListenBrainzToken() async => listenBrainzToken = null;
-
-  @override
-  Future<String?> readListenBrainzToken() async => listenBrainzToken;
-
-  @override
-  Future<void> saveListenBrainzToken(String value) async {
-    listenBrainzToken = value;
-  }
-}
-
-Finder _textFieldWithLabel(String label) {
-  return find.byWidgetPredicate(
-    (widget) => widget is TextField && widget.decoration?.labelText == label,
-  );
-}
-
 void main() {
-  late UrlLauncherPlatform defaultUrlLauncher;
-  late _FakeUrlLauncherPlatform urlLauncher;
-
-  setUpAll(() {
-    registerFallbackValue(const AppSettingsModel.defaults());
-  });
-
-  setUp(() {
-    defaultUrlLauncher = UrlLauncherPlatform.instance;
-    urlLauncher = _FakeUrlLauncherPlatform();
-    UrlLauncherPlatform.instance = urlLauncher;
-  });
-
-  tearDown(() {
-    UrlLauncherPlatform.instance = defaultUrlLauncher;
-  });
-
   const initialConfig = ServerConfigModel(
     name: 'example.com',
     url: 'https://example.com',
@@ -273,103 +124,28 @@ void main() {
     expect(Theme.of(cardContext).cardTheme.color, Colors.transparent);
   });
 
-  testWidgets('uses a two-column external-services workspace on wide desktop', (
+  testWidgets('leaves one link to Integrations instead of external services', (
     tester,
   ) async {
-    setAdaptiveTestViewport(tester, const Size(1280, 800));
-
     await tester.pumpWidget(
       _buildTestApp(
         configNotifier: _TestServerConfigNotifier(initialConfig),
         connectionService: _FakeServerConnectionService(),
         signOutService: _FakeSignOutService(),
-        desktopMode: true,
-        lastFmBundled: false,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(
-        const ValueKey<String>('server-settings-external-services-grid'),
-      ),
-      findsOneWidget,
+    expect(find.text('External Services'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Last.fm'), findsNothing);
+    expect(find.text('ListenBrainz'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ListTile, 'Integrations'),
+      120,
+      scrollable: find.byType(Scrollable).first,
     );
-    final lastFmPosition = tester.getTopLeft(find.text('Last.fm'));
-    final listenBrainzPosition = tester.getTopLeft(find.text('ListenBrainz'));
-    expect(listenBrainzPosition.dx, greaterThan(lastFmPosition.dx));
-    expect(listenBrainzPosition.dy, closeTo(lastFmPosition.dy, 16));
-  });
-
-  testWidgets(
-    'keeps wide desktop external-service controls usable at 200 percent text scale',
-    (tester) async {
-      setAdaptiveTestViewport(tester, const Size(1280, 800));
-
-      await tester.pumpWidget(
-        _buildTestApp(
-          configNotifier: _TestServerConfigNotifier(initialConfig),
-          connectionService: _FakeServerConnectionService(),
-          signOutService: _FakeSignOutService(),
-          desktopMode: true,
-          lastFmBundled: false,
-          credentialStore: _MemoryExternalScrobbleCredentialStore(),
-          textScaler: TextScaler.linear(2),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(
-          const ValueKey<String>('server-settings-external-services-grid'),
-        ),
-        findsOneWidget,
-      );
-      expect(_textFieldWithLabel('API Key'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        _textFieldWithLabel('User Token'),
-        240,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(_textFieldWithLabel('User Token'), findsOneWidget);
-      expect(find.text('Validate and save'), findsOneWidget);
-      expect(find.text('Get Token'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Validate and save'),
-        240,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await expectLater(
-        find.byType(ServerSettingsScreen),
-        matchesGoldenFile('goldens/server_settings_desktop_text_scale_200.png'),
-      );
-    },
-  );
-
-  testWidgets('renders external service configuration fields', (tester) async {
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        lastFmBundled: false,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(_textFieldWithLabel('API Key'), findsOneWidget);
-    expect(_textFieldWithLabel('Shared secret'), findsNothing);
-    expect(_textFieldWithLabel('User Token'), findsOneWidget);
-    expect(find.text('Last.fm scrobbling'), findsNothing);
-    expect(find.text('Last.fm'), findsOneWidget);
-    expect(find.text('ListenBrainz'), findsOneWidget);
-    expect(find.text('Get Token'), findsOneWidget);
-    expect(
-      find.byKey(
-        const ValueKey<String>('server-settings-external-services-grid'),
-      ),
-      findsNothing,
-    );
+    expect(find.widgetWithText(ListTile, 'Integrations'), findsOneWidget);
   });
 
   testWidgets('does not render retired Listen Together configuration', (
@@ -400,94 +176,6 @@ void main() {
     expect(find.textContaining('Voyage'), findsNothing);
     expect(find.text('Custom Voyage'), findsNothing);
     expect(find.text('https://custom-voyage.example.com'), findsNothing);
-    expect(find.text('Last.fm'), findsOneWidget);
-    expect(find.text('ListenBrainz'), findsOneWidget);
-  });
-
-  testWidgets('failed Last.fm API validation shows field error', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    when(() => repository.saveSettings(any())).thenAnswer((_) async {});
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        lastFmBundled: false,
-        lastFmClientFactory: (_) => _FakeLastFmApiClient(
-          validationResult: const LastFmApiKeyValidationResult(
-            valid: false,
-            apiErrorCode: 10,
-            message: 'Invalid API key',
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('API Key'), 'bad-key');
-    final saveButton = find.widgetWithText(FilledButton, 'Save');
-    await tester.scrollUntilVisible(
-      saveButton,
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Invalid Last.fm API key.'), findsOneWidget);
-    verifyNever(() => repository.saveSettings(any()));
-  });
-
-  testWidgets('valid ListenBrainz token saves securely and marks usable', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    AppSettingsModel? savedModel;
-
-    when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
-      savedModel = invocation.positionalArguments.first as AppSettingsModel;
-    });
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        credentialStore: credentialStore,
-        listenBrainzClient: _FakeListenBrainzApiClient(valid: true),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.scrollUntilVisible(
-      _textFieldWithLabel('User Token'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(_textFieldWithLabel('User Token'), 'valid-token');
-    final validateButton = find.widgetWithText(
-      FilledButton,
-      'Validate and save',
-    );
-    await tester.scrollUntilVisible(
-      validateButton,
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(validateButton);
-    await tester.pumpAndSettle();
-
-    expect(credentialStore.listenBrainzToken, 'valid-token');
-    expect(savedModel, isNotNull);
-    expect(savedModel!.listenBrainzTokenValid, isTrue);
-    expect(savedModel!.listenBrainzScrobblingEnabled, isTrue);
-    expect(find.text('ListenBrainz token validated.'), findsOneWidget);
   });
 
   testWidgets('test connection action shows success', (tester) async {
@@ -554,48 +242,20 @@ Widget _buildTestApp({
   required ServerConfigNotifier configNotifier,
   required ServerConnectionService connectionService,
   required SignOutService signOutService,
-  SettingsRepository? settingsRepository,
-  ExternalScrobbleCredentialStore? credentialStore,
-  bool lastFmBundled = true,
-  String lastFmApiKey = 'bundled-key',
   AppSettingsModel initialSettings = const AppSettingsModel.defaults(),
-  LastFmApiClient Function(String)? lastFmClientFactory,
-  ListenBrainzApiClient? listenBrainzClient,
   bool desktopMode = false,
-  TextScaler? textScaler,
 }) {
-  final overrides = [
-    serverConfigProvider.overrideWith(() => configNotifier),
-    serverConnectionServiceProvider.overrideWithValue(connectionService),
-    signOutServiceProvider.overrideWithValue(signOutService),
-    lastFmBundledKeyProvider.overrideWithValue(lastFmBundled),
-    lastFmApiKeyProvider.overrideWithValue(lastFmApiKey),
-    if (settingsRepository != null)
-      settingsRepositoryProvider.overrideWithValue(settingsRepository),
-    if (credentialStore != null)
-      externalScrobbleCredentialStoreProvider.overrideWithValue(
-        credentialStore,
-      ),
-    if (lastFmClientFactory != null)
-      lastFmApiClientFactoryProvider.overrideWithValue(lastFmClientFactory),
-    if (listenBrainzClient != null)
-      listenBrainzApiClientProvider.overrideWithValue(listenBrainzClient),
-    // Provide in-memory settings so the screen doesn't spin on loading.
-    appSettingsProvider.overrideWith((_) => Stream.value(initialSettings)),
-  ];
-
   return ProviderScope(
-    overrides: overrides,
+    overrides: [
+      serverConfigProvider.overrideWith(() => configNotifier),
+      serverConnectionServiceProvider.overrideWithValue(connectionService),
+      signOutServiceProvider.overrideWithValue(signOutService),
+      appSettingsProvider.overrideWith((_) => Stream.value(initialSettings)),
+    ],
     child: MaterialApp(
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: textScaler == null
-          ? null
-          : (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-              child: child!,
-            ),
       home: desktopMode
           ? AdaptiveContextScope(
               adaptiveContext: resolveAdaptiveContext(

@@ -54,8 +54,6 @@ class _PlaybackSettingsScreenState
   String? _cellularFormat;
   bool _cachedPlaybackFirst = false;
   bool _scrobbleEnabled = true;
-  bool _useLrclib = true;
-  bool _legacyInstantMixEnabled = false;
   bool _gaplessEnabled = true;
   bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
@@ -116,9 +114,6 @@ class _PlaybackSettingsScreenState
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-    final legacyInstantMixLocked = ref.watch(legacyInstantMixLockedProvider);
-    final effectiveLegacyInstantMix =
-        legacyInstantMixLocked || _legacyInstantMixEnabled;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -267,15 +262,6 @@ class _PlaybackSettingsScreenState
                     ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    value: _useLrclib,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _useLrclib = value),
-                    title: Text(l10n.playbackSettingsLrclibTitle),
-                    subtitle: Text(l10n.playbackSettingsLrclibSubtitle),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
                     value: _gaplessEnabled,
                     onChanged: _isSaving ? null : _setGaplessEnabled,
                     title: Text(l10n.playbackSettingsGaplessTitle),
@@ -364,29 +350,6 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                   ],
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: effectiveLegacyInstantMix,
-                    onChanged: (_isSaving || legacyInstantMixLocked)
-                        ? null
-                        : (value) {
-                            setState(() => _legacyInstantMixEnabled = value);
-                            _autosaveDebounce?.cancel();
-                            unawaited(_persistAutosave(_formSignature()));
-                          },
-                    title: Text(
-                      effectiveLegacyInstantMix
-                          ? l10n.playbackSettingsLegacyInstantMixTitle
-                          : l10n.playbackSettingsLastFmSameVibesTitle,
-                    ),
-                    subtitle: Text(
-                      legacyInstantMixLocked
-                          ? l10n.playbackSettingsLegacyInstantMixLocked
-                          : effectiveLegacyInstantMix
-                          ? l10n.playbackSettingsLegacyInstantMixSubtitle
-                          : l10n.playbackSettingsLastFmSameVibesSubtitle,
-                    ),
-                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _fullscreenModeLyrics,
@@ -626,8 +589,6 @@ class _PlaybackSettingsScreenState
     _cellularFormat = settings.cellularFormat;
     _cachedPlaybackFirst = settings.cachedPlaybackFirst;
     _scrobbleEnabled = settings.scrobbleEnabled;
-    _useLrclib = settings.useLrclib;
-    _legacyInstantMixEnabled = settings.legacyInstantMixEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
@@ -665,8 +626,6 @@ class _PlaybackSettingsScreenState
       _cellularFormat,
       _cachedPlaybackFirst,
       _scrobbleEnabled,
-      _useLrclib,
-      _legacyInstantMixEnabled,
       _gaplessEnabled,
       _fullscreenModeLyrics,
 
@@ -698,8 +657,9 @@ class _PlaybackSettingsScreenState
           const AppSettingsModel.defaults();
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
-      // Copy the stored row so fields owned by other screens (ListenBrainz,
-      // sync, desktop volume, appearance) survive this full-row write.
+      // Copy the stored row so fields owned by other screens (integrations,
+      // ListenBrainz, sync, desktop volume, appearance) survive this full-row
+      // write.
       final settings = currentSettings.copyWith(
         wifiMaxBitRate: _wifiBitRate,
         clearWifiBitRate: _wifiBitRate == null,
@@ -716,11 +676,6 @@ class _PlaybackSettingsScreenState
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
-        useLrclib: _useLrclib,
-        // The lock only affects what is shown and used; it must not rewrite
-        // storage, or switching the integrations back on would find Same
-        // Vibes turned off.
-        legacyInstantMixEnabled: _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         albumQueueEnabled: _albumQueueEnabled,

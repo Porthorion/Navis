@@ -241,8 +241,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsServerTitle => 'Configuration';
 
   @override
-  String get settingsServerSubtitle =>
-      'Server connection, account, and external services.';
+  String get settingsServerSubtitle => 'Server connection and account.';
 
   @override
   String get settingsCacheTitle => 'Device Storage & Cache';
@@ -475,14 +474,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyAccountsBody =>
-      'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.';
+      'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Your server password and ListenBrainz token are stored in the platform\'s secure credential store when available. A Last.fm API key you enter yourself is stored in the app database.';
 
   @override
   String get privacyScrobblingTitle => 'External Scrobbling';
 
   @override
   String get privacyScrobblingBody =>
-      'If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.';
+      'With a validated ListenBrainz token, Navis sends listening activity for played tracks to ListenBrainz while Scrobbling is on. This can include track title, artist, album, duration, play time and now-playing status. While Likes is on, songs you like are sent as loved. Your ListenBrainz token stays on your device.';
 
   @override
   String get privacyDownloadsTitle => 'Downloads and Cache';
@@ -500,7 +499,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacySummary =>
-      'Navis does not operate a central account service for your music library. Data is exchanged with the servers and optional third-party services you configure.';
+      'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.';
 
   @override
   String get syncSettingsTitle => 'Sync Settings';
@@ -1046,36 +1045,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.';
 
   @override
-  String get playbackSettingsLrclibTitle => 'Use LRCLIB Fallback';
-
-  @override
-  String get playbackSettingsLrclibSubtitle =>
-      'When server lyrics are unavailable, try LRCLIB and cache per song.';
-
-  @override
   String get playbackSettingsGaplessTitle => 'Enable Gapless Playback';
 
   @override
   String get playbackSettingsGaplessSubtitle =>
       'Preload tracks to reduce gaps between songs.';
-
-  @override
-  String get playbackSettingsLegacyInstantMixTitle => 'Server Mix';
-
-  @override
-  String get playbackSettingsLegacyInstantMixSubtitle =>
-      'Use your server\'s song recommendations. Turn off for Last.fm · Same Vibes.';
-
-  @override
-  String get playbackSettingsLastFmSameVibesTitle => 'Last.fm · Same Vibes';
-
-  @override
-  String get playbackSettingsLastFmSameVibesSubtitle =>
-      'Match Last.fm recommendations to your library. Turn on for Server Mix.';
-
-  @override
-  String get playbackSettingsLegacyInstantMixLocked =>
-      'This build has no Last.fm API key, so Server Mix is required.';
 
   @override
   String get playbackSettingsShowRadioPageTitle => 'Show Radio Page';
@@ -1642,9 +1616,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationServerSection => 'Server';
 
   @override
-  String get configurationExternalServicesSection => 'External Services';
-
-  @override
   String get configurationLastFmSection => 'Last.fm';
 
   @override
@@ -1672,14 +1643,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get configurationLastFmApiKeyValidationFailed =>
       'Could not validate this Last.fm API key.';
-
-  @override
-  String get configurationLastFmBundledNotice =>
-      'API key bundled with this build';
-
-  @override
-  String get configurationLastFmBundledSubtitle =>
-      'This build includes a Last.fm API key. You do not need to provide your own.';
 
   @override
   String get configurationShowSecret => 'Show';
@@ -1714,6 +1677,244 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configurationListenBrainzGetToken => 'Get Token';
+
+  @override
+  String get privacyOnlineServicesTitle => 'Online Services';
+
+  @override
+  String get privacyOnlineServicesBody =>
+      'Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.';
+
+  @override
+  String get privacyOpenIntegrations => 'Open Integrations';
+
+  @override
+  String get integrationsTitle => 'Integrations';
+
+  @override
+  String get integrationsSubtitle =>
+      'Deezer, Last.fm, ListenBrainz and other online services.';
+
+  @override
+  String get integrationsMasterTitle => 'Online services';
+
+  @override
+  String get integrationsMasterSubtitle =>
+      'Off: Navis only talks to your server.';
+
+  @override
+  String get integrationsServiceUpdates => 'Updates';
+
+  @override
+  String get integrationsServiceRadio => 'Internet radio';
+
+  @override
+  String get integrationsServiceArtwork => 'Artwork';
+
+  @override
+  String integrationsServiceSwitchLabel(String service) {
+    return 'Use $service';
+  }
+
+  @override
+  String integrationsDeezerSends(String host) {
+    return 'Sends artist and track names to $host.';
+  }
+
+  @override
+  String integrationsLastFmSends(String host) {
+    return 'Sends track and artist names to $host.';
+  }
+
+  @override
+  String integrationsListenBrainzSends(String host) {
+    return 'Sends your listens and likes to $host.';
+  }
+
+  @override
+  String integrationsLrclibSends(String host) {
+    return 'Sends track title, artist, album and duration to $host.';
+  }
+
+  @override
+  String integrationsUpdatesSends(String host) {
+    return 'Sends an app version check to $host.';
+  }
+
+  @override
+  String get integrationsAutoEqSends =>
+      'Downloads headphone profiles from GitHub, only when you ask.';
+
+  @override
+  String get integrationsRadioSends =>
+      'Reads now-playing info from the station\'s server.';
+
+  @override
+  String get integrationsArtworkSends =>
+      'Loads images your server links from other sites, such as artist photos.';
+
+  @override
+  String get integrationsFeatureDeezerTopSongsTitle => 'Top songs';
+
+  @override
+  String get integrationsFeatureDeezerTopSongsSubtitle =>
+      'Popular songs on artist pages.';
+
+  @override
+  String get integrationsFeatureDeezerArtistImagesTitle => 'Artist photos';
+
+  @override
+  String get integrationsFeatureDeezerArtistImagesSubtitle =>
+      'Header photo and fan count on artist pages.';
+
+  @override
+  String get integrationsFeatureDeezerSimilarArtistsTitle => 'Fans also like';
+
+  @override
+  String get integrationsFeatureDeezerSimilarArtistsSubtitle =>
+      'Related artists on artist pages.';
+
+  @override
+  String get integrationsFeatureDeezerMissingAlbumsTitle => 'Missing albums';
+
+  @override
+  String get integrationsFeatureDeezerMissingAlbumsSubtitle =>
+      'An artist\'s albums that aren\'t on your server.';
+
+  @override
+  String get integrationsFeatureDeezerNewReleasesTitle => 'New releases';
+
+  @override
+  String get integrationsFeatureDeezerNewReleasesSubtitle =>
+      'New releases from your artists on Home.';
+
+  @override
+  String get integrationsFeatureDeezerTrendingTitle => 'Trending';
+
+  @override
+  String get integrationsFeatureDeezerTrendingSubtitle =>
+      'Trending songs in You Might Like.';
+
+  @override
+  String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes mixes';
+
+  @override
+  String get integrationsFeatureLastFmSameVibesSubtitle =>
+      'On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server\'s mix.';
+
+  @override
+  String get integrationsFeatureLastFmRadioTitle => 'Instant Radio';
+
+  @override
+  String get integrationsFeatureLastFmRadioSubtitle =>
+      'Adds similar songs from Last.fm when your server\'s suggestions run short.';
+
+  @override
+  String get integrationsFeatureLastFmTopSongsTitle => 'Top songs';
+
+  @override
+  String get integrationsFeatureLastFmTopSongsSubtitle =>
+      'Popular songs on artist pages when Deezer has none.';
+
+  @override
+  String get integrationsFeatureListenBrainzScrobblingTitle => 'Scrobbling';
+
+  @override
+  String get integrationsFeatureListenBrainzScrobblingSubtitle =>
+      'Sends the songs you play.';
+
+  @override
+  String get integrationsFeatureListenBrainzFeedbackTitle => 'Likes';
+
+  @override
+  String get integrationsFeatureListenBrainzFeedbackSubtitle =>
+      'Sends the songs you like as loved.';
+
+  @override
+  String get integrationsFeatureListenBrainzWeeklyPlaylistsTitle =>
+      'Weekly playlists';
+
+  @override
+  String get integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle =>
+      'Your weekly ListenBrainz playlists on Home and in Library.';
+
+  @override
+  String get integrationsFeatureLrclibLyricsTitle => 'Synced lyrics';
+
+  @override
+  String get integrationsFeatureLrclibLyricsSubtitle =>
+      'Synced lyrics from LRCLIB first, server lyrics as fallback.';
+
+  @override
+  String get integrationsFeatureUpdatesAutomaticTitle => 'Check automatically';
+
+  @override
+  String get integrationsFeatureUpdatesAutomaticSubtitle =>
+      'Looks for a new version when Navis starts. Check now is in About.';
+
+  @override
+  String get integrationsFeatureAutoEqCatalogueTitle => 'Headphone profiles';
+
+  @override
+  String get integrationsFeatureAutoEqCatalogueSubtitle =>
+      'Refresh the catalogue and download profiles in the equalizer.';
+
+  @override
+  String get integrationsFeatureRadioNowPlayingTitle => 'Now playing';
+
+  @override
+  String get integrationsFeatureRadioNowPlayingSubtitle =>
+      'Song and artwork from the station while you listen.';
+
+  @override
+  String get integrationsFeatureArtworkServerLinkedTitle => 'Linked images';
+
+  @override
+  String get integrationsFeatureArtworkServerLinkedSubtitle =>
+      'Artist photos and other images hosted outside your server.';
+
+  @override
+  String get integrationsLockedMasterOff => 'Online services are off.';
+
+  @override
+  String integrationsLockedServiceOff(String service) {
+    return '$service is off.';
+  }
+
+  @override
+  String get integrationsLockedNeedsLastFmKey =>
+      'Needs a verified Last.fm API key.';
+
+  @override
+  String get integrationsLockedNeedsListenBrainzToken =>
+      'Needs a verified ListenBrainz token.';
+
+  @override
+  String get integrationsLastFmKeyIncluded => 'Key included with this build';
+
+  @override
+  String get integrationsSaveError => 'Couldn\'t save this change. Try again.';
+
+  @override
+  String get integrationsLoadError => 'Could Not Load Integrations';
+
+  @override
+  String get listenBrainzConnectedTitle => 'ListenBrainz connected';
+
+  @override
+  String listenBrainzConnectedAs(String account) {
+    return 'Connected as $account.';
+  }
+
+  @override
+  String get listenBrainzConnectedNoAccount => 'Your token is valid.';
+
+  @override
+  String get listenBrainzUpdateToken => 'Update';
+
+  @override
+  String get updateCheckOffInIntegrations =>
+      'Update checks are off in Integrations.';
 
   @override
   String get commonQueued => 'Queued';
@@ -3512,7 +3713,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacySub =>
-      'How Navis handles app data and optional service sharing.';
+      'How Navis handles your data and which online services it uses.';
 
   @override
   String get aboutCodename => 'Cape Horn';
@@ -3701,13 +3902,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updatePlayStoreFallbackNotice =>
       'Could not open Google Play. Opening the release page instead.';
-
-  @override
-  String get updateAutoCheckTitle => 'Automatically Check for Updates';
-
-  @override
-  String get updateAutoCheckSubtitle =>
-      'Check for new releases on each app launch.';
 
   @override
   String get updatesSettingsSectionLabel => 'Updates';

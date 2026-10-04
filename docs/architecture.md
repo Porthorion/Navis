@@ -799,6 +799,11 @@ Features:
   cancelled without changing audio position; only a lyric tap calls `onSeek`.
 - Graceful fallback for unsynced/missing lyrics
 
+`LyricsResolver` looks lyrics up in this order: while `lrclib.lyrics` is
+allowed, synced lyrics from LRCLIB first (cached per song), then the server's
+lyrics as fallback; otherwise the server only. The switch lives in Settings ›
+Integrations › LRCLIB.
+
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
 upgrade reconciles Podfile/project settings without adding Apple media features.
@@ -858,14 +863,14 @@ Settings):
 - `/library/liked-albums`, `/library/liked-artists` - Full liked lists
 - `/search` - Search
 - `/settings` - Settings
-- `/settings/server` (Configuration), `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
+- `/settings/server` (Configuration), `/settings/integrations`, `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
 - `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
 
-The retired `/settings/group-listening` and `/settings/external-services` paths
-redirect to Configuration (`/settings/server`) and are not shown in
-navigation. A location that matches no route shows a localized not-found page
+The retired `/settings/group-listening` path redirects to Configuration
+(`/settings/server`) and `/settings/external-services` to Integrations
+(`/settings/integrations`); neither is shown in navigation. A location that matches no route shows a localized not-found page
 with a Home action.
 
 `appRouterProvider` owns one stable `GoRouter` instance. Authentication and
@@ -1317,7 +1322,9 @@ switch means "Navis only talks to your server" when off. See
   user started (key or token validation, "Check now", the update download and
   AutoEQ refresh/download) sets `options.extra['navis.userInitiated']` (see
   `userInitiatedOptions`) and bypasses the service switch, never the master
-  switch. The policy is read per request, so clients that already exist obey
+  switch. `ListenBrainzApiClient.validateTokenDetails` sets it only when its
+  caller passes `userInitiated: true` (Integrations and onboarding), so the
+  weekly stream's automatic revalidation obeys the service switch. The policy is read per request, so clients that already exist obey
   later changes. `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
   `RadioMetadataService` checks before every Azuracast poll and which stops the
   polling for good when it turns false (ICY metadata, carried by the stream
@@ -1350,6 +1357,24 @@ switch means "Navis only talks to your server" when off. See
   status, duration and `ok`/`error`/`blocked`, plus per-service counters. The
   Top Songs pipeline records its source fetch, local match and server match as
   spans.
+- **Settings › Integrations**
+  (`features/integrations/presentation/integrations_settings_screen.dart`,
+  listed under Connection) is the only screen that changes these switches. It
+  shows the master switch, then one section per service: a
+  `NavisSectionHeader` carrying the service switch, one line saying what is
+  sent to which host, the credential (the Last.fm key field in keyless builds,
+  "Key included with this build" otherwise; the ListenBrainz token field) and a
+  `SwitchListTile` per feature. Every switch writes at once through
+  `SettingsRepository.setIntegrationEnabled` /
+  `setExternalIntegrationsEnabled`. A locked switch is disabled and its
+  subtitle gives `lockReason`; master- or service-locked switches show the
+  stored choice that returns when unlocked, unverified ones read as off.
+  Token validation records its result with the targeted
+  `updateListenBrainzConnection`, not a full-row save, and turns scrobbling on
+  only for a new connection. The Updates section is hidden where About hides
+  update controls (iOS, web). Playback and About hold no copies of these
+  switches; About keeps "Check now", disabled while the master or `updates`
+  service switch is off.
 - **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
   and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
   the recorder's counters, calls and spans in every mode. See
@@ -1358,6 +1383,11 @@ switch means "Navis only talks to your server" when off. See
 ## Update Checker
 
 The in-app update checker lives in `lib/src/features/settings/`:
+
+Settings › Integrations › Updates holds the automatic check
+(`updates.automatic`); About keeps "Check now", which only the master and
+`updates` service switches block.
+
 
 - `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
   channel, parses semver, and selects the correct platform artifact using
@@ -1415,8 +1445,10 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 
 ### Recommendation sessions
 
-Song-based **Server Mix** and **Last.fm · Same Vibes** remain separate saved
-choices. Server Mix calls the standard Subsonic `getSimilarSongs2` endpoint,
+Song-based **Server Mix** and **Last.fm · Same Vibes** are the two Instant
+Mix modes. Settings › Integrations › Last.fm › "Same Vibes mixes" chooses
+between them (`preferredMixModeProvider`); Server Mix is used whenever the
+policy does not allow `lastfm.sameVibes`. Server Mix calls the standard Subsonic `getSimilarSongs2` endpoint,
 then the original `getSimilarSongs` when unsupported. The existing Navidrome
 `getInstantMix` endpoint is a final compatibility fallback only when both
 standard endpoints are unsupported. AudioMuse's installed Navidrome plugin

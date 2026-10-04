@@ -84,6 +84,7 @@ void main() {
       required UpdateInfo? updateInfo,
       bool desktopMode = false,
       TextScaler? textScaler,
+      AppSettingsModel? storedSettings,
     }) async {
       await tester.binding.setSurfaceSize(
         desktopMode ? const Size(1280, 800) : const Size(900, 1200),
@@ -94,7 +95,9 @@ void main() {
         ProviderScope(
           overrides: [
             settingsRepositoryProvider.overrideWithValue(repository),
-            appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+            appSettingsProvider.overrideWith(
+              (ref) => Stream.value(storedSettings ?? settings),
+            ),
             packageInfoProvider.overrideWith(
               (ref) async => PackageInfo(
                 appName: 'Navis',
@@ -161,6 +164,57 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       }
     });
+
+    testWidgets('the automatic check moved to Integrations', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await pumpAbout(tester, updateInfo: null);
+
+        expect(find.byType(SwitchListTile), findsNothing);
+        expect(find.widgetWithText(ListTile, 'Integrations'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    for (final entry in <String, ({AppSettingsModel stored, bool allowed})>{
+      'only automatic checks are off': (
+        stored: settings.copyWith(updateCheckEnabled: false),
+        allowed: true,
+      ),
+      'update checks are off': (
+        stored: settings.copyWith(disabledIntegrations: '["updates"]'),
+        allowed: false,
+      ),
+      'Online services are off': (
+        stored: settings.copyWith(externalIntegrationsEnabled: false),
+        allowed: false,
+      ),
+    }.entries) {
+      testWidgets('Check now follows the updates service when '
+          '${entry.key}', (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        try {
+          await pumpAbout(
+            tester,
+            updateInfo: null,
+            storedSettings: entry.value.stored,
+          );
+
+          final l10n = lookupAppLocalizations(const Locale('en'));
+          final checkNow = tester.widget<ListTile>(
+            find.widgetWithText(ListTile, l10n.updateCheckTitle),
+          );
+          expect(checkNow.enabled, entry.value.allowed);
+          expect(
+            find.text('Update checks are off in Integrations.'),
+            entry.value.allowed ? findsNothing : findsOneWidget,
+          );
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
 
     testWidgets('desktop About keeps a Settings return path', (tester) async {
       setAdaptiveTestViewport(tester, const Size(1280, 800));

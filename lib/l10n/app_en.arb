@@ -75,7 +75,7 @@
   "batteryOptimizationPromptOpenSettingsAction": "Open Settings",
   "settingsTitle": "Settings",
   "settingsServerTitle": "Configuration",
-  "settingsServerSubtitle": "Server connection, account, and external services.",
+  "settingsServerSubtitle": "Server connection and account.",
   "settingsCacheTitle": "Device Storage & Cache",
   "settingsCacheSubtitle": "Manage on-device audio, artwork, and download storage.",
   "settingsDownloadsSubtitle": "Manage offline downloads and queue.",
@@ -146,14 +146,14 @@
   "desktopShortcutsEscape": "Esc",
   "settingsDesktopWorkspaceSubtitle": "Desktop workspace controls and app preferences",
   "privacyAccountsTitle": "Accounts and Credentials",
-  "privacyAccountsBody": "Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.",
+  "privacyAccountsBody": "Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Your server password and ListenBrainz token are stored in the platform's secure credential store when available. A Last.fm API key you enter yourself is stored in the app database.",
   "privacyScrobblingTitle": "External Scrobbling",
-  "privacyScrobblingBody": "If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.",
+  "privacyScrobblingBody": "With a validated ListenBrainz token, Navis sends listening activity for played tracks to ListenBrainz while Scrobbling is on. This can include track title, artist, album, duration, play time and now-playing status. While Likes is on, songs you like are sent as loved. Your ListenBrainz token stays on your device.",
   "privacyDownloadsTitle": "Downloads and Cache",
   "privacyDownloadsBody": "Offline downloads, playback cache, artwork, lyrics, and library metadata are stored on your device so playback and browsing can work without repeatedly fetching the same data. You can clear cache data from Settings.",
   "privacyDiagnosticsTitle": "Diagnostics",
   "privacyDiagnosticsBody": "Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.",
-  "privacySummary": "Navis does not operate a central account service for your music library. Data is exchanged with the servers and optional third-party services you configure.",
+  "privacySummary": "Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.",
   "syncSettingsTitle": "Sync Settings",
   "syncSettingsStatusLabel": "Current Sync Status",
   "syncSettingsLastSyncedLabel": "Server Last Synced",
@@ -420,15 +420,8 @@
   "playbackSettingsCachedFirstSubtitle": "Prefer any complete cached file before requesting the active streaming profile.",
   "playbackSettingsScrobbleTitle": "Enable Scrobbling",
   "playbackSettingsScrobbleSubtitle": "Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.",
-  "playbackSettingsLrclibTitle": "Use LRCLIB Fallback",
-  "playbackSettingsLrclibSubtitle": "When server lyrics are unavailable, try LRCLIB and cache per song.",
   "playbackSettingsGaplessTitle": "Enable Gapless Playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
-  "playbackSettingsLegacyInstantMixTitle": "Server Mix",
-  "playbackSettingsLegacyInstantMixSubtitle": "Use your server's song recommendations. Turn off for Last.fm · Same Vibes.",
-  "playbackSettingsLastFmSameVibesTitle": "Last.fm · Same Vibes",
-  "playbackSettingsLastFmSameVibesSubtitle": "Match Last.fm recommendations to your library. Turn on for Server Mix.",
-  "playbackSettingsLegacyInstantMixLocked": "This build has no Last.fm API key, so Server Mix is required.",
   "playbackSettingsShowRadioPageTitle": "Show Radio Page",
   "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
   "playbackSettingsAndroidDspSectionTitle": "Android Audio Effects",
@@ -664,7 +657,6 @@
   "serverSettingsSignOutWipeSuccess": "Signed out and local data cleared.",
   "serverSettingsSignOutError": "Could not complete sign out. Try again.",
   "configurationServerSection": "Server",
-  "configurationExternalServicesSection": "External Services",
   "configurationLastFmSection": "Last.fm",
   "configurationLastFmApiKeyLabel": "API Key",
   "configurationLastFmApiKeyHint": "Paste your Last.fm API key here",
@@ -674,8 +666,6 @@
   "configurationLastFmApiKeyInvalid": "Invalid Last.fm API key.",
   "configurationLastFmApiKeyRateLimited": "Last.fm is rate limiting validation. Try again later.",
   "configurationLastFmApiKeyValidationFailed": "Could not validate this Last.fm API key.",
-  "configurationLastFmBundledNotice": "API key bundled with this build",
-  "configurationLastFmBundledSubtitle": "This build includes a Last.fm API key. You do not need to provide your own.",
   "configurationShowSecret": "Show",
   "configurationHideSecret": "Hide",
   "configurationClearSecret": "Clear",
@@ -686,6 +676,111 @@
   "configurationListenBrainzUnavailable": "ListenBrainz is unavailable. Check your connection and try again.",
   "configurationListenBrainzValidateAndSave": "Validate and save",
   "configurationListenBrainzGetToken": "Get Token",
+  "privacyOnlineServicesTitle": "Online Services",
+  "privacyOnlineServicesBody": "Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.",
+  "privacyOpenIntegrations": "Open Integrations",
+  "integrationsTitle": "Integrations",
+  "integrationsSubtitle": "Deezer, Last.fm, ListenBrainz and other online services.",
+  "integrationsMasterTitle": "Online services",
+  "integrationsMasterSubtitle": "Off: Navis only talks to your server.",
+  "integrationsServiceUpdates": "Updates",
+  "integrationsServiceRadio": "Internet radio",
+  "integrationsServiceArtwork": "Artwork",
+  "integrationsServiceSwitchLabel": "Use {service}",
+  "@integrationsServiceSwitchLabel": {
+    "placeholders": {
+      "service": { "type": "String" }
+    }
+  },
+  "integrationsDeezerSends": "Sends artist and track names to {host}.",
+  "@integrationsDeezerSends": {
+    "placeholders": {
+      "host": { "type": "String" }
+    }
+  },
+  "integrationsLastFmSends": "Sends track and artist names to {host}.",
+  "@integrationsLastFmSends": {
+    "placeholders": {
+      "host": { "type": "String" }
+    }
+  },
+  "integrationsListenBrainzSends": "Sends your listens and likes to {host}.",
+  "@integrationsListenBrainzSends": {
+    "placeholders": {
+      "host": { "type": "String" }
+    }
+  },
+  "integrationsLrclibSends": "Sends track title, artist, album and duration to {host}.",
+  "@integrationsLrclibSends": {
+    "placeholders": {
+      "host": { "type": "String" }
+    }
+  },
+  "integrationsUpdatesSends": "Sends an app version check to {host}.",
+  "@integrationsUpdatesSends": {
+    "placeholders": {
+      "host": { "type": "String" }
+    }
+  },
+  "integrationsAutoEqSends": "Downloads headphone profiles from GitHub, only when you ask.",
+  "integrationsRadioSends": "Reads now-playing info from the station's server.",
+  "integrationsArtworkSends": "Loads images your server links from other sites, such as artist photos.",
+  "integrationsFeatureDeezerTopSongsTitle": "Top songs",
+  "integrationsFeatureDeezerTopSongsSubtitle": "Popular songs on artist pages.",
+  "integrationsFeatureDeezerArtistImagesTitle": "Artist photos",
+  "integrationsFeatureDeezerArtistImagesSubtitle": "Header photo and fan count on artist pages.",
+  "integrationsFeatureDeezerSimilarArtistsTitle": "Fans also like",
+  "integrationsFeatureDeezerSimilarArtistsSubtitle": "Related artists on artist pages.",
+  "integrationsFeatureDeezerMissingAlbumsTitle": "Missing albums",
+  "integrationsFeatureDeezerMissingAlbumsSubtitle": "An artist's albums that aren't on your server.",
+  "integrationsFeatureDeezerNewReleasesTitle": "New releases",
+  "integrationsFeatureDeezerNewReleasesSubtitle": "New releases from your artists on Home.",
+  "integrationsFeatureDeezerTrendingTitle": "Trending",
+  "integrationsFeatureDeezerTrendingSubtitle": "Trending songs in You Might Like.",
+  "integrationsFeatureLastFmSameVibesTitle": "Same Vibes mixes",
+  "integrationsFeatureLastFmSameVibesSubtitle": "On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server's mix.",
+  "integrationsFeatureLastFmRadioTitle": "Instant Radio",
+  "integrationsFeatureLastFmRadioSubtitle": "Adds similar songs from Last.fm when your server's suggestions run short.",
+  "integrationsFeatureLastFmTopSongsTitle": "Top songs",
+  "integrationsFeatureLastFmTopSongsSubtitle": "Popular songs on artist pages when Deezer has none.",
+  "integrationsFeatureListenBrainzScrobblingTitle": "Scrobbling",
+  "integrationsFeatureListenBrainzScrobblingSubtitle": "Sends the songs you play.",
+  "integrationsFeatureListenBrainzFeedbackTitle": "Likes",
+  "integrationsFeatureListenBrainzFeedbackSubtitle": "Sends the songs you like as loved.",
+  "integrationsFeatureListenBrainzWeeklyPlaylistsTitle": "Weekly playlists",
+  "integrationsFeatureListenBrainzWeeklyPlaylistsSubtitle": "Your weekly ListenBrainz playlists on Home and in Library.",
+  "integrationsFeatureLrclibLyricsTitle": "Synced lyrics",
+  "integrationsFeatureLrclibLyricsSubtitle": "Synced lyrics from LRCLIB first, server lyrics as fallback.",
+  "integrationsFeatureUpdatesAutomaticTitle": "Check automatically",
+  "integrationsFeatureUpdatesAutomaticSubtitle": "Looks for a new version when Navis starts. Check now is in About.",
+  "integrationsFeatureAutoEqCatalogueTitle": "Headphone profiles",
+  "integrationsFeatureAutoEqCatalogueSubtitle": "Refresh the catalogue and download profiles in the equalizer.",
+  "integrationsFeatureRadioNowPlayingTitle": "Now playing",
+  "integrationsFeatureRadioNowPlayingSubtitle": "Song and artwork from the station while you listen.",
+  "integrationsFeatureArtworkServerLinkedTitle": "Linked images",
+  "integrationsFeatureArtworkServerLinkedSubtitle": "Artist photos and other images hosted outside your server.",
+  "integrationsLockedMasterOff": "Online services are off.",
+  "integrationsLockedServiceOff": "{service} is off.",
+  "@integrationsLockedServiceOff": {
+    "placeholders": {
+      "service": { "type": "String" }
+    }
+  },
+  "integrationsLockedNeedsLastFmKey": "Needs a verified Last.fm API key.",
+  "integrationsLockedNeedsListenBrainzToken": "Needs a verified ListenBrainz token.",
+  "integrationsLastFmKeyIncluded": "Key included with this build",
+  "integrationsSaveError": "Couldn't save this change. Try again.",
+  "integrationsLoadError": "Could Not Load Integrations",
+  "listenBrainzConnectedTitle": "ListenBrainz connected",
+  "listenBrainzConnectedAs": "Connected as {account}.",
+  "@listenBrainzConnectedAs": {
+    "placeholders": {
+      "account": { "type": "String" }
+    }
+  },
+  "listenBrainzConnectedNoAccount": "Your token is valid.",
+  "listenBrainzUpdateToken": "Update",
+  "updateCheckOffInIntegrations": "Update checks are off in Integrations.",
   "commonQueued": "Queued",
   "commonRetry": "Retry",
   "commonErrorRecoveryHint": "Check your connection and try again.",
@@ -1580,7 +1675,7 @@
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "privacyTitle": "Privacy",
-  "privacySub": "How Navis handles app data and optional service sharing.",
+  "privacySub": "How Navis handles your data and which online services it uses.",
   "aboutCodename": "Cape Horn",
   "aboutDataUsageTitle": "Data Usage",
   "aboutDataUsageSubtitle": "Local network usage estimates by feature and network type.",
@@ -1664,8 +1759,6 @@
   "updateOpenPlayStore": "Open in Play Store",
   "updatePlayStoreFallbackNotice": "Could not open Google Play. Opening the release page instead.",
 
-  "updateAutoCheckTitle": "Automatically Check for Updates",
-  "updateAutoCheckSubtitle": "Check for new releases on each app launch.",
   "updatesSettingsSectionLabel": "Updates",
   "updateChannelTitle": "Update Channel",
   "updateChannelStable": "Stable",

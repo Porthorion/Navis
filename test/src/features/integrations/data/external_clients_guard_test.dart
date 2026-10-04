@@ -106,20 +106,38 @@ void main() {
       ),
     );
 
-    test('token validation works while the service is off', () async {
-      policy = const IntegrationPolicy(disabledKeys: {'listenbrainz'});
-      final details = await client().validateTokenDetails('TOKEN-SECRET');
-      expect(details.valid, isTrue);
-      expect(adapter.requested, hasLength(1));
-      expect(jsonEncode(recorder.toJson()), isNot(contains('TOKEN-SECRET')));
-    });
+    test(
+      'a validation the user asked for works while the service is off',
+      () async {
+        policy = const IntegrationPolicy(disabledKeys: {'listenbrainz'});
+        final details = await client().validateTokenDetails(
+          'TOKEN-SECRET',
+          userInitiated: true,
+        );
+        expect(details.valid, isTrue);
+        expect(adapter.requested, hasLength(1));
+        expect(jsonEncode(recorder.toJson()), isNot(contains('TOKEN-SECRET')));
+      },
+    );
+
+    test(
+      'automatic revalidation is blocked while the service is off',
+      () async {
+        policy = const IntegrationPolicy(disabledKeys: {'listenbrainz'});
+        await expectLater(
+          client().validateTokenDetails('TOKEN-SECRET'),
+          throwsA(isA<DioException>()),
+        );
+        expect(adapter.requested, isEmpty);
+      },
+    );
 
     test(
       'token validation is blocked while the master switch is off',
       () async {
         policy = const IntegrationPolicy(masterEnabled: false);
         await expectLater(
-          client().validateTokenDetails('TOKEN-SECRET'),
+          client().validateTokenDetails('TOKEN-SECRET', userInitiated: true),
           throwsA(isA<DioException>()),
         );
         expect(adapter.requested, isEmpty);

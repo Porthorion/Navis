@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
-import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -409,19 +410,11 @@ void main() {
       expect(savedModel!.gaplessEnabled, isTrue);
     });
 
-    testWidgets('legacy instant mix persists when leaving before debounce', (
-      tester,
-    ) async {
-      AppSettingsModel? savedModel;
-      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
-        savedModel = invocation.positionalArguments.first as AppSettingsModel;
-      });
-
+    testWidgets('integration switches are not on Playback', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             settingsRepositoryProvider.overrideWithValue(repository),
-            lastFmApiKeyProvider.overrideWithValue('test-key'),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
             ),
@@ -431,80 +424,62 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final legacyToggle = find.widgetWithText(
-        SwitchListTile,
-        'Last.fm · Same Vibes',
-      );
-      await tester.ensureVisible(legacyToggle);
-      await tester.pumpAndSettle();
-      await tester.tap(legacyToggle);
-      await tester.pump();
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-
-      verify(() => repository.saveSettings(any())).called(greaterThan(0));
-      expect(savedModel, isNotNull);
-      expect(savedModel!.legacyInstantMixEnabled, isTrue);
-      expect(tester.takeException(), isNull);
+      expect(find.textContaining('LRCLIB'), findsNothing);
+      expect(find.textContaining('Same Vibes'), findsNothing);
+      expect(find.text('Server Mix'), findsNothing);
     });
 
-    for (final locked in <String, AppSettingsModel>{
-      'the master switch is off': initialSettings.copyWith(
-        externalIntegrationsEnabled: false,
-      ),
-      'the Last.fm service is off': initialSettings.copyWith(
-        disabledIntegrations: '["lastfm"]',
-      ),
-    }.entries) {
-      testWidgets('autosave while ${locked.key} keeps Same Vibes reversible', (
-        tester,
-      ) async {
-        AppSettingsModel? savedModel;
-        when(() => repository.saveSettings(any())).thenAnswer((
-          invocation,
-        ) async {
-          savedModel = invocation.positionalArguments.first as AppSettingsModel;
-        });
-
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              settingsRepositoryProvider.overrideWithValue(repository),
-              lastFmApiKeyProvider.overrideWithValue('test-key'),
-              appSettingsProvider.overrideWithValue(AsyncData(locked.value)),
-            ],
-            child: _buildTestApp(),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final scrobbleToggle = find.widgetWithText(
-          SwitchListTile,
-          'Enable Scrobbling',
-        );
-        await tester.ensureVisible(scrobbleToggle);
-        await tester.pumpAndSettle();
-        await tester.tap(scrobbleToggle);
-        await tester.pumpAndSettle();
-        await tester.pump(const Duration(milliseconds: 700));
-        await tester.pumpAndSettle();
-
-        expect(savedModel, isNotNull);
-        // The lock must not rewrite storage as Server Mix.
-        expect(savedModel!.legacyInstantMixEnabled, isFalse);
-        // Switching the integrations back on finds Same Vibes still on.
-        final reopened = integrationPolicyFromSettings(
-          savedModel!.copyWith(
-            externalIntegrationsEnabled: true,
-            disabledIntegrations: '[]',
-          ),
-          lastFmVerified: true,
-        );
-        expect(reopened.allows(IntegrationFeature.lastFmSameVibes), isTrue);
-        expect(tester.takeException(), isNull);
+    testWidgets('autosave cannot revert a choice made in Integrations', (
+      tester,
+    ) async {
+      final settings = StreamController<AppSettingsModel>();
+      addTearDown(settings.close);
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
       });
-    }
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWith((_) => settings.stream),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      settings.add(initialSettings);
+      await tester.pumpAndSettle();
+
+      // Integrations switches LRCLIB, Same Vibes and automatic update checks
+      // off while Playback is open.
+      settings.add(
+        initialSettings.copyWith(
+          useLrclib: false,
+          legacyInstantMixEnabled: true,
+          updateCheckEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scrobbleToggle = find.widgetWithText(
+        SwitchListTile,
+        'Enable Scrobbling',
+      );
+      await tester.ensureVisible(scrobbleToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(scrobbleToggle);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel, isNotNull);
+      expect(savedModel!.scrobbleEnabled, isFalse);
+      expect(savedModel!.useLrclib, isFalse);
+      expect(savedModel!.legacyInstantMixEnabled, isTrue);
+      expect(savedModel!.updateCheckEnabled, isFalse);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
 
