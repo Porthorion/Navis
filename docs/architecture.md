@@ -1440,8 +1440,14 @@ The update channel (`stable` or `dev`) is baked in at compile time via
 with `navis-dev-`, while the `stable` channel matches assets prefixed with `navis-`. This
 ensures sidecar/dev builds never suggest a stable release as an upgrade.
 
-The Last.fm API key used by "Same Vibes" instant mix mode is injected at build time via
-`--dart-define=NAVIS_LASTFM_API_KEY=...` and read from `AppConstants.lastFmApiKey`.
+The Last.fm API key used by "Same Vibes" instant mix mode is injected at build time as a
+masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random pad) and
+`NAVIS_LASTFM_API_KEY_PAD`, both hex, passed through `--dart-define-from-file`.
+`AppConstants.lastFmApiKey` XORs them back once at runtime and returns an empty key for a
+missing, malformed or mismatched pair. A plain `NAVIS_LASTFM_API_KEY` define is still accepted
+when the pair is absent so local dev runs work. Masking deters casual extraction and is not
+secrecy: a Last.fm API key is a client identifier and no shared secret is used. See
+[ci-cd.md](ci-cd.md#lastfm-key) for the build scripts and the post-build artifact scan.
 
 ### Recommendation sessions
 

@@ -15,6 +15,7 @@ This document defines the recommended secret handling model for Navis multi-OS r
 3. Google Play service account JSON for AAB upload automation
 4. Apple signing identity + notarization credentials
 5. Optional Linux package metadata (maintainer identity)
+6. Last.fm API key bundled into release builds
 
 ## Storage policy
 
@@ -23,9 +24,36 @@ This document defines the recommended secret handling model for Navis multi-OS r
   - `tool/release.env` (already git-ignored)
   - macOS Keychain for Apple notarytool profile
   - local `android/key.properties` and keystore files (never committed)
-- In-app Last.fm shared secrets, Last.fm session keys, and ListenBrainz tokens
-  are runtime user credentials. They must stay in platform secure storage, not
-  Drift or logs.
+- The ListenBrainz token is a runtime user credential. It must stay in
+  platform secure storage, not Drift or logs. (Last.fm shared secrets and
+  session keys no longer exist; Last.fm scrobbling was removed.)
+- The bundled Last.fm API key lives in `tool/release.env` as
+  `NAVIS_LASTFM_API_KEY` and is covered below.
+
+## Last.fm API key
+
+Put the key in local `tool/release.env`:
+
+```bash
+NAVIS_LASTFM_API_KEY="<lastfm-api-key>"
+```
+
+Required for Android and Google Play builds; bundled in every target when set.
+Builds bundle it masked, not in plaintext: a fresh random pad per build, with
+`NAVIS_LASTFM_API_KEY_MASKED` (key XOR pad) and `NAVIS_LASTFM_API_KEY_PAD`
+handed to Flutter through a mode-600 `--dart-define-from-file` that is deleted
+when the script exits. Remote builders receive that file over ssh stdin (Linux)
+or scp (Windows), never on a command line, and delete it after the build.
+`tool/release.sh` and `tool/play_release.sh` then scan every artifact for the
+plaintext key and fail the release if it appears.
+
+State this plainly when discussing it: masking deters casual extraction and is
+not secrecy. The app must hold the key to call Last.fm, and a Last.fm API key is
+a client identifier, not a credential; no shared secret is used. Rotate the key
+if it is posted publicly, but do not treat a bundled key as confidential.
+
+Never paste the key into issues, logs, commit messages or chat, and never
+commit `tool/release.env`.
 
 ## Forgejo token
 

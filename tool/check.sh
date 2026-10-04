@@ -62,6 +62,8 @@ assert_no_blocking_warnings() {
 
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "release tag guard" ./tool/release_tag_guard_test.sh
+run_step "Last.fm key masking" ./tool/lastfm_key_defines_test.sh
+run_step "artifact secret scan" ./tool/scan_artifact_secret_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
 run_step "format check" ./tool/dart_format.sh --check

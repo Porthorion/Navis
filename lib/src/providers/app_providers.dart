@@ -569,15 +569,17 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
   return client;
 });
 
-/// Whether a Last.fm API key is bundled at build time via NAVIS_LASTFM_API_KEY.
+/// Whether a Last.fm API key is bundled at build time (masked define pair, or
+/// the plain NAVIS_LASTFM_API_KEY dev define).
 final lastFmBundledKeyProvider = Provider<bool>((_) {
   return AppConstants.lastFmApiKey.trim().isNotEmpty;
 });
 
 /// The effective Last.fm API key.
 ///
-/// Prefers the build-time key (NAVIS_LASTFM_API_KEY). When no build-time key
-/// is present, falls back to the user-provided key stored in app settings.
+/// Prefers the build-time key (see [AppConstants.lastFmApiKey]). When no
+/// build-time key is present, falls back to the user-provided key stored in app
+/// settings.
 final lastFmApiKeyProvider = Provider<String>((ref) {
   if (_syncDiagnosticsEnabled) {
     if (_syncDiagnosticsMode == 'clone' &&
@@ -598,7 +600,7 @@ final lastFmApiKeyProvider = Provider<String>((ref) {
     }
     return '';
   }
-  const bundledKey = AppConstants.lastFmApiKey;
+  final bundledKey = AppConstants.lastFmApiKey;
   if (bundledKey.trim().isNotEmpty) {
     return bundledKey.trim();
   }

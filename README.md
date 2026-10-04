@@ -151,8 +151,10 @@ Navis only talks to your server. Everything is on by default.
   albums, new releases and trending songs.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No
-  Last.fm scrobbling. Release builds include an API key; builds without one show
-  a field for your own key.
+  Last.fm scrobbling. Release builds bundle an API key, masked at build time to
+  deter casual extraction (a Last.fm API key is a client identifier, not a
+  secret, and Navis uses no shared secret); builds without one show a field for
+  your own key.
 - **ListenBrainz** — scrobbling, likes (sent as loved) and weekly playlists,
   after its User Token validates.
 - **LRCLIB** synced lyrics (server lyrics as fallback), **update checks**,

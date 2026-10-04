@@ -28,12 +28,16 @@ the repository root, and uploads them to the Forgejo release.
   - `FORGEJO_URL`
   - `FORGEJO_REPO`
   - `FORGEJO_TOKEN`
-  - optional `NAVIS_LASTFM_API_KEY`
+  - optional `NAVIS_LASTFM_API_KEY` (bundled masked; see
+    [ci-cd.md](ci-cd.md#lastfm-key))
 - SSH key access to each builder without interactive prompts.
 
 Do not store secrets on the remote builders unless the platform build itself
-requires them. The host passes release channel and optional Dart defines to the
-remote scripts.
+requires them. The host passes the release channel to the remote scripts as
+arguments. The masked Last.fm key defines travel as a private file (ssh stdin to
+the Linux builder, scp to the Windows builder), never on a command line, and the
+builder deletes the file when the build ends; `tool/release.env` is excluded
+from the source archive.
 
 ## Linux builder requirements
 

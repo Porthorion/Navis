@@ -44,14 +44,33 @@ if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   source "${SCRIPT_DIR}/release.env"
 fi
 
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/lastfm_key_defines.sh"
+
 DART_DEFINE_ARGS=(
   "--dart-define=NAVIS_UPDATE_CHANNEL=dev"
   "--dart-define=NAVIS_SELF_UPDATE=true"
   "--dart-define=NAVIS_AGENT_DEBUG=true"
 )
 export NAVIS_SELF_UPDATE=true
+
+# The Last.fm key is bundled masked (key XOR a per-run random pad) through a
+# private defines file that is deleted when this script exits, so it is never on
+# a command line. This deters casual extraction; it is not secrecy.
+SECRET_TMP_DIR=""
+cleanup_secrets() {
+  if [[ -n "${SECRET_TMP_DIR}" ]]; then
+    rm -rf "${SECRET_TMP_DIR}"
+  fi
+}
+trap cleanup_secrets EXIT
+LASTFM_DEFINES_ARGS=()
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-  DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+  SECRET_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/navis-dev-secrets.XXXXXX")"
+  navis_write_lastfm_defines_file \
+    "${SECRET_TMP_DIR}/lastfm-defines.json" "${NAVIS_LASTFM_API_KEY}"
+  LASTFM_DEFINES_ARGS=("--dart-define-from-file=${SECRET_TMP_DIR}/lastfm-defines.json")
+  DART_DEFINE_ARGS+=("${LASTFM_DEFINES_ARGS[@]}")
 fi
 
 if [[ "${MODE}" != "linux-release" ]]; then
@@ -63,7 +82,7 @@ fi
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   echo "    NAVIS_LASTFM_API_KEY=provided"
 else
-  echo "    NAVIS_LASTFM_API_KEY=missing (Same Vibes will fallback)"
+  echo "    NAVIS_LASTFM_API_KEY=missing (Last.fm features need a key from Settings > Integrations)"
 fi
 # NAVIS_SELF_UPDATE=true enables the Gradle "sideload" product flavor. Flutter
 # must target it explicitly; otherwise it can install a stale legacy app-debug.apk
@@ -217,8 +236,8 @@ case "${MODE}" in
     # The build the desktop launcher runs: the app's own identity and profile
     # on the stable update channel, with the same defines as tool/release.sh.
     RELEASE_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=stable")
-    if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-      RELEASE_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+    if [[ ${#LASTFM_DEFINES_ARGS[@]} -gt 0 ]]; then
+      RELEASE_DEFINE_ARGS+=("${LASTFM_DEFINES_ARGS[@]}")
     fi
     echo "==> Building the Linux release bundle (update channel: stable)"
     flutter build linux --release "${RELEASE_DEFINE_ARGS[@]}" "$@"

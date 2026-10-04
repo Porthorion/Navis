@@ -43,27 +43,26 @@ non-Android assets.
 ## External Scrobbling
 
 - Subsonic/OpenSubsonic server scrobbling remains independent.
-- Last.fm and ListenBrainz can be enabled independently.
-- Last.fm requires a user API key, shared secret, browser auth token flow, and
-  session key.
-- ListenBrainz requires the user token from ListenBrainz settings.
-- Shared secret, Last.fm session key, and ListenBrainz token are stored in
-  secure storage; only non-secret status/enabled flags live in Drift.
+- Last.fm scrobbling and its shared-secret/session-key sign-in were removed in
+  1.4.3; the Last.fm API key is only used for read-only recommendation lookups
+  and is bundled with the build (see [release-secrets.md](release-secrets.md)).
+  The Play App Bundle is built with it through `tool/play_release.sh`.
+- ListenBrainz requires the user token from ListenBrainz settings and is
+  enabled from Settings › Integrations.
+- The ListenBrainz token is stored in secure storage; only non-secret
+  status/enabled flags live in Drift.
 - Queue entries capture resolved title, artist, album, and duration so external
   scrobbles can flush later without current library metadata.
 - The v46 migration rebuilds `scrobble_queue` so upgraded installs use
   provider-aware uniqueness (`song_id`, `provider`, `submission`,
-  `session_key`), allowing Subsonic, Last.fm, and ListenBrainz to queue the
-  same listen independently.
-- Invalid Last.fm sessions disable Last.fm scrobbling and mark Last.fm
-  disconnected.
+  `session_key`), allowing Subsonic and ListenBrainz to queue the same listen
+  independently. Old Last.fm rows from earlier versions are dropped on flush.
 - Invalid ListenBrainz tokens disable ListenBrainz scrobbling and mark the
   token invalid until updated.
-- Missing Subsonic API state must not block Last.fm or ListenBrainz queue
-  flushing; Subsonic events remain queued until the Subsonic client is
+- Missing Subsonic API state must not block ListenBrainz queue flushing; Subsonic events remain queued until the Subsonic client is
   available again.
-- Setup screens catch Last.fm/ListenBrainz credential and network failures and
-  show redacted user-facing notices.
+- Integration setup catches Last.fm key and ListenBrainz token validation and
+  network failures and shows redacted user-facing notices.
 
 ## Retired Listen Together
 
@@ -111,15 +110,16 @@ non-Android assets.
 - `flutter test`
 - `flutter build appbundle --release`
 - `tool/security_audit.sh`
-- `tool/play_release.sh --dry-run`
+- `tool/play_release.sh --dry-run` (also scans the bundle for the plaintext
+  Last.fm key)
 - Check AAB signing certificate before internal release.
 - Migration acceptance:
   - Upgrade a v45 database with queued scrobbles.
-  - Confirm the queue allows one Subsonic, one Last.fm, and one ListenBrainz
-    event for the same song/session.
+  - Confirm the queue allows one Subsonic and one ListenBrainz event for the
+    same song/session.
 - Manual acceptance:
-  - Last.fm and ListenBrainz both scrobble when both are enabled.
-  - Either external service can be disabled independently.
+  - ListenBrainz scrobbles when its switch is on and its token is valid.
+  - Each integration can be disabled independently from Settings › Integrations.
   - Offline scrobbles flush after reconnect.
   - Radio playback remains suppressed.
   - Play internal update works on a real device.

@@ -146,6 +146,11 @@ if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   source "${SCRIPT_DIR}/release.env"
 fi
 
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/lastfm_key_defines.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/scan_artifact_secret.sh"
+
 LINUX_SSH_TARGET="${LINUX_SSH_TARGET:-${NAVIS_LINUX_SSH:-}}"
 WINDOWS_SSH_TARGET="${WINDOWS_SSH_TARGET:-${NAVIS_WINDOWS_SSH:-}}"
 LINUX_REMOTE_DIR="${LINUX_REMOTE_DIR:-${NAVIS_LINUX_REMOTE_DIR:-.navis/remote-linux-build}}"
@@ -329,9 +334,46 @@ if [[ "${FORCE_PRERELEASE}" == "true" ]]; then
 fi
 
 DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
+
+# The Last.fm key is bundled masked (key XOR a per-build random pad) through a
+# private defines file, never on a command line. This deters casual extraction;
+# it is not secrecy. See docs/release-secrets.md.
+SECRET_TMP_DIR=""
+LASTFM_DEFINES_FILE=""
+cleanup_release_secrets() {
+  if [[ -n "${SECRET_TMP_DIR}" ]]; then
+    rm -rf "${SECRET_TMP_DIR}"
+  fi
+}
+trap cleanup_release_secrets EXIT
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
-  DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+  mkdir -p "${SCRIPT_DIR}/../build"
+  SECRET_TMP_DIR="$(mktemp -d "$(cd "${SCRIPT_DIR}/../build" && pwd)/navis-secrets.XXXXXX")"
+  LASTFM_DEFINES_FILE="${SECRET_TMP_DIR}/lastfm-defines.json"
+  navis_write_lastfm_defines_file "${LASTFM_DEFINES_FILE}" "${NAVIS_LASTFM_API_KEY}"
+  DART_DEFINE_ARGS+=("--dart-define-from-file=$(to_windows_host_path "${LASTFM_DEFINES_FILE}")")
 fi
+
+# Fail the release when an artifact still carries the plaintext Last.fm key.
+scan_release_artifact() {
+  local artifact="$1" status=0
+  if [[ -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+    return 0
+  fi
+  echo "==> Scanning $(basename "${artifact}") for the plaintext Last.fm key..."
+  scan_artifact_for_secret "${artifact}" "${NAVIS_LASTFM_API_KEY}" || status=$?
+  case "${status}" in
+    0) ;;
+    1)
+      echo "Error: $(basename "${artifact}") contains the plaintext Last.fm API key."
+      exit 1
+      ;;
+    *)
+      echo "Error: could not scan $(basename "${artifact}") for the Last.fm API key."
+      exit 1
+      ;;
+  esac
+}
 
 # ─── Clean tree ─────────────────────────────────────────────────────────────
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -408,6 +450,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   fi
 
   cp "${APK_PATH}" "${APK_ASSET}"
+  scan_release_artifact "${APK_ASSET}"
   ASSET_FILES+=("${APK_ASSET}")
   ASSET_NAMES+=("${APK_ASSET_NAME}")
   echo "    APK -> ${APK_ASSET_NAME}"
@@ -498,6 +541,7 @@ if [[ "${BUILD_IOS}" == "true" ]]; then
   IPA_ASSET="${SCRIPT_DIR}/../${IPA_ASSET_NAME}"
   remove_release_asset "${IPA_ASSET}"
   cp "${FOUND_IPA}" "${IPA_ASSET}"
+  scan_release_artifact "${IPA_ASSET}"
   ASSET_FILES+=("${IPA_ASSET}")
   ASSET_NAMES+=("${IPA_ASSET_NAME}")
   echo "    IPA -> ${IPA_ASSET_NAME}"
@@ -525,6 +569,7 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
   else
     ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
   fi
+  scan_release_artifact "${MACOS_ASSET}"
   ASSET_FILES+=("${MACOS_ASSET}")
   ASSET_NAMES+=("${MACOS_ASSET_NAME}")
   echo "    macOS -> ${MACOS_ASSET_NAME}"
@@ -630,6 +675,8 @@ CONTROL
       dpkg-deb --root-owner-group --build "${DEB_STAGE_DIR}" "${DEB_ASSET}" >/dev/null
       rm -rf "${DEB_STAGE_DIR}"
 
+      scan_release_artifact "${DEB_ASSET}"
+
       ASSET_FILES+=("${DEB_ASSET}")
       ASSET_NAMES+=("${DEB_ASSET_NAME}")
       echo "    Linux -> ${DEB_ASSET_NAME}"
@@ -638,6 +685,7 @@ CONTROL
       LINUX_ASSET="${SCRIPT_DIR}/../${LINUX_ASSET_NAME}"
       remove_release_asset "${LINUX_ASSET}"
       tar -czf "${LINUX_ASSET}" -C "${LINUX_BUNDLE_DIR}" .
+      scan_release_artifact "${LINUX_ASSET}"
       ASSET_FILES+=("${LINUX_ASSET}")
       ASSET_NAMES+=("${LINUX_ASSET_NAME}")
       echo "    Linux -> ${LINUX_ASSET_NAME}"
@@ -652,7 +700,7 @@ CONTROL
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${LINUX_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
-      --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
+      --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
       --remote-dir="${LINUX_REMOTE_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
 
@@ -663,6 +711,7 @@ CONTROL
         exit 1
       fi
       DEB_ASSET_NAME="$(basename "${DEB_ASSET}")"
+      scan_release_artifact "${DEB_ASSET}"
       ASSET_FILES+=("${DEB_ASSET}")
       ASSET_NAMES+=("${DEB_ASSET_NAME}")
       echo "    Linux -> ${DEB_ASSET_NAME}"
@@ -673,6 +722,7 @@ CONTROL
         echo "Error: Remote Linux bundle artifact was not fetched (${LINUX_ASSET_NAME})."
         exit 1
       fi
+      scan_release_artifact "${LINUX_ASSET}"
       ASSET_FILES+=("${LINUX_ASSET}")
       ASSET_NAMES+=("${LINUX_ASSET_NAME}")
       echo "    Linux -> ${LINUX_ASSET_NAME}"
@@ -749,7 +799,7 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${WINDOWS_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
-      --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
+      --lastfm-defines-file="${LASTFM_DEFINES_FILE}" \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
       --flutter-dir="${WINDOWS_FLUTTER_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
@@ -758,6 +808,8 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       exit 1
     fi
   fi
+
+  scan_release_artifact "${WINDOWS_ASSET}"
 
   ASSET_FILES+=("${WINDOWS_ASSET}")
   ASSET_NAMES+=("${WINDOWS_ASSET_NAME}")

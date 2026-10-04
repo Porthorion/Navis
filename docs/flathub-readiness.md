@@ -113,7 +113,7 @@ Likely needed:
 - audio output access through the runtime/audio stack
 - MPRIS/DBus permissions needed by the app-owned Linux bridge
 - notification portal support, if notifications are used
-- URI opening portal support for Last.fm auth, external links, and help pages
+- URI opening portal support for external links and help pages
 
 Needs review before granting:
 
@@ -146,8 +146,8 @@ Before submission:
 1. Install Flatpak and `flatpak-builder`.
 2. Build locally with `flatpak-builder --force-clean`.
 3. Run the Flatpak build locally.
-4. Test login, playback, artwork, downloads/cache, Last.fm auth browser launch,
-   ListenBrainz validation, and lyrics.
+4. Test login, playback, artwork, downloads/cache, ListenBrainz validation, and
+   lyrics.
 5. Test MPRIS/media keys from a desktop shell.
 6. Inspect permissions:
    `flatpak info --show-permissions com.navis.app.navis`

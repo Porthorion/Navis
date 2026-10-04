@@ -20,7 +20,9 @@ for arg in "$@"; do
 Usage: tool/play_release.sh [--dry-run] [--play-track=internal|closed|open|production] [--play-status=draft|completed|inProgress] [--play-user-fraction=0.05]
 
 Builds a signed Android App Bundle and uploads it to Google Play.
-Requires tool/release.env with PLAY_SERVICE_ACCOUNT_JSON.
+Requires tool/release.env with PLAY_SERVICE_ACCOUNT_JSON and
+NAVIS_LASTFM_API_KEY (bundled masked; the bundle is scanned for the plaintext
+key before upload).
 
 Track aliases:
   closed -> alpha
@@ -59,14 +61,59 @@ fi
 PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.navis.app.navis}"
 SERVICE_ACCOUNT_JSON="${PLAY_SERVICE_ACCOUNT_JSON:-}"
 
+# shellcheck disable=SC1091
+source "${ROOT}/tool/lib/lastfm_key_defines.sh"
+# shellcheck disable=SC1091
+source "${ROOT}/tool/lib/scan_artifact_secret.sh"
+
+# Play builds bundle the Last.fm key like every other release build.
+if [[ -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+  echo "Error: NAVIS_LASTFM_API_KEY is required for the Play App Bundle." >&2
+  echo "Set it in tool/release.env, for example:" >&2
+  echo "  NAVIS_LASTFM_API_KEY=your_lastfm_api_key" >&2
+  exit 1
+fi
+
+tmpdir=""
+SECRET_TMP_DIR=""
+cleanup() {
+  rm -rf "${tmpdir}" "${SECRET_TMP_DIR}"
+}
+trap cleanup EXIT
+
+# Masked (key XOR a per-build random pad) through a private defines file that is
+# deleted on exit, never on a command line. This deters casual extraction; it is
+# not secrecy. See docs/release-secrets.md.
+mkdir -p "${ROOT}/build"
+SECRET_TMP_DIR="$(mktemp -d "${ROOT}/build/navis-secrets.XXXXXX")"
+navis_write_lastfm_defines_file \
+  "${SECRET_TMP_DIR}/lastfm-defines.json" "${NAVIS_LASTFM_API_KEY}"
+
 echo "==> Building release Android App Bundle"
 export NAVIS_SELF_UPDATE=false
-flutter build appbundle --release --flavor play --dart-define=NAVIS_SELF_UPDATE=false
+flutter build appbundle --release --flavor play \
+  --dart-define=NAVIS_SELF_UPDATE=false \
+  "--dart-define-from-file=${SECRET_TMP_DIR}/lastfm-defines.json"
 AAB_PATH="build/app/outputs/bundle/playRelease/app-play-release.aab"
 if [[ ! -f "${AAB_PATH}" ]]; then
   echo "AAB not found at ${AAB_PATH}" >&2
   exit 1
 fi
+
+echo "==> Scanning the App Bundle for the plaintext Last.fm key"
+scan_status=0
+scan_artifact_for_secret "${AAB_PATH}" "${NAVIS_LASTFM_API_KEY}" || scan_status=$?
+case "${scan_status}" in
+  0) ;;
+  1)
+    echo "Error: ${AAB_PATH} contains the plaintext Last.fm API key." >&2
+    exit 1
+    ;;
+  *)
+    echo "Error: could not scan ${AAB_PATH} for the Last.fm API key." >&2
+    exit 1
+    ;;
+esac
 
 if [[ "${DRY_RUN}" == true ]]; then
   echo "Dry run complete: built ${AAB_PATH}; no Play edit was created."
@@ -79,7 +126,6 @@ if [[ -z "${SERVICE_ACCOUNT_JSON}" || ! -f "${SERVICE_ACCOUNT_JSON}" ]]; then
 fi
 
 tmpdir="$(mktemp -d)"
-trap 'rm -rf "${tmpdir}"' EXIT
 
 python3 - "${SERVICE_ACCOUNT_JSON}" "${tmpdir}" <<'PY'
 import base64
