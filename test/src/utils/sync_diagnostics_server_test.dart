@@ -19,6 +19,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -490,6 +491,148 @@ void main() {
   );
 
   test(
+    'integrations diagnostics report and change the policy, clone-only',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        method: 'POST',
+        body: {'master': false},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      for (final body in [
+        <String, Object?>{},
+        <String, Object?>{'master': 'false'},
+        <String, Object?>{'unknown': true},
+        <String, Object?>{'key': 'deezer.topSongs'},
+        <String, Object?>{'enabled': false},
+        <String, Object?>{'key': 'deezer.nope', 'enabled': false},
+        <String, Object?>{'key': 'Deezer', 'enabled': false},
+        <String, Object?>{'key': 7, 'enabled': false},
+        <String, Object?>{'key': 'deezer', 'enabled': 'no'},
+        <String, Object?>{'master': false, 'extra': 1},
+      ]) {
+        final invalid = await _request(
+          fixture.port,
+          '/v1/presentation/integrations',
+          method: 'POST',
+          token: fixture.token,
+          body: body,
+        );
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+
+      final initial = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        token: fixture.token,
+      );
+      expect(initial.statusCode, HttpStatus.ok);
+      expect(initial.body['master'], isTrue);
+      expect(initial.body['disabled'], isEmpty);
+      final initialFeatures = initial.body['features']! as Map;
+      expect(initialFeatures.keys, hasLength(IntegrationFeature.values.length));
+      expect(initialFeatures['deezer.topSongs'], {
+        'switchOn': true,
+        'allowed': true,
+        'toggleable': true,
+        'lock': null,
+      });
+
+      final changed = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        method: 'POST',
+        token: fixture.token,
+        body: {'key': 'deezer.topSongs', 'enabled': false},
+      );
+      expect(changed.statusCode, HttpStatus.ok);
+      expect(changed.body['disabled'], ['deezer.topSongs']);
+      expect((changed.body['features']! as Map)['deezer.topSongs'], {
+        'switchOn': false,
+        'allowed': false,
+        'toggleable': true,
+        'lock': null,
+      });
+
+      final serviceOff = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        method: 'POST',
+        token: fixture.token,
+        body: {'key': 'lrclib', 'enabled': false, 'master': true},
+      );
+      expect(serviceOff.statusCode, HttpStatus.ok);
+      expect(
+        (serviceOff.body['features']! as Map)['lrclib.lyrics'],
+        containsPair('lock', 'serviceOff'),
+      );
+      expect(
+        (serviceOff.body['services']! as Map)['lrclib'],
+        containsPair('switchOn', false),
+      );
+
+      // A column-backed feature writes its column, not the JSON set.
+      final sameVibes = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        method: 'POST',
+        token: fixture.token,
+        body: {'key': 'lastfm.sameVibes', 'enabled': false},
+      );
+      expect(sameVibes.statusCode, HttpStatus.ok);
+      expect(sameVibes.body['disabled'], ['deezer.topSongs', 'lrclib']);
+      expect(
+        (sameVibes.body['features']! as Map)['lastfm.sameVibes'],
+        containsPair('switchOn', false),
+      );
+
+      final masterOff = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        method: 'POST',
+        token: fixture.token,
+        body: {'master': false},
+      );
+      expect(masterOff.body['master'], isFalse);
+      final lockedFeatures = masterOff.body['features']! as Map;
+      expect(lockedFeatures['deezer.trending'], {
+        'switchOn': true,
+        'allowed': false,
+        'toggleable': false,
+        'lock': 'masterOff',
+      });
+
+      final persisted = (await fixture.container
+          .read(navisDatabaseProvider)
+          .appSettingsDao
+          .getSettings())!;
+      expect(persisted.externalIntegrationsEnabled, isFalse);
+      expect(persisted.legacyInstantMixEnabled, isTrue);
+      expect(persisted.disabledIntegrations, '["deezer.topSongs","lrclib"]');
+
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      for (final method in ['GET', 'POST']) {
+        final forbidden = await _request(
+          primary.port,
+          '/v1/presentation/integrations',
+          method: method,
+          token: primary.token,
+          body: method == 'POST' ? {'master': false} : null,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden);
+      }
+    },
+  );
+
+  test(
     'rapid playback endpoints use the handler and remain clone-only',
     () async {
       final handler = _MockPlaybackHandler();
@@ -742,7 +885,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 90);
+    expect(authorized.body['schemaVersion'], 91);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {

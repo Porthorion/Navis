@@ -39,6 +39,7 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -616,6 +617,63 @@ final externalScrobbleCredentialStoreProvider =
       return const FlutterExternalScrobbleCredentialStore();
     });
 
+/// The user's external-integration choices combined with the credentials that
+/// gate them.
+///
+/// Derived from scalar settings only, so unrelated settings saves do not
+/// rebuild it, and `==` stops dependents rebuilding when the outcome is
+/// unchanged. It denies everything while settings load or fail to load.
+final integrationPolicyProvider = Provider<IntegrationPolicy>((ref) {
+  final inputs = ref.watch(
+    appSettingsProvider.select((async) {
+      final settings = async.asData?.value;
+      if (settings == null) {
+        return null;
+      }
+      return (
+        master: settings.externalIntegrationsEnabled,
+        disabledJson: settings.disabledIntegrations,
+        useLrclib: settings.useLrclib,
+        updateCheckEnabled: settings.updateCheckEnabled,
+        listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
+        legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
+        listenBrainzTokenValid: settings.listenBrainzTokenValid,
+      );
+    }),
+  );
+  if (inputs == null) {
+    return const IntegrationPolicy.denyAll();
+  }
+  return IntegrationPolicy.resolve(
+    masterEnabled: inputs.master,
+    disabledJson: inputs.disabledJson,
+    useLrclib: inputs.useLrclib,
+    updateCheckEnabled: inputs.updateCheckEnabled,
+    listenBrainzScrobblingEnabled: inputs.listenBrainzScrobblingEnabled,
+    legacyInstantMixEnabled: inputs.legacyInstantMixEnabled,
+    lastFmVerified: ref.watch(hasLastFmApiKeyProvider),
+    listenBrainzVerified: inputs.listenBrainzTokenValid,
+  );
+});
+
+/// The policy for settings that were just read from storage, for code that
+/// must not trust a provider that may still be loading.
+IntegrationPolicy integrationPolicyFromSettings(
+  AppSettingsModel settings, {
+  required bool lastFmVerified,
+}) {
+  return IntegrationPolicy.resolve(
+    masterEnabled: settings.externalIntegrationsEnabled,
+    disabledJson: settings.disabledIntegrations,
+    useLrclib: settings.useLrclib,
+    updateCheckEnabled: settings.updateCheckEnabled,
+    listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
+    legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
+    lastFmVerified: lastFmVerified,
+    listenBrainzVerified: settings.listenBrainzTokenValid,
+  );
+}
+
 final legacyInstantMixSettingProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
@@ -623,19 +681,24 @@ final legacyInstantMixSettingProvider = Provider<bool>((ref) {
   return settings.legacyInstantMixEnabled;
 });
 
+/// Whether the Same Vibes switch cannot be changed: the integrations master
+/// switch or the Last.fm switch is off, or no Last.fm key is available.
 final legacyInstantMixLockedProvider = Provider<bool>((ref) {
-  return !ref.watch(hasLastFmApiKeyProvider);
+  return !ref
+      .watch(integrationPolicyProvider)
+      .isUserToggleable(IntegrationFeature.lastFmSameVibes);
 });
 
 enum PreferredMixMode { sameVibes, legacyInstantMix }
 
+/// Same Vibes while the policy allows `lastfm.sameVibes`, the server's mix
+/// otherwise.
 final preferredMixModeProvider = Provider<PreferredMixMode>((ref) {
-  if (ref.watch(legacyInstantMixLockedProvider)) {
-    return PreferredMixMode.legacyInstantMix;
-  }
-  return ref.watch(legacyInstantMixSettingProvider)
-      ? PreferredMixMode.legacyInstantMix
-      : PreferredMixMode.sameVibes;
+  return ref
+          .watch(integrationPolicyProvider)
+          .allows(IntegrationFeature.lastFmSameVibes)
+      ? PreferredMixMode.sameVibes
+      : PreferredMixMode.legacyInstantMix;
 });
 
 final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
@@ -890,9 +953,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         final settings = await ref
             .read(settingsRepositoryProvider)
             .getSettings();
-        final useServer =
-            ref.read(legacyInstantMixLockedProvider) ||
-            settings.legacyInstantMixEnabled;
+        final useServer = !integrationPolicyFromSettings(
+          settings,
+          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
+        ).allows(IntegrationFeature.lastFmSameVibes);
         if (useServer) {
           ref.read(sameVibesProvider.notifier).deactivate();
           await ref.read(instantMixProvider.notifier).activate(seedId);
@@ -911,9 +975,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         final settings = await ref
             .read(settingsRepositoryProvider)
             .getSettings();
-        final useServer =
-            ref.read(legacyInstantMixLockedProvider) ||
-            settings.legacyInstantMixEnabled;
+        final useServer = !integrationPolicyFromSettings(
+          settings,
+          lastFmVerified: ref.read(hasLastFmApiKeyProvider),
+        ).allows(IntegrationFeature.lastFmSameVibes);
         if (useServer && ref.read(instantMixProvider).active) {
           ref.read(instantMixProvider.notifier).deactivate();
           return;
@@ -2581,24 +2646,29 @@ final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
   return await PackageInfo.fromPlatform();
 });
 
-/// When `true`, the next [updateProvider] fetch bypasses the 24-hour throttle.
-class UpdateForceCheckNotifier extends Notifier<bool> {
-  @override
-  bool build() => false;
+/// Carries a manual "Check now" request to the next [updateProvider] run,
+/// which then bypasses the 24-hour throttle.
+///
+/// The request is a plain field rather than provider state: [updateProvider]
+/// consumes it while building, and a provider must not modify another
+/// provider during its build.
+class UpdateForceCheckNotifier extends Notifier<void> {
+  bool _requested = false;
 
-  void requestForceCheck() => state = true;
+  @override
+  void build() {}
+
+  void requestForceCheck() => _requested = true;
 
   bool consumeForceCheck() {
-    if (!state) {
-      return false;
-    }
-    state = false;
-    return true;
+    final requested = _requested;
+    _requested = false;
+    return requested;
   }
 }
 
 final updateForceCheckProvider =
-    NotifierProvider<UpdateForceCheckNotifier, bool>(
+    NotifierProvider<UpdateForceCheckNotifier, void>(
       UpdateForceCheckNotifier.new,
     );
 
@@ -2622,14 +2692,20 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   if (settingsAsync.isLoading) {
     return null;
   }
-  final settings = settingsAsync.asData?.value;
-  if (settings != null && !settings.updateCheckEnabled) {
-    return null;
-  }
-
+  final policy = ref.watch(integrationPolicyProvider);
+  // Only the master and updates service switches block a manual "Check now".
+  // Read the flag before deciding, so an automatic check that is off never
+  // swallows a pending manual request.
   final forceCheck = ref
       .read(updateForceCheckProvider.notifier)
       .consumeForceCheck();
+  if (!policy.isServiceEnabled(IntegrationService.updates)) {
+    return null;
+  }
+  if (!forceCheck &&
+      !policy.isFeatureSwitchOn(IntegrationFeature.updatesAutomatic)) {
+    return null;
+  }
 
   return await UpdateRepository(
     installSourceService: ref.read(installSourceServiceProvider),

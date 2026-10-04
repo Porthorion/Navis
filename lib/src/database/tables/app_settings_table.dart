@@ -297,6 +297,24 @@ class AppSettingsTable extends Table {
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   TextColumn get customVoyageServers => text().nullable()();
 
+  /// The "Online services" master switch. Off means Navis only talks to the
+  /// user's server. Written only by the integration-policy writers, never by
+  /// the full-row save.
+  BoolColumn get externalIntegrationsEnabled =>
+      boolean().withDefault(const Constant(true))();
+
+  /// JSON list of switched-off integration service keys and feature keys that
+  /// have no column of their own. Features stored in `useLrclib`,
+  /// `updateCheckEnabled`, `listenBrainzScrobblingEnabled` and
+  /// `legacyInstantMixEnabled` are never listed here. Written only by the
+  /// integration-policy writers.
+  TextColumn get disabledIntegrations =>
+      text().withDefault(const Constant('[]'))();
+
+  /// True once the one-time Integrations notice on Home was dismissed.
+  BoolColumn get integrationsNoticeDismissed =>
+      boolean().withDefault(const Constant(false))();
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.

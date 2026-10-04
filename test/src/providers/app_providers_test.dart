@@ -19,6 +19,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
@@ -2162,6 +2163,204 @@ void main() {
     });
   });
 
+  group('integrationPolicyProvider', () {
+    ProviderContainer containerFor(
+      AsyncValue<AppSettingsModel> settings, {
+      String lastFmKey = 'test-key',
+    }) {
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue(lastFmKey),
+          appSettingsProvider.overrideWithValue(settings),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test('denies everything while settings load or fail', () {
+      for (final settings in <AsyncValue<AppSettingsModel>>[
+        const AsyncLoading<AppSettingsModel>(),
+        AsyncError<AppSettingsModel>('boom', StackTrace.empty),
+      ]) {
+        final policy = containerFor(settings).read(integrationPolicyProvider);
+        for (final feature in IntegrationFeature.values) {
+          expect(policy.allows(feature), isFalse, reason: feature.key);
+        }
+      }
+    });
+
+    test('follows stored settings once loaded', () {
+      final policy = containerFor(
+        AsyncData(
+          const AppSettingsModel.defaults().copyWith(
+            disabledIntegrations: '["deezer.topSongs"]',
+            useLrclib: false,
+            listenBrainzTokenValid: true,
+          ),
+        ),
+      ).read(integrationPolicyProvider);
+      expect(policy.allows(IntegrationFeature.deezerTopSongs), isFalse);
+      expect(policy.allows(IntegrationFeature.deezerTrending), isTrue);
+      expect(policy.allows(IntegrationFeature.lrclibLyrics), isFalse);
+      expect(policy.allows(IntegrationFeature.lastFmRadio), isTrue);
+      expect(policy.allows(IntegrationFeature.listenBrainzFeedback), isTrue);
+    });
+
+    test('Last.fm needs a key and ListenBrainz needs a valid token', () {
+      final policy = containerFor(
+        AsyncData(const AppSettingsModel.defaults()),
+        lastFmKey: '',
+      ).read(integrationPolicyProvider);
+      expect(policy.allows(IntegrationFeature.lastFmRadio), isFalse);
+      expect(policy.allows(IntegrationFeature.listenBrainzFeedback), isFalse);
+      expect(policy.allows(IntegrationFeature.deezerTrending), isTrue);
+    });
+
+    test('master off denies even verified services', () {
+      final policy = containerFor(
+        AsyncData(
+          const AppSettingsModel.defaults().copyWith(
+            externalIntegrationsEnabled: false,
+          ),
+        ),
+      ).read(integrationPolicyProvider);
+      for (final feature in IntegrationFeature.values) {
+        expect(policy.allows(feature), isFalse, reason: feature.key);
+      }
+    });
+
+    test('unrelated settings changes do not notify listeners', () async {
+      final controller = StreamController<AppSettingsModel>();
+      addTearDown(controller.close);
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue('test-key'),
+          appSettingsProvider.overrideWith((ref) => controller.stream),
+        ],
+      );
+      addTearDown(container.dispose);
+      final seen = <IntegrationPolicy>[];
+      container.listen(
+        integrationPolicyProvider,
+        (_, next) => seen.add(next),
+        fireImmediately: true,
+      );
+
+      controller.add(const AppSettingsModel.defaults());
+      await pumpEventQueue();
+      controller.add(
+        const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
+      );
+      await pumpEventQueue();
+      controller.add(
+        const AppSettingsModel.defaults().copyWith(
+          disabledIntegrations: '["radio"]',
+        ),
+      );
+      await pumpEventQueue();
+
+      // Loading (denyAll), loaded, then the radio change; the theme change
+      // produced no new policy.
+      expect(seen.length, 3);
+      expect(seen[0], const IntegrationPolicy.denyAll());
+      expect(seen[2].allows(IntegrationFeature.radioNowPlaying), isFalse);
+    });
+  });
+
+  group('preferredMixModeProvider and the policy', () {
+    PreferredMixMode modeFor(
+      AsyncValue<AppSettingsModel> settings, {
+      String key = 'test-key',
+    }) {
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue(key),
+          appSettingsProvider.overrideWithValue(settings),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container.read(preferredMixModeProvider);
+    }
+
+    test('is the server mix while settings load', () {
+      expect(
+        modeFor(const AsyncLoading<AppSettingsModel>()),
+        PreferredMixMode.legacyInstantMix,
+      );
+    });
+
+    test('follows the lastfm.sameVibes switch, stored inverted', () {
+      expect(
+        modeFor(AsyncData(const AppSettingsModel.defaults())),
+        PreferredMixMode.sameVibes,
+      );
+      expect(
+        modeFor(
+          AsyncData(
+            const AppSettingsModel.defaults().copyWith(
+              legacyInstantMixEnabled: true,
+            ),
+          ),
+        ),
+        PreferredMixMode.legacyInstantMix,
+      );
+    });
+
+    test('is the server mix when the Last.fm service or master is off', () {
+      expect(
+        modeFor(
+          AsyncData(
+            const AppSettingsModel.defaults().copyWith(
+              disabledIntegrations: '["lastfm"]',
+            ),
+          ),
+        ),
+        PreferredMixMode.legacyInstantMix,
+      );
+      expect(
+        modeFor(
+          AsyncData(
+            const AppSettingsModel.defaults().copyWith(
+              externalIntegrationsEnabled: false,
+            ),
+          ),
+        ),
+        PreferredMixMode.legacyInstantMix,
+      );
+    });
+
+    test('the lock follows toggleability of Same Vibes', () {
+      ProviderContainer container(AppSettingsModel settings, String key) {
+        final c = ProviderContainer(
+          overrides: [
+            lastFmApiKeyProvider.overrideWithValue(key),
+            appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          ],
+        );
+        addTearDown(c.dispose);
+        return c;
+      }
+
+      const defaults = AppSettingsModel.defaults();
+      expect(
+        container(defaults, 'k').read(legacyInstantMixLockedProvider),
+        isFalse,
+      );
+      expect(
+        container(defaults, '').read(legacyInstantMixLockedProvider),
+        isTrue,
+      );
+      expect(
+        container(
+          defaults.copyWith(externalIntegrationsEnabled: false),
+          'k',
+        ).read(legacyInstantMixLockedProvider),
+        isTrue,
+      );
+    });
+  });
+
   group('updateProvider', () {
     test('returns null when auto update checks are disabled', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
@@ -2179,7 +2378,101 @@ void main() {
 
       expect(await container.read(updateProvider.future), isNull);
     });
+
+    Future<List<bool>> checksFor(
+      AppSettingsModel settings, {
+      required bool force,
+    }) async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final store = _RecordingUpdateCheckStore();
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+          updateCheckStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      if (force) {
+        container.read(updateForceCheckProvider.notifier).requestForceCheck();
+      }
+      await container.read(updateProvider.future);
+      return store.forceArguments;
+    }
+
+    test('Check now works while automatic checks are off', () async {
+      final settings = const AppSettingsModel.defaults().copyWith(
+        updateCheckEnabled: false,
+      );
+      expect(await checksFor(settings, force: true), [true]);
+      // Without the manual request, the automatic switch still blocks it.
+      expect(await checksFor(settings, force: false), isEmpty);
+    });
+
+    test('automatic checks run when on', () async {
+      expect(await checksFor(const AppSettingsModel.defaults(), force: false), [
+        false,
+      ]);
+    });
+
+    test(
+      'the updates service and master switch still block Check now',
+      () async {
+        for (final settings in [
+          const AppSettingsModel.defaults().copyWith(
+            disabledIntegrations: '["updates"]',
+          ),
+          const AppSettingsModel.defaults().copyWith(
+            externalIntegrationsEnabled: false,
+          ),
+        ]) {
+          expect(await checksFor(settings, force: true), isEmpty);
+        }
+      },
+    );
+
+    test('a blocked check still consumes the manual request', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWith(
+            (ref) => Stream.value(
+              const AppSettingsModel.defaults().copyWith(
+                externalIntegrationsEnabled: false,
+              ),
+            ),
+          ),
+          updateCheckStoreProvider.overrideWithValue(
+            _RecordingUpdateCheckStore(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      container.read(updateForceCheckProvider.notifier).requestForceCheck();
+      await container.read(updateProvider.future);
+      expect(
+        container.read(updateForceCheckProvider.notifier).consumeForceCheck(),
+        isFalse,
+      );
+    });
   });
+}
+
+class _RecordingUpdateCheckStore extends UpdateCheckStore {
+  final List<bool> forceArguments = <bool>[];
+
+  /// Declines the check, so nothing reaches the network.
+  @override
+  Future<bool> shouldCheck({bool force = false}) async {
+    forceArguments.add(force);
+    return false;
+  }
+
+  @override
+  Future<void> recordCheck([DateTime? checkedAt]) async {}
 }
 
 class _NoOpUpdateCheckStore extends UpdateCheckStore {

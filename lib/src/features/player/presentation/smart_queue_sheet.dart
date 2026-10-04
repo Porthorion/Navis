@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -11,7 +12,7 @@ import 'package:navis/src/providers/app_providers.dart';
 
 Future<PreferredMixMode> _readPreferredMixMode(WidgetRef ref) async {
   return await _resolvePreferredMixMode(
-    readLocked: () => ref.read(legacyInstantMixLockedProvider),
+    readLastFmVerified: () => ref.read(hasLastFmApiKeyProvider),
     loadSettings: () => ref.read(settingsRepositoryProvider).getSettings(),
   );
 }
@@ -20,23 +21,26 @@ Future<PreferredMixMode> _readPreferredMixModeFromContainer(
   ProviderContainer container,
 ) async {
   return await _resolvePreferredMixMode(
-    readLocked: () => container.read(legacyInstantMixLockedProvider),
+    readLastFmVerified: () => container.read(hasLastFmApiKeyProvider),
     loadSettings: () =>
         container.read(settingsRepositoryProvider).getSettings(),
   );
 }
 
 Future<PreferredMixMode> _resolvePreferredMixMode({
-  required bool Function() readLocked,
+  required bool Function() readLastFmVerified,
   required Future<AppSettingsModel> Function() loadSettings,
 }) async {
-  if (readLocked()) {
-    return PreferredMixMode.legacyInstantMix;
-  }
+  // Settings are read from storage rather than the policy provider, which
+  // denies everything until the settings stream has emitted.
   final settings = await loadSettings();
-  return settings.legacyInstantMixEnabled
-      ? PreferredMixMode.legacyInstantMix
-      : PreferredMixMode.sameVibes;
+  final policy = integrationPolicyFromSettings(
+    settings,
+    lastFmVerified: readLastFmVerified(),
+  );
+  return policy.allows(IntegrationFeature.lastFmSameVibes)
+      ? PreferredMixMode.sameVibes
+      : PreferredMixMode.legacyInstantMix;
 }
 
 Future<void> activatePreferredMixMode(

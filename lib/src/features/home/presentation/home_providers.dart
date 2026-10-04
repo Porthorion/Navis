@@ -15,6 +15,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -226,6 +227,16 @@ class _BoundedAsyncQueue {
       }
     }
   }
+}
+
+/// Drops what the Home hero and Library playlists read of weekly discovery,
+/// so a closed integration gate removes the virtual playlists at once. The
+/// session key is reset too, so reopening the gate reloads rather than
+/// resuming a stale session.
+void _clearListenBrainzDiscoverVisibleState() {
+  _listenBrainzDiscoverSessionCache = null;
+  _listenBrainzDiscoverLastVisible = null;
+  _listenBrainzDiscoverSessionCacheKey = null;
 }
 
 @visibleForTesting
@@ -606,6 +617,22 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     ),
   );
   ref.watch(listenBrainzLibrarySyncRefreshBridgeProvider);
+  // The weekly-playlists gate. It ignores credential verification on purpose:
+  // the stream validates a stored token itself and then marks it valid, so
+  // gating on verification here would stop that from ever happening. The
+  // policy denies everything until settings have loaded.
+  final weeklyPlaylistsEnabled = ref.watch(
+    integrationPolicyProvider.select(
+      (policy) =>
+          policy.isEnabled(IntegrationFeature.listenBrainzWeeklyPlaylists),
+    ),
+  );
+  if (!weeklyPlaylistsEnabled) {
+    AppLogger.debug('ListenBrainz discover skipped: integration is off.');
+    _clearListenBrainzDiscoverVisibleState();
+    yield const <ListenBrainzDiscoverPlaylist>[];
+    return;
+  }
 
   final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
   if (token.isEmpty) {

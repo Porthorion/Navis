@@ -34,6 +34,7 @@ import 'package:navis/src/features/cache/presentation/library_cache_reset_provid
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:path/path.dart' as p;
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -710,6 +711,38 @@ class SyncDiagnosticsServer {
           'nowPlayingArtShape': settings?.nowPlayingArtShape ?? 'rounded',
           'artistCardShape': settings?.artistCardShape ?? 'circle',
         });
+        return;
+      }
+      if ((request.method == 'GET' || request.method == 'POST') &&
+          path == '/v1/presentation/integrations') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final dao = _container.read(navisDatabaseProvider).appSettingsDao;
+        if (request.method == 'POST') {
+          final body = await _readJson(request);
+          final master = body['master'];
+          final key = body['key'];
+          final enabled = body['enabled'];
+          if (body.isEmpty ||
+              body.keys.any(
+                (name) => !const {'master', 'key', 'enabled'}.contains(name),
+              ) ||
+              (master != null && master is! bool) ||
+              (key == null) != (enabled == null) ||
+              (key != null && (key is! String || !isIntegrationKey(key))) ||
+              (enabled != null && enabled is! bool)) {
+            throw const FormatException();
+          }
+          if (master is bool) {
+            await dao.setExternalIntegrationsEnabled(enabled: master);
+          }
+          if (key is String && enabled is bool) {
+            await dao.setIntegrationEnabled(key, enabled: enabled);
+          }
+        }
+        await _respond(request, HttpStatus.ok, await _integrationsSnapshot());
         return;
       }
       if ((request.method == 'GET' || request.method == 'POST') &&
@@ -4133,6 +4166,44 @@ class SyncDiagnosticsServer {
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode(body));
     await request.response.close();
+  }
+
+  /// The integration policy as stored now, with each feature's effective
+  /// state. Read from storage rather than the policy provider, which can lag
+  /// a write by a frame.
+  Future<Map<String, Object?>> _integrationsSnapshot() async {
+    final settings = await _container
+        .read(settingsRepositoryProvider)
+        .getSettings();
+    final policy = integrationPolicyFromSettings(
+      settings,
+      lastFmVerified: _container.read(hasLastFmApiKeyProvider),
+    );
+    return <String, Object?>{
+      'master': policy.masterEnabled,
+      'disabled': parseDisabledIntegrationKeys(
+        settings.disabledIntegrations,
+      ).toList()..sort(),
+      'noticeDismissed': settings.integrationsNoticeDismissed,
+      'services': <String, Object?>{
+        for (final service in IntegrationService.values)
+          service.key: <String, Object?>{
+            'switchOn': policy.isServiceSwitchOn(service),
+            'verified': policy.isVerified(service),
+            'toggleable': policy.serviceLockReason(service) == null,
+            'lock': policy.serviceLockReason(service)?.name,
+          },
+      },
+      'features': <String, Object?>{
+        for (final feature in IntegrationFeature.values)
+          feature.key: <String, Object?>{
+            'switchOn': policy.isFeatureSwitchOn(feature),
+            'allowed': policy.allows(feature),
+            'toggleable': policy.isUserToggleable(feature),
+            'lock': policy.lockReason(feature)?.name,
+          },
+      },
+    };
   }
 
   Future<void> _forbidden(HttpRequest request) {

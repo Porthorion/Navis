@@ -296,6 +296,7 @@ List<Override> _listenBrainzWeeklyOverrides({
   NetworkType networkType = NetworkType.wifi,
   Duration startupIdleDelay = Duration.zero,
   Override? startupSyncStateOverride,
+  Override? appSettingsOverride,
 }) {
   return withHomeShowcaseTestOverrides(
     database,
@@ -306,15 +307,16 @@ List<Override> _listenBrainzWeeklyOverrides({
           listenBrainzDiscoverStartupSyncStateProvider.overrideWithValue(
             const LibrarySyncState.idle(),
           ),
-      appSettingsProvider.overrideWithValue(
-        AsyncData(
-          const AppSettingsModel.defaults().copyWith(
-            listenBrainzScrobblingEnabled: true,
-            listenBrainzTokenValid: true,
-            listenBrainzUserName: userName,
+      appSettingsOverride ??
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: userName,
+              ),
+            ),
           ),
-        ),
-      ),
       externalScrobbleCredentialStoreProvider.overrideWithValue(
         const _FakeExternalScrobbleCredentialStore('token'),
       ),
@@ -474,6 +476,141 @@ Future<void> _listenBrainzStreamSettled(ProviderContainer container) async {
 
 void main() {
   setUp(debugResetListenBrainzDiscoverSessionCacheForTests);
+
+  group('weekly playlists integration gate', () {
+    const filters = (downloadedOnly: false, likedOnly: false);
+
+    Future<
+      ({ProviderContainer container, _FakeListenBrainzApiClient listenBrainz})
+    >
+    openContainer({
+      required NavisDatabase database,
+      required StreamController<AppSettingsModel> settings,
+    }) async {
+      final listenBrainz = _weeklyListenBrainzClient();
+      final container = ProviderContainer(
+        overrides: <Override>[
+          ..._listenBrainzWeeklyOverrides(
+            database: database,
+            listenBrainz: listenBrainz,
+            subsonic: _FakeDiscoveryApiClient({}),
+            startupIdleDelay: const Duration(milliseconds: 200),
+            appSettingsOverride: appSettingsProvider.overrideWith(
+              (ref) => settings.stream,
+            ),
+          ),
+          homeRandomAlbumsProvider.overrideWith(
+            (ref) async => const <Album>[
+              Album(id: 'srv-1', name: 'Server Album'),
+            ],
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      return (container: container, listenBrainz: listenBrainz);
+    }
+
+    AppSettingsModel weekly({String disabled = '[]', bool master = true}) =>
+        const AppSettingsModel.defaults().copyWith(
+          listenBrainzScrobblingEnabled: true,
+          listenBrainzTokenValid: true,
+          listenBrainzUserName: 'alice',
+          disabledIntegrations: disabled,
+          externalIntegrationsEnabled: master,
+        );
+
+    test('a closed gate yields no playlists and makes no requests', () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final settings = StreamController<AppSettingsModel>();
+      addTearDown(settings.close);
+      final opened = await openContainer(
+        database: database,
+        settings: settings,
+      );
+      settings.add(weekly(disabled: '["listenbrainz.weeklyPlaylists"]'));
+
+      final playlists = await _firstListenBrainzEmission(opened.container);
+
+      expect(playlists, isEmpty);
+      expect(opened.listenBrainz.recommendationPlaylistCalls, 0);
+    });
+
+    test('settings still loading deny the stream, fail-closed', () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final settings = StreamController<AppSettingsModel>();
+      addTearDown(settings.close);
+      final opened = await openContainer(
+        database: database,
+        settings: settings,
+      );
+
+      final playlists = await _firstListenBrainzEmission(opened.container);
+
+      expect(playlists, isEmpty);
+    });
+
+    for (final close in <String, AppSettingsModel>{
+      'the feature switch': weekly(
+        disabled: '["listenbrainz.weeklyPlaylists"]',
+      ),
+      'the ListenBrainz service switch': weekly(disabled: '["listenbrainz"]'),
+      'the master switch': weekly(master: false),
+    }.entries) {
+      test(
+        'closing ${close.key} removes the playlists from Home and Library',
+        () async {
+          final database = createTestDatabase();
+          await _primeListenBrainzWeeklyCache(database);
+          final settings = StreamController<AppSettingsModel>();
+          addTearDown(settings.close);
+          final opened = await openContainer(
+            database: database,
+            settings: settings,
+          );
+          final container = opened.container;
+          final emissions = <List<ListenBrainzDiscoverPlaylist>>[];
+          container.listen<AsyncValue<List<ListenBrainzDiscoverPlaylist>>>(
+            listenBrainzDiscoverStreamProvider,
+            (_, next) => next.whenData(emissions.add),
+            fireImmediately: true,
+          );
+          settings.add(weekly());
+          await Future.doWhile(() async {
+            await pumpEventQueue();
+            return !emissions.any((e) => e.isNotEmpty);
+          });
+          // Home's hero shows the weekly cards while the gate is open.
+          expect(
+            (await readHomeRandomShowcase(
+              container,
+              filters,
+            )).whereType<HomeRandomShowcaseListenBrainz>(),
+            isNotEmpty,
+          );
+
+          settings.add(close.value);
+          await Future.doWhile(() async {
+            await pumpEventQueue();
+            return emissions.last.isNotEmpty;
+          });
+
+          expect(emissions.last, isEmpty);
+          expect(
+            (await readHomeRandomShowcase(
+              container,
+              filters,
+            )).whereType<HomeRandomShowcaseListenBrainz>(),
+            isEmpty,
+          );
+        },
+      );
+    }
+  });
 
   test('startup sync projection ignores same-stage progress updates', () async {
     final controller = _MutableLibrarySyncController();

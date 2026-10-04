@@ -184,6 +184,13 @@ def prepare_profile(credentials: dict, fresh: bool) -> None:
             'last_fm_scrobbling_enabled=0, listen_brainz_scrobbling_enabled=0, '
             'update_check_enabled=0, custom_download_folder_enabled=0, '
             'custom_download_folder_path=NULL')
+        # Measurements must carry no external-service traffic. The column is
+        # absent from a primary profile that predates the integration policy.
+        if 'external_integrations_enabled' in {
+                row[1] for row in clone.execute(
+                    'PRAGMA table_info(app_settings)')}:
+            clone.execute(
+                'UPDATE app_settings SET external_integrations_enabled=0')
         clone.execute('DELETE FROM play_queue_items')
         clone.execute('DELETE FROM play_queue')
         clone.execute('DELETE FROM cached_tracks')

@@ -12,6 +12,8 @@ Located in `lib/src/providers/app_providers.dart`:
   - `navisDatabaseProvider` - Singleton NavisDatabase instance
   - `settingsRepositoryProvider` - Settings persistence
   - `appSettingsProvider` - Reactive settings stream
+  - `integrationPolicyProvider` - The external-integration policy (see
+    "External integration policy"); denies everything until settings load
 
 - **Network & Connectivity**
   - `connectivityProvider` - Network connectivity state
@@ -1231,6 +1233,69 @@ keeps that action's default. Playback speed up/down/reset (`speedUp`,
 `speedDown`, `speedReset`) default to the primary modifier with unshifted `.`,
 `,` and `0`, because Shift changes the logical key of punctuation on many
 layouts.
+
+## External integration policy
+
+Navis talks to its own Subsonic server and, optionally, to external services:
+Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
+streams and artwork the server links to. The user decides which, per service
+and per feature. Everything is on by default, and a master "Online services"
+switch means "Navis only talks to your server" when off. See
+[the decision record](decisions/2026-10-04-external-integrations-policy.md).
+
+- **Model** (`features/integrations/domain/integration_feature.dart`):
+  `IntegrationService` (key, host, display name, verification requirement),
+  `IntegrationFeature` (stable `<service>.<feature>` key such as
+  `deezer.topSongs`, mapped to its service) and `IntegrationPolicy`, a pure
+  value object with `==`/`hashCode`. The policy answers
+  `allows(feature) = master && !disabled(service) && !disabled(feature) &&
+  verified(service)`, `isUserToggleable(feature)` and `lockReason(feature)`
+  (`masterOff`, `serviceOff`, `notVerified`, in that precedence).
+- **Verification.** Last.fm is verified by `hasLastFmApiKeyProvider` (the bundled
+  key, or a stored custom key validated on save); ListenBrainz by
+  `listenBrainzTokenValid`, which the existing 401/403 handling clears. Every
+  other service needs no credential. `isEnabled(feature)` is `allows` without the
+  credential check, for flows that validate the credential themselves, such as
+  weekly playlists revalidating a stored ListenBrainz token.
+- **Storage** (`app_settings`, schema 91): `external_integrations_enabled`
+  (master), `disabled_integrations` (JSON list of disabled service and feature
+  keys) and `integrations_notice_dismissed`. Four features keep the column that
+  already stored their switch, so no data moved and every reader and diagnostics
+  script keeps working: `useLrclib` (`lrclib.lyrics`), `updateCheckEnabled`
+  (`updates.automatic`), `listenBrainzScrobblingEnabled`
+  (`listenbrainz.scrobbling`) and `legacyInstantMixEnabled`, **inverted**
+  (`lastfm.sameVibes`; `legacyInstantMixEnabled == true` means Same Vibes is
+  off). Only features without a column live in the JSON set, and a
+  column-backed key found there is ignored. The migration also turns
+  `listenbrainz.feedback` off for an install with a valid token and scrobbling
+  off, which keeps the old coupling of feedback to the scrobbling switch.
+- **Writers.** The three new columns are deliberately absent from the full-row
+  `AppSettingsDao.saveSettings`, so a stale screen snapshot cannot overwrite
+  them (`resetDefaults` resets the master and the JSON set explicitly). They are
+  written only by `updateIntegrationPolicy`, `setExternalIntegrationsEnabled`,
+  `updateIntegrationsNoticeDismissed` and `setIntegrationEnabled(key, enabled:)`,
+  the single path for any feature or service toggle: it writes the legacy column
+  for a column-backed feature and otherwise read-modify-writes the JSON set in a
+  transaction.
+- **Provider.** `integrationPolicyProvider` selects only scalar settings and the
+  raw JSON string, so unrelated settings saves do not rebuild it, and it is
+  **fail-closed**: while settings load or have failed it is
+  `IntegrationPolicy.denyAll()`. Code that must not trust a possibly loading
+  provider (queue actions, `startPreferredMix`) builds the policy from freshly
+  read settings with `integrationPolicyFromSettings`. `preferredMixModeProvider`
+  is Same Vibes while the policy allows `lastfm.sameVibes` and the server mix
+  otherwise.
+- **Update checks.** `updateProvider` reads the manual "Check now" request before
+  deciding. Only the master and `updates` service switches block a manual check;
+  `updates.automatic` blocks only the automatic one. The request is a plain
+  field on `UpdateForceCheckNotifier`, not provider state, because the provider
+  consumes it while building.
+- **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
+  `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
+  session cache and last-visible list, so the Home hero and Library › Playlists
+  lose the virtual playlists at once.
+- **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
+  and changes the policy; see `docs/development-workflow.md`.
 
 ## Update Checker
 

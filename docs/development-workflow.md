@@ -787,6 +787,23 @@ Inspect the additional PNGs as well as the final pair; file validation alone
 is not visual acceptance. Phone touch/carousel/orientation needs an isolated
 Android sidecar; Linux resizing does not certify that runtime.
 
+The authenticated, clone-only `GET/POST /v1/presentation/integrations` endpoint
+reads and changes the external-integration policy (see "External integration
+policy" in `docs/architecture.md`). `GET` returns `master`, `noticeDismissed`,
+`disabled` (the sorted JSON set of disabled keys), and for every service and
+feature its effective state: `switchOn`, `allowed` (features), `verified`
+(services), `toggleable` and the `lock` reason (`masterOff`, `serviceOff`,
+`notVerified` or null). `POST` accepts `{"master": bool}` and/or
+`{"key": "<service or feature key>", "enabled": bool}`, with `key` and `enabled`
+required together. Keys are allowlisted against the enum keys (for example
+`deezer`, `deezer.topSongs`, `lastfm.sameVibes`); unknown keys, extra fields and
+wrong types return 400. Writes use the production DAO methods, so a
+column-backed feature such as `lrclib.lyrics` changes its own column. Primary
+certification returns 403. Clone diagnostics scripts that copy a real profile
+(`tool/perf_diagnostics.py`, `tool/artist_playback_diagnostics.py`) set
+`external_integrations_enabled=0` so measurements carry no external-service
+traffic.
+
 The follow-up `responsive-polish` label exercises the actual album-card and
 Liked Albums paging callbacks at 1366×900 and 800×600 before and after restart:
 

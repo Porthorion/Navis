@@ -97,6 +97,8 @@ class SettingsRepository {
       listenBrainzUserName: settings.listenBrainzUserName,
       customVoyageServers: null,
     );
+    // The integration policy columns are not part of the full-row save; see
+    // AppSettingsDao.updateIntegrationPolicy.
     await _dao.saveGroupListeningSettings(
       groupListeningEnabled: false,
       voyageServerUrl: null,
@@ -230,6 +232,9 @@ class SettingsRepository {
       listenBrainzScrobblingEnabled: row.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid: row.listenBrainzTokenValid,
       listenBrainzUserName: row.listenBrainzUserName,
+      externalIntegrationsEnabled: row.externalIntegrationsEnabled,
+      disabledIntegrations: row.disabledIntegrations,
+      integrationsNoticeDismissed: row.integrationsNoticeDismissed,
       customVoyageServers: const <CustomVoyageServer>[],
       groupListeningEnabled: false,
       voyageServerUrl: null,

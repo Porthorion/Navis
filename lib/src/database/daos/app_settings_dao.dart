@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:path/path.dart' as p;
 import 'package:navis/src/database/tables/app_settings_table.dart';
 
@@ -408,6 +409,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       listenBrainzTokenValid: false,
       customVoyageServers: null,
     );
+    // The full-row save leaves the policy columns alone; reset them here.
+    await updateIntegrationPolicy(master: true, disabledJson: '[]');
     await saveGroupListeningSettings(
       groupListeningEnabled: false,
       voyageServerUrl: null,
@@ -1148,5 +1151,114 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // External integration policy
+  //
+  // These columns are deliberately absent from [saveSettings], so a stale
+  // full-row save cannot overwrite them. Only these targeted writers change
+  // them.
+  // ---------------------------------------------------------------------------
+
+  /// Writes the "Online services" master switch and/or the raw disabled-keys
+  /// JSON. A null argument leaves that column untouched.
+  Future<void> updateIntegrationPolicy({bool? master, String? disabledJson}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        externalIntegrationsEnabled: master == null
+            ? const Value.absent()
+            : Value(master),
+        disabledIntegrations: disabledJson == null
+            ? const Value.absent()
+            : Value(disabledJson),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Writes the "Online services" master switch.
+  Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
+      updateIntegrationPolicy(master: enabled);
+
+  /// Writes the Same Vibes switch's storage: `true` means Server Mix, which
+  /// is Same Vibes switched off.
+  Future<void> updateLegacyInstantMixEnabled({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        legacyInstantMixEnabled: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        integrationsNoticeDismissed: Value(dismissed),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Switches one integration service or feature on or off.
+  ///
+  /// The single write path for every integration toggle. A feature stored in
+  /// a legacy column writes that column; any other key read-modify-writes the
+  /// disabled-keys JSON inside a transaction, so concurrent toggles cannot
+  /// lose each other. Throws [ArgumentError] for a key that is neither a
+  /// service nor a feature.
+  Future<void> setIntegrationEnabled(String key, {required bool enabled}) {
+    final feature = IntegrationFeature.tryParse(key);
+    if (feature == null && IntegrationService.tryParse(key) == null) {
+      throw ArgumentError.value(key, 'key', 'Unknown integration key');
+    }
+    final column = feature?.legacyColumn;
+    if (column != null) {
+      final value = column.columnValueFor(featureEnabled: enabled);
+      return switch (column) {
+        IntegrationLegacyColumn.useLrclib => _writeSettings(
+          AppSettingsTableCompanion(useLrclib: Value(value)),
+        ),
+        IntegrationLegacyColumn.updateCheckEnabled => _writeSettings(
+          AppSettingsTableCompanion(updateCheckEnabled: Value(value)),
+        ),
+        IntegrationLegacyColumn.listenBrainzScrobblingEnabled => _writeSettings(
+          AppSettingsTableCompanion(
+            listenBrainzScrobblingEnabled: Value(value),
+          ),
+        ),
+        IntegrationLegacyColumn.legacyInstantMixEnabled =>
+          updateLegacyInstantMixEnabled(enabled: value),
+      };
+    }
+    return transaction(() async {
+      final row = await (select(
+        appSettingsTable,
+      )..where((t) => t.id.equals(primarySettingsId))).getSingleOrNull();
+      final disabled = <String>{
+        ...parseDisabledIntegrationKeys(row?.disabledIntegrations),
+      };
+      if (enabled) {
+        disabled.remove(key);
+      } else {
+        disabled.add(key);
+      }
+      await updateIntegrationPolicy(
+        disabledJson: encodeDisabledIntegrationKeys(disabled),
+      );
+    });
+  }
+
+  Future<void> _writeSettings(AppSettingsTableCompanion values) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(values.copyWith(updatedAt: Value(DateTime.now())));
   }
 }

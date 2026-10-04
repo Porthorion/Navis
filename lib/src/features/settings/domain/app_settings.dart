@@ -110,6 +110,9 @@ class AppSettingsModel {
     this.listenBrainzScrobblingEnabled = false,
     this.listenBrainzTokenValid = false,
     this.listenBrainzUserName,
+    this.externalIntegrationsEnabled = true,
+    this.disabledIntegrations = '[]',
+    this.integrationsNoticeDismissed = false,
     this.customVoyageServers = const <CustomVoyageServer>[],
     this.groupListeningEnabled = false,
     this.voyageServerUrl,
@@ -186,6 +189,9 @@ class AppSettingsModel {
       listenBrainzScrobblingEnabled = false,
       listenBrainzTokenValid = false,
       listenBrainzUserName = null,
+      externalIntegrationsEnabled = true,
+      disabledIntegrations = '[]',
+      integrationsNoticeDismissed = false,
       customVoyageServers = const <CustomVoyageServer>[],
       groupListeningEnabled = false,
       voyageServerUrl = null,
@@ -323,6 +329,19 @@ class AppSettingsModel {
   /// MusicBrainz username returned by ListenBrainz token validation.
   final String? listenBrainzUserName;
 
+  /// The "Online services" master switch. Read-only here: the full-row save
+  /// never writes it; the integration-policy DAO writers do.
+  final bool externalIntegrationsEnabled;
+
+  /// Raw JSON list of disabled service and feature keys without a column of
+  /// their own. Kept raw so selectors compare cheaply; parse it with
+  /// `parseDisabledIntegrationKeys`. Read-only here, like
+  /// [externalIntegrationsEnabled].
+  final String disabledIntegrations;
+
+  /// Whether the one-time Integrations notice on Home was dismissed.
+  final bool integrationsNoticeDismissed;
+
   /// Legacy retired Listen Together data retained for schema compatibility.
   /// Runtime settings always expose this as empty.
   final List<CustomVoyageServer> customVoyageServers;
@@ -411,6 +430,9 @@ class AppSettingsModel {
     bool? listenBrainzScrobblingEnabled,
     bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
+    bool? externalIntegrationsEnabled,
+    String? disabledIntegrations,
+    bool? integrationsNoticeDismissed,
     List<CustomVoyageServer>? customVoyageServers,
     bool? groupListeningEnabled,
     String? voyageServerUrl,
@@ -548,6 +570,11 @@ class AppSettingsModel {
       listenBrainzUserName: clearListenBrainzUserName
           ? null
           : listenBrainzUserName ?? this.listenBrainzUserName,
+      externalIntegrationsEnabled:
+          externalIntegrationsEnabled ?? this.externalIntegrationsEnabled,
+      disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
+      integrationsNoticeDismissed:
+          integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
       customVoyageServers:
           customVoyageServers ??
           List<CustomVoyageServer>.from(this.customVoyageServers),

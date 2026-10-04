@@ -112,6 +112,10 @@ def main():
         original.backup(clone)
         clone.execute("UPDATE server_config SET name='Artist Playback Fixture', url=?, username='diagnostics', capabilities=NULL, last_synced=?, is_authenticated=1", (f'http://127.0.0.1:{server.server_port}', int(time.time())))
         clone.execute("UPDATE app_settings SET sync_interval_minutes=0, last_full_sync_app_build='58', scrobble_enabled=0, last_fm_scrobbling_enabled=0, listen_brainz_scrobbling_enabled=0, update_check_enabled=0, use_lrclib=0, custom_download_folder_enabled=0, custom_download_folder_path=NULL")
+        # No external-service traffic in the measurement. The column is absent
+        # from a primary profile that predates the integration policy.
+        if 'external_integrations_enabled' in {row[1] for row in clone.execute('PRAGMA table_info(app_settings)')}:
+            clone.execute('UPDATE app_settings SET external_integrations_enabled=0')
         clone.execute('DELETE FROM play_queue_items')
         clone.execute('DELETE FROM play_queue')
         clone.execute("UPDATE cached_tracks SET file_path=? || song_id", (str(output / 'missing-cache-'),))

@@ -186,7 +186,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 90;
+  int get schemaVersion => 91;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -478,6 +478,34 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 90 && to >= 90) {
       await from89To90(migrator);
     }
+    if (from < 91 && to >= 91) {
+      await from90To91(migrator);
+    }
+  }
+
+  /// Adds the external-integration policy: the "Online services" master
+  /// switch, the JSON set of disabled services and features, and the one-time
+  /// notice flag. The four features that already have a column keep it, so
+  /// nothing else moves. An install that scrobbles nothing to ListenBrainz
+  /// but holds a valid token turns ListenBrainz feedback off, which keeps
+  /// today's coupling of feedback to the scrobbling switch.
+  Future<void> from90To91(Migrator migrator) async {
+    for (final column in <GeneratedColumn<Object>>[
+      appSettingsTable.externalIntegrationsEnabled,
+      appSettingsTable.disabledIntegrations,
+      appSettingsTable.integrationsNoticeDismissed,
+    ]) {
+      if (!await _columnExists('app_settings', column.name)) {
+        await migrator.addColumn(appSettingsTable, column);
+      }
+    }
+    await customStatement(
+      'UPDATE app_settings SET disabled_integrations = '
+      "'[\"listenbrainz.feedback\"]' "
+      'WHERE listen_brainz_scrobbling_enabled = 0 '
+      'AND listen_brainz_token_valid = 1 '
+      "AND disabled_integrations = '[]'",
+    );
   }
 
   /// Adds the download preferences: the saved download quality, the

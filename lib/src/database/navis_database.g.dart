@@ -1628,6 +1628,48 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _externalIntegrationsEnabledMeta =
+      const VerificationMeta('externalIntegrationsEnabled');
+  @override
+  late final GeneratedColumn<bool> externalIntegrationsEnabled =
+      GeneratedColumn<bool>(
+        'external_integrations_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("external_integrations_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
+  static const VerificationMeta _disabledIntegrationsMeta =
+      const VerificationMeta('disabledIntegrations');
+  @override
+  late final GeneratedColumn<String> disabledIntegrations =
+      GeneratedColumn<String>(
+        'disabled_integrations',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _integrationsNoticeDismissedMeta =
+      const VerificationMeta('integrationsNoticeDismissed');
+  @override
+  late final GeneratedColumn<bool> integrationsNoticeDismissed =
+      GeneratedColumn<bool>(
+        'integrations_notice_dismissed',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("integrations_notice_dismissed" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _lastFullSyncAppBuildMeta =
       const VerificationMeta('lastFullSyncAppBuild');
   @override
@@ -1733,6 +1775,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     listenBrainzTokenValid,
     listenBrainzUserName,
     customVoyageServers,
+    externalIntegrationsEnabled,
+    disabledIntegrations,
+    integrationsNoticeDismissed,
     lastFullSyncAppBuild,
     updatedAt,
   ];
@@ -2459,6 +2504,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('external_integrations_enabled')) {
+      context.handle(
+        _externalIntegrationsEnabledMeta,
+        externalIntegrationsEnabled.isAcceptableOrUnknown(
+          data['external_integrations_enabled']!,
+          _externalIntegrationsEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('disabled_integrations')) {
+      context.handle(
+        _disabledIntegrationsMeta,
+        disabledIntegrations.isAcceptableOrUnknown(
+          data['disabled_integrations']!,
+          _disabledIntegrationsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('integrations_notice_dismissed')) {
+      context.handle(
+        _integrationsNoticeDismissedMeta,
+        integrationsNoticeDismissed.isAcceptableOrUnknown(
+          data['integrations_notice_dismissed']!,
+          _integrationsNoticeDismissedMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_full_sync_app_build')) {
       context.handle(
         _lastFullSyncAppBuildMeta,
@@ -2809,6 +2881,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}custom_voyage_servers'],
       ),
+      externalIntegrationsEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}external_integrations_enabled'],
+      )!,
+      disabledIntegrations: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}disabled_integrations'],
+      )!,
+      integrationsNoticeDismissed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}integrations_notice_dismissed'],
+      )!,
       lastFullSyncAppBuild: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_app_build'],
@@ -3054,6 +3138,21 @@ class AppSettingsTableData extends DataClass
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   final String? customVoyageServers;
 
+  /// The "Online services" master switch. Off means Navis only talks to the
+  /// user's server. Written only by the integration-policy writers, never by
+  /// the full-row save.
+  final bool externalIntegrationsEnabled;
+
+  /// JSON list of switched-off integration service keys and feature keys that
+  /// have no column of their own. Features stored in `useLrclib`,
+  /// `updateCheckEnabled`, `listenBrainzScrobblingEnabled` and
+  /// `legacyInstantMixEnabled` are never listed here. Written only by the
+  /// integration-policy writers.
+  final String disabledIntegrations;
+
+  /// True once the one-time Integrations notice on Home was dismissed.
+  final bool integrationsNoticeDismissed;
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
@@ -3141,6 +3240,9 @@ class AppSettingsTableData extends DataClass
     required this.listenBrainzTokenValid,
     this.listenBrainzUserName,
     this.customVoyageServers,
+    required this.externalIntegrationsEnabled,
+    required this.disabledIntegrations,
+    required this.integrationsNoticeDismissed,
     this.lastFullSyncAppBuild,
     required this.updatedAt,
   });
@@ -3288,6 +3390,13 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || customVoyageServers != null) {
       map['custom_voyage_servers'] = Variable<String>(customVoyageServers);
     }
+    map['external_integrations_enabled'] = Variable<bool>(
+      externalIntegrationsEnabled,
+    );
+    map['disabled_integrations'] = Variable<String>(disabledIntegrations);
+    map['integrations_notice_dismissed'] = Variable<bool>(
+      integrationsNoticeDismissed,
+    );
     if (!nullToAbsent || lastFullSyncAppBuild != null) {
       map['last_full_sync_app_build'] = Variable<String>(lastFullSyncAppBuild);
     }
@@ -3414,6 +3523,9 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: customVoyageServers == null && nullToAbsent
           ? const Value.absent()
           : Value(customVoyageServers),
+      externalIntegrationsEnabled: Value(externalIntegrationsEnabled),
+      disabledIntegrations: Value(disabledIntegrations),
+      integrationsNoticeDismissed: Value(integrationsNoticeDismissed),
       lastFullSyncAppBuild: lastFullSyncAppBuild == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAppBuild),
@@ -3580,6 +3692,15 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: serializer.fromJson<String?>(
         json['customVoyageServers'],
       ),
+      externalIntegrationsEnabled: serializer.fromJson<bool>(
+        json['externalIntegrationsEnabled'],
+      ),
+      disabledIntegrations: serializer.fromJson<String>(
+        json['disabledIntegrations'],
+      ),
+      integrationsNoticeDismissed: serializer.fromJson<bool>(
+        json['integrationsNoticeDismissed'],
+      ),
       lastFullSyncAppBuild: serializer.fromJson<String?>(
         json['lastFullSyncAppBuild'],
       ),
@@ -3707,6 +3828,13 @@ class AppSettingsTableData extends DataClass
       'listenBrainzTokenValid': serializer.toJson<bool>(listenBrainzTokenValid),
       'listenBrainzUserName': serializer.toJson<String?>(listenBrainzUserName),
       'customVoyageServers': serializer.toJson<String?>(customVoyageServers),
+      'externalIntegrationsEnabled': serializer.toJson<bool>(
+        externalIntegrationsEnabled,
+      ),
+      'disabledIntegrations': serializer.toJson<String>(disabledIntegrations),
+      'integrationsNoticeDismissed': serializer.toJson<bool>(
+        integrationsNoticeDismissed,
+      ),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -3794,6 +3922,9 @@ class AppSettingsTableData extends DataClass
     bool? listenBrainzTokenValid,
     Value<String?> listenBrainzUserName = const Value.absent(),
     Value<String?> customVoyageServers = const Value.absent(),
+    bool? externalIntegrationsEnabled,
+    String? disabledIntegrations,
+    bool? integrationsNoticeDismissed,
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
@@ -3927,6 +4058,11 @@ class AppSettingsTableData extends DataClass
     customVoyageServers: customVoyageServers.present
         ? customVoyageServers.value
         : this.customVoyageServers,
+    externalIntegrationsEnabled:
+        externalIntegrationsEnabled ?? this.externalIntegrationsEnabled,
+    disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
+    integrationsNoticeDismissed:
+        integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
     lastFullSyncAppBuild: lastFullSyncAppBuild.present
         ? lastFullSyncAppBuild.value
         : this.lastFullSyncAppBuild,
@@ -4171,6 +4307,15 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: data.customVoyageServers.present
           ? data.customVoyageServers.value
           : this.customVoyageServers,
+      externalIntegrationsEnabled: data.externalIntegrationsEnabled.present
+          ? data.externalIntegrationsEnabled.value
+          : this.externalIntegrationsEnabled,
+      disabledIntegrations: data.disabledIntegrations.present
+          ? data.disabledIntegrations.value
+          : this.disabledIntegrations,
+      integrationsNoticeDismissed: data.integrationsNoticeDismissed.present
+          ? data.integrationsNoticeDismissed.value
+          : this.integrationsNoticeDismissed,
       lastFullSyncAppBuild: data.lastFullSyncAppBuild.present
           ? data.lastFullSyncAppBuild.value
           : this.lastFullSyncAppBuild,
@@ -4270,6 +4415,9 @@ class AppSettingsTableData extends DataClass
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
           ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
+          ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
+          ..write('disabledIntegrations: $disabledIntegrations, ')
+          ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4359,6 +4507,9 @@ class AppSettingsTableData extends DataClass
     listenBrainzTokenValid,
     listenBrainzUserName,
     customVoyageServers,
+    externalIntegrationsEnabled,
+    disabledIntegrations,
+    integrationsNoticeDismissed,
     lastFullSyncAppBuild,
     updatedAt,
   ]);
@@ -4453,6 +4604,11 @@ class AppSettingsTableData extends DataClass
           other.listenBrainzTokenValid == this.listenBrainzTokenValid &&
           other.listenBrainzUserName == this.listenBrainzUserName &&
           other.customVoyageServers == this.customVoyageServers &&
+          other.externalIntegrationsEnabled ==
+              this.externalIntegrationsEnabled &&
+          other.disabledIntegrations == this.disabledIntegrations &&
+          other.integrationsNoticeDismissed ==
+              this.integrationsNoticeDismissed &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
 }
@@ -4539,6 +4695,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> listenBrainzTokenValid;
   final Value<String?> listenBrainzUserName;
   final Value<String?> customVoyageServers;
+  final Value<bool> externalIntegrationsEnabled;
+  final Value<String> disabledIntegrations;
+  final Value<bool> integrationsNoticeDismissed;
   final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
@@ -4623,6 +4782,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.listenBrainzTokenValid = const Value.absent(),
     this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
+    this.externalIntegrationsEnabled = const Value.absent(),
+    this.disabledIntegrations = const Value.absent(),
+    this.integrationsNoticeDismissed = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -4708,6 +4870,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.listenBrainzTokenValid = const Value.absent(),
     this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
+    this.externalIntegrationsEnabled = const Value.absent(),
+    this.disabledIntegrations = const Value.absent(),
+    this.integrationsNoticeDismissed = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
@@ -4793,6 +4958,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? listenBrainzTokenValid,
     Expression<String>? listenBrainzUserName,
     Expression<String>? customVoyageServers,
+    Expression<bool>? externalIntegrationsEnabled,
+    Expression<String>? disabledIntegrations,
+    Expression<bool>? integrationsNoticeDismissed,
     Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
   }) {
@@ -4918,6 +5086,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'listen_brainz_user_name': listenBrainzUserName,
       if (customVoyageServers != null)
         'custom_voyage_servers': customVoyageServers,
+      if (externalIntegrationsEnabled != null)
+        'external_integrations_enabled': externalIntegrationsEnabled,
+      if (disabledIntegrations != null)
+        'disabled_integrations': disabledIntegrations,
+      if (integrationsNoticeDismissed != null)
+        'integrations_notice_dismissed': integrationsNoticeDismissed,
       if (lastFullSyncAppBuild != null)
         'last_full_sync_app_build': lastFullSyncAppBuild,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -5006,6 +5180,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? listenBrainzTokenValid,
     Value<String?>? listenBrainzUserName,
     Value<String?>? customVoyageServers,
+    Value<bool>? externalIntegrationsEnabled,
+    Value<String>? disabledIntegrations,
+    Value<bool>? integrationsNoticeDismissed,
     Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
   }) {
@@ -5115,6 +5292,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           listenBrainzTokenValid ?? this.listenBrainzTokenValid,
       listenBrainzUserName: listenBrainzUserName ?? this.listenBrainzUserName,
       customVoyageServers: customVoyageServers ?? this.customVoyageServers,
+      externalIntegrationsEnabled:
+          externalIntegrationsEnabled ?? this.externalIntegrationsEnabled,
+      disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
+      integrationsNoticeDismissed:
+          integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -5422,6 +5604,21 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         customVoyageServers.value,
       );
     }
+    if (externalIntegrationsEnabled.present) {
+      map['external_integrations_enabled'] = Variable<bool>(
+        externalIntegrationsEnabled.value,
+      );
+    }
+    if (disabledIntegrations.present) {
+      map['disabled_integrations'] = Variable<String>(
+        disabledIntegrations.value,
+      );
+    }
+    if (integrationsNoticeDismissed.present) {
+      map['integrations_notice_dismissed'] = Variable<bool>(
+        integrationsNoticeDismissed.value,
+      );
+    }
     if (lastFullSyncAppBuild.present) {
       map['last_full_sync_app_build'] = Variable<String>(
         lastFullSyncAppBuild.value,
@@ -5525,6 +5722,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
           ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
+          ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
+          ..write('disabledIntegrations: $disabledIntegrations, ')
+          ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -35134,6 +35334,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> listenBrainzTokenValid,
       Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
+      Value<bool> externalIntegrationsEnabled,
+      Value<String> disabledIntegrations,
+      Value<bool> integrationsNoticeDismissed,
       Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
     });
@@ -35220,6 +35423,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> listenBrainzTokenValid,
       Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
+      Value<bool> externalIntegrationsEnabled,
+      Value<String> disabledIntegrations,
+      Value<bool> integrationsNoticeDismissed,
       Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
     });
@@ -35636,6 +35842,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get customVoyageServers => $composableBuilder(
     column: $table.customVoyageServers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get externalIntegrationsEnabled => $composableBuilder(
+    column: $table.externalIntegrationsEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get disabledIntegrations => $composableBuilder(
+    column: $table.disabledIntegrations,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get integrationsNoticeDismissed => $composableBuilder(
+    column: $table.integrationsNoticeDismissed,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36066,6 +36287,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get externalIntegrationsEnabled => $composableBuilder(
+    column: $table.externalIntegrationsEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get disabledIntegrations => $composableBuilder(
+    column: $table.disabledIntegrations,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get integrationsNoticeDismissed => $composableBuilder(
+    column: $table.integrationsNoticeDismissed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnOrderings(column),
@@ -36485,6 +36721,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get externalIntegrationsEnabled => $composableBuilder(
+    column: $table.externalIntegrationsEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get disabledIntegrations => $composableBuilder(
+    column: $table.disabledIntegrations,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get integrationsNoticeDismissed => $composableBuilder(
+    column: $table.integrationsNoticeDismissed,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => column,
@@ -36616,6 +36867,9 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
                 Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
+                Value<bool> externalIntegrationsEnabled = const Value.absent(),
+                Value<String> disabledIntegrations = const Value.absent(),
+                Value<bool> integrationsNoticeDismissed = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
@@ -36701,6 +36955,9 @@ class $$AppSettingsTableTableTableManager
                 listenBrainzTokenValid: listenBrainzTokenValid,
                 listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
+                externalIntegrationsEnabled: externalIntegrationsEnabled,
+                disabledIntegrations: disabledIntegrations,
+                integrationsNoticeDismissed: integrationsNoticeDismissed,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
@@ -36791,6 +37048,9 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
                 Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
+                Value<bool> externalIntegrationsEnabled = const Value.absent(),
+                Value<String> disabledIntegrations = const Value.absent(),
+                Value<bool> integrationsNoticeDismissed = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
@@ -36876,6 +37136,9 @@ class $$AppSettingsTableTableTableManager
                 listenBrainzTokenValid: listenBrainzTokenValid,
                 listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
+                externalIntegrationsEnabled: externalIntegrationsEnabled,
+                disabledIntegrations: disabledIntegrations,
+                integrationsNoticeDismissed: integrationsNoticeDismissed,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),

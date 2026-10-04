@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -305,6 +306,195 @@ void main() {
         DownloadQualityMode.original,
       ]);
       expect(await paused, <bool>[false, true]);
+    });
+
+    group('integration policy', () {
+      Future<void> saveFullRow({
+        bool useLrclib = true,
+        bool updateCheckEnabled = true,
+        bool legacyInstantMixEnabled = false,
+        bool listenBrainzScrobblingEnabled = false,
+      }) => database.appSettingsDao.saveSettings(
+        cachedPlaybackFirst: false,
+        scrobbleEnabled: true,
+        gaplessEnabled: true,
+        skipSilenceEnabled: false,
+        showAlbumsPage: true,
+        showRadioPage: true,
+        showPlaylistsPage: true,
+        showArtistsPage: true,
+        showLikedPage: true,
+        wifiOnlyDownloads: false,
+        autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        themeMode: 'dark',
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        artTintedNowPlaying: false,
+        dynamicAlbumColorEnabled: false,
+        updateCheckEnabled: updateCheckEnabled,
+        updateChannel: 'stable',
+        audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
+        useLrclib: useLrclib,
+        legacyInstantMixEnabled: legacyInstantMixEnabled,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        coverArtShape: 'rounded',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
+        homeDensity: 'comfortable',
+        listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
+      );
+
+      test('defaults: master on, nothing disabled, notice pending', () async {
+        final settings = (await database.appSettingsDao.getSettings())!;
+        expect(settings.externalIntegrationsEnabled, isTrue);
+        expect(settings.disabledIntegrations, '[]');
+        expect(settings.integrationsNoticeDismissed, isFalse);
+      });
+
+      test('updateIntegrationPolicy writes only the given columns', () async {
+        final dao = database.appSettingsDao;
+        await dao.updateIntegrationPolicy(master: false);
+        var settings = (await dao.getSettings())!;
+        expect(settings.externalIntegrationsEnabled, isFalse);
+        expect(settings.disabledIntegrations, '[]');
+
+        await dao.updateIntegrationPolicy(disabledJson: '["deezer"]');
+        settings = (await dao.getSettings())!;
+        expect(settings.externalIntegrationsEnabled, isFalse);
+        expect(settings.disabledIntegrations, '["deezer"]');
+
+        await dao.setExternalIntegrationsEnabled(enabled: true);
+        expect((await dao.getSettings())!.externalIntegrationsEnabled, isTrue);
+        expect((await dao.getSettings())!.disabledIntegrations, '["deezer"]');
+      });
+
+      test('notice dismissal is a targeted write', () async {
+        final dao = database.appSettingsDao;
+        await dao.updateIntegrationsNoticeDismissed(dismissed: true);
+        expect((await dao.getSettings())!.integrationsNoticeDismissed, isTrue);
+        await dao.updateIntegrationsNoticeDismissed(dismissed: false);
+        expect((await dao.getSettings())!.integrationsNoticeDismissed, isFalse);
+      });
+
+      test(
+        'updateLegacyInstantMixEnabled writes the column as given',
+        () async {
+          final dao = database.appSettingsDao;
+          await dao.updateLegacyInstantMixEnabled(enabled: true);
+          expect((await dao.getSettings())!.legacyInstantMixEnabled, isTrue);
+          await dao.updateLegacyInstantMixEnabled(enabled: false);
+          expect((await dao.getSettings())!.legacyInstantMixEnabled, isFalse);
+        },
+      );
+
+      test('setIntegrationEnabled writes each column-backed feature', () async {
+        final dao = database.appSettingsDao;
+        await dao.setIntegrationEnabled('lrclib.lyrics', enabled: false);
+        await dao.setIntegrationEnabled('updates.automatic', enabled: false);
+        await dao.setIntegrationEnabled(
+          'listenbrainz.scrobbling',
+          enabled: true,
+        );
+        // Same Vibes off is stored as legacyInstantMixEnabled = true.
+        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: false);
+        var settings = (await dao.getSettings())!;
+        expect(settings.useLrclib, isFalse);
+        expect(settings.updateCheckEnabled, isFalse);
+        expect(settings.listenBrainzScrobblingEnabled, isTrue);
+        expect(settings.legacyInstantMixEnabled, isTrue);
+        // None of them touch the JSON set.
+        expect(settings.disabledIntegrations, '[]');
+
+        await dao.setIntegrationEnabled('lastfm.sameVibes', enabled: true);
+        await dao.setIntegrationEnabled('lrclib.lyrics', enabled: true);
+        settings = (await dao.getSettings())!;
+        expect(settings.legacyInstantMixEnabled, isFalse);
+        expect(settings.useLrclib, isTrue);
+      });
+
+      test('setIntegrationEnabled edits the JSON set for other keys', () async {
+        final dao = database.appSettingsDao;
+        await dao.setIntegrationEnabled('deezer.topSongs', enabled: false);
+        await dao.setIntegrationEnabled('autoeq', enabled: false);
+        await dao.setIntegrationEnabled('deezer.topSongs', enabled: false);
+        expect(
+          (await dao.getSettings())!.disabledIntegrations,
+          '["autoeq","deezer.topSongs"]',
+        );
+        await dao.setIntegrationEnabled('deezer.topSongs', enabled: true);
+        expect((await dao.getSettings())!.disabledIntegrations, '["autoeq"]');
+        // Re-enabling something that is not disabled changes nothing.
+        await dao.setIntegrationEnabled('radio.nowPlaying', enabled: true);
+        expect((await dao.getSettings())!.disabledIntegrations, '["autoeq"]');
+      });
+
+      test('concurrent toggles do not lose each other', () async {
+        final dao = database.appSettingsDao;
+        await Future.wait([
+          dao.setIntegrationEnabled('deezer.topSongs', enabled: false),
+          dao.setIntegrationEnabled('deezer.trending', enabled: false),
+          dao.setIntegrationEnabled('radio', enabled: false),
+        ]);
+        expect(
+          parseDisabledIntegrationKeys(
+            (await dao.getSettings())!.disabledIntegrations,
+          ),
+          <String>{'deezer.topSongs', 'deezer.trending', 'radio'},
+        );
+      });
+
+      test('setIntegrationEnabled rejects unknown keys', () async {
+        final dao = database.appSettingsDao;
+        expect(
+          () => dao.setIntegrationEnabled('deezer.nope', enabled: false),
+          throwsArgumentError,
+        );
+        expect((await dao.getSettings())!.disabledIntegrations, '[]');
+      });
+
+      test('a full-row save leaves the policy columns alone', () async {
+        final dao = database.appSettingsDao;
+        await dao.updateIntegrationPolicy(
+          master: false,
+          disabledJson: '["deezer"]',
+        );
+        await dao.updateIntegrationsNoticeDismissed(dismissed: true);
+
+        await saveFullRow(useLrclib: false, legacyInstantMixEnabled: true);
+
+        final settings = (await dao.getSettings())!;
+        expect(settings.externalIntegrationsEnabled, isFalse);
+        expect(settings.disabledIntegrations, '["deezer"]');
+        expect(settings.integrationsNoticeDismissed, isTrue);
+        // The column-backed switches are still part of the full-row save.
+        expect(settings.useLrclib, isFalse);
+        expect(settings.legacyInstantMixEnabled, isTrue);
+      });
+
+      test('resetDefaults resets the policy but not the notice', () async {
+        final dao = database.appSettingsDao;
+        await dao.updateIntegrationPolicy(
+          master: false,
+          disabledJson: '["deezer","radio"]',
+        );
+        await dao.updateIntegrationsNoticeDismissed(dismissed: true);
+        await saveFullRow(useLrclib: false, updateCheckEnabled: false);
+
+        await dao.resetDefaults();
+
+        final settings = (await dao.getSettings())!;
+        expect(settings.externalIntegrationsEnabled, isTrue);
+        expect(settings.disabledIntegrations, '[]');
+        expect(settings.useLrclib, isTrue);
+        expect(settings.updateCheckEnabled, isTrue);
+        expect(settings.legacyInstantMixEnabled, isFalse);
+        expect(settings.integrationsNoticeDismissed, isTrue);
+      });
     });
   });
 }
