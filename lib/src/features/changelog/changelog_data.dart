@@ -125,6 +125,7 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
+  ChangelogVersion(version: '1.4.3', entries: []),
   ChangelogVersion(
     version: '1.4.2',
     released: '2026-10-03',
