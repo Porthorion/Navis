@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -447,6 +448,63 @@ void main() {
       expect(savedModel!.legacyInstantMixEnabled, isTrue);
       expect(tester.takeException(), isNull);
     });
+
+    for (final locked in <String, AppSettingsModel>{
+      'the master switch is off': initialSettings.copyWith(
+        externalIntegrationsEnabled: false,
+      ),
+      'the Last.fm service is off': initialSettings.copyWith(
+        disabledIntegrations: '["lastfm"]',
+      ),
+    }.entries) {
+      testWidgets('autosave while ${locked.key} keeps Same Vibes reversible', (
+        tester,
+      ) async {
+        AppSettingsModel? savedModel;
+        when(() => repository.saveSettings(any())).thenAnswer((
+          invocation,
+        ) async {
+          savedModel = invocation.positionalArguments.first as AppSettingsModel;
+        });
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              lastFmApiKeyProvider.overrideWithValue('test-key'),
+              appSettingsProvider.overrideWithValue(AsyncData(locked.value)),
+            ],
+            child: _buildTestApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final scrobbleToggle = find.widgetWithText(
+          SwitchListTile,
+          'Enable Scrobbling',
+        );
+        await tester.ensureVisible(scrobbleToggle);
+        await tester.pumpAndSettle();
+        await tester.tap(scrobbleToggle);
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        expect(savedModel, isNotNull);
+        // The lock must not rewrite storage as Server Mix.
+        expect(savedModel!.legacyInstantMixEnabled, isFalse);
+        // Switching the integrations back on finds Same Vibes still on.
+        final reopened = integrationPolicyFromSettings(
+          savedModel!.copyWith(
+            externalIntegrationsEnabled: true,
+            disabledIntegrations: '[]',
+          ),
+          lastFmVerified: true,
+        );
+        expect(reopened.allows(IntegrationFeature.lastFmSameVibes), isTrue);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
 

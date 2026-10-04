@@ -696,7 +696,6 @@ class _PlaybackSettingsScreenState
       final currentSettings =
           ref.read(appSettingsProvider).asData?.value ??
           const AppSettingsModel.defaults();
-      final legacyInstantMixLocked = ref.read(legacyInstantMixLockedProvider);
       final wifiFormat = _normalizeFormat(_wifiFormat);
       final cellularFormat = _normalizeFormat(_cellularFormat);
       // Copy the stored row so fields owned by other screens (ListenBrainz,
@@ -718,8 +717,10 @@ class _PlaybackSettingsScreenState
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
         useLrclib: _useLrclib,
-        legacyInstantMixEnabled:
-            legacyInstantMixLocked || _legacyInstantMixEnabled,
+        // The lock only affects what is shown and used; it must not rewrite
+        // storage, or switching the integrations back on would find Same
+        // Vibes turned off.
+        legacyInstantMixEnabled: _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         albumQueueEnabled: _albumQueueEnabled,

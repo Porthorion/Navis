@@ -674,13 +674,6 @@ IntegrationPolicy integrationPolicyFromSettings(
   );
 }
 
-final legacyInstantMixSettingProvider = Provider<bool>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.legacyInstantMixEnabled;
-});
-
 /// Whether the Same Vibes switch cannot be changed: the integrations master
 /// switch or the Last.fm switch is off, or no Last.fm key is available.
 final legacyInstantMixLockedProvider = Provider<bool>((ref) {

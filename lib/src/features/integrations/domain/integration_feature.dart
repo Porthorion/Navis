@@ -188,11 +188,6 @@ bool isIntegrationKey(String key) =>
     IntegrationService.tryParse(key) != null ||
     IntegrationFeature.tryParse(key) != null;
 
-/// The legacy column behind [key], or null when [key] is a service key or a
-/// feature stored in the JSON set.
-IntegrationLegacyColumn? integrationLegacyColumnFor(String key) =>
-    IntegrationFeature.tryParse(key)?.legacyColumn;
-
 /// Parses the `disabled_integrations` JSON into the set of known keys that
 /// the JSON may hold: service keys and features without a legacy column.
 /// Unknown keys, non-string entries and malformed JSON are ignored, so a
