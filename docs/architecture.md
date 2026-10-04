@@ -1962,6 +1962,24 @@ the song from the beginning while the seek bar held the target. Such a seek
 grows (it runs faster than playback; up to `seekProgress`, three seconds without
 growth ends it) and then reloads the song from the completed file at the target;
 if the file is not complete the seek fails and playback continues where it was.
+
+**Deferred: transcode-offset seeking.** On a slow link that wait can take
+10–25 s or more. The established fix is the OpenSubsonic `transcodeOffset`
+extension: reopen `stream.view` with `timeOffset=<seconds>` so the server starts
+transcoding at the target. Symfonium appears to seek this way, and Navidrome
+advertises the extension and has made offset seeks fast with ffmpeg input
+seeking. Navis does not use it yet. The offset stream reports time from zero,
+so it needs one position-translation layer that every position consumer goes
+through: the handler's `_player.position` reads, position and buffered streams,
+duration, persistence, scrobbling, lyrics, media sessions, crossfade, end
+detection and recovery reloads. The full-file cache download must also keep
+running beside it. It was deferred on 2026-10-04 so that the 1.4.3 seek fixes
+shipped on their own. If seeking issues come back for transcoded or uncached
+songs, heavily consider implementing it next, used only for linear transcodes
+whose download will not finish soon and only when the server advertises
+`transcodeOffset`, with resume, scrobble and lyrics timing tests and throttled
+`tool/live_seek_stress.py` runs.
+
 Lock-cache seek recovery otherwise uses the same two-phase
 queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable

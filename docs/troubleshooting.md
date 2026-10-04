@@ -225,6 +225,20 @@ Use this quick matrix to classify failures:
 - Checks:
   - confirm `/Users/khalifaalzarooni/Documents/forgejo_projects/Navis/android/app/src/main/res/xml/network_security_config.xml` allows loopback only (`127.0.0.1`, `localhost`).
   - confirm `/Users/khalifaalzarooni/Documents/forgejo_projects/Navis/android/app/src/main/AndroidManifest.xml` references that network security config.
+5. Slow or failed seek in an uncached or transcoded song:
+- Symptoms: the seek bar holds the target for a long time, or the seek reports
+  that the position could not be reached, mostly on first plays over a slow or
+  mobile connection.
+- Checks:
+  - `GET /v1/playback/status`: `seekEvents[].unsettled` names the rule that
+    ended each settlement probe; `sourceKind` and `cacheActivity` show whether
+    the seek waited for a linear transcode's download.
+  - reproduce with `tool/live_seek_stress.py --throttle-kbps 6000` (see the
+    development workflow).
+- If transcoded first-play seeks are the cause, heavily consider implementing
+  transcode-offset seeking (OpenSubsonic `transcodeOffset`); the deferred design
+  and its scope are under "Deferred: transcode-offset seeking" in
+  `docs/architecture.md`.
 
 ## Android `VRI` / `SurfaceView` logs while backgrounding
 
