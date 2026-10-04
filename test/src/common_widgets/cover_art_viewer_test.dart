@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class _RouteObserver extends NavigatorObserver {
@@ -20,17 +21,26 @@ Future<void> _pumpViewerHarness(
   required _RouteObserver observer,
 }) async {
   await tester.pumpWidget(
-    MediaQuery(
-      data: MediaQueryData(disableAnimations: reduceMotion),
-      child: MaterialApp(
-        navigatorObservers: <NavigatorObserver>[observer],
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showRemoteArtViewer(
-              context,
-              artUrl: 'https://example.com/cover.jpg',
+    ProviderScope(
+      overrides: [
+        // The viewer's image consults the policy; nothing is fetched here.
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy.denyAll(),
+        ),
+        serverHostProvider.overrideWithValue(null),
+      ],
+      child: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduceMotion),
+        child: MaterialApp(
+          navigatorObservers: <NavigatorObserver>[observer],
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showRemoteArtViewer(
+                context,
+                artUrl: 'https://example.com/cover.jpg',
+              ),
+              child: const Text('Open artwork'),
             ),
-            child: const Text('Open artwork'),
           ),
         ),
       ),

@@ -110,6 +110,16 @@ bool _looksLikeImagePayload(List<int> head) {
 
 enum CoverArtLoadPriority { background, visible, critical }
 
+/// An image URL was refused by the integration policy before any request.
+class CoverArtBlockedException implements Exception {
+  const new(this.host);
+
+  final String host;
+
+  @override
+  String toString() => 'Cover art load blocked by integration policy: $host';
+}
+
 class CoverArtLoadCanceledException implements Exception {
   const new(this.key);
 
@@ -413,6 +423,8 @@ class CoverArtHttpFileService implements FileService {
     CoverArtLoadCoordinator? loadCoordinator,
     this._reportNetworkUsage,
     this.onMissingCover,
+    this._allowUri,
+    this._isServerUri,
     this._connectionTimeout = const Duration(seconds: 15),
     this._responseTimeout = const Duration(seconds: 20),
     this._bodyReadTimeout = const Duration(seconds: 20),
@@ -426,6 +438,16 @@ class CoverArtHttpFileService implements FileService {
   /// exist so the caller can schedule one coalesced entity-metadata refresh
   /// (plan F7).
   final void Function(String coverArtId)? onMissingCover;
+
+  /// Integration policy check run before any request. A refused URL throws
+  /// [CoverArtBlockedException] without touching the network. Null allows
+  /// everything.
+  final bool Function(Uri uri)? _allowUri;
+
+  /// Whether [Uri] points at the user's own server. Missing-cover recovery
+  /// asks that server to refresh a cover id, so it only runs for its URLs; an
+  /// external 404 must not trigger it. Null treats every URL as the server's.
+  final bool Function(Uri uri)? _isServerUri;
 
   final Duration _connectionTimeout;
   final Duration _responseTimeout;
@@ -450,6 +472,12 @@ class CoverArtHttpFileService implements FileService {
     Map<String, String>? headers,
   }) async {
     final uri = Uri.parse(url);
+    if (!(_allowUri?.call(uri) ?? true)) {
+      throw CoverArtBlockedException(uri.host);
+    }
+    final missingCoverHook = (_isServerUri?.call(uri) ?? true)
+        ? onMissingCover
+        : null;
     final diagnosticUri = _diagnosticUri(uri);
     final loadKey = _loadKey(uri);
     final lease = await _loadCoordinator.acquire(loadKey);
@@ -484,7 +512,7 @@ class CoverArtHttpFileService implements FileService {
         if (missingCover) {
           final coverId = uri.queryParameters['id'];
           if (coverId != null && coverId.isNotEmpty) {
-            onMissingCover?.call(coverId);
+            missingCoverHook?.call(coverId);
           }
         }
         // Drain so the keep-alive connection is not poisoned for the next
@@ -513,7 +541,7 @@ class CoverArtHttpFileService implements FileService {
         if (looksLikeSubsonicErrorDocument(sample)) {
           final coverId = uri.queryParameters['id'];
           if (coverId != null && coverId.isNotEmpty) {
-            onMissingCover?.call(coverId);
+            missingCoverHook?.call(coverId);
           }
           AppLogger.info(
             'Cover art missingCoverReference reported through an error '
@@ -532,7 +560,7 @@ class CoverArtHttpFileService implements FileService {
         bodyReadTimeout: _bodyReadTimeout,
         diagnosticUri: diagnosticUri,
         coverArtId: uri.queryParameters['id'],
-        onMissingCover: onMissingCover,
+        onMissingCover: missingCoverHook,
         onTimeout: _resetClientAfterTimeout,
         onDone: lease.release,
         onBytesRead: (bytes) {

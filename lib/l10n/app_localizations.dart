@@ -7991,6 +7991,12 @@ abstract class AppLocalizations {
   /// **'Could not download this profile. Check your connection and try again.'**
   String get eqDownloadError;
 
+  /// Shown in the AutoEQ dialog when the AutoEQ integration or the online services switch is off.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing and downloading are turned off in Integrations settings. Search still works from the built-in catalogue.'**
+  String get eqAutoEqOnlineOff;
+
   /// No description provided for @eqRefreshError.
   ///
   /// In en, this message translates to:

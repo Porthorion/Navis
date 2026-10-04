@@ -1122,12 +1122,13 @@ class _MiniRadioArt extends ConsumerWidget {
         extent: size,
       ),
       child: url != null && url.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url,
+          ? ExternalArtworkImage(
+              url: url,
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorWidget: (_, _, _) => _placeholder(),
+              feature: IntegrationFeature.radioNowPlaying,
+              fallbackBuilder: (_) => _placeholder(),
             )
           : _placeholder(),
     );
@@ -1165,12 +1166,12 @@ class _MiniRemoteArt extends ConsumerWidget {
         extent: size,
       ),
       child: url != null && url.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url,
+          ? ExternalArtworkImage(
+              url: url,
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorWidget: (_, _, _) => _placeholder(),
+              fallbackBuilder: (_) => _placeholder(),
             )
           : _placeholder(),
     );

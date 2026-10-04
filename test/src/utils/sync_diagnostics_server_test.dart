@@ -19,6 +19,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
@@ -631,6 +632,124 @@ void main() {
       }
     },
   );
+
+  for (final mode in [
+    SyncDiagnosticsMode.clone,
+    SyncDiagnosticsMode.primaryCertification,
+  ]) {
+    test('integrations diagnostics report counters, calls and spans without '
+        'secrets ($mode)', () async {
+      const secret = 'SECRET_API_KEY_VALUE';
+      final recorder = IntegrationCallRecorder(logCalls: false);
+      recorder
+        ..recordCall(
+          service: IntegrationService.lastFm,
+          method: 'GET',
+          uri: Uri.parse(
+            'https://ws.audioscrobbler.com/2.0/?method=artist.getTopTracks'
+            '&api_key=$secret&artist=Someone',
+          ),
+          duration: const Duration(milliseconds: 120),
+          outcome: IntegrationCallOutcome.ok,
+          statusCode: 200,
+        )
+        ..recordCall(
+          service: IntegrationService.deezer,
+          method: 'GET',
+          uri: Uri.parse('https://api.deezer.com/artist/1/top?limit=50'),
+          duration: Duration.zero,
+          outcome: IntegrationCallOutcome.blocked,
+        )
+        ..span('topSongs.sourceFetch', {
+          'tracks': 50,
+        }, const Duration(milliseconds: 90));
+      for (var i = 0; i < 120; i++) {
+        recorder.recordCall(
+          service: IntegrationService.lrclib,
+          method: 'GET',
+          uri: Uri.parse('https://lrclib.net/api/get'),
+          duration: const Duration(milliseconds: 5),
+          outcome: IntegrationCallOutcome.ok,
+          statusCode: 200,
+        );
+        recorder.span('filler', const {}, Duration.zero);
+      }
+      final overrides = [
+        integrationCallRecorderProvider.overrideWithValue(recorder),
+      ];
+
+      // Read-only and available in every diagnostics mode.
+      final fixture = await _startFixture(mode, overrides: overrides);
+      addTearDown(fixture.close);
+
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/diagnostics/integrations',
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final response = await _request(
+        fixture.port,
+        '/v1/diagnostics/integrations',
+        token: fixture.token,
+      );
+      expect(response.statusCode, HttpStatus.ok, reason: '$mode');
+      final counters = response.body['counters']! as Map;
+      expect(counters['lastfm'], {
+        'requests': 1,
+        'blocked': 0,
+        'errors': 0,
+        'totalMs': 120,
+      });
+      expect((counters['deezer']! as Map)['blocked'], 1);
+      expect((counters['lrclib']! as Map)['requests'], 120);
+      expect(response.body['calls'] as List, hasLength(100));
+      expect(response.body['spans'] as List, hasLength(50));
+
+      final encoded = jsonEncode(response.body);
+      expect(encoded, isNot(contains(secret)));
+      expect(encoded, isNot(contains('api_key')));
+      expect(encoded, isNot(contains('limit=50')));
+    });
+  }
+
+  test('integrations diagnostics list the retained call fields', () async {
+    final recorder = IntegrationCallRecorder(logCalls: false)
+      ..recordCall(
+        service: IntegrationService.listenBrainz,
+        method: 'post',
+        uri: Uri.parse('https://api.listenbrainz.org/1/submit-listens?x=1'),
+        duration: const Duration(milliseconds: 33),
+        outcome: IntegrationCallOutcome.error,
+        statusCode: 500,
+      )
+      ..span('lyrics', {'songs': 2}, const Duration(milliseconds: 7));
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      overrides: [integrationCallRecorderProvider.overrideWithValue(recorder)],
+    );
+    addTearDown(fixture.close);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/diagnostics/integrations',
+      token: fixture.token,
+    );
+
+    final call = (response.body['calls']! as List).single as Map;
+    expect(call, containsPair('service', 'listenbrainz'));
+    expect(call, containsPair('method', 'POST'));
+    expect(call, containsPair('path', '/1/submit-listens'));
+    expect(call, containsPair('status', 500));
+    expect(call, containsPair('ms', 33));
+    expect(call, containsPair('outcome', 'error'));
+    expect(call, containsPair('blocked', false));
+    expect(call.keys, containsAll(<String>['at']));
+    final span = (response.body['spans']! as List).single as Map;
+    expect(span, containsPair('name', 'lyrics'));
+    expect(span['counts'], {'songs': 2});
+    expect(span, containsPair('ms', 7));
+  });
 
   test(
     'rapid playback endpoints use the handler and remain clone-only',

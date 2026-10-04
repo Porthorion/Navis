@@ -38,6 +38,7 @@ import 'package:navis/src/features/downloads/presentation/download_quality_sheet
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/recommendation_auto_advance.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';

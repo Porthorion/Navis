@@ -1938,6 +1938,60 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    for (final entry in <String, AppSettingsModel>{
+      'the lyrics switch is off': const AppSettingsModel.defaults().copyWith(
+        useLrclib: false,
+      ),
+      'the LRCLIB service is off': const AppSettingsModel.defaults().copyWith(
+        disabledIntegrations: '["lrclib"]',
+      ),
+      'the master switch is off': const AppSettingsModel.defaults().copyWith(
+        externalIntegrationsEnabled: false,
+      ),
+    }.entries) {
+      test('never contacts LRCLIB when ${entry.key}', () async {
+        final database = await createLyricsDatabase();
+        final lrclib = _MockLrclibClient();
+        final api = _MockSubsonicApiClient();
+        when(() => api.getLyricsBySongId('song-1'))
+            .thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            lrclibClientProvider.overrideWithValue(lrclib),
+            subsonicApiProvider.overrideWithValue(api),
+            appSettingsProvider.overrideWithValue(AsyncData(entry.value)),
+            currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        expect(container.read(useLrclibProvider), isFalse);
+        final resolution = await container.read(
+          lyricsProvider('song-1').future,
+        );
+
+        expect(resolution.source, LyricsSource.serverPlain);
+        verifyNever(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        );
+        verifyNever(
+          () => lrclib.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+            album: any(named: 'album'),
+            duration: any(named: 'duration'),
+          ),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
     test('falls back to server lyrics when LRCLIB throws', () async {
       final database = await createLyricsDatabase();
       final lrclib = _MockLrclibClient();

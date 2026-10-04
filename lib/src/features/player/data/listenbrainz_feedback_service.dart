@@ -5,7 +5,7 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/database/daos/listenbrainz_feedback_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 class ListenBrainzFeedbackCredentials {
@@ -151,12 +151,14 @@ class ListenBrainzFeedbackService {
   }
 }
 
+/// The token for love/hate feedback, or null while the integration policy
+/// does not allow `listenbrainz.feedback` (master, service and feedback
+/// switches and a validated token) or no token is stored.
 Future<ListenBrainzFeedbackCredentials?> readListenBrainzFeedbackCredentials({
-  required AppSettingsModel settings,
+  required IntegrationPolicy policy,
   required Future<String?> Function() readToken,
 }) async {
-  if (!settings.listenBrainzScrobblingEnabled ||
-      !settings.listenBrainzTokenValid) {
+  if (!policy.allows(IntegrationFeature.listenBrainzFeedback)) {
     return null;
   }
   final token = (await readToken())?.trim() ?? '';

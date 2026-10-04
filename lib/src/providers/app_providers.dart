@@ -39,6 +39,9 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/integrations/data/external_dio.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
@@ -198,6 +201,19 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   final service = CoverArtHttpFileService(
     loadCoordinator: coordinator,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+    // Read per request: the user's choices apply to a manager that already
+    // exists, and the manager must not be rebuilt by settings changes.
+    allowUri: (uri) => integrationAllowsArtworkHost(
+      ref.read(integrationPolicyProvider),
+      uri,
+      serverHost: ref.read(serverHostProvider),
+    ),
+    isServerUri: (uri) =>
+        integrationFeatureForArtworkUri(
+          uri,
+          serverHost: ref.read(serverHostProvider),
+        ) ==
+        null,
     onMissingCover: (coverArtId) {
       // One coalesced metadata refresh per missing reference (plan F7);
       // failures land in logs and the cooldown prevents loops.
@@ -385,8 +401,13 @@ final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
   return repository.watchSettings();
 });
 
-final lrclibClientProvider = Provider<LrclibClient>((_) {
-  return LrclibClient();
+final lrclibClientProvider = Provider<LrclibClient>((ref) {
+  return LrclibClient(
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.lrclib,
+      options: LrclibClient.baseOptions,
+    ),
+  );
 });
 
 final showAlbumsPageProvider = Provider<bool>((ref) {
@@ -431,11 +452,14 @@ final showLikedPageProvider = Provider<bool>((ref) {
   return settings.showLikedPage;
 });
 
+/// Whether lyrics may be looked up on LRCLIB: the integration policy allows
+/// `lrclib.lyrics` (master, LRCLIB and the lyrics switch).
 final useLrclibProvider = Provider<bool>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.useLrclib;
+  return ref.watch(
+    integrationPolicyProvider.select(
+      (policy) => policy.allows(IntegrationFeature.lrclibLyrics),
+    ),
+  );
 });
 
 final albumQueueEnabledProvider = Provider<bool>((ref) {
@@ -596,17 +620,34 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   if (apiKey.isEmpty) {
     return null;
   }
-  return LastFmApiClient(apiKey: apiKey);
+  return LastFmApiClient(
+    apiKey: apiKey,
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.lastFm,
+      options: LastFmApiClient.baseOptions,
+    ),
+  );
 });
 
 final lastFmApiClientFactoryProvider =
-    Provider<LastFmApiClient Function(String)>(
-      (_) =>
-          (apiKey) => LastFmApiClient(apiKey: apiKey),
-    );
+    Provider<LastFmApiClient Function(String)>((ref) {
+      final createDio = ref.watch(externalDioFactoryProvider);
+      return (apiKey) => LastFmApiClient(
+        apiKey: apiKey,
+        dio: createDio(
+          IntegrationService.lastFm,
+          options: LastFmApiClient.baseOptions,
+        ),
+      );
+    });
 
-final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((_) {
-  return ListenBrainzApiClient();
+final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((ref) {
+  return ListenBrainzApiClient(
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.listenBrainz,
+      options: ListenBrainzApiClient.baseOptions,
+    ),
+  );
 });
 
 final externalScrobbleCredentialStoreProvider =
@@ -656,6 +697,40 @@ final integrationPolicyProvider = Provider<IntegrationPolicy>((ref) {
   );
 });
 
+/// Calls to external services and timed pipeline spans, for the
+/// `/v1/diagnostics/integrations` endpoint and the debug log.
+final integrationCallRecorderProvider = Provider<IntegrationCallRecorder>(
+  (_) => IntegrationCallRecorder(),
+);
+
+/// Builds the guarded [Dio] for an external service. Every client of a
+/// service other than the user's own server takes its [Dio] from here.
+///
+/// The policy is read per request, not captured, so clients built before a
+/// settings change obey it too.
+final externalDioFactoryProvider = Provider<ExternalDioFactory>((ref) {
+  final recorder = ref.watch(integrationCallRecorderProvider);
+  return (service, {options}) => createExternalDio(
+    service,
+    readPolicy: () => ref.read(integrationPolicyProvider),
+    recorder: recorder,
+    options: options,
+  );
+});
+
+/// The host of the user's Subsonic server. Artwork from this host always
+/// loads; artwork from any other host is subject to the integration policy.
+final serverHostProvider = Provider<String?>((ref) {
+  return ref.watch(
+    serverConfigStateProvider.select((state) {
+      final url = state.asData?.value?.url;
+      if (url == null || url.trim().isEmpty) return null;
+      final host = Uri.tryParse(url.trim())?.host;
+      return host == null || host.isEmpty ? null : host.toLowerCase();
+    }),
+  );
+});
+
 /// The policy for settings that were just read from storage, for code that
 /// must not trust a provider that may still be loading.
 IntegrationPolicy integrationPolicyFromSettings(
@@ -702,25 +777,12 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
     readScrobbleEnabled: () =>
         !_syncDiagnosticsEnabled &&
         (ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true),
-    readListenBrainzCredentials: () async {
-      final settings =
-          ref.read(appSettingsProvider).asData?.value ??
-          const AppSettingsModel.defaults();
-      if (!settings.listenBrainzScrobblingEnabled ||
-          !settings.listenBrainzTokenValid) {
-        return null;
-      }
-      final token =
-          (await ref
-                  .read(externalScrobbleCredentialStoreProvider)
-                  .readListenBrainzToken())
-              ?.trim() ??
-          '';
-      if (token.isEmpty) {
-        return null;
-      }
-      return ListenBrainzScrobbleCredentials(userToken: token);
-    },
+    readListenBrainzCredentials: () => readListenBrainzScrobbleCredentials(
+      policy: ref.read(integrationPolicyProvider),
+      readToken: () => ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .readListenBrainzToken(),
+    ),
     createListenBrainzClient: () => ref.read(listenBrainzApiClientProvider),
     onListenBrainzInvalidToken: () {
       unawaited(
@@ -745,17 +807,12 @@ final listenBrainzFeedbackServiceProvider =
       return ListenBrainzFeedbackService(
         dao: database.listenBrainzFeedbackDao,
         libraryDao: database.libraryDao,
-        readCredentials: () {
-          final settings =
-              ref.read(appSettingsProvider).asData?.value ??
-              const AppSettingsModel.defaults();
-          return readListenBrainzFeedbackCredentials(
-            settings: settings,
-            readToken: () => ref
-                .read(externalScrobbleCredentialStoreProvider)
-                .readListenBrainzToken(),
-          );
-        },
+        readCredentials: () => readListenBrainzFeedbackCredentials(
+          policy: ref.read(integrationPolicyProvider),
+          readToken: () => ref
+              .read(externalScrobbleCredentialStoreProvider)
+              .readListenBrainzToken(),
+        ),
         createClient: () => ref.read(listenBrainzApiClientProvider),
         readReachable: () =>
             ref.read(networkTypeProvider) != NetworkType.offline,
@@ -942,6 +999,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
+      readRadioMetadataAllowed: () => ref
+          .read(integrationPolicyProvider)
+          .allows(IntegrationFeature.radioNowPlaying),
+      createRadioMetadataDio: () => ref.read(externalDioFactoryProvider)(
+        IntegrationService.radioMetadata,
+      ),
       startPreferredMix: (seedId) async {
         final settings = await ref
             .read(settingsRepositoryProvider)
@@ -2357,6 +2420,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readCustomDownloadFolderPath: () =>
         ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
+    readLyricsAllowed: () => ref.read(useLrclibProvider),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
     readProfileIdentity: () {
       final config = ref.read(serverConfigProvider).asData?.value;
@@ -2675,7 +2739,10 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
 
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
-  return UpdateService(networkUsageReporter: meter.record);
+  return UpdateService(
+    dio: ref.watch(externalDioFactoryProvider)(IntegrationService.updates),
+    networkUsageReporter: meter.record,
+  );
 });
 
 /// Checks whether a newer Navis release is available on Forgejo.
@@ -2701,6 +2768,7 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   }
 
   return await UpdateRepository(
+    dio: ref.read(externalDioFactoryProvider)(IntegrationService.updates),
     installSourceService: ref.read(installSourceServiceProvider),
     updateCheckStore: ref.read(updateCheckStoreProvider),
   ).checkForUpdate(

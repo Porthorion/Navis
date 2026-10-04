@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 final dynamicAccentEnabledProvider = Provider<bool>((ref) {
@@ -27,7 +29,24 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
 
   if (playback.isRadioMode) {
     final url = playback.radioArtUrl?.trim() ?? '';
-    return url.isEmpty ? null : 'url:$url';
+    final uri = Uri.tryParse(url);
+    if (uri == null || url.isEmpty) {
+      return null;
+    }
+    // Radio art is an external image: no accent from it while the policy
+    // refuses it.
+    final serverHost = ref.watch(serverHostProvider);
+    final allowed = ref.watch(
+      integrationPolicyProvider.select(
+        (policy) => integrationAllowsArtworkUri(
+          policy,
+          uri,
+          serverHost: serverHost,
+          feature: IntegrationFeature.radioNowPlaying,
+        ),
+      ),
+    );
+    return allowed ? 'url:$url' : null;
   }
 
   final currentSongId = playback.currentSongId?.trim() ?? '';

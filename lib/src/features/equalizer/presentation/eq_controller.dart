@@ -6,12 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
 import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:uuid/uuid.dart';
 
 final autoEqCatalogueProvider = Provider<AutoEqCatalogue>(
-  (ref) => AutoEqCatalogue(),
+  (ref) => AutoEqCatalogue(
+    client: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.autoEq,
+      options: AutoEqCatalogue.baseOptions,
+    ),
+  ),
 );
 
 final eqCapabilitiesProvider = Provider<EqCapabilities>((ref) {

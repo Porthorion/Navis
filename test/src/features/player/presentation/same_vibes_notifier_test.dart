@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -123,6 +124,98 @@ void main() {
     );
   }
 
+  group('integration policy gate', () {
+    for (final entry in <String, IntegrationPolicy>{
+      'the Same Vibes switch is off': const IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm.sameVibes'},
+      ),
+      'the Last.fm service is off': const IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm'},
+      ),
+      'the master switch is off': const IntegrationPolicy(
+        lastFmVerified: true,
+        masterEnabled: false,
+      ),
+      'no Last.fm key is verified': const IntegrationPolicy(),
+    }.entries) {
+      test('never calls Last.fm when ${entry.key}', () async {
+        final snapshotState =
+            NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+              _SnapshotController.new,
+            );
+        final api = _MockSubsonicApiClient();
+        final lastFm = _MockLastFmApiClient();
+        when(
+          () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
+        ).thenAnswer(
+          (_) async =>
+              const Song(id: 'seed', title: 'Seed Song', artist: 'Seed Artist'),
+        );
+        when(
+          () => api.getSimilarSongs(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async => const <Song>[]);
+        final container = ProviderContainer(
+          overrides: [
+            playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+            queueProvider.overrideWith(
+              () => _FakeQueueController(insertedCount: 1),
+            ),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            integrationPolicyProvider.overrideWithValue(entry.value),
+            currentMediaItemProvider.overrideWith(
+              (ref) => Stream<MediaItem?>.value(
+                const MediaItem(
+                  id: 'seed',
+                  title: 'Seed Song',
+                  artist: 'Seed Artist',
+                ),
+              ),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            cachedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+              (albumIds) async => const <String, int?>{},
+            ),
+            sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+              (songIds) async => const <String>{},
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container
+            .read(snapshotState.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: const <String>['seed'],
+                currentSongId: 'seed',
+                currentIndex: 0,
+              ),
+            );
+
+        await container.read(sameVibesProvider.notifier).activate('seed');
+
+        verifyNever(
+          () => lastFm.getSimilarTracksResult(
+            artist: any(named: 'artist'),
+            track: any(named: 'track'),
+            limit: any(named: 'limit'),
+          ),
+        );
+      });
+    }
+  });
+
   test('deactivates when a regular queue replacement starts', () async {
     final snapshotState =
         NotifierProvider<_SnapshotController, PlaybackSnapshot>(
@@ -150,6 +243,9 @@ void main() {
         ),
         subsonicApiProvider.overrideWith((_) => null),
         lastFmApiClientProvider.overrideWith((_) => null),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -279,6 +375,9 @@ void main() {
           ),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -407,6 +506,9 @@ void main() {
         ),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         currentMediaItemProvider.overrideWith(
           (ref) => Stream<MediaItem?>.value(
             const MediaItem(
@@ -528,6 +630,9 @@ void main() {
           ),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -651,6 +756,9 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         currentMediaItemProvider.overrideWith(
           (ref) => Stream<MediaItem?>.value(
             const MediaItem(
@@ -759,6 +867,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -857,6 +968,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -993,6 +1107,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -1091,6 +1208,9 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         currentMediaItemProvider.overrideWith(
           (ref) => Stream<MediaItem?>.value(
             const MediaItem(
@@ -1224,6 +1344,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -1306,6 +1429,9 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         subsonicApiProvider.overrideWithValue(api),
         lastFmApiClientProvider.overrideWithValue(lastFm),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         currentMediaItemProvider.overrideWith(
           (ref) => Stream<MediaItem?>.value(
             const MediaItem(
@@ -1434,6 +1560,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(
@@ -1554,6 +1683,9 @@ void main() {
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
           lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           currentMediaItemProvider.overrideWith(
             (ref) => Stream<MediaItem?>.value(
               const MediaItem(

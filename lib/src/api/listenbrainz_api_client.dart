@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 
 class ListenBrainzInvalidTokenException implements Exception {
@@ -6,18 +7,17 @@ class ListenBrainzInvalidTokenException implements Exception {
 }
 
 class ListenBrainzApiClient {
-  new({Dio? dio})
-    : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              baseUrl: 'https://api.listenbrainz.org/1',
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 15),
-              sendTimeout: const Duration(seconds: 10),
-              headers: const {'User-Agent': 'Navis/1.0'},
-            ),
-          );
+  /// Production code passes a [dio] from `externalDioFactoryProvider`, built
+  /// with [baseOptions], so the integration guard applies.
+  new({Dio? dio}) : _dio = dio ?? Dio(baseOptions);
+
+  static final baseOptions = BaseOptions(
+    baseUrl: 'https://api.listenbrainz.org/1',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    sendTimeout: const Duration(seconds: 10),
+    headers: const {'User-Agent': 'Navis/1.0'},
+  );
 
   final Dio _dio;
 
@@ -31,7 +31,8 @@ class ListenBrainzApiClient {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/validate-token',
-        options: _authOptions(userToken),
+        // Validating a token is the user's own request.
+        options: userInitiatedOptions(_authOptions(userToken)),
       );
       final data = response.data ?? const <String, dynamic>{};
       return ListenBrainzTokenDetails(

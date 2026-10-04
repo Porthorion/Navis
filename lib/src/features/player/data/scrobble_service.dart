@@ -5,6 +5,7 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 enum ScrobbleProvider {
@@ -46,6 +47,23 @@ class ListenBrainzScrobbleCredentials {
   const new({required this.userToken});
 
   final String userToken;
+}
+
+/// The token for ListenBrainz scrobbling, or null while the integration
+/// policy does not allow `listenbrainz.scrobbling` (master, service and
+/// scrobbling switches and a validated token) or no token is stored.
+Future<ListenBrainzScrobbleCredentials?> readListenBrainzScrobbleCredentials({
+  required IntegrationPolicy policy,
+  required Future<String?> Function() readToken,
+}) async {
+  if (!policy.allows(IntegrationFeature.listenBrainzScrobbling)) {
+    return null;
+  }
+  final token = (await readToken())?.trim() ?? '';
+  if (token.isEmpty) {
+    return null;
+  }
+  return ListenBrainzScrobbleCredentials(userToken: token);
 }
 
 abstract class ScrobbleService {

@@ -13,12 +13,23 @@ import 'package:navis/src/utils/app_logger.dart';
 /// 2. **ICY metadata** — Falls back to `IcyMetadata` provided by `just_audio`
 ///    for generic Icecast/Shoutcast streams.
 class RadioMetadataService {
-  new({required this._handler, required this._player, Dio? dio})
-    : _dio = dio ?? Dio();
+  /// [isAllowed] is the integration policy for radio now-playing lookups. It
+  /// is read before every poll, so switching the integration off stops
+  /// Azuracast polling mid-station; ICY metadata comes from the audio stream
+  /// itself and is not affected. Production code passes a guarded [dio] from
+  /// `externalDioFactoryProvider`.
+  new({
+    required this._handler,
+    required this._player,
+    Dio? dio,
+    bool Function()? isAllowed,
+  }) : _dio = dio ?? Dio(),
+       _isAllowed = isAllowed ?? (() => true);
 
   final NavisPlaybackHandler _handler;
   final AudioPlayer _player;
   final Dio _dio;
+  final bool Function() _isAllowed;
 
   Timer? _pollingTimer;
   StreamSubscription<IcyMetadata?>? _icySubscription;
@@ -53,7 +64,8 @@ class RadioMetadataService {
     _activeStationId = stationId;
 
     // Try Azuracast polling first.
-    if (azuracastApiUrl != null &&
+    if (_isAllowed() &&
+        azuracastApiUrl != null &&
         azuracastApiUrl.isNotEmpty &&
         stationShortName != null &&
         stationShortName.isNotEmpty) {
@@ -92,6 +104,13 @@ class RadioMetadataService {
   Future<void> _fetchAzuracastMetadata(String stationShortName) async {
     final baseUrl = _azuracastBaseUrl;
     if (baseUrl == null || _activeStationId == null) {
+      return;
+    }
+    if (!_isAllowed()) {
+      // Stop for good: ICY metadata takes over from the stream.
+      _pollingTimer?.cancel();
+      _pollingTimer = null;
+      _azuracastBaseUrl = null;
       return;
     }
 

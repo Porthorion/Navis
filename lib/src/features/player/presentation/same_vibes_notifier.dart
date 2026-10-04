@@ -6,6 +6,7 @@ import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
@@ -746,6 +747,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     required String expectedTitle,
     required int limit,
   }) async {
+    if (!ref
+        .read(integrationPolicyProvider)
+        .allows(IntegrationFeature.lastFmSameVibes)) {
+      AppLogger.debug('SameVibes diagnostics: lastfm unavailable (turned off)');
+      return const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.notConfigured,
+        tracks: <LastFmTrackRecommendation>[],
+      );
+    }
     final client = ref.read(lastFmApiClientProvider);
     if (client == null) {
       AppLogger.debug(

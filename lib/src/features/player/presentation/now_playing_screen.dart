@@ -22,6 +22,9 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_artwork_image.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
@@ -232,6 +235,18 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
 
   final trimmedArtUrl = artUrl?.trim() ?? '';
   if (trimmedArtUrl.isEmpty) {
+    return null;
+  }
+  // A plain art URL is radio now-playing art; the policy decides whether it
+  // may load, and a refused one falls back to no image.
+  final artUri = Uri.tryParse(trimmedArtUrl);
+  if (artUri == null ||
+      !integrationAllowsArtworkUri(
+        ref.read(integrationPolicyProvider),
+        artUri,
+        serverHost: ref.read(serverHostProvider),
+        feature: IntegrationFeature.radioNowPlaying,
+      )) {
     return null;
   }
   return CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);

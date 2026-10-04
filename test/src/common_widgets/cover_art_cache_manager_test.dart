@@ -886,6 +886,79 @@ void main() {
       skip: !sqliteAvailable,
     );
   });
+
+  group('integration policy at the file service', () {
+    final recoveredIds = <String>[];
+    late HttpServer server;
+    var requests = 0;
+
+    setUp(() async {
+      recoveredIds.clear();
+      requests = 0;
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) {
+        requests++;
+        request.response.statusCode = HttpStatus.notFound;
+        unawaited(request.response.close());
+      });
+      addTearDown(() => server.close(force: true));
+    });
+
+    CoverArtHttpFileService build({
+      bool Function(Uri uri)? allowUri,
+      bool Function(Uri uri)? isServerUri,
+    }) {
+      final service = CoverArtHttpFileService(
+        connectionTimeout: const Duration(milliseconds: 500),
+        responseTimeout: const Duration(milliseconds: 500),
+        bodyReadTimeout: const Duration(milliseconds: 500),
+        onMissingCover: recoveredIds.add,
+        allowUri: allowUri,
+        isServerUri: isServerUri,
+      );
+      addTearDown(service.close);
+      return service;
+    }
+
+    test('a refused URL throws before any request is made', () async {
+      final service = build(allowUri: (_) => false);
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-1')),
+        throwsA(isA<CoverArtBlockedException>()),
+      );
+      expect(requests, 0);
+      expect(recoveredIds, isEmpty);
+    });
+
+    test('an allowed URL is requested', () async {
+      final service = build(allowUri: (_) => true, isServerUri: (_) => true);
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-1')),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      expect(requests, 1);
+    });
+
+    test('a missing cover on the server host triggers recovery', () async {
+      final service = build(isServerUri: (_) => true);
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-1')),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      expect(recoveredIds, ['cover-1']);
+    });
+
+    test('a 404 from an external host never triggers recovery', () async {
+      // The id in an external URL means nothing to the user's server.
+      final service = build(isServerUri: (_) => false);
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-1')),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      expect(requests, 1);
+      expect(recoveredIds, isEmpty);
+    });
+  });
 }
 
 const _tinyJpeg = <int>[0xff, 0xd8, 0xff, 0xd9];

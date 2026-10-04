@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -138,16 +139,15 @@ class AutoEqIndex {
 
 /// Network is used only for an explicit refresh or profile download.
 class AutoEqCatalogue {
-  new({Dio? client})
-    : _client =
-          client ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 30),
-              followRedirects: false,
-            ),
-          );
+  /// Production code passes a [client] from `externalDioFactoryProvider`,
+  /// built with [baseOptions], so the integration guard applies.
+  new({Dio? client}) : _client = client ?? Dio(baseOptions);
+
+  static final baseOptions = BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 30),
+    followRedirects: false,
+  );
   final Dio _client;
   Future<File> _cache() async => File(
     p.join(
@@ -175,7 +175,8 @@ class AutoEqCatalogue {
     var bytes = 0;
     final response = await _client.get<ResponseBody>(
       url,
-      options: Options(responseType: ResponseType.stream),
+      // Refresh and download only run when the user asks for them.
+      options: userInitiatedOptions(Options(responseType: ResponseType.stream)),
     );
     final chunks = <int>[];
     await for (final chunk in response.data!.stream) {

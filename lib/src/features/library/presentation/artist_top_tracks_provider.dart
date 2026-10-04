@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/lastfm_artist_cache.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -29,6 +30,12 @@ const int _kSearchSongCount = 10;
 
 /// Maximum parallel search3 requests when resolving tracks.
 const int _kResolutionParallelism = 4;
+
+// Span names recorded on `IntegrationCallRecorder` for the diagnostics
+// endpoint: where the time of a Top Songs load goes.
+const String _kSourceFetchSpan = 'topSongs.sourceFetch';
+const String _kLocalMatchSpan = 'topSongs.localMatch';
+const String _kServerMatchSpan = 'topSongs.serverMatch';
 
 // ---------------------------------------------------------------------------
 // Domain model
@@ -61,6 +68,16 @@ class ResolvedArtistTopTrack {
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
+
+/// Whether artist top songs may be shown and fetched: Last.fm top songs are
+/// on and a key is available. Hide the section when this is false.
+final artistTopSongsAllowedProvider = Provider<bool>((ref) {
+  return ref.watch(
+    integrationPolicyProvider.select(
+      (policy) => policy.allows(IntegrationFeature.lastFmTopSongs),
+    ),
+  );
+});
 
 /// Fetches, caches, and resolves the top tracks for an artist name.
 ///
@@ -123,11 +140,14 @@ final artistTopTracksRawProvider = FutureProvider.autoDispose
         ];
       }
 
-      final hasKey = ref.watch(hasLastFmApiKeyProvider);
-      if (!hasKey) return const [];
+      // Hidden while Last.fm top songs are off, or no key is available.
+      if (!ref.watch(artistTopSongsAllowedProvider)) return const [];
 
       final trimmedArtist = artistName.trim();
       if (trimmedArtist.isEmpty) return const [];
+
+      final recorder = ref.read(integrationCallRecorderProvider);
+      final sourceTimer = Stopwatch()..start();
 
       // 1. Try the rolling 24-hour disk cache first.
       final cached = await LastFmArtistCache.readCache(
@@ -135,6 +155,10 @@ final artistTopTracksRawProvider = FutureProvider.autoDispose
         limit: kArtistTopTracksPlaylistMax,
       );
       if (cached != null && cached.isNotEmpty) {
+        recorder.span(_kSourceFetchSpan, <String, int>{
+          'tracks': cached.length,
+          'cacheHit': 1,
+        }, sourceTimer.elapsed);
         return cached;
       }
 
@@ -145,6 +169,10 @@ final artistTopTracksRawProvider = FutureProvider.autoDispose
         artist: trimmedArtist,
         limit: kArtistTopTracksPlaylistMax,
       );
+      recorder.span(_kSourceFetchSpan, <String, int>{
+        'tracks': fetched.length,
+        'cacheHit': 0,
+      }, sourceTimer.elapsed);
       if (fetched.isEmpty) return const [];
       await LastFmArtistCache.writeCache(
         trimmedArtist,
@@ -198,6 +226,9 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
       )
       .toList(growable: true);
 
+  final recorder = ref.read(integrationCallRecorderProvider);
+  final localTimer = Stopwatch()..start();
+  var localCandidateCount = 0;
   try {
     // Only songs that could match these tracks, not the whole library.
     final songs = await ref
@@ -209,6 +240,7 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
             return (title: query.title, artist: query.artist);
           }),
         );
+    localCandidateCount = songs.length;
     final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync(songs);
     for (var index = 0; index < rawTracks.length; index++) {
       final track = rawTracks[index];
@@ -229,6 +261,12 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
     );
   }
 
+  recorder.span(_kLocalMatchSpan, <String, int>{
+    'tracks': rawTracks.length,
+    'candidates': localCandidateCount,
+    'matched': resolved.where((track) => track.isLocallyResolved).length,
+  }, localTimer.elapsed);
+
   if (api == null) {
     return List<ResolvedArtistTopTrack>.unmodifiable(resolved);
   }
@@ -237,6 +275,12 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
     for (var index = 0; index < resolved.length; index++)
       if (!resolved[index].isLocallyResolved) index,
   ];
+
+  final serverTimer = Stopwatch()..start();
+  var serverSearches = 0;
+  final matchedBeforeServer = resolved
+      .where((track) => track.isLocallyResolved)
+      .length;
 
   // Fan out unresolved tracks in bounded batches to avoid saturating the server.
   for (
@@ -257,6 +301,7 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
           Song? bestSong;
           try {
             final query = '${track.title} ${track.artist}'.trim();
+            serverSearches++;
             final result = await api.search3(
               query: query,
               artistCount: 0,
@@ -280,6 +325,13 @@ Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
 
     await Future.wait(batchFutures);
   }
+  recorder.span(_kServerMatchSpan, <String, int>{
+    'unresolved': unresolvedIndexes.length,
+    'searches': serverSearches,
+    'matched':
+        resolved.where((track) => track.isLocallyResolved).length -
+        matchedBeforeServer,
+  }, serverTimer.elapsed);
 
   final localCount = resolved
       .whereType<ResolvedArtistTopTrack>()

@@ -2168,6 +2168,10 @@
   "eqAttribution": "AutoEQ by Jaakko Pasanen and contributors · MIT licence",
   "eqNoResults": "No matching headphones. Try the full index or import a profile.",
   "eqDownloadError": "Could not download this profile. Check your connection and try again.",
+  "eqAutoEqOnlineOff": "Refreshing and downloading are turned off in Integrations settings. Search still works from the built-in catalogue.",
+  "@eqAutoEqOnlineOff": {
+    "description": "Shown in the AutoEQ dialog when the AutoEQ integration or the online services switch is off."
+  },
   "eqRefreshError": "Could not refresh. The existing catalogue is still available.",
   "eqImportDefaultName": "Imported profile",
   "eqImportErrorTooLarge": "EQ files must be smaller than 1 MB.",

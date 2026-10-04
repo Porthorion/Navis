@@ -510,6 +510,21 @@ persistence-lane counts. Read-only
 `GET /v1/diagnostics/local-search?query=` times the production local artist,
 album and song searches and returns only counts and durations.
 
+Read-only `GET /v1/diagnostics/integrations` answers "is this slow because of
+Navis or the API" for every external call. It is available in all diagnostics
+modes and returns `counters` per service key (`requests` that left the device,
+`blocked` by the policy, `errors` among the requests and `totalMs`), the last
+100 `calls` (`service`, `method`, `path`, `status`, `ms`, `outcome` of `ok`,
+`error` or `blocked`, `blocked`, `at`) and the last 50 `spans`: named pipeline
+phases with the sizes they handled. Artist Top Songs records
+`topSongs.sourceFetch` (`tracks`, `cacheHit`), `topSongs.localMatch` (`tracks`,
+`candidates`, `matched`) and `topSongs.serverMatch` (`unresolved`, `searches`,
+`matched`). The recorder keeps the path only, never the host, query string,
+headers or body (Last.fm's `api_key` lives in the query and ListenBrainz sends
+`Authorization`), and every call is also logged at info level, which release
+builds drop. The buffer lives in memory for the process, so read it right after
+the navigation being measured.
+
 ### Windows SMTC diagnostics
 
 Run `tool/windows_smtc_diagnostics.ps1` from an isolated current-build
@@ -800,9 +815,12 @@ required together. Keys are allowlisted against the enum keys (for example
 wrong types return 400. Writes use the production DAO methods, so a
 column-backed feature such as `lrclib.lyrics` changes its own column. Primary
 certification returns 403. Clone diagnostics scripts that copy a real profile
-(`tool/perf_diagnostics.py`, `tool/artist_playback_diagnostics.py`) set
-`external_integrations_enabled=0` so measurements carry no external-service
-traffic.
+or build a synthetic one (`tool/perf_diagnostics.py`,
+`tool/artist_playback_diagnostics.py`, `tool/playback_adjustment_diagnostics.sh`,
+`tool/equalizer_diagnostics.sh`) set `external_integrations_enabled=0` so
+measurements carry no external-service traffic. A run that measures an
+external service, such as the Top Songs baseline, must turn the master switch
+back on through this endpoint and read `GET /v1/diagnostics/integrations`.
 
 The follow-up `responsive-polish` label exercises the actual album-card and
 Liked Albums paging callbacks at 1366×900 and 800×600 before and after restart:

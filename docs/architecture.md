@@ -1268,7 +1268,8 @@ switch means "Navis only talks to your server" when off. See
   off). Only features without a column live in the JSON set, and a
   column-backed key found there is ignored. The migration also turns
   `listenbrainz.feedback` off for an install with a valid token and scrobbling
-  off, which keeps the old coupling of feedback to the scrobbling switch.
+  off, which keeps the old coupling of feedback to the scrobbling switch; from
+  then on feedback follows only its own policy switches.
 - **Writers.** The three new columns are deliberately absent from the full-row
   `AppSettingsDao.saveSettings`, so a stale screen snapshot cannot overwrite
   them (`resetDefaults` resets the master and the JSON set explicitly). They are
@@ -1294,8 +1295,65 @@ switch means "Navis only talks to your server" when off. See
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists
   lose the virtual playlists at once.
+- **Enforcement, in two layers.** *Call-site gates* make a section hide itself
+  instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
+  (`lastfm.radio`), artist Top Songs (`lastfm.topSongs`, via
+  `artistTopSongsAllowedProvider`, which also hides the section and the
+  playlist card), scrobbling and feedback (their credential readers return no
+  token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the download
+  service takes a `readLyricsAllowed` callback instead of reading the column),
+  the update banner and provider, the AutoEQ dialog (search still uses the
+  bundled catalogue; refresh and download are disabled) and the weekly
+  playlists stream. Gates use `allows(feature)`, which includes the credential
+  check, except weekly playlists (`isEnabled`, see above). *The guard
+  interceptor* is defense in depth. `createExternalDio(service, ...)`
+  (`features/integrations/data/external_dio.dart`) builds the `Dio` of every
+  external client (Last.fm, ListenBrainz, LRCLIB, the update repository and
+  service, AutoEQ, and the radio `RadioMetadataService` inside
+  `NavisAudioHandler`) from `externalDioFactoryProvider`.
+  `IntegrationGuardInterceptor` rejects a request, before it leaves the device,
+  when the master switch or that service's switch is off. It checks the service
+  level only; whether a feature is on is the call site's decision. A call the
+  user started (key or token validation, "Check now", the update download and
+  AutoEQ refresh/download) sets `options.extra['navis.userInitiated']` (see
+  `userInitiatedOptions`) and bypasses the service switch, never the master
+  switch. The policy is read per request, so clients that already exist obey
+  later changes. `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
+  `RadioMetadataService` checks before every Azuracast poll and which stops the
+  polling for good when it turns false (ICY metadata, carried by the stream
+  itself, is unaffected). The audio handler lives outside Riverpod, so it also
+  takes a `createRadioMetadataDio` factory.
+- **Server-linked images.** `ExternalArtworkImage`
+  (`common_widgets/external_artwork_image.dart`) replaces the call sites that
+  loaded arbitrary URLs with `CachedNetworkImage` or `Image.network`. It checks
+  `integrationAllowsArtworkUri` and then loads through
+  `coverArtCacheManagerProvider`; a refused URL shows the caller's own
+  placeholder. `integrationFeatureForArtworkUri`
+  (`features/integrations/domain/integration_artwork.dart`) is the single
+  host-to-feature mapping: the user's server host (`serverHostProvider`) always
+  loads; `dzcdn.net` and `deezer.com` map to `deezer.artistImages`; `last.fm`,
+  `lastfm*` and `audioscrobbler.com` to `artwork.serverLinked`;
+  `listenbrainz.org` and `coverartarchive.org` to
+  `listenbrainz.weeklyPlaylists`; any other host to `artwork.serverLinked`.
+  Radio art cannot be told by host, so its callers pass `radio.nowPlaying`
+  explicitly. `CoverArtHttpFileService` repeats the check at service level
+  (`allowUri`: master and service switches only) so code paths that bypass the
+  widget are covered, which means radio art also needs the artwork service on.
+  It calls `onMissingCover` only for the server's own host (`isServerUri`), so an
+  external 404 never asks the server to refresh a cover id. The two URL-style
+  consumers (`now_playing_screen.dart`'s radio art provider and
+  `dynamic_accent_provider.dart`) apply the same check.
+- **Observability.** `IntegrationCallRecorder`
+  (`integrationCallRecorderProvider`) is an in-memory ring buffer (200 calls,
+  100 spans) fed by the guard interceptor and by `recorder.span(name, counts,
+  duration)`. It stores service, method, path (no host, query or headers),
+  status, duration and `ok`/`error`/`blocked`, plus per-service counters. The
+  Top Songs pipeline records its source fetch, local match and server match as
+  spans.
 - **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
-  and changes the policy; see `docs/development-workflow.md`.
+  and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
+  the recorder's counters, calls and spans in every mode. See
+  `docs/development-workflow.md`.
 
 ## Update Checker
 

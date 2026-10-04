@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/archive_utils.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_scripts.dart';
@@ -61,9 +62,12 @@ class UpdateService {
         downloadedBytes = received;
         if (total > 0) onProgress?.call(received / total);
       },
-      options: Options(
-        receiveTimeout: const Duration(minutes: 10),
-        sendTimeout: const Duration(seconds: 15),
+      // The user chose to install this update.
+      options: userInitiatedOptions(
+        Options(
+          receiveTimeout: const Duration(minutes: 10),
+          sendTimeout: const Duration(seconds: 15),
+        ),
       ),
     );
 

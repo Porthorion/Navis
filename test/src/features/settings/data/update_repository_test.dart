@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
@@ -193,6 +194,44 @@ void main() {
         updateChannel: 'dev',
       );
       expect(update?.tagName, 'v1.4.1');
+    });
+
+    test('only "Check now" is marked as a user-initiated request', () async {
+      if (Platform.isIOS) {
+        return;
+      }
+      PackageInfo.setMockInitialValues(
+        appName: 'Navis',
+        packageName: 'com.navis.app.navis',
+        version: '1.4.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      final extras = <Map<String, dynamic>>[];
+      when(() => dio.get<List<dynamic>>(any(), options: any(named: 'options')))
+          .thenAnswer((invocation) async {
+            extras.add(
+              (invocation.namedArguments[#options] as Options).extra ??
+                  const <String, dynamic>{},
+            );
+            return Response<List<dynamic>>(
+              data: const <dynamic>[],
+              requestOptions: RequestOptions(path: '/releases'),
+              statusCode: 200,
+            );
+          });
+      final repository = UpdateRepository(
+        dio: dio,
+        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
+      );
+
+      await repository.checkForUpdate();
+      await repository.checkForUpdate(forceCheck: true);
+
+      expect(extras, [
+        isNot(contains(navisUserInitiatedExtraKey)),
+        containsPair(navisUserInitiatedExtraKey, true),
+      ]);
     });
 
     test('skips network fetch when update check throttle is active', () async {

@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_artwork_image.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// Opens a fullscreen viewer for a plain remote image URL.
@@ -91,12 +92,14 @@ class _RemoteArtViewerScreen extends StatelessWidget {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 6,
-                    child: CachedNetworkImage(
-                      imageUrl: artUrl,
+                    child: ExternalArtworkImage(
+                      url: artUrl,
                       width: side,
                       height: side,
                       fit: BoxFit.contain,
-                      errorWidget: (_, _, _) => const SizedBox.shrink(),
+                      // Opened from radio now-playing art.
+                      feature: IntegrationFeature.radioNowPlaying,
+                      fallbackBuilder: (_) => const SizedBox.shrink(),
                     ),
                   ),
                 ),

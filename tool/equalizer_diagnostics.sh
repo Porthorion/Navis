@@ -45,6 +45,10 @@ for index, identity in enumerate(('diagnostics-adjustment-tone-1', 'diagnostics-
     target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (identity,identity_path,os.path.getsize(identity_path),'wav',int(time.time())))
 target.execute("UPDATE app_settings SET crossfade_enabled = 1, gapless_enabled = 1, crossfade_duration_seconds = 3, scrobble_enabled = 0, listen_brainz_scrobbling_enabled = 0")
 columns = {row[1] for row in target.execute('PRAGMA table_info(app_settings)')}
+# No external-service traffic in the measurement; the column is absent from a
+# profile that predates the integration policy.
+if 'external_integrations_enabled' in columns:
+    target.execute('UPDATE app_settings SET external_integrations_enabled = 0')
 if 'playback_presets' in columns:
     target.execute("UPDATE app_settings SET playback_presets = '[]', selected_playback_preset_id = NULL, playback_speed = 1, playback_pitch_semitones = 0")
 if 'lock_pitch_to_speed' in columns:

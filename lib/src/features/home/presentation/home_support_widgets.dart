@@ -172,9 +172,14 @@ class _UpdateBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final updateAsync = ref.watch(updateProvider);
-    final settings = ref.watch(appSettingsProvider).asData?.value;
+    final automaticChecksAllowed = ref.watch(
+      integrationPolicyProvider.select(
+        (policy) => policy.isEnabled(IntegrationFeature.updatesAutomatic),
+      ),
+    );
 
-    if (settings != null && !settings.updateCheckEnabled) {
+    // Off, or settings still loading: no banner and no check.
+    if (!automaticChecksAllowed) {
       return const SizedBox.shrink();
     }
 

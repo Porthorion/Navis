@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -129,12 +129,12 @@ class _ArtistVirtualPlaylistArtworkState
     if (url.isNotEmpty) {
       return ClipRRect(
         borderRadius: radius,
-        child: CachedNetworkImage(
-          imageUrl: url,
+        child: ExternalArtworkImage(
+          url: url,
           width: widget.size,
           height: widget.size,
           fit: BoxFit.cover,
-          errorWidget: (_, _, _) =>
+          fallbackBuilder: (_) =>
               _ArtworkPlaceholder(size: widget.size, borderRadius: radius),
         ),
       );

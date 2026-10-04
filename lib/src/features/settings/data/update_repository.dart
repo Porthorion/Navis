@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
@@ -59,6 +60,10 @@ class UpdateRepository {
         responseType: ResponseType.json,
         receiveTimeout: const Duration(seconds: 10),
         sendTimeout: const Duration(seconds: 10),
+        // "Check now" is the user's own request; the automatic check is not.
+        extra: <String, dynamic>{
+          if (forceCheck) navisUserInitiatedExtraKey: true,
+        },
       ),
     );
 

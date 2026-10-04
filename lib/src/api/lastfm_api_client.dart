@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 enum LastFmFetchOutcome {
@@ -96,19 +97,19 @@ class LastFmApiKeyValidationResult {
 }
 
 class LastFmApiClient {
+  /// Production code passes a [dio] from `externalDioFactoryProvider`, built
+  /// with [baseOptions], so the integration guard applies.
   new({required String apiKey, Dio? dio})
     : _apiKey = apiKey.trim(),
-      _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              baseUrl: 'https://ws.audioscrobbler.com/2.0',
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 15),
-              sendTimeout: const Duration(seconds: 10),
-              headers: const {'User-Agent': 'Navis/0.8'},
-            ),
-          );
+      _dio = dio ?? Dio(baseOptions);
+
+  static final baseOptions = BaseOptions(
+    baseUrl: 'https://ws.audioscrobbler.com/2.0',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    sendTimeout: const Duration(seconds: 10),
+    headers: const {'User-Agent': 'Navis/0.8'},
+  );
 
   final Dio _dio;
   final String _apiKey;
@@ -131,6 +132,8 @@ class LastFmApiClient {
           'format': 'json',
           'limit': 1,
         },
+        // Entering a key is the user asking for this check.
+        options: userInitiatedOptions(),
       );
       final data = response.data;
       if (data == null || data.isEmpty) {

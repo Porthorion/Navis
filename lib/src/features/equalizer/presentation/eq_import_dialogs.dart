@@ -8,6 +8,8 @@ import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
 import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_band_inspector.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
@@ -410,6 +412,13 @@ class _EqAutoEqDialogState extends ConsumerState<EqAutoEqDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    // Search uses the bundled catalogue; refreshing and downloading need the
+    // AutoEQ integration.
+    final online = ref.watch(
+      integrationPolicyProvider.select(
+        (policy) => policy.allows(IntegrationFeature.autoEqCatalogue),
+      ),
+    );
     final results = index?.search(query, recommendedOnly: recommended) ?? [];
     final small = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -474,11 +483,18 @@ class _EqAutoEqDialogState extends ConsumerState<EqAutoEqDialog> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: const Icon(Icons.file_download_outlined),
-                onTap: busy ? null : () => unawaited(_download(entry)),
+                trailing: online
+                    ? const Icon(Icons.file_download_outlined)
+                    : null,
+                onTap: busy || !online
+                    ? null
+                    : () => unawaited(_download(entry)),
               ),
             const SizedBox(height: 8),
-            Text(l10n.eqCatalogueOffline, style: small),
+            Text(
+              online ? l10n.eqCatalogueOffline : l10n.eqAutoEqOnlineOff,
+              style: small,
+            ),
             Text(l10n.eqAttribution, style: small),
             if (index != null)
               Text(
@@ -494,7 +510,7 @@ class _EqAutoEqDialogState extends ConsumerState<EqAutoEqDialog> {
           child: Text(l10n.eqCancel),
         ),
         TextButton(
-          onPressed: busy
+          onPressed: busy || !online
               ? null
               : () {
                   setState(() => busy = true);

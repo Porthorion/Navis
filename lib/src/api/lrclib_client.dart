@@ -33,17 +33,16 @@ class LrclibLyrics {
 }
 
 class LrclibClient {
-  new({Dio? dio})
-    : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              baseUrl: 'https://lrclib.net',
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 10),
-              headers: const {'User-Agent': 'Navis/0.5'},
-            ),
-          );
+  /// Production code passes a [dio] from `externalDioFactoryProvider`, built
+  /// with [baseOptions], so the integration guard applies.
+  new({Dio? dio}) : _dio = dio ?? Dio(baseOptions);
+
+  static final baseOptions = BaseOptions(
+    baseUrl: 'https://lrclib.net',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+    headers: const {'User-Agent': 'Navis/0.5'},
+  );
 
   final Dio _dio;
 

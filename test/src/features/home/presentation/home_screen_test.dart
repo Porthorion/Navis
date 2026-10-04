@@ -29,6 +29,8 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -930,6 +932,50 @@ void main() {
     expect(statusTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
+  });
+
+  group('update banner integration gate', () {
+    const update = UpdateInfo(
+      tagName: 'v9.9.9',
+      htmlUrl: 'https://example.com/release',
+      delivery: UpdateDelivery.storeRedirect,
+    );
+
+    Future<void> pumpWith(WidgetTester tester, AppSettingsModel settings) {
+      return _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: settings,
+        // The banner's own gate is under test, not the provider's.
+        overrides: <Override>[
+          updateProvider.overrideWith((ref) async => update),
+        ],
+      );
+    }
+
+    testWidgets('shows the banner while automatic checks are allowed', (
+      tester,
+    ) async {
+      await pumpWith(tester, const AppSettingsModel.defaults());
+      expect(find.byType(MaterialBanner), findsOneWidget);
+    });
+
+    for (final entry in <String, AppSettingsModel>{
+      'automatic checks are off': const AppSettingsModel.defaults().copyWith(
+        updateCheckEnabled: false,
+      ),
+      'the update service is off': const AppSettingsModel.defaults().copyWith(
+        disabledIntegrations: '["updates"]',
+      ),
+      'the master switch is off': const AppSettingsModel.defaults().copyWith(
+        externalIntegrationsEnabled: false,
+      ),
+    }.entries) {
+      testWidgets('hides the banner when ${entry.key}', (tester) async {
+        await pumpWith(tester, entry.value);
+        expect(find.byType(MaterialBanner), findsNothing);
+      });
+    }
   });
 
   testWidgets('home does not show retired Listen Together entry point', (

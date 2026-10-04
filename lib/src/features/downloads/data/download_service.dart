@@ -81,6 +81,7 @@ class DownloadService {
     required String? Function() readCustomDownloadFolderPath,
     required this._lrclibClient,
     required this._readCoverArtCacheManager,
+    bool Function()? readLyricsAllowed,
     String? Function()? readProfileIdentity,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
@@ -92,6 +93,7 @@ class DownloadService {
        _libraryDao = libraryDao,
        _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
+       _readLyricsAllowed = readLyricsAllowed ?? (() => true),
        _dio = dio ?? Dio(),
        _artworkStore =
            artworkStore ??
@@ -121,6 +123,9 @@ class DownloadService {
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
+
+  /// Whether lyrics prefetch may use LRCLIB, per the integration policy.
+  final bool Function() _readLyricsAllowed;
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
@@ -1654,7 +1659,6 @@ class DownloadService {
     SubsonicApiClient api,
   ) async {
     try {
-      final settings = await _appSettingsDao.getSettings();
       final metadata = song.artistName == null || song.title.trim().isEmpty
           ? null
           : (
@@ -1671,7 +1675,7 @@ class DownloadService {
       final resolution = await resolver.resolve(
         songId: songId,
         metadata: metadata,
-        useLrclib: settings?.useLrclib ?? true,
+        useLrclib: _readLyricsAllowed(),
         lyricsCacheTtlSeconds: permanentLyricsCacheTtlSeconds,
         cacheServerLyrics: true,
       );

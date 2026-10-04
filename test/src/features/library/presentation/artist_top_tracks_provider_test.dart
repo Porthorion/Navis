@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
@@ -153,6 +154,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         hasLastFmApiKeyProvider.overrideWithValue(true),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         lastFmApiClientProvider.overrideWithValue(fakeLastFm),
       ],
     );
@@ -200,6 +204,9 @@ void main() {
       final container = _providerContainerWithDatabase(
         overrides: [
           hasLastFmApiKeyProvider.overrideWithValue(true),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           lastFmApiClientProvider.overrideWithValue(fakeLastFm),
           subsonicApiProvider.overrideWithValue(null),
         ],
@@ -227,6 +234,9 @@ void main() {
     final container = _providerContainerWithDatabase(
       overrides: [
         hasLastFmApiKeyProvider.overrideWithValue(true),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         lastFmApiClientProvider.overrideWithValue(fakeLastFm),
         subsonicApiProvider.overrideWithValue(null),
       ],
@@ -245,6 +255,9 @@ void main() {
     final container = _providerContainerWithDatabase(
       overrides: [
         hasLastFmApiKeyProvider.overrideWithValue(true),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         lastFmApiClientProvider.overrideWithValue(fakeLastFm),
         subsonicApiProvider.overrideWithValue(null),
       ],
@@ -266,6 +279,9 @@ void main() {
       final container = _providerContainerWithDatabase(
         overrides: [
           hasLastFmApiKeyProvider.overrideWithValue(true),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           lastFmApiClientProvider.overrideWithValue(fakeLastFm),
           subsonicApiProvider.overrideWithValue(null),
         ],
@@ -307,6 +323,9 @@ void main() {
         db,
         overrides: [
           hasLastFmApiKeyProvider.overrideWithValue(true),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           lastFmApiClientProvider.overrideWithValue(fakeLastFm),
           subsonicApiProvider.overrideWithValue(fakeSubsonic),
         ],
@@ -324,12 +343,169 @@ void main() {
     expect(fakeSubsonic.searchCallCount, 0);
   }, skip: !sqliteAvailable);
 
+  group('integration gate', () {
+    for (final entry in const <String, IntegrationPolicy>{
+      'the top songs switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm.topSongs'},
+      ),
+      'the Last.fm service is off': IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm'},
+      ),
+      'the master switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        masterEnabled: false,
+      ),
+      'no key is verified': IntegrationPolicy(),
+    }.entries) {
+      test('no Last.fm request and no section when ${entry.key}', () async {
+        final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(12));
+        final container = ProviderContainer(
+          overrides: [
+            integrationPolicyProvider.overrideWithValue(entry.value),
+            lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        expect(container.read(artistTopSongsAllowedProvider), isFalse);
+        final tracks = await container.read(
+          artistTopTracksRawProvider('Test Artist').future,
+        );
+
+        expect(tracks, isEmpty);
+        expect(fakeLastFm.callCount, 0);
+      });
+    }
+
+    test('a cached result is not served while the feature is off', () async {
+      final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(3));
+      final on = ProviderContainer(
+        overrides: [
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
+          lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+        ],
+      );
+      addTearDown(on.dispose);
+      expect(
+        await on.read(artistTopTracksRawProvider('Test Artist').future),
+        hasLength(3),
+      );
+
+      final off = ProviderContainer(
+        overrides: [
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true, masterEnabled: false),
+          ),
+          lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+        ],
+      );
+      addTearDown(off.dispose);
+      expect(
+        await off.read(artistTopTracksRawProvider('Test Artist').future),
+        isEmpty,
+      );
+    });
+  });
+
+  test(
+    'records timing spans for source fetch, local match and server match',
+    () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      await db.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'local-1',
+          title: 'Track 1',
+          artistName: const Value('Test Artist'),
+          albumName: const Value('Local Album'),
+        ),
+      ]);
+      final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(3));
+      final fakeSubsonic = _FakeSubsonicApiClient();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          db,
+          overrides: [
+            integrationPolicyProvider.overrideWithValue(
+              const IntegrationPolicy(lastFmVerified: true),
+            ),
+            lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+            subsonicApiProvider.overrideWithValue(fakeSubsonic),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(
+        artistTopTracksPlaylistProvider('Test Artist').future,
+      );
+
+      final spans = {
+        for (final span
+            in container.read(integrationCallRecorderProvider).recentSpans())
+          span.name: span,
+      };
+      expect(spans.keys, <String>[
+        'topSongs.sourceFetch',
+        'topSongs.localMatch',
+        'topSongs.serverMatch',
+      ]);
+      expect(spans['topSongs.sourceFetch']!.counts, {
+        'tracks': 3,
+        'cacheHit': 0,
+      });
+      expect(spans['topSongs.localMatch']!.counts, {
+        'tracks': 3,
+        'candidates': 1,
+        'matched': 1,
+      });
+      expect(spans['topSongs.serverMatch']!.counts, {
+        'unresolved': 2,
+        'searches': 2,
+        'matched': 0,
+      });
+
+      // A second load is served from the disk cache: the source span says so.
+      final second = ProviderContainer(
+        overrides: withTestDatabase(
+          db,
+          overrides: [
+            integrationPolicyProvider.overrideWithValue(
+              const IntegrationPolicy(lastFmVerified: true),
+            ),
+            lastFmApiClientProvider.overrideWithValue(fakeLastFm),
+            subsonicApiProvider.overrideWithValue(fakeSubsonic),
+          ],
+        ),
+      );
+      addTearDown(second.dispose);
+      await second.read(artistTopTracksRawProvider('Test Artist').future);
+      expect(
+        second
+            .read(integrationCallRecorderProvider)
+            .recentSpans()
+            .single
+            .counts,
+        {'tracks': 3, 'cacheHit': 1},
+      );
+      expect(fakeLastFm.callCount, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('search3 runs only for local misses with bounded concurrency', () async {
     final fakeLastFm = _FakeLastFmApiClient(_lastFmTracks(16));
     final fakeSubsonic = _FakeSubsonicApiClient();
     final container = _providerContainerWithDatabase(
       overrides: [
         hasLastFmApiKeyProvider.overrideWithValue(true),
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy(lastFmVerified: true),
+        ),
         lastFmApiClientProvider.overrideWithValue(fakeLastFm),
         subsonicApiProvider.overrideWithValue(fakeSubsonic),
       ],
@@ -353,6 +529,9 @@ void main() {
       final container = _providerContainerWithDatabase(
         overrides: [
           hasLastFmApiKeyProvider.overrideWithValue(true),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           lastFmApiClientProvider.overrideWithValue(fakeLastFm),
           subsonicApiProvider.overrideWithValue(fakeSubsonic),
         ],
@@ -378,6 +557,9 @@ void main() {
       final container = _providerContainerWithDatabase(
         overrides: [
           hasLastFmApiKeyProvider.overrideWithValue(true),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
           lastFmApiClientProvider.overrideWithValue(fakeLastFm),
           subsonicApiProvider.overrideWithValue(null),
         ],

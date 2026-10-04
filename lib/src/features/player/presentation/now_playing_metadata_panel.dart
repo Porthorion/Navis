@@ -42,12 +42,13 @@ class _RadioCoverArt extends ConsumerWidget {
       if (artUrl != null) {
         return ClipRRect(
           borderRadius: npRadius,
-          child: CachedNetworkImage(
-            imageUrl: artUrl!,
+          child: ExternalArtworkImage(
+            url: artUrl!,
             width: artSize,
             height: artSize,
             fit: BoxFit.cover,
-            errorWidget: (_, _, _) =>
+            feature: IntegrationFeature.radioNowPlaying,
+            fallbackBuilder: (context) =>
                 _radioPlaceholder(context, artSize, npRadius),
           ),
         );
@@ -64,12 +65,13 @@ class _RadioCoverArt extends ConsumerWidget {
     if (artUrl != null) {
       return ClipRRect(
         borderRadius: npRadius,
-        child: CachedNetworkImage(
-          imageUrl: artUrl!,
+        child: ExternalArtworkImage(
+          url: artUrl!,
           width: artSize,
           height: artSize,
           fit: BoxFit.cover,
-          errorWidget: (_, _, _) =>
+          feature: IntegrationFeature.radioNowPlaying,
+          fallbackBuilder: (context) =>
               _radioPlaceholder(context, artSize, npRadius),
         ),
       );

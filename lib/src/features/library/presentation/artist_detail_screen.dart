@@ -9,11 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_artwork_image.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -125,7 +126,13 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     data: (info) {
                       final url =
                           info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
-                      if (url.isNotEmpty) {
+                      // A photo the policy refuses is treated as no photo.
+                      if (url.isNotEmpty &&
+                          integrationAllowsArtworkUri(
+                            ref.watch(integrationPolicyProvider),
+                            Uri.parse(url),
+                            serverHost: ref.watch(serverHostProvider),
+                          )) {
                         return _ArtistImageHeader(
                           imageUrl: url,
                           artistName: artistData.name,
@@ -227,10 +234,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ),
                   ),
                   ArtistPlaybackProgressIndicator(artistId: widget.artistId),
-                  // ── Top Tracks (Last.fm, gated by build-time API key) ────────
-                  if (ref.watch(hasLastFmApiKeyProvider))
+                  // ── Top Tracks (Last.fm; hidden while off or without a key) ──
+                  if (ref.watch(artistTopSongsAllowedProvider))
                     ArtistTopTracksSection(artistName: artistData.name),
-                  if (ref.watch(hasLastFmApiKeyProvider))
+                  if (ref.watch(artistTopSongsAllowedProvider))
                     _ArtistTopTracksPlaylistCard(
                       artistId: artistData.id,
                       artistName: artistData.name,
@@ -566,11 +573,11 @@ class _ArtistImageHeader extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              CachedNetworkImage(
-                imageUrl: imageUrl,
+              ExternalArtworkImage(
+                url: imageUrl,
                 fit: BoxFit.cover,
                 alignment: imageAlignment,
-                errorWidget: (_, _, _) => const SizedBox.shrink(),
+                fallbackBuilder: (_) => const SizedBox.shrink(),
               ),
               // Dual gradient: slight top vignette + heavy bottom scrim
               const DecoratedBox(

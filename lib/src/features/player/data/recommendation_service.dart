@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -204,7 +205,12 @@ class RecommendationService {
     CancelToken? cancelToken,
   }) async {
     final eligible = await eligibleLibrary(const RadioFilters());
-    final matched = await _lastFmMatches(seed, eligible, count: count);
+    final matched = await _lastFmMatches(
+      seed,
+      eligible,
+      count: count,
+      feature: IntegrationFeature.lastFmSameVibes,
+    );
     final collected = <Song>[...matched.songs];
     if (collected.length < count &&
         _ref.read(networkTypeProvider) != NetworkType.offline) {
@@ -329,6 +335,7 @@ class RecommendationService {
           _toSong(seed),
           pool,
           count: wantedRelated - related.length,
+          feature: IntegrationFeature.lastFmRadio,
         );
         _addEligible(
           related,
@@ -364,7 +371,16 @@ class RecommendationService {
     Song seed,
     List<SongsTableData> eligible, {
     required int count,
+    required IntegrationFeature feature,
   }) async {
+    if (!_ref.read(integrationPolicyProvider).allows(feature)) {
+      // Turned off, or no key: the caller falls back to the server.
+      return const RecommendationBatch(
+        songs: <Song>[],
+        source: RecommendationSource.lastFm,
+        issue: RecommendationIssue.empty,
+      );
+    }
     final client = _ref.read(lastFmApiClientProvider);
     if (client == null) {
       return const RecommendationBatch(

@@ -18,7 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 Future<void> showUpdateDialog(
   BuildContext context,
   UpdateInfo info, {
-  UpdateService? updateService,
+  required UpdateService updateService,
 }) {
   return showDialog<void>(
     context: context,
@@ -41,9 +41,9 @@ enum _DownloadPhase {
 }
 
 class _UpdateDownloadDialog extends StatefulWidget {
-  const new({required this.info, this.updateService});
+  const new({required this.info, required this.updateService});
   final UpdateInfo info;
-  final UpdateService? updateService;
+  final UpdateService updateService;
 
   @override
   State<_UpdateDownloadDialog> createState() => _UpdateDownloadDialogState();
@@ -63,7 +63,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   @override
   void initState() {
     super.initState();
-    _service = widget.updateService ?? UpdateService();
+    _service = widget.updateService;
     _installMode = detectInstallMode();
   }
 

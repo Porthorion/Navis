@@ -592,6 +592,13 @@ void main() {
             )).whereType<HomeRandomShowcaseListenBrainz>(),
             isNotEmpty,
           );
+          List<PlaylistLibraryItem> virtualItems() =>
+              (container.read(playlistLibraryItemsProvider).asData?.value ??
+                      const <PlaylistLibraryItem>[])
+                  .where((item) => item.virtualPlaylist != null)
+                  .toList();
+          // Library > Playlists lists them too, ahead of the server's.
+          expect(virtualItems(), isNotEmpty);
 
           settings.add(close.value);
           await Future.doWhile(() async {
@@ -607,6 +614,7 @@ void main() {
             )).whereType<HomeRandomShowcaseListenBrainz>(),
             isEmpty,
           );
+          expect(virtualItems(), isEmpty);
         },
       );
     }

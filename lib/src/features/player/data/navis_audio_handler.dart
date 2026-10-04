@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:dio/dio.dart' show Dio;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -90,6 +91,8 @@ class NavisAudioHandler extends BaseAudioHandler
     this._startPersonalRadio,
     Future<void> Function(String)? startPreferredMix,
     Future<void> Function(String)? togglePreferredMix,
+    this._readRadioMetadataAllowed,
+    this._createRadioMetadataDio,
     AudioPlayer? player,
     this._adjustmentCapabilities,
     EqCapabilities? equalizerCapabilities,
@@ -127,10 +130,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _crossfadeEnabled = runtime.crossfadeEnabled;
     _crossfadePlayer = runtime.crossfadeEnabled ? _newCrossfadePlayer() : null;
-    _radioMetadataService = RadioMetadataService(
-      handler: this,
-      player: _player,
-    );
+    _radioMetadataService = _newRadioMetadataService();
     _wirePlayerListeners();
     _queueLane.onDrained = _maybeReleaseTail;
     _queueEmissionCounter = queue.listen((items) {
@@ -414,6 +414,15 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Manages ICY / Azuracast metadata polling for radio streams.
   late RadioMetadataService _radioMetadataService;
+  final bool Function()? _readRadioMetadataAllowed;
+  final Dio Function()? _createRadioMetadataDio;
+
+  RadioMetadataService _newRadioMetadataService() => RadioMetadataService(
+    handler: this,
+    player: _player,
+    dio: _createRadioMetadataDio?.call(),
+    isAllowed: _readRadioMetadataAllowed,
+  );
   Future<void>? _playerDisposalFuture;
   bool _disposeHandlerStarted = false;
   bool _disposeHandlerCompleted = false;
@@ -3047,10 +3056,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _rebindRadioMetadataServiceToActivePlayer() {
     _radioMetadataService.dispose();
-    _radioMetadataService = RadioMetadataService(
-      handler: this,
-      player: _player,
-    );
+    _radioMetadataService = _newRadioMetadataService();
     if (_radioStation != null) {
       final azuraInfo = _tryExtractAzuracast(
         _radioStation!.streamUrl,

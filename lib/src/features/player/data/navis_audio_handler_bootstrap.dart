@@ -90,6 +90,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   Future<bool> Function(bool autoPlay)? startPersonalRadio,
   Future<void> Function(String)? startPreferredMix,
   Future<void> Function(String)? togglePreferredMix,
+  bool Function()? readRadioMetadataAllowed,
+  Dio Function()? createRadioMetadataDio,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -118,6 +120,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       startPersonalRadio: startPersonalRadio,
       startPreferredMix: startPreferredMix,
       togglePreferredMix: togglePreferredMix,
+      readRadioMetadataAllowed: readRadioMetadataAllowed,
+      createRadioMetadataDio: createRadioMetadataDio,
     );
   }
 

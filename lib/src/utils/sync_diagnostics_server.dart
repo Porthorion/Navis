@@ -2884,6 +2884,17 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _localSearchTiming(query));
         return;
       }
+      if (request.method == 'GET' && path == '/v1/diagnostics/integrations') {
+        // Read-only and available in every mode: per-service counters, the
+        // last 100 calls and the last 50 spans. Paths only, never query
+        // strings, headers or bodies.
+        await _respond(
+          request,
+          HttpStatus.ok,
+          _container.read(integrationCallRecorderProvider).toJson(),
+        );
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/diagnostics/report') {
         await _respond(request, HttpStatus.ok, await _buildReport());
         return;

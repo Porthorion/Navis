@@ -3,15 +3,36 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
+
+class _CountingLastFmApiClient extends LastFmApiClient {
+  new() : super(apiKey: 'test-key');
+
+  int similarTrackCalls = 0;
+
+  @override
+  Future<LastFmTrackFetchResult> getSimilarTracksResult({
+    required String artist,
+    required String track,
+    int limit = 20,
+  }) async {
+    similarTrackCalls++;
+    return const LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.noResults,
+      tracks: <LastFmTrackRecommendation>[],
+    );
+  }
+}
 
 void main() {
   Song song(String id, String artist, {String? recording}) => Song(
@@ -204,4 +225,140 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  group('Last.fm integration gates', () {
+    Future<_CountingLastFmApiClient> runSameVibes(
+      IntegrationPolicy policy,
+    ) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+        SongsTableCompanion.insert(id: 'song-2', title: 'Two'),
+      ]);
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => <Song>[song('song-2', 'Artist')]);
+      final lastFm = _CountingLastFmApiClient();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            integrationPolicyProvider.overrideWithValue(policy),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(recommendationServiceProvider)
+          .sameVibes(song('song-1', 'Artist'));
+      return lastFm;
+    }
+
+    Future<_CountingLastFmApiClient> runRadio(IntegrationPolicy policy) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        for (var i = 0; i < 6; i++)
+          SongsTableCompanion.insert(id: 'song-$i', title: 'Title $i'),
+      ]);
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[]);
+      final lastFm = _CountingLastFmApiClient();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            integrationPolicyProvider.overrideWithValue(policy),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(recommendationServiceProvider)
+          .personalRadio(const RadioFilters(), excludedIds: const <String>{});
+      return lastFm;
+    }
+
+    test('same vibes asks Last.fm while allowed', () async {
+      expect(
+        (await runSameVibes(const IntegrationPolicy(lastFmVerified: true)))
+            .similarTrackCalls,
+        1,
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final entry in const <String, IntegrationPolicy>{
+      'the Same Vibes switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm.sameVibes'},
+      ),
+      'the master switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        masterEnabled: false,
+      ),
+      'no key is verified': IntegrationPolicy(),
+    }.entries) {
+      test('same vibes never asks Last.fm when ${entry.key}', () async {
+        expect((await runSameVibes(entry.value)).similarTrackCalls, 0);
+      }, skip: !sqliteAvailable);
+    }
+
+    test('radio fill asks Last.fm while allowed', () async {
+      expect(
+        (await runRadio(const IntegrationPolicy(lastFmVerified: true)))
+            .similarTrackCalls,
+        1,
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final entry in const <String, IntegrationPolicy>{
+      'the radio switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm.radio'},
+      ),
+      'the Last.fm service is off': IntegrationPolicy(
+        lastFmVerified: true,
+        disabledKeys: {'lastfm'},
+      ),
+      'the master switch is off': IntegrationPolicy(
+        lastFmVerified: true,
+        masterEnabled: false,
+      ),
+      'no key is verified': IntegrationPolicy(),
+    }.entries) {
+      test('radio fill never asks Last.fm when ${entry.key}', () async {
+        expect((await runRadio(entry.value)).similarTrackCalls, 0);
+      }, skip: !sqliteAvailable);
+    }
+
+    test('radio fill is not blocked by the Same Vibes switch', () async {
+      expect(
+        (await runRadio(
+          const IntegrationPolicy(
+            lastFmVerified: true,
+            disabledKeys: {'lastfm.sameVibes'},
+          ),
+        )).similarTrackCalls,
+        1,
+      );
+    }, skip: !sqliteAvailable);
+  });
 }

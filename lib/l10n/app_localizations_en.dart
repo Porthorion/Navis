@@ -4932,6 +4932,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not download this profile. Check your connection and try again.';
 
   @override
+  String get eqAutoEqOnlineOff =>
+      'Refreshing and downloading are turned off in Integrations settings. Search still works from the built-in catalogue.';
+
+  @override
   String get eqRefreshError =>
       'Could not refresh. The existing catalogue is still available.';
 

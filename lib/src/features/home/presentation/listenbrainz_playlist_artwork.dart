@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_artwork_image.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
@@ -22,12 +24,13 @@ class ListenBrainzPlaylistArtwork extends ConsumerWidget {
     if (image != null && Uri.tryParse(image)?.hasAbsolutePath == true) {
       return ClipRRect(
         borderRadius: borderRadius,
-        child: Image.network(
-          image,
+        child: ExternalArtworkImage(
+          url: image,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _ListenBrainzArtworkMosaic(
+          feature: IntegrationFeature.listenBrainzWeeklyPlaylists,
+          fallbackBuilder: (_) => _ListenBrainzArtworkMosaic(
             playlist: playlist,
             size: size,
             borderRadius: borderRadius,
