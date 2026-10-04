@@ -99,8 +99,31 @@ void main() {
       expect(_match(query, <TrackMatchCandidate>[plain, english]), 'plain');
     });
 
-    test('an exact edition wins even when the other has the album and '
-        'duration', () {
+    test('an exact edition wins when its album evidence is as good', () {
+      const query = TrackMatchQuery(
+        title: 'Wonder',
+        artist: 'ONE OK ROCK',
+        album: 'Luxury Disease',
+        durationSeconds: 200,
+      );
+      final japaneseOnAlbum = _candidate(
+        'jp',
+        'Wonder (Japanese Version)',
+        album: 'Luxury Disease',
+        duration: 200,
+      );
+      final plainOnAlbum = _candidate(
+        'plain',
+        'Wonder',
+        album: 'Luxury Disease',
+      );
+      expect(
+        _match(query, <TrackMatchCandidate>[japaneseOnAlbum, plainOnAlbum]),
+        'plain',
+      );
+    });
+
+    test('another edition with the expected album keeps its better score', () {
       const query = TrackMatchQuery(
         title: 'Wonder',
         artist: 'ONE OK ROCK',
@@ -115,8 +138,63 @@ void main() {
       );
       final plainSingle = _candidate('plain', 'Wonder', album: 'Single');
       expect(
-        _match(query, <TrackMatchCandidate>[japaneseOnAlbum, plainSingle]),
-        'plain',
+        _match(query, <TrackMatchCandidate>[plainSingle, japaneseOnAlbum]),
+        'jp',
+      );
+    });
+
+    test('another edition with an exact artist beats a looser artist', () {
+      const query = TrackMatchQuery(title: 'Wonder', artist: 'ONE OK ROCK');
+      expect(
+        _match(query, <TrackMatchCandidate>[
+          _candidate('plain', 'Wonder', artist: 'ONE OK ROCK & Friends'),
+          japanese,
+        ]),
+        'jp',
+      );
+    });
+
+    test('preferring the edition never turns a match ambiguous', () {
+      const query = TrackMatchQuery(
+        title: 'Wonder',
+        artist: 'ONE OK ROCK',
+        durationSeconds: 200,
+      );
+      expect(
+        _match(query, <TrackMatchCandidate>[
+          _candidate('jp', 'Wonder (Japanese Version)', duration: 200),
+          _candidate('plain-a', 'Wonder', album: 'A'),
+          _candidate('plain-b', 'Wonder', artist: 'ONEOKROCK', album: 'B'),
+        ]),
+        'jp',
+      );
+    });
+
+    test('a remaster on the expected album beats a live album copy', () {
+      const query = TrackMatchQuery(
+        title: 'Bohemian Rhapsody',
+        artist: 'Queen',
+        album: 'A Night at the Opera',
+        durationSeconds: 355,
+      );
+      expect(
+        _match(query, <TrackMatchCandidate>[
+          _candidate(
+            'live',
+            'Bohemian Rhapsody',
+            artist: 'Queen',
+            album: "Live at Wembley '86",
+            duration: 420,
+          ),
+          _candidate(
+            'remaster',
+            'Bohemian Rhapsody (Remastered 2011)',
+            artist: 'Queen',
+            album: 'A Night at the Opera',
+            duration: 355,
+          ),
+        ]),
+        'remaster',
       );
     });
 

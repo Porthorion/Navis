@@ -407,6 +407,28 @@ void main() {
       );
     });
 
+    test('search text from before the key version stays current', () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      // A row an older build wrote: the plain source. Its search text is
+      // replaced by a marker that only the stored row can match.
+      await database.customStatement(
+        'UPDATE song_search_text SET source = (SELECT songs.title || char(31) '
+        "|| ifnull(songs.artist_name, '') || char(31) "
+        "|| ifnull(songs.album_name, '') FROM songs "
+        'WHERE songs.id = song_search_text.song_id), '
+        "search_text = 'zzmarker|beyonce|' WHERE song_id = 'beyonce'",
+      );
+      final found = await database.libraryDao.searchCachedSongs('zzmarker');
+      expect(found.map((song) => song.id), <String>['beyonce']);
+      // The match keys are still re-keyed.
+      final candidates = await database.libraryDao.getTrackMatchCandidates(
+        const <({String title, String artist})>[
+          (title: 'Nothing', artist: 'Nobody'),
+        ],
+      );
+      expect(candidates.map((song) => song.id), contains('beyonce'));
+    });
+
     test('a Japanese name-only album is on its artist page, even from an '
         'index written by an older normalizer', () async {
       Future<Set<String>> primary(String artistId) async =>

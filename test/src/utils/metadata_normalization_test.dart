@@ -101,9 +101,54 @@ void main() {
         'wonder japanese version',
       );
       expect(
-        normalizeMetadataKeepingEdition('「残響リファレンス」 (Deluxe Édition)'),
-        '残響リファレンス deluxe edition',
+        normalizeMetadataKeepingEdition('「残響リファレンス」 (Acoustic Vérsion)'),
+        '残響リファレンス acoustic version',
       );
+    });
+
+    test('ignores mastering and packaging qualifiers', () {
+      for (final title in <String>[
+        'Bohemian Rhapsody (Remastered 2011)',
+        'Bohemian Rhapsody - Remastered 2011',
+        'Bohemian Rhapsody (2011 Remaster)',
+        'Bohemian Rhapsody [Digital Remaster]',
+        'Bohemian Rhapsody (Remastered Version)',
+        'Bohemian Rhapsody (1975)',
+        'Bohemian Rhapsody (Deluxe Edition)',
+        'Bohemian Rhapsody (Super Deluxe)',
+        "Bohemian Rhapsody (Collector's Edition)",
+        'Bohemian Rhapsody (40th Anniversary Edition)',
+        'Bohemian Rhapsody (Explicit)',
+        'Bohemian Rhapsody [Clean Version]',
+        'Bohemian Rhapsody (Mono)',
+        'Bohemian Rhapsody (Stereo Mix)',
+        'Bohemian Rhapsody (Album Version)',
+        'Bohemian Rhapsody - Single Version',
+        'Bohemian Rhapsody (Bonus Track)',
+        'Bohemian Rhapsody (Remastered 2011) (Explicit)',
+      ]) {
+        expect(
+          normalizeMetadataKeepingEdition(title),
+          'bohemian rhapsody',
+          reason: title,
+        );
+      }
+    });
+
+    test('keeps version qualifiers next to packaging ones', () {
+      for (final (title, key) in <(String, String)>[
+        ('Wonder (Japanese Version) [Remastered]', 'wonder japanese version'),
+        ('Wonder (Acoustic)', 'wonder acoustic'),
+        ('Wonder (Live)', 'wonder live'),
+        ('Wonder - Live', 'wonder live'),
+        ('Wonder (Radio Edit)', 'wonder radio edit'),
+        ('Wonder (Instrumental)', 'wonder instrumental'),
+        ('Wonder (Remix)', 'wonder remix'),
+        ('Wonder (Japanese Edition)', 'wonder japanese edition'),
+        ('Wonder (2011 Version)', 'wonder 2011 version'),
+      ]) {
+        expect(normalizeMetadataKeepingEdition(title), key, reason: title);
+      }
     });
   });
 }

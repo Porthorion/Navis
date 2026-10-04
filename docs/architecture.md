@@ -2892,8 +2892,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   is unchanged. Since schema 87 each row also stores `match_title`,
   `match_artist`, and `match_album` in the `normalizeMetadata` form (rows
   without them count as stale). The `source` ends with `metadataKeyVersion`,
-  so rows keyed by an older normalizer are stale too and the same lazy
-  refresh re-keys them; no migration is needed when the normalizer changes. `getTrackMatchCandidates` selects only songs
+  so rows keyed by an older normalizer are stale for track matching and the
+  same lazy refresh re-keys them; no migration is needed when the normalizer
+  changes. Search and downloads-folder matching accept a row of any key
+  version whose raw fields match, because `search_text` does not depend on
+  it, so a bump never sends search down the stale path. `getTrackMatchCandidates` selects only songs
   that could match a list of external tracks (Last.fm artist top tracks,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
@@ -2910,13 +2913,19 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   diacritics and Arabic letter variants, drops parenthesized qualifiers and
   featured credits, and keeps letters and digits of every script, so
   Japanese, Korean, Arabic and accented titles get real keys.
-  `normalizeMetadataKeepingEdition` is the same but keeps bracketed
-  qualifiers, so "Wonder" and "Wonder (Japanese Version)" share a fuzzy key
-  but not an edition key. Matchers (`pickBestTrackMatch`, Same Vibes mapping,
-  LRCLIB, the exact library lookups behind player metadata navigation) prefer
-  the candidate whose edition key equals the expected one and use another
-  version only when no same-version candidate passes. Radio recording
-  identity uses the edition key without spaces. Changing `normalizeMetadata`
+  `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
+  " - " qualifiers, so "Wonder" and "Wonder (Japanese Version)" share a
+  fuzzy key but not an edition key. Mastering and packaging qualifiers
+  (remasters, bare years, deluxe/anniversary editions, explicit/clean,
+  mono/stereo, album/single/original version, bonus track) are not
+  editions and are dropped from it. Matchers (`pickBestTrackMatch`, Same
+  Vibes mapping, LRCLIB, the exact library lookups behind player metadata
+  navigation) prefer the candidate whose edition key equals the expected
+  one. `pickBestTrackMatch` drops another edition only when a passing
+  same-edition candidate has at least as good artist and album scores, and
+  never when that would turn a unique match ambiguous. Radio recording
+  identity uses the edition key without spaces, computed once per song per
+  batch. Changing `normalizeMetadata`
   output requires bumping `metadataKeyVersion`.
 - The artist page reads its albums through `album_artist_index`, a derived
   table of each album's artist keys (`i:<id>` for the album artist and each

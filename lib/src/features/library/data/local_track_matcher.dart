@@ -226,8 +226,7 @@ TrackMatchResult pickBestTrackMatch({
     }
   }
 
-  final scored =
-      <({TrackMatchCandidate candidate, double score, double albumScore})>[];
+  final scored = <_ScoredCandidate>[];
   final expectedAlbum = normalizeMetadata(track.album ?? '');
   for (final candidate in candidatesToScore) {
     final candidateTitle = candidate.normalizedTitle;
@@ -262,11 +261,36 @@ TrackMatchResult pickBestTrackMatch({
       candidate: candidate,
       score: score.clamp(0.0, 1.0),
       albumScore: albumScore,
+      artistScore: artistScore,
     ));
   }
 
-  _dropOtherEditions(scored, track: track, expectedTitle: expectedTitle);
-  scored.sort((a, b) => b.score.compareTo(a.score));
+  final result = _pickScored(track, scored);
+  final sameEditionFirst = _withoutOtherEditions(
+    scored,
+    track: track,
+    expectedTitle: expectedTitle,
+  );
+  if (sameEditionFirst.length == scored.length) return result;
+  final editionResult = _pickScored(track, sameEditionFirst);
+  // Preferring the edition may settle an ambiguity, but never turns a
+  // unique match into an ambiguous one.
+  return editionResult.isMatched || !result.isMatched ? editionResult : result;
+}
+
+typedef _ScoredCandidate = ({
+  TrackMatchCandidate candidate,
+  double score,
+  double albumScore,
+  double artistScore,
+});
+
+TrackMatchResult _pickScored(
+  TrackMatchQuery track,
+  List<_ScoredCandidate> candidates,
+) {
+  final scored = candidates.toList()
+    ..sort((a, b) => b.score.compareTo(a.score));
   if (scored.isEmpty || scored.first.score < kLocalTrackMatcherMinimumScore) {
     return const TrackMatchResult.unmatched();
   }
@@ -293,31 +317,39 @@ TrackMatchResult pickBestTrackMatch({
   );
 }
 
-/// Removes candidates that share the expected title's fuzzy key but are a
-/// different edition ("Wonder (Japanese Version)" for "Wonder") when a
-/// passing candidate is the same edition. A different edition is thus only
-/// matched as a last resort.
-void _dropOtherEditions(
-  List<({TrackMatchCandidate candidate, double score, double albumScore})>
-  scored, {
+/// [scored] without the candidates that share the expected title's fuzzy key
+/// but are a different edition ("Wonder (Japanese Version)" for "Wonder"),
+/// when a passing same-edition candidate has at least as good artist and
+/// album evidence. A different edition is thus only matched as a last
+/// resort, or when the library evidence clearly favours it.
+List<_ScoredCandidate> _withoutOtherEditions(
+  List<_ScoredCandidate> scored, {
   required TrackMatchQuery track,
   required String expectedTitle,
 }) {
   final expectedEdition = normalizeMetadataKeepingEdition(track.title);
-  bool sameTitle(TrackMatchCandidate candidate) =>
-      candidate.normalizedTitle == expectedTitle;
-  final hasSameEdition = scored.any(
-    (entry) =>
-        entry.score >= kLocalTrackMatcherMinimumScore &&
-        sameTitle(entry.candidate) &&
-        entry.candidate.editionTitle == expectedEdition,
-  );
-  if (!hasSameEdition) return;
-  scored.removeWhere(
-    (entry) =>
-        sameTitle(entry.candidate) &&
-        entry.candidate.editionTitle != expectedEdition,
-  );
+  final sameEdition = <_ScoredCandidate>[];
+  final otherEdition = <_ScoredCandidate>{};
+  for (final entry in scored) {
+    if (entry.candidate.normalizedTitle != expectedTitle) continue;
+    if (entry.candidate.editionTitle == expectedEdition) {
+      if (entry.score >= kLocalTrackMatcherMinimumScore) sameEdition.add(entry);
+    } else {
+      otherEdition.add(entry);
+    }
+  }
+  if (sameEdition.isEmpty || otherEdition.isEmpty) return scored;
+  return scored
+      .where(
+        (entry) =>
+            !otherEdition.contains(entry) ||
+            !sameEdition.any(
+              (same) =>
+                  same.artistScore >= entry.artistScore &&
+                  same.albumScore >= entry.albumScore,
+            ),
+      )
+      .toList(growable: false);
 }
 
 double trackMatchFieldScore(String expected, String actual) {

@@ -1025,7 +1025,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       -- otherwise SQLite may scan every song (about 500 times slower).
       CROSS JOIN songs ON songs.id = t.song_id
       WHERE t.search_text >= ? AND t.search_text < ?
-        AND t.source = ($_songSearchSourceSql)
+        AND $_songSearchTextCurrentSql
         AND songs.server_deleted_at IS NULL AND songs.is_provisional = 0
       ''',
       variables: <Variable<Object>>[
@@ -3393,14 +3393,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT songs.id AS id, songs.title AS title,
         songs.artist_name AS artist_name, songs.album_name AS album_name,
-        CASE WHEN t.source = ($_songSearchSourceSql)
+        CASE WHEN $_songSearchTextCurrentSql
           THEN t.search_text END AS search_text
       FROM songs
       LEFT JOIN song_search_text t ON t.song_id = songs.id
       WHERE ${includeLocalOnly ? '' : 'songs.server_deleted_at IS NULL AND '}
         $_searchableSongSql
         AND (
-          t.source IS NOT ($_songSearchSourceSql)
+          NOT $_songSearchTextCurrentSql
           OR (${List<String>.filled(tokens.length, 't.search_text GLOB ?').join(' AND ')})
         )
       ''',
@@ -3690,10 +3690,25 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  // The trailing key version makes rows keyed by an older normalizer stale.
-  static const String _songSearchSourceSql =
+  static const String _songSearchFieldsSql =
       "songs.title || char(31) || ifnull(songs.artist_name, '') || char(31) "
-      "|| ifnull(songs.album_name, '') || char(31) || '$metadataKeyVersion'";
+      "|| ifnull(songs.album_name, '')";
+
+  /// The current `source` of a song's index row: its raw fields plus
+  /// `metadataKeyVersion`, so rows whose match keys an older normalizer
+  /// wrote are stale.
+  static const String _songSearchSourceSql =
+      "$_songSearchFieldsSql || char(31) || '$metadataKeyVersion'";
+
+  /// Whether `t.search_text` is current. It depends only on the raw fields,
+  /// so a row of any key version (or from before versions) qualifies and a
+  /// key-version bump never sends search down the stale path. Current rows
+  /// settle on the first, cheap comparison; a missing row is never current.
+  static const String _songSearchTextCurrentSql =
+      '(ifnull(t.source = ($_songSearchSourceSql), 0) OR '
+      'ifnull(substr(t.source || char(31), 1, '
+      'length($_songSearchFieldsSql) + 1) = '
+      '($_songSearchFieldsSql) || char(31), 0))';
 
   static String _songSearchSource(
     String title,

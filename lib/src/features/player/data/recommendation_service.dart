@@ -209,10 +209,13 @@ class RecommendationService {
     var resolvedExcludedIds = excludedIds;
 
     final eligible = await eligibleLibrary(filters);
+    // Identities are computed once per song for the whole batch.
+    final identities = _IdentityCache();
+    String recordingRow(SongsTableData song) => _recordingRow(song, identities);
     final hardExcluded = <String>{...excludedIds};
     final hardRecordings = eligible
         .where((song) => hardExcluded.contains(song.id))
-        .map(_recordingRow)
+        .map(recordingRow)
         .toSet();
     final history = await _ref
         .read(navisDatabaseProvider)
@@ -225,13 +228,13 @@ class RecommendationService {
     };
     final excludedRecordings = eligible
         .where((song) => resolvedExcludedIds.contains(song.id))
-        .map(_recordingRow)
+        .map(recordingRow)
         .toSet();
     var pool = eligible
         .where(
           (song) =>
               !resolvedExcludedIds.contains(song.id) &&
-              !excludedRecordings.contains(_recordingRow(song)),
+              !excludedRecordings.contains(recordingRow(song)),
         )
         .toList();
     if (pool.isEmpty) {
@@ -241,7 +244,7 @@ class RecommendationService {
           .where(
             (song) =>
                 !hardExcluded.contains(song.id) &&
-                !hardRecordings.contains(_recordingRow(song)),
+                !hardRecordings.contains(recordingRow(song)),
           )
           .toList();
       resolvedExcludedIds = hardExcluded;
@@ -296,6 +299,7 @@ class RecommendationService {
           _toSong(seed),
           pool,
           count: wantedRelated - related.length,
+          identities: identities,
         );
         _addEligible(
           related,
@@ -331,6 +335,7 @@ class RecommendationService {
     Song seed,
     List<SongsTableData> eligible, {
     required int count,
+    _IdentityCache? identities,
   }) async {
     if (!_ref
         .read(integrationPolicyProvider)
@@ -367,12 +372,10 @@ class RecommendationService {
       _ => RecommendationIssue.networkFailure,
     };
     final byIdentity = <String, List<SongsTableData>>{};
+    final cache = identities ?? _IdentityCache();
     for (final song in eligible) {
       byIdentity
-          .putIfAbsent(
-            _identity(song.artistName ?? '', song.title),
-            () => <SongsTableData>[],
-          )
+          .putIfAbsent(cache.ofRow(song), () => <SongsTableData>[])
           .add(song);
     }
     final matches = <Song>[];
@@ -421,11 +424,11 @@ class RecommendationService {
       '${normalizeMetadataKeepingEdition(artist).replaceAll(' ', '')}:'
       '${normalizeMetadataKeepingEdition(title).replaceAll(' ', '')}';
 
-  static String _recordingRow(SongsTableData song) {
+  static String _recordingRow(SongsTableData song, _IdentityCache identities) {
     final mbid = song.recordingMbid?.trim().toLowerCase();
     return mbid != null && mbid.isNotEmpty
         ? 'mbid:$mbid'
-        : _identity(song.artistName ?? '', song.title);
+        : identities.ofRow(song);
   }
 
   static Song _toSong(SongsTableData row) => Song(
@@ -453,12 +456,14 @@ List<Song> composeRadioBatch({
   final result = <Song>[];
   final used = <String>{...excludedIds};
   final usedRecordings = <String>{};
-  String recording(Song song) {
+  // Recordings are compared many times per song; compute each once.
+  final recordings = <String, String>{};
+  String recording(Song song) => recordings.putIfAbsent(song.id, () {
     final mbid = song.musicBrainzId?.trim().toLowerCase();
     return mbid != null && mbid.isNotEmpty
         ? 'mbid:$mbid'
         : RecommendationService._identity(song.artist ?? '', song.title);
-  }
+  });
 
   final artistCounts = <String, int>{};
   final sources = <List<Song>>[related, familiar, shuffle];
@@ -500,6 +505,17 @@ List<Song> composeRadioBatch({
     artistCounts[artist] = (artistCounts[artist] ?? 0) + 1;
   }
   return result;
+}
+
+/// [RecommendationService._identity] of library rows, computed once per song
+/// id for one batch.
+class _IdentityCache {
+  final Map<String, String> _byId = <String, String>{};
+
+  String ofRow(SongsTableData song) => _byId.putIfAbsent(
+    song.id,
+    () => RecommendationService._identity(song.artistName ?? '', song.title),
+  );
 }
 
 final recommendationServiceProvider = Provider<RecommendationService>(
