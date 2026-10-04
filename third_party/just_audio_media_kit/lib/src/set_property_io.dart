@@ -1,5 +1,8 @@
 library just_audio_media_kit;
 
+import 'dart:ffi';
+
+import 'package:media_kit/ffi/ffi.dart';
 import 'package:media_kit/media_kit.dart';
 
 Future<void> setProperty(Player player, String key, dynamic value) async {
@@ -71,4 +74,54 @@ Future<void> configureNativeSeeking(
   await native.observeProperty('seeking', (value) async {
     onSeeking(value == 'yes');
   });
+}
+
+/// Starts the playlist entry mpv is about to load at the position [startFor]
+/// returns for its index, through mpv's `start` option.
+///
+/// mpv applies `start` before playback begins, so nothing from the beginning
+/// of the song is heard first and the position cannot be lost the way a
+/// `seek` sent before the file has loaded is (mpv rejects those, and media_kit
+/// only logs the error). media_kit's `on_unload` hook resets `start`, so other
+/// entries still begin at zero. Returns whether the backend supports it.
+bool configureStartPosition(
+    Player player, Duration? Function(int index) startFor) {
+  final native = player.platform;
+  if (native is! NativePlayer) return false;
+  native.onLoadHooks.add(() async {
+    // Hooks run inside media_kit's serialized event handler: only synchronous
+    // libmpv calls are safe here, as awaiting a reply event would deadlock.
+    final index = int.tryParse(_readString(native, 'playlist-pos') ?? '');
+    final position = index == null ? null : startFor(index);
+    if (position == null) return;
+    final name = 'start'.toNativeUtf8();
+    final value = (position.inMicroseconds / Duration.microsecondsPerSecond)
+        .toStringAsFixed(3)
+        .toNativeUtf8();
+    native.mpv.mpv_set_property_string(native.ctx, name.cast(), value.cast());
+    calloc.free(name);
+    calloc.free(value);
+  });
+  return true;
+}
+
+/// mpv's current playback position, or null while no file is initialized.
+Future<Duration?> nativePosition(Player player) async {
+  final native = player.platform;
+  if (native is! NativePlayer) return null;
+  final seconds = double.tryParse(_readString(native, 'time-pos') ?? '');
+  return seconds == null
+      ? null
+      : Duration(
+          microseconds: (seconds * Duration.microsecondsPerSecond).round());
+}
+
+String? _readString(NativePlayer native, String property) {
+  final name = property.toNativeUtf8();
+  final value = native.mpv.mpv_get_property_string(native.ctx, name.cast());
+  calloc.free(name);
+  if (value == nullptr) return null;
+  final result = value.cast<Utf8>().toDartString();
+  native.mpv.mpv_free(value.cast());
+  return result;
 }

@@ -352,6 +352,43 @@ void main() {
     );
 
     test(
+      'desktop sidecar mode keeps the rolling cache path for direct streams',
+      () async {
+        // Seek recovery, crossfade decks and bypassed songs ask for a direct
+        // stream. Desktop always plays one, so the sidecar must still cache
+        // it rather than cancel the download already running.
+        final song = await _insertSong(
+          database,
+          id: 'song-sidecar-direct',
+          title: 'Sidecar Direct',
+          suffix: 'mp3',
+          contentType: 'audio/mpeg',
+        );
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+          readUsesSidecarRollingCache: () => true,
+        );
+
+        final preferred = await resolver.resolveForSong(song);
+        final direct = await resolver.resolveForSong(
+          song,
+          preferLockCaching: false,
+        );
+
+        expect(direct.kind, PlaybackSourceKind.directStream);
+        expect(direct.sidecarCacheFilePath, isNotNull);
+        expect(direct.sidecarCacheFilePath, preferred.sidecarCacheFilePath);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'builds deterministic cache path per song and quality profile',
       () async {
         final song = await _insertSong(database, id: 'song-3', title: 'Song 3');

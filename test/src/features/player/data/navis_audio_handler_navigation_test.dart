@@ -63,6 +63,15 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   bool ignoreSeeks = false;
+
+  /// This many further seeks are ignored, as a native no-op would be.
+  int ignoredSeeks = 0;
+
+  /// Loads start at zero whatever initial position they were given.
+  bool ignoreInitialPosition = false;
+
+  /// The position at each play() call.
+  final List<Duration> playedFrom = <Duration>[];
   bool nativePositionFrozen = false;
   bool keepStreamsAfterDispose = false;
   int seekCalls = 0;
@@ -150,8 +159,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           ? DateTime.now().difference(_positionUpdated)
           : Duration.zero);
 
+  Duration simulatedBuffered = Duration.zero;
+
   @override
-  Duration get bufferedPosition => Duration.zero;
+  Duration get bufferedPosition => simulatedBuffered;
 
   @override
   Duration? get duration => const Duration(minutes: 3);
@@ -254,6 +265,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> play() async {
+    if (!isPlaying) playedFrom.add(position);
     _positionUpdated = DateTime.now();
     isPlaying = true;
   }
@@ -288,7 +300,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       loadEntered?.complete();
       await gate.future;
     }
-    simulatedPosition = initialPosition ?? Duration.zero;
+    simulatedPosition = ignoreInitialPosition
+        ? Duration.zero
+        : initialPosition ?? Duration.zero;
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
     index = sources.isEmpty ? null : initialIndex ?? 0;
@@ -378,7 +392,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       await gate.future;
     }
     if (state == ProcessingState.loading) return;
-    if (position != null && !ignoreSeeks) simulatedPosition = position;
+    final ignored = ignoreSeeks || ignoredSeeks > 0;
+    if (ignoredSeeks > 0) ignoredSeeks--;
+    if (position != null && !ignored) simulatedPosition = position;
     if (index != null) this.index = index;
     _indices.add(this.index);
   });
@@ -1929,6 +1945,64 @@ void main() {
     });
   });
 
+  group('remote first load', () {
+    // A server that fetches a remote song before answering needs longer than
+    // the ordinary load deadline on its first play.
+    for (final external in [true, false]) {
+      test('a slow first load of a ${external ? 'remote' : 'library'} '
+          'stream ${external ? 'waits' : 'times out'}', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-remote-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          2,
+          sidecarStreams: true,
+          rebuiltPlayers: <_ControllableAudioPlayer>[],
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 300),
+            remoteLoad: Duration(seconds: 5),
+            control: Duration(milliseconds: 100),
+            reset: Duration(milliseconds: 150),
+          ),
+          seed: (database) async {
+            if (external) {
+              await database.customStatement(
+                "UPDATE songs SET is_external = 1 WHERE id = 'song-0'",
+              );
+            }
+          },
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final gate = Completer<void>();
+        player.loadGate = gate;
+        final release = Timer(const Duration(milliseconds: 900), gate.complete);
+        addTearDown(release.cancel);
+
+        await handler
+            .replaceQueue(['song-0', 'song-1'], expandMatchFlows: false)
+            .catchError((Object _) {});
+
+        final attempts =
+            handler.collectPlaybackDiagnostics()['startupAttempts']! as List;
+        final stages = [
+          for (final attempt in attempts)
+            for (final event in (attempt as Map)['events'] as List)
+              (event as Map)['stage'],
+        ];
+        expect(stages.contains('player:active queue apply:timeout'), !external);
+        if (external) {
+          expect(player.sourceIds.first, 'song-0');
+          expect(player.processingState, ProcessingState.ready);
+        }
+      });
+    }
+  });
+
   group('seek requests', () {
     const fastTimeouts = NavisPlaybackTimeouts(
       load: Duration(seconds: 2),
@@ -2115,6 +2189,95 @@ void main() {
         expect(handler.snapshot.pendingSeekPosition, isNull);
       },
     );
+
+    test('a backend flapping between ready and buffering while it fetches '
+        'still lands without recovery', () async {
+      final (handler, player, _) = await setup();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      // mpv reports the target at once but produces no packets yet, while
+      // its buffering flag toggles many times a second.
+      player.nativePositionFrozen = true;
+      final flap = Timer.periodic(const Duration(milliseconds: 40), (_) {
+        player.state = player.state == ProcessingState.ready
+            ? ProcessingState.buffering
+            : ProcessingState.ready;
+      });
+      final landed = Timer(const Duration(milliseconds: 700), () {
+        flap.cancel();
+        player
+          ..state = ProcessingState.ready
+          ..simulatedPosition = player.simulatedPosition
+          ..nativePositionFrozen = false;
+      });
+      addTearDown(() {
+        flap.cancel();
+        landed.cancel();
+      });
+      await handler.seek(const Duration(seconds: 90));
+      final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(outcome['outcome'], 'completed');
+      expect(outcome['recoveryAttempts'], 0);
+      expect(
+        (player.position - const Duration(seconds: 90)).abs(),
+        lessThan(const Duration(seconds: 2)),
+      );
+    });
+
+    for (final growing in [true, false]) {
+      test(
+        'a seek still buffering at the load deadline '
+        '${growing ? 'waits while its buffer grows' : 'recovers when stuck'}',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-seek-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            2,
+            rebuiltPlayers: <_ControllableAudioPlayer>[],
+            timeouts: const NavisPlaybackTimeouts(
+              load: Duration(milliseconds: 300),
+              control: Duration(milliseconds: 100),
+              reset: Duration(milliseconds: 150),
+              seekBufferingRecovery: Duration(milliseconds: 150),
+              seekProgress: Duration(seconds: 5),
+            ),
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          player.simulateProgress = true;
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player
+            ..state = ProcessingState.buffering
+            ..nativePositionFrozen = true;
+          final fill = Timer.periodic(const Duration(milliseconds: 50), (_) {
+            if (growing) {
+              player.simulatedBuffered += const Duration(milliseconds: 500);
+            }
+          });
+          final landed = Timer(const Duration(milliseconds: 900), () {
+            player
+              ..state = ProcessingState.ready
+              ..simulatedPosition = player.simulatedPosition
+              ..nativePositionFrozen = false;
+          });
+          addTearDown(() {
+            fill.cancel();
+            landed.cancel();
+          });
+          await handler.seek(const Duration(seconds: 90));
+          final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+          expect(outcome['recoveryAttempts'], growing ? 0 : 1);
+          if (growing) expect(outcome['outcome'], 'completed');
+        },
+      );
+    }
 
     test(
       'buffering range probes can outlast the short stall interval',
@@ -2307,6 +2470,34 @@ void main() {
       }
       expect(condition(), isTrue);
     }
+
+    test('reloads paused and resumes only once landed on the target', () async {
+      final (handler, player, _) = await recovering(5);
+      await start(handler, 5);
+      // The native seek is a no-op and the reload ignores its initial
+      // position: only the correction seek lands.
+      player
+        ..ignoreSeeks = false
+        ..ignoredSeeks = 1
+        ..ignoreInitialPosition = true;
+      final playsBefore = player.playedFrom.length;
+
+      await handler.seek(const Duration(seconds: 30));
+
+      final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
+      expect(outcome['outcome'], 'completed');
+      expect(outcome['recoveryAttempts'], 1);
+      final resumed = player.playedFrom.skip(playsBefore).toList();
+      expect(resumed, isNotEmpty);
+      // Never heard from the start of the song.
+      for (final position in resumed) {
+        expect(
+          (position - const Duration(seconds: 30)).abs(),
+          lessThan(const Duration(seconds: 2)),
+        );
+      }
+      expect(player.playing, isTrue);
+    });
 
     test(
       'restores the whole queue even when playback is paused meanwhile',

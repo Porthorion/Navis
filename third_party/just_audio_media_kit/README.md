@@ -177,11 +177,30 @@ configuration retain the upstream speed/pitch implementation.
 
 ### Navis seek settlement
 
-Initial positions are retained until opening and duration/readiness permit a
-native seek, regardless of event order. Explicit seeks replace that pending
+A load's initial position is applied natively: an `on_load` hook (registered on
+media_kit's `NativePlayer.onLoadHooks`) sets mpv's `start` option for the
+playlist entry being loaded, once, and media_kit's `on_unload` hook resets it.
+The hook runs inside media_kit's serialized event handler, so it uses
+synchronous libmpv calls only. Positions are also retained until mpv has
+initialized playback of the file (its `seeking` property becomes available, or
+a native duration arrives): libmpv rejects a `seek` sent between `start-file`
+and `file-loaded`, media_kit only logs that error, and media_kit's buffering
+flag is reset to false by `open()` before the file loads. A retained position
+mpv already reached is not seeked again. Explicit seeks replace a pending
 position, including zero; a superseded completion cannot clear newer work.
 Only native position events report landing. The native `seeking` property keeps
 unfinished seeks buffering, including paused seeks, until decoding is ready.
+
+media_kit's 5 s `network-timeout` is raised to 60 s so a server that prepares a
+file before its first byte (a remote song fetched on first play) does not fail
+the stream; the caller's load and stall deadlines decide when to give up. The
+on-disk demuxer cache media_kit enables is turned off: libmpv cannot create it
+without a cache directory and logged an error for every file. Transport and
+volume calls that just_audio routes to a player after a stop released it are
+ignored rather than hitting media_kit's disposed assertion. Decoder error lines
+libmpv recovers from (`Error decoding audio`, `Error while decoding frame`,
+`lib/src/mpv_errors.dart`) are logged instead of failing the source; failing it
+made just_audio dispose a player that was still playing after a seek.
 
 The adapter appends `usetoc=1` to mpv's existing demuxer option list, enabling the
 MP3 table of contents for uncached HTTP seeks without reading an index from the

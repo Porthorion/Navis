@@ -312,6 +312,9 @@ class NavisAudioHandler extends BaseAudioHandler
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
   bool _seekFailureBlocksRecovery = false;
+  // Where the failed seek left playback; normal progress past it lifts the
+  // block above.
+  Duration? _seekFailurePosition;
   Timer? _transportPersistTimer;
   Timer? _queueItemsPersistTimer;
   String? _queueItemsPersistContext;
@@ -329,6 +332,15 @@ class NavisAudioHandler extends BaseAudioHandler
       <String, StreamSubscription<double>>{};
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
+  // When each song's cache download last received bytes.
+  final Map<String, DateTime> _cacheProgressAt = <String, DateTime>{};
+  // Observed lock-cache sources by cache path, so a download the player has
+  // moved on from can be stopped.
+  // ignore: experimental_member_use, reason: LockCachingAudioSource is the intended just_audio cache primitive for rolling cache playback.
+  final Map<String, ({String songId, LockCachingAudioSource source})>
+  _lockCacheSources =
+      // ignore: experimental_member_use, reason: as above.
+      <String, ({String songId, LockCachingAudioSource source})>{};
   final Set<String> _lockCachingBypassedSongIds = <String>{};
   final List<Map<String, Object?>> _seekDiagnosticsEvents =
       <Map<String, Object?>>[];
@@ -929,6 +941,28 @@ class NavisAudioHandler extends BaseAudioHandler
       unawaited(_updateArtCacheFile(item));
     }
     _syncSidecarRollingCache(item);
+    _cancelStaleLockCacheDownloads(item?.id);
+  }
+
+  /// Stops lock-cache downloads of songs other than the current and next
+  /// ones. Such a download otherwise runs to completion after the player has
+  /// moved on and, on a slow link, starves the song now playing (its first
+  /// load timed out behind a skipped song's download). The partial file is
+  /// discarded; the song downloads again if it is played again.
+  void _cancelStaleLockCacheDownloads(String? currentSongId) {
+    if (_lockCacheSources.isEmpty) return;
+    final index = _resolveCurrentQueueMetadata().currentIndex;
+    final next = index == null || index + 1 >= _queueItems.length
+        ? null
+        : _queueItems[index + 1].id;
+    for (final entry in _lockCacheSources.entries.toList()) {
+      final songId = entry.value.songId;
+      if (songId == currentSongId || songId == next) continue;
+      final activity = _rollingCacheActivities[entry.key];
+      if (activity == null || (activity.progress ?? 0) >= 0.999) continue;
+      unawaited(entry.value.source.cancelDownload());
+      _completeRollingCacheActivity(entry.key);
+    }
   }
 
   void _rememberSidecarSong(SongsTableData song, Uri? streamUri) {
@@ -3383,6 +3417,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_cacheProgressSubscriptions.containsKey(cacheFilePath)) {
       return;
     }
+    _lockCacheSources[cacheFilePath] = (songId: song.id, source: source);
 
     late final StreamSubscription<double> subscription;
     subscription = source.downloadProgressStream.listen(
@@ -3399,6 +3434,7 @@ class NavisAudioHandler extends BaseAudioHandler
           return;
         }
         _cacheProgressSubscriptions.remove(cacheFilePath);
+        _lockCacheSources.remove(cacheFilePath);
         unawaited(subscription.cancel());
         unawaited(
           _registerRollingCacheTrack(
@@ -3414,10 +3450,12 @@ class NavisAudioHandler extends BaseAudioHandler
           '$error\n$stackTrace',
         );
         _cacheProgressSubscriptions.remove(cacheFilePath);
+        _lockCacheSources.remove(cacheFilePath);
         unawaited(subscription.cancel());
         _completeRollingCacheActivity(cacheFilePath);
       },
       onDone: () {
+        _lockCacheSources.remove(cacheFilePath);
         if (_cacheProgressSubscriptions.remove(cacheFilePath) != null) {
           _completeRollingCacheActivity(cacheFilePath);
         }
@@ -3432,11 +3470,39 @@ class NavisAudioHandler extends BaseAudioHandler
     RollingCacheActivity activity,
   ) {
     _rollingCacheActivities[cacheFilePath] = activity;
+    final songId = activity.songId;
+    if (songId != null) _cacheProgressAt[songId] = DateTime.now();
     _reportRollingCacheActivity?.call(activity);
   }
 
+  /// Whether [songId]'s cache download is at least half done and received
+  /// bytes within the last [_seekBufferingRecoveryTimeout].
+  bool _cacheDownloadNearlyDone(String songId) {
+    final at = _cacheProgressAt[songId];
+    return at != null &&
+        _rollingCacheActivities.values.any(
+          (a) => a.songId == songId && (a.progress ?? 0) >= 0.5,
+        ) &&
+        DateTime.now().difference(at) < _seekBufferingRecoveryTimeout;
+  }
+
+  /// Whether the current song plays from the network while its completed
+  /// sidecar file is on disk, so a seek can reload it from the file.
+  bool _completedSidecarAvailable(String songId) {
+    final item = _currentMediaItem;
+    if (item == null || item.id != songId) return false;
+    if (item.extras?['sourceKind'] == PlaybackSourceKind.file.name) {
+      return false;
+    }
+    final path = item.extras?['sidecarCacheFilePath'] as String?;
+    if (path == null || path.isEmpty) return false;
+    final file = File(path);
+    return file.existsSync() && file.lengthSync() > 0;
+  }
+
   void _completeRollingCacheActivity(String cacheFilePath) {
-    _rollingCacheActivities.remove(cacheFilePath);
+    final songId = _rollingCacheActivities.remove(cacheFilePath)?.songId;
+    if (songId != null) _cacheProgressAt.remove(songId);
     _reportRollingCacheActivity?.call(
       _rollingCacheActivities.values.lastOrNull ??
           const RollingCacheActivity.idle(),
@@ -3753,6 +3819,8 @@ class NavisAudioHandler extends BaseAudioHandler
     bool preferLockCaching = true,
     // A start source the caller already has (a completed sidecar file).
     _PreparedQueueItem? preparedStart,
+    // Leave the song paused; the caller resumes it once it has landed.
+    bool holdPlayback = false,
   }) async {
     if (songs.isEmpty) {
       await _clearQueueInternal(persist: persist);
@@ -3806,6 +3874,15 @@ class NavisAudioHandler extends BaseAudioHandler
       );
     }
 
+    if (startItem.song.isExternal && !startItem.source.isLocal) {
+      await _warmRemoteStream(
+        startItem.source.uri ?? startItem.source.lockCachingStreamUri,
+        stillWanted: () =>
+            !token.isCancelled && _isActiveLoadGeneration(generation),
+      );
+      startupTrace?.mark('remoteWarmupComplete');
+    }
+
     // Set a single audio source on the player and start playback.
     _checkQueueWorkCurrent(token, generation);
     startupTrace?.mark('selectedSourceApplyStart');
@@ -3824,6 +3901,7 @@ class NavisAudioHandler extends BaseAudioHandler
         initialPosition: initialPosition,
         generation: generation,
         songId: startSong.id,
+        timeout: _loadTimeoutFor(startItem),
       );
     } on OperationCancelledException {
       rethrow;
@@ -3856,6 +3934,7 @@ class NavisAudioHandler extends BaseAudioHandler
         initialPosition: initialPosition,
         generation: generation,
         songId: startSong.id,
+        timeout: _loadTimeoutFor(startItem),
       );
     }
     _checkQueueWorkCurrent(token, generation);
@@ -3864,8 +3943,9 @@ class NavisAudioHandler extends BaseAudioHandler
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _setCurrentMediaItem(startItem.mediaItem);
 
-    if (_latestExplicitTransportPlaying == true ||
-        (autoPlay && _latestExplicitTransportPlaying != false)) {
+    if (!holdPlayback &&
+        (_latestExplicitTransportPlaying == true ||
+            (autoPlay && _latestExplicitTransportPlaying != false))) {
       unawaited(_player.play());
     } else {
       await _player.pause();
@@ -4262,12 +4342,14 @@ class NavisAudioHandler extends BaseAudioHandler
     required Duration initialPosition,
     int generation = 0,
     String? songId,
+    Duration? timeout,
   }) async {
     try {
       if (generation > 0) {
         await _runTimedPlayerOperation(
           generation: generation,
           operation: 'active queue apply',
+          timeout: timeout,
           action: () => _player.setAudioSources(
             audioSources,
             preload: preload,
@@ -4299,6 +4381,7 @@ class NavisAudioHandler extends BaseAudioHandler
           await _runTimedPlayerOperation(
             generation: generation,
             operation: 'active queue apply retry',
+            timeout: timeout,
             action: () => _player.setAudioSources(
               audioSources,
               preload: preload,
@@ -4329,6 +4412,7 @@ class NavisAudioHandler extends BaseAudioHandler
           await _runTimedPlayerOperation(
             generation: generation,
             operation: 'active queue apply final retry',
+            timeout: timeout,
             action: () => _player.setAudioSources(
               audioSources,
               preload: preload,
@@ -4349,6 +4433,51 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _restoreActivePlayerVolume();
   }
+
+  /// Waits, up to [NavisPlaybackTimeouts.remoteLoad], for the server to answer
+  /// a request for the first bytes of a remote song's stream. A server that
+  /// fetches a remote song on its first play (Octo-Fiesta) sends nothing
+  /// until the whole file has arrived; players give up on such a silent
+  /// connection long before that (ExoPlayer after 8 s, through the lock-cache
+  /// proxy too), while once the server has the file it answers at once.
+  /// Failures are left to the player's own load; a newer command
+  /// ([stillWanted] turning false) ends the wait at once.
+  Future<void> _warmRemoteStream(
+    Uri? uri, {
+    required bool Function() stillWanted,
+  }) async {
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return;
+    }
+    final client = HttpClient()..connectionTimeout = _timeouts.remoteLoad;
+    final answered = () async {
+      final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
+      final response = await request.close();
+      await response.drain<void>();
+    }();
+    final elapsed = Stopwatch()..start();
+    var done = false;
+    unawaited(
+      answered.then<void>(
+        (_) => done = true,
+        onError: (Object error) {
+          done = true;
+          AppLogger.debug('Remote stream warm-up ended: ${error.runtimeType}');
+        },
+      ),
+    );
+    while (!done && stillWanted() && elapsed.elapsed < _timeouts.remoteLoad) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    client.close(force: true);
+  }
+
+  /// The native load deadline for a queue starting at [item].
+  Duration _loadTimeoutFor(_PreparedQueueItem item) =>
+      item.song.isExternal && !item.source.isLocal
+      ? _timeouts.remoteLoad
+      : _playerLoadTimeout;
 
   Future<void> _restoreActivePlayerVolume() {
     final target = _isDucked ? _userVolume * 2 / 5 : _userVolume;
@@ -5998,6 +6127,7 @@ class NavisAudioHandler extends BaseAudioHandler
         request.stage = 'done';
         if (identical(_pendingSeek, request)) {
           _seekFailureBlocksRecovery = true;
+          _seekFailurePosition = _player.position;
           _emitLoadFailure(
             operation: 'seek',
             message: 'The requested playback position could not be reached.',
@@ -6020,6 +6150,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'elapsedMs': started.elapsedMilliseconds,
           'outcome': request.outcome,
           'recoveryAttempts': request.recoveryAttempts,
+          if (request.unsettled.isNotEmpty) 'unsettled': request.unsettled,
         });
         if (identical(_pendingSeek, request)) {
           _pendingSeek = null;
@@ -6075,7 +6206,10 @@ class NavisAudioHandler extends BaseAudioHandler
         request.stage = 'seeking';
         return;
       }
-      if (wait.elapsed >= _playerLoadTimeout) {
+      final deadline = isExternalCatalogSource(id: request.songId)
+          ? _timeouts.remoteLoad
+          : _playerLoadTimeout;
+      if (wait.elapsed >= deadline) {
         throw PlaybackLoadTimeoutException(operation: 'seek source readiness');
       }
       await Future<void>.delayed(const Duration(milliseconds: 25));
@@ -7682,44 +7816,61 @@ class NavisAudioHandler extends BaseAudioHandler
     required _PendingSeek seekRequest,
   }) async {
     _checkSeekCurrent(seekRequest, token);
-    final sourceKind = _currentSourceKind;
-    final buffer = _player.bufferedPosition;
-    final needsDirectSource =
-        sourceKind == PlaybackSourceKind.lockCachedStream.name &&
-        position > buffer + const Duration(seconds: 1);
-    if (!needsDirectSource) {
-      try {
-        await _runNativeSeek(seekRequest, token, operation: 'seek');
-        _checkSeekCurrent(seekRequest, token);
-        if (await _waitForSeekSettlement(seekRequest, token)) return;
-      } on PlaybackLoadTimeoutException {
-        // The timed operation retired the hung player and restored the queue.
-        // A newer request can now use that player without the old call racing it.
-        _checkSeekCurrent(seekRequest, token);
-        seekRequest.recoveryAttempts = 1;
-        await _runNativeSeek(
-          seekRequest,
-          token,
-          operation: 'seek after player reset',
-        );
-        if (await _waitForSeekSettlement(seekRequest, token)) {
-          if (_requestedPlaying) unawaited(_player.play());
-          return;
-        }
-        throw StateError('Seek failed after the player was reset.');
-      } on OperationCancelledException {
-        rethrow;
-      } on Object catch (error) {
-        _checkSeekCurrent(seekRequest, token);
-        AppLogger.debug(
-          'Native seek rejected: ${error.runtimeType}; recovering source.',
-        );
+    if (_currentSourceKind == PlaybackSourceKind.lockCachedStream.name &&
+        position >= const Duration(seconds: 1) &&
+        !await _lockCacheServesRanges(seekRequest, token)) {
+      // The origin streams linearly (a server transcode that ignores Range),
+      // so the lock-cache source serves every request from the start of the
+      // song and ExoPlayer, which found no length, treats it as unseekable:
+      // any seek, even within the buffered part, or a direct-stream reload
+      // plays it from the beginning. The download runs faster than playback;
+      // reload from the completed file instead, and otherwise leave playback
+      // where it is.
+      seekRequest.recoveryAttempts = 1;
+      if (await _waitForCompletedLockCache(seekRequest, token) &&
+          await _trySeekViaCompletedCacheFile(
+            position,
+            autoPlay: _requestedPlaying,
+            token: token,
+            transportGeneration: transportGeneration,
+            seekRequest: seekRequest,
+          ) &&
+          await _waitForSeekSettlement(seekRequest, token)) {
+        return;
       }
+      throw StateError('The requested position has not been downloaded yet.');
+    }
+    try {
+      await _runNativeSeek(seekRequest, token, operation: 'seek');
+      _checkSeekCurrent(seekRequest, token);
+      if (await _waitForSeekSettlement(seekRequest, token)) return;
+    } on PlaybackLoadTimeoutException {
+      // The timed operation retired the hung player and restored the queue.
+      // A newer request can now use that player without the old call racing it.
+      _checkSeekCurrent(seekRequest, token);
+      seekRequest.recoveryAttempts = 1;
+      await _runNativeSeek(
+        seekRequest,
+        token,
+        operation: 'seek after player reset',
+      );
+      if (await _waitForSeekSettlement(seekRequest, token)) {
+        if (_requestedPlaying) unawaited(_player.play());
+        return;
+      }
+      throw StateError('Seek failed after the player was reset.');
+    } on OperationCancelledException {
+      rethrow;
+    } on Object catch (error) {
+      _checkSeekCurrent(seekRequest, token);
+      AppLogger.debug(
+        'Native seek rejected: ${error.runtimeType}; recovering source.',
+      );
     }
     _checkSeekCurrent(seekRequest, token);
     seekRequest.recoveryAttempts = 1;
     seekRequest.stage = 'recovering';
-    final fromFile = await _trySeekViaCompletedSidecarFile(
+    final fromFile = await _trySeekViaCompletedCacheFile(
       position,
       autoPlay: _requestedPlaying,
       token: token,
@@ -7736,9 +7887,21 @@ class NavisAudioHandler extends BaseAudioHandler
       );
     }
     _checkSeekCurrent(seekRequest, token);
-    if (!await _waitForSeekSettlement(seekRequest, token)) {
-      throw StateError('Seek failed after source recovery.');
+    if (await _waitForSeekSettlement(seekRequest, token)) return;
+    // The cache file finished while the reloaded stream was still fetching
+    // the target: the local copy reaches it without the network.
+    if (seekRequest.unsettled.lastOrNull?['reason'] == 'cache complete' &&
+        await _trySeekViaCompletedCacheFile(
+          position,
+          autoPlay: _requestedPlaying,
+          token: token,
+          transportGeneration: transportGeneration,
+          seekRequest: seekRequest,
+        ) &&
+        await _waitForSeekSettlement(seekRequest, token)) {
+      return;
     }
+    throw StateError('Seek failed after source recovery.');
   }
 
   Future<void> _runNativeSeek(
@@ -7784,13 +7947,18 @@ class NavisAudioHandler extends BaseAudioHandler
   ) async {
     request.stage = 'confirming';
     final elapsed = Stopwatch()..start();
-    var lastProgress = Duration.zero;
+    var lastActivity = Duration.zero;
+    var bufferGrewAt = Duration.zero;
     var lastPosition = _seekSettlementPosition;
     var lastBuffer = _player.bufferedPosition;
+    var deadline = _playerLoadTimeout;
     Duration? nearSince;
     Duration? nearPosition;
-    while (elapsed.elapsed < _playerLoadTimeout) {
+    Duration? farSince;
+    String? unsettled;
+    while (true) {
       _checkSeekCurrent(request, token);
+      final now = elapsed.elapsed;
       final position = _seekSettlementPosition;
       final buffer = _player.bufferedPosition;
       final processing = _player.processingState;
@@ -7801,50 +7969,175 @@ class NavisAudioHandler extends BaseAudioHandler
           _player.duration != null &&
           (request.position - _player.duration!).abs() <
               const Duration(seconds: 2);
-      final ready = processing == ProcessingState.ready || atEnd;
-      if (near && ready) {
-        nearSince ??= elapsed.elapsed;
+      if (near) {
+        nearSince ??= now;
         nearPosition ??= position;
-        final transportSettled = _requestedPlaying
-            ? _player.playing &&
-                  (atEnd ||
-                      position - nearPosition >=
-                          const Duration(milliseconds: 50))
-            : !_player.playing;
-        if (transportSettled &&
-            elapsed.elapsed - nearSince >= const Duration(milliseconds: 100)) {
-          return true;
-        }
       } else {
         nearSince = null;
         nearPosition = null;
       }
-      if (buffer != lastBuffer || position != lastPosition) {
-        lastProgress = elapsed.elapsed;
+      // While a backend waits for data its processing state can flap between
+      // ready and buffering many times a second, so settlement rests on the
+      // native position: advancing from the target proves playback resumed
+      // there, and a paused player has to hold the target.
+      final settled =
+          near &&
+          (_requestedPlaying
+              ? _player.playing &&
+                    (atEnd ||
+                        position - nearPosition! >=
+                            const Duration(milliseconds: 250))
+              : !_player.playing &&
+                    processing != ProcessingState.idle &&
+                    processing != ProcessingState.loading &&
+                    now - nearSince! >= const Duration(milliseconds: 300));
+      if (settled) return true;
+      // A decoder may probe several HTTP ranges before producing a packet, so
+      // native buffering counts as activity: only a player that is not
+      // buffering and neither moves nor fills is stalled.
+      if (buffer > lastBuffer) bufferGrewAt = now;
+      if (buffer != lastBuffer ||
+          position != lastPosition ||
+          processing == ProcessingState.buffering) {
+        lastActivity = now;
         lastBuffer = buffer;
         lastPosition = position;
       }
-      // A decoder may probe several HTTP ranges before producing a packet.
-      // During native buffering, unchanged packet positions are inconclusive:
-      // allow the load deadline instead of interrupting an active range search.
-      // A ready player that misses the target or stops moving stalls sooner.
-      if (processing != ProcessingState.buffering &&
-          ((!near &&
-                  ready &&
-                  elapsed.elapsed >= _seekBufferingRecoveryTimeout) ||
-              elapsed.elapsed - lastProgress >=
-                  _seekBufferingRecoveryTimeout)) {
+      farSince =
+          !near &&
+              processing != ProcessingState.buffering &&
+              processing != ProcessingState.loading
+          ? farSince ?? now
+          : null;
+      if (farSince != null && now - farSince >= _seekBufferingRecoveryTimeout) {
+        unsettled = 'missed target';
+      } else if (!(near && !_requestedPlaying) &&
+          now - lastActivity >= _seekBufferingRecoveryTimeout) {
+        // A paused player holding the target is expected to stand still.
+        unsettled = 'no progress';
+      } else if (_completedSidecarAvailable(request.songId)) {
+        // The local copy seeks without the network: reload from it rather
+        // than wait for the remote range.
+        unsettled = 'cache complete';
+      } else if (now >= deadline) {
+        // A slow link legitimately takes longer for a far seek in a large
+        // file; reloading would start the same transfer over. Keep waiting
+        // while the player itself is still receiving data, or while a cache
+        // download that will soon replace the stream is nearly done.
+        if (now < _timeouts.seekProgress &&
+            (now - bufferGrewAt < _seekBufferingRecoveryTimeout ||
+                _cacheDownloadNearlyDone(request.songId))) {
+          deadline = now + _seekBufferingRecoveryTimeout;
+        } else {
+          unsettled = 'deadline';
+        }
+      }
+      if (unsettled != null) {
+        request.unsettled.add(
+          _unsettledProbe(unsettled, request, now, position, processing),
+        );
         return false;
       }
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
+  }
+
+  Map<String, Object?> _unsettledProbe(
+    String reason,
+    _PendingSeek request,
+    Duration elapsed,
+    Duration position,
+    ProcessingState processing,
+  ) => <String, Object?>{
+    'reason': reason,
+    'elapsedMs': elapsed.inMilliseconds,
+    'positionMs': position.inMilliseconds,
+    'bufferedMs': _player.bufferedPosition.inMilliseconds,
+    'processingState': processing.name,
+    'playing': _player.playing,
+  };
+
+  /// Whether the current lock-cached source can serve a range beyond its
+  /// download: true once its origin answered with byte-range support. Waits
+  /// (up to the load deadline) for that answer when it has not arrived.
+  Future<bool> _lockCacheServesRanges(
+    _PendingSeek request,
+    OperationToken token,
+  ) async {
+    final wait = Stopwatch()..start();
+    while (true) {
+      _checkSeekCurrent(request, token);
+      final index = _player.currentIndex;
+      final sequence = _player.sequence;
+      final source = index == null || index >= sequence.length
+          ? null
+          : sequence[index];
+      // ignore: experimental_member_use, reason: the lock-cached source reports whether its origin supports ranges.
+      if (source is! LockCachingAudioSource) return true;
+      final ranges = source.originSupportsRangeRequests;
+      if (ranges != null) return ranges;
+      if (wait.elapsed >= _playerLoadTimeout) return false;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
+  /// Waits while the current song's lock-cache download keeps growing, until
+  /// its completed file exists. Bounded by [NavisPlaybackTimeouts.seekProgress]
+  /// and by [_seekBufferingRecoveryTimeout] without growth.
+  Future<bool> _waitForCompletedLockCache(
+    _PendingSeek request,
+    OperationToken token,
+  ) async {
+    request.stage = 'waiting for cache';
+    final wait = Stopwatch()..start();
+    var lastBytes = -1;
+    var grewAt = Duration.zero;
+    while (wait.elapsed < _timeouts.seekProgress) {
+      _checkSeekCurrent(request, token);
+      if (_completedCacheFileFor(_currentMediaItem) != null) return true;
+      final bytes = _partialCacheBytesForSong(request.songId) ?? -1;
+      if (bytes != lastBytes) {
+        lastBytes = bytes;
+        grewAt = wait.elapsed;
+      } else if (wait.elapsed - grewAt >= _seekBufferingRecoveryTimeout) {
+        request.unsettled.add(<String, Object?>{
+          'reason': 'cache stalled',
+          'elapsedMs': wait.elapsed.inMilliseconds,
+          'partialBytes': bytes,
+        });
+        return false;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
     return false;
   }
 
+  /// The completed rolling-cache file of [item]'s stream: the desktop sidecar
+  /// or the Android lock cache. Partial downloads are never returned.
+  String? _completedCacheFileFor(MediaItem? item) {
+    final path = item == null ? null : _cacheFilePathFor(item);
+    if (path == null) return null;
+    final file = File(path);
+    return file.existsSync() && file.lengthSync() > 0 ? path : null;
+  }
+
+  /// Where [item]'s stream is being cached: the desktop sidecar file or the
+  /// Android lock-cache file.
+  String? _cacheFilePathFor(MediaItem item) {
+    final extras = item.extras ?? const <String, Object?>{};
+    final sidecar = extras['sidecarCacheFilePath'] as String?;
+    if (sidecar != null && sidecar.isNotEmpty) return sidecar;
+    if (extras['sourceKind'] != PlaybackSourceKind.lockCachedStream.name) {
+      return null;
+    }
+    final lockCache = extras['cachedFilePath'] as String?;
+    return lockCache == null || lockCache.isEmpty ? null : lockCache;
+  }
+
   /// Reloads the queue with the current song played from its completed
-  /// sidecar file, which seeks without a network round-trip. The whole
-  /// logical queue is kept.
-  Future<bool> _trySeekViaCompletedSidecarFile(
+  /// cache file (desktop sidecar or Android lock cache), which seeks without
+  /// a network round-trip. The whole logical queue is kept.
+  Future<bool> _trySeekViaCompletedCacheFile(
     Duration position, {
     required bool autoPlay,
     required OperationToken token,
@@ -7855,8 +8148,8 @@ class NavisAudioHandler extends BaseAudioHandler
     if (item == null) {
       return false;
     }
-    final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
-    if (sidecarPath == null || sidecarPath.isEmpty) {
+    final sidecarPath = _cacheFilePathFor(item);
+    if (sidecarPath == null) {
       return false;
     }
     final cacheFile = File(sidecarPath);
@@ -7893,7 +8186,10 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!cacheFile.existsSync() || cacheFile.lengthSync() <= 0) {
       return false;
     }
-    final song = _sidecarSongsById[item.id];
+    final song =
+        _sidecarSongsById[item.id] ??
+        _remoteRows[item.id] ??
+        await _libraryDao.getSongById(item.id);
     if (song == null) {
       return false;
     }
@@ -8127,6 +8423,7 @@ class NavisAudioHandler extends BaseAudioHandler
             initialPosition: position,
             preferLockCaching: false,
             preparedStart: preparedStart,
+            holdPlayback: true,
           );
         } on OperationCancelledException {
           // A newer command owns the queue, and rebuilds the pending one.
@@ -8142,6 +8439,19 @@ class NavisAudioHandler extends BaseAudioHandler
           rethrow;
         }
         rebuilt = true;
+        // Land and resume before the rest of the queue is restored: on a long
+        // queue that fill takes seconds, and the song must not be heard from
+        // wherever the load left it meanwhile. This work owns the lane, so
+        // the correction cannot race a queue edit.
+        await _landRecoveredSong(
+          position,
+          queueGeneration: queueGeneration,
+          token: token,
+          transportGeneration: transportGeneration,
+          seekRequest: seekRequest,
+          autoPlay: autoPlay,
+          songId: currentSongId,
+        );
         final reloaded = startItem;
         if (reloaded == null || orderedSongs.length <= 1) {
           _recoveryStage = 'done';
@@ -8213,39 +8523,51 @@ class NavisAudioHandler extends BaseAudioHandler
       return true;
     }
     await _syncNativeLoopMode();
-    // Correct a dropped initial position only after queue fill has released
-    // the native engine. A timeout must retire it before another mutation.
-    final landed = _player.position;
-    if ((position - landed).abs() >= const Duration(seconds: 2)) {
-      if (seekRequest != null) {
-        await _runNativeSeek(
-          seekRequest,
-          token,
-          operation: 'seek recovery correction',
-        );
-      } else {
-        await _queueLane.enqueue((_) async {
-          token.checkCancelled();
-          if (!_isCurrentTransportIntent(transportGeneration)) return;
-          await _runTimedPlayerOperation(
-            generation: queueGeneration,
-            operation: 'seek recovery correction',
-            action: () => _player.seek(position),
-            timeout: _timeouts.control,
-            reloadQueueOnTimeout: true,
-          );
-        });
-      }
-      if (token.isCancelled ||
-          !_isCurrentSeekOrTransport(transportGeneration, seekRequest)) {
-        return true;
-      }
-    }
+    return true;
+  }
 
+  /// Puts the song a recovery reloaded (paused) at [position], then resumes
+  /// it according to the latest Play/Pause intent. A newer seek or transport
+  /// command owns the position and play state instead.
+  Future<void> _landRecoveredSong(
+    Duration position, {
+    required int queueGeneration,
+    required OperationToken token,
+    required int transportGeneration,
+    required _PendingSeek? seekRequest,
+    required bool autoPlay,
+    required String songId,
+  }) async {
+    bool current() =>
+        !token.isCancelled &&
+        _isCurrentSeekOrTransport(transportGeneration, seekRequest);
+    if (!current()) return;
+    // The backend normally starts the reload at [position]; correct one that
+    // did not (a source that ignored its initial position).
+    if ((position - _player.position).abs() >= const Duration(seconds: 2)) {
+      try {
+        await _runTimedPlayerOperation(
+          generation: queueGeneration,
+          operation: 'seek recovery correction',
+          action: () => _player.seek(position),
+          songId: songId,
+          timeout: _timeouts.control,
+          reloadQueueOnTimeout: true,
+        );
+      } on OperationCancelledException {
+        rethrow;
+      } on Object catch (error) {
+        // The settlement probe that follows reports the failure; the rest of
+        // the queue must still be restored.
+        AppLogger.debug(
+          'Seek recovery correction failed: ${error.runtimeType}',
+        );
+      }
+      if (!current()) return;
+    }
     if (seekRequest == null ? autoPlay : _requestedPlaying) {
       unawaited(_player.play());
     }
-    return true;
   }
 
   /// A restore point for a queue that is still loading: [current] stays
@@ -8290,6 +8612,18 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _syncRemotePlaybackStallWatchdog() {
+    // A failed seek suppresses automatic recovery so it cannot later restart
+    // or skip the song; once the song has played on normally for a few
+    // seconds, a new stall is unrelated to the seek and is recovered again.
+    final failedAt = _seekFailurePosition;
+    if (_seekFailureBlocksRecovery &&
+        _pendingSeek == null &&
+        failedAt != null &&
+        _player.playing &&
+        _player.position - failedAt >= const Duration(seconds: 5)) {
+      _seekFailureBlocksRecovery = false;
+      _seekFailurePosition = null;
+    }
     if (_pendingSeek != null ||
         _seekFailureBlocksRecovery ||
         _radioStation != null ||

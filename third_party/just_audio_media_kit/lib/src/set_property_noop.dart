@@ -15,3 +15,9 @@ Future<void> verifyOwnedAudioChain(
 
 Future<void> configureNativeSeeking(
     Player player, void Function(bool) onSeeking) async {}
+
+bool configureStartPosition(
+        Player player, Duration? Function(int index) startFor) =>
+    false;
+
+Future<Duration?> nativePosition(Player player) async => null;

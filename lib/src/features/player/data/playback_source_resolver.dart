@@ -262,6 +262,33 @@ class PlaybackSourceResolver {
     }
 
     final streamUri = _buildStreamUri(api: api, song: song, quality: quality);
+    // Desktop/media_kit cannot seek LockCachingAudioSource's local proxy.
+    // Play via direct HTTPS (Range-seekable) and fill the rolling cache with a
+    // sidecar download so seeks stay responsive while caching continues.
+    // Every desktop source is a direct stream, so callers that ask for one
+    // (seek recovery, crossfade decks, bypassed songs) keep the sidecar too:
+    // dropping it would cancel the download already running for the song.
+    if (_readUsesSidecarRollingCache()) {
+      final cacheFile = await _resolveRollingCacheFile(
+        song: song,
+        quality: quality,
+      );
+      AppLogger.debug(
+        'Playback source resolved: song=${song.id} '
+        'kind=${PlaybackSourceKind.directStream.name} '
+        'sidecarCache=${cacheFile.path} '
+        'qualityLabel=${quality.label} '
+        'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
+        'format=${quality.format ?? 'original'}',
+      );
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: streamUri,
+        metadata: streamingMetadata,
+        sidecarCacheFilePath: cacheFile.path,
+      );
+    }
+
     final canUseLockCaching = preferLockCaching && _readSupportsLockCaching();
     if (!canUseLockCaching) {
       final reason = !preferLockCaching
@@ -286,26 +313,6 @@ class PlaybackSourceResolver {
       song: song,
       quality: quality,
     );
-
-    // Desktop/media_kit cannot seek LockCachingAudioSource's local proxy.
-    // Play via direct HTTPS (Range-seekable) and fill the rolling cache with a
-    // sidecar download so seeks stay responsive while caching continues.
-    if (_readUsesSidecarRollingCache()) {
-      AppLogger.debug(
-        'Playback source resolved: song=${song.id} '
-        'kind=${PlaybackSourceKind.directStream.name} '
-        'sidecarCache=${cacheFile.path} '
-        'qualityLabel=${quality.label} '
-        'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
-        'format=${quality.format ?? 'original'}',
-      );
-      return ResolvedPlaybackSource.directStream(
-        songId: song.id,
-        uri: streamUri,
-        metadata: streamingMetadata,
-        sidecarCacheFilePath: cacheFile.path,
-      );
-    }
 
     try {
       // ignore: experimental_member_use, reason: just_audio exposes rolling stream caching through this experimental source type.

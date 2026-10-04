@@ -15,5 +15,17 @@ implement the extension; unimplemented calls fail explicitly. Original system
 audio effects remain available to upstream callers, but Navis retires their
 experimental EQ/loudness UI and uses its own processing path.
 
+`LockCachingAudioSource.originSupportsRangeRequests` exposes whether the
+origin's download response advertised byte ranges (null until it arrives).
+Navis uses it to decide whether a seek beyond the downloaded bytes can be
+served natively (the source then issues its own Range request) or must wait for
+the completed cache file, as for a server transcode streamed linearly.
+
+`LockCachingAudioSource.cancelDownload()` stops a download in progress: pending
+and in-progress responses fail, the partial file is discarded and the next
+request starts over. Navis cancels downloads of songs the player has moved on
+from, which otherwise ran to completion and starved the current song on a slow
+link.
+
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.

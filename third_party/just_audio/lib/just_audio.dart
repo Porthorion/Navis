@@ -3416,6 +3416,20 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// downloaded) to 1.0 (download complete).
   Stream<double> get downloadProgressStream => _downloadProgressSubject.stream;
 
+  /// Navis: whether the origin answered the download with byte-range support,
+  /// or null before its response arrives. Without it, this source serves every
+  /// request from the start of the stream, so a seek beyond the downloaded
+  /// bytes cannot be served until the download completes.
+  bool? get originSupportsRangeRequests => _originSupportsRangeRequests;
+  bool? _originSupportsRangeRequests;
+
+  /// Navis: stops a download in progress. Pending and in-progress responses
+  /// fail, the partial file is discarded and a later request starts over.
+  /// The download otherwise runs to completion even after the player has
+  /// moved on, which on a slow link starves the song now playing.
+  Future<void> cancelDownload() async => _abortDownload?.call();
+  Future<void> Function()? _abortDownload;
+
   /// Removes the underlying cache files. It is an error to clear the cache
   /// while a download is in progress.
   Future<void> clearCache() async {
@@ -3496,6 +3510,7 @@ class LockCachingAudioSource extends StreamAudioSource {
     final acceptRanges = response.headers.value(HttpHeaders.acceptRangesHeader);
     final originSupportsRangeRequests =
         acceptRanges != null && acceptRanges != 'none';
+    _originSupportsRangeRequests = originSupportsRangeRequests;
     final mimeFile = await _mimeFile;
     await mimeFile.writeAsString(mimeType);
     final inProgressResponses = <_InProgressCacheResponse>[];
@@ -3622,6 +3637,7 @@ class LockCachingAudioSource extends StreamAudioSource {
         });
       }
     }, onDone: () async {
+      _abortDownload = null;
       if (sourceLength == null) {
         updateProgress(100);
       }
@@ -3635,6 +3651,7 @@ class LockCachingAudioSource extends StreamAudioSource {
       httpClient.close();
       _downloading = false;
     }, onError: (Object e, StackTrace stackTrace) async {
+      _abortDownload = null;
       (await _partialCacheFile).deleteSync();
       httpClient.close();
       // Fail all pending requests
@@ -3649,6 +3666,27 @@ class LockCachingAudioSource extends StreamAudioSource {
       }
       _downloading = false;
     }, cancelOnError: true);
+    _abortDownload = () async {
+      _abortDownload = null;
+      await subscription.cancel();
+      httpClient.close(force: true);
+      final error = Exception('Download cancelled');
+      for (final req in _requests) {
+        req.fail(error);
+      }
+      _requests.clear();
+      for (final res in inProgressResponses) {
+        if (!res.controller.isClosed) {
+          res.controller.addError(error);
+          res.controller.close();
+        }
+      }
+      final partial = await _partialCacheFile;
+      if (partial.existsSync()) partial.deleteSync();
+      _response = null;
+      _progress = 0;
+      _downloading = false;
+    };
     return response;
   }
 

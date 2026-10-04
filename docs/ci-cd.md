@@ -109,7 +109,11 @@ backward bursts, completed caches and WAV/MP3/FLAC/Opus with Range fault modes,
 then repeats after a clean start. Keep unsupported/failing Range outcomes distinct
 from supported seek acceptance. Retain app-owned screenshots and separate platform
 evidence under `build/seek-reliability/`; this runtime gate complements the unit,
-widget and full quality checks.
+widget and full quality checks. For changes to seek settlement, recovery or
+remote loading, also run `tool/live_seek_stress.py` against a disposable live
+account, throttled and unthrottled, on Linux and an Android emulator (see
+"Live-server seek stress" in the development workflow); it needs credentials,
+so it is a manual gate, not part of `check.sh`.
 
 Android Auto's service-first regression has a separate Android phone-emulator
 gate. It builds only the `.dev` sidecar, force-stops it, and binds an external

@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'src/audio_request_batch.dart';
 import 'src/deferred_seek.dart';
+import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
 
@@ -36,6 +37,19 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // subprocess's argv and be requested again. Navis never needs the hook.
     unawaited(setProperty(_player, 'ytdl', 'no'));
 
+    // Navis: media_kit sets a 5 s network timeout. A server that prepares the
+    // file before answering (a remote song fetched on first play) needs
+    // longer for its first byte, and libmpv then fails the whole stream
+    // (`tls: IO error: Connection timed out`). The handler's load and stall
+    // deadlines decide when to give up instead.
+    unawaited(setProperty(_player, 'network-timeout', '60'));
+
+    // Navis: media_kit enables an on-disk demuxer cache that libmpv cannot
+    // create without a cache directory ("Failed to create file cache" for
+    // every file), so the memory cache was the only one in use. The sidecar
+    // download already keeps the file on disk.
+    unawaited(setProperty(_player, 'cache-on-disk', 'no'));
+
     // Navis: stream URLs carry the account's salt and token, so the server
     // certificate must be checked before they are sent.
     if (JustAudioMediaKit.tlsVerify) {
@@ -46,9 +60,22 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       setProperty(_player, 'prefetch-playlist', 'yes');
     }
 
+    _nativeStartSupported = configureStartPosition(_player, (index) {
+      final start = _nativeStart;
+      if (start == null || start.index != index) return null;
+      // One load only: a later load of this entry starts from its beginning.
+      _nativeStart = null;
+      return start.position;
+    });
+
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
       _nativeSeeking = seeking;
+      // mpv reports `seeking` only once a file's playback is initialized;
+      // before that it rejects seeks.
+      final initialized = !_playbackInitialized;
+      _playbackInitialized = true;
       if (!_mediaOpened) return;
+      if (initialized && _deferredSeek.isPending) _flushDeferredSeekLater();
       if (_processingState == ProcessingStateMessage.loading) {
         _finishLoadLater();
       } else if (_processingState != ProcessingStateMessage.idle &&
@@ -143,6 +170,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.error.listen((error) {
+        // Navis: media_kit forwards every decoder error line. libmpv drops
+        // the damaged frame and carries on, as it does after a seek lands
+        // mid-frame ("Error decoding audio."), so failing the source here
+        // made just_audio dispose a player that was still playing.
+        if (isRecoverableMpvDecodeError(error)) {
+          _logger.warning('Decoder error (recovered by mpv): $error');
+          return;
+        }
         final errorUri = RegExp(r'Failed to open (.*)\.').firstMatch(error)?[1];
         if (errorUri == null || errorUri == _currentMedia?.uri) {
           _processingState = ProcessingStateMessage.idle;
@@ -204,6 +239,19 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   bool _playing = false;
   bool _mediaOpened = false;
   bool _nativeSeeking = false;
+
+  /// Set once [release] starts. just_audio can still deliver a call that it
+  /// routed to this player before a stop retired it; media_kit asserts on a
+  /// disposed player, which surfaced as an unhandled exception.
+  bool _released = false;
+
+  /// Whether mpv has initialized playback of the loaded file. Seeks sent
+  /// before that are rejected, so retained positions wait for it.
+  bool _playbackInitialized = false;
+
+  /// The entry and position mpv starts the next load of that entry at.
+  ({int index, Duration position})? _nativeStart;
+  bool _nativeStartSupported = false;
   late final Future<void> _nativeSeekingReady;
   int? _errorCode;
   String? _errorMessage;
@@ -214,19 +262,38 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   int _currentIndex = 0;
 
   late final DeferredSeek _deferredSeek = DeferredSeek(
-    // Progressive streams can become playable without a native duration.
-    // force-seekable still permits an explicit seek once opening is ready.
+    // Progressive streams can become playable without a native duration, so
+    // readiness is mpv's own playback initialization. The buffering flag
+    // cannot stand in for it: media_kit resets it while opening, before mpv
+    // has loaded the file.
     isReady: () =>
         _mediaOpened &&
-        (_player.state.duration > Duration.zero || !_player.state.buffering),
+        (_playbackInitialized || _player.state.duration > Duration.zero),
     // Only native position events report a landed seek. The command's
     // completion can precede decoding or represent a native no-op.
     apply: (position) async {
+      final target = position + (_currentMedia?.start ?? Duration.zero);
+      // A load's start position is normally applied natively before playback
+      // begins; seeking there again would only restart decoding.
+      final current = await nativePosition(_player);
+      if (current != null &&
+          (current - target).abs() < const Duration(milliseconds: 500)) {
+        return;
+      }
       _nativeSeeking = true;
       _updatePlaybackEvent();
-      await _player.seek(position + (_currentMedia?.start ?? Duration.zero));
+      await _player.seek(target);
     },
   );
+
+  void _flushDeferredSeekLater() {
+    final generation = _loadGeneration;
+    unawaited(_deferredSeek.flush().catchError((Object error) {
+      if (generation == _loadGeneration) {
+        _logger.warning('Retained seek could not be applied: $error');
+      }
+    }));
+  }
 
   void _finishLoadLater() {
     final generation = _loadGeneration;
@@ -352,9 +419,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     unawaited(
         load.future.then<void>((_) {}, onError: (Object _, StackTrace __) {}));
     _mediaOpened = false;
+    _playbackInitialized = false;
     _loadCompleter = load;
     _deferredSeek.beginLoad(request.initialPosition);
     _currentIndex = request.initialIndex ?? 0;
+    final initialPosition = request.initialPosition;
+    _nativeStart = _nativeStartSupported &&
+            initialPosition != null &&
+            initialPosition > Duration.zero
+        ? (index: _currentIndex, position: initialPosition)
+        : null;
     _bufferedPosition = Duration.zero;
     _position = Duration.zero;
     _duration = null;
@@ -394,7 +468,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<PlayResponse> play(PlayRequest request) async {
     _playing = true;
-    if (_mediaOpened) {
+    if (_mediaOpened && !_released) {
       await _player.play();
     }
     return PlayResponse();
@@ -403,7 +477,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<PauseResponse> pause(PauseRequest request) async {
     _playing = false;
-    if (_mediaOpened) {
+    if (_mediaOpened && !_released) {
       await _player.pause();
     }
     return PauseResponse();
@@ -415,6 +489,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   @override
   Future<SetVolumeResponse> setVolume(SetVolumeRequest request) {
+    if (_released) return Future.value(SetVolumeResponse());
     return _player
         .setVolume(request.volume * 100.0)
         .then((value) => SetVolumeResponse());
@@ -527,7 +602,13 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<SeekResponse> seek(SeekRequest request) async {
     _logger.finest('seek(${request.toMap()})');
+    if (_released) return SeekResponse();
     if (request.index != null) {
+      final position = request.position;
+      _nativeStart =
+          _nativeStartSupported && position != null && position > Duration.zero
+              ? (index: request.index!, position: position)
+              : null;
       await _player.jump(request.index!);
       if (!_playing) await _player.pause();
     }
@@ -614,10 +695,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// Release the resources used by this player.
   Future<void> release() async {
     _logger.info('releasing player resources');
+    _released = true;
     ++_loadGeneration;
     _completeLoad(null);
     _loadCompleter = null;
     _mediaOpened = false;
+    _nativeStart = null;
     await _player.dispose();
     // cancel all stream subscriptions
     for (final subscription in _streamSubscriptions) {

@@ -125,7 +125,31 @@ enum ChangelogHighlightIcon {
 
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
-  ChangelogVersion(version: '1.4.3', entries: []),
+  ChangelogVersion(
+    version: '1.4.3',
+    entries: [
+      ChangelogEntry(
+        'Seeking in a song that is still streaming no longer restarts it from the beginning, gets stuck on the seek bar or stops playback; on a slow connection the seek waits for the song instead of reloading it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On Linux and Windows, a brief decoding glitch right after a seek no longer stops playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Remote songs that the server fetches on first play start playing instead of failing after a few seconds',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A song keeps caching after a seek, so later seeks in it use the downloaded copy',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On Android, skipping songs on a slow connection no longer leaves the previous songs downloading in the background and stalls the new one',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
   ChangelogVersion(
     version: '1.4.2',
     released: '2026-10-03',

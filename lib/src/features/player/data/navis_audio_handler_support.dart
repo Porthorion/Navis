@@ -92,6 +92,8 @@ class NavisPlaybackTimeouts {
     this.seekBufferingRecovery = const Duration(seconds: 3),
     this.reset = const Duration(seconds: 4),
     this.control = const Duration(seconds: 4),
+    this.seekProgress = const Duration(seconds: 45),
+    this.remoteLoad = const Duration(seconds: 45),
   });
 
   /// A native load or queue mutation that takes longer is abandoned and the
@@ -107,6 +109,16 @@ class NavisPlaybackTimeouts {
 
   /// A single transport control call.
   final Duration control;
+
+  /// How long a seek may keep waiting past [load] while the song's cache
+  /// download is still receiving bytes: on a slow link a far seek in a large
+  /// file legitimately takes longer, and reloading would start it over.
+  final Duration seekProgress;
+
+  /// Loading a remote (external) song that is not cached. The server fetches
+  /// the whole file before it answers, which routinely takes longer than
+  /// [load] on a first play.
+  final Duration remoteLoad;
 }
 
 /// A request belongs to the selected queue occurrence, independent of whether
@@ -126,4 +138,8 @@ class _PendingSeek {
   String stage = 'waiting for source';
   String? outcome;
   int recoveryAttempts = 0;
+
+  /// Why each settlement probe that did not confirm the seek gave up, for
+  /// diagnostics: the rule that ended it and the state it saw.
+  final List<Map<String, Object?>> unsettled = <Map<String, Object?>>[];
 }

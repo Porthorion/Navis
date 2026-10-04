@@ -1037,10 +1037,13 @@ target, generation/stage/outcome, settled position, subsequent motion, transport
 state, queue identity and synthetic Range requests. Supported/delayed cases must
 settle within two seconds of the final target, advance when playing and remain
 still when paused.
-Delayed decoder range searches can use the load deadline and then wait for a
-progressing, at least half-complete desktop cache download. The cache wait also
-has the load deadline and ends after three seconds without progress; only the
-completed file can be used for recovery.
+Delayed decoder range searches can use the load deadline, and keep waiting up
+to 45 s while the player's buffer is still growing or the song's cache download
+is at least half done and still receiving bytes; a desktop
+cache download that completes first ends the wait and the song reloads from the
+file. A recovery can also wait for a progressing, at least half-complete desktop
+cache download; that wait has the load deadline and ends after three seconds
+without progress. Only the completed file can be used for recovery.
 Unsupported/failing Range results remain separately visible; they cannot
 certify a working server and are never included as passing supported
 seek coverage. Review these outcomes for bounded failures and queue/transport
@@ -1049,6 +1052,48 @@ the relevant player and lyrics views as well as the runner's startup view.
 `seek_cache_diag.py` remains available for a private real-server clone, but the
 synthetic gate requires no production credentials. Platform results must be
 reported separately; Linux/Android evidence does not certify Windows or Apple.
+
+#### Live-server seek stress
+
+The synthetic fixture serves files from loopback at full speed. To exercise a
+real Subsonic server, including first-play transcodes (which a Navidrome
+transcode-cache miss serves as a linear stream that ignores `Range`) and remote
+songs the server fetches on first play, use a disposable account:
+
+```bash
+NAVIS_LIVE_SEEK_CREDENTIALS=/path/creds.json \
+  python3 tool/live_seek_stress.py --quality wifi,cellular \
+    --sources library,remote --cases far,mid,back,burst,paused \
+    --throttle-kbps 6000 --latency-ms 150
+```
+
+The credential file is mode-600 JSON (`url`, `username`, `password`); it and
+the profile's `password` copy stay under the ignored `build/live-seek/`
+directory and are never printed. The runner builds a muted Linux profile with a
+fresh isolated database under `build/live-seek/root` (never the user's own
+profile or download folder), signs it in, and runs the first catalog sync once;
+`--keep-profile --skip-build` reuse it. If a server's first sync stays
+`partial` (some albums never hydrate), the profile can be marked usable by
+setting `library_sync_state.initial_catalog_usable_at` in that scratch database.
+`wifi` and `cellular` select the original and transcoded quality profiles
+through the network-type override. Every case plays a song this profile has
+never played (`build/live-seek/used-songs.json`). `--throttle-kbps` routes the
+app through a loopback reverse proxy with a shared bandwidth limit and added
+first-byte latency, which approximates a phone: the development host reaches
+the server too fast to show slow-link behaviour. `--android <serial>` runs the
+same cases on a disposable emulator: it clean-installs a profile sidecar
+(`NAVIS_LIVE_SEEK_APK` selects a prebuilt one, for example a baseline build),
+seeds it with the synced Linux profile and reaches the proxy through
+`adb reverse`; the run fails fast if the app does not use the proxy.
+
+Each case samples `GET /v1/playback/status` every 100 ms. It passes when the
+native position lands within two seconds of the final target and then advances
+(or holds, when paused), the outcome is `completed`, the song is unchanged, and
+the player never plays forward from near the start of the song (an audible
+restart). Traces, including failed starts, go to
+`build/live-seek/runs/<stamp>/traces/`, with `report.json` beside them. The
+seek's `unsettled` diagnostics name the rule that ended each probe that did not
+confirm it. Remote cases make the server fetch those songs.
 
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.

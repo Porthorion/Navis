@@ -1590,7 +1590,11 @@ libmpv. Ordinary direct HTTPS playback bypasses just_audio's request-header
 proxy on desktop and passes the Navis user agent to media-kit. A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
-Cache & Storage does not look idle before registration.
+Cache & Storage does not look idle before registration. Every desktop source is
+a direct stream, so the resolver attaches the sidecar path even when a caller
+asks for no lock caching (seek recovery, crossfade decks, songs whose
+lock-cached start failed); otherwise a recovery reload cancelled the download
+already running for the song.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
@@ -1615,7 +1619,24 @@ lock-cached source rebuilds as a direct stream, while a direct stream reloads
 at that position. A second failure marks the song failed and advances to the
 next playable queue item when available. Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
-fill failures never reload or clear the active start item.
+fill failures never reload or clear the active start item. Loading an uncached
+remote (external) song has `NavisPlaybackTimeouts.remoteLoad` (45 s) rather
+than the 12 s load deadline: the server fetches the whole file before it sends
+the first byte, which on a first play routinely took longer, and the abandoned
+load left the song idle even after its sidecar download finished. Before the
+player opens such a song, the handler warms the stream with a two-byte request
+and waits (cancelled by any newer command) until the server answers, because
+the players give up on a silent connection long before the server has the file
+(ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
+at once afterwards.
+
+On Android a lock-cache download otherwise ran to completion after the player
+had moved on; on a slow link a skipped song's download starved the new song,
+whose first load then timed out. When the current song changes, downloads of
+songs other than the current and next ones are cancelled
+(`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
+just_audio) and their partial files discarded; desktop already keeps a single
+sidecar download.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. While phase 2
@@ -1714,19 +1735,53 @@ Native seeks share the queue mutation lane and have the four-second control
 deadline. A stuck call retires its player before later operations can touch the
 engine, then reloads the queue using the existing load/reset deadlines. Listener
 callbacks from retired players are rejected. Settlement probes are scoped to the
-current request, confirm both forward and backward seeks within two seconds of
-the target. Native buffering may probe several byte ranges before producing a
-packet, so it has the load deadline; an unchanged packet position alone does not
-interrupt that work. A ready player that misses the target or stops position and
-buffer progress for three seconds triggers recovery. Each current
-request permits one recovery attempt. An exhausted request reports failure and
+current request and confirm both forward and backward seeks within two seconds
+of the target. While a backend waits for data its processing state can flap
+between ready and buffering several times a second, so settlement rests on the
+native position: a playing request is settled once the position advances from
+the target, a paused one once it has held the target for 300 ms. Native
+buffering may probe several byte ranges before producing a packet, so it counts
+as activity: only a player that is not buffering and neither moves nor fills for
+three seconds, or that stays away from the target for three seconds, has
+stalled. A probe that is still buffering at the load deadline keeps waiting, up
+to `NavisPlaybackTimeouts.seekProgress` (45 s), while the player's own buffer
+grew within the last three seconds or the song's cache download (desktop
+sidecar or Android lock cache) is at least half done and still receiving
+bytes: on a slow link
+a far seek in a large file legitimately takes that long, and a reload would
+start the same transfer over. When the desktop sidecar file completes first the
+probe stops and the song is reloaded from it. Each probe that gives up records
+why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
+state it saw in the seek's `unsettled` diagnostics. Each current
+request permits one recovery attempt, plus a reload from a sidecar file that
+completes during it. An exhausted request reports failure and
 suppresses automatic stream retries until another explicit transport/selection
-request, preventing a failed seek from later restarting or skipping the song.
+request, or until the song has played on normally for five seconds past where
+the seek failed, preventing a failed seek from later restarting or skipping the
+song without leaving a later, unrelated stall unrecovered.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
-`seekEvents` history. Desktop deferred initial positions survive opening and
-duration/readiness events in either order, including progressive streams that
-become playable before native duration is known. Native position events confirm
+`seekEvents` history. On desktop a load's initial position is applied by mpv
+itself: the adapter registers a media_kit `on_load` hook that sets mpv's `start`
+option for the entry being loaded (media_kit's `on_unload` hook resets it), so
+playback begins at the position and nothing from the start of the song is
+heard first. libmpv rejects a `seek` sent after `start-file` but before the
+file has loaded, and media_kit only logs that error, so retained seeks wait for
+mpv's own playback initialization (its `seeking` property, or a native
+duration), not media_kit's buffering flag, which `open()` resets to false
+before the file loads. Retained positions survive opening and duration events
+in either order, including progressive streams that become playable before
+native duration is known; one already reached natively is not seeked again.
+media_kit's 5 s `network-timeout` is raised to 60 s, above the handler's own
+deadlines, so a server that prepares the file before its first byte does not
+fail the stream, and its on-disk demuxer cache, which libmpv cannot create
+without a cache directory, is turned off. Calls just_audio routes to a player
+after a stop retired it are ignored instead of raising media_kit's disposed
+assertion. media_kit forwards libmpv decoder error lines as player errors;
+"Error decoding audio" (a FLAC frame damaged where a seek landed) is one libmpv
+recovers from by skipping the frame, so the adapter only logs it. Failing the
+source on it made just_audio dispose a player that was still playing, and the
+seek ended with playback stopped. Native position events confirm
 landing and the native `seeking` flag keeps an unfinished paused seek buffering;
 an interpolated clock cannot certify stalled decoding. The MP3 demuxer's
 `usetoc=1` option enables HTTP seeks using its table of contents rather than
@@ -1740,7 +1795,11 @@ A seek that does not land on a remote stream, a seek that keeps buffering and
 a stalled remote stream are recovered by reloading the whole logical queue at
 the current song and position (`_rebuildQueueForSeekRecovery`); when the
 desktop sidecar file for the current song is complete, that song is loaded
-from the file instead of the stream. If its independent download is at least
+from the file instead of the stream. The current song is reloaded paused,
+corrected to the position if the backend ignored its initial position, and
+only then resumed according to the latest Play/Pause intent, all before the
+rest of the queue is restored, so it is never heard from the start of the song
+while a long queue refills. If its independent download is at least
 half complete and still progressing, an explicit seek may wait up to the load
 deadline for the completed file before falling back to the stream. Three seconds
 without download progress ends that wait. Partial files are never loaded.
@@ -1890,7 +1949,20 @@ command, is cancelled by any later queue command, and is skipped once the
 user has a queue, radio or a loading selection (a user queue command marks the
 deferred restore `superseded`). A Play that finds the queue empty waits for an
 in-flight retry instead of restoring twice. `queueRestoreRetries` counts
-retries that ran. Lock-cache seek recovery uses the same two-phase
+retries that ran. A seek beyond the downloaded part of an Android
+lock-cached song is native when the origin answered the download with byte-range
+support (`LockCachingAudioSource.originSupportsRangeRequests`, a Navis addition
+to the vendored just_audio): the source fetches that range itself. A linear
+origin, such as a Navidrome transcode on a transcode-cache miss (`200`,
+`Accept-Ranges: none`), makes the source serve every request from the start of
+the song, and ExoPlayer treats a stream of unknown length as unseekable, so a
+native seek (even within the buffered part) or a direct-stream reload played
+the song from the beginning while the seek bar held the target. Such a seek
+(other than to the first second) waits while the lock-cache download
+grows (it runs faster than playback; up to `seekProgress`, three seconds without
+growth ends it) and then reloads the song from the completed file at the target;
+if the file is not complete the seek fails and playback continues where it was.
+Lock-cache seek recovery otherwise uses the same two-phase
 queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable
 batches. Completed-state Play restarts the queue only after the final prepared
