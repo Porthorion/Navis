@@ -1810,10 +1810,12 @@ initial failure reports the session `failed` with an error category, so its
 status never stays `preparing` after the mode gave up. Starting a mix supersedes
 any refill still running for the previous one: the new session's first refill
 starts at once (only a refill of the same session blocks another), and the
-superseded refill's songs, errors and retries are dropped by session identity. A failed
-initial fetch leaves the existing queue alone; failed initial queue commits
-attempt to restore the previous queue and play state. Persisted recommendation
-tracks restore as an ordinary queue after restart, without restarting refills.
+superseded refill's songs, errors and retries are dropped by session identity:
+none of them may change the new mix's queue (retain or append), state or session
+status. A failed initial fetch leaves the existing queue alone; failed initial
+queue commits attempt to restore the previous queue and play state. Persisted
+recommendation tracks restore as an ordinary queue after restart, without
+restarting refills.
 
 ## Data Flow
 
@@ -2688,27 +2690,27 @@ states without starting audio or modifying a queue.
 5. Unhydrated artist, album, and playlist interactions upgrade matching work to
    interactive priority instead of starting parallel hydrators. Artist detail
    fetches `getArtist` on its first open in each server session (an in-memory
-   set of hydrated artist ids, cleared on sign-out or server change; a
-   succeeded result marks the artist, so an offline or deferred open retries
-   next time and opens while the server is unreachable skip this check), and
-   on every open where the artist is absent, has fewer stored albums than its
-   advertised count, or has no advertised count. The session check exists
-   because a server's artist list can count local albums only: Octo-Fiesta's
-   `getArtists` reports the local count while `getArtist` adds the remote
+   set of hydrated artist ids, cleared on sign-out or server change; a succeeded
+   result marks the artist, so an offline or deferred open retries next time and
+   opens while the server is unreachable skip this check), and on every open
+   where the artist is absent, has fewer stored albums than its advertised
+   count, or has no advertised count. The session check exists because a
+   server's artist list can count local albums only: Octo-Fiesta's `getArtists`
+   reports the local count while `getArtist` adds the remote
    `ext-deezer-album-*` releases under the same artist id, which then land in
    the Albums grid with the Remote mark and hide Missing albums. Concurrent
-   opens of one artist share one request. Its explicit refresh always
-   requests that exact artist rather than a broad catalog run. Artist hydration stores the complete release metadata
-   tree, while album hydration remains lazy and normally performs one
-   `getAlbum` request plus one song transaction. Releases retain their stable
-   provider IDs even when titles match, so distinct editions are never hidden.
-   Background detail work adapts from two workers up to eight on Wi-Fi, four on
-   other unmetered networks, and one on cellular; active playback caps it at two.
-   A foreground full-catalog repair starts its per-album fallback at eight
-   workers and may ramp to 24 on idle Wi-Fi. During active playback, an
-   explicit repair remains bounded at four to eight Wi-Fi workers rather than
-   falling to the ordinary two-worker interactive cap, so a server
-   search-result window cannot turn the repair tail into a serial crawl.
+   opens of one artist share one request. Its explicit refresh always requests
+   that exact artist rather than a broad catalog run. Artist hydration stores
+   the complete release metadata tree, while album hydration remains lazy and
+   normally performs one `getAlbum` request plus one song transaction. Releases
+   retain their stable provider IDs even when titles match, so distinct editions
+   are never hidden. Background detail work adapts from two workers up to eight
+   on Wi-Fi, four on other unmetered networks, and one on cellular; active
+   playback caps it at two. A foreground full-catalog repair starts its
+   per-album fallback at eight workers and may ramp to 24 on idle Wi-Fi. During
+   active playback, an explicit repair remains bounded at four to eight Wi-Fi
+   workers rather than falling to the ordinary two-worker interactive cap, so a
+   server search-result window cannot turn the repair tail into a serial crawl.
    Multi-album detail batches yield during song-row conversion while keeping
    reconciliation and identity matching on the complete fetched batch.
 6. The transport interceptor owns at most one immediate idempotent retry and

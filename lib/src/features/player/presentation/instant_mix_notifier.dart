@@ -326,8 +326,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   /// Ends [session] as failed so it does not keep reading "preparing". A
   /// refill reports only its own session; a newer one is left alone.
-  void _reportFailed(RecommendationSession? session, InstantMixError error) {
-    if (session == null) return;
+  void _reportFailed(RecommendationSession session, InstantMixError error) {
     ref
         .read(recommendationSessionProvider.notifier)
         .report(session, stage: 'failed', errorCategory: error.name);

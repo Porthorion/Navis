@@ -347,9 +347,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         );
       }
       final mappedBeforeFallback = mappedSongCount;
-      if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
-        return;
-      }
+      if (!_isCurrent(session)) return;
       AppLogger.debug(
         'SameVibes diagnostics: mappedBeforeFallback=$mappedBeforeFallback',
       );
@@ -493,6 +491,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         );
       }
 
+      // The fallback fetch awaited; a newer mix may own the queue now, and
+      // `state` is its state. A superseded refill must not retain its seed
+      // (that would collapse the new mix's queue) or append anything.
+      if (!_isCurrent(session)) return;
       if (!state.active) {
         AppLogger.debug(
           'SameVibes diagnostics: refill canceled (state inactive post-fallback)',
@@ -510,9 +512,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               .read(queueProvider.notifier)
               .retainCurrentAsQueue(normalizedSeedSongId);
         }
-        if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
-          return;
-        }
+        if (!_isCurrent(session)) return;
         final queueLengthBeforeAppend = ref
             .read(playerStateProvider)
             .queueSongIds

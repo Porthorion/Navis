@@ -2181,6 +2181,46 @@ void main() {
       expectSecondMixActive();
     });
 
+    test('a superseded first refill whose server fallback finishes late '
+        "leaves the new mix's queue alone", () async {
+      // Without Last.fm the server fallback is the main path.
+      final firstFallback = Completer<List<Song>>();
+      when(
+        () => api.getSimilarSongs(
+          'seed-a',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) => firstFallback.future);
+      when(
+        () => api.getSimilarSongs(
+          'seed-b',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[Song(id: 'b-0', title: 'B')]);
+      final container = playing(
+        queue: const <String>['seed-a', 'seed-b'],
+        current: 'seed-a',
+      );
+      final notifier = container.read(sameVibesProvider.notifier);
+
+      unawaited(notifier.activate('seed-a'));
+      await pumpEventQueue();
+      await notifier.activate('seed-b');
+      firstFallback.complete(const <Song>[Song(id: 'a-0', title: 'A')]);
+      await pumpEventQueue();
+
+      final queue = queueOf(container);
+      expect(queue.retainedSongIds, <String>['seed-b']);
+      expect(queue.queuedSongs.map((song) => song.id), <String>['b-0']);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.seedId, 'seed-b');
+      expect(session.stage, 'active');
+      expect(session.insertedCount, 1);
+      expect(container.read(sameVibesProvider).active, isTrue);
+    });
+
     test('a playing remote seed mixes from its library copy, never queueing '
         'the copy itself', () async {
       // The main UI case: a remote search result plays and Same Vibes starts
