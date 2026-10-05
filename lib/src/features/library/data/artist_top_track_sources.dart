@@ -71,6 +71,7 @@ class ArtistTopTrackSources {
     required bool lastFmAllowed,
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
+    bool Function()? readLastFmAllowed,
   }) async {
     final name = artistName.trim();
     if (name.isEmpty) return _none;
@@ -104,7 +105,11 @@ class ArtistTopTrackSources {
       );
     }
 
-    final lastFmLoad = await _loadFromLastFm(name);
+    final lastFmLoad = await _loadFromLastFm(
+      name,
+      cancelToken,
+      readLastFmAllowed,
+    );
     if (deezerSeeds.isEmpty) {
       return (
         seeds: lastFmLoad.seeds,
@@ -201,9 +206,14 @@ class ArtistTopTrackSources {
 
   Future<({List<ArtistTopTrackSeed> seeds, bool cacheHit})> _loadFromLastFm(
     String name,
+    CancelToken? cancelToken,
+    bool Function()? readAllowed,
   ) async {
     final cacheKey = name.toLowerCase();
     final cached = await _cache.read(kLastFmTopTracksCacheNamespace, cacheKey);
+    if ((cancelToken?.isCancelled ?? false) || !(readAllowed?.call() ?? true)) {
+      return (seeds: const <ArtistTopTrackSeed>[], cacheHit: false);
+    }
     if (cached != null && cached.value is List) {
       try {
         final seeds = (cached.value! as List)
@@ -226,6 +236,7 @@ class ArtistTopTrackSources {
     final tracks = await client.getArtistTopTracks(
       artist: name,
       limit: kArtistTopTrackSeedMax,
+      cancelToken: cancelToken,
     );
     final seeds = tracks
         .map(

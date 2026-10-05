@@ -166,6 +166,11 @@ final artistTopTrackSeedsProvider = FutureProvider.autoDispose
           return buckets.primaryAlbums.map((album) => album.name);
         },
         cancelToken: cancelToken,
+        readLastFmAllowed: () =>
+            ref.mounted &&
+            ref
+                .read(integrationPolicyProvider)
+                .allows(IntegrationFeature.lastFmTopSongs),
       );
       recorder.span(kTopSongsSourceFetchSpan, <String, int>{
         'seeds': load.seeds.length,

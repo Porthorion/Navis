@@ -34,11 +34,13 @@ class ListenBrainzApiClient {
   Future<ListenBrainzTokenDetails> validateTokenDetails(
     String userToken, {
     bool userInitiated = false,
+    CancelToken? cancelToken,
   }) async {
     try {
       final options = _authOptions(userToken);
       final response = await _dio.get<Map<String, dynamic>>(
         '/validate-token',
+        cancelToken: cancelToken,
         options: userInitiated ? userInitiatedOptions(options) : options,
       );
       final data = response.data ?? const <String, dynamic>{};
@@ -58,10 +60,12 @@ class ListenBrainzApiClient {
   Future<List<ListenBrainzPlaylist>> getRecommendationPlaylists({
     required String userName,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     final encodedUserName = Uri.encodeComponent(userName);
     final response = await _dio.get<Map<String, dynamic>>(
       '/user/$encodedUserName/playlists/recommendations',
+      cancelToken: cancelToken,
       options: userToken == null || userToken.trim().isEmpty
           ? null
           : _authOptions(userToken),
@@ -109,10 +113,12 @@ class ListenBrainzApiClient {
     String playlistMbid, {
     bool fetchMetadata = true,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/playlist/$playlistMbid',
       queryParameters: <String, Object?>{'fetch_metadata': fetchMetadata},
+      cancelToken: cancelToken,
       options: userToken == null || userToken.trim().isEmpty
           ? null
           : _authOptions(userToken),

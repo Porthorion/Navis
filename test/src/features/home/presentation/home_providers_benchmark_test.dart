@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Value;
@@ -25,6 +26,7 @@ class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
   Future<List<ListenBrainzPlaylist>> getRecommendationPlaylists({
     required String userName,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     return [
       const ListenBrainzPlaylist(
@@ -41,6 +43,7 @@ class _BenchmarkListenBrainzApiClient extends ListenBrainzApiClient {
     String playlistMbid, {
     bool fetchMetadata = true,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     return playlist;
   }

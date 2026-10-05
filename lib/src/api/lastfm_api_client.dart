@@ -369,6 +369,7 @@ class LastFmApiClient {
   Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
     required String artist,
     int limit = 10,
+    CancelToken? cancelToken,
   }) async {
     final normalizedArtist = artist.trim();
     if (_apiKey.isEmpty || normalizedArtist.isEmpty || limit <= 0) {
@@ -377,6 +378,7 @@ class LastFmApiClient {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '',
+        cancelToken: cancelToken,
         queryParameters: <String, dynamic>{
           'method': 'artist.getTopTracks',
           'artist': normalizedArtist,

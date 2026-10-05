@@ -47,6 +47,7 @@ class _FakeLastFmApiClient extends LastFmApiClient {
   Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
     required String artist,
     int limit = 10,
+    CancelToken? cancelToken,
   }) async {
     callCount++;
     requestedLimit = limit;

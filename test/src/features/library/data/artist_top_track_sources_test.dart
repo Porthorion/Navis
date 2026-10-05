@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -72,6 +73,7 @@ class _FakeLastFm extends LastFmApiClient {
   Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
     required String artist,
     int limit = 10,
+    CancelToken? cancelToken,
   }) async {
     calls++;
     return tracks;
@@ -126,6 +128,42 @@ void main() {
     deezerAllowed: deezerAllowed,
     lastFmAllowed: lastFmAllowed,
   );
+
+  for (final cancel in [false, true]) {
+    test(
+      'delayed cache read respects ${cancel ? 'cancellation' : 'feature disable'}',
+      () async {
+        final gate = Completer<Directory>();
+        final entered = Completer<void>();
+        final delayedCache = IntegrationJsonCache(
+          readRootDirectory: () {
+            entered.complete();
+            return gate.future;
+          },
+        );
+        final token = CancelToken();
+        var allowed = true;
+        final pending =
+            ArtistTopTrackSources(cache: delayedCache, lastFm: lastFm).load(
+              artistId: 'artist',
+              artistName: 'Artist',
+              deezerAllowed: false,
+              lastFmAllowed: true,
+              cancelToken: token,
+              readLastFmAllowed: () => allowed,
+            );
+        await entered.future;
+        if (cancel) {
+          token.cancel();
+        } else {
+          allowed = false;
+        }
+        gate.complete(root);
+        expect((await pending).seeds, isEmpty);
+        expect(lastFm.calls, 0);
+      },
+    );
+  }
 
   test('Deezer top tracks come first, without listener counts', () async {
     deezer.top = [_track(1, 'Hit', rank: 900), _track(2, 'Second', rank: 800)];

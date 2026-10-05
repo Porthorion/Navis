@@ -1324,7 +1324,13 @@ switch means "Navis only talks to your server" when off. See
 - **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists
-  lose the virtual playlists at once.
+  lose the virtual playlists at once. The check is repeated after every wait (the
+  stored token, the caches, the startup idle delay), and its requests carry a
+  `CancelToken` cancelled when the provider rebuilds, so turning the switch
+  off while the token is read sends no token validation. Artist Top Songs
+  likewise re-reads `lastfm.topSongs` after its Last.fm cache read and passes
+  its `CancelToken` to `artist.getTopTracks`; the guard interceptor checks only
+  the service, so feature switches rely on these call-site rechecks.
 - **Enforcement, in two layers.** *Call-site gates* make a section hide itself
   instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
   (`lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,

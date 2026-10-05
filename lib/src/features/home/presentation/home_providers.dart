@@ -669,6 +669,14 @@ final listenBrainzDiscoverStreamProvider =
 Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   Ref ref,
 ) async* {
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+  bool active() =>
+      ref.mounted &&
+      !cancelToken.isCancelled &&
+      ref
+          .read(integrationPolicyProvider)
+          .isEnabled(IntegrationFeature.listenBrainzWeeklyPlaylists);
   final refreshEpoch = ref.watch(listenBrainzDiscoverRefreshEpochProvider);
   // Only the ListenBrainz identity restarts discovery; unrelated settings
   // saves (playback autosave, appearance, desktop volume) must not.
@@ -715,6 +723,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   }
 
   final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
+  if (!active()) return;
   if (token.isEmpty) {
     if (useDiagnosticsCache) {
       final cachedUserName = await cacheDao
@@ -753,7 +762,11 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
       return;
     }
     try {
-      final details = await client.validateTokenDetails(token);
+      final details = await client.validateTokenDetails(
+        token,
+        cancelToken: cancelToken,
+      );
+      if (!active()) return;
       if (!details.valid) {
         AppLogger.debug(
           'ListenBrainz discover skipped: stored token failed validation.',
@@ -813,6 +826,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
           userName: sessionKey,
         )
       : const <ListenBrainzDiscoverPlaylist>[];
+  if (!active()) return;
   AppLogger.debug(
     'ListenBrainz discover weekly cache '
     '${persistentCached.isEmpty ? 'miss' : 'hit'}: count='
@@ -861,6 +875,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
       );
       await for (final visible in _resolveListenBrainzWeeklyPlaylists(
         ref: ref,
+        cancelToken: cancelToken,
         client: client,
         api: api,
         dao: dao,
@@ -882,7 +897,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
       'user=$sessionKey epoch=$refreshEpoch.',
     );
     await Future<void>.delayed(Duration.zero);
-    if (!ref.mounted) {
+    if (!active()) {
       return;
     }
     if (!hadPersistentCache) {
@@ -895,7 +910,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     }
     while (ref.read(listenBrainzDiscoverStartupSyncStateProvider).isRunning) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (!ref.mounted) {
+      if (!active()) {
         return;
       }
     }
@@ -916,7 +931,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     if (_listenBrainzSkipStartupIdleOnce) {
       _listenBrainzSkipStartupIdleOnce = false;
     }
-    if (!ref.mounted) {
+    if (!active()) {
       return;
     }
     AppLogger.debug(
@@ -925,6 +940,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
 
     await for (final visible in _resolveListenBrainzWeeklyPlaylists(
       ref: ref,
+      cancelToken: cancelToken,
       client: client,
       api: api,
       dao: dao,
@@ -979,6 +995,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
 
 Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
   required Ref ref,
+  required CancelToken cancelToken,
   required ListenBrainzApiClient client,
   required SubsonicApiClient? api,
   required LibraryDao dao,
@@ -995,6 +1012,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
     client: client,
     userName: userName,
     token: token,
+    cancelToken: cancelToken,
   );
   if (!ref.mounted) {
     return;
@@ -1070,6 +1088,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
             client: client,
             metadata: metadata,
             token: token,
+            cancelToken: cancelToken,
           ),
         ),
       ),
@@ -1291,11 +1310,13 @@ Future<List<ListenBrainzPlaylist>> _fetchListenBrainzPlaylistMetadata({
   required ListenBrainzApiClient client,
   required String userName,
   required String token,
+  CancelToken? cancelToken,
 }) async {
   try {
     final recommendations = await client.getRecommendationPlaylists(
       userName: userName,
       userToken: token,
+      cancelToken: cancelToken,
     );
     AppLogger.debug(
       'ListenBrainz discover recommendations fetched count='
@@ -1324,6 +1345,7 @@ Future<ListenBrainzDiscoverPlaylist?> _fetchListenBrainzTargetDetail({
   required ListenBrainzApiClient client,
   required ListenBrainzPlaylist metadata,
   required String token,
+  CancelToken? cancelToken,
 }) async {
   final identifier = metadata.identifier.trim();
   if (identifier.isEmpty) {
@@ -1335,6 +1357,7 @@ Future<ListenBrainzDiscoverPlaylist?> _fetchListenBrainzTargetDetail({
       identifier,
       fetchMetadata: true,
       userToken: token,
+      cancelToken: cancelToken,
     );
   } on DioException catch (error) {
     final status = error.response?.statusCode;

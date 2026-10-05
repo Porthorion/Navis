@@ -165,6 +165,17 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   int createdForCalls = 0;
   int userPlaylistCalls = 0;
   int recommendationPlaylistCalls = 0;
+  int validationCalls = 0;
+
+  @override
+  Future<ListenBrainzTokenDetails> validateTokenDetails(
+    String userToken, {
+    bool userInitiated = false,
+    CancelToken? cancelToken,
+  }) async {
+    validationCalls++;
+    return const ListenBrainzTokenDetails(valid: true, userName: 'alice');
+  }
 
   @override
   Future<List<ListenBrainzPlaylist>> getCreatedForPlaylists({
@@ -191,6 +202,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   Future<List<ListenBrainzPlaylist>> getRecommendationPlaylists({
     required String userName,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     recommendationPlaylistCalls++;
     if (recommendationCompleter != null) {
@@ -204,6 +216,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
     String playlistMbid, {
     bool fetchMetadata = true,
     String? userToken,
+    CancelToken? cancelToken,
   }) async {
     detailStarts.add(playlistMbid);
     final detailCompleter = detailCompleters[playlistMbid];
@@ -246,6 +259,7 @@ class _CountingExternalScrobbleCredentialStore
 
   final String? token;
   int reads = 0;
+  Completer<String?>? gate;
 
   @override
   Future<void> clearListenBrainzToken() async {}
@@ -253,7 +267,7 @@ class _CountingExternalScrobbleCredentialStore
   @override
   Future<String?> readListenBrainzToken() async {
     reads++;
-    return token;
+    return gate == null ? token : await gate!.future;
   }
 
   @override
@@ -297,6 +311,7 @@ List<Override> _listenBrainzWeeklyOverrides({
   Duration startupIdleDelay = Duration.zero,
   Override? startupSyncStateOverride,
   Override? appSettingsOverride,
+  Override? credentialStoreOverride,
 }) {
   return withHomeShowcaseTestOverrides(
     database,
@@ -317,9 +332,10 @@ List<Override> _listenBrainzWeeklyOverrides({
               ),
             ),
           ),
-      externalScrobbleCredentialStoreProvider.overrideWithValue(
-        const _FakeExternalScrobbleCredentialStore('token'),
-      ),
+      credentialStoreOverride ??
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
       listenBrainzApiClientProvider.overrideWithValue(listenBrainz),
       subsonicApiProvider.overrideWithValue(subsonic),
     ],
@@ -521,6 +537,55 @@ void main() {
           disabledIntegrations: disabled,
           externalIntegrationsEnabled: master,
         );
+
+    test(
+      'disabling weekly playlists during a credential read prevents validation',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final settings = StreamController<AppSettingsModel>();
+        addTearDown(settings.close);
+        final client = _weeklyListenBrainzClient();
+        final credentials = _CountingExternalScrobbleCredentialStore('fixture')
+          ..gate = Completer<String?>();
+        final container = ProviderContainer(
+          overrides: [
+            ..._listenBrainzWeeklyOverrides(
+              database: database,
+              listenBrainz: client,
+              subsonic: null,
+              appSettingsOverride: appSettingsProvider.overrideWith(
+                (ref) => settings.stream,
+              ),
+              credentialStoreOverride: externalScrobbleCredentialStoreProvider
+                  .overrideWithValue(credentials),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(listenBrainzDiscoverStreamProvider, (_, _) {});
+        settings.add(
+          weekly().copyWith(
+            listenBrainzTokenValid: false,
+            clearListenBrainzUserName: true,
+          ),
+        );
+        await container.read(appSettingsProvider.future);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(credentials.reads, 1);
+        settings.add(
+          weekly(disabled: '["listenbrainz.weeklyPlaylists"]').copyWith(
+            listenBrainzTokenValid: false,
+            clearListenBrainzUserName: true,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        credentials.gate!.complete('fixture');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(client.validationCalls, 0);
+        expect(client.recommendationPlaylistCalls, 0);
+      },
+    );
 
     test('a closed gate yields no playlists and makes no requests', () async {
       final database = createTestDatabase();
