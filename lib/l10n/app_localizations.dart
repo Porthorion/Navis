@@ -3557,6 +3557,60 @@ abstract class AppLocalizations {
   /// **'Similar Artists'**
   String get artistDetailSimilarSection;
 
+  /// No description provided for @artistDetailFansAlsoLikeSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Fans also like'**
+  String get artistDetailFansAlsoLikeSection;
+
+  /// No description provided for @artistDetailMissingAlbumsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing albums'**
+  String get artistDetailMissingAlbumsSection;
+
+  /// Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 fan} other{{count} fans}}'**
+  String artistDetailFanCount(int count);
+
+  /// No description provided for @deezerReleaseTypeAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get deezerReleaseTypeAlbum;
+
+  /// No description provided for @deezerReleaseTypeEp.
+  ///
+  /// In en, this message translates to:
+  /// **'EP'**
+  String get deezerReleaseTypeEp;
+
+  /// No description provided for @deezerReleaseTypeSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'Single'**
+  String get deezerReleaseTypeSingle;
+
+  /// No description provided for @deezerReleaseTypeCompilation.
+  ///
+  /// In en, this message translates to:
+  /// **'Compilation'**
+  String get deezerReleaseTypeCompilation;
+
+  /// No description provided for @deezerReleaseTrackCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 song} other{{count} songs}}'**
+  String deezerReleaseTrackCount(int count);
+
+  /// No description provided for @deezerReleaseSearchServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Search your server'**
+  String get deezerReleaseSearchServer;
+
   /// No description provided for @artistDetailAlbumsErrorTitle.
   ///
   /// In en, this message translates to:

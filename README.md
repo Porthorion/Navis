@@ -149,7 +149,9 @@ Navis only talks to your server. Everything is on by default.
 
 - **Deezer** — artist top songs (Last.fm as fallback; with neither, "This
   Is <Artist>" becomes a shuffle of the artist's library songs), artist
-  photos, "Fans also like", missing albums, new releases and trending songs.
+  photos and fan counts, "Fans also like", missing albums (hidden when your
+  server has its own remote catalogue for the artist), new releases and
+  trending songs.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No
   Last.fm scrobbling. Release builds bundle an API key, masked at build time to

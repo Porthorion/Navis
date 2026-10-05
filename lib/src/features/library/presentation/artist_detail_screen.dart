@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/common_widgets/external_album_card.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -12,7 +14,6 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -20,10 +21,15 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
+import 'package:navis/src/features/library/domain/artist_header_image.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/similar_artists_section.dart';
 import 'package:navis/src/common_widgets/artist_playback_action.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
@@ -111,6 +117,36 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         }
 
         final isStarred = _isStarred || artistData.starred != null;
+        final artistKey = (artistId: artistData.id, name: artistData.name);
+        final deezerArtist = ref
+            .watch(artistDeezerDetailsProvider(artistKey))
+            .value;
+        final policy = ref.watch(integrationPolicyProvider);
+        final serverHost = ref.watch(serverHostProvider);
+        // Server photo first, then Deezer's; placeholders and refused URLs
+        // are left out (see artistHeaderImageUrls).
+        final headerImageUrls =
+            artistHeaderImageUrls(
+                  serverLargeImageUrl: artistInfo.value?.largeImageUrl,
+                  serverMediumImageUrl: artistInfo.value?.mediumImageUrl,
+                  deezerPictureUrl: deezerArtist?.pictureXl,
+                )
+                .where((url) {
+                  final uri = Uri.tryParse(url);
+                  return uri != null &&
+                      integrationAllowsArtworkUri(
+                        policy,
+                        uri,
+                        serverHost: serverHost,
+                      );
+                })
+                .toList(growable: false);
+        final fanCount = deezerArtist?.fanCount ?? 0;
+        final headerSummary = <String>[
+          if (artistData.albumCount case final albumCount?)
+            l10n.artistCardAlbumCount(albumCount),
+          if (fanCount > 0) l10n.artistDetailFanCount(fanCount),
+        ].join(' • ');
 
         return RefreshIndicator(
           onRefresh: () => ref
@@ -122,63 +158,20 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               SliverList.list(
                 children: [
                   // ── Artist image header with name + heart overlaid ──────────
-                  artistInfo.when(
-                    data: (info) {
-                      final url =
-                          info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
-                      // A photo the policy refuses is treated as no photo.
-                      if (url.isNotEmpty &&
-                          integrationAllowsArtworkUri(
-                            ref.watch(integrationPolicyProvider),
-                            Uri.parse(url),
-                            serverHost: ref.watch(serverHostProvider),
-                          )) {
-                        return _ArtistImageHeader(
-                          imageUrl: url,
-                          artistName: artistData.name,
-                          albumCount: artistData.albumCount,
-                          isStarred: isStarred,
-                          isStarring: _isStarring,
-                          onStarToggle: _isStarring
-                              ? null
-                              : () => _toggleStar(isStarred: isStarred),
-                          starTooltip: l10n.albumDetailStarAction,
-                          isExternalSource: artistData.isExternal,
-                        );
-                      }
-                      // No photo — plain name row
-                      return _ArtistNameHeader(
-                        name: artistData.name,
-                        albumCount: artistData.albumCount,
-                        isExternalSource: artistData.isExternal,
-                        isStarred: isStarred,
-                        isStarring: _isStarring,
-                        onStarToggle: _isStarring
-                            ? null
-                            : () => _toggleStar(isStarred: isStarred),
-                        starTooltip: l10n.albumDetailStarAction,
-                      );
-                    },
-                    loading: () => _ArtistNameHeader(
-                      name: artistData.name,
-                      albumCount: artistData.albumCount,
-                      isExternalSource: artistData.isExternal,
-                      isStarred: isStarred,
-                      isStarring: _isStarring,
-                      onStarToggle: null,
-                      starTooltip: l10n.albumDetailStarAction,
-                    ),
-                    error: (_, _) => _ArtistNameHeader(
-                      name: artistData.name,
-                      albumCount: artistData.albumCount,
-                      isExternalSource: artistData.isExternal,
-                      isStarred: isStarred,
-                      isStarring: _isStarring,
-                      onStarToggle: _isStarring
-                          ? null
-                          : () => _toggleStar(isStarred: isStarred),
-                      starTooltip: l10n.albumDetailStarAction,
-                    ),
+                  _ArtistHeader(
+                    artist: artistData,
+                    imageUrls: headerImageUrls,
+                    summary: headerSummary,
+                    // The server's photo may still arrive; until then the
+                    // plain header stands in and the heart waits.
+                    waitingForServerPhoto:
+                        artistInfo.isLoading && !artistInfo.hasValue,
+                    isStarred: isStarred,
+                    isStarring: _isStarring,
+                    onStarToggle: _isStarring
+                        ? null
+                        : () => _toggleStar(isStarred: isStarred),
+                    starTooltip: l10n.albumDetailStarAction,
                   ),
                   // ── Bio ─────────────────────────────────────────────────────
                   artistInfo.when(
@@ -243,9 +236,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   _ArtistTopTracksPlaylistCard(
                     artistId: artistData.id,
                     artistName: artistData.name,
-                    imageUrl:
-                        artistInfo.asData?.value?.largeImageUrl ??
-                        artistInfo.asData?.value?.mediumImageUrl,
+                    imageUrl: headerImageUrls.firstOrNull,
                     albumCoverArtIds: <String>[
                       for (final album
                           in albumSections.asData?.value.albums ??
@@ -300,37 +291,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   ),
                 ),
               ),
+              // ── Missing albums (Deezer releases the server lacks) ───────
+              _MissingAlbumsSection(
+                artistKey: artistKey,
+                artistName: artistData.name,
+              ),
               SliverList.list(
                 children: [
-                  // ── Similar Artists (below albums for navigation continuity) ─
-                  artistInfo.when(
-                    data: (info) {
-                      final currentArtistId = widget.artistId.trim();
-                      final similar = (info?.similarArtists ?? const <Artist>[])
-                          .where((artist) {
-                            final candidateId = artist.id.trim();
-                            return candidateId.isNotEmpty &&
-                                candidateId != currentArtistId;
-                          })
-                          .toList(growable: false);
-                      if (similar.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return _SimilarArtistsSection(
-                        title: l10n.artistDetailSimilarSection,
-                        artists: similar
-                            .map(
-                              (artist) => _SimilarArtistEntry(
-                                id: artist.id,
-                                name: artist.name,
-                                coverArt: artist.coverArt,
-                              ),
-                            )
-                            .toList(growable: false),
-                      );
-                    },
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, _) => const SizedBox.shrink(),
+                  // ── Fans also like / Similar Artists (below albums) ─────────
+                  _RelatedArtistsSection(
+                    artistKey: artistKey,
+                    artistInfo: artistInfo,
                   ),
                   if (ref.watch(audioMuseAvailableProvider))
                     _AudioMuseSimilarArtists(artistId: widget.artistId),
@@ -533,24 +504,106 @@ class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
   }
 }
 
+/// The artist page header: the first photo of [imageUrls] that loads, under
+/// the name, the summary line and the heart, or the plain name header when
+/// none does. A photo that fails to load hands over to the next one, so a
+/// broken server photo shows Deezer's and a broken Deezer photo the name
+/// header, never a blank box.
+class _ArtistHeader extends StatefulWidget {
+  const new({
+    required this.artist,
+    required this.imageUrls,
+    required this.summary,
+    required this.waitingForServerPhoto,
+    required this.isStarred,
+    required this.isStarring,
+    required this.onStarToggle,
+    required this.starTooltip,
+  });
+
+  final ArtistsTableData artist;
+  final List<String> imageUrls;
+
+  /// "12 albums • 4.1M fans"; empty to show no line.
+  final String summary;
+  final bool waitingForServerPhoto;
+  final bool isStarred;
+  final bool isStarring;
+  final VoidCallback? onStarToggle;
+  final String starTooltip;
+
+  @override
+  State<_ArtistHeader> createState() => _ArtistHeaderState();
+}
+
+class _ArtistHeaderState extends State<_ArtistHeader> {
+  final Set<String> _failedUrls = <String>{};
+
+  /// Called while the failed image builds its fallback, so the switch to the
+  /// next photo waits for the end of the frame.
+  void _imageFailed(String url) {
+    if (!_failedUrls.add(url)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final artist = widget.artist;
+    final imageUrl = widget.waitingForServerPhoto
+        ? null
+        : widget.imageUrls
+              .where((url) => !_failedUrls.contains(url))
+              .firstOrNull;
+    if (imageUrl != null) {
+      return _ArtistImageHeader(
+        key: ValueKey<String>('artist-header-image:$imageUrl'),
+        imageUrl: imageUrl,
+        onImageFailed: () => _imageFailed(imageUrl),
+        artistName: artist.name,
+        summary: widget.summary,
+        isStarred: widget.isStarred,
+        isStarring: widget.isStarring,
+        onStarToggle: widget.onStarToggle,
+        starTooltip: widget.starTooltip,
+        isExternalSource: artist.isExternal,
+      );
+    }
+    return _ArtistNameHeader(
+      key: const ValueKey<String>('artist-name-header'),
+      name: artist.name,
+      summary: widget.summary,
+      isExternalSource: artist.isExternal,
+      isStarred: widget.isStarred,
+      isStarring: widget.isStarring,
+      onStarToggle: widget.waitingForServerPhoto ? null : widget.onStarToggle,
+      starTooltip: widget.starTooltip,
+    );
+  }
+}
+
 /// Full-width header image shown at the top of the artist detail page when
-/// the artist has a photo from the Last.fm / MusicBrainz metadata.
-/// Overlays the artist name and heart/star icon at the bottom of the image.
+/// the artist has a photo (the server's, else Deezer's). Overlays the artist
+/// name, the summary line and the heart at the bottom of the image.
 class _ArtistImageHeader extends StatelessWidget {
   const new({
     required this.imageUrl,
+    required this.onImageFailed,
     required this.artistName,
-    required this.albumCount,
+    required this.summary,
     required this.isStarred,
     required this.isStarring,
     required this.onStarToggle,
     required this.starTooltip,
     required this.isExternalSource,
+    super.key,
   });
 
   final String imageUrl;
+  final VoidCallback onImageFailed;
   final String artistName;
-  final int? albumCount;
+  final String summary;
   final bool isStarred;
   final bool isStarring;
   final VoidCallback? onStarToggle;
@@ -588,7 +641,10 @@ class _ArtistImageHeader extends StatelessWidget {
                 url: imageUrl,
                 fit: BoxFit.cover,
                 alignment: imageAlignment,
-                fallbackBuilder: (_) => const SizedBox.shrink(),
+                fallbackBuilder: (_) {
+                  onImageFailed();
+                  return const SizedBox.shrink();
+                },
               ),
               // Dual gradient: slight top vignette + heavy bottom scrim
               const DecoratedBox(
@@ -645,11 +701,10 @@ class _ArtistImageHeader extends StatelessWidget {
                               overflow: TextOverflow.clip,
                             ),
                           ),
-                          if (albumCount != null) ...<Widget>[
+                          if (summary.isNotEmpty) ...<Widget>[
                             const SizedBox(height: 6),
                             Text(
-                              AppLocalizations.of(context)!
-                                  .artistCardAlbumCount(albumCount!),
+                              summary,
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
                                     color: Colors.white.withValues(alpha: 0.82),
@@ -699,16 +754,17 @@ class _ArtistImageHeader extends StatelessWidget {
 class _ArtistNameHeader extends ConsumerWidget {
   const new({
     required this.name,
-    required this.albumCount,
+    required this.summary,
     required this.isStarred,
     required this.isStarring,
     required this.onStarToggle,
     required this.starTooltip,
     required this.isExternalSource,
+    super.key,
   });
 
   final String name;
-  final int? albumCount;
+  final String summary;
   final bool isStarred;
   final bool isStarring;
   final VoidCallback? onStarToggle;
@@ -717,7 +773,6 @@ class _ArtistNameHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final artistShape = ref.watch(artistCardShapeProvider);
@@ -771,9 +826,9 @@ class _ArtistNameHeader extends ConsumerWidget {
                     overflow: TextOverflow.clip,
                   ),
                 ),
-                if (albumCount != null) ...<Widget>[
+                if (summary.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 6),
-                  Text(l10n.artistCardAlbumCount(albumCount!)),
+                  Text(summary),
                 ],
                 if (isExternalSource) ...<Widget>[
                   const SizedBox(height: 8),
@@ -1020,119 +1075,128 @@ class _ArtistAlbumSection extends ConsumerWidget {
   }
 }
 
-class _SimilarArtistEntry {
-  const new({required this.id, required this.name, this.coverArt});
+/// Deezer's "Fans also like" when it has artists for this artist, otherwise
+/// the server's similar artists. Nothing shows while Deezer loads, so one list
+/// never replaces the other on screen.
+class _RelatedArtistsSection extends ConsumerWidget {
+  const new({required this.artistKey, required this.artistInfo});
 
-  final String id;
-  final String name;
-  final String? coverArt;
-}
-
-class _SimilarArtistsSection extends ConsumerWidget {
-  const new({required this.title, required this.artists});
-
-  final String title;
-  final List<_SimilarArtistEntry> artists;
+  final ArtistPageKey artistKey;
+  final AsyncValue<ArtistInfo?> artistInfo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (artists.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: NavisSectionHeader(title: title),
-          ),
-          const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final grid = ContentLayout.artists(
-                constraints.maxWidth,
-                ref.watch(gridArtworkSizeProvider),
-              );
-              final crossAxisCount = grid.columns;
-              final inset = (constraints.maxWidth - grid.occupiedWidth) / 2;
-              final maxVisible = crossAxisCount * 2;
-              final visibleArtists = artists
-                  .take(maxVisible)
-                  .toList(growable: false);
-
-              return GridView.builder(
-                padding: EdgeInsets.symmetric(horizontal: inset),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: visibleArtists.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisExtent: artistTileHeight(context, grid.extent),
-                  crossAxisSpacing: grid.gap,
-                  mainAxisSpacing: grid.gap,
+    final l10n = AppLocalizations.of(context)!;
+    return ref
+        .watch(artistFansAlsoLikeProvider(artistKey))
+        .when(
+          data: (entries) => entries.isEmpty
+              ? _serverSimilarArtists(l10n)
+              : SimilarArtistsSection(
+                  key: const ValueKey<String>('artist-fans-also-like'),
+                  title: l10n.artistDetailFansAlsoLikeSection,
+                  artists: entries,
                 ),
-                itemBuilder: (context, index) {
-                  final artist = visibleArtists[index];
-                  return _SimilarArtistCard(artist: artist);
-                },
-              );
-            },
-          ),
-        ],
-      ),
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => _serverSimilarArtists(l10n),
+        );
+  }
+
+  Widget _serverSimilarArtists(AppLocalizations l10n) {
+    return artistInfo.when(
+      data: (info) {
+        final currentArtistId = artistKey.artistId.trim();
+        final similar = (info?.similarArtists ?? const <Artist>[])
+            .where((artist) {
+              final candidateId = artist.id.trim();
+              return candidateId.isNotEmpty && candidateId != currentArtistId;
+            })
+            .map(
+              (artist) => SimilarArtistEntry(
+                name: artist.name,
+                libraryArtistId: artist.id,
+                coverArt: artist.coverArt,
+              ),
+            )
+            .toList(growable: false);
+        return SimilarArtistsSection(
+          title: l10n.artistDetailSimilarSection,
+          artists: similar,
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }
 
-class _SimilarArtistCard extends ConsumerWidget {
-  const new({required this.artist});
+/// Deezer albums and EPs of the artist that the server lacks, as a shelf
+/// below the album grids. Hidden while there are none (including while
+/// anything loads, and whenever the server has remote albums for the artist).
+class _MissingAlbumsSection extends ConsumerWidget {
+  const new({required this.artistKey, required this.artistName});
 
-  final _SimilarArtistEntry artist;
+  final ArtistPageKey artistKey;
+  final String artistName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return InkWell(
-      borderRadius: NavisRadius.mdAll,
-      onTap: () => NavService.openArtistDetail(context, ref, artist.id),
-      onLongPress: () =>
-          unawaited(showArtistContextMenu(context, ref, artist.id)),
-      onSecondaryTapDown: (details) => unawaited(
-        showArtistContextMenu(
-          context,
-          ref,
-          artist.id,
-          anchor: details.globalPosition,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: CoverArtImage(
-                  coverArtId: artist.coverArt,
-                  size: kCoverArtStandardSize,
-                  shape: ArtworkShapeRole.artist,
-                  placeholderIcon: Icons.person_outline,
+    final albums = ref.watch(artistMissingAlbumsProvider(artistKey));
+    if (albums.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final l10n = AppLocalizations.of(context)!;
+    return SliverToBoxAdapter(
+      child: Column(
+        key: const ValueKey<String>('artist-missing-albums'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: NavisSectionHeader(
+              title: l10n.artistDetailMissingAlbumsSection,
+            ),
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final padding = ContentLayout.padding(width);
+              // The Home carousel card size, so this shelf and Home's
+              // release shelves share one card.
+              final extent = width < 600 ? 150.0 : 164.0;
+              return Padding(
+                // The album grids' insets, bottom included.
+                padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
+                child: ContentShelf(
+                  height: extent,
+                  extent: extent,
+                  gap: ContentLayout.gap(width - padding * 2),
+                  itemCount: albums.length,
+                  itemBuilder: (context, index) {
+                    final album = albums[index];
+                    return ExternalAlbumCard(
+                      key: ValueKey<String>('missing-album-${album.id}'),
+                      title: album.title,
+                      subtitle: deezerReleaseSummary(l10n, album),
+                      coverUrl: deezerReleaseCoverUrl(album),
+                      feature: IntegrationFeature.deezerMissingAlbums,
+                      extent: extent,
+                      onTap: () => unawaited(
+                        showDeezerReleaseSheet(
+                          context,
+                          ref,
+                          album: album,
+                          artistName: artistName,
+                          feature: IntegrationFeature.deezerMissingAlbums,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              artist.name,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1160,10 +1224,15 @@ class _AudioMuseSimilarArtists extends ConsumerWidget {
             })
             .toList(growable: false);
         if (filteredRecs.isEmpty) return const SizedBox.shrink();
-        return _SimilarArtistsSection(
+        return SimilarArtistsSection(
           title: l10n.audioMuseSimilarArtists,
           artists: filteredRecs
-              .map((rec) => _SimilarArtistEntry(id: rec.id, name: rec.title))
+              .map(
+                (rec) => SimilarArtistEntry(
+                  name: rec.title,
+                  libraryArtistId: rec.id,
+                ),
+              )
               .toList(growable: false),
         );
       },

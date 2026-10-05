@@ -184,6 +184,66 @@ void main() {
     expect(albums.single.recordType, 'album');
   });
 
+  test('getArtist parses the photo and fan count', () async {
+    adapter.queue('/artist/1105', <String, Object?>{
+      'id': 1105,
+      'name': 'ONE OK ROCK',
+      'picture_xl':
+          'https://cdn-images.dzcdn.net/images/artist/h/1000x1000.jpg',
+      'nb_album': 31,
+      'nb_fan': 1234567,
+      'type': 'artist',
+    });
+
+    final artist = await client.getArtist(1105);
+
+    expect(artist?.name, 'ONE OK ROCK');
+    expect(artist?.fanCount, 1234567);
+    expect(
+      artist?.pictureXl,
+      'https://cdn-images.dzcdn.net/images/artist/h/1000x1000.jpg',
+    );
+  });
+
+  test('getArtist and getAlbum read code 800 as not found', () async {
+    adapter
+      ..queue('/artist/9', _error(800, 'DataException', 'no data'))
+      ..queue('/album/9', _error(800, 'DataException', 'no data'));
+
+    expect(await client.getArtist(9), isNull);
+    expect(await client.getAlbum(9), isNull);
+  });
+
+  test('getRelatedArtists parses artists and sends the limit', () async {
+    adapter.queue('/artist/1105/related', <String, Object?>{
+      'data': <Object?>[
+        <String, Object?>{'id': 4, 'name': 'Coldrain', 'nb_fan': 10},
+        <String, Object?>{'id': 0, 'name': 'No id'},
+      ],
+    });
+
+    final related = await client.getRelatedArtists(1105, limit: 12);
+
+    expect(related.map((artist) => artist.name), ['Coldrain']);
+    expect(adapter.requests.single.queryParameters['limit'], '12');
+  });
+
+  test('getAlbum parses the track count', () async {
+    adapter.queue('/album/302127', <String, Object?>{
+      'id': 302127,
+      'title': 'Ambitions (Japanese Version)',
+      'record_type': 'album',
+      'release_date': '2017-01-11',
+      'nb_tracks': 14,
+    });
+
+    final album = await client.getAlbum(302127);
+
+    expect(album?.title, 'Ambitions (Japanese Version)');
+    expect(album?.trackCount, 14);
+    expect(album?.releaseDate, '2017-01-11');
+  });
+
   test('code 800 (no data) reads as an empty result', () async {
     adapter.queue('/artist/0/top', _error(800, 'DataException', 'no data'));
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -14,6 +15,9 @@ class _FakeDeezer extends DeezerApiClient {
   Map<int, List<DeezerAlbum>> albumsByArtist = const {};
   Exception? searchError;
   int searchCalls = 0;
+
+  /// Holds every search until completed.
+  Completer<void>? searchGate;
   final List<int> albumCalls = <int>[];
 
   @override
@@ -23,6 +27,13 @@ class _FakeDeezer extends DeezerApiClient {
     CancelToken? cancelToken,
   }) async {
     searchCalls++;
+    if (searchGate case final gate?) await gate.future;
+    if (cancelToken?.isCancelled ?? false) {
+      throw DioException.requestCancelled(
+        requestOptions: RequestOptions(path: 'search/artist'),
+        reason: 'left',
+      );
+    }
     if (searchError case final error?) throw error;
     return artists;
   }
@@ -200,5 +211,44 @@ void main() {
       ..searchError = null
       ..artists = const [DeezerArtist(id: 412, name: 'Queen')];
     expect(await resolver.resolve(artistId: 'q', name: 'Queen'), 412);
+  });
+
+  test('callers resolving the same name at once share one search', () async {
+    deezer
+      ..artists = const [DeezerArtist(id: 412, name: 'Queen')]
+      ..searchGate = Completer<void>();
+
+    final first = resolver.resolve(artistId: 'q', name: 'Queen');
+    final second = resolver.resolve(artistId: 'q', name: 'QUEEN');
+    await pumpEventQueue();
+    deezer.searchGate!.complete();
+
+    expect(await Future.wait([first, second]), [412, 412]);
+    expect(deezer.searchCalls, 1);
+  });
+
+  test('a caller resolves again when the one it shared with left', () async {
+    deezer
+      ..artists = const [DeezerArtist(id: 412, name: 'Queen')]
+      ..searchGate = Completer<void>();
+    final leaving = CancelToken();
+
+    final first = resolver.resolve(
+      artistId: 'q',
+      name: 'Queen',
+      cancelToken: leaving,
+    );
+    final second = resolver.resolve(
+      artistId: 'q',
+      name: 'Queen',
+      cancelToken: CancelToken(),
+    );
+    await pumpEventQueue();
+    leaving.cancel();
+    deezer.searchGate!.complete();
+
+    await expectLater(first, throwsA(isA<DioException>()));
+    expect(await second, 412);
+    expect(deezer.searchCalls, 2);
   });
 }

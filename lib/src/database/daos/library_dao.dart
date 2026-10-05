@@ -2301,6 +2301,44 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return matches.length == 1 ? matches.single : null;
   }
 
+  /// Library artists named like [names], keyed by the `normalizeMetadata`
+  /// key of the name. One query covers the whole list.
+  ///
+  /// When several library artists share a key, the one from the server
+  /// library wins over a remote-catalogue one, then the one with more albums.
+  Future<Map<String, ArtistsTableData>> findArtistsByNormalizedNames(
+    Iterable<String> names,
+  ) async {
+    final keys = names
+        .map(_normalizeMetadataLookup)
+        .where((key) => key.isNotEmpty)
+        .toSet();
+    if (keys.isEmpty) return const <String, ArtistsTableData>{};
+
+    final found = <String, ArtistsTableData>{};
+    for (final artist in await getAllArtists()) {
+      final key = _normalizeMetadataLookup(artist.name);
+      if (!keys.contains(key)) continue;
+      final current = found[key];
+      if (current == null || _isPreferredNamesake(artist, over: current)) {
+        found[key] = artist;
+      }
+    }
+    return found;
+  }
+
+  static bool _isPreferredNamesake(
+    ArtistsTableData candidate, {
+    required ArtistsTableData over,
+  }) {
+    if (candidate.isExternal != over.isExternal) return !candidate.isExternal;
+    final byAlbums = (candidate.albumCount ?? 0).compareTo(
+      over.albumCount ?? 0,
+    );
+    if (byAlbums != 0) return byAlbums > 0;
+    return candidate.id.compareTo(over.id) < 0;
+  }
+
   Future<int> countArtists() async {
     final countExpression = artistsTable.id.count();
     final query = selectOnly(artistsTable)

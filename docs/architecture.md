@@ -1394,9 +1394,9 @@ below Deezer's quota of about 50 requests per 5 seconds. Deezer reports errors
 as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
 retried once after 5 seconds, code 800 ("no data") reads as an empty result,
 and any other code throws `DeezerApiException`. Endpoints used so far:
-`/search/artist`, `/artist/{id}/top`, `/search/track` and
-`/artist/{id}/albums`; new ones go through `getJson` to inherit the limiter and
-error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
+`/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
+`/artist/{id}/related`, `/artist/{id}/albums` and `/album/{id}`; new ones go
+through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
 and round-trip through `toJson` for the cache. In some regions
 `/artist/{id}/top` returns no tracks for every artist, so callers must have a
@@ -1410,7 +1410,8 @@ fallback.
   because the directory comes from `path_provider`, which clones replace.
   `DeezerCache` holds the Deezer namespaces and lifetimes: artist name to id
   30 days ("not on Deezer" 7), artist details and related artists 7 days,
-  albums and track searches 24 hours, charts 6 hours. It replaced
+  an artist's albums and track searches 24 hours, one album 7 days, charts 6
+  hours. It replaced
   `LastFmArtistCache`; files that cache wrote (`lastfm_top_<hash>.json`) are
   no longer read.
 - **Artist resolution.** `DeezerArtistResolver`
@@ -1473,6 +1474,67 @@ fallback.
   "Shuffle everything by <Artist>" with the artist's album covers, which calls
   `startArtistPlayback(..., ArtistPlaybackAction.shuffle)`. The top-songs page
   shows an empty state with the same action when there are no songs.
+
+### Deezer on the artist page
+
+Three more artist-page features use Deezer, each behind its own switch and
+each hiding itself or falling back when the switch is off, Deezer has nothing
+or a request fails. The providers are in
+`features/library/presentation/artist_deezer_providers.dart`, keyed by
+`ArtistPageKey` `(artistId, name)`. They share `artistDeezerIdProvider` (the
+resolver above), which is only watched after a feature switch has been
+checked, so with all three off the page sends nothing to Deezer.
+`DeezerCatalog` (`features/integrations/data/deezer_catalog.dart`,
+`deezerCatalogProvider`) reads `/artist/{id}`, `/artist/{id}/related`,
+`/artist/{id}/albums` and `/album/{id}` through the disk cache: artist details
+and related artists 7 days, albums 24 hours, an album 7 days, "not on Deezer"
+included; errors are not cached. The resolver shares one resolution between
+callers asking for the same name at once (Top Songs and these sections on a
+first visit).
+
+- **Header photo and fans** (`deezer.artistImages`,
+  `artistDeezerDetailsProvider`). `artistHeaderImageUrls`
+  (`features/library/domain/artist_header_image.dart`) lists the server's
+  photo (large, else medium), then Deezer's `picture_xl`. Empty strings, URLs
+  that do not parse, Last.fm's grey star (`isLastFmPlaceholderUrl`, hash
+  `2a96cbd8b46e442fc41c2b86b821562f`) and Deezer's picture without a hash are
+  left out, and the integration policy filters the rest. The header tries
+  them in order: a photo that fails to load hands over to the next after the
+  frame, and the plain name header is the last step, never a blank box. While
+  the server's artist info loads, the name header stands in. The summary line
+  under the name is "12 albums • 4.1M fans" (`artistDetailFanCount`, compact
+  format). The "This Is" card uses the same first photo.
+- **Fans also like** (`deezer.similarArtists`,
+  `artistFansAlsoLikeProvider`). Deezer's related artists are matched to the
+  library by `normalizeMetadata` name in one query
+  (`LibraryDao.findArtistsByNormalizedNames`; between library namesakes a
+  server artist beats a remote one, then more albums). `fansAlsoLikeEntries`
+  puts library artists first, each group in Deezer's order, and drops the page
+  artist. `SimilarArtistsSection`
+  (`features/library/presentation/similar_artists_section.dart`) draws it in
+  the same two-row grid as the server's Similar Artists, which it replaces when
+  it has artists: library artists keep their art and open their page; others
+  show the Deezer photo with the Remote mark and open search for the name
+  (artists filter), never a missing artist page. While Deezer loads nothing is
+  shown, so one list never replaces the other on screen.
+- **Missing albums** (`deezer.missingAlbums`, `artistMissingAlbumsProvider`).
+  Hidden, without asking Deezer, while the library albums load, when the
+  artist is remote or when any of its albums is remote: the server's remote
+  catalogue (Octo-Fiesta) always wins. Otherwise `missingDeezerAlbums`
+  (`features/library/domain/missing_albums.dart`) keeps record types `album`
+  and `ep` (singles belong to Home's new releases, compilations are left out),
+  drops a Deezer album that a library album (own or featured) holds as
+  `ext-deezer-album-<id>` or under the same `normalizeMetadataKeepingEdition`
+  title, so remaster and deluxe packaging match while "(Japanese Version)"
+  stays its own album, and lists them newest first, one per edition. A
+  `ContentShelf` of `ExternalAlbumCard`s (`common_widgets/`, the `AlbumCard`
+  look and `AlbumCardLabel`, with a policy-checked cover URL) follows the album
+  grids, subtitled "2021 • EP". A card opens `showDeezerReleaseSheet`
+  (`features/integrations/presentation/deezer_release_sheet.dart`, a dialog on
+  desktop): cover, title, artist, "year • type • N songs" (the count from
+  `/album/{id}` via `deezerReleaseDetailsProvider`) and "Search your server",
+  which searches albums for "title artist". The card and sheet take the
+  feature they belong to, so Home's new releases can reuse them.
 
 ## Update Checker
 

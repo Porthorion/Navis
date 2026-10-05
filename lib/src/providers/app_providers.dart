@@ -41,6 +41,7 @@ import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
+import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -654,6 +655,15 @@ final integrationJsonCacheProvider = Provider<IntegrationJsonCache>(
 /// Library artist → Deezer artist id, cached by name.
 final deezerArtistResolverProvider = Provider<DeezerArtistResolver>((ref) {
   return DeezerArtistResolver(
+    client: ref.watch(deezerApiClientProvider),
+    cache: ref.watch(integrationJsonCacheProvider),
+  );
+});
+
+/// Deezer artist details, related artists, albums and album details, cached
+/// on disk. Each feature checks its own switch before reading.
+final deezerCatalogProvider = Provider<DeezerCatalog>((ref) {
+  return DeezerCatalog(
     client: ref.watch(deezerApiClientProvider),
     cache: ref.watch(integrationJsonCacheProvider),
   );

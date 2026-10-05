@@ -18,7 +18,8 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 ///    share the most titles with the library's albums wins, when the caller
 ///    can list them; equal overlap (or no album list) goes to the most fans.
 ///
-/// Request errors propagate and are not cached.
+/// Request errors propagate and are not cached. Concurrent calls for the same
+/// name share one resolution.
 class DeezerArtistResolver {
   new({required this._client, required this._cache});
 
@@ -29,6 +30,9 @@ class DeezerArtistResolver {
 
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
+
+  /// Resolutions running now, by normalized name.
+  final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
 
   /// The Deezer id inside a library artist id `ext-deezer-artist-<id>`.
   static int? idFromLibraryArtistId(String artistId) {
@@ -52,6 +56,39 @@ class DeezerArtistResolver {
 
     final key = normalizeMetadata(name);
     if (key.isEmpty) return null;
+
+    // Top songs and the artist page's other Deezer sections resolve the same
+    // artist at the same time; they share one resolution.
+    final pending = _inFlight[key];
+    if (pending != null) {
+      try {
+        return await pending;
+      } on DioException catch (error) {
+        // The caller that started it left; resolve again for this one.
+        final cancelledHere = cancelToken?.isCancelled ?? false;
+        if (!CancelToken.isCancel(error) || cancelledHere) rethrow;
+      }
+    }
+    final resolution = _resolveByName(
+      key: key,
+      name: name,
+      readLibraryAlbumTitles: readLibraryAlbumTitles,
+      cancelToken: cancelToken,
+    );
+    _inFlight[key] = resolution;
+    try {
+      return await resolution;
+    } finally {
+      _inFlight.removeWhere((_, pending) => identical(pending, resolution));
+    }
+  }
+
+  Future<int?> _resolveByName({
+    required String key,
+    required String name,
+    required Future<Iterable<String>> Function()? readLibraryAlbumTitles,
+    required CancelToken? cancelToken,
+  }) async {
     final cached = await _cache.read(DeezerCache.artistIdNamespace, key);
     if (cached != null) {
       final value = cached.value;

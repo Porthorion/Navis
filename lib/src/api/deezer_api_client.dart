@@ -118,6 +118,48 @@ class DeezerApiClient {
     return data.map(DeezerAlbum.fromJson).where((a) => a.id > 0).toList();
   }
 
+  /// `/artist/{id}`: the artist's photo and fan count, or null when Deezer
+  /// has no such artist.
+  Future<DeezerArtist?> getArtist(
+    int artistId, {
+    CancelToken? cancelToken,
+  }) async {
+    final body = await getJson(
+      'artist/$artistId',
+      const <String, Object>{},
+      cancelToken: cancelToken,
+    );
+    if (body == null) return null;
+    final artist = DeezerArtist.fromJson(body);
+    return _hasId(artist) ? artist : null;
+  }
+
+  /// `/artist/{id}/related`: artists Deezer's listeners of this artist also
+  /// listen to, most related first.
+  Future<List<DeezerArtist>> getRelatedArtists(
+    int artistId, {
+    int limit = 20,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await _getData('artist/$artistId/related', <String, Object>{
+      'limit': limit,
+    }, cancelToken: cancelToken);
+    return data.map(DeezerArtist.fromJson).where(_hasId).toList();
+  }
+
+  /// `/album/{id}`: one release with its track count, or null when Deezer
+  /// has no such album.
+  Future<DeezerAlbum?> getAlbum(int albumId, {CancelToken? cancelToken}) async {
+    final body = await getJson(
+      'album/$albumId',
+      const <String, Object>{},
+      cancelToken: cancelToken,
+    );
+    if (body == null) return null;
+    final album = DeezerAlbum.fromJson(body);
+    return album.id > 0 ? album : null;
+  }
+
   /// The `data` list of a list endpoint, empty for code 800.
   Future<List<Map<String, dynamic>>> _getData(
     String path,

@@ -55,13 +55,6 @@ class AlbumCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isLightTheme = theme.brightness == Brightness.light;
-    final titleColor = isLightTheme ? colorScheme.onSurface : Colors.white;
-    final artistColor = isLightTheme
-        ? colorScheme.onSurfaceVariant
-        : const Color(0xCCFFFFFF);
     final shape = ref.watch(coverArtShapeProvider);
     final cardBorderRadius = artworkBorderRadius(
       shape,
@@ -117,60 +110,10 @@ class AlbumCard extends ConsumerWidget {
                     children: <Widget>[
                       if (badge != null)
                         Positioned(top: 8, right: 8, child: badge!),
-                      // Fade into the selected app surface so the labels use
-                      // the same readable foreground roles as the rest of Navis.
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: DecoratedBox(
-                          key: const ValueKey<String>(
-                            'albumCardTitleSurfaceFade',
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                theme.scaffoldBackgroundColor.withValues(
-                                  alpha: 0,
-                                ),
-                                theme.scaffoldBackgroundColor,
-                              ],
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Text(
-                                  album.name,
-                                  maxLines: size == AlbumCardSize.library
-                                      ? 2
-                                      : 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: titleColor,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  album.artistName ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: artistColor,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      AlbumCardLabel(
+                        title: album.name,
+                        subtitle: album.artistName ?? '',
+                        titleMaxLines: size == AlbumCardSize.library ? 2 : 1,
                       ),
                       if (onTap != null && isDesktopRuntime)
                         Positioned.fill(
@@ -181,6 +124,81 @@ class AlbumCard extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The title and subtitle at the bottom of an album card, where the artwork
+/// fades into the app surface so the text uses the app's own foreground
+/// colours. Shared by [AlbumCard] and `ExternalAlbumCard`; place it directly
+/// in the card's [Stack].
+class AlbumCardLabel extends StatelessWidget {
+  const new({
+    required this.title,
+    required this.subtitle,
+    this.titleMaxLines = 1,
+    super.key,
+  });
+
+  final String title;
+  final String subtitle;
+  final int titleMaxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLightTheme = theme.brightness == Brightness.light;
+    final titleColor = isLightTheme ? colorScheme.onSurface : Colors.white;
+    final subtitleColor = isLightTheme
+        ? colorScheme.onSurfaceVariant
+        : const Color(0xCCFFFFFF);
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: DecoratedBox(
+        key: const ValueKey<String>('albumCardTitleSurfaceFade'),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              theme.scaffoldBackgroundColor.withValues(alpha: 0),
+              theme.scaffoldBackgroundColor,
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                title,
+                maxLines: titleMaxLines,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: subtitleColor,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
       ),

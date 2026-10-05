@@ -21,6 +21,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
@@ -276,6 +277,7 @@ Widget _buildApp({
       artistTopTrackSeedsProvider.overrideWith(
         (ref, key) async => const <ArtistTopTrackSeed>[],
       ),
+      artistDeezerIdProvider.overrideWith((ref, key) async => null),
       ...overrides.cast(),
     ],
     child: MaterialApp(

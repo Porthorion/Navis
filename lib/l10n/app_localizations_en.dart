@@ -2268,6 +2268,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailSimilarSection => 'Similar Artists';
 
   @override
+  String get artistDetailFansAlsoLikeSection => 'Fans also like';
+
+  @override
+  String get artistDetailMissingAlbumsSection => 'Missing albums';
+
+  @override
+  String artistDetailFanCount(int count) {
+    final intl.NumberFormat countNumberFormat = intl.NumberFormat.compact(
+      locale: localeName,
+    );
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString fans',
+      one: '1 fan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get deezerReleaseTypeAlbum => 'Album';
+
+  @override
+  String get deezerReleaseTypeEp => 'EP';
+
+  @override
+  String get deezerReleaseTypeSingle => 'Single';
+
+  @override
+  String get deezerReleaseTypeCompilation => 'Compilation';
+
+  @override
+  String deezerReleaseTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get deezerReleaseSearchServer => 'Search your server';
+
+  @override
   String get artistDetailAlbumsErrorTitle => 'Could Not Load Artist Albums';
 
   @override

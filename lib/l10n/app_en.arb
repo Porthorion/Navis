@@ -978,6 +978,31 @@
   "artistDetailUnknownYear": "Unknown year",
   "artistDetailBioSection": "Biography",
   "artistDetailSimilarSection": "Similar Artists",
+  "artistDetailFansAlsoLikeSection": "Fans also like",
+  "artistDetailMissingAlbumsSection": "Missing albums",
+  "artistDetailFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
+  "@artistDetailFanCount": {
+    "description": "Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "compact"
+      }
+    }
+  },
+  "deezerReleaseTypeAlbum": "Album",
+  "deezerReleaseTypeEp": "EP",
+  "deezerReleaseTypeSingle": "Single",
+  "deezerReleaseTypeCompilation": "Compilation",
+  "deezerReleaseTrackCount": "{count, plural, =1{1 song} other{{count} songs}}",
+  "@deezerReleaseTrackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deezerReleaseSearchServer": "Search your server",
   "artistDetailAlbumsErrorTitle": "Could Not Load Artist Albums",
   "artistDetailLoadErrorTitle": "Could Not Load Artist Details",
   "artistDetailLoadingLabel": "Loading Artist Details",
