@@ -1851,7 +1851,10 @@ unsupported, and Same Vibes looks it up (even while the remote seed plays) for
 its server fallback. Neither mode queues the copy or the remote original right
 behind the seed. A remote seed
 without a library copy never borrows the similar songs of an unrelated queue
-neighbour.
+neighbour. Same Vibes tells queued and merged songs apart by one identity,
+`sameVibesCanonicalSongKey` (`normalizeMetadata` artist and
+`normalizeMetadataKeepingEdition` title), so a Japanese and an English edition
+of a song are both kept.
 
 Home and Android Auto **Instant Radio** use `PersonalRadioNotifier` and the
 queue-independent `RecommendationService`. Radio starts with likes and up to

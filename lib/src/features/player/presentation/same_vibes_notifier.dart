@@ -328,7 +328,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
                 if (id.isNotEmpty) {
                   queuedIds.add(id);
                 }
-                final key = _canonicalSongKey(song.artist ?? '', song.title);
+                final key = sameVibesCanonicalSongKey(
+                  song.artist ?? '',
+                  song.title,
+                );
                 if (key != null) {
                   queuedSongKeys.add(key);
                 }
@@ -441,7 +444,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
                 if (id.isNotEmpty) {
                   queuedIds.add(id);
                 }
-                final key = _canonicalSongKey(song.artist ?? '', song.title);
+                final key = sameVibesCanonicalSongKey(
+                  song.artist ?? '',
+                  song.title,
+                );
                 if (key != null) {
                   queuedSongKeys.add(key);
                 }
@@ -778,7 +784,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           misses += 1;
           continue;
         }
-        final key = _canonicalSongKey(best.artist ?? '', best.title);
+        final key = sameVibesCanonicalSongKey(best.artist ?? '', best.title);
         if (key != null && blockedSongKeys.contains(key)) {
           misses += 1;
           continue;
@@ -1224,15 +1230,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
   }
 
-  String? _canonicalSongKey(String artist, String title) {
-    final normalizedArtist = normalizeMetadata(artist);
-    final normalizedTitle = normalizeMetadata(title);
-    if (normalizedArtist.isEmpty || normalizedTitle.isEmpty) {
-      return null;
-    }
-    return '$normalizedArtist|$normalizedTitle';
-  }
-
   List<Song> _mergeUniqueSongs({
     required List<Song> primary,
     required List<Song> fallback,
@@ -1252,7 +1249,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (id.isEmpty || seen.contains(id)) {
         return;
       }
-      final key = _canonicalSongKey(song.artist ?? '', song.title);
+      final key = sameVibesCanonicalSongKey(song.artist ?? '', song.title);
       if (key != null && seenSongKeys.contains(key)) {
         return;
       }
@@ -1309,6 +1306,14 @@ final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
   };
 });
 
+/// Shared queue and merge identity; language editions remain distinct.
+String? sameVibesCanonicalSongKey(String artist, String title) {
+  final artistKey = normalizeMetadata(artist);
+  final titleKey = normalizeMetadataKeepingEdition(title);
+  if (artistKey.isEmpty || titleKey.isEmpty) return null;
+  return '$artistKey|$titleKey';
+}
+
 final sameVibesQueueSongKeyLookupProvider = Provider<_QueueSongKeyLookup>((
   ref,
 ) {
@@ -1317,12 +1322,8 @@ final sameVibesQueueSongKeyLookupProvider = Provider<_QueueSongKeyLookup>((
     final songs = await dao.getSongsByIds(songIds);
     final keys = <String>{};
     for (final song in songs) {
-      final normalizedArtist = normalizeMetadata(song.artistName ?? '');
-      final normalizedTitle = normalizeMetadata(song.title);
-      if (normalizedArtist.isEmpty || normalizedTitle.isEmpty) {
-        continue;
-      }
-      keys.add('$normalizedArtist|$normalizedTitle');
+      final key = sameVibesCanonicalSongKey(song.artistName ?? '', song.title);
+      if (key != null) keys.add(key);
     }
     return keys;
   };

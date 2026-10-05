@@ -127,6 +127,25 @@ void main() {
     );
   }
 
+  test('queue identity keeps Japanese and English editions distinct', () {
+    final jp = sameVibesCanonicalSongKey(
+      'ONE OK ROCK',
+      'Wonder (Japanese Version)',
+    );
+    final en = sameVibesCanonicalSongKey(
+      'ONE OK ROCK',
+      'Wonder (English Version)',
+    );
+    expect(jp, isNot(en));
+    expect(
+      sameVibesCanonicalSongKey(
+        'ONE OK ROCK',
+        'Wonder (Japanese Version) [Remastered]',
+      ),
+      jp,
+    );
+  });
+
   group('integration policy gate', () {
     for (final entry in <String, IntegrationPolicy>{
       'the Same Vibes switch is off': const IntegrationPolicy(
@@ -1972,6 +1991,43 @@ void main() {
 
     _FakeQueueController queueOf(ProviderContainer container) =>
         container.read(queueProvider.notifier) as _FakeQueueController;
+
+    test(
+      'the merged queue retains both Japanese and English editions',
+      () async {
+        when(
+          () => api.getSimilarSongs(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer(
+          (_) async => const [
+            Song(
+              id: 'jp',
+              title: 'Wonder (Japanese Version)',
+              artist: 'ONE OK ROCK',
+            ),
+            Song(
+              id: 'en',
+              title: 'Wonder (English Version)',
+              artist: 'ONE OK ROCK',
+            ),
+            Song(
+              id: 'jp-remaster',
+              title: 'Wonder (Japanese Version) [Remastered]',
+              artist: 'ONE OK ROCK',
+            ),
+          ],
+        );
+        final container = playing(queue: const ['local-1'], current: 'local-1');
+        await container.read(sameVibesProvider.notifier).activate('local-1');
+        expect(queueOf(container).queuedSongs.map((song) => song.id), [
+          'jp',
+          'en',
+        ]);
+      },
+    );
 
     test('starts from the requested song while another song plays', () async {
       when(
