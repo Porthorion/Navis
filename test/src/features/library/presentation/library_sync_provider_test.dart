@@ -15,7 +15,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 
@@ -1558,6 +1558,65 @@ void main() {
           expect(requestedArtistIds, <String>['oor', 'oor']);
         },
       );
+
+      test('opening without an engine does not use up the open', () async {
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+          requestHandler: (request, {onProgress}) {
+            requestedArtistIds.add(request.target.entityId!);
+            return nextResult();
+          },
+        );
+        final engineState =
+            NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
+              _MutableLibrarySyncEngine.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWith(
+              (ref) => ref.watch(engineState),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        // An earlier catalog check leaves the controller reading succeeded.
+        container.read(engineState.notifier).replace(engine);
+        await controller.syncNow();
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.succeeded,
+        );
+
+        container.read(engineState.notifier).replace(null);
+        controller.registerArtistInteraction('oor');
+        await settle();
+        container.read(engineState.notifier).replace(engine);
+        controller.registerArtistInteraction('oor');
+        await settle();
+
+        expect(requestedArtistIds, <String>['oor']);
+      });
 
       test('signing out starts a new session for artist hydration', () async {
         final server = await _saveAuthenticatedServer(database);

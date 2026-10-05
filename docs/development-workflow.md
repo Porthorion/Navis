@@ -691,7 +691,8 @@ the tree remains otherwise usable.
   with `getSong` and stored provisionally, as playing a search result stores
   it, so a remote seed can be played before a mix starts; when the server
   answers with its library copy, the requested remote id is still the row
-  stored and queued. An id the server does not know returns 404 with that
+  stored and queued, with the copy's metadata but not its library album and
+  artist ids. An id the server does not know returns 404 with that
   `songId`.
   Clone-only `POST /v1/playback/queue-index` accepts a bounded zero-based
   index to advance the production handler and exercise recommendation refills.

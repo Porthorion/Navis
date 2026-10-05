@@ -763,6 +763,7 @@ void main() {
       ).thenAnswer(
         (_) async => <Song>[
           const Song(id: 'lib-copy', title: 'Dystopia'),
+          const Song(id: remoteSeedId, title: 'Dystopia'),
           ...songs(3),
         ],
       );
@@ -773,7 +774,8 @@ void main() {
       final queue =
           container.read(queueProvider.notifier) as _FakeQueueController;
       expect(queue.retainedSongIds, <String>[remoteSeedId]);
-      // The library copy is the song just chosen, so it is not queued again.
+      // The library copy and the remote original are the song just chosen,
+      // so neither is queued again.
       expect(queue.mixTrackBatches.single.map((song) => song.id), <String>[
         'rec-0',
         'rec-1',

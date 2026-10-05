@@ -776,6 +776,9 @@ void main() {
         id: 'lib-copy',
         title: 'Dystopia',
         artist: 'ONE OK ROCK',
+        artistId: 'lib-artist',
+        album: 'Luxury Disease',
+        albumId: 'lib-album',
         duration: 200,
       ),
     });
@@ -809,6 +812,13 @@ void main() {
     expect(stored?.title, 'Dystopia');
     expect(stored?.isExternal, isTrue);
     expect(stored?.isProvisional, isTrue);
+    // The library copy's album and artist are not referenced, so storing the
+    // remote row creates no remote-flagged stubs under library ids.
+    expect(stored?.albumId, isNull);
+    expect(stored?.artistId, isNull);
+    expect(stored?.albumName, 'Luxury Disease');
+    expect(await database.libraryDao.getAlbumById('lib-album'), isNull);
+    expect(await database.libraryDao.getArtistById('lib-artist'), isNull);
 
     final missing = await _request(
       clone.port,

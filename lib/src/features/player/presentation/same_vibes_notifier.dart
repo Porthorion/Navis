@@ -263,6 +263,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
         return;
       }
+      // The library copy of a remote seed is the same recording; never queue
+      // it right behind its remote twin.
+      final libraryCopyId = seed?.libraryCopyId;
+      if (libraryCopyId != null) {
+        queuedIds.add(libraryCopyId);
+      }
       final candidatePreferences = _CandidatePreferenceContext(
         downloadedSongIds: await _readPreferenceSongIds(
           downloadedSongIdsProvider,
@@ -649,32 +655,46 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final mediaItem = ref.read(currentMediaItemProvider).asData?.value;
     final mediaTitle = mediaItem?.title.trim() ?? '';
     final mediaArtist = mediaItem?.artist?.trim() ?? '';
-    if (mediaItem?.id == seedSongId &&
-        mediaTitle.isNotEmpty &&
-        mediaArtist.isNotEmpty) {
-      return _SeedMetadata(title: mediaTitle, artist: mediaArtist);
+    final fromMediaItem =
+        mediaItem?.id == seedSongId &&
+            mediaTitle.isNotEmpty &&
+            mediaArtist.isNotEmpty
+        ? _SeedMetadata(title: mediaTitle, artist: mediaArtist)
+        : null;
+    // A server-addressable seed needs nothing more than its title and
+    // artist. A remote seed also needs getSong even while it plays: a server
+    // with a remote catalogue answers with its library copy when it has one,
+    // and only that id works for similar songs.
+    if (fromMediaItem != null && _isServerAddressableSeedId(seedSongId)) {
+      return fromMediaItem;
     }
 
     try {
       final song = await api.getSong(seedSongId);
       final title = song.title.trim();
       final artist = (song.artist ?? '').trim();
+      final copyId = song.id.trim();
+      final libraryCopyId =
+          copyId != seedSongId && _isServerAddressableSeedId(copyId)
+          ? copyId
+          : null;
+      if (fromMediaItem != null) {
+        return _SeedMetadata(
+          title: fromMediaItem.title,
+          artist: fromMediaItem.artist,
+          libraryCopyId: libraryCopyId,
+        );
+      }
       if (title.isEmpty || artist.isEmpty) {
         return null;
       }
-      // A server with a remote catalogue answers for a remote song with its
-      // library copy when it has one; that id works for similar songs.
-      final copyId = song.id.trim();
       return _SeedMetadata(
         title: title,
         artist: artist,
-        libraryCopyId:
-            copyId != seedSongId && _isServerAddressableSeedId(copyId)
-            ? copyId
-            : null,
+        libraryCopyId: libraryCopyId,
       );
     } on Exception {
-      return null;
+      return fromMediaItem;
     }
   }
 

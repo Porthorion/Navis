@@ -676,6 +676,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         return;
       }
     }
+    // Without an engine requestTarget hands back the controller's own state,
+    // which may be an earlier catalog success; that is no hydration.
+    if (ref.read(librarySyncEngineProvider) == null) {
+      return;
+    }
     final result = await requestTarget(LibrarySyncTarget.artist(artistId));
     if (ref.mounted &&
         epoch == _artistSessionEpoch &&

@@ -188,6 +188,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
     if (_isRefilling || state.refilling) return;
     _isRefilling = true;
+    final refillSession = _session;
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
@@ -211,7 +212,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       AppLogger.debug('InstantMix refill failed: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
-        _reportFailed(InstantMixError.networkError);
+        _reportFailed(refillSession, InstantMixError.networkError);
         return;
       }
       if (state.active) {
@@ -271,7 +272,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         }
         if (isInitial) {
           state = const InstantMixState(error: InstantMixError.networkError);
-          _reportFailed(InstantMixError.networkError);
+          _reportFailed(session, InstantMixError.networkError);
         } else {
           _scheduleTransientRetry(seedSongId, 'zeroInsertion');
         }
@@ -287,7 +288,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     } on SubsonicNotFoundException {
       if (!ref.mounted) return;
       state = const InstantMixState(error: InstantMixError.unsupported);
-      _reportFailed(InstantMixError.unsupported);
+      _reportFailed(session, InstantMixError.unsupported);
     } on Object catch (error, stackTrace) {
       if (!ref.mounted) return;
       if (queueChangeAttempted && previousQueue != null) {
@@ -296,7 +297,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       AppLogger.debug('InstantMix _doRefill error: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
-        _reportFailed(InstantMixError.networkError);
+        _reportFailed(session, InstantMixError.networkError);
         return;
       }
       if (state.active) {
@@ -305,9 +306,9 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     }
   }
 
-  /// Ends the session as failed so it does not keep reading "preparing".
-  void _reportFailed(InstantMixError error) {
-    final session = _session;
+  /// Ends [session] as failed so it does not keep reading "preparing". A
+  /// refill reports only its own session; a newer one is left alone.
+  void _reportFailed(RecommendationSession? session, InstantMixError error) {
     if (session == null) return;
     ref
         .read(recommendationSessionProvider.notifier)

@@ -3845,8 +3845,8 @@ class SyncDiagnosticsServer {
 
   /// Fetches each of [songIds] with getSong and stores it provisionally, as
   /// search-play stores remote results. A server that answers for a remote
-  /// song with its library copy still gets the requested id stored, the row
-  /// search would have stored. Returns the first id the server does not
+  /// song with its library copy still gets the requested id stored, with the
+  /// copy's metadata but without its library album and artist ids. Returns the first id the server does not
   /// know, or null when every song was stored.
   Future<String?> _storeRemoteSongs(Iterable<String> songIds) async {
     final api = _container.read(subsonicApiProvider);
@@ -3858,9 +3858,13 @@ class SyncDiagnosticsServer {
         fetched.add(
           song.id == songId
               ? song
+              // The copy's album and artist are library rows; a remote row
+              // must not point at them, or storing it would mark them remote.
               : song.copyWith(
                   id: songId,
                   isExternal: isExternalCatalogSource(id: songId),
+                  albumId: null,
+                  artistId: null,
                 ),
         );
       } on SubsonicException {

@@ -163,7 +163,14 @@ class RecommendationService {
           cancelToken: cancelToken,
         );
         final before = collected.length;
-        _addEligible(collected, generic, null, mixSeedId, count);
+        _addEligible(
+          collected,
+          generic,
+          null,
+          mixSeedId,
+          count,
+          alsoExcludedId: seedId,
+        );
         if (before == 0 && collected.isNotEmpty) {
           source = RecommendationSource.server;
         }
@@ -176,7 +183,14 @@ class RecommendationService {
             cancelToken: cancelToken,
           );
           final before = collected.length;
-          _addEligible(collected, legacy, null, mixSeedId, count);
+          _addEligible(
+            collected,
+            legacy,
+            null,
+            mixSeedId,
+            count,
+            alsoExcludedId: seedId,
+          );
           if (before == 0 && collected.isNotEmpty) {
             source = RecommendationSource.server;
           }
@@ -188,7 +202,14 @@ class RecommendationService {
               count: count,
               cancelToken: cancelToken,
             );
-            _addEligible(collected, navidrome, null, mixSeedId, count);
+            _addEligible(
+              collected,
+              navidrome,
+              null,
+              mixSeedId,
+              count,
+              alsoExcludedId: seedId,
+            );
             if (collected.isNotEmpty) {
               source = RecommendationSource.instantMix;
               issue = RecommendationIssue.none;
@@ -429,9 +450,12 @@ class RecommendationService {
     List<Song> candidates,
     Set<String>? eligibleIds,
     String seedId,
-    int limit,
-  ) {
-    final existing = target.map((song) => song.id).toSet()..add(seedId);
+    int limit, {
+    String? alsoExcludedId,
+  }) {
+    final existing = target.map((song) => song.id).toSet()
+      ..add(seedId)
+      ..addAll(<String>[?alsoExcludedId]);
     for (final song in candidates) {
       if (target.length >= limit) break;
       if ((eligibleIds == null || eligibleIds.contains(song.id)) &&

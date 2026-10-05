@@ -2114,6 +2114,54 @@ void main() {
       );
     });
 
+    test('a playing remote seed mixes from its library copy, never queueing '
+        'the copy itself', () async {
+      // The main UI case: a remote search result plays and Same Vibes starts
+      // from it, so title and artist come from the media item.
+      when(
+        () =>
+            api.getSong(remoteSeed.id, cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'lib-copy',
+          title: 'Dystopia',
+          artist: 'ONE OK ROCK',
+        ),
+      );
+      when(
+        () => api.getSimilarSongs(
+          'lib-copy',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[
+          Song(id: 'lib-copy', title: 'Dystopia (library)'),
+          Song(id: 'sim-copy', title: 'Copy Mix'),
+        ],
+      );
+      final container = playing(
+        queue: <String>[remoteSeed.id, 'mix-a'],
+        current: remoteSeed.id,
+        currentTitle: 'Dystopia',
+        currentArtist: 'ONE OK ROCK',
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      verify(
+        () => lastFm.getSimilarTracksResult(
+          artist: 'ONE OK ROCK',
+          track: 'Dystopia',
+          limit: any(named: 'limit'),
+        ),
+      ).called(1);
+      expect(queueOf(container).queuedSongs.map((song) => song.id), <String>[
+        'sim-copy',
+      ]);
+      expect(container.read(recommendationSessionProvider).stage, 'active');
+    });
+
     test('a remote seed without a library copy does not borrow the playing '
         "song's server mix", () async {
       when(

@@ -1786,7 +1786,9 @@ already queued; songs from an earlier mix still behind it are fair
 recommendations again. Similarity endpoints know only server ids, so a remote
 seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
 to, when the server has one: Server Mix asks for that copy before reporting
-unsupported, and Same Vibes uses it for its server fallback. A remote seed
+unsupported, and Same Vibes looks it up (even while the remote seed plays) for
+its server fallback. Neither mode queues the copy or the remote original right
+behind the seed. A remote seed
 without a library copy never borrows the similar songs of an unrelated queue
 neighbour.
 
