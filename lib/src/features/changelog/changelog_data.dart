@@ -164,6 +164,9 @@ const List<ChangelogVersion> changelogs = [
         "Artist pages show the artist's Deezer photo when your server has none, only Last.fm's grey star or one that fails to load, and the Deezer fan count next to the album count",
       ),
       ChangelogEntry(
+        'Deezer recognises artists it names a little differently, such as "Black Eyed Peas" for "The Black Eyed Peas" or "Simon & Garfunkel" for "Simon and Garfunkel"',
+      ),
+      ChangelogEntry(
         '"Fans Also Like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens a search instead of an empty artist page',
         type: ChangelogEntryType.newFeature,
       ),

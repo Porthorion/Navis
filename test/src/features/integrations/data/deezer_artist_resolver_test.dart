@@ -107,6 +107,135 @@ void main() {
     expect(await resolver.resolve(artistId: 'b', name: 'Beyonce'), 8);
   });
 
+  group('names that differ only in form', () {
+    test('a leading "The" on either side still resolves', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        DeezerArtist(
+          id: 4189978,
+          name: 'Made famous by The Black Eyed Peas',
+          fanCount: 440,
+        ),
+        DeezerArtist(
+          id: 189221687,
+          name: 'Black Eyed Peas & Daddy Yankee',
+          fanCount: 38,
+        ),
+        DeezerArtist(id: 414191872, name: 'Black Eyed Peas', fanCount: 0),
+        DeezerArtist(id: 1, name: 'The Beatles', fanCount: 100),
+      ];
+
+      expect(
+        await resolver.resolve(artistId: 'bep', name: 'The Black Eyed Peas'),
+        1020109,
+      );
+      expect(await resolver.resolve(artistId: 'b', name: 'Beatles'), 1);
+    });
+
+    test('"&" and "and" are the same', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 2707, name: 'Simon & Garfunkel', fanCount: 1167649),
+        DeezerArtist(
+          id: 74334152,
+          name: 'Simon & Garfunkel Experience',
+          fanCount: 226,
+        ),
+      ];
+
+      expect(
+        await resolver.resolve(artistId: 'sg', name: 'Simon and Garfunkel'),
+        2707,
+      );
+    });
+
+    test('spacing and punctuation do not matter', () async {
+      deezer.artists = const [DeezerArtist(id: 115, name: 'AC/DC')];
+
+      expect(await resolver.resolve(artistId: 'acdc', name: 'ACDC'), 115);
+    });
+
+    test('Los, La, Die and Der are articles too', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 1, name: 'Los Lobos'),
+        DeezerArtist(id: 2, name: 'Toten Hosen'),
+      ];
+
+      expect(await resolver.resolve(artistId: 'l', name: 'Lobos'), 1);
+      expect(await resolver.resolve(artistId: 't', name: 'Die Toten Hosen'), 2);
+    });
+
+    test('an exact name wins over a looser one with more fans', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 1, name: 'Band', fanCount: 900000),
+        DeezerArtist(id: 2, name: 'The Band', fanCount: 500),
+      ];
+
+      expect(await resolver.resolve(artistId: 'tb', name: 'The Band'), 2);
+    });
+
+    test('loose namesakes keep the album and fan tie-break', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+          DeezerArtist(id: 414191872, name: 'Black Eyed Peas', fanCount: 0),
+        ]
+        ..albumsByArtist = {
+          1020109: _albums(['Elephunk']),
+          414191872: _albums(['Something Else']),
+        };
+
+      final id = await resolver.resolve(
+        artistId: 'bep',
+        name: 'The Black Eyed Peas',
+        readLibraryAlbumTitles: () async => ['Elephunk'],
+      );
+
+      expect(id, 1020109);
+      expect(deezer.albumCalls, [1020109, 414191872]);
+    });
+
+    test('"The The" is not the artist "The", nor another "The" band', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 1, name: 'The', fanCount: 9000),
+        DeezerArtist(id: 2, name: 'The Weeknd', fanCount: 14720452),
+      ];
+
+      expect(await resolver.resolve(artistId: 'tt', name: 'The The'), isNull);
+    });
+
+    test('"The The" resolves to itself and "The" not to it', () async {
+      deezer.artists = const [
+        DeezerArtist(id: 57420412, name: 'TheThe', fanCount: 51),
+        DeezerArtist(id: 4131, name: 'The The', fanCount: 25433),
+      ];
+
+      expect(await resolver.resolve(artistId: 'tt', name: 'The The'), 4131);
+      expect(await resolver.resolve(artistId: 'the', name: 'The'), isNull);
+    });
+
+    test('a "not on Deezer" from before loose names is asked again', () async {
+      // What an earlier build cached for "The Black Eyed Peas".
+      await IntegrationJsonCache(
+        readRootDirectory: () async => root,
+        now: () => now,
+      ).write(
+        DeezerCache.artistIdNamespace,
+        'the black eyed peas',
+        <String, Object?>{'id': null},
+        ttl: DeezerCache.artistNotFoundTtl,
+      );
+      deezer.artists = const [
+        DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+      ];
+
+      expect(
+        await resolver.resolve(artistId: 'bep', name: 'The Black Eyed Peas'),
+        1020109,
+      );
+      expect(deezer.searchCalls, 1);
+    });
+  });
+
   test('namesakes go to the most fans without library albums', () async {
     deezer.artists = const [
       DeezerArtist(id: 10, name: 'Nirvana', fanCount: 5000),

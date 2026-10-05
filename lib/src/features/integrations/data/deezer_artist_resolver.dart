@@ -13,10 +13,13 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// 2. Otherwise the normalized name is looked up in the cache
 ///    ([DeezerCache.artistIdNamespace]: found for 30 days, not found for 7).
 /// 3. Otherwise `/search/artist` runs and only artists whose
-///    [normalizeMetadata] name equals the library name's are kept. One is
-///    taken as is. Between several namesakes, the one whose Deezer albums
-///    share the most titles with the library's albums wins, when the caller
-///    can list them; equal overlap (or no album list) goes to the most fans.
+///    [normalizeMetadata] name equals the library name's are kept. When none
+///    does, artists whose [artistNameResolutionKey] equals the library
+///    name's are kept instead ("The Black Eyed Peas" is Deezer's "Black Eyed
+///    Peas", "Simon and Garfunkel" its "Simon & Garfunkel"). One is taken as
+///    is. Between several namesakes, the one whose Deezer albums share the
+///    most titles with the library's albums wins, when the caller can list
+///    them; equal overlap (or no album list) goes to the most fans.
 ///
 /// Request errors propagate and are not cached. Concurrent calls for the same
 /// library artist and name share one resolution.
@@ -27,6 +30,10 @@ class DeezerArtistResolver {
   static const maxAlbumOverlapCandidates = 3;
 
   static final _libraryIdPattern = RegExp(r'^ext-deezer-artist-(\d+)$');
+
+  /// Version of the cached mappings. Version 2 tried loose names before
+  /// caching "not on Deezer".
+  static const _cacheVersion = 2;
 
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
@@ -91,15 +98,23 @@ class DeezerArtistResolver {
     required CancelToken? cancelToken,
   }) async {
     final cached = await _cache.read(DeezerCache.artistIdNamespace, key);
-    if (cached != null) {
-      final value = cached.value;
-      return value is Map ? (value['id'] as num?)?.toInt() : null;
+    final value = cached?.value;
+    if (value is Map) {
+      final id = (value['id'] as num?)?.toInt();
+      // "Not on Deezer" from before loose names were tried is asked again.
+      if (id != null || value['v'] == _cacheVersion) return id;
     }
 
-    final namesakes = (await _client.searchArtists(
-      name,
-      cancelToken: cancelToken,
-    )).where((artist) => normalizeMetadata(artist.name) == key).toList();
+    final found = await _client.searchArtists(name, cancelToken: cancelToken);
+    var namesakes = found
+        .where((artist) => normalizeMetadata(artist.name) == key)
+        .toList();
+    if (namesakes.isEmpty) {
+      final loose = artistNameResolutionKey(name);
+      namesakes = found
+          .where((artist) => artistNameResolutionKey(artist.name) == loose)
+          .toList();
+    }
     _sortByFans(namesakes);
     final id = switch (namesakes.length) {
       0 => null,
@@ -114,7 +129,7 @@ class DeezerArtistResolver {
     await _cache.write(
       DeezerCache.artistIdNamespace,
       key,
-      <String, Object?>{'id': id},
+      <String, Object?>{'id': id, 'v': _cacheVersion},
       ttl: id == null
           ? DeezerCache.artistNotFoundTtl
           : DeezerCache.artistFoundTtl,
@@ -168,4 +183,42 @@ class DeezerArtistResolver {
       return byFans != 0 ? byFans : order[a]!.compareTo(order[b]!);
     });
   }
+}
+
+/// Leading articles ignored when names are compared for resolution.
+const Set<String> _leadingArticles = {
+  'the',
+  'a',
+  'an',
+  'los',
+  'las',
+  'le',
+  'la',
+  'les',
+  'die',
+  'der',
+};
+
+final RegExp _ampersand = RegExp(r'[&\uFF06]');
+
+/// A looser key than [normalizeMetadata] for telling whether a Deezer artist
+/// is the library's, used only to resolve the artist and never shown.
+///
+/// "&" reads as "and", one leading article is dropped ("The", "A", "An",
+/// "Los", "Las", "Le", "La", "Les", "Die", "Der") and spaces are removed, so
+/// "The Black Eyed Peas", "Black Eyed Peas" and "Black-Eyed Peas" agree, as
+/// do "Simon & Garfunkel" and "Simon and Garfunkel", and "AC/DC" and "ACDC".
+/// The article stays when nothing but an article would remain, so "The The"
+/// is never "The".
+String artistNameResolutionKey(String name) {
+  final words = normalizeMetadata(name.replaceAll(_ampersand, ' and '))
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .toList();
+  if (words.length > 1 &&
+      _leadingArticles.contains(words.first) &&
+      !(words.length == 2 && _leadingArticles.contains(words[1]))) {
+    words.removeAt(0);
+  }
+  return words.join();
 }

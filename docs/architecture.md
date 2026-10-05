@@ -1457,9 +1457,17 @@ fallback.
   (`deezerArtistResolverProvider`) uses the id of a library artist
   `ext-deezer-artist-<id>` directly. Otherwise it reads the cached mapping or
   runs `/search/artist` and keeps only artists whose `normalizeMetadata` name
-  equals the library name. Between namesakes, the one whose Deezer albums share
+  equals the library name. When none does, it keeps those whose looser
+  `artistNameResolutionKey` agrees: "&" reads as "and", one leading article
+  (The, A, An, Los, Las, Le, La, Les, Die, Der) is dropped unless only an
+  article would remain ("The The"), and spaces are ignored. So "The Black Eyed
+  Peas" resolves to Deezer's "Black Eyed Peas" while an exact name still wins.
+  The looser key is for resolution only, never for display. Between
+  namesakes, the one whose Deezer albums share
   the most normalized titles with the library artist's albums wins (up to
   three are compared, one request each); equal overlap goes to the most fans.
+  Mappings carry a version; a "not on Deezer" cached before the looser key
+  existed is asked again.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
   (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up
