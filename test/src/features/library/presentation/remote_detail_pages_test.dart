@@ -295,6 +295,25 @@ void main() {
   final loading = find.byKey(DetailLoadingView.loadingKey);
   final failed = find.byKey(DetailLoadFailedView.failedKey);
 
+  test('a failed, cancelled or deferred hydration fails the page', () {
+    for (final status in LibrarySyncStatus.values) {
+      expect(
+        detailHydrationPhaseFor(
+          LibrarySyncState(status: status, stage: LibrarySyncStage.completed),
+        ),
+        switch (status) {
+          LibrarySyncStatus.failed ||
+          LibrarySyncStatus.cancelled ||
+          LibrarySyncStatus.deferred => DetailHydrationPhase.failed,
+          _ => DetailHydrationPhase.settled,
+        },
+        reason: '$status',
+      );
+    }
+    // No request was needed.
+    expect(detailHydrationPhaseFor(null), DetailHydrationPhase.settled);
+  });
+
   group('remote artist page', () {
     testWidgets(
       'loads with its name, a back button and the Remote mark, never "Not Found"',
@@ -415,6 +434,25 @@ void main() {
       expect(find.text('No Albums for This Artist'), findsOneWidget);
       await dispose(tester);
     });
+
+    testWidgets(
+      'a stored remote artist without albums fails rather than showing none',
+      (tester) async {
+        await storeRemoteArtist(withAlbum: false);
+        await open(tester, AppRoutes.artist(_remoteArtistId));
+        await settle(tester);
+        // The stored name fills in while the albums load.
+        expect(loading, findsOneWidget);
+        expect(find.text('Coldrain'), findsWidgets);
+
+        script.answer(_failed);
+        await settle(tester);
+        expect(failed, findsOneWidget);
+        expect(find.text('No Albums for This Artist'), findsNothing);
+        expect(find.text('Search for Coldrain'), findsOneWidget);
+        await dispose(tester);
+      },
+    );
 
     testWidgets(
       'a library artist that is not stored loads from the server, then fails',

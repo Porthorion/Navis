@@ -1511,6 +1511,34 @@ void main() {
         expect(requestedArtistIds, <String>['oor']);
       });
 
+      test(
+        'the artist page gets the shared result, then none is needed',
+        () async {
+          final release = Completer<LibrarySyncState>();
+          nextResult = () => release.future;
+          final container = buildContainer();
+          final controller = container.read(
+            librarySyncControllerProvider.notifier,
+          );
+
+          final first = controller.hydrateOpenedArtist('oor');
+          final second = controller.hydrateOpenedArtist(' oor ');
+          final succeeded = LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+          release.complete(succeeded);
+          expect((await first)?.status, LibrarySyncStatus.succeeded);
+          expect((await second)?.status, LibrarySyncStatus.succeeded);
+          expect(requestedArtistIds, <String>['oor']);
+
+          // Hydrated this session: the next open needs no request.
+          expect(await controller.hydrateOpenedArtist('oor'), isNull);
+          expect(requestedArtistIds, <String>['oor']);
+        },
+      );
+
       test('offline does not hydrate and does not use up the open', () async {
         final container = buildContainer(
           reachability: ServerReachabilityStatus.offline,
