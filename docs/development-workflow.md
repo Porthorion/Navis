@@ -520,11 +520,14 @@ modes and returns `counters` per service key (`requests` that left the device,
 100 `calls` (`service`, `method`, `path`, `status`, `ms`, `outcome` of `ok`,
 `error` or `blocked`, `blocked`, `at`) and the last 50 `spans`: named pipeline
 phases with the sizes they handled. Artist Top Songs records
-`topSongs.sourceFetch` (`tracks`, `cacheHit`), `topSongs.localMatch` (`tracks`,
-`candidates`, `matched`) and `topSongs.serverMatch` (`unresolved`, `searches`,
-`matched`). The recorder keeps the path only, never the host, query string,
-headers or body (Last.fm's `api_key` lives in the query and ListenBrainz sends
-`Authorization`), and every call is also logged at info level, which release
+`topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
+them), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
+`candidates` library rows read, `localHits`) and `topSongs.serverMatch`
+(`unresolved`, `search3Calls`, `matched`, `remote`). The section records them
+for its ten songs; the "This Is" page records them for up to 50. The recorder
+keeps the path only, never the host, query string, headers or body (Last.fm's
+`api_key` lives in the query, Deezer's searched name too, and ListenBrainz
+sends `Authorization`), and every call is also logged at info level, which release
 builds drop. The buffer lives in memory for the process, so read it right after
 the navigation being measured.
 

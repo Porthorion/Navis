@@ -2314,10 +2314,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artistTopTracksPlaylistEmptySubtitle =>
-      'Last.fm did not return tracks for this artist.';
+      'No top songs are available for this artist.';
 
   @override
   String get artistTopTracksPlaylistErrorTitle => 'Failed to Load Top Tracks';
+
+  @override
+  String artistShuffleEverythingTitle(String artist) {
+    return 'Shuffle everything by $artist';
+  }
+
+  @override
+  String get artistShuffleEverythingAction => 'Shuffle everything';
 
   @override
   String get albumDetailTitle => 'Album';

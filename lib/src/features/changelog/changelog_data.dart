@@ -155,6 +155,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        "An artist's Top Tracks now come from Deezer (Last.fm when Deezer has none) and appear much sooner: songs in your library show first, and matches are remembered between visits",
+      ),
+      ChangelogEntry(
+        'When no top tracks are available, "This Is <Artist>" becomes "Shuffle everything by <Artist>", a shuffle of the artist\'s songs in your library',
+      ),
+      ChangelogEntry(
         'Japanese and other non-Latin titles now match correctly (top songs, ListenBrainz playlists, mixes), and language versions are no longer mixed up',
         type: ChangelogEntryType.fix,
       ),

@@ -3638,7 +3638,7 @@ abstract class AppLocalizations {
   /// No description provided for @artistTopTracksPlaylistEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Last.fm did not return tracks for this artist.'**
+  /// **'No top songs are available for this artist.'**
   String get artistTopTracksPlaylistEmptySubtitle;
 
   /// No description provided for @artistTopTracksPlaylistErrorTitle.
@@ -3646,6 +3646,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to Load Top Tracks'**
   String get artistTopTracksPlaylistErrorTitle;
+
+  /// Artist page card shown instead of 'This Is <Artist>' when no top songs are available; shuffles the artist's library songs.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle everything by {artist}'**
+  String artistShuffleEverythingTitle(String artist);
+
+  /// Button on the empty top songs page that shuffles all of the artist's library songs.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle everything'**
+  String get artistShuffleEverythingAction;
 
   /// No description provided for @albumDetailTitle.
   ///

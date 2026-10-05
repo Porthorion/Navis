@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -18,6 +17,7 @@ import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -26,13 +26,15 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
-/// Top Tracks section for the artist detail page, powered by Last.fm.
+/// Top Tracks section for the artist detail page, from Deezer or Last.fm.
 ///
 /// Shows 5 tracks by default with a "Show more" button that expands the list
-/// to 10.  Only rendered when a Last.fm API key is configured at build time.
+/// to 10. The artist page renders it only while a top-songs source is
+/// allowed.
 class ArtistTopTracksSection extends ConsumerStatefulWidget {
-  const new({required this.artistName, super.key});
+  const new({required this.artistId, required this.artistName, super.key});
 
+  final String artistId;
   final String artistName;
 
   @override
@@ -82,14 +84,8 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
       );
 
       // Reuse the same matching logic as the provider.
-      final rawTrack = LastFmArtistTopTrack(
-        rank: track.rank,
-        title: track.title,
-        artist: track.artist,
-        listeners: track.listeners,
-      );
       final playable = pickBestArtistTopTrackMatch(
-        track: rawTrack,
+        track: TrackMatchQuery(title: track.title, artist: track.artist),
         candidates: result.songs,
       );
 
@@ -201,7 +197,12 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context)!;
-    final asyncTracks = ref.watch(artistTopTracksProvider(widget.artistName));
+    final asyncTracks = ref.watch(
+      artistTopTracksProvider((
+        artistId: widget.artistId,
+        name: widget.artistName,
+      )),
+    );
 
     return asyncTracks.when(
       skipLoadingOnReload: true,

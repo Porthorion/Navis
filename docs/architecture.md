@@ -1305,9 +1305,9 @@ switch means "Navis only talks to your server" when off. See
   lose the virtual playlists at once.
 - **Enforcement, in two layers.** *Call-site gates* make a section hide itself
   instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
-  (`lastfm.radio`), artist Top Songs (`lastfm.topSongs`, via
-  `artistTopSongsAllowedProvider`, which also hides the section and the
-  playlist card), scrobbling and feedback (their credential readers return no
+  (`lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,
+  via `artistTopSongsAllowedProvider`; with neither the section is hidden and
+  the "This Is" card becomes "Shuffle everything by"), scrobbling and feedback (their credential readers return no
   token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the download
   service takes a `readLyricsAllowed` callback instead of reading the column),
   the update banner and provider, the AutoEQ dialog (search still uses the
@@ -1316,7 +1316,7 @@ switch means "Navis only talks to your server" when off. See
   check, except weekly playlists (`isEnabled`, see above). *The guard
   interceptor* is defense in depth. `createExternalDio(service, ...)`
   (`features/integrations/data/external_dio.dart`) builds the `Dio` of every
-  external client (Last.fm, ListenBrainz, LRCLIB, the update repository and
+  external client (Deezer, Last.fm, ListenBrainz, LRCLIB, the update repository and
   service, AutoEQ, and the radio `RadioMetadataService` inside
   `NavisAudioHandler`) from `externalDioFactoryProvider`.
   `IntegrationGuardInterceptor` rejects a request, before it leaves the device,
@@ -1382,6 +1382,90 @@ switch means "Navis only talks to your server" when off. See
   and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
   the recorder's counters, calls and spans in every mode. See
   `docs/development-workflow.md`.
+
+### Deezer and artist Top Songs
+
+Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
+(`lib/src/api/deezer_api_client.dart`) is built by `deezerApiClientProvider`
+through `externalDioFactoryProvider`, so the guard and the call recorder apply,
+with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every
+Deezer feature together under 8 requests per second and 4 in flight, well
+below Deezer's quota of about 50 requests per 5 seconds. Deezer reports errors
+as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
+retried once after 5 seconds, code 800 ("no data") reads as an empty result,
+and any other code throws `DeezerApiException`. Endpoints used so far:
+`/search/artist`, `/artist/{id}/top`, `/search/track` and
+`/artist/{id}/albums`; new ones go through `getJson` to inherit the limiter and
+error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
+`api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
+and round-trip through `toJson` for the cache. In some regions
+`/artist/{id}/top` returns no tracks for every artist, so callers must have a
+fallback.
+
+- **Cache.** `IntegrationJsonCache`
+  (`features/integrations/data/integration_json_cache.dart`,
+  `integrationJsonCacheProvider`) keeps one JSON file per entry under
+  `<application support>/integration_cache/<namespace>/`, with the key and
+  its own expiry inside, written by rename. Clone diagnostics stay isolated
+  because the directory comes from `path_provider`, which clones replace.
+  `DeezerCache` holds the Deezer namespaces and lifetimes: artist name to id
+  30 days ("not on Deezer" 7), artist details and related artists 7 days,
+  albums and track searches 24 hours, charts 6 hours. It replaced
+  `LastFmArtistCache`; files that cache wrote (`lastfm_top_<hash>.json`) are
+  no longer read.
+- **Artist resolution.** `DeezerArtistResolver`
+  (`deezerArtistResolverProvider`) uses the id of a library artist
+  `ext-deezer-artist-<id>` directly. Otherwise it reads the cached mapping or
+  runs `/search/artist` and keeps only artists whose `normalizeMetadata` name
+  equals the library name. Between namesakes, the one whose Deezer albums share
+  the most normalized titles with the library artist's albums wins (up to
+  three are compared, one request each); equal overlap goes to the most fans.
+- **Top songs sources** (`ArtistTopTrackSources`,
+  `features/library/data/artist_top_track_sources.dart`): Deezer
+  (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none; a
+  source that fails or has nothing hands over to the next. Deezer takes
+  `/artist/{id}/top?limit=50`, or when that is empty `/search/track?q=<name>&limit=100`
+  kept to tracks whose `artist.id` is the resolved id (search results include
+  covers and remixes by others), one per `normalizeMetadataKeepingEdition`
+  title (so "Wonder" and "Wonder (Japanese Version)" both stay while a
+  remaster folds in), most popular first. Each source caches its list for 24
+  hours. The result is a list of neutral `ArtistTopTrackSeed`s
+  (`features/library/domain/artist_top_track.dart`: rank, title, artist,
+  source, Deezer popularity, Last.fm listeners, album, length, Deezer track
+  id). Only Last.fm seeds carry listeners, so only they show a number.
+- **Providers** (`artist_top_tracks_provider.dart`, keyed by
+  `(artistId, name)`): `artistTopTrackSeedsProvider` loads up to 50 seeds and
+  stays alive 5 minutes after its last listener. The artist page's
+  `ArtistTopTracksSection` watches `artistTopTracksProvider`, a
+  `StreamProvider` over the first 10 seeds only; the "This Is" card watches
+  the same provider, so the artist page never resolves 50. Only the "This Is"
+  page (`artistTopTracksPlaylistProvider`) resolves all of them. The clone-only
+  `artistTopTracksPresentationFixture` replaces the seeds.
+- **Matching** (`ArtistTopTrackResolver`): remembered matches and Deezer
+  tracks the library holds as `ext-deezer-song-<id>` are read in one DAO
+  query; then the local pass (`getTrackMatchCandidates` and
+  `pickBestTrackMatch`, with album and length when the source gives them);
+  then `search3` for what is left, by 4 workers pulling from one queue (no
+  batch barrier) with the provider's `CancelToken`, cancelled when the
+  provider is disposed. The stream emits after the local pass when it found
+  songs and searches follow, and once at the end, so rows move at most twice
+  and an empty first result never hides the section or flips the card. A search running or
+  finished in this session is shared by the section and the page.
+- **Remembered matches** (`ArtistTopTrackMatchStore`, namespace
+  `top-songs.matches`, one file per library artist): seed key (edition title
+  and artist) to song id or unmatched, with when it was checked; remote matches
+  keep the whole song. Entries are trusted for 24 hours. Remembered library
+  songs must still exist (checked by the same DAO query), and remembered remote
+  and unmatched songs go through the local pass again on every visit, so a
+  synced copy replaces them; they skip `search3` until they are a day old.
+  `artistTopTrackMatchSyncBridgeProvider` (watched by the app shell) clears the
+  namespace and the session's searches after every library sync that
+  succeeded fully or partly, mirroring the ListenBrainz weekly matcher.
+- **No source.** With neither source allowed, or when none of the first ten
+  songs is in the library, the artist page hides the section and shows
+  "Shuffle everything by <Artist>" with the artist's album covers, which calls
+  `startArtistPlayback(..., ArtistPlaybackAction.shuffle)`. The top-songs page
+  shows an empty state with the same action when there are no songs.
 
 ## Update Checker
 
@@ -2897,7 +2981,7 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   changes. Search and downloads-folder matching accept a row of any key
   version whose raw fields match, because `search_text` does not depend on
   it, so a bump never sends search down the stale path. `getTrackMatchCandidates` selects only songs
-  that could match a list of external tracks (Last.fm artist top tracks,
+  that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
   share a word. A snapshot built from those makes the same matches as one

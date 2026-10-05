@@ -17,10 +17,12 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
@@ -239,6 +241,19 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   ) {}
 }
 
+class _SpyArtistPlaybackController extends ArtistPlaybackController {
+  final List<(String, ArtistPlaybackAction)> calls =
+      <(String, ArtistPlaybackAction)>[];
+
+  @override
+  ArtistPlaybackState build() => const ArtistPlaybackState();
+
+  @override
+  Future<void> prepare(String artistId, ArtistPlaybackAction action) async {
+    calls.add((artistId, action));
+  }
+}
+
 Widget _buildApp({
   required Widget child,
   required NavisDatabase database,
@@ -257,6 +272,10 @@ Widget _buildApp({
             Stream.value(const <ConnectivityResult>[ConnectivityResult.wifi]),
       ),
       networkTypeProvider.overrideWithValue(NetworkType.wifi),
+      // No Deezer or Last.fm traffic from widget tests.
+      artistTopTrackSeedsProvider.overrideWith(
+        (ref, key) async => const <ArtistTopTrackSeed>[],
+      ),
       ...overrides.cast(),
     ],
     child: MaterialApp(
@@ -506,25 +525,29 @@ void main() {
           database: database,
           adaptiveContext: _mobileContext,
           child: const Scaffold(
-            body: ArtistTopTracksSection(artistName: 'Artist'),
+            body: ArtistTopTracksSection(
+              artistId: 'artist-1',
+              artistName: 'Artist',
+            ),
           ),
           overrides: [
-            artistTopTracksProvider('Artist').overrideWith(
-              (ref) async => const [
-                ResolvedArtistTopTrack(
-                  rank: 1,
-                  title: 'Mobile shared song',
-                  artist: 'Artist',
-                  resolvedSong: Song(
-                    id: 'mobile-shared',
-                    title: 'Mobile shared song',
-                    artist: 'Artist',
-                    album: 'Album',
-                    duration: 223,
-                  ),
+            artistTopTracksProvider((artistId: 'artist-1', name: 'Artist'))
+                .overrideWith(
+                  (ref) => Stream.value(const [
+                    ResolvedArtistTopTrack(
+                      rank: 1,
+                      title: 'Mobile shared song',
+                      artist: 'Artist',
+                      resolvedSong: Song(
+                        id: 'mobile-shared',
+                        title: 'Mobile shared song',
+                        artist: 'Artist',
+                        album: 'Album',
+                        duration: 223,
+                      ),
+                    ),
+                  ]),
                 ),
-              ],
-            ),
             songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
           ],
         ),
@@ -623,6 +646,7 @@ void main() {
     testWidgets(
       'artist top tracks keeps its artist-specific title when empty',
       (tester) async {
+        final playback = _SpyArtistPlaybackController();
         await tester.pumpWidget(
           _buildApp(
             child: const ArtistTopTracksPlaylistDetailScreen(
@@ -643,9 +667,11 @@ void main() {
               ),
               artistInfoProvider('artist-top-tracks')
                   .overrideWithValue(const AsyncData(null)),
-              artistTopTracksPlaylistProvider(
-                'Test Artist',
-              ).overrideWithValue(const AsyncData(<ResolvedArtistTopTrack>[])),
+              artistTopTracksPlaylistProvider((
+                artistId: 'artist-top-tracks',
+                name: 'Test Artist',
+              )).overrideWithValue(const AsyncData(<ResolvedArtistTopTrack>[])),
+              artistPlaybackControllerProvider.overrideWith(() => playback),
             ],
           ),
         );
@@ -654,6 +680,19 @@ void main() {
         expect(find.text('This Is Test Artist'), findsOneWidget);
         expect(find.text('Playlist'), findsNothing);
         expect(find.text('No Top Tracks'), findsOneWidget);
+        expect(
+          find.text('No top songs are available for this artist.'),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(
+            const ValueKey<String>('artist-top-tracks-shuffle-everything'),
+          ),
+        );
+        await tester.pump();
+        expect(playback.calls, <(String, ArtistPlaybackAction)>[
+          ('artist-top-tracks', ArtistPlaybackAction.shuffle),
+        ]);
         await _disposeApp(tester);
       },
     );
@@ -682,7 +721,10 @@ void main() {
             ),
             artistInfoProvider('artist-top-tracks')
                 .overrideWithValue(const AsyncData(null)),
-            artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+            artistTopTracksPlaylistProvider((
+              artistId: 'artist-top-tracks',
+              name: 'Test Artist',
+            )).overrideWithValue(
               const AsyncData(<ResolvedArtistTopTrack>[
                 ResolvedArtistTopTrack(
                   rank: 1,
@@ -739,7 +781,10 @@ void main() {
             ),
             artistInfoProvider('artist-top-tracks')
                 .overrideWithValue(const AsyncData(null)),
-            artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+            artistTopTracksPlaylistProvider((
+              artistId: 'artist-top-tracks',
+              name: 'Test Artist',
+            )).overrideWithValue(
               const AsyncData(<ResolvedArtistTopTrack>[
                 ResolvedArtistTopTrack(
                   rank: 1,
@@ -790,16 +835,18 @@ void main() {
               ),
               artistInfoProvider('artist-top-tracks')
                   .overrideWithValue(const AsyncData(null)),
-              artistTopTracksPlaylistProvider('Test Artist With A Long Name')
-                  .overrideWithValue(
-                    const AsyncData(<ResolvedArtistTopTrack>[
-                      ResolvedArtistTopTrack(
-                        rank: 1,
-                        title: 'North Star',
-                        artist: 'Test Artist With A Long Name',
-                      ),
-                    ]),
+              artistTopTracksPlaylistProvider((
+                artistId: 'artist-top-tracks',
+                name: 'Test Artist With A Long Name',
+              )).overrideWithValue(
+                const AsyncData(<ResolvedArtistTopTrack>[
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'North Star',
+                    artist: 'Test Artist With A Long Name',
                   ),
+                ]),
+              ),
             ],
           ),
         );
@@ -934,6 +981,163 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    group('artist top songs card', () {
+      const artistKey = (artistId: 'artist-1', name: 'Artist 1');
+      final artistOverrides = <Object>[
+        artistByIdProvider('artist-1').overrideWithValue(
+          const AsyncData(
+            ArtistsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'artist-1',
+              name: 'Artist 1',
+              albumCount: 2,
+            ),
+          ),
+        ),
+        artistAlbumSectionsProvider('artist-1').overrideWithValue(
+          const AsyncData(
+            ArtistAlbumSections(
+              albums: <AlbumsTableData>[
+                AlbumsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'album-1',
+                  name: 'Album 1',
+                  artistId: 'artist-1',
+                  coverArt: 'cover-album-1',
+                  songsHydrated: true,
+                  artists: <ArtistRef>[],
+                ),
+              ],
+            ),
+          ),
+        ),
+        artistInfoProvider('artist-1').overrideWithValue(const AsyncData(null)),
+      ];
+
+      testWidgets(
+        'This Is watches the ten section songs, never the 50-song playlist',
+        (tester) async {
+          var playlistReads = 0;
+          await tester.pumpWidget(
+            _buildApp(
+              child: const ArtistDetailScreen(artistId: 'artist-1'),
+              database: database,
+              overrides: [
+                ...artistOverrides,
+                integrationPolicyProvider.overrideWithValue(
+                  const IntegrationPolicy(),
+                ),
+                artistTopTracksProvider(artistKey).overrideWith(
+                  (ref) => Stream.value(const [
+                    ResolvedArtistTopTrack(
+                      rank: 1,
+                      title: 'Hit',
+                      artist: 'Artist 1',
+                      resolvedSong: Song(
+                        id: 'song-1',
+                        title: 'Hit',
+                        coverArt: 'cover-1',
+                      ),
+                    ),
+                  ]),
+                ),
+                artistTopTracksPlaylistProvider.overrideWith((ref, key) {
+                  playlistReads++;
+                  return const <ResolvedArtistTopTrack>[];
+                }),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(const ValueKey<String>('artist-this-is-card')),
+            findsOneWidget,
+          );
+          expect(find.text('This Is Artist 1'), findsOneWidget);
+          expect(find.text('Shuffle everything by Artist 1'), findsNothing);
+          expect(playlistReads, 0);
+          await _disposeApp(tester);
+        },
+      );
+
+      testWidgets(
+        'without a top songs source the card shuffles the artist instead',
+        (tester) async {
+          final playback = _SpyArtistPlaybackController();
+          await tester.pumpWidget(
+            _buildApp(
+              child: const ArtistDetailScreen(artistId: 'artist-1'),
+              database: database,
+              overrides: [
+                ...artistOverrides,
+                integrationPolicyProvider.overrideWithValue(
+                  const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
+                ),
+                artistPlaybackControllerProvider.overrideWith(() => playback),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byType(ArtistTopTracksSection), findsNothing);
+          expect(find.text('This Is Artist 1'), findsNothing);
+          final card = find.byKey(
+            const ValueKey<String>('artist-shuffle-everything-card'),
+          );
+          expect(card, findsOneWidget);
+          expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
+          final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
+            find.descendant(
+              of: card,
+              matching: find.byType(ArtistVirtualPlaylistArtwork),
+            ),
+          );
+          expect(artwork.coverArtIds, <String>['cover-album-1']);
+
+          await tester.tap(card);
+          await tester.pump();
+          expect(playback.calls, <(String, ArtistPlaybackAction)>[
+            ('artist-1', ArtistPlaybackAction.shuffle),
+          ]);
+          await _disposeApp(tester);
+        },
+      );
+
+      testWidgets('no section song in the library also shuffles the artist', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-1'),
+            database: database,
+            overrides: [
+              ...artistOverrides,
+              integrationPolicyProvider.overrideWithValue(
+                const IntegrationPolicy(),
+              ),
+              artistTopTracksProvider(artistKey).overrideWith(
+                (ref) => Stream.value(const [
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'Not Here',
+                    artist: 'Artist 1',
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('This Is Artist 1'), findsNothing);
+        expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
+        await _disposeApp(tester);
+      });
+    });
 
     testWidgets(
       'artist detail hides featured section when there are no featured albums',

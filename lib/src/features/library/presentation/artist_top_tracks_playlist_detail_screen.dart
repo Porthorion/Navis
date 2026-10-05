@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/artist_playback_action.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -17,6 +18,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -51,17 +53,32 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
             icon: Icons.person_off_outlined,
           );
         }
-        final tracksAsync = ref.watch(
-          artistTopTracksPlaylistProvider(artist.name),
-        );
+        final key = (artistId: artist.id, name: artist.name);
+        final tracksAsync = ref.watch(artistTopTracksPlaylistProvider(key));
         return tracksAsync.when(
           skipLoadingOnReload: true,
           data: (tracks) {
+            // No source allowed, or none had songs: offer what the artist
+            // page offers instead of "This Is".
             if (tracks.isEmpty) {
               return EmptyState(
                 title: l10n.artistTopTracksPlaylistEmptyTitle,
                 subtitle: l10n.artistTopTracksPlaylistEmptySubtitle,
                 icon: Icons.queue_music_outlined,
+                action: FilledButton.tonalIcon(
+                  key: const ValueKey<String>(
+                    'artist-top-tracks-shuffle-everything',
+                  ),
+                  onPressed: () => unawaited(
+                    startArtistPlayback(
+                      ProviderScope.containerOf(context, listen: false),
+                      artist.id,
+                      ArtistPlaybackAction.shuffle,
+                    ),
+                  ),
+                  icon: const Icon(Icons.shuffle_rounded),
+                  label: Text(l10n.artistShuffleEverythingAction),
+                ),
               );
             }
             final imageUrl =
@@ -76,8 +93,12 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
           loading: () => const ShimmerListPage(count: 8),
           error: (error, _) => ErrorState(
             title: l10n.artistTopTracksPlaylistErrorTitle,
-            onRetry: () =>
-                ref.invalidate(artistTopTracksPlaylistProvider(artist.name)),
+            onRetry: () => ref.invalidate(
+              artistTopTracksPlaylistProvider((
+                artistId: artist.id,
+                name: artist.name,
+              )),
+            ),
           ),
         );
       },

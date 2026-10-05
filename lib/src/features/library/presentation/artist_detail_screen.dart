@@ -234,17 +234,25 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ),
                   ),
                   ArtistPlaybackProgressIndicator(artistId: widget.artistId),
-                  // ── Top Tracks (Last.fm; hidden while off or without a key) ──
+                  // ── Top Tracks (Deezer, else Last.fm; hidden without either) ──
                   if (ref.watch(artistTopSongsAllowedProvider))
-                    ArtistTopTracksSection(artistName: artistData.name),
-                  if (ref.watch(artistTopSongsAllowedProvider))
-                    _ArtistTopTracksPlaylistCard(
+                    ArtistTopTracksSection(
                       artistId: artistData.id,
                       artistName: artistData.name,
-                      imageUrl:
-                          artistInfo.asData?.value?.largeImageUrl ??
-                          artistInfo.asData?.value?.mediumImageUrl,
                     ),
+                  _ArtistTopTracksPlaylistCard(
+                    artistId: artistData.id,
+                    artistName: artistData.name,
+                    imageUrl:
+                        artistInfo.asData?.value?.largeImageUrl ??
+                        artistInfo.asData?.value?.mediumImageUrl,
+                    albumCoverArtIds: <String>[
+                      for (final album
+                          in albumSections.asData?.value.albums ??
+                              const <AlbumsTableData>[])
+                        ?album.coverArt,
+                    ],
+                  ),
                 ],
               ),
               albumSections.when(
@@ -832,74 +840,130 @@ class _ArtistInfoSection extends StatelessWidget {
   }
 }
 
+/// "This Is" the artist, opening the top songs page, while a top-songs source
+/// is allowed and some of the first ten songs are in the library. Otherwise
+/// "Shuffle everything by" the artist, which shuffles the artist's library
+/// songs, with the artist's album covers as artwork.
+///
+/// It watches the section's ten songs, never the 50-song playlist, so the
+/// artist page does not resolve all 50.
 class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
   const new({
     required this.artistId,
     required this.artistName,
     required this.imageUrl,
+    required this.albumCoverArtIds,
   });
 
   final String artistId;
   final String artistName;
   final String? imageUrl;
+  final List<String> albumCoverArtIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tracks = ref.watch(artistTopTracksPlaylistProvider(artistName));
-    return tracks.when(
-      skipLoadingOnReload: true,
-      data: (playlistTracks) {
-        if (playlistTracks.isEmpty) return const SizedBox.shrink();
-        final coverArtIds = playlistTracks
-            .map((track) => track.resolvedSong?.coverArt)
-            .nonNulls
-            .toList(growable: false);
-        final l10n = AppLocalizations.of(context)!;
-        final colorScheme = Theme.of(context).colorScheme;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-          child: Material(
-            color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
-            borderRadius: NavisRadius.smAll,
-            child: InkWell(
-              borderRadius: NavisRadius.smAll,
-              onTap: () => NavService.openArtistTopTracksPlaylist(
-                context,
-                ref,
+    final l10n = AppLocalizations.of(context)!;
+    final shuffleCard = albumCoverArtIds.isEmpty
+        ? const SizedBox.shrink()
+        : _ArtistVirtualPlaylistCard(
+            key: const ValueKey<String>('artist-shuffle-everything-card'),
+            title: l10n.artistShuffleEverythingTitle(artistName),
+            artwork: ArtistVirtualPlaylistArtwork(
+              coverArtIds: albumCoverArtIds,
+              size: 64,
+            ),
+            trailingIcon: Icons.shuffle_rounded,
+            onTap: () => unawaited(
+              startArtistPlayback(
+                ProviderScope.containerOf(context, listen: false),
                 artistId,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: <Widget>[
-                    ArtistVirtualPlaylistArtwork(
-                      coverArtIds: coverArtIds,
-                      imageUrl: imageUrl,
-                      size: 64,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        l10n.artistTopTracksPlaylistTitle(artistName),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: colorScheme.onSecondaryContainer,
-                            ),
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded),
-                  ],
-                ),
+                ArtistPlaybackAction.shuffle,
               ),
             ),
+          );
+    if (!ref.watch(artistTopSongsAllowedProvider)) return shuffleCard;
+
+    final tracks = ref.watch(
+      artistTopTracksProvider((artistId: artistId, name: artistName)),
+    );
+    return tracks.when(
+      skipLoadingOnReload: true,
+      data: (sectionTracks) {
+        final resolved = sectionTracks
+            .map((track) => track.resolvedSong)
+            .nonNulls
+            .toList(growable: false);
+        if (resolved.isEmpty) return shuffleCard;
+        return _ArtistVirtualPlaylistCard(
+          key: const ValueKey<String>('artist-this-is-card'),
+          title: l10n.artistTopTracksPlaylistTitle(artistName),
+          artwork: ArtistVirtualPlaylistArtwork(
+            coverArtIds: resolved
+                .map((song) => song.coverArt)
+                .nonNulls
+                .toList(growable: false),
+            imageUrl: imageUrl,
+            size: 64,
           ),
+          trailingIcon: Icons.chevron_right_rounded,
+          onTap: () =>
+              NavService.openArtistTopTracksPlaylist(context, ref, artistId),
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (_, _) => shuffleCard,
+    );
+  }
+}
+
+class _ArtistVirtualPlaylistCard extends StatelessWidget {
+  const new({
+    required this.title,
+    required this.artwork,
+    required this.trailingIcon,
+    required this.onTap,
+    super.key,
+  });
+
+  final String title;
+  final Widget artwork;
+  final IconData trailingIcon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Material(
+        color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
+        borderRadius: NavisRadius.smAll,
+        child: InkWell(
+          borderRadius: NavisRadius.smAll,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: <Widget>[
+                artwork,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                ),
+                Icon(trailingIcon),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

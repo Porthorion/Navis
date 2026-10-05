@@ -29,6 +29,7 @@ import 'package:navis/src/features/auth/presentation/initial_server_sync_provide
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -719,6 +720,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(autoDownloadStarredDispatchControllerProvider);
     ref.watch(mixModeReconciliationProvider);
     ref.watch(artistQueueDropRetentionProvider);
+    ref.watch(artistTopTrackMatchSyncBridgeProvider);
     ref.watch(deferredQueueRestoreControllerProvider);
 
     // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions

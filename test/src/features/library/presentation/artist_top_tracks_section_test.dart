@@ -72,7 +72,9 @@ Future<_QueueSpyController> _pumpTopTracksSection(
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
         ),
-        artistTopTracksProvider.overrideWith((ref, artistName) async => tracks),
+        artistTopTracksProvider.overrideWith(
+          (ref, key) => Stream.value(tracks),
+        ),
         queueProvider.overrideWith(_QueueSpyController.new),
         songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),
         songDownloadStateProvider.overrideWith(
@@ -87,7 +89,10 @@ Future<_QueueSpyController> _pumpTopTracksSection(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(
-          body: ArtistTopTracksSection(artistName: 'Test Artist'),
+          body: ArtistTopTracksSection(
+            artistId: 'artist-1',
+            artistName: 'Test Artist',
+          ),
         ),
       ),
     ),
@@ -181,9 +186,9 @@ void main() {
           overrides: [
             albumQueueEnabledProvider.overrideWithValue(false),
             artistTopTracksProvider.overrideWith(
-              (ref, artistName) async => [
+              (ref, key) => Stream.value([
                 _track(rank: 1, id: 'song-menu', title: 'Menu Song'),
-              ],
+              ]),
             ),
             songByIdProvider.overrideWith(
               (ref, songId) => Stream.value(localSong),
@@ -205,7 +210,10 @@ void main() {
               safePadding: EdgeInsets.zero,
             ),
             child: const Scaffold(
-              body: ArtistTopTracksSection(artistName: 'Test Artist'),
+              body: ArtistTopTracksSection(
+                artistId: 'artist-1',
+                artistName: 'Test Artist',
+              ),
             ),
           ),
         ),
