@@ -153,7 +153,10 @@ Navis only talks to your server. Everything is on by default.
   server has its own remote catalogue for the artist), New Releases from
   the artists you play most on Home (or your library's main artists while
   you have little play history), and a Trending Now playlist of the chart
-  songs you can play in You Might Like.
+  songs you can play in You Might Like. A related artist, missing album or
+  new release you don't have opens as a normal page loaded from your server's
+  remote catalogue (such as Octo-Fiesta), with a search only when your server
+  cannot provide it.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No
   Last.fm scrobbling. Release builds bundle an API key, masked at build time to

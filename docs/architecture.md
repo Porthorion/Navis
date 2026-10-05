@@ -860,8 +860,8 @@ Settings):
 
 - `/` - Home
 - `/library?section=<albums|liked|artists|playlists|radio>` - Library; the section is part of the location
-- `/library/artists/:id` and `/library/artists/:id/top-tracks` - Artist detail and its top-tracks playlist
-- `/library/albums/:id` - Album detail
+- `/library/artists/:id` and `/library/artists/:id/top-tracks` - Artist detail and its top-tracks playlist; `?name=` names an artist the library may not hold yet
+- `/library/albums/:id` - Album detail; `?name=` and `&artist=` name an album the library may not hold yet
 - `/library/playlists/:id` - Playlist detail
 - `/library/listenbrainz/:sourcePatch` - ListenBrainz weekly playlist
 - `/library/liked-albums`, `/library/liked-artists` - Full liked lists
@@ -1571,6 +1571,48 @@ fallback.
   the page's own Shuffle button covers shuffling the artist. The top-songs
   page route keeps a plain empty state ("No Top Tracks") without an action.
 
+### Remote artist and album pages
+
+An artist or album page whose entity the library does not hold yet (a
+remote `ext-…` id from search, Fans Also Like, Missing Albums or New
+Releases, or a library id not synced yet), or a remote artist without albums
+or a remote album without tracks, is fetched before it shows; the page never
+reads "Not Found".
+- Opening runs the existing hydration through the sync controller:
+  `hydrateOpenedArtist` / `hydrateOpenedAlbum`
+  (`LibrarySyncController`), the same `getArtist` / `getAlbum` target syncs
+  as `registerArtistInteraction` / `registerAlbumInteraction`, returning the
+  result (null when none was needed or no server is signed in). Concurrent
+  opens of an artist share one request. Rows land as provisional external
+  rows, as before.
+- Until the page has its minimum (artist: the stored artist and its albums,
+  or a successful hydration that stored none; album: the stored album and
+  its tracks, or one marked hydrated), it shows `DetailLoadingView`
+  (`features/library/presentation/detail_load_states.dart`) inside the
+  page's own scaffold: an app bar with a back button
+  (`NavService.back`, the Library when there is no history) and Refresh,
+  the artwork and name the library or the route already has, "Loading
+  Remote Artist…" / "Loading Remote Album…" ("Loading Artist…" / "Loading
+  Album…" for a library id) beside a small spinner, the Remote mark, and a
+  still outline of the albums or tracks to come. Everything else (photo,
+  biography, Deezer sections, top songs) fills in through its usual
+  providers once the page shows.
+- `detailHydrationPhaseFor` turns the result into running, settled or
+  failed: a failed, cancelled or network-deferred request fails, and so does
+  a settled one after which the entity (or a remote album's tracks) is still
+  not stored. Only then does `DetailLoadFailedView` replace the loading
+  view: "Could Not Load This Artist/Album", Retry, and "Search for <name>"
+  (artists filter, or albums with "title artist") when a name is known.
+- The name comes from the stored row, else from the route: `NavService`
+  `openArtistDetail(…, name:)` and `openAlbumDetail(…, name:, artistName:)`
+  add `?name=` and `&artist=` (`AppRoutes.detailNameParam` /
+  `detailArtistParam`). Search results, song menus, Fans Also Like, Missing
+  Albums and New Releases pass them.
+- Refresh (`DetailRefreshButton`, on every artist and album page) and Retry
+  re-run the hydration (`refreshArtist`, `requestTarget(album)`). A page
+  that already shows its entity keeps it and reports a failed refresh with a
+  notice.
+
 ### Deezer on the artist page
 
 Three more artist-page features use Deezer, each behind its own switch and
@@ -1582,7 +1624,8 @@ resolver above), which is only watched after a feature switch has been
 checked, so with all three off the page sends nothing to Deezer.
 `DeezerCatalog` (`features/integrations/data/deezer_catalog.dart`,
 `deezerCatalogProvider`) reads `/artist/{id}`, `/artist/{id}/related`,
-`/artist/{id}/albums` and `/album/{id}` through the disk cache: artist details
+`/artist/{id}/albums` and `/album/{id}` (no longer read by the app since the
+release sheet was retired) through the disk cache: artist details
 and related artists 7 days, albums 24 hours, an album 7 days, "not on Deezer"
 included; errors are not cached. The resolver shares one resolution between
 callers asking for the same library artist and name at once (Top Songs and
@@ -1622,8 +1665,10 @@ these sections on a first visit).
   (`features/library/presentation/similar_artists_section.dart`) draws it in
   the same two-row grid as the server's Similar Artists, which it replaces when
   it has artists: library artists keep their art and open their page; others
-  show the Deezer photo with the Remote mark and open search for the name
-  (artists filter), never a missing artist page. The server's Similar Artists
+  show the Deezer photo with the Remote mark and open the server's remote
+  artist `ext-deezer-artist-<id>` (`SimilarArtistEntry.deezerArtistId`) on a
+  remote artist page (see *Remote artist and album pages*), which offers a
+  search for the name when the server cannot provide it. The server's Similar Artists
   show as soon as Deezer has nothing or fails, or when Deezer has not
   answered within 2.5 seconds (`kFansAlsoLikeServerFallbackDelay`); whichever
   list shows first stays, so a late Deezer answer never swaps it.
@@ -1641,14 +1686,15 @@ these sections on a first visit).
   look and `AlbumCardLabel`, with a policy-checked cover URL) follows the album
   grids, subtitled "2021 • EP". Cards take `ContentLayout.shelfCardExtent`,
   the size Home's album carousels also use (smaller under Home's compact
-  density). A card opens `showDeezerReleaseSheet`
-  (`features/integrations/presentation/deezer_release_sheet.dart`, a dialog on
-  desktop): cover, title, artist, "year • type • N songs" (the count from
-  `/album/{id}` via `deezerReleaseDetailsProvider`) and "Search your server",
-  which searches albums for "title artist". The card and sheet take the
-  feature they belong to, so Home's new releases can reuse them. The sheet
-  also lists the tracklist from `/album/{id}` (number, title, length,
-  scrolling within the sheet).
+  density). A card opens the server's remote album `ext-deezer-album-<id>`
+  (`remoteDeezerAlbumId`) with its title and artist as route names, on a
+  remote album page that plays like any album and offers a search when the
+  server cannot provide it. The card takes the feature it belongs to, so
+  Home's new releases reuse it; its "2021 • EP" label and cover come from
+  `features/integrations/presentation/deezer_release_labels.dart`. (The
+  release sheet with a "Search your server" button that cards opened before
+  was retired in favour of these pages; the user expects a missing album to
+  open and play like any album.)
 
 ### Deezer on Home
 
@@ -1697,11 +1743,10 @@ there, one that already places it is left alone). `homeNewReleasesProvider`
   the downloaded-only and liked-only filters; a refresh keeps the shown cards.
   `HomeNewReleasesShelf` (`home_new_releases.dart`) is Home's album carousel of
   `ExternalAlbumCard`s: two lines, title and artist, like the other album
-  carousels (the release date and type appear only in the release sheet).
+  carousels.
 - A tap (`openHomeNewRelease`) opens the library album when linked; else the
-  server's `ext-deezer-album-<id>` when `getAlbum` confirms it within 5
-  seconds; else the release sheet with the full release date
-  ("Oct 2, 2026 • Single • 3 songs") and tracklist.
+  server's remote album `ext-deezer-album-<id>`, named by the release title
+  and artist, on a remote album page (see *Remote artist and album pages*).
 - The onboarding warmup returns no artwork for it, so onboarding never asks
   Deezer. Pull-to-refresh invalidates it.
 
@@ -2768,7 +2813,9 @@ states without starting audio or modifying a queue.
    reports the local count while `getArtist` adds the remote
    `ext-deezer-album-*` releases under the same artist id, which then land in
    the Albums grid with the Remote mark and hide Missing albums. Concurrent
-   opens of one artist share one request. Its explicit refresh always requests
+   opens of one artist share one request, and the artist and album pages wait
+   for its result while they have nothing to show (see *Remote artist and
+   album pages*). Its explicit refresh always requests
    that exact artist rather than a broad catalog run. Artist hydration stores
    the complete release metadata tree, while album hydration remains lazy and
    normally performs one `getAlbum` request plus one song transaction. Releases

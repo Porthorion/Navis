@@ -1623,19 +1623,21 @@ only in builds without a bundled key, and both fields only on step 3) or an
 onboarding screen that is not mounted returns 409. Capture the screenshot after
 the keyboard has animated in.
 
-Clone-only `POST /v1/presentation/release-sheet` taps a Deezer release card
+Clone-only `POST /v1/presentation/release-card` taps a Deezer release card
 through its own tap handler: `{"surface": "missingAlbums" | "newReleases",
 "index": 0}` (`index` is 0-based and defaults to 0) on the mounted artist page's
 Missing Albums shelf or Home's New Releases shelf. Cards that are not built yet
 (off screen in the shelf or below the fold) are not tappable, so scroll first
-with `/v1/presentation/scroll`. The response is `{"outcome", "location"}` where
-`outcome` is `sheet` (the release sheet or dialog opened), `albumPage` (a
-library or remote album page opened, as the production handler decides) or
-`none` (nothing happened within 8 seconds), and `location` is the route
-afterwards. `{"dismiss": true}` closes an open release sheet and returns
-`{"outcome": "dismissed"}`. A surface with no tappable card, or dismissing with
-no sheet open, returns 409; an index past the cards returns 404; malformed
-bodies return 400.
+with `/v1/presentation/scroll`. A card opens an album page: the library album,
+or the server's remote `ext-deezer-album-<id>`, which the page loads from the
+server. The response is `{"outcome", "location"}` where `outcome` reports how
+that page ended up: `albumPage` (it shows the album), `failed` (the server
+could not provide it, and the page offers Retry and a search), `loading` (still
+loading after 30 seconds) or `none` (the tap did not navigate within 8
+seconds); `location` is the route afterwards. A surface with no tappable card
+returns 409; an index past the cards returns 404; malformed bodies return 400.
+It replaced `POST /v1/presentation/release-sheet` when the release sheet was
+retired.
 
 All three return 403 in primary certification and 503 when no presentation
 surface is registered.

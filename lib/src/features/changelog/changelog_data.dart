@@ -170,15 +170,15 @@ const List<ChangelogVersion> changelogs = [
         'Deezer recognises artists it names a little differently, such as "Black Eyed Peas" for "The Black Eyed Peas" or "Simon & Garfunkel" for "Simon and Garfunkel"',
       ),
       ChangelogEntry(
-        '"Fans Also Like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens a search instead of an empty artist page',
+        '"Fans Also Like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens its page from your server\'s remote catalogue, or a search when your server cannot provide it',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to see it and search your server',
+        'Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server\'s remote catalogue',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'New Releases on Home, right under You Might Like, shows the last month\'s releases from the artists you play most, or from your library\'s main artists while you have played little; tap one to open it on your server, or see its tracklist and search your server when it is not there',
+        'New Releases on Home, right under You Might Like, shows the last month\'s releases from the artists you play most, or from your library\'s main artists while you have played little; tap one to open it like any album, from your library or your server\'s remote catalogue',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -210,6 +210,10 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh, and the album count under the name counts them as they appear',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Remote artists and albums, and ones your library has not stored yet, open on a "Loading Remote Artist…" or "Loading Remote Album…" page with a back button while Navis fetches them from your server, then fill in as details arrive, instead of showing "Not Found"; Refresh fetches them again, and a search is offered only when your server cannot provide them',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Same Vibes now starts from the song you chose (for example from Android Auto), and Server Mix works from remote songs that have a library copy',
