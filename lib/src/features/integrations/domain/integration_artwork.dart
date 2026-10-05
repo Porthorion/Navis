@@ -56,6 +56,25 @@ bool integrationAllowsArtworkUri(
   return policy.isEnabled(feature ?? mapped);
 }
 
+/// Feature-level check for the shared file service: [integrationAllowsArtworkUri]
+/// for the feature the request named by [featureKey] (see
+/// `coverArtFeatureHeader`). An unknown key is refused.
+bool integrationAllowsArtworkFeatureKey(
+  IntegrationPolicy policy,
+  Uri uri,
+  String featureKey, {
+  required String? serverHost,
+}) {
+  final feature = IntegrationFeature.tryParse(featureKey);
+  if (feature == null) return false;
+  return integrationAllowsArtworkUri(
+    policy,
+    uri,
+    serverHost: serverHost,
+    feature: feature,
+  );
+}
+
 /// Service-level variant used by the shared file service, which cannot know
 /// why a URL is loaded: the master and service switches for the host's
 /// service.
@@ -77,11 +96,16 @@ bool _isLastFmHost(String host) {
   return labels.any((label) => label == 'lastfm');
 }
 
-/// Radio metadata and the artwork host's service must both allow this image.
+/// The user's server is always allowed. External radio art needs both radio
+/// metadata permission and the artwork host's service enabled.
 bool integrationAllowsRadioArtworkUri(
   IntegrationPolicy policy,
   Uri uri, {
   required String? serverHost,
-}) =>
-    policy.allows(IntegrationFeature.radioNowPlaying) &&
-    integrationAllowsArtworkHost(policy, uri, serverHost: serverHost);
+}) {
+  if (integrationFeatureForArtworkUri(uri, serverHost: serverHost) == null) {
+    return true;
+  }
+  return policy.allows(IntegrationFeature.radioNowPlaying) &&
+      integrationAllowsArtworkHost(policy, uri, serverHost: serverHost);
+}

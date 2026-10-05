@@ -249,7 +249,11 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       )) {
     return null;
   }
-  return CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);
+  return CachedNetworkImageProvider(
+    trimmedArtUrl,
+    cacheManager: cacheManager,
+    headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
+  );
 }
 
 Future<void> prewarmNowPlayingVisuals({

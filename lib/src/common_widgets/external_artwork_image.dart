@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -14,8 +15,9 @@ import 'package:navis/src/providers/app_providers.dart';
 /// While the policy refuses the URL, or when loading fails, it shows
 /// [fallbackBuilder] instead, so callers keep their own placeholder.
 ///
-/// Radio art needs `radio.nowPlaying` and, because the shared loader cannot
-/// tell why a URL is requested, the server-linked artwork service as well.
+/// Radio art needs `radio.nowPlaying` and the server-linked artwork service.
+/// A [feature] is sent with the request, so the loader checks that feature's
+/// switch again right before the download is dispatched.
 class ExternalArtworkImage extends ConsumerWidget {
   const new({
     required this.url,
@@ -64,6 +66,11 @@ class ExternalArtworkImage extends ConsumerWidget {
     return CachedNetworkImage(
       imageUrl: url.trim(),
       cacheManager: ref.watch(coverArtCacheManagerProvider),
+      // Names the feature so a download queued for it is refused at dispatch
+      // once the feature is switched off.
+      httpHeaders: feature == null
+          ? null
+          : coverArtFeatureHeaders(feature!.key),
       width: width,
       height: height,
       fit: fit,

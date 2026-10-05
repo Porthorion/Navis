@@ -148,7 +148,12 @@ class _DynamicAccentColorCache {
       if (url.isEmpty) {
         return null;
       }
-      return CachedNetworkImageProvider(url, cacheManager: cacheManager);
+      // A `url:` source exists only for radio now-playing art.
+      return CachedNetworkImageProvider(
+        url,
+        cacheManager: cacheManager,
+        headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
+      );
     }
 
     if (source.startsWith('id:')) {

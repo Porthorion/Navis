@@ -946,6 +946,82 @@ void main() {
       expect(coordinator.activeCount, 0);
     });
 
+    test(
+      'the requesting feature is rechecked after waiting for a slot',
+      () async {
+        var featureAllowed = true;
+        final checked = <String>[];
+        final coordinator = CoverArtLoadCoordinator(
+          maxActiveDownloads: 1,
+          criticalReserve: 0,
+        );
+        final blocker = await coordinator.acquire('blocker');
+        final service = CoverArtHttpFileService(
+          loadCoordinator: coordinator,
+          allowUri: (_) => true,
+          allowFeatureUri: (uri, feature) {
+            checked.add(feature);
+            return featureAllowed;
+          },
+        );
+        addTearDown(service.close);
+        final pending = service.get(
+          _coverArtUrl(server, id: 'queued'),
+          headers: coverArtFeatureHeaders('radio.nowPlaying'),
+        );
+        final rejected = expectLater(
+          pending,
+          throwsA(isA<CoverArtBlockedException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(coordinator.queuedCount, 1);
+        featureAllowed = false;
+        blocker.release();
+        await rejected;
+        expect(requests, 0);
+        expect(coordinator.activeCount, 0);
+        expect(checked, everyElement('radio.nowPlaying'));
+        expect(checked.length, greaterThanOrEqualTo(2));
+      },
+    );
+
+    test('a request without a feature skips the feature check', () async {
+      final service = CoverArtHttpFileService(
+        allowUri: (_) => true,
+        allowFeatureUri: (_, _) => false,
+      );
+      addTearDown(service.close);
+      await expectLater(
+        service.get(_coverArtUrl(server, id: 'cover-1')),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      expect(requests, 1);
+    });
+
+    test('the feature header is consumed and never sent', () async {
+      final seen = <String?>[];
+      final probe = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => probe.close(force: true));
+      probe.listen((request) {
+        seen.add(request.headers.value(coverArtFeatureHeader));
+        request.response.statusCode = HttpStatus.notFound;
+        unawaited(request.response.close());
+      });
+      final service = CoverArtHttpFileService(
+        allowUri: (_) => true,
+        allowFeatureUri: (_, _) => true,
+      );
+      addTearDown(service.close);
+      await expectLater(
+        service.get(
+          _coverArtUrl(probe, id: 'cover-1'),
+          headers: coverArtFeatureHeaders('radio.nowPlaying'),
+        ),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      expect(seen, [null]);
+    });
+
     test('each redirect is checked and rejection releases its slot', () async {
       final redirects = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => redirects.close(force: true));

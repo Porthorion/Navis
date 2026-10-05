@@ -48,6 +48,24 @@ void main() {
     },
   );
 
+  test('own-server radio art is allowed with master or radio switches off', () {
+    for (final policy in [
+      const IntegrationPolicy(masterEnabled: false),
+      const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'}),
+      const IntegrationPolicy(disabledKeys: {'radio'}),
+      const IntegrationPolicy.denyAll(),
+    ]) {
+      expect(
+        integrationAllowsRadioArtworkUri(
+          policy,
+          Uri.parse('https://MUSIC.example.org:4533/cover.jpg'),
+          serverHost: server,
+        ),
+        isTrue,
+      );
+    }
+  });
+
   group('integrationFeatureForArtworkUri', () {
     test('the user server host is always allowed', () {
       expect(
@@ -194,6 +212,59 @@ void main() {
       expect(
         integrationAllowsArtworkUri(radioOff, externalUri, serverHost: server),
         isTrue,
+      );
+    });
+  });
+
+  group('integrationAllowsArtworkFeatureKey', () {
+    final externalUri = Uri.parse('https://images.example.com/a.jpg');
+
+    test('the named feature must be on, beyond the host service', () {
+      const radioOff = IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+      expect(
+        integrationAllowsArtworkFeatureKey(
+          radioOff,
+          externalUri,
+          'radio.nowPlaying',
+          serverHost: server,
+        ),
+        isFalse,
+      );
+      // The host's own service is still on, which is all the service-level
+      // gate looks at.
+      expect(
+        integrationAllowsArtworkHost(radioOff, externalUri, serverHost: server),
+        isTrue,
+      );
+      expect(
+        integrationAllowsArtworkFeatureKey(
+          const IntegrationPolicy(),
+          externalUri,
+          'radio.nowPlaying',
+          serverHost: server,
+        ),
+        isTrue,
+      );
+    });
+
+    test('the user server and unknown keys', () {
+      expect(
+        integrationAllowsArtworkFeatureKey(
+          const IntegrationPolicy.denyAll(),
+          Uri.parse('https://music.example.org/cover.jpg'),
+          'radio.nowPlaying',
+          serverHost: server,
+        ),
+        isTrue,
+      );
+      expect(
+        integrationAllowsArtworkFeatureKey(
+          const IntegrationPolicy(),
+          externalUri,
+          'not.a.feature',
+          serverHost: server,
+        ),
+        isFalse,
       );
     });
   });

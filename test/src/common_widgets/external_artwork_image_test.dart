@@ -3,6 +3,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -71,6 +72,21 @@ void main() {
     );
     expect(image.cacheManager, same(manager));
     expect(image.imageUrl, 'https://images.example.com/a.jpg');
+  });
+
+  testWidgets('a radio image names its feature on the request', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        policy: const IntegrationPolicy(),
+        url: 'https://images.example.com/a.jpg',
+        manager: _FailingCacheManager(),
+        feature: IntegrationFeature.radioNowPlaying,
+      ),
+    );
+    final image = tester.widget<CachedNetworkImage>(
+      find.byType(CachedNetworkImage),
+    );
+    expect(image.httpHeaders, {coverArtFeatureHeader: 'radio.nowPlaying'});
   });
 
   testWidgets('shows the fallback when loading fails', (tester) async {

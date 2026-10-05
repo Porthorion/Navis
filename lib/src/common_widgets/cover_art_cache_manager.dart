@@ -60,6 +60,17 @@ const int _coverArtErrorDocumentSampleBytes = 64 * 1024;
 /// Redirect hops followed per artwork request; each is policy-checked.
 const int _coverArtMaxRedirects = 5;
 
+/// Request header naming the integration feature an artwork load belongs to
+/// (for example `radio.nowPlaying`). [CoverArtHttpFileService] consumes it to
+/// check that feature's switches at dispatch time and never sends it.
+const String coverArtFeatureHeader = 'x-navis-artwork-feature';
+
+/// Image-request headers that tie a load to the integration feature
+/// [featureKey], so a download queued for that feature is refused once the
+/// feature is switched off.
+Map<String, String> coverArtFeatureHeaders(String featureKey) =>
+    <String, String>{coverArtFeatureHeader: featureKey};
+
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO). Content types are untrusted: some servers answer
 /// missing artwork with HTTP 200 and a non-image body.
@@ -427,6 +438,7 @@ class CoverArtHttpFileService implements FileService {
     this._reportNetworkUsage,
     this.onMissingCover,
     this._allowUri,
+    this._allowFeatureUri,
     this._isServerUri,
     this._connectionTimeout = const Duration(seconds: 15),
     this._responseTimeout = const Duration(seconds: 20),
@@ -446,6 +458,13 @@ class CoverArtHttpFileService implements FileService {
   /// [CoverArtBlockedException] without touching the network. Null allows
   /// everything.
   final bool Function(Uri uri)? _allowUri;
+
+  /// Feature-level policy check for requests that carry
+  /// [coverArtFeatureHeader]: whether [Uri] may load for the feature named by
+  /// the second argument. It runs next to [_allowUri] at every point the
+  /// request could be dispatched, so a feature switched off while the download
+  /// waited in a queue is refused. Null allows everything [_allowUri] allows.
+  final bool Function(Uri uri, String featureKey)? _allowFeatureUri;
 
   /// Whether [Uri] points at the user's own server. Missing-cover recovery
   /// asks that server to refresh a cover id, so it only runs for its URLs; an
@@ -476,8 +495,17 @@ class CoverArtHttpFileService implements FileService {
   }) async {
     final originalUri = Uri.parse(url);
     var uri = originalUri;
+    final featureKey = headers?[coverArtFeatureHeader];
+    // The feature header is ours: it is never forwarded to any host.
+    final requestHeaders = headers == null || featureKey == null
+        ? headers
+        : (<String, String>{...headers}..remove(coverArtFeatureHeader));
+    bool allowed() =>
+        (_allowUri?.call(uri) ?? true) &&
+        (featureKey == null ||
+            (_allowFeatureUri?.call(uri, featureKey) ?? true));
     void checkAllowed() {
-      if (!(_allowUri?.call(uri) ?? true)) {
+      if (!allowed()) {
         throw CoverArtBlockedException(uri.host);
       }
     }
@@ -499,9 +527,9 @@ class CoverArtHttpFileService implements FileService {
         request.followRedirects = false;
         // Caller headers never travel to a different origin.
         if (uri.origin == originalUri.origin) {
-          headers?.forEach(request.headers.set);
+          requestHeaders?.forEach(request.headers.set);
         }
-        if (!(_allowUri?.call(uri) ?? true)) {
+        if (!allowed()) {
           request.abort();
           throw CoverArtBlockedException(uri.host);
         }

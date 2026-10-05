@@ -217,6 +217,14 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
       uri,
       serverHost: ref.read(serverHostProvider),
     ),
+    // Loads that name their feature (radio art) are also checked against
+    // that feature's switch, at dispatch, after any queue wait.
+    allowFeatureUri: (uri, featureKey) => integrationAllowsArtworkFeatureKey(
+      ref.read(integrationPolicyProvider),
+      uri,
+      featureKey,
+      serverHost: ref.read(serverHostProvider),
+    ),
     isServerUri: (uri) =>
         integrationFeatureForArtworkUri(
           uri,
