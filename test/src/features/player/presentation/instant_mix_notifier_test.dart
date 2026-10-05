@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -847,5 +849,108 @@ void main() {
       );
       expect(container.read(recommendationSessionProvider).stage, 'failed');
     });
+  });
+
+  group('activating again while a refill runs', () {
+    late _MockSubsonicApiClient api;
+    late Completer<List<Song>> firstFetch;
+
+    setUp(() {
+      api = _MockSubsonicApiClient();
+      firstFetch = Completer<List<Song>>();
+      when(
+        () => api.getSimilarSongs2(
+          'seed-a',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) => firstFetch.future);
+      when(
+        () => api.getSimilarSongs2(
+          'seed-b',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(3, prefix: 'b'));
+    });
+
+    ProviderContainer build() {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(_FakeQueueController.new),
+          subsonicApiProvider.overrideWithValue(api),
+          audioMuseRepositoryProvider.overrideWith((_) => null),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(snapshotState.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed-a', 'seed-b'],
+              currentSongId: 'seed-a',
+              currentIndex: 0,
+            ),
+          );
+      return container;
+    }
+
+    Future<void> startTwice(ProviderContainer container) async {
+      final notifier = container.read(instantMixProvider.notifier);
+      unawaited(notifier.activate('seed-a'));
+      await pumpEventQueue();
+      await notifier.activate('seed-b');
+    }
+
+    void expectSecondMixActive(ProviderContainer container) {
+      final queue =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queue.retainedSongIds, <String>['seed-b']);
+      expect(
+        queue.mixTrackBatches.map((batch) => batch.map((song) => song.id)),
+        <List<String>>[
+          <String>['b-0', 'b-1', 'b-2'],
+        ],
+      );
+      final session = container.read(recommendationSessionProvider);
+      expect(session.seedId, 'seed-b');
+      expect(session.stage, 'active');
+      expect(session.insertedCount, 3);
+      final state = container.read(instantMixProvider);
+      expect(state.active, isTrue);
+      expect(state.error, isNull);
+    }
+
+    test(
+      "inserts for the second seed and drops the first one's songs",
+      () async {
+        final container = build();
+
+        await startTwice(container);
+        expectSecondMixActive(container);
+
+        firstFetch.complete(songs(3, prefix: 'a'));
+        await pumpEventQueue();
+        expectSecondMixActive(container);
+      },
+    );
+
+    test(
+      'a failure of the superseded refill never reaches the new session',
+      () async {
+        final container = build();
+
+        await startTwice(container);
+        firstFetch.completeError(StateError('first fetch failed'));
+        await pumpEventQueue();
+
+        expectSecondMixActive(container);
+      },
+    );
   });
 }

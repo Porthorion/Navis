@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -2112,6 +2114,71 @@ void main() {
           cancelToken: any(named: 'cancelToken'),
         ),
       );
+    });
+
+    test('activating again while a refill runs inserts for the second seed '
+        'and the first never lands in it', () async {
+      final firstFetch = Completer<LastFmTrackFetchResult>();
+      var lastFmCalls = 0;
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) {
+        lastFmCalls++;
+        return lastFmCalls == 1
+            ? firstFetch.future
+            : Future<LastFmTrackFetchResult>.value(
+                const LastFmTrackFetchResult(
+                  outcome: LastFmFetchOutcome.noResults,
+                  tracks: <LastFmTrackRecommendation>[],
+                ),
+              );
+      });
+      when(
+        () => api.getSimilarSongs(
+          'seed-a',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[Song(id: 'a-0', title: 'A')]);
+      when(
+        () => api.getSimilarSongs(
+          'seed-b',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[Song(id: 'b-0', title: 'B')]);
+      final container = playing(
+        queue: const <String>['seed-a', 'seed-b'],
+        current: 'seed-a',
+      );
+      final notifier = container.read(sameVibesProvider.notifier);
+
+      unawaited(notifier.activate('seed-a'));
+      await pumpEventQueue();
+      await notifier.activate('seed-b');
+
+      void expectSecondMixActive() {
+        final queue = queueOf(container);
+        expect(queue.retainedSongIds, <String>['seed-b']);
+        expect(queue.queuedSongs.map((song) => song.id), <String>['b-0']);
+        final session = container.read(recommendationSessionProvider);
+        expect(session.seedId, 'seed-b');
+        expect(session.stage, 'active');
+        expect(session.insertedCount, 1);
+        final state = container.read(sameVibesProvider);
+        expect(state.active, isTrue);
+        expect(state.error, isNull);
+      }
+
+      expectSecondMixActive();
+      // The superseded refill fails afterwards; its failure is dropped.
+      firstFetch.completeError(StateError('first fetch failed'));
+      await pumpEventQueue();
+      expectSecondMixActive();
     });
 
     test('a playing remote seed mixes from its library copy, never queueing '

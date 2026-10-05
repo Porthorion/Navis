@@ -32,10 +32,10 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
-  /// Local boolean guard that prevents overlapping refills even if the
-  /// Riverpod state update has not yet been observed by a concurrent listener
-  /// invocation.
-  bool _isRefilling = false;
+  /// The session whose refill is running. It prevents overlapping refills of
+  /// one session even before the Riverpod state update is observed, while a
+  /// new activation (a new session) starts its own refill at once.
+  RecommendationSession? _refillingSession;
 
   /// Exclusive end index of the active mix segment in the playback queue.
   ///
@@ -90,7 +90,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     try {
       await _refill(normalizedSeedSongId, isInitial: true);
     } finally {
-      _activationInProgress = false;
+      // A newer activation owns the flag now.
+      if (identical(_session, session)) {
+        _activationInProgress = false;
+      }
     }
   }
 
@@ -185,30 +188,37 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     return true;
   }
 
+  /// Whether [session] is still the active mix. A refill of a superseded
+  /// session (the user started another mix) must not touch state or queue.
+  bool _isCurrent(RecommendationSession session) =>
+      identical(_session, session) &&
+      ref.read(recommendationSessionProvider.notifier).owns(session);
+
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
-    if (_isRefilling || state.refilling) return;
-    _isRefilling = true;
     final refillSession = _session;
+    if (refillSession == null) return;
+    // Only a refill of this same session blocks. Starting a mix replaces the
+    // session and cancels the old fetch, so its first refill runs at once
+    // instead of waiting, "preparing", for the superseded one.
+    if (identical(_refillingSession, refillSession) || state.refilling) return;
+    _refillingSession = refillSession;
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
-      await _doRefill(seedSongId, isInitial: isInitial).timeout(
+      await _doRefill(seedSongId, refillSession, isInitial: isInitial).timeout(
         _kRefillTimeout,
         onTimeout: () {
-          if (!ref.mounted) return;
+          if (!ref.mounted || !_isCurrent(refillSession)) return;
           AppLogger.debug(
             'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s '
             '— resetting',
           );
-          final session = _session;
-          if (session != null) {
-            ref.read(recommendationSessionProvider.notifier).stop(session);
-          }
+          ref.read(recommendationSessionProvider.notifier).stop(refillSession);
           state = const InstantMixState(error: InstantMixError.networkError);
         },
       );
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || !_isCurrent(refillSession)) return;
       AppLogger.debug('InstantMix refill failed: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
@@ -219,16 +229,23 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         _scheduleTransientRetry(seedSongId, 'networkFailure');
       }
     } finally {
-      _isRefilling = false;
-      if (ref.mounted && state.active && state.refilling) {
+      if (identical(_refillingSession, refillSession)) {
+        _refillingSession = null;
+      }
+      if (ref.mounted &&
+          _isCurrent(refillSession) &&
+          state.active &&
+          state.refilling) {
         state = state.copyWith(refilling: false);
       }
     }
   }
 
-  Future<void> _doRefill(String seedSongId, {bool isInitial = false}) async {
-    final session = _session;
-    if (session == null) return;
+  Future<void> _doRefill(
+    String seedSongId,
+    RecommendationSession session, {
+    bool isInitial = false,
+  }) async {
     final coordinator = ref.read(recommendationSessionProvider.notifier);
     final previousQueue = isInitial ? ref.read(playerStateProvider) : null;
     var queueChangeAttempted = false;
@@ -286,7 +303,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
       coordinator.report(session, stage: 'active', insertedCount: queuedCount);
     } on SubsonicNotFoundException {
-      if (!ref.mounted) return;
+      if (!ref.mounted || !_isCurrent(session)) return;
       state = const InstantMixState(error: InstantMixError.unsupported);
       _reportFailed(session, InstantMixError.unsupported);
     } on Object catch (error, stackTrace) {
@@ -295,6 +312,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         await _restorePreviousQueue(previousQueue, session);
       }
       AppLogger.debug('InstantMix _doRefill error: $error\n$stackTrace');
+      if (!_isCurrent(session)) return;
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
         _reportFailed(session, InstantMixError.networkError);

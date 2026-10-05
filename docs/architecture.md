@@ -1807,7 +1807,10 @@ server session changes, sign-out, or another recommendation activation
 invalidate ownership. The queue controller checks ownership within its
 serialized recommendation append and reports IDs actually inserted. Every
 initial failure reports the session `failed` with an error category, so its
-status never stays `preparing` after the mode gave up. A failed
+status never stays `preparing` after the mode gave up. Starting a mix supersedes
+any refill still running for the previous one: the new session's first refill
+starts at once (only a refill of the same session blocks another), and the
+superseded refill's songs, errors and retries are dropped by session identity. A failed
 initial fetch leaves the existing queue alone; failed initial queue commits
 attempt to restore the previous queue and play state. Persisted recommendation
 tracks restore as an ordinary queue after restart, without restarting refills.

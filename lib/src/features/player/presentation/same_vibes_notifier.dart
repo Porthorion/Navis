@@ -89,18 +89,30 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _mixSegmentEndIndex = null;
-    _session = ref
+    final session = ref
         .read(recommendationSessionProvider.notifier)
         .start(RecommendationMode.sameVibes, seedId: normalizedSeedSongId);
+    _session = session;
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
+    // A fresh state also clears the refilling flag of a refill still running
+    // for a superseded mix, so this mix's first refill starts at once.
     state = SameVibesState(active: true, seedSongId: normalizedSeedSongId);
     try {
       await _refill(isInitial: true);
     } finally {
-      _activationInProgress = false;
+      // A newer activation owns the flag now.
+      if (identical(_session, session)) {
+        _activationInProgress = false;
+      }
     }
   }
+
+  /// Whether [session] is still the active mix. A refill of a superseded
+  /// session (the user started another mix) must not touch state or queue.
+  bool _isCurrent(RecommendationSession session) =>
+      identical(_session, session) &&
+      ref.read(recommendationSessionProvider.notifier).owns(session);
 
   void deactivate() {
     final session = _session;
@@ -452,6 +464,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               'endpointUnsupported=$endpointUnsupported',
             );
             if (endpointUnsupported && mappedSongs.isEmpty) {
+              if (!_isCurrent(session)) return;
               state = const SameVibesState(error: SameVibesError.unsupported);
               _reportFailed(session, SameVibesError.unsupported);
               return;
@@ -521,6 +534,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         }
       }
 
+      // A superseded refill's songs were not queued (the append checks the
+      // session); its outcome belongs to no one now.
+      if (!_isCurrent(session)) return;
       if (totalQueued <= 0) {
         if (isInitial && initialQueueChangeAttempted) {
           await _restorePreviousQueue(snapshot, session);
@@ -580,6 +596,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         await _restorePreviousQueue(snapshot, session);
       }
       AppLogger.debug('SameVibes refill error: $error');
+      if (!_isCurrent(session)) return;
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
@@ -598,6 +615,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         await _restorePreviousQueue(snapshot, session);
       }
       AppLogger.debug('SameVibes refill error: $error\n$stackTrace');
+      if (!_isCurrent(session)) return;
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
@@ -614,7 +632,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         );
       }
     } finally {
-      if (state.active && state.refilling) {
+      if (_isCurrent(session) && state.active && state.refilling) {
         state = state.copyWith(refilling: false);
       }
     }
