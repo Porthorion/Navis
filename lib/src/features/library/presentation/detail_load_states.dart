@@ -1,7 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
@@ -263,44 +267,33 @@ class _OutlineBlock extends StatelessWidget {
 }
 
 /// The outline of an artist page's album grid: a section title and one row
-/// of album squares with their labels.
-class DetailAlbumGridOutline extends StatelessWidget {
+/// of album squares, sized like the grid below it will be.
+class DetailAlbumGridOutline extends ConsumerWidget {
   const new({super.key});
 
-  static const _maxExtent = 164.0;
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final size = ref.watch(gridArtworkSizeProvider);
+    final radius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: double.infinity,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns = (width / _maxExtent).ceil().clamp(2, 6);
-        final extent = (width - NavisSpace.sm * (columns - 1)) / columns;
+        final grid = ContentLayout.albums(constraints.maxWidth, size);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             const _OutlineBlock(height: 20, width: 96),
             const SizedBox(height: NavisSpace.md),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                for (var column = 0; column < columns; column++) ...<Widget>[
-                  if (column > 0) const SizedBox(width: NavisSpace.sm),
-                  SizedBox(
-                    width: extent,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        _OutlineBlock(
-                          height: extent,
-                          borderRadius: NavisRadius.smAll,
-                        ),
-                        const SizedBox(height: NavisSpace.xs),
-                        _OutlineBlock(height: 12, width: extent * 0.8),
-                        const SizedBox(height: NavisSpace.xxs),
-                        _OutlineBlock(height: 10, width: extent * 0.5),
-                      ],
-                    ),
+                for (var column = 0; column < grid.columns; column++) ...[
+                  if (column > 0) SizedBox(width: grid.gap),
+                  _OutlineBlock(
+                    height: grid.extent,
+                    width: grid.extent,
+                    borderRadius: radius,
                   ),
                 ],
               ],
