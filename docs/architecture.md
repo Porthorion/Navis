@@ -1618,8 +1618,13 @@ Recently Added). `homeNewReleasesProvider`
 (`features/home/presentation/home_deezer_providers.dart`):
 - Candidates are up to 30 library artists from `LibraryDao.getTopPlayedArtists`:
   by the summed play count of their songs, liked artists first among equal
-  counts; artists without plays count only when liked. With the switch off or
-  no candidates it returns nothing without asking Deezer.
+  counts; artists without plays count only when liked. When fewer than 30
+  qualify (a new account with little play history),
+  `LibraryDao.getArtistsByLibraryWeight` fills the rest, ranked after them:
+  most liked albums, then most songs, then most albums, leaving out remote
+  artists, artists without songs or liked albums, "[Unknown Artist]" and
+  "Various Artists". With the switch off or no candidates it returns nothing
+  without asking Deezer.
 - It then waits for `homeDeezerIdleProvider`: no library sync running, then 3
   seconds (`homeDeezerStartupDelayProvider`), then again no sync running (one
   may have started meanwhile), once per session.

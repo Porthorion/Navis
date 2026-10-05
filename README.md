@@ -151,7 +151,8 @@ Navis only talks to your server. Everything is on by default.
   Is <Artist>" becomes a shuffle of the artist's library songs), artist
   photos and fan counts, "Fans also like", missing albums (hidden when your
   server has its own remote catalogue for the artist), New Releases from
-  the artists you play most on Home, and a Trending Now playlist of the chart
+  the artists you play most on Home (or your library's main artists while
+  you have little play history), and a Trending Now playlist of the chart
   songs you can play in You Might Like.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No

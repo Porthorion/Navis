@@ -175,7 +175,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'New Releases on Home shows the last month\'s releases from the artists you play most; tap one to open it on your server, or see its tracklist and search your server when it is not there',
+        'New Releases on Home shows the last month\'s releases from the artists you play most, or from your library\'s main artists while you have played little; tap one to open it on your server, or see its tracklist and search your server when it is not there',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

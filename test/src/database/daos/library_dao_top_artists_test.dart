@@ -12,18 +12,35 @@ void main() {
 
   Future<void> artist(
     String id, {
+    String? name,
     DateTime? starred,
     bool provisional = false,
+    bool external = false,
+    int? albumCount,
   }) => database
       .into(database.artistsTable)
       .insert(
         ArtistsTableCompanion.insert(
           id: id,
-          name: id.toUpperCase(),
+          name: name ?? id.toUpperCase(),
           starred: Value(starred),
           isProvisional: Value(provisional),
+          isExternal: Value(external),
+          albumCount: Value(albumCount),
         ),
       );
+
+  Future<void> album(String id, String artistId, {DateTime? starred}) =>
+      database
+          .into(database.albumsTable)
+          .insert(
+            AlbumsTableCompanion.insert(
+              id: id,
+              name: id,
+              artistId: Value(artistId),
+              starred: Value(starred),
+            ),
+          );
 
   Future<void> song(
     String id,
@@ -78,5 +95,73 @@ void main() {
           .map((a) => a.id),
       <String>['b'],
     );
+  });
+
+  group('library artists by weight', () {
+    test('ranks by liked albums, then songs, then albums', () async {
+      final liked = DateTime(2026, 9);
+      await artist('few-songs');
+      await artist('many-songs');
+      await artist('liked-album');
+      await artist('tie-more-albums', albumCount: 9);
+      await artist('tie-fewer-albums', albumCount: 2);
+      await album('la1', 'liked-album', starred: liked);
+      await song('l1', 'liked-album', null);
+      await song('f1', 'few-songs', null);
+      for (var i = 0; i < 3; i++) {
+        await song('m$i', 'many-songs', null);
+      }
+      for (final id in <String>['tie-more-albums', 'tie-fewer-albums']) {
+        await song('${id}1', id, null);
+        await song('${id}2', id, null);
+      }
+
+      expect(
+        (await database.libraryDao.getArtistsByLibraryWeight(limit: 10))
+            .map((a) => a.id),
+        <String>[
+          'liked-album',
+          'many-songs',
+          'tie-more-albums',
+          'tie-fewer-albums',
+          'few-songs',
+        ],
+      );
+    });
+
+    test('leaves out placeholders, remote and empty artists', () async {
+      await artist('real');
+      await artist('unknown', name: '[Unknown Artist]');
+      await artist('various', name: 'Various Artists');
+      await artist('remote', external: true);
+      await artist('p', provisional: true);
+      await artist('empty', albumCount: 4);
+      await artist('deleted');
+      for (final id in <String>['real', 'unknown', 'various', 'remote', 'p']) {
+        await song('${id}1', id, null);
+      }
+      await song('deleted1', 'deleted', null, deleted: true);
+
+      expect(
+        (await database.libraryDao.getArtistsByLibraryWeight(limit: 10))
+            .map((a) => a.id),
+        <String>['real'],
+      );
+    });
+
+    test('skips the given artists and limits', () async {
+      for (final id in <String>['a', 'b', 'c']) {
+        await artist(id);
+        await song('${id}1', id, null);
+      }
+
+      expect(
+        (await database.libraryDao.getArtistsByLibraryWeight(
+          limit: 1,
+          excludeIds: <String>{'a'},
+        )).map((a) => a.id),
+        <String>['b'],
+      );
+    });
   });
 }

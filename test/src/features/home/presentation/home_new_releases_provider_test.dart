@@ -164,12 +164,56 @@ void main() {
     expect(deezer.calls, isEmpty);
   });
 
-  test('asks Deezer nothing without played or liked artists', () async {
+  test('asks Deezer nothing when no artist has songs', () async {
     await database
         .into(database.artistsTable)
         .insert(ArtistsTableCompanion.insert(id: 'a', name: 'Never Played'));
     expect(await read(container()), isEmpty);
     expect(deezer.calls, isEmpty);
+  });
+
+  test('little play history is topped up with library artists', () async {
+    await artist('played', 'Played Artist', plays: 1);
+    // 35 artists never played: more songs ranks higher.
+    for (var i = 0; i < 35; i++) {
+      await artist('lib$i', 'Library $i', plays: 0);
+      for (var extra = 0; extra < i; extra++) {
+        await database
+            .into(database.songsTable)
+            .insert(
+              SongsTableCompanion.insert(
+                id: 'lib$i-extra$extra',
+                title: 'Song',
+                artistId: Value('lib$i'),
+              ),
+            );
+      }
+    }
+    deezer.artistIds.addAll(<String, int>{'Played Artist': 1, 'Library 34': 2});
+    deezer.albums[1] = const <DeezerAlbum>[
+      DeezerAlbum(id: 11, title: 'Same Day A', releaseDate: '2026-10-02'),
+    ];
+    deezer.albums[2] = const <DeezerAlbum>[
+      DeezerAlbum(id: 21, title: 'Same Day B', releaseDate: '2026-10-02'),
+      DeezerAlbum(id: 22, title: 'Too Old', releaseDate: '2026-08-01'),
+    ];
+    final recorder = IntegrationCallRecorder();
+
+    final releases = await read(container(recorder: recorder));
+
+    final searched = deezer.calls
+        .where((call) => call.startsWith('search/artist:'))
+        .toList();
+    expect(searched, hasLength(kNewReleasesCandidateArtists));
+    expect(searched.first, 'search/artist:Played Artist');
+    expect(searched[1], 'search/artist:Library 34');
+    expect(searched, isNot(contains('search/artist:Library 4')));
+    // The played artist ranks first on a tie; the window still applies.
+    expect(releases.map((r) => r.album.id), <int>[11, 21]);
+    final span = recorder.recentSpans().lastWhere(
+      (span) => span.name == kHomeNewReleasesSpan,
+    );
+    expect(span.counts['artists'], kNewReleasesCandidateArtists);
   });
 
   test('lists recent releases of the top artists, newest first', () async {

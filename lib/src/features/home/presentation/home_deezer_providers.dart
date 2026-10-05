@@ -80,10 +80,12 @@ final homeNewReleasesClockProvider = Provider<DateTime Function()>(
 
 /// New releases from your artists (`deezer.newReleases`): releases from the
 /// last 30 days by the [kNewReleasesCandidateArtists] library artists played
-/// most (liked ones first among equals), newest first.
+/// most (liked ones first among equals), newest first. With fewer played or
+/// liked artists than that, library artists fill the rest, ranked by liked
+/// albums, then songs, then albums.
 ///
-/// Empty, without asking Deezer, while the switch is off or when the user
-/// has no played or liked artists. Otherwise it waits for
+/// Empty, without asking Deezer, while the switch is off or when no library
+/// artist has songs. Otherwise it waits for
 /// [homeDeezerIdleProvider], then reads each artist's Deezer id (resolver,
 /// cached 30 days) and first releases (cached 24 hours) through the
 /// limiter. An artist Deezer does not know, or whose request fails, is
@@ -99,9 +101,18 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   );
   if (!allowed) return const <HomeNewRelease>[];
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  final artists = await dao.getTopPlayedArtists(
+  final played = await dao.getTopPlayedArtists(
     limit: kNewReleasesCandidateArtists,
   );
+  // Little play history (a new account): fill up with the library's own
+  // favourites, ranked after every played artist.
+  final artists = <ArtistsTableData>[
+    ...played,
+    ...await dao.getArtistsByLibraryWeight(
+      limit: kNewReleasesCandidateArtists - played.length,
+      excludeIds: {for (final artist in played) artist.id},
+    ),
+  ];
   if (artists.isEmpty) return const <HomeNewRelease>[];
   await ref.watch(homeDeezerIdleProvider.future);
   if (!ref.mounted) return const <HomeNewRelease>[];
