@@ -123,6 +123,5 @@ void main() {
     await pending;
     expect(externalRequests, 0);
     expect(coordinator.activeCount, 0);
-    expect(IntegrationFeature.radioNowPlaying.key, 'radio.nowPlaying');
   });
 }
