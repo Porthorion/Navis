@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// back to a plain `Dio` and bypasses the policy. See "External integration
 /// policy" in `docs/architecture.md`.
 const _clients = <String, String>{
+  'DeezerApiClient': 'dio',
   'LastFmApiClient': 'dio',
   'ListenBrainzApiClient': 'dio',
   'LrclibClient': 'dio',

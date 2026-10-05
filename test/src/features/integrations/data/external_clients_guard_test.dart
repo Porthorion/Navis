@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/lrclib_client.dart';
@@ -59,6 +60,32 @@ void main() {
     policy = const IntegrationPolicy();
     recorder = IntegrationCallRecorder(logCalls: false);
     adapter = _Adapter();
+  });
+
+  group('Deezer', () {
+    DeezerApiClient client() => DeezerApiClient(
+      dio: guarded(IntegrationService.deezer, DeezerApiClient.baseOptions),
+    );
+
+    test('requests are blocked while the service is off', () async {
+      policy = const IntegrationPolicy(disabledKeys: {'deezer'});
+      await expectLater(
+        client().searchArtists('Someone'),
+        throwsA(isA<DioException>()),
+      );
+      expect(adapter.requested, isEmpty);
+      expect(
+        recorder.recentCalls().single.outcome,
+        IntegrationCallOutcome.blocked,
+      );
+    });
+
+    test('a request records its path, never the searched name', () async {
+      await client().searchArtists('Private Name');
+      expect(adapter.requested.single.host, 'api.deezer.com');
+      expect(recorder.recentCalls().single.path, '/search/artist');
+      expect(jsonEncode(recorder.toJson()), isNot(contains('Private')));
+    });
   });
 
   group('Last.fm', () {

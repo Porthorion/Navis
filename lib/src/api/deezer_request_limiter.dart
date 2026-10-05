@@ -1,0 +1,74 @@
+import 'dart:async';
+import 'dart:collection';
+
+/// Keeps Navis well under Deezer's public quota (about 50 requests per
+/// 5 seconds): at most [maxPerWindow] requests start in any [window], and at
+/// most [maxInFlight] run at once.
+///
+/// One limiter is shared by every request of a `DeezerApiClient`, so the
+/// limits hold across all features that call Deezer.
+class DeezerRequestLimiter {
+  new({
+    this.maxPerWindow = 8,
+    this.window = const Duration(seconds: 1),
+    this.maxInFlight = 4,
+    Duration Function()? elapsed,
+    Future<void> Function(Duration)? delay,
+  }) : _elapsed = elapsed ?? _monotonicElapsed(),
+       _delay = delay ?? Future<void>.delayed;
+
+  final int maxPerWindow;
+  final Duration window;
+  final int maxInFlight;
+  final Duration Function() _elapsed;
+  final Future<void> Function(Duration) _delay;
+
+  /// When the requests of the current window started, oldest first.
+  final Queue<Duration> _starts = Queue<Duration>();
+  int _inFlight = 0;
+  Completer<void>? _released;
+
+  /// Requests running now.
+  int get inFlight => _inFlight;
+
+  /// Runs [request] once a slot is free under both limits.
+  Future<T> run<T>(Future<T> Function() request) async {
+    await _acquire();
+    try {
+      return await request();
+    } finally {
+      _release();
+    }
+  }
+
+  Future<void> _acquire() async {
+    while (true) {
+      final now = _elapsed();
+      while (_starts.isNotEmpty && now - _starts.first >= window) {
+        _starts.removeFirst();
+      }
+      if (_inFlight < maxInFlight && _starts.length < maxPerWindow) {
+        _inFlight++;
+        _starts.addLast(now);
+        return;
+      }
+      if (_inFlight >= maxInFlight) {
+        await (_released ??= Completer<void>()).future;
+      } else {
+        await _delay(_starts.first + window - now);
+      }
+    }
+  }
+
+  void _release() {
+    _inFlight--;
+    final released = _released;
+    _released = null;
+    released?.complete();
+  }
+
+  static Duration Function() _monotonicElapsed() {
+    final stopwatch = Stopwatch()..start();
+    return () => stopwatch.elapsed;
+  }
+}

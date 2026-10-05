@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/lrclib_client.dart';
@@ -39,8 +40,10 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
@@ -628,6 +631,31 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
       IntegrationService.lastFm,
       options: LastFmApiClient.baseOptions,
     ),
+  );
+});
+
+/// The Deezer client, shared so its request limiter covers every Deezer
+/// feature. Deezer needs no key; each feature checks its own switch.
+final deezerApiClientProvider = Provider<DeezerApiClient>((ref) {
+  return DeezerApiClient(
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.deezer,
+      options: DeezerApiClient.baseOptions,
+    ),
+  );
+});
+
+/// Disk cache for external-service responses, in the application support
+/// directory (inside the clone root for clone diagnostics).
+final integrationJsonCacheProvider = Provider<IntegrationJsonCache>(
+  (_) => IntegrationJsonCache(),
+);
+
+/// Library artist → Deezer artist id, cached by name.
+final deezerArtistResolverProvider = Provider<DeezerArtistResolver>((ref) {
+  return DeezerArtistResolver(
+    client: ref.watch(deezerApiClientProvider),
+    cache: ref.watch(integrationJsonCacheProvider),
   );
 });
 
