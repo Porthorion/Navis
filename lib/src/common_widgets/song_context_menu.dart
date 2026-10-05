@@ -225,6 +225,7 @@ Future<void> showSongContextMenu(
                             context,
                             ref,
                             song.artistId!,
+                            name: song.artistName,
                           );
                         },
                       ),
@@ -238,6 +239,8 @@ Future<void> showSongContextMenu(
                             context,
                             ref,
                             song.albumId!,
+                            name: song.albumName,
+                            artistName: song.artistName,
                           );
                         },
                       ),
@@ -443,10 +446,21 @@ Future<void> _showDesktopSongContextMenu(
       }
       return;
     case _SongContextAction.openArtist:
-      NavService.openArtistDetail(context, ref, song.artistId!);
+      NavService.openArtistDetail(
+        context,
+        ref,
+        song.artistId!,
+        name: song.artistName,
+      );
       return;
     case _SongContextAction.openAlbum:
-      NavService.openAlbumDetail(context, ref, song.albumId!);
+      NavService.openAlbumDetail(
+        context,
+        ref,
+        song.albumId!,
+        name: song.albumName,
+        artistName: song.artistName,
+      );
       return;
     case _SongContextAction.addPlaylist:
       await showAddToPlaylistSheet(context, ref, <String>[song.id]);

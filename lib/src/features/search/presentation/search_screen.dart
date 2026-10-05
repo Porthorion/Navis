@@ -829,7 +829,12 @@ class _ArtistResultsSection extends ConsumerWidget {
                   },
                 ),
               ),
-              onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+              onTap: () => NavService.openArtistDetail(
+                context,
+                ref,
+                artist.id,
+                name: artist.name,
+              ),
               onSecondaryTapDown: (details) => unawaited(
                 showArtistContextMenu(
                   context,
@@ -849,7 +854,12 @@ class _ArtistResultsSection extends ConsumerWidget {
                   : '',
               isRemote: isRemote,
             ),
-            onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+            onTap: () => NavService.openArtistDetail(
+              context,
+              ref,
+              artist.id,
+              name: artist.name,
+            ),
             onLongPress: () =>
                 unawaited(showArtistContextMenu(context, ref, artist.id)),
             trailing: Builder(
@@ -943,6 +953,8 @@ class _AlbumResultsSection extends ConsumerWidget {
                 ref,
                 album.id,
                 heroTag: heroTag,
+                name: album.name,
+                artistName: album.artist,
               ),
             );
           }
@@ -958,6 +970,8 @@ class _AlbumResultsSection extends ConsumerWidget {
               ref,
               album.id,
               heroTag: heroTag,
+              name: album.name,
+              artistName: album.artist,
             ),
           );
         }),
@@ -1189,7 +1203,13 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.openAlbumDetail(context, ref, song.albumId!);
+                  NavService.openAlbumDetail(
+                    context,
+                    ref,
+                    song.albumId!,
+                    name: song.album,
+                    artistName: song.artist,
+                  );
                 },
               ),
             if (song.artistId != null)
@@ -1198,7 +1218,12 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.openArtistDetail(context, ref, song.artistId!);
+                  NavService.openArtistDetail(
+                    context,
+                    ref,
+                    song.artistId!,
+                    name: song.artist,
+                  );
                 },
               ),
             ListTile(

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../helpers/test_database.dart';
@@ -105,6 +107,53 @@ Future<void> _pumpSearchScreen(
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: SearchScreen(),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
+/// Search inside a router whose artist and album pages show the id and the
+/// name they were opened with.
+Future<void> _pumpSearchScreenWithPages(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  final router = GoRouter(
+    initialLocation: AppRoutes.search,
+    routes: <RouteBase>[
+      GoRoute(path: AppRoutes.search, builder: (_, _) => const SearchScreen()),
+      GoRoute(
+        path: AppRoutes.library,
+        builder: (_, _) => const SizedBox.shrink(),
+        routes: <RouteBase>[
+          for (final segment in <String>[
+            AppRoutes.artistSegment,
+            AppRoutes.albumSegment,
+          ])
+            GoRoute(
+              path: segment,
+              builder: (_, state) => Scaffold(
+                appBar: AppBar(),
+                body: Text(
+                  'page ${state.pathParameters['id']} '
+                  '${state.uri.queryParameters[AppRoutes.detailNameParam]} '
+                  '${state.uri.queryParameters[AppRoutes.detailArtistParam]}',
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        localizationsDelegates: navisLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
       ),
     ),
   );
@@ -281,6 +330,63 @@ void main() {
 
       expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNWidgets(3));
       expect(find.text('Server Artist'), findsOneWidget);
+    });
+
+    testWidgets('remote results open their pages with their names', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient(
+          (_) async => const SearchResult3(
+            artists: <Artist>[
+              Artist(
+                id: 'ext-deezer-artist-7',
+                name: 'Remote Artist',
+                isExternal: true,
+              ),
+            ],
+            albums: <Album>[
+              Album(
+                id: 'ext-deezer-album-8',
+                name: 'Remote Album',
+                artist: 'Remote Artist',
+                isExternal: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreenWithPages(tester, container);
+      await _enterSearchQuery(tester, 'Remote');
+      await _pumpUntilFound(tester, find.text('Remote Album'));
+
+      await tester.tap(find.text('Remote Artist').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.text('page ext-deezer-artist-7 Remote Artist null'),
+        findsOneWidget,
+      );
+
+      await tester.pageBack();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Remote Album'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.text('page ext-deezer-album-8 Remote Album Remote Artist'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders relevance-first local-first artist order', (
