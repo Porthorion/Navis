@@ -23,7 +23,6 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
-import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
@@ -240,19 +239,6 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   void registerPreferredMixToggleCallback(
     Future<void> Function(String seedSongId) callback,
   ) {}
-}
-
-class _SpyArtistPlaybackController extends ArtistPlaybackController {
-  final List<(String, ArtistPlaybackAction)> calls =
-      <(String, ArtistPlaybackAction)>[];
-
-  @override
-  ArtistPlaybackState build() => const ArtistPlaybackState();
-
-  @override
-  Future<void> prepare(String artistId, ArtistPlaybackAction action) async {
-    calls.add((artistId, action));
-  }
 }
 
 Widget _buildApp({
@@ -720,7 +706,6 @@ void main() {
     testWidgets(
       'artist top tracks keeps its artist-specific title when empty',
       (tester) async {
-        final playback = _SpyArtistPlaybackController();
         await tester.pumpWidget(
           _buildApp(
             child: const ArtistTopTracksPlaylistDetailScreen(
@@ -745,7 +730,6 @@ void main() {
                 artistId: 'artist-top-tracks',
                 name: 'Test Artist',
               )).overrideWithValue(const AsyncData(<ResolvedArtistTopTrack>[])),
-              artistPlaybackControllerProvider.overrideWith(() => playback),
             ],
           ),
         );
@@ -758,15 +742,10 @@ void main() {
           find.text('No top songs are available for this artist.'),
           findsOneWidget,
         );
-        await tester.tap(
-          find.byKey(
-            const ValueKey<String>('artist-top-tracks-shuffle-everything'),
-          ),
-        );
-        await tester.pump();
-        expect(playback.calls, <(String, ArtistPlaybackAction)>[
-          ('artist-top-tracks', ArtistPlaybackAction.shuffle),
-        ]);
+        // A plain empty state: the artist page has its own Shuffle button.
+        expect(find.byType(FilledButton), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
+        expect(find.textContaining('Shuffle'), findsNothing);
         await _disposeApp(tester);
       },
     );
@@ -1135,16 +1114,14 @@ void main() {
             findsOneWidget,
           );
           expect(find.text('This Is Artist 1'), findsOneWidget);
-          expect(find.text('Shuffle everything by Artist 1'), findsNothing);
           expect(playlistReads, 0);
           await _disposeApp(tester);
         },
       );
 
       testWidgets(
-        'without a top songs source the card shuffles the artist instead',
+        'without a top songs source the artist page has no This Is card',
         (tester) async {
-          final playback = _SpyArtistPlaybackController();
           await tester.pumpWidget(
             _buildApp(
               child: const ArtistDetailScreen(artistId: 'artist-1'),
@@ -1154,105 +1131,48 @@ void main() {
                 integrationPolicyProvider.overrideWithValue(
                   const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
                 ),
-                artistPlaybackControllerProvider.overrideWith(() => playback),
               ],
             ),
           );
           await tester.pumpAndSettle();
 
           expect(find.byType(ArtistTopTracksSection), findsNothing);
+          expect(
+            find.byKey(const ValueKey<String>('artist-this-is-card')),
+            findsNothing,
+          );
           expect(find.text('This Is Artist 1'), findsNothing);
-          final card = find.byKey(
-            const ValueKey<String>('artist-shuffle-everything-card'),
+          expect(find.textContaining('Shuffle everything'), findsNothing);
+          // The page's own Shuffle button stays.
+          expect(
+            find.byKey(const ValueKey<String>('artist-shuffle')),
+            findsOneWidget,
           );
-          expect(card, findsOneWidget);
-          expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
-          final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
-            find.descendant(
-              of: card,
-              matching: find.byType(ArtistVirtualPlaylistArtwork),
-            ),
-          );
-          expect(artwork.coverArtIds, <String>['cover-album-1']);
-
-          await tester.tap(card);
-          await tester.pump();
-          expect(playback.calls, <(String, ArtistPlaybackAction)>[
-            ('artist-1', ArtistPlaybackAction.shuffle),
-          ]);
           await _disposeApp(tester);
         },
       );
 
-      for (final entry in <String, AsyncValue<ArtistAlbumSections>>{
-        'without album covers': const AsyncData(
-          ArtistAlbumSections(
-            albums: <AlbumsTableData>[
-              AlbumsTableData(
-                isProvisional: false,
-                isExternal: false,
-                id: 'album-1',
-                name: 'Album 1',
-                artistId: 'artist-1',
-                songsHydrated: true,
-                artists: <ArtistRef>[],
-              ),
-            ],
-          ),
-        ),
-        'while albums load': const AsyncLoading(),
-        'when albums fail to load': AsyncError(
-          StateError('albums'),
-          StackTrace.empty,
-        ),
-      }.entries) {
-        testWidgets('the shuffle card shows ${entry.key}', (tester) async {
-          await tester.pumpWidget(
-            _buildApp(
-              child: const ArtistDetailScreen(artistId: 'artist-1'),
-              database: database,
-              overrides: [
-                ...baseArtistOverrides,
-                artistAlbumSectionsProvider('artist-1')
-                    .overrideWithValue(entry.value),
-                integrationPolicyProvider.overrideWithValue(
-                  const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
-                ),
-              ],
-            ),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
-          await _disposeApp(tester);
-        });
-      }
-
-      testWidgets('an artist without albums gets no shuffle card', (
-        tester,
-      ) async {
+      testWidgets('Online services off hides the This Is card', (tester) async {
         await tester.pumpWidget(
           _buildApp(
             child: const ArtistDetailScreen(artistId: 'artist-1'),
             database: database,
             overrides: [
-              ...baseArtistOverrides,
-              artistAlbumSectionsProvider('artist-1')
-                  .overrideWithValue(const AsyncData(ArtistAlbumSections())),
+              ...artistOverrides,
               integrationPolicyProvider.overrideWithValue(
-                const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
+                const IntegrationPolicy(masterEnabled: false),
               ),
             ],
           ),
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Shuffle everything by Artist 1'), findsNothing);
+        expect(find.text('This Is Artist 1'), findsNothing);
+        expect(find.textContaining('Shuffle everything'), findsNothing);
         await _disposeApp(tester);
       });
 
-      testWidgets('no section song in the library also shuffles the artist', (
+      testWidgets('no section song in the library hides the This Is card', (
         tester,
       ) async {
         await tester.pumpWidget(
@@ -1279,7 +1199,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('This Is Artist 1'), findsNothing);
-        expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
+        expect(find.textContaining('Shuffle everything'), findsNothing);
         await _disposeApp(tester);
       });
     });

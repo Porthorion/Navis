@@ -1,14 +1,10 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/artist_playback_action.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/features/library/presentation/ranked_virtual_playlist_content.dart';
@@ -45,27 +41,12 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
         return tracksAsync.when(
           skipLoadingOnReload: true,
           data: (tracks) {
-            // No source allowed, or none had songs: offer what the artist
-            // page offers instead of "This Is".
+            // No source allowed, or none had songs.
             if (tracks.isEmpty) {
               return EmptyState(
                 title: l10n.artistTopTracksPlaylistEmptyTitle,
                 subtitle: l10n.artistTopTracksPlaylistEmptySubtitle,
                 icon: Icons.queue_music_outlined,
-                action: FilledButton.tonalIcon(
-                  key: const ValueKey<String>(
-                    'artist-top-tracks-shuffle-everything',
-                  ),
-                  onPressed: () => unawaited(
-                    startArtistPlayback(
-                      ProviderScope.containerOf(context, listen: false),
-                      artist.id,
-                      ArtistPlaybackAction.shuffle,
-                    ),
-                  ),
-                  icon: const Icon(Icons.shuffle_rounded),
-                  label: Text(l10n.artistShuffleEverythingAction),
-                ),
               );
             }
             final imageUrl =

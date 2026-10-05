@@ -259,15 +259,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     artistId: artistData.id,
                     artistName: artistData.name,
                     imageUrl: headerImageUrls.firstOrNull,
-                    albumCoverArtIds: <String>[
-                      for (final album
-                          in albumSections.asData?.value.albums ??
-                              const <AlbumsTableData>[])
-                        ?album.coverArt,
-                    ],
-                    // Only a loaded, empty album list says there is nothing
-                    // to shuffle; while loading or failed the card stays.
-                    hasNoSongs: albumSections.asData?.value.isEmpty ?? false,
                   ),
                 ],
               ),
@@ -931,9 +922,7 @@ class _ArtistInfoSection extends StatelessWidget {
 
 /// "This Is" the artist, opening the top songs page, while a top-songs source
 /// is allowed and some of the first ten songs are in the library. Otherwise
-/// "Shuffle everything by" the artist, which shuffles the artist's library
-/// songs, with the artist's album covers as artwork (a placeholder without
-/// covers). Only an artist with no albums gets no card.
+/// nothing: the page's own Shuffle button covers shuffling the artist.
 ///
 /// It watches the section's ten songs, never the 50-song playlist, so the
 /// artist page does not resolve all 50.
@@ -942,39 +931,18 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
     required this.artistId,
     required this.artistName,
     required this.imageUrl,
-    required this.albumCoverArtIds,
-    required this.hasNoSongs,
   });
 
   final String artistId;
   final String artistName;
   final String? imageUrl;
-  final List<String> albumCoverArtIds;
-  final bool hasNoSongs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(artistTopSongsAllowedProvider)) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context)!;
-    final shuffleCard = hasNoSongs
-        ? const SizedBox.shrink()
-        : _ArtistVirtualPlaylistCard(
-            key: const ValueKey<String>('artist-shuffle-everything-card'),
-            title: l10n.artistShuffleEverythingTitle(artistName),
-            artwork: ArtistVirtualPlaylistArtwork(
-              coverArtIds: albumCoverArtIds,
-              size: 64,
-            ),
-            trailingIcon: Icons.shuffle_rounded,
-            onTap: () => unawaited(
-              startArtistPlayback(
-                ProviderScope.containerOf(context, listen: false),
-                artistId,
-                ArtistPlaybackAction.shuffle,
-              ),
-            ),
-          );
-    if (!ref.watch(artistTopSongsAllowedProvider)) return shuffleCard;
-
     final tracks = ref.watch(
       artistTopTracksProvider((artistId: artistId, name: artistName)),
     );
@@ -985,7 +953,7 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
             .map((track) => track.resolvedSong)
             .nonNulls
             .toList(growable: false);
-        if (resolved.isEmpty) return shuffleCard;
+        if (resolved.isEmpty) return const SizedBox.shrink();
         return _ArtistVirtualPlaylistCard(
           key: const ValueKey<String>('artist-this-is-card'),
           title: l10n.artistTopTracksPlaylistTitle(artistName),
@@ -997,13 +965,12 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
             imageUrl: imageUrl,
             size: 64,
           ),
-          trailingIcon: Icons.chevron_right_rounded,
           onTap: () =>
               NavService.openArtistTopTracksPlaylist(context, ref, artistId),
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, _) => shuffleCard,
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }
@@ -1012,14 +979,12 @@ class _ArtistVirtualPlaylistCard extends StatelessWidget {
   const new({
     required this.title,
     required this.artwork,
-    required this.trailingIcon,
     required this.onTap,
     super.key,
   });
 
   final String title;
   final Widget artwork;
-  final IconData trailingIcon;
   final VoidCallback onTap;
 
   @override
@@ -1050,7 +1015,7 @@ class _ArtistVirtualPlaylistCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(trailingIcon),
+                const Icon(Icons.chevron_right_rounded),
               ],
             ),
           ),

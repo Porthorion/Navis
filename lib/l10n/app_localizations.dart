@@ -3797,18 +3797,6 @@ abstract class AppLocalizations {
   /// **'Failed to Load Top Tracks'**
   String get artistTopTracksPlaylistErrorTitle;
 
-  /// Artist page card shown instead of 'This Is <Artist>' when no top songs are available; shuffles the artist's library songs.
-  ///
-  /// In en, this message translates to:
-  /// **'Shuffle everything by {artist}'**
-  String artistShuffleEverythingTitle(String artist);
-
-  /// Button on the empty top songs page that shuffles all of the artist's library songs.
-  ///
-  /// In en, this message translates to:
-  /// **'Shuffle everything'**
-  String get artistShuffleEverythingAction;
-
   /// No description provided for @albumDetailTitle.
   ///
   /// In en, this message translates to:

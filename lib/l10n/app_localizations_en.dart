@@ -2436,14 +2436,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistTopTracksPlaylistErrorTitle => 'Failed to Load Top Tracks';
 
   @override
-  String artistShuffleEverythingTitle(String artist) {
-    return 'Shuffle everything by $artist';
-  }
-
-  @override
-  String get artistShuffleEverythingAction => 'Shuffle everything';
-
-  @override
   String get albumDetailTitle => 'Album';
 
   @override

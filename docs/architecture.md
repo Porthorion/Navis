@@ -1335,8 +1335,8 @@ switch means "Navis only talks to your server" when off. See
 - **Enforcement, in two layers.** *Call-site gates* make a section hide itself
   instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
   (`lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,
-  via `artistTopSongsAllowedProvider`; with neither the section is hidden and
-  the "This Is" card becomes "Shuffle everything by"), scrobbling and feedback (their credential readers return no
+  via `artistTopSongsAllowedProvider`; with neither, the section and the "This
+  Is" card are hidden), scrobbling and feedback (their credential readers return no
   token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the download
   service takes a `readLyricsAllowed` callback instead of reading the column),
   the update banner and provider, the AutoEQ dialog (search still uses the
@@ -1565,14 +1565,11 @@ fallback.
   back. Server-data reset on sign-out (and the library cache reset) also
   deletes the remembered matches and the Deezer artist mappings
   (`clearIntegrationLibraryCacheProvider`).
-- **No-source card.** "Shuffle everything by" stays visible while the
-  artist's albums load or fail (with a placeholder when there are no covers)
-  and is hidden only when the artist has no albums.
-- **No source.** With neither source allowed, or when none of the first ten
-  songs is in the library, the artist page hides the section and shows
-  "Shuffle everything by <Artist>" with the artist's album covers, which calls
-  `startArtistPlayback(..., ArtistPlaybackAction.shuffle)`. The top-songs page
-  shows an empty state with the same action when there are no songs.
+- **No source.** With neither source allowed (Online services off, or both
+  top-songs switches off), or when none of the first ten songs is in the
+  library, the artist page shows neither the section nor the "This Is" card;
+  the page's own Shuffle button covers shuffling the artist. The top-songs
+  page route keeps a plain empty state ("No Top Tracks") without an action.
 
 ### Deezer on the artist page
 

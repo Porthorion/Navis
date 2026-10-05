@@ -1070,19 +1070,6 @@
   "artistTopTracksPlaylistEmptyTitle": "No Top Tracks",
   "artistTopTracksPlaylistEmptySubtitle": "No top songs are available for this artist.",
   "artistTopTracksPlaylistErrorTitle": "Failed to Load Top Tracks",
-  "artistShuffleEverythingTitle": "Shuffle everything by {artist}",
-  "@artistShuffleEverythingTitle": {
-    "description": "Artist page card shown instead of 'This Is <Artist>' when no top songs are available; shuffles the artist's library songs.",
-    "placeholders": {
-      "artist": {
-        "type": "String"
-      }
-    }
-  },
-  "artistShuffleEverythingAction": "Shuffle everything",
-  "@artistShuffleEverythingAction": {
-    "description": "Button on the empty top songs page that shuffles all of the artist's library songs."
-  },
   "albumDetailTitle": "Album",
   "albumDetailNotFoundTitle": "Album Not Found",
   "albumDetailNotFoundSubtitle": "This album is not available in local data.",

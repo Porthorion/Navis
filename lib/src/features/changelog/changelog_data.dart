@@ -161,7 +161,7 @@ const List<ChangelogVersion> changelogs = [
         "An artist's Top Tracks now come from Deezer (topped up from Last.fm when Deezer has only a few) and appear much sooner: songs in your library show first, and matches are remembered between visits",
       ),
       ChangelogEntry(
-        'When no top tracks are available, "This Is <Artist>" becomes "Shuffle everything by <Artist>", a shuffle of the artist\'s songs in your library',
+        'When no top tracks are available, such as with Online services off, the "This Is <Artist>" card is left out; the Shuffle button on the artist page still shuffles their songs',
       ),
       ChangelogEntry(
         "Artist pages show the artist's Deezer photo when your server has none, only Last.fm's grey star or one that fails to load, and the Deezer fan count next to the album count",
