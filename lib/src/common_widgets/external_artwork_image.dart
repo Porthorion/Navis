@@ -71,6 +71,10 @@ class ExternalArtworkImage extends ConsumerWidget {
       httpHeaders: feature == null
           ? null
           : coverArtFeatureHeaders(feature!.key),
+      // Tagged loads never share a download with untagged loads of the URL.
+      cacheKey: feature == null
+          ? null
+          : coverArtFeatureCacheKey(feature!.key, url.trim()),
       width: width,
       height: height,
       fit: fit,

@@ -87,6 +87,14 @@ void main() {
       find.byType(CachedNetworkImage),
     );
     expect(image.httpHeaders, {coverArtFeatureHeader: 'radio.nowPlaying'});
+    // Tagged loads never share a cache entry or download with untagged ones.
+    expect(
+      image.cacheKey,
+      coverArtFeatureCacheKey(
+        'radio.nowPlaying',
+        'https://images.example.com/a.jpg',
+      ),
+    );
   });
 
   testWidgets('shows the fallback when loading fails', (tester) async {

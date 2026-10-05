@@ -23,11 +23,13 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
@@ -9431,6 +9433,7 @@ class NavisAudioHandler extends BaseAudioHandler
         : Uri.tryParse(candidateArtUrl);
     final nextArtUrl =
         candidateUri != null &&
+            isHostedHttpUri(candidateUri) &&
             (_readRadioArtworkAllowed?.call(candidateUri) ?? false)
         ? candidateArtUrl
         : null;

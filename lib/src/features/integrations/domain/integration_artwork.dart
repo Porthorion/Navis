@@ -96,6 +96,10 @@ bool _isLastFmHost(String host) {
   return labels.any((label) => label == 'lastfm');
 }
 
+/// Whether [uri] is an `http` or `https` URL with a host.
+bool isHostedHttpUri(Uri uri) =>
+    (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
+
 /// The user's server is always allowed. External radio art needs both radio
 /// metadata permission and the artwork host's service enabled.
 bool integrationAllowsRadioArtworkUri(
@@ -103,6 +107,9 @@ bool integrationAllowsRadioArtworkUri(
   Uri uri, {
   required String? serverHost,
 }) {
+  // Only a hosted http(s) URL is ever fetched or published; a hostless
+  // `file:` URI would otherwise pass as the user's own server.
+  if (!isHostedHttpUri(uri)) return false;
   if (integrationFeatureForArtworkUri(uri, serverHost: serverHost) == null) {
     return true;
   }

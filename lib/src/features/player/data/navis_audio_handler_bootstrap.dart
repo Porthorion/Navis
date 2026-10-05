@@ -67,6 +67,27 @@ void _invalidateNavisAudioHandlerCache(NavisPlaybackHandler handler) {
   }
 }
 
+/// Cache key of the cache manager AudioService loads media-session art with.
+const String systemArtworkCacheKey = 'navis_system_artwork_cache';
+
+/// File service for the art AudioService downloads itself (notification, lock
+/// screen, Bluetooth). AudioService fetches whatever `artUri` it is handed, so
+/// every fetch goes through [allowUri]: it is rechecked after a download slot
+/// is granted, on every redirect hop and immediately before dispatch.
+@visibleForTesting
+CoverArtHttpFileService createSystemArtworkFileService({
+  required bool Function(Uri uri) allowUri,
+  NetworkUsageReporter? reportNetworkUsage,
+  CoverArtLoadCoordinator? loadCoordinator,
+}) => CoverArtHttpFileService(
+  loadCoordinator: loadCoordinator,
+  reportNetworkUsage: reportNetworkUsage,
+  allowUri: allowUri,
+  // A cover id from an external URL means nothing to the user's server, so no
+  // missing-cover recovery is ever requested from here.
+  isServerUri: (_) => false,
+);
+
 Future<NavisPlaybackHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlaylistDao playlistDao,
@@ -149,6 +170,18 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                 : Future<String?>.value())
             .then(
               (packageName) => AudioService.init(
+                // Never AudioService's default cache, which would fetch any
+                // published URL, a refused redirect target included.
+                cacheManager: createCoverArtCacheManager(
+                  cacheKey: systemArtworkCacheKey,
+                  fileService: createSystemArtworkFileService(
+                    // Own server, or radio art the policy allows. A missing
+                    // reader refuses everything.
+                    allowUri: (uri) =>
+                        readRadioArtworkAllowed?.call(uri) ?? false,
+                    reportNetworkUsage: reportNetworkUsage,
+                  ),
+                ),
                 builder: () {
                   final base = createBaseHandler();
                   return RealTimeProjectionAudioHandler(

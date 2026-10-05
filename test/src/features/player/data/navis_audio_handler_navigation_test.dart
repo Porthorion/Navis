@@ -647,6 +647,22 @@ void main() {
       },
     );
 
+    test(
+      'a non-http(s) URL is never published, even if a reader allows it',
+      () async {
+        final handler = await radioHandler((_) => true);
+        for (final url in [
+          'file:///data/user/0/app/cache/cover.jpg',
+          'content://app.artwork/cover/x',
+          'cover.jpg',
+        ]) {
+          handler.updateRadioMetadata(title: url, artUrl: url);
+          expect(handler.mediaItem.value!.artUri, isNull, reason: url);
+          expect(handler.snapshot.radioStation!.nowPlayingArtUrl, isNull);
+        }
+      },
+    );
+
     test('without a readable policy no art is published', () async {
       final directory = Directory.systemTemp.createTempSync('radio-art-');
       final (handler, _, database) = await createHandler(directory, 0);

@@ -152,6 +152,10 @@ class _DynamicAccentColorCache {
       return CachedNetworkImageProvider(
         url,
         cacheManager: cacheManager,
+        cacheKey: coverArtFeatureCacheKey(
+          IntegrationFeature.radioNowPlaying.key,
+          url,
+        ),
         headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
       );
     }

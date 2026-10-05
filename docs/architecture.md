@@ -1397,8 +1397,17 @@ switch means "Navis only talks to your server" when off. See
   station placeholder shows), so AudioService, which fetches whatever it is
   given with its own unguarded cache, never sees a refused URL. Every policy
   change re-runs `updateRadioMetadata()`, which clears refused art on the next
-  update. On Android `AndroidSystemArt` passes the http(s) URL through and
-  drops any `file:` URI, which Android Auto cannot open.
+  update. Only hosted http(s) URLs are published (a hostless `file:` URL never
+  counts as the user's server). On Android `AndroidSystemArt` passes the
+  http(s) URL through and drops any `file:` URI, which Android Auto cannot open.
+  The art AudioService downloads itself uses a dedicated cache manager
+  (`systemArtworkCacheKey`, `createSystemArtworkFileService` in
+  `navis_audio_handler_bootstrap.dart`) whose file service asks
+  `integrationAllowsRadioArtworkUri` after the slot wait, on every redirect hop
+  and before dispatch, so an allowed URL cannot redirect to a refused host.
+  Feature-tagged loads use their own cache key (`coverArtFeatureCacheKey`), so
+  the cache manager never merges them with untagged downloads of the same URL
+  (it keeps the first requester's headers).
   It calls `onMissingCover` only for the server's own host (`isServerUri`), so an
   external 404 never asks the server to refresh a cover id. The two URL-style
   consumers (`now_playing_screen.dart`'s radio art provider and

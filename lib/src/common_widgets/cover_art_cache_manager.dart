@@ -71,6 +71,15 @@ const String coverArtFeatureHeader = 'x-navis-artwork-feature';
 Map<String, String> coverArtFeatureHeaders(String featureKey) =>
     <String, String>{coverArtFeatureHeader: featureKey};
 
+/// Cache key of a feature-tagged load of [url]. The cache manager shares one
+/// download per key and keeps the first requester's headers, so tagged and
+/// untagged loads of the same URL must not share a key: a request joining an
+/// untagged download would lose its feature gate, and an untagged one joining
+/// a tagged download would inherit its refusal. Always pass it together with
+/// [coverArtFeatureHeaders].
+String coverArtFeatureCacheKey(String featureKey, String url) =>
+    'feature:$featureKey:$url';
+
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO). Content types are untrusted: some servers answer
 /// missing artwork with HTTP 200 and a non-image body.

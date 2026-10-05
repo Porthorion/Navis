@@ -253,6 +253,10 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
   return CachedNetworkImageProvider(
     trimmedArtUrl,
     cacheManager: cacheManager,
+    cacheKey: coverArtFeatureCacheKey(
+      IntegrationFeature.radioNowPlaying.key,
+      trimmedArtUrl,
+    ),
     headers: coverArtFeatureHeaders(IntegrationFeature.radioNowPlaying.key),
   );
 }

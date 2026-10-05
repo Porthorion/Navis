@@ -66,6 +66,33 @@ void main() {
     }
   });
 
+  test('only hosted http(s) radio art is ever allowed', () {
+    for (final url in [
+      'file:///data/user/0/app/cache/cover.jpg',
+      'content://app.artwork/cover/x',
+      'ftp://music.example.org/cover.jpg',
+      'cover.jpg',
+    ]) {
+      expect(
+        integrationAllowsRadioArtworkUri(
+          const IntegrationPolicy(),
+          Uri.parse(url),
+          serverHost: server,
+        ),
+        isFalse,
+        reason: url,
+      );
+    }
+    expect(
+      integrationAllowsRadioArtworkUri(
+        const IntegrationPolicy.denyAll(),
+        Uri.parse('http://music.example.org/cover.jpg'),
+        serverHost: server,
+      ),
+      isTrue,
+    );
+  });
+
   group('integrationFeatureForArtworkUri', () {
     test('the user server host is always allowed', () {
       expect(

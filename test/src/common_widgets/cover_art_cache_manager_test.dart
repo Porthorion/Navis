@@ -985,6 +985,88 @@ void main() {
       },
     );
 
+    group('feature-tagged and untagged loads of one URL', () {
+      late CacheManager manager;
+      late CoverArtLoadCoordinator coordinator;
+      late CoverArtLoadLease blocker;
+      var featureAllowed = true;
+      late String url;
+      late String taggedKey;
+
+      setUp(() async {
+        featureAllowed = true;
+        coordinator = CoverArtLoadCoordinator(
+          maxActiveDownloads: 1,
+          criticalReserve: 0,
+        );
+        blocker = await coordinator.acquire('blocker');
+        final directory = await Directory.systemTemp.createTemp('navis-tag-');
+        final service = CoverArtHttpFileService(
+          loadCoordinator: coordinator,
+          allowUri: (_) => true,
+          allowFeatureUri: (_, _) => featureAllowed,
+        );
+        manager = CacheManager(
+          Config(
+            'tag-test',
+            repo: JsonCacheInfoRepository(
+              path: directory.uri.resolve('m.json').toFilePath(),
+            ),
+            fileSystem: _TestCacheFileSystem(directory),
+            fileService: service,
+          ),
+        );
+        addTearDown(() async {
+          service.close(force: true);
+          await manager.dispose();
+          await directory.delete(recursive: true);
+        });
+        url = _coverArtUrl(server, id: 'shared');
+        taggedKey = coverArtFeatureCacheKey('radio.nowPlaying', url);
+      });
+
+      Future<File> tagged() => manager.getSingleFile(
+        url,
+        key: taggedKey,
+        headers: coverArtFeatureHeaders('radio.nowPlaying'),
+      );
+
+      Future<File> untagged() => manager.getSingleFile(url);
+
+      test('a radio load does not join a queued untagged download', () async {
+        final first = expectLater(
+          untagged(),
+          throwsA(isA<CoverArtFetchException>()),
+        );
+        final second = expectLater(
+          tagged(),
+          throwsA(isA<CoverArtBlockedException>()),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        featureAllowed = false;
+        blocker.release();
+        await Future.wait<void>([first, second]);
+        // Only the untagged load reached the server.
+        expect(requests, 1);
+      });
+
+      test('an untagged load does not inherit a radio refusal', () async {
+        final first = expectLater(
+          tagged(),
+          throwsA(isA<CoverArtBlockedException>()),
+        );
+        final second = expectLater(
+          untagged(),
+          throwsA(isA<CoverArtFetchException>()),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        featureAllowed = false;
+        blocker.release();
+        await Future.wait<void>([first, second]);
+        expect(requests, 1);
+      });
+    });
+
     test('a request without a feature skips the feature check', () async {
       final service = CoverArtHttpFileService(
         allowUri: (_) => true,
