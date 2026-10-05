@@ -70,15 +70,17 @@ class ResolvedArtistTopTrack {
     required this.artist,
     this.listeners,
     this.resolvedSong,
+    this.isMatching = false,
   });
 
-  new fromSeed(ArtistTopTrackSeed seed, {Song? song})
+  new fromSeed(ArtistTopTrackSeed seed, {Song? song, bool isMatching = false})
     : this(
         rank: seed.rank,
         title: seed.title,
         artist: seed.artist,
         listeners: seed.listeners,
         resolvedSong: song,
+        isMatching: isMatching,
       );
 
   /// 1-based chart position.
@@ -92,6 +94,9 @@ class ResolvedArtistTopTrack {
   /// The library (or server-provided remote) song, or null when no confident
   /// match was found.
   final Song? resolvedSong;
+
+  /// The server is still being searched for this song, which has none yet.
+  final bool isMatching;
 
   bool get isLocallyResolved => resolvedSong != null;
 }

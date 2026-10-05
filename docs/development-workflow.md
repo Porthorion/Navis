@@ -526,8 +526,11 @@ phases with the sizes they handled. Artist Top Songs records
 `topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
 them, and per step `top`, `searchFill` and `lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
 `candidates` library rows read, `localHits`) and `topSongs.serverMatch`
-(`unresolved`, `search3Calls`, `matched`, `remote`). The section records them
-for its ten songs; the "This Is" page records them for up to 50. The recorder
+(`unresolved`, `search3Calls`, `matched`, `remote`, and `upgradeChecks` /
+`upgraded`: remembered remote matches searched again for a copy on the
+server, and how many found one). The section records them for its ten songs;
+the "This Is" page records them for up to 50. Trending Now records the same
+pair as `trending.localMatch` and `trending.serverMatch`. The recorder
 keeps the path only, never the host, query string, headers or body (Last.fm's
 `api_key` lives in the query, Deezer's searched name too, and ListenBrainz
 sends `Authorization`), and every call is also logged at info level, which release

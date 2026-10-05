@@ -51,16 +51,31 @@ class ArtistTopTrackMatchEntry {
 /// [IntegrationJsonCache] namespace [namespace]:
 /// seed key → song id or unmatched, plus when it was checked. An entry is
 /// trusted for [freshFor]; the caller still checks the library for unmatched
-/// and remote entries and confirms that matched songs exist. Every library
-/// sync clears the namespace. Saves merge with what is on disk, so the
-/// section (10 songs) and the "This Is" page (50) never drop each other's
-/// entries.
+/// and remote entries and confirms that matched songs exist. Entries are
+/// kept for [keepFor] (by default the same [freshFor]), so a store that keeps
+/// them longer, like Home's Trending Now, can recheck an older remote match
+/// on the server without losing it. Every library sync clears the artist top
+/// songs' namespace. Saves merge with what is on disk, so the section (10
+/// songs) and the "This Is" page (50) never drop each other's entries.
 class ArtistTopTrackMatchStore {
-  new({required this._cache, this.accountScope = '', DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  new({
+    required this._cache,
+    this.accountScope = '',
+    this.namespace = topSongsNamespace,
+    Duration? keepFor,
+    DateTime Function()? now,
+  }) : keepFor = keepFor ?? freshFor,
+       _now = now ?? DateTime.now;
 
-  static const namespace = 'top-songs.matches';
+  /// The artist top songs' matches; every library sync clears it.
+  static const topSongsNamespace = 'top-songs.matches';
   static const freshFor = Duration(hours: 24);
+
+  /// The [IntegrationJsonCache] namespace of this store's files.
+  final String namespace;
+
+  /// How long an entry is kept, at least [freshFor].
+  final Duration keepFor;
 
   /// Bumped when the stored layout or the seed key changes.
   static const _formatVersion = 2;
@@ -89,7 +104,11 @@ class ArtistTopTrackMatchStore {
   bool isFresh(ArtistTopTrackMatchEntry entry) =>
       _now().difference(entry.checkedAt) < freshFor;
 
-  /// The fresh entries for [artistId]; stale and unreadable ones are left out.
+  bool _isKept(ArtistTopTrackMatchEntry entry) =>
+      _now().difference(entry.checkedAt) < keepFor;
+
+  /// The entries for [artistId] younger than [keepFor]; older and unreadable
+  /// ones are left out. With the default [keepFor] they are all fresh.
   Future<Map<String, ArtistTopTrackMatchEntry>> load(String artistId) async {
     final hit = await _cache.read(namespace, _fileKey(artistId));
     final value = hit?.value;
@@ -107,7 +126,7 @@ class ArtistTopTrackMatchStore {
         final entry = ArtistTopTrackMatchEntry.fromJson(
           Map<String, dynamic>.from(value),
         );
-        if (isFresh(entry)) result[key] = entry;
+        if (_isKept(entry)) result[key] = entry;
       } on Object catch (error) {
         AppLogger.debug('Top songs: unreadable match entry: $error');
       }
@@ -172,6 +191,6 @@ class ArtistTopTrackMatchStore {
         for (final MapEntry(:key, :value) in merged.entries)
           key: value.toJson(),
       },
-    }, ttl: freshFor);
+    }, ttl: keepFor);
   }
 }

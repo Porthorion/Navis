@@ -1056,6 +1056,8 @@ void main() {
           'search3Calls': 2,
           'matched': 0,
           'remote': 0,
+          'upgradeChecks': 0,
+          'upgraded': 0,
         });
       },
       skip: !sqliteAvailable,
