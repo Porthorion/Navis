@@ -92,6 +92,8 @@ class NavisAudioHandler extends BaseAudioHandler
     Future<void> Function(String)? startPreferredMix,
     Future<void> Function(String)? togglePreferredMix,
     this._readRadioMetadataAllowed,
+    this._readRadioArtworkAllowed,
+    this._fetchRadioArtwork,
     this._createRadioMetadataDio,
     AudioPlayer? player,
     this._adjustmentCapabilities,
@@ -414,6 +416,21 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Manages ICY / Azuracast metadata polling for radio streams.
   late RadioMetadataService _radioMetadataService;
+
+  /// Whether a station's now-playing artwork may load now: radio metadata
+  /// and the service its host maps to are both allowed. Null refuses all.
+  final bool Function(Uri uri)? _readRadioArtworkAllowed;
+
+  /// Downloads radio artwork through the policy-guarded cover cache and
+  /// returns the local file. The system media session is only ever given
+  /// that file, never the remote URL, which audio_service would fetch with
+  /// its own unguarded cache.
+  final Future<Uri?> Function(Uri uri)? _fetchRadioArtwork;
+
+  /// Advances on every radio metadata publish, so artwork fetched for an
+  /// older one is dropped.
+  int _radioArtworkGeneration = 0;
+
   final bool Function()? _readRadioMetadataAllowed;
   final Dio Function()? _createRadioMetadataDio;
 
@@ -9416,7 +9433,15 @@ class NavisAudioHandler extends BaseAudioHandler
     // Compute what the new RadioStationMetadata fields would be.
     final nextTitle = title ?? current.nowPlayingTitle;
     final nextArtist = artist ?? current.nowPlayingArtist;
-    final nextArtUrl = artUrl ?? current.nowPlayingArtUrl;
+    final candidateArtUrl = artUrl ?? current.nowPlayingArtUrl;
+    final candidateUri = candidateArtUrl == null
+        ? null
+        : Uri.tryParse(candidateArtUrl);
+    final nextArtUrl =
+        candidateUri != null &&
+            (_readRadioArtworkAllowed?.call(candidateUri) ?? false)
+        ? candidateArtUrl
+        : null;
 
     // Skip the broadcast when nothing actually changed — this prevents
     // unnecessary UI rebuilds during the Azuracast polling cycle when the
@@ -9434,7 +9459,7 @@ class NavisAudioHandler extends BaseAudioHandler
       homePageUrl: current.homePageUrl,
       nowPlayingTitle: title ?? current.nowPlayingTitle,
       nowPlayingArtist: artist ?? current.nowPlayingArtist,
-      nowPlayingArtUrl: artUrl ?? current.nowPlayingArtUrl,
+      nowPlayingArtUrl: nextArtUrl,
     );
 
     // Update the MediaItem for lock-screen / notification display.
@@ -9442,15 +9467,49 @@ class NavisAudioHandler extends BaseAudioHandler
       id: 'radio:${current.stationId}',
       title: title ?? current.stationName,
       artist: artist ?? current.stationName,
-      artUri: artUrl != null ? Uri.tryParse(artUrl) : null,
+      // AudioService must never download an unguarded remote URL.
+      artUri: null,
       extras: <String, Object?>{
         'isRadio': true,
         'streamUrl': current.streamUrl,
       },
     );
+    final generation = ++_radioArtworkGeneration;
     _setCurrentMediaItem(updatedItem);
     _broadcastPlaybackState();
     _emitSnapshot();
+    if (nextArtUrl != null && candidateUri != null) {
+      unawaited(_publishRadioArtwork(candidateUri, updatedItem, generation));
+    }
+  }
+
+  Future<void> _publishRadioArtwork(
+    Uri uri,
+    MediaItem item,
+    int generation,
+  ) async {
+    final station = _radioStation;
+    try {
+      if (!(_readRadioArtworkAllowed?.call(uri) ?? false)) return;
+      final local = await _fetchRadioArtwork?.call(uri);
+      if (local == null ||
+          local.scheme != 'file' ||
+          generation != _radioArtworkGeneration ||
+          !identical(_radioStation, station) ||
+          _radioStation == null ||
+          mediaItem.value?.id != item.id ||
+          !(_readRadioArtworkAllowed?.call(uri) ?? false)) {
+        return;
+      }
+      _setCurrentMediaItem(
+        item.copyWith(
+          artUri: local,
+          extras: {...?item.extras, 'artCacheFile': local.toFilePath()},
+        ),
+      );
+    } on Object catch (error) {
+      AppLogger.debug('Radio artwork unavailable: $error');
+    }
   }
 
   Future<void> _replaceQueueFromIds(

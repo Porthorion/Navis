@@ -920,6 +920,60 @@ void main() {
       return service;
     }
 
+    test('policy is rechecked after waiting for a slot', () async {
+      var allowed = true;
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final blocker = await coordinator.acquire('blocker');
+      final service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        allowUri: (_) => allowed,
+      );
+      addTearDown(service.close);
+      final pending = service.get(_coverArtUrl(server, id: 'queued'));
+      final rejected = expectLater(
+        pending,
+        throwsA(isA<CoverArtBlockedException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(coordinator.queuedCount, 1);
+      allowed = false;
+      blocker.release();
+      await rejected;
+      expect(requests, 0);
+      expect(coordinator.activeCount, 0);
+    });
+
+    test('each redirect is checked and rejection releases its slot', () async {
+      final redirects = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => redirects.close(force: true));
+      var hops = 0;
+      redirects.listen((request) {
+        hops++;
+        request.response.statusCode = HttpStatus.found;
+        request.response.headers.set(
+          HttpHeaders.locationHeader,
+          hops == 1 ? '/second' : 'http://localhost:${server.port}/refused',
+        );
+        unawaited(request.response.close());
+      });
+      final coordinator = CoverArtLoadCoordinator();
+      final service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        allowUri: (uri) => uri.host == '127.0.0.1',
+      );
+      addTearDown(service.close);
+      await expectLater(
+        service.get('http://127.0.0.1:${redirects.port}/first'),
+        throwsA(isA<CoverArtBlockedException>()),
+      );
+      expect(hops, 2);
+      expect(requests, 0);
+      expect(coordinator.activeCount, 0);
+    });
+
     test('a refused URL throws before any request is made', () async {
       final service = build(allowUri: (_) => false);
       await expectLater(

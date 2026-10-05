@@ -8,6 +8,46 @@ void main() {
   IntegrationFeature? map(String url, {String? serverHost = server}) =>
       integrationFeatureForArtworkUri(Uri.parse(url), serverHost: serverHost);
 
+  test(
+    'radio artwork needs both radio metadata and the mapped host service',
+    () {
+      final uri = Uri.parse('https://cdn.dzcdn.net/cover');
+      for (final disabled in [
+        <String>{'radio.nowPlaying'},
+        <String>{'deezer'},
+        <String>{'artwork'},
+      ]) {
+        final image = disabled.contains('artwork')
+            ? Uri.parse('https://other.example/cover')
+            : uri;
+        expect(
+          integrationAllowsRadioArtworkUri(
+            IntegrationPolicy(disabledKeys: disabled),
+            image,
+            serverHost: server,
+          ),
+          isFalse,
+        );
+      }
+      expect(
+        integrationAllowsRadioArtworkUri(
+          const IntegrationPolicy(masterEnabled: false),
+          uri,
+          serverHost: server,
+        ),
+        isFalse,
+      );
+      expect(
+        integrationAllowsRadioArtworkUri(
+          const IntegrationPolicy(),
+          uri,
+          serverHost: server,
+        ),
+        isTrue,
+      );
+    },
+  );
+
   group('integrationFeatureForArtworkUri', () {
     test('the user server host is always allowed', () {
       expect(

@@ -277,6 +277,26 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   });
 
   @override
+  Stream<IcyMetadata?> get icyMetadataStream =>
+      const Stream<IcyMetadata?>.empty();
+
+  @override
+  IcyMetadata? get icyMetadata => null;
+
+  @override
+  Future<Duration?> setAudioSource(
+    AudioSource audioSource, {
+    bool preload = true,
+    int? initialIndex,
+    Duration? initialPosition,
+  }) => setAudioSources(
+    [audioSource],
+    preload: preload,
+    initialIndex: initialIndex,
+    initialPosition: initialPosition,
+  );
+
+  @override
   Future<Duration?> setAudioSources(
     List<AudioSource> sources, {
     bool preload = true,
@@ -423,6 +443,8 @@ void main() {
     bool cacheSongs = true,
     SubsonicApiClient? Function()? readApiClient,
     bool Function()? readCanStream,
+    bool Function(Uri)? readRadioArtworkAllowed,
+    Future<Uri?> Function(Uri)? fetchRadioArtwork,
   }) async {
     final database = createTestDatabase();
     final apiClient = sidecarStreams
@@ -468,6 +490,9 @@ void main() {
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
+      readRadioMetadataAllowed: () => false,
+      readRadioArtworkAllowed: readRadioArtworkAllowed,
+      fetchRadioArtwork: fetchRadioArtwork,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
       playQueueDao: database.playQueueDao,
@@ -526,6 +551,59 @@ void main() {
     await handler.waitUntilReady();
     return (handler, player, database);
   }
+
+  test(
+    'radio publishes only guarded local artwork and clears refused art',
+    () async {
+      final directory = Directory.systemTemp.createTempSync('radio-art-');
+      var allowed = true;
+      var fetches = 0;
+      final pending = Completer<Uri?>();
+      final (handler, _, database) = await createHandler(
+        directory,
+        0,
+        readRadioArtworkAllowed: (_) => allowed,
+        fetchRadioArtwork: (_) {
+          fetches++;
+          return pending.future;
+        },
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://example.invalid/stream',
+      );
+      handler.updateRadioMetadata(
+        title: 'Track',
+        artUrl: 'https://art.example.invalid/cover',
+      );
+      expect(handler.mediaItem.value!.artUri, isNull);
+      expect(fetches, 1);
+      allowed = false;
+      handler.updateRadioMetadata();
+      pending.complete(Uri.file('${directory.path}/cover.jpg'));
+      await Future<void>.delayed(Duration.zero);
+      expect(handler.mediaItem.value!.artUri, isNull);
+      expect(handler.snapshot.radioStation!.nowPlayingArtUrl, isNull);
+      handler.updateRadioMetadata(
+        title: 'Next',
+        artUrl: 'https://art.example.invalid/next',
+      );
+      expect(fetches, 1);
+      allowed = true;
+      handler.updateRadioMetadata(
+        title: 'Allowed',
+        artUrl: 'https://art.example.invalid/local',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(handler.mediaItem.value!.artUri!.scheme, 'file');
+    },
+  );
 
   for (final preparationFailure in [true, false]) {
     test(

@@ -57,6 +57,9 @@ const int _coverArtMaxScheduledFetches = 64;
 /// classification before it is rejected.
 const int _coverArtErrorDocumentSampleBytes = 64 * 1024;
 
+/// Redirect hops followed per artwork request; each is policy-checked.
+const int _coverArtMaxRedirects = 5;
+
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO). Content types are untrusted: some servers answer
 /// missing artwork with HTTP 200 and a non-image body.
@@ -471,21 +474,50 @@ class CoverArtHttpFileService implements FileService {
     String url, {
     Map<String, String>? headers,
   }) async {
-    final uri = Uri.parse(url);
-    if (!(_allowUri?.call(uri) ?? true)) {
-      throw CoverArtBlockedException(uri.host);
+    final originalUri = Uri.parse(url);
+    var uri = originalUri;
+    void checkAllowed() {
+      if (!(_allowUri?.call(uri) ?? true)) {
+        throw CoverArtBlockedException(uri.host);
+      }
     }
-    final missingCoverHook = (_isServerUri?.call(uri) ?? true)
-        ? onMissingCover
-        : null;
-    final diagnosticUri = _diagnosticUri(uri);
+
+    checkAllowed();
+    var diagnosticUri = _diagnosticUri(uri);
     final loadKey = _loadKey(uri);
     final lease = await _loadCoordinator.acquire(loadKey);
     AppLogger.debug('Cover art request start: $diagnosticUri');
     try {
-      final request = await _client.getUrl(uri).timeout(_connectionTimeout);
-      headers?.forEach(request.headers.set);
-      final response = await request.close().timeout(_responseTimeout);
+      // Redirects are followed here, not by HttpClient, so every hop is
+      // checked against the policy. The check also runs after each wait
+      // (a download slot, a connection), since the policy can change
+      // meanwhile, and always before the request is sent.
+      HttpClientResponse response;
+      for (var hop = 0; ; hop++) {
+        checkAllowed();
+        final request = await _client.getUrl(uri).timeout(_connectionTimeout);
+        request.followRedirects = false;
+        // Caller headers never travel to a different origin.
+        if (uri.origin == originalUri.origin) {
+          headers?.forEach(request.headers.set);
+        }
+        if (!(_allowUri?.call(uri) ?? true)) {
+          request.abort();
+          throw CoverArtBlockedException(uri.host);
+        }
+        response = await request.close().timeout(_responseTimeout);
+        if (!response.isRedirect) break;
+        final location = response.headers.value(HttpHeaders.locationHeader);
+        await response.drain<void>().timeout(_bodyReadTimeout);
+        if (location == null || hop >= _coverArtMaxRedirects) {
+          throw const HttpException('Cover art redirect refused');
+        }
+        uri = uri.resolve(location);
+        diagnosticUri = _diagnosticUri(uri);
+      }
+      final missingCoverHook = (_isServerUri?.call(uri) ?? true)
+          ? onMissingCover
+          : null;
       AppLogger.debug(
         'Cover art response: status=${response.statusCode} '
         'length=${response.contentLength} uri=$diagnosticUri',
@@ -578,6 +610,10 @@ class CoverArtHttpFileService implements FileService {
       lease.release();
       rethrow;
     } on CoverArtLoadCanceledException {
+      lease.release();
+      rethrow;
+    } on CoverArtBlockedException {
+      // An expected policy refusal, not a failure worth a warning.
       lease.release();
       rethrow;
     } on Object catch (error, stackTrace) {

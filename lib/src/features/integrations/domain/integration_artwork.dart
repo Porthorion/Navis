@@ -76,3 +76,12 @@ bool _isLastFmHost(String host) {
   final labels = host.split('.');
   return labels.any((label) => label == 'lastfm');
 }
+
+/// Radio metadata and the artwork host's service must both allow this image.
+bool integrationAllowsRadioArtworkUri(
+  IntegrationPolicy policy,
+  Uri uri, {
+  required String? serverHost,
+}) =>
+    policy.allows(IntegrationFeature.radioNowPlaying) &&
+    integrationAllowsArtworkHost(policy, uri, serverHost: serverHost);

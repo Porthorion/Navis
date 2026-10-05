@@ -1097,6 +1097,17 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),
+      readRadioArtworkAllowed: (uri) => integrationAllowsRadioArtworkUri(
+        ref.read(integrationPolicyProvider),
+        uri,
+        serverHost: ref.read(serverHostProvider),
+      ),
+      fetchRadioArtwork: (uri) async {
+        final file = await ref
+            .read(coverArtCacheManagerProvider)
+            .getSingleFile(uri.toString());
+        return file.uri;
+      },
       createRadioMetadataDio: () => ref.read(externalDioFactoryProvider)(
         IntegrationService.radioMetadata,
       ),
@@ -1225,6 +1236,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       }());
     }
 
+    ref.listen<IntegrationPolicy>(integrationPolicyProvider, (_, _) {
+      handler.updateRadioMetadata();
+    });
     return handler;
   };
 });
