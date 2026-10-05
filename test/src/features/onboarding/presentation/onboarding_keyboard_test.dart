@@ -151,6 +151,74 @@ void main() {
     await typeTokenWithKeyboardOpen(tester, const Size(412, 1100));
   });
 
+  testWidgets('token field survives a short phone where the hint hides', (
+    tester,
+  ) async {
+    await typeTokenWithKeyboardOpen(tester, const Size(360, 640));
+  });
+
+  group('"Scroll for more" hint', () {
+    final hint = find.byKey(const ValueKey<String>('onboarding-scroll-hint'));
+    final list = find.byKey(const ValueKey<String>('onboarding-step-list'));
+    // The first Scrollable below the list is the ListView's own.
+    final scrollable = find
+        .descendant(of: list, matching: find.byType(Scrollable))
+        .first;
+
+    ScrollPosition position(WidgetTester tester) =>
+        tester.state<ScrollableState>(scrollable).position;
+
+    testWidgets(
+      'shows at the top, hides at the end, returns when scrolled up',
+      (tester) async {
+        await openIntegrationsStep(tester, const Size(360, 640));
+        expect(position(tester).maxScrollExtent, greaterThan(0));
+        expect(hint, findsOneWidget);
+        expect(find.text('Scroll for more options'), findsOneWidget);
+
+        position(tester).jumpTo(position(tester).maxScrollExtent);
+        await tester.pumpAndSettle();
+        expect(hint, findsNothing);
+
+        // Just short of the end still counts as the end.
+        position(tester).jumpTo(position(tester).maxScrollExtent - 10);
+        await tester.pumpAndSettle();
+        expect(hint, findsNothing);
+
+        position(tester).jumpTo(0);
+        await tester.pumpAndSettle();
+        expect(hint, findsOneWidget);
+      },
+    );
+
+    // Only just scrollable, so every row stays built at both ends and an
+    // identical element proves the row was not remounted.
+    testWidgets('showing and hiding it does not remount the list rows', (
+      tester,
+    ) async {
+      await openIntegrationsStep(tester, const Size(412, 1100));
+      expect(hint, findsOneWidget);
+      final row = find.text('Online services');
+      final element = tester.element(row);
+
+      position(tester).jumpTo(position(tester).maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(hint, findsNothing);
+      expect(identical(tester.element(row), element), isTrue);
+
+      position(tester).jumpTo(0);
+      await tester.pumpAndSettle();
+      expect(hint, findsOneWidget);
+      expect(identical(tester.element(row), element), isTrue);
+    });
+
+    testWidgets('is absent when the step fits', (tester) async {
+      await openIntegrationsStep(tester, const Size(412, 1400));
+      expect(position(tester).maxScrollExtent, 0);
+      expect(hint, findsNothing);
+    });
+  });
+
   testWidgets('token field keeps focus and takes text in landscape', (
     tester,
   ) async {

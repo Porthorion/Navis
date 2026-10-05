@@ -70,7 +70,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     debugLabel: 'onboarding-listenbrainz',
   );
   late final List<ScrollController> _stepScrollControllers;
-  late final List<bool> _stepCanScroll;
+  // Whether a step has more content below the visible part: it scrolls and is
+  // not yet at (or within [_scrollHintEndSlack] of) its end.
+  late final List<bool> _stepHasMoreBelow;
   final Set<int> _scrollabilityMeasurementPending = <int>{};
   HomeOnboardingWarmupSession? _homeWarmup;
   AppLifecycleListener? _homeWarmupLifecycleListener;
@@ -83,9 +85,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _listenBrainzToken = TextEditingController();
     _stepScrollControllers = List<ScrollController>.generate(
       _steps,
-      (_) => ScrollController(),
+      (_) => ScrollController()..addListener(_updateStepScrollability),
     );
-    _stepCanScroll = List<bool>.filled(_steps, false);
+    _stepHasMoreBelow = List<bool>.filled(_steps, false);
     if (widget.homeWarmupAfterRebuild) {
       _homeWarmupLifecycleListener = AppLifecycleListener(
         onInactive: _stopHomeWarmup,
@@ -681,16 +683,20 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _scrollabilityMeasurementPending.remove(step);
       final controller = _stepScrollControllers[step];
       if (!mounted || !controller.hasClients) return;
-      final canScroll = controller.position.maxScrollExtent > 0;
-      if (_stepCanScroll[step] == canScroll) return;
-      setState(() => _stepCanScroll[step] = canScroll);
+      final position = controller.position;
+      final hasMoreBelow =
+          position.maxScrollExtent - position.pixels > _scrollHintEndSlack;
+      if (_stepHasMoreBelow[step] == hasMoreBelow) return;
+      setState(() => _stepHasMoreBelow[step] = hasMoreBelow);
     });
   }
 
   /// A step's scrolling content. The "scroll for more" hint sits above the
   /// list rather than in it: inserted into the list it shifted every row and
   /// rebuilt a focused field, which closed the keyboard. It is left out while
-  /// the keyboard is up and when the step has too little room for it.
+  /// the keyboard is up, when the step has too little room for it, and once
+  /// the list is scrolled to (or near) its end; it returns when scrolled back
+  /// up.
   Widget _scrollStep({required List<Widget> children}) => LayoutBuilder(
     builder: (context, constraints) => _scrollStepContent(
       // Under the preview theme, unlike the state's own context.
@@ -698,13 +704,16 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       children: children,
       showHint:
           (_step == 1 || _step == 3) &&
-          _stepCanScroll[_step] &&
+          _stepHasMoreBelow[_step] &&
           MediaQuery.viewInsetsOf(context).bottom == 0 &&
           constraints.maxHeight >= _minStepHeightForScrollHint,
     ),
   );
 
   static const _minStepHeightForScrollHint = 120.0;
+
+  /// Remaining scroll distance at which a step counts as scrolled to its end.
+  static const _scrollHintEndSlack = 24.0;
 
   Widget _scrollStepContent(
     BuildContext context, {

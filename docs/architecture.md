@@ -916,8 +916,9 @@ screen keeps its size when the keyboard opens (`resizeToAvoidBottomInset:
 false`) and pads itself by `MediaQuery.viewInsetsOf`, so the step list ends
 at the keyboard. On compact layouts the header and the actions step aside
 while the keyboard is up. The step list and its rows are keyed, and the
-"scroll for more" hint sits above the list, hidden while the keyboard is up:
-inserted into the list it used to shift the rows, rebuild the focused token
+"scroll for more" hint sits above the list, hidden while the keyboard is up
+and once the list is scrolled to (or within 24 dp of) its end, back when
+scrolled up: inserted into the list it used to shift the rows, rebuild the focused token
 field and close the keyboard again. The token and key fields have their own
 focus nodes, validate on the keyboard's Done action, show and hide their
 value, show errors on the field and are locked while validating.
