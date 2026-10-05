@@ -734,6 +734,163 @@ void main() {
       expect(emissions.single.single.resolvedSong, isNull);
     }, skip: !sqliteAvailable);
 
+    test(
+      'a remembered unmatched song is still matched to a new library copy',
+      () async {
+        final db = database();
+        final first = containerWith(
+          db,
+          overrides: sourceOverrides(
+            deezer: _FakeDeezerApiClient(_deezerTracks(2)),
+            subsonic: _FakeSubsonicApiClient(),
+          ),
+        );
+        await sectionEmissions(first, count: 1);
+        await first.read(artistTopTrackMatchStoreProvider).whenSaved();
+        first.dispose();
+
+        // A copy arrives without a finished sync clearing the memory, as an
+        // artist hydration stores it.
+        await db.libraryDao.upsertSongs([_librarySong('local-2', 'Track 02')]);
+        final subsonic = _FakeSubsonicApiClient();
+        final second = containerWith(
+          db,
+          overrides: sourceOverrides(
+            deezer: _FakeDeezerApiClient(_deezerTracks(2)),
+            subsonic: subsonic,
+          ),
+        );
+        final emissions = await sectionEmissions(second, count: 1);
+
+        expect(
+          emissions.single.map((track) => track.resolvedSong?.id),
+          <String?>[null, 'local-2'],
+        );
+        // The memory only holds back the server search.
+        expect(subsonic.searchCallCount, 0);
+        final localSpan = second
+            .read(integrationCallRecorderProvider)
+            .recentSpans()
+            .firstWhere((span) => span.name == 'topSongs.localMatch');
+        expect(localSpan.counts['localHits'], 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'library songs match locally while the search index is stale',
+      () async {
+        // The Masayoshi Soken case after a golden restore: no index rows at
+        // all, "X - Y" titles, namesakes and covers in the library, Deezer's
+        // album and length.
+        final db = database();
+        SongsTableCompanion song(
+          String id,
+          String title,
+          String artist,
+          String album,
+          int duration,
+        ) => SongsTableCompanion.insert(
+          id: id,
+          title: title,
+          artistName: Value(artist),
+          albumName: Value(album),
+          duration: Value(duration),
+        );
+        await db.libraryDao.upsertSongs([
+          song(
+            'footfalls',
+            'Endwalker - Footfalls',
+            'Masayoshi Soken',
+            'ENDWALKER: FINAL FANTASY XIV Original Soundtrack',
+            352,
+          ),
+          song(
+            'distance',
+            'Close in the Distance',
+            'Masayoshi Soken',
+            'ENDWALKER: FINAL FANTASY XIV Original Soundtrack',
+            449,
+          ),
+          song(
+            'distance-remix',
+            'Close in the Distance',
+            'Takafumi Imamura',
+            'Pulse: FINAL FANTASY XIV Remix Album',
+            219,
+          ),
+          song(
+            'scream-jp',
+            'Scream',
+            '祖堅正慶',
+            'GROWING LIGHT: FINAL FANTASY XIV Original Soundtrack',
+            259,
+          ),
+          song(
+            'scream-duo',
+            'Scream',
+            'Takafumi Imamura & Masayoshi Soken',
+            'FINAL FANTASY XIV: ENDWALKER - EP2',
+            258,
+          ),
+          song('scream-other', 'Scream', 'Skillet', 'Lift Me Up', 206),
+        ]);
+        await db.customStatement('DELETE FROM song_search_text');
+        DeezerTrack track(int id, String title, String album, int duration) =>
+            DeezerTrack(
+              id: id,
+              title: title,
+              rank: 1000 - id,
+              durationSeconds: duration,
+              artist: const DeezerArtist(id: 9, name: 'Masayoshi Soken'),
+              album: DeezerAlbum(id: id, title: album),
+            );
+        final subsonic = _FakeSubsonicApiClient();
+        final container = containerWith(
+          db,
+          overrides: sourceOverrides(
+            deezer: _FakeDeezerApiClient([
+              track(
+                1,
+                'Endwalker - Footfalls',
+                'ENDWALKER: FINAL FANTASY XIV Original Soundtrack',
+                352,
+              ),
+              track(
+                2,
+                'Close in the Distance',
+                'ENDWALKER: FINAL FANTASY XIV Original Soundtrack',
+                449,
+              ),
+              track(
+                3,
+                'Scream',
+                'GROWING LIGHT: FINAL FANTASY XIV Original Soundtrack',
+                259,
+              ),
+            ]),
+            subsonic: subsonic,
+          ),
+        );
+
+        final emissions = await sectionEmissions(container, count: 1);
+
+        expect(
+          emissions.single.map((track) => track.resolvedSong?.id),
+          <String?>['footfalls', 'distance', 'scream-duo'],
+        );
+        expect(subsonic.searchCallCount, 0);
+        final localSpan = container
+            .read(integrationCallRecorderProvider)
+            .recentSpans()
+            .firstWhere((span) => span.name == 'topSongs.localMatch');
+        // Every row is stale, so every song is a candidate.
+        expect(localSpan.counts['candidates'], 6);
+        expect(localSpan.counts['localHits'], 3);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('a finished library sync forgets remembered matches', () async {
       final controller = _MutableLibrarySyncController();
       final subsonic = _FakeSubsonicApiClient();
