@@ -579,6 +579,139 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/onboarding/step') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final step = body['step'];
+        if (body.length != 1 || step is! int) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'send {"step": <0-based integer>}',
+          });
+          return;
+        }
+        try {
+          final shown = await presentation.setOnboardingStep(step);
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'step': shown,
+          });
+        } on DiagnosticsPresentationOutOfRange catch (range) {
+          await _respond(request, HttpStatus.notFound, <String, Object?>{
+            'error': 'step must be 0 to ${range.count - 1}',
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'onboarding is not mounted',
+          });
+        }
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/onboarding/focus') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final field = body['field'];
+        if (body.length != 1 ||
+            field is! String ||
+            (field != 'none' &&
+                !DiagnosticsPresentationController.onboardingFocusFields
+                    .containsKey(field))) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'field must be "listenBrainzToken", "lastFmKey" or "none"',
+          });
+          return;
+        }
+        try {
+          final focused = await presentation.focusOnboardingField(field);
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'field': field,
+            'focused': focused,
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'onboarding or that field is not shown',
+          });
+        }
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/release-sheet') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final dismiss = body['dismiss'];
+        final rawSurface = body['surface'];
+        final rawIndex = body['index'] ?? 0;
+        final surface = rawSurface is String ? rawSurface : null;
+        final index = rawIndex is int ? rawIndex : null;
+        final isDismiss = body.length == 1 && dismiss == true;
+        final isTap =
+            dismiss == null &&
+            surface != null &&
+            DiagnosticsPresentationController.releaseSurfaces.containsKey(
+              surface,
+            ) &&
+            index != null &&
+            index >= 0 &&
+            body.keys.every((key) => key == 'surface' || key == 'index');
+        if (!isDismiss && !isTap) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error':
+                'send {"dismiss": true} or {"surface": "missingAlbums" | '
+                '"newReleases", "index": <0-based integer>}',
+          });
+          return;
+        }
+        try {
+          if (isDismiss) {
+            await presentation.dismissReleaseSheet();
+            await _respond(request, HttpStatus.ok, <String, Object?>{
+              'outcome': 'dismissed',
+            });
+          } else {
+            final result = await presentation.tapReleaseCard(
+              surface: surface!,
+              index: index!,
+              location: () => _navigationDriver.location,
+            );
+            await _respond(request, HttpStatus.ok, result.toJson());
+          }
+        } on DiagnosticsPresentationOutOfRange catch (range) {
+          await _respond(request, HttpStatus.notFound, <String, Object?>{
+            'error': 'the surface shows ${range.count} cards',
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': isDismiss
+                ? 'no release sheet is open'
+                : 'that surface has no tappable card',
+          });
+        }
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/presentation/home-warmup') {
         if (!allowsMutations) {
           await _forbidden(request);

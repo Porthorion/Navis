@@ -2294,6 +2294,253 @@ void main() {
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
+  test(
+    'onboarding step and focus controls are validated and clone-only',
+    () async {
+      final presentation = _MockPresentationController();
+      when(() => presentation.setOnboardingStep(any())).thenAnswer(
+        (invocation) async => invocation.positionalArguments[0] as int,
+      );
+      when(() => presentation.focusOnboardingField(any())).thenAnswer(
+        (invocation) async => invocation.positionalArguments[0] != 'none',
+      );
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+      Future<_Response> post(String path, Map<String, Object?> body) =>
+          _request(
+            fixture.port,
+            path,
+            method: 'POST',
+            token: fixture.token,
+            body: body,
+          );
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/onboarding/step',
+        method: 'POST',
+        body: const {'step': 3},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      for (final body in <Map<String, Object?>>[
+        {},
+        {'step': '3'},
+        {'step': 1.5},
+        {'step': 1, 'extra': true},
+      ]) {
+        final response = await post('/v1/presentation/onboarding/step', body);
+        expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+      verifyNever(() => presentation.setOnboardingStep(any()));
+      final moved = await post('/v1/presentation/onboarding/step', {'step': 3});
+      expect(moved.statusCode, HttpStatus.ok);
+      expect(moved.body, {'step': 3});
+      verify(() => presentation.setOnboardingStep(3)).called(1);
+
+      when(() => presentation.setOnboardingStep(any()))
+          .thenThrow(const DiagnosticsPresentationOutOfRange(4));
+      final outOfRange = await post('/v1/presentation/onboarding/step', {
+        'step': 9,
+      });
+      expect(outOfRange.statusCode, HttpStatus.notFound);
+      when(() => presentation.setOnboardingStep(any()))
+          .thenThrow(const DiagnosticsPresentationUnavailable());
+      final notMounted = await post('/v1/presentation/onboarding/step', {
+        'step': 0,
+      });
+      expect(notMounted.statusCode, HttpStatus.conflict);
+
+      for (final body in <Map<String, Object?>>[
+        {},
+        {'field': 'password'},
+        {'field': 3},
+        {'field': 'none', 'extra': 1},
+      ]) {
+        final response = await post('/v1/presentation/onboarding/focus', body);
+        expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+      verifyNever(() => presentation.focusOnboardingField(any()));
+      for (final field in ['listenBrainzToken', 'lastFmKey', 'none']) {
+        final response = await post('/v1/presentation/onboarding/focus', {
+          'field': field,
+        });
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body, {'field': field, 'focused': field != 'none'});
+        verify(() => presentation.focusOnboardingField(field)).called(1);
+      }
+      when(() => presentation.focusOnboardingField(any()))
+          .thenThrow(const DiagnosticsPresentationUnavailable());
+      final hidden = await post('/v1/presentation/onboarding/focus', {
+        'field': 'lastFmKey',
+      });
+      expect(hidden.statusCode, HttpStatus.conflict);
+      await fixture.close();
+
+      final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(noSurface.close);
+      final missing = await _request(
+        noSurface.port,
+        '/v1/presentation/onboarding/step',
+        method: 'POST',
+        token: noSurface.token,
+        body: const {'step': 0},
+      );
+      expect(missing.statusCode, HttpStatus.serviceUnavailable);
+      await noSurface.close();
+
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        presentationController: presentation,
+      );
+      addTearDown(primary.close);
+      for (final (path, body) in <(String, Map<String, Object?>)>[
+        ('/v1/presentation/onboarding/step', {'step': 0}),
+        ('/v1/presentation/onboarding/focus', {'field': 'none'}),
+      ]) {
+        final forbidden = await _request(
+          primary.port,
+          path,
+          method: 'POST',
+          token: primary.token,
+          body: body,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden, reason: path);
+      }
+    },
+  );
+
+  test('release sheet control taps a card or dismisses, clone-only', () async {
+    final presentation = _MockPresentationController();
+    when(
+      () => presentation.tapReleaseCard(
+        surface: any(named: 'surface'),
+        index: any(named: 'index'),
+        location: any(named: 'location'),
+      ),
+    ).thenAnswer(
+      (_) async => const DiagnosticsReleaseCardResult(
+        outcome: 'sheet',
+        location: '/home',
+      ),
+    );
+    when(presentation.dismissReleaseSheet).thenAnswer((_) async {});
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+    Future<_Response> post(Map<String, Object?> body) => _request(
+      fixture.port,
+      '/v1/presentation/release-sheet',
+      method: 'POST',
+      token: fixture.token,
+      body: body,
+    );
+    final unauthorized = await _request(
+      fixture.port,
+      '/v1/presentation/release-sheet',
+      method: 'POST',
+      body: const {'dismiss': true},
+    );
+    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+    for (final body in <Map<String, Object?>>[
+      {},
+      {'dismiss': false},
+      {'dismiss': true, 'surface': 'newReleases'},
+      {'surface': 'artists', 'index': 0},
+      {'surface': 'newReleases', 'index': -1},
+      {'surface': 'newReleases', 'index': '0'},
+      {'surface': 'newReleases', 'index': 0, 'extra': 1},
+      {'index': 0},
+    ]) {
+      final response = await post(body);
+      expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
+    }
+    verifyNever(presentation.dismissReleaseSheet);
+
+    final tapped = await post({'surface': 'missingAlbums', 'index': 2});
+    expect(tapped.statusCode, HttpStatus.ok);
+    expect(tapped.body, {'outcome': 'sheet', 'location': '/home'});
+    verify(
+      () => presentation.tapReleaseCard(
+        surface: 'missingAlbums',
+        index: 2,
+        location: any(named: 'location'),
+      ),
+    ).called(1);
+    // The index defaults to the first card.
+    expect((await post({'surface': 'newReleases'})).statusCode, HttpStatus.ok);
+    verify(
+      () => presentation.tapReleaseCard(
+        surface: 'newReleases',
+        index: 0,
+        location: any(named: 'location'),
+      ),
+    ).called(1);
+
+    final dismissed = await post({'dismiss': true});
+    expect(dismissed.statusCode, HttpStatus.ok);
+    expect(dismissed.body, {'outcome': 'dismissed'});
+    verify(presentation.dismissReleaseSheet).called(1);
+
+    when(
+      () => presentation.tapReleaseCard(
+        surface: any(named: 'surface'),
+        index: any(named: 'index'),
+        location: any(named: 'location'),
+      ),
+    ).thenThrow(const DiagnosticsPresentationOutOfRange(3));
+    expect(
+      (await post({'surface': 'newReleases', 'index': 5})).statusCode,
+      HttpStatus.notFound,
+    );
+    when(
+      () => presentation.tapReleaseCard(
+        surface: any(named: 'surface'),
+        index: any(named: 'index'),
+        location: any(named: 'location'),
+      ),
+    ).thenThrow(const DiagnosticsPresentationUnavailable());
+    expect(
+      (await post({'surface': 'newReleases'})).statusCode,
+      HttpStatus.conflict,
+    );
+    when(presentation.dismissReleaseSheet)
+        .thenThrow(const DiagnosticsPresentationUnavailable());
+    expect((await post({'dismiss': true})).statusCode, HttpStatus.conflict);
+    await fixture.close();
+
+    final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(noSurface.close);
+    final missing = await _request(
+      noSurface.port,
+      '/v1/presentation/release-sheet',
+      method: 'POST',
+      token: noSurface.token,
+      body: const {'dismiss': true},
+    );
+    expect(missing.statusCode, HttpStatus.serviceUnavailable);
+    await noSurface.close();
+
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      presentationController: presentation,
+    );
+    addTearDown(primary.close);
+    final forbidden = await _request(
+      primary.port,
+      '/v1/presentation/release-sheet',
+      method: 'POST',
+      token: primary.token,
+      body: const {'dismiss': true},
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+  });
+
   test('adjustments can open only the Now Playing settings sheet', () async {
     final presentation = _MockPresentationController();
     when(presentation.openNowPlayingSettingsSheet).thenAnswer((_) async {});

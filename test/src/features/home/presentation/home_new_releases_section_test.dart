@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
@@ -86,6 +88,7 @@ void main() {
     SubsonicApiClient? api,
     bool downloadedOnly = false,
     List<Override> overrides = const <Override>[],
+    DiagnosticsPresentationController? presentation,
   }) async {
     final openedAlbums = <String>[];
     final router = GoRouter(
@@ -133,15 +136,17 @@ void main() {
             ...overrides,
           ],
         ),
-        child: MaterialApp.router(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(disableAnimations: true),
-            child: child!,
+        child: (presentation?.wrap ?? (Widget child) => child)(
+          MaterialApp.router(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
+            routerConfig: router,
           ),
-          routerConfig: router,
         ),
       ),
     );
@@ -286,5 +291,138 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, isEmpty);
     expect(find.text('Sep 28, 2026 • EP'), findsOneWidget);
+  });
+
+  group('diagnostics release card control', () {
+    late DiagnosticsPresentationController presentation;
+
+    setUp(() {
+      final root = Directory.systemTemp.createTempSync('navis_release_card_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      presentation = DiagnosticsPresentationController(
+        artifactRoot: root,
+        frameWaiter: () => TestWidgetsFlutterBinding.instance.pump(
+          const Duration(milliseconds: 50),
+        ),
+      );
+    });
+
+    Future<DiagnosticsReleaseCardResult> tap(
+      List<String> opened, {
+      String surface = 'newReleases',
+      int index = 0,
+      Duration timeout = const Duration(seconds: 8),
+    }) => presentation.tapReleaseCard(
+      surface: surface,
+      index: index,
+      location: () => opened.join(','),
+      timeout: timeout,
+    );
+
+    final failingServer = _Api();
+
+    testWidgets('a library release reports the album page', (tester) async {
+      final opened = await pumpHome(
+        tester,
+        api: failingServer,
+        presentation: presentation,
+        releases: (ref) => <HomeNewRelease>[
+          _release(1, 'Encore', DateTime(2026, 10, 2), libraryAlbumId: 'lib-1'),
+        ],
+      );
+      final result = await tap(opened);
+      expect(result.outcome, 'albumPage');
+      expect(opened, <String>['lib-1']);
+    });
+
+    testWidgets('a remote album the server has reports the album page', (
+      tester,
+    ) async {
+      final api = _Api();
+      when(() => api.getAlbum('ext-deezer-album-2')).thenAnswer(
+        (_) async => const Album(id: 'ext-deezer-album-2', name: 'S'),
+      );
+      final opened = await pumpHome(
+        tester,
+        api: api,
+        presentation: presentation,
+        releases: (ref) => releases,
+      );
+      final result = await tap(opened, index: 1);
+      expect(result.outcome, 'albumPage');
+      expect(opened, <String>['ext-deezer-album-2']);
+    });
+
+    testWidgets('an unknown release opens the sheet, which can be dismissed', (
+      tester,
+    ) async {
+      final api = _Api();
+      when(() => api.getAlbum(any())).thenThrow(
+        const SubsonicApiException(code: 70, message: 'Album not found'),
+      );
+      final opened = await pumpHome(
+        tester,
+        api: api,
+        presentation: presentation,
+        releases: (ref) => releases,
+        overrides: <Override>[
+          deezerReleaseDetailsProvider.overrideWith((ref, key) async => null),
+        ],
+      );
+      final result = await tap(opened);
+      expect(result.outcome, 'sheet');
+      expect(opened, isEmpty);
+      expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
+
+      await presentation.dismissReleaseSheet();
+      await tester.pumpAndSettle();
+      expect(find.byType(DeezerReleaseSheetBody), findsNothing);
+      await expectLater(
+        presentation.dismissReleaseSheet(),
+        throwsA(isA<DiagnosticsPresentationUnavailable>()),
+      );
+    });
+
+    testWidgets('rejects an index past the cards and unknown surfaces', (
+      tester,
+    ) async {
+      final opened = await pumpHome(
+        tester,
+        presentation: presentation,
+        releases: (ref) => releases,
+      );
+      await expectLater(
+        presentation.tapReleaseCard(
+          surface: 'newReleases',
+          index: 2,
+          location: () => null,
+        ),
+        throwsA(
+          isA<DiagnosticsPresentationOutOfRange>().having(
+            (error) => error.count,
+            'count',
+            2,
+          ),
+        ),
+      );
+      await expectLater(
+        presentation.tapReleaseCard(
+          surface: 'artists',
+          index: 0,
+          location: () => null,
+        ),
+        throwsFormatException,
+      );
+      // The artist page's shelf is not mounted on Home.
+      await expectLater(
+        presentation.tapReleaseCard(
+          surface: 'missingAlbums',
+          index: 0,
+          location: () => null,
+        ),
+        throwsA(isA<DiagnosticsPresentationUnavailable>()),
+      );
+      expect(opened, isEmpty);
+    });
   });
 }

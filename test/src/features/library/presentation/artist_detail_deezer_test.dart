@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -29,6 +30,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -172,6 +174,7 @@ void main() {
     AdaptiveContext adaptiveContext = _mobileContext,
     ThemeData? theme,
     int albumCount = 12,
+    DiagnosticsPresentationController? presentation,
   }) {
     return ProviderScope(
       overrides: [
@@ -232,13 +235,15 @@ void main() {
           ),
         ),
       ],
-      child: AdaptiveContextScope(
-        adaptiveContext: adaptiveContext,
-        child: MaterialApp.router(
-          theme: theme,
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: _router(),
+      child: (presentation?.wrap ?? (Widget child) => child)(
+        AdaptiveContextScope(
+          adaptiveContext: adaptiveContext,
+          child: MaterialApp.router(
+            theme: theme,
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: _router(),
+          ),
         ),
       ),
     );
@@ -659,6 +664,49 @@ void main() {
         'Ambitions (Japanese Version) ONE OK ROCK',
       );
       expect(container.read(searchFilterProvider), SearchResultType.albums);
+      await dispose(tester);
+    });
+
+    testWidgets('the diagnostics control taps a card and closes the sheet', (
+      tester,
+    ) async {
+      final root = Directory.systemTemp.createTempSync('navis_missing_card_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final presentation = DiagnosticsPresentationController(
+        artifactRoot: root,
+        frameWaiter: () => TestWidgetsFlutterBinding.instance.pump(
+          const Duration(milliseconds: 50),
+        ),
+      );
+      await tester.pumpWidget(
+        app(
+          presentation: presentation,
+          deezerAlbums: [_deezerAlbum(2, 'Ambitions (Japanese Version)')],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byType(ExternalAlbumCard));
+
+      final result = await presentation.tapReleaseCard(
+        surface: 'missingAlbums',
+        index: 0,
+        location: () => null,
+      );
+      await tester.pumpAndSettle();
+      expect(result.outcome, 'sheet');
+      expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
+
+      await presentation.dismissReleaseSheet();
+      await tester.pumpAndSettle();
+      expect(find.byType(DeezerReleaseSheetBody), findsNothing);
+      await expectLater(
+        presentation.tapReleaseCard(
+          surface: 'missingAlbums',
+          index: 1,
+          location: () => null,
+        ),
+        throwsA(isA<DiagnosticsPresentationOutOfRange>()),
+      );
       await dispose(tester);
     });
 

@@ -1598,7 +1598,43 @@ workspace and covered pages are skipped, and nested lists lose to the page's
 own list. The response is `{"pixels", "maxScrollExtent", "viewportDimension"}`
 after the next quiet frame, so lazily built sections are included in the
 extent. A page without a scroll view returns 503; invalid bodies return 400;
-primary certification returns 403. `POST /v1/diagnostics/metrics/reset` clears frame/canary samples
+primary certification returns 403.
+
+Clone-only `POST /v1/presentation/onboarding/step` with `{"step": <0-based int>}`
+moves the mounted onboarding screen (`/onboarding?review=1` is the usual way to
+open it) to that step through the screen's own step state, as Next and Back do,
+so the Integrations step is step 3. The response is `{"step"}`. A step outside
+0–3 returns 404, an onboarding screen that is not mounted returns 409, and a
+malformed body returns 400.
+
+Clone-only `POST /v1/presentation/onboarding/focus` with
+`{"field": "listenBrainzToken" | "lastFmKey" | "none"}` requests focus on that
+field's production `FocusNode` on the Integrations step, which opens the
+platform soft keyboard on Android, or removes focus (`none`) to close it. The
+field is scrolled into the lazily built step list first. The response is
+`{"field", "focused"}`. A field that is not shown (the Last.fm key field exists
+only in builds without a bundled key, and both fields only on step 3) or an
+onboarding screen that is not mounted returns 409. Capture the screenshot after
+the keyboard has animated in.
+
+Clone-only `POST /v1/presentation/release-sheet` taps a Deezer release card
+through its own tap handler: `{"surface": "missingAlbums" | "newReleases",
+"index": 0}` (`index` is 0-based and defaults to 0) on the mounted artist page's
+Missing Albums shelf or Home's New Releases shelf. Cards that are not built yet
+(off screen in the shelf or below the fold) are not tappable, so scroll first
+with `/v1/presentation/scroll`. The response is `{"outcome", "location"}` where
+`outcome` is `sheet` (the release sheet or dialog opened), `albumPage` (a
+library or remote album page opened, as the production handler decides) or
+`none` (nothing happened within 8 seconds), and `location` is the route
+afterwards. `{"dismiss": true}` closes an open release sheet and returns
+`{"outcome": "dismissed"}`. A surface with no tappable card, or dismissing with
+no sheet open, returns 409; an index past the cards returns 404; malformed
+bodies return 400.
+
+All three return 403 in primary certification and 503 when no presentation
+surface is registered.
+
+`POST /v1/diagnostics/metrics/reset` clears frame/canary samples
 and playback-failure counts between timed scenarios. Reports include current and
 process-lifetime peak RSS. These support controlled sync/playback/scroll trials;
 API action latency and build+raster samples are not hardware input-latency or

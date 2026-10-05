@@ -41,11 +41,14 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   final bool homeWarmupAfterRebuild;
 
   @override
-  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const _steps = 4;
+
+  /// How many steps the flow has (diagnostics reads it to bound a step jump).
+  static const stepCount = _steps;
   int _step = 0;
   bool _hydrated = false;
   bool _saving = false;
@@ -111,6 +114,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  /// The shown step, 0-based. Read by the diagnostics presentation controller.
+  int get step => _step;
+
+  /// Shows [target] exactly as Next and Back do: the step changes and nothing
+  /// is saved. Used by the clone-only diagnostics step control, which has
+  /// already checked the range.
+  void showStep(int target) {
+    assert(target >= 0 && target < _steps, 'step out of range');
+    setState(() => _step = target);
   }
 
   void _stopHomeWarmup() {

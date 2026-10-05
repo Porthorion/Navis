@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
+import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:navis/src/common_widgets/external_album_card.dart';
 
 import 'dart:io';
 
@@ -22,6 +25,32 @@ import 'package:path/path.dart' as p;
 
 class DiagnosticsPresentationUnavailable implements Exception {
   const new();
+}
+
+/// The mounted surface exists, but the requested step or card index is not
+/// one it has.
+class DiagnosticsPresentationOutOfRange implements Exception {
+  const new(this.count);
+
+  /// How many steps or cards the surface has.
+  final int count;
+}
+
+/// What tapping a release card did. [outcome] is `sheet` (the release sheet
+/// opened), `albumPage` (the app navigated to an album page) or `none` (nothing
+/// happened within the wait).
+class DiagnosticsReleaseCardResult {
+  const new({required this.outcome, required this.location});
+
+  final String outcome;
+
+  /// The route after the tap.
+  final String? location;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'outcome': outcome,
+    'location': location,
+  };
 }
 
 class DiagnosticsPresentationStatus {
@@ -932,6 +961,174 @@ class DiagnosticsPresentationController {
       PointerUpEvent(pointer: pointer, position: position, viewId: viewId),
     );
     await waitForFrame();
+  }
+
+  /// Fields of the onboarding Integrations step the diagnostics API may focus,
+  /// by the widget key of their text field.
+  static const onboardingFocusFields = <String, String>{
+    'listenBrainzToken': 'onboarding-listenbrainz-token',
+    'lastFmKey': 'onboarding-lastfm-key',
+  };
+
+  /// Card lists the diagnostics API may tap, by the widget-key prefix of
+  /// their cards: the artist page's missing albums and Home's New releases.
+  static const releaseSurfaces = <String, String>{
+    'missingAlbums': 'missing-album-',
+    'newReleases': 'home-new-release-',
+  };
+
+  OnboardingScreenState _onboardingState() {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final element = _findElement(
+      root,
+      (element) =>
+          element is StatefulElement &&
+          element.state is OnboardingScreenState &&
+          _isOnstage(element),
+    );
+    if (element is! StatefulElement) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    return element.state as OnboardingScreenState;
+  }
+
+  /// Moves the mounted onboarding screen to [step] (0-based) through the
+  /// screen's own step state, as Next and Back do, and returns the step shown.
+  Future<int> setOnboardingStep(int step) async {
+    final screen = _onboardingState();
+    if (step < 0 || step >= OnboardingScreenState.stepCount) {
+      throw const DiagnosticsPresentationOutOfRange(
+        OnboardingScreenState.stepCount,
+      );
+    }
+    screen.showStep(step);
+    await waitForFrame();
+    if (!screen.mounted) throw const DiagnosticsPresentationUnavailable();
+    return screen.step;
+  }
+
+  /// Gives a mounted onboarding text field (a key of [onboardingFocusFields])
+  /// focus through its production focus node, which opens the platform
+  /// keyboard, or takes focus away for `none`. Returns whether the field now
+  /// has focus; a field that is not shown or cannot take focus is unavailable.
+  Future<bool> focusOnboardingField(String field) async {
+    if (field != 'none' && !onboardingFocusFields.containsKey(field)) {
+      throw const FormatException();
+    }
+    final screen = _onboardingState();
+    if (field == 'none') {
+      FocusManager.instance.primaryFocus?.unfocus();
+      await waitForFrame();
+      return false;
+    }
+    final root = _boundaryElement();
+    Element? findInput() => _findElement(
+      root,
+      (element) =>
+          element.widget.key ==
+              ValueKey<String>(onboardingFocusFields[field]!) &&
+          element.widget is TextField &&
+          _isOnstage(element),
+    );
+    var input = findInput();
+    if (input == null) {
+      // The step list builds lazily, so a field below the fold on a short
+      // screen is not built yet: scroll to the end of the step to build it.
+      try {
+        await scrollPrimary(to: 100000);
+      } on DiagnosticsPresentationUnavailable {
+        // No scrollable step: the field is simply not shown.
+      }
+      input = findInput();
+    }
+    final node = (input?.widget as TextField?)?.focusNode;
+    if (node == null) throw const DiagnosticsPresentationUnavailable();
+    node.requestFocus();
+    await waitForFrame();
+    if (!screen.mounted || !node.hasFocus) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    return true;
+  }
+
+  /// Taps the release card at [index] of [surface] (a key of
+  /// [releaseSurfaces]) through the card's own callback, then reports what the
+  /// production handler did: opened the release sheet, or navigated (a
+  /// library or remote album page, seen as a change of [location]). Waits up
+  /// to [timeout] for the outcome, since a remote album is checked on the
+  /// server first.
+  Future<DiagnosticsReleaseCardResult> tapReleaseCard({
+    required String surface,
+    required int index,
+    required String? Function() location,
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final prefix = releaseSurfaces[surface];
+    if (prefix == null || index < 0) throw const FormatException();
+    final root = _boundaryElement();
+    final cards = <ExternalAlbumCard>[];
+    void collect(Element element) {
+      final widget = element.widget;
+      final key = widget.key;
+      if (widget is ExternalAlbumCard &&
+          key is ValueKey<String> &&
+          key.value.startsWith(prefix) &&
+          _isOnstage(element) &&
+          ModalRoute.of(element)?.isCurrent != false) {
+        cards.add(widget);
+        return;
+      }
+      element.visitChildElements(collect);
+    }
+
+    collect(root);
+    if (cards.isEmpty) throw const DiagnosticsPresentationUnavailable();
+    if (index >= cards.length) {
+      throw DiagnosticsPresentationOutOfRange(cards.length);
+    }
+    final onTap = cards[index].onTap;
+    if (onTap == null) throw const DiagnosticsPresentationUnavailable();
+    final before = location();
+    onTap();
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      await waitForFrame();
+      final after = location();
+      if (_releaseSheet() != null) {
+        return DiagnosticsReleaseCardResult(outcome: 'sheet', location: after);
+      }
+      if (after != before) {
+        return DiagnosticsReleaseCardResult(
+          outcome: 'albumPage',
+          location: after,
+        );
+      }
+      if (!DateTime.now().isBefore(deadline)) {
+        return DiagnosticsReleaseCardResult(outcome: 'none', location: after);
+      }
+    }
+  }
+
+  /// Closes the open Deezer release sheet (or dialog) with its route's own
+  /// pop, as a swipe or the barrier does.
+  Future<void> dismissReleaseSheet() async {
+    final sheet = _releaseSheet();
+    final route = sheet == null ? null : ModalRoute.of(sheet);
+    if (sheet == null || route == null || !route.isCurrent) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    Navigator.of(sheet).pop();
+    await waitForFrame();
+  }
+
+  Element? _releaseSheet() {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) return null;
+    return _findElement(
+      root,
+      (element) => element.widget is DeezerReleaseSheetBody,
+    );
   }
 
   Element? _findElement(Element root, bool Function(Element) matches) {
