@@ -124,7 +124,7 @@ void main() {
     expect(Theme.of(cardContext).cardTheme.color, Colors.transparent);
   });
 
-  testWidgets('leaves one link to Integrations instead of external services', (
+  testWidgets('is titled Server Information and has no Integrations link', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -136,16 +136,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Server Information'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Configuration'), findsNothing);
+    // Integrations is its own Settings entry, not repeated here.
+    expect(find.text('Integrations'), findsNothing);
+    expect(find.text('Online services'), findsNothing);
     expect(find.text('External Services'), findsNothing);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Last.fm'), findsNothing);
     expect(find.text('ListenBrainz'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, 'Integrations'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.widgetWithText(ListTile, 'Integrations'), findsOneWidget);
   });
 
   testWidgets('does not render retired Listen Together configuration', (

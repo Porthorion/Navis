@@ -136,6 +136,9 @@ const List<ChangelogVersion> changelogs = [
         'The LRCLIB lyrics, Same Vibes mix and automatic update check switches moved to Integrations, along with the Last.fm key and ListenBrainz token',
       ),
       ChangelogEntry(
+        'Settings › Configuration is now Server Information and only shows your server connection; Integrations has its own entry and groups its services under Discovery, Listening history, Lyrics & artwork, Internet radio and App',
+      ),
+      ChangelogEntry(
         'ListenBrainz scrobbling, likes and weekly playlists each have their own switch, and Instant Radio only asks Last.fm while its switch is on',
       ),
       ChangelogEntry(

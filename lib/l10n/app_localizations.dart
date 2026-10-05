@@ -517,7 +517,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsServerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Configuration'**
+  /// **'Server Information'**
   String get settingsServerTitle;
 
   /// No description provided for @settingsServerSubtitle.
@@ -2361,7 +2361,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Configuration'**
+  /// **'Server Information'**
   String get serverSettingsTitle;
 
   /// No description provided for @serverSettingsLoadError.

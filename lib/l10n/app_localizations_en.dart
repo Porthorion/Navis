@@ -238,7 +238,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
-  String get settingsServerTitle => 'Configuration';
+  String get settingsServerTitle => 'Server Information';
 
   @override
   String get settingsServerSubtitle => 'Server connection and account.';
@@ -1538,7 +1538,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioLive => 'LIVE';
 
   @override
-  String get serverSettingsTitle => 'Configuration';
+  String get serverSettingsTitle => 'Server Information';
 
   @override
   String get serverSettingsLoadError => 'Could Not Load Server Settings.';

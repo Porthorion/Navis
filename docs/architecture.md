@@ -867,12 +867,12 @@ Settings):
 - `/library/liked-albums`, `/library/liked-artists` - Full liked lists
 - `/search` - Search
 - `/settings` - Settings
-- `/settings/server` (Configuration), `/settings/integrations`, `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
+- `/settings/server` (Server Information), `/settings/integrations`, `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
 - `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
 
-The retired `/settings/group-listening` path redirects to Configuration
+The retired `/settings/group-listening` path redirects to Server Information
 (`/settings/server`) and `/settings/external-services` to Integrations
 (`/settings/integrations`); neither is shown in navigation. A location that matches no route shows a localized not-found page
 with a Home action.

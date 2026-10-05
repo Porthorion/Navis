@@ -111,7 +111,8 @@ void main() {
       expect(find.text('Listen Together Configuration'), findsNothing);
       expect(find.text('Listen Together'), findsNothing);
       expect(find.text('External Services'), findsNothing);
-      expect(find.text('Configuration'), findsOneWidget);
+      expect(find.text('Server Information'), findsOneWidget);
+      expect(find.text('Configuration'), findsNothing);
       expect(find.text('AudioMuse AI'), findsNothing);
     },
   );
@@ -140,7 +141,7 @@ void main() {
     );
   });
 
-  testWidgets('lists Integrations under Connection after Configuration', (
+  testWidgets('lists Server Information, then Integrations, under Connection', (
     tester,
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
@@ -156,12 +157,16 @@ void main() {
     await tester.pumpAndSettle();
 
     final connection = tester.getTopLeft(find.text('Connection')).dy;
-    final configuration = tester.getTopLeft(find.text('Configuration')).dy;
+    final serverInformation = tester
+        .getTopLeft(find.text('Server Information'))
+        .dy;
     final integrations = tester.getTopLeft(find.text('Integrations')).dy;
     final nextGroup = tester.getTopLeft(find.text('Device storage & cache')).dy;
-    expect(connection, lessThan(configuration));
-    expect(configuration, lessThan(integrations));
+    expect(connection, lessThan(serverInformation));
+    expect(serverInformation, lessThan(integrations));
     expect(integrations, lessThan(nextGroup));
+    // Integrations is its own entry, listed once.
+    expect(find.text('Integrations'), findsOneWidget);
     expect(
       find.text('Deezer, Last.fm, ListenBrainz and other online services.'),
       findsOneWidget,

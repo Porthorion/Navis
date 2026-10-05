@@ -181,29 +181,11 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                               signOutAction,
                             ],
                           ),
-                          const SizedBox(height: 20),
                         ] else ...<Widget>[
                           testConnectionAction,
                           sectionGap,
                           signOutAction,
-                          const SizedBox(height: 32),
                         ],
-
-                        // Last.fm, ListenBrainz and the other online
-                        // services live on their own page.
-                        _SectionHeader(title: l10n.integrationsMasterTitle),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.hub_outlined),
-                          title: Text(l10n.integrationsTitle),
-                          subtitle: Text(l10n.integrationsSubtitle),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => NavService.openSettingsPage(
-                            context,
-                            ref,
-                            SettingsPage.integrations,
-                          ),
-                        ),
                       ],
                     ),
                   ),
