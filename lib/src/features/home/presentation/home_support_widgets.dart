@@ -261,7 +261,6 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final song = recommendation.song;
     final track = recommendation.track;
@@ -282,25 +281,16 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
     final ambiguous =
         recommendation.status ==
         ListenBrainzRecommendationMatchStatus.ambiguous;
-    final statusLabel = pending
-        ? l10n.weeklyPlaylistMatching
+    final statusKind = pending
+        ? TrackMatchLabelKind.matching
         : unavailable
         ? ambiguous
-              ? l10n.weeklyPlaylistAmbiguousMatch
-              : l10n.weeklyPlaylistTrackUnavailable
-        : null;
-    // The status rides on the title line as a short label; the full
-    // sentence stays available as its tooltip and accessible label.
-    final shortStatus = pending
-        ? l10n.weeklyPlaylistMatching
-        : unavailable
-        ? ambiguous
-              ? l10n.weeklyPlaylistAmbiguousMatchShort
-              : l10n.weeklyPlaylistTrackUnavailableShort
+              ? TrackMatchLabelKind.ambiguous
+              : TrackMatchLabelKind.unavailable
         : null;
 
     final tile = Opacity(
-      opacity: unavailable ? 0.58 : 1,
+      opacity: unavailable ? TrackMatchStatusLabel.unavailableOpacity : 1,
       child: Material(
         type: MaterialType.transparency,
         child: AdaptiveTrackRow(
@@ -317,44 +307,9 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
           leadingGap: horizontalTitleGap,
           actionExtent: 96,
           minHeight: minHeight,
-          titleBadge: shortStatus == null
+          titleBadge: statusKind == null
               ? null
-              : Tooltip(
-                  // "Matching" is already short and matches the hourglass
-                  // button's tooltip, so it needs no second tooltip.
-                  message: shortStatus == statusLabel ? '' : statusLabel,
-                  excludeFromSemantics: true,
-                  child: Semantics(
-                    label: statusLabel,
-                    excludeSemantics: true,
-                    child: Row(
-                      key: const ValueKey<String>('weekly-track-status'),
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!pending) ...[
-                          Icon(
-                            ambiguous
-                                ? Icons.help_outline_rounded
-                                : Icons.cloud_off_rounded,
-                            size: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 3),
-                        ],
-                        Flexible(
-                          child: Text(
-                            shortStatus,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              : TrackMatchStatusLabel(kind: statusKind),
           leading: SizedBox(
             width: 32,
             child: Center(
