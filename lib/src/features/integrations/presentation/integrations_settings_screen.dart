@@ -7,7 +7,6 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
-import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -424,9 +423,7 @@ class _IntegrationsSettingsScreenState
         userName: details.userName,
       );
       if (!mounted) return;
-      ref
-          .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
-          .refreshAfterTokenValidation();
+      ref.read(refreshWeeklyPlaylistsAfterTokenValidationProvider)();
     } on Object {
       if (!mounted) return;
       setState(
@@ -499,7 +496,8 @@ class _ServiceSection extends StatelessWidget {
     final theme = Theme.of(context);
     final name = integrationServiceName(service, l10n);
     final verified = policy.isVerified(service);
-    final serviceLocked = policy.serviceLockReason(service) != null;
+    final lock = policy.serviceLockReason(service);
+    final serviceLocked = lock != null;
     final credential = this.credential;
     return Padding(
       padding: const EdgeInsets.only(top: NavisSpace.lg),
@@ -511,7 +509,16 @@ class _ServiceSection extends StatelessWidget {
             compact: true,
             trailing: <Widget>[
               Semantics(
-                label: l10n.integrationsServiceSwitchLabel(name),
+                label: [
+                  l10n.integrationsServiceSwitchLabel(name),
+                  if (lock != null)
+                    integrationLockReasonText(
+                      lock,
+                      service: service,
+                      serviceName: name,
+                      l10n: l10n,
+                    ),
+                ].join(' • '),
                 child: Switch(
                   key: ValueKey<String>('integrations-service-${service.key}'),
                   // An unverified service cannot run, so it reads as off

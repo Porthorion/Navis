@@ -40,6 +40,7 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
@@ -634,6 +635,16 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
     ),
   );
 });
+
+/// Refreshes Home's ListenBrainz weekly playlists after a token check, so
+/// Integrations need not import Home.
+final refreshWeeklyPlaylistsAfterTokenValidationProvider =
+    Provider<void Function()>(
+      (ref) =>
+          () => ref
+              .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+              .refreshAfterTokenValidation(),
+    );
 
 /// The Deezer client, shared so its request limiter covers every Deezer
 /// feature. Deezer needs no key; each feature checks its own switch.

@@ -1397,7 +1397,11 @@ switch means "Navis only talks to your server" when off. See
   stored choice that returns when unlocked, unverified ones read as off.
   Token validation records its result with the targeted
   `updateListenBrainzConnection`, not a full-row save, and turns scrobbling on
-  only for a new connection. The Updates section is hidden where About hides
+  only for a new connection; it then refreshes the weekly playlists through
+  `refreshWeeklyPlaylistsAfterTokenValidationProvider` (composition root), so
+  the Integrations feature never imports Home. A saved Last.fm key is written
+  with `updateLastFmApiKey`. A locked service switch's semantics label carries
+  its lock reason. The Updates section is hidden where About hides
   update controls (iOS, web). Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
   service switch is off. Its service names, the line about what each service

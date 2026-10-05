@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +41,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   Future<ListenBrainzTokenDetails> validateTokenDetails(
     String userToken, {
     bool userInitiated = false,
+    CancelToken? cancelToken,
   }) async {
     userInitiatedCalls.add(userInitiated);
     return ListenBrainzTokenDetails(
@@ -370,6 +372,22 @@ void main() {
         'Needs a verified ListenBrainz token.',
       );
     }
+  });
+
+  testWidgets('a locked service announces its localized reason', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, lastFmBundled: false, lastFmApiKey: '');
+    final label = tester
+        .getSemantics(
+          find.byKey(const ValueKey<String>('integrations-service-lastfm')),
+        )
+        .getSemanticsData()
+        .label;
+    expect(label, contains('Use Last.fm'));
+    expect(label, contains('Needs a verified Last.fm API key.'));
+    semantics.dispose();
   });
 
   testWidgets('a keyless build shows the key field and locks Last.fm', (
