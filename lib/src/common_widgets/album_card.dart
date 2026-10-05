@@ -139,12 +139,16 @@ class AlbumCardLabel extends StatelessWidget {
   const new({
     required this.title,
     required this.subtitle,
+    this.detail,
     this.titleMaxLines = 1,
     super.key,
   });
 
   final String title;
   final String subtitle;
+
+  /// An optional third line under [subtitle], such as "Oct 2 • Single".
+  final String? detail;
   final int titleMaxLines;
 
   @override
@@ -198,6 +202,16 @@ class AlbumCardLabel extends StatelessWidget {
                   fontWeight: FontWeight.w400,
                 ),
               ),
+              if (detail case final detail?)
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: subtitleColor,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
             ],
           ),
         ),

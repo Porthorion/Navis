@@ -172,6 +172,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'New Releases on Home shows the last month\'s releases from the artists you play most; tap one to open it on your server, or see its tracklist and search your server when it is not there',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Home sections added in an update now appear even if you reordered or hid sections before',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Japanese and other non-Latin titles now match correctly (top songs, ListenBrainz playlists, mixes), and language versions are no longer mixed up',
         type: ChangelogEntryType.fix,
       ),

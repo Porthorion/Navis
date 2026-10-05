@@ -2106,6 +2106,12 @@ abstract class AppLocalizations {
   /// **'Pull to refresh to fetch newly added albums.'**
   String get homeRecentlyAddedEmptySubtitle;
 
+  /// No description provided for @homeNewReleasesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New Releases'**
+  String get homeNewReleasesTitle;
+
   /// No description provided for @homeFrequentTitle.
   ///
   /// In en, this message translates to:
@@ -6598,6 +6604,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Frequent Albums'**
   String get homeSectionFrequentAlbums;
+
+  /// No description provided for @homeSectionNewReleases.
+  ///
+  /// In en, this message translates to:
+  /// **'New Releases'**
+  String get homeSectionNewReleases;
 
   /// No description provided for @homeSectionQuickActions.
   ///

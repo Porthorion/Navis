@@ -45,6 +45,21 @@ class _FakeDeezer extends DeezerApiClient {
   }
 
   @override
+  Future<List<DeezerTrack>> getChartTracks({
+    int limit = 100,
+    CancelToken? cancelToken,
+  }) async {
+    calls.add('chart/0/tracks?limit=$limit');
+    return const [
+      DeezerTrack(
+        id: 1,
+        title: 'Dracula',
+        artist: DeezerArtist(id: 7, name: 'Tame Impala'),
+      ),
+    ];
+  }
+
+  @override
   Future<DeezerAlbum?> getAlbum(int albumId, {CancelToken? cancelToken}) async {
     calls.add('album/$albumId');
     return DeezerAlbum(id: albumId, title: 'Ambitions', trackCount: 14);
@@ -96,6 +111,32 @@ void main() {
 
     now = now.add(const Duration(hours: 1));
     await catalog.artistAlbums(1);
+    expect(deezer.calls, hasLength(2));
+  });
+
+  test("an artist's first releases are kept for 24 hours apart", () async {
+    await catalog.artistAlbums(1);
+    expect((await catalog.recentArtistAlbums(1)).single.title, 'Ambitions');
+    now = now.add(const Duration(hours: 23));
+    await catalog.recentArtistAlbums(1);
+    expect(deezer.calls, [
+      'artist/1/albums?limit=100',
+      'artist/1/albums?limit=5',
+    ]);
+
+    now = now.add(const Duration(hours: 1));
+    await catalog.recentArtistAlbums(1);
+    expect(deezer.calls, hasLength(3));
+  });
+
+  test('the chart is kept for 6 hours', () async {
+    expect((await catalog.chartTracks()).single.artist.name, 'Tame Impala');
+    now = now.add(const Duration(hours: 5, minutes: 59));
+    await catalog.chartTracks();
+    expect(deezer.calls, ['chart/0/tracks?limit=100']);
+
+    now = now.add(const Duration(minutes: 1));
+    await catalog.chartTracks();
     expect(deezer.calls, hasLength(2));
   });
 

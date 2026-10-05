@@ -343,6 +343,10 @@ Future<List<HomeArtworkWarmupTarget>> _targetsForHomeSection(
       return _serverAlbumTargets(_filterLikedServerAlbums(albums, likedOnly));
     case HomeSectionIds.quickActions:
       return const <HomeArtworkWarmupTarget>[];
+    case HomeSectionIds.newReleases:
+      // Deezer artwork: the warmup asks no online service, and onboarding
+      // may not have passed its Integrations step yet.
+      return const <HomeArtworkWarmupTarget>[];
   }
   return const <HomeArtworkWarmupTarget>[];
 }

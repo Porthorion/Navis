@@ -17,8 +17,15 @@ abstract final class DeezerCache {
   /// Deezer artist id → `/artist/{id}/albums`.
   static const artistAlbumsNamespace = 'deezer.artist-albums';
 
-  /// Deezer album id → `/album/{id}` (track count).
+  /// Deezer album id → `/album/{id}` (track count and tracklist).
   static const albumNamespace = 'deezer.album';
+
+  /// Deezer artist id → the first few `/artist/{id}/albums`, for New
+  /// releases on Home.
+  static const artistRecentAlbumsNamespace = 'deezer.artist-recent-albums';
+
+  /// `/chart/0/tracks`, for Trending on Home.
+  static const chartNamespace = 'deezer.chart';
 
   static const artistFoundTtl = Duration(days: 30);
   static const artistNotFoundTtl = Duration(days: 7);

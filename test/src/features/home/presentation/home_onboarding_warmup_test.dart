@@ -7,6 +7,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
+import 'package:navis/src/features/home/domain/new_releases.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
@@ -143,6 +145,34 @@ void main() {
         expect(selected.single.size, 600);
       },
     );
+  });
+
+  test('warms nothing for New releases and never asks Deezer', () async {
+    var newReleasesBuilt = false;
+    final container = ProviderContainer(
+      overrides: [
+        homeSectionOrderProvider.overrideWithValue(null),
+        homeSectionsHiddenProvider.overrideWithValue(<String>[
+          for (final id in HomeSectionIds.defaultOrder)
+            if (id != HomeSectionIds.newReleases) id,
+        ]),
+        homeNewReleasesProvider.overrideWith((ref) {
+          newReleasesBuilt = true;
+          return const <HomeNewRelease>[];
+        }),
+        deezerApiClientProvider.overrideWith(
+          (ref) => throw StateError('the warmup asked Deezer'),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final selected = await container.read(
+      _mobileHomeWarmupResolverProvider.future,
+    );
+
+    expect(selected, isEmpty);
+    expect(newReleasesBuilt, isFalse);
   });
 
   group('HomeOnboardingWarmup', () {

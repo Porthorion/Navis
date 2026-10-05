@@ -2285,6 +2285,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
+  /// Up to [limit] artists the user listens to most: by the summed play
+  /// count of their songs, liked artists first among equal counts, then by
+  /// name. Artists without plays count only when liked.
+  Future<List<ArtistsTableData>> getTopPlayedArtists({int limit = 30}) async {
+    final rows = await customSelect(
+      '''
+      SELECT a.*
+      FROM artists a
+      LEFT JOIN (
+        SELECT artist_id, SUM(play_count) AS plays
+        FROM songs
+        WHERE play_count > 0
+          AND server_deleted_at IS NULL
+          AND is_provisional = 0
+        GROUP BY artist_id
+      ) p ON p.artist_id = a.id
+      WHERE a.is_provisional = 0
+        AND (p.plays > 0 OR a.starred IS NOT NULL)
+      ORDER BY
+        COALESCE(p.plays, 0) DESC,
+        a.starred IS NULL ASC,
+        LOWER(a.name) ASC,
+        a.id ASC
+      LIMIT ?
+      ''',
+      variables: [Variable.withInt(limit)],
+      readsFrom: {artistsTable, songsTable},
+    ).get();
+    return rows.map((row) => artistsTable.map(row.data)).toList();
+  }
+
   Future<ArtistsTableData?> findOneExactNormalizedArtistByName(
     String name,
   ) async {

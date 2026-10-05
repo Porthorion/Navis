@@ -244,6 +244,58 @@ void main() {
     expect(album?.releaseDate, '2017-01-11');
   });
 
+  test('getAlbum parses the tracklist, which round-trips', () async {
+    adapter.queue('/album/910510411', <String, Object?>{
+      'id': 910510411,
+      'title': 'Dracula (with JENNIE)',
+      'record_type': 'single',
+      'release_date': '2026-02-06',
+      'nb_tracks': 2,
+      'tracks': <String, Object?>{
+        'data': <Object?>[
+          _track(3818963601, 'Dracula (with JENNIE)'),
+          _track(3818963602, 'Dracula (with JENNIE) [Instrumental]'),
+        ],
+      },
+    });
+
+    final album = await client.getAlbum(910510411);
+
+    expect(album?.tracks?.map((track) => track.title), <String>[
+      'Dracula (with JENNIE)',
+      'Dracula (with JENNIE) [Instrumental]',
+    ]);
+    expect(album?.tracks?.first.durationSeconds, 175);
+    final cached = DeezerAlbum.fromJson(
+      jsonDecode(jsonEncode(album!.toJson())) as Map<String, dynamic>,
+    );
+    expect(cached.tracks?.map((track) => track.id), <int>[
+      3818963601,
+      3818963602,
+    ]);
+    // A listed album has no tracklist, and none is written for it.
+    expect(
+      const DeezerAlbum(id: 1, title: 'A').toJson(),
+      isNot(contains('tracks')),
+    );
+  });
+
+  test('getChartTracks parses the chart and sends the limit', () async {
+    adapter.queue('/chart/0/tracks', <String, Object?>{
+      'data': <Object?>[
+        _track(1, 'First', rank: 990000),
+        _track(2, 'Second', rank: 980000),
+      ],
+      'total': 2,
+    });
+
+    final chart = await client.getChartTracks(limit: 100);
+
+    expect(chart.map((track) => track.title), <String>['First', 'Second']);
+    expect(chart.first.artist.name, 'Imagine Dragons');
+    expect(adapter.requests.single.queryParameters['limit'], '100');
+  });
+
   test('code 800 (no data) reads as an empty result', () async {
     adapter.queue('/artist/0/top', _error(800, 'DataException', 'no data'));
 

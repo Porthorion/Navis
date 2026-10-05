@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
@@ -64,19 +65,28 @@ String deezerReleaseSummary(AppLocalizations l10n, DeezerAlbum album) {
 String? deezerReleaseCoverUrl(DeezerAlbum album) =>
     album.coverBig ?? album.coverXl ?? album.coverMedium;
 
+/// "2:05" for a track of [seconds].
+String deezerTrackDuration(int seconds) {
+  final minutes = seconds ~/ 60;
+  final rest = (seconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$rest';
+}
+
 /// Shows a Deezer release that is not on the server: cover, title, artist,
-/// year, type and track count, and "Search your server", which searches the
-/// server for it (the server may hold it under another name, or fetch it
-/// from a remote catalogue).
+/// year (or the full [releasedOn] date), type and track count, the
+/// tracklist, and "Search your server", which searches the server for it
+/// (the server may hold it under another name, or fetch it from a remote
+/// catalogue).
 ///
 /// A dialog on desktop, a bottom sheet elsewhere. [feature] is the switch the
-/// release belongs to; it gates the cover and the track-count request.
+/// release belongs to; it gates the cover and the details request.
 Future<void> showDeezerReleaseSheet(
   BuildContext context,
   WidgetRef ref, {
   required DeezerAlbum album,
   required String artistName,
   required IntegrationFeature feature,
+  DateTime? releasedOn,
 }) {
   void searchServer(BuildContext sheetContext) {
     Navigator.of(sheetContext).pop();
@@ -93,6 +103,7 @@ Future<void> showDeezerReleaseSheet(
         album: album,
         artistName: artistName,
         feature: feature,
+        releasedOn: releasedOn,
         padding: dialog
             ? const EdgeInsets.all(NavisSpace.xl)
             : const EdgeInsets.fromLTRB(
@@ -109,7 +120,13 @@ Future<void> showDeezerReleaseSheet(
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) => Dialog(
-        child: SizedBox(width: 440, child: body(dialogContext, dialog: true)),
+        child: SizedBox(
+          width: 440,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 640),
+            child: body(dialogContext, dialog: true),
+          ),
+        ),
       ),
     );
   }
@@ -130,6 +147,7 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
     required this.artistName,
     required this.feature,
     required this.onSearchServer,
+    this.releasedOn,
     this.padding = const EdgeInsets.all(NavisSpace.xl),
     super.key,
   });
@@ -140,6 +158,9 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
   final String artistName;
   final IntegrationFeature feature;
   final VoidCallback onSearchServer;
+
+  /// The release day, shown in full instead of the year (New releases).
+  final DateTime? releasedOn;
   final EdgeInsetsGeometry padding;
 
   @override
@@ -155,9 +176,13 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
         .value;
     // The card's year and type; the release details add the track count.
     final trackCount = details?.trackCount ?? album.trackCount;
+    final day = releasedOn;
     final meta = <String?>[
-      deezerReleaseYear(album) ??
-          (details == null ? null : deezerReleaseYear(details)),
+      if (day != null)
+        DateFormat.yMMMd(Localizations.localeOf(context).toString()).format(day)
+      else
+        deezerReleaseYear(album) ??
+            (details == null ? null : deezerReleaseYear(details)),
       deezerReleaseTypeLabel(l10n, album.recordType ?? details?.recordType),
       if (trackCount != null && trackCount > 0)
         l10n.deezerReleaseTrackCount(trackCount),
@@ -173,6 +198,7 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
       placeholderIcon: Icons.album_outlined,
     );
     final coverUrl = deezerReleaseCoverUrl(album);
+    final tracks = details?.tracks ?? const <DeezerTrack>[];
 
     return Padding(
       padding: padding,
@@ -228,6 +254,15 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
               ),
             ],
           ),
+          if (tracks.isNotEmpty) ...<Widget>[
+            const SizedBox(height: NavisSpace.md),
+            Flexible(
+              child: _DeezerTracklist(
+                key: const ValueKey<String>('deezer-release-tracklist'),
+                tracks: tracks,
+              ),
+            ),
+          ],
           const SizedBox(height: NavisSpace.xl),
           FilledButton.tonalIcon(
             key: const ValueKey<String>('deezer-release-search-server'),
@@ -237,6 +272,56 @@ class DeezerReleaseSheetBody extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A release's numbered tracklist: number, title and length, scrolling when
+/// the sheet runs out of height.
+class _DeezerTracklist extends StatelessWidget {
+  const new({required this.tracks, super.key});
+
+  final List<DeezerTrack> tracks;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final secondary = Theme.of(context).colorScheme.onSurfaceVariant;
+    final numberStyle = textTheme.bodyMedium?.copyWith(
+      color: secondary,
+      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    );
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        final track = tracks[index];
+        final seconds = track.durationSeconds;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: NavisSpace.xs),
+          child: Row(
+            children: <Widget>[
+              SizedBox(
+                width: NavisSpace.xl,
+                child: Text('${index + 1}', style: numberStyle),
+              ),
+              Expanded(
+                child: Text(
+                  track.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium,
+                ),
+              ),
+              if (seconds != null && seconds > 0) ...<Widget>[
+                const SizedBox(width: NavisSpace.sm),
+                Text(deezerTrackDuration(seconds), style: numberStyle),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

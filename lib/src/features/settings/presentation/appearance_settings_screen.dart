@@ -1658,6 +1658,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
         return l10n.homeSectionRecentlyPlayedTracks;
       case HomeSectionIds.frequentAlbums:
         return l10n.homeSectionFrequentAlbums;
+      case HomeSectionIds.newReleases:
+        return l10n.homeSectionNewReleases;
       case HomeSectionIds.quickActions:
         return l10n.homeSectionQuickActions;
       default:

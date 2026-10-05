@@ -37,6 +37,9 @@ import 'package:navis/src/features/changelog/presentation/changelog_discovery_ca
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/home/domain/new_releases.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
+import 'package:navis/src/features/home/presentation/home_new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -945,6 +948,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
     ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
+    ref.invalidate(homeNewReleasesProvider);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
     ref.invalidate(updateProvider);
   }
@@ -1456,6 +1460,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ];
 
+      case HomeSectionIds.newReleases:
+        // Deezer releases are neither downloaded nor liked, so the filters
+        // hide the section. It also hides itself while it first loads,
+        // fails or has nothing; a refresh keeps the shown releases.
+        if (downloadedOnly || likedOnly) {
+          return const <Widget>[];
+        }
+        final releases = ref.watch(homeNewReleasesProvider).value;
+        if (releases == null || releases.isEmpty) {
+          return const <Widget>[];
+        }
+        return <Widget>[
+          _HomeSection<List<HomeNewRelease>>(
+            key: const ValueKey<String>('home-new-releases'),
+            title: l10n.homeNewReleasesTitle,
+            desktopMode: desktopMode,
+            adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
+            template: _HomeSectionTemplate.carousel,
+            density: sectionDensity,
+            data: AsyncData(releases),
+            isEmpty: (items) => items.isEmpty,
+            builder: (context, releases) => HomeNewReleasesShelf(
+              releases: releases,
+              compact: sectionDensity == _HomeSectionDensity.compact,
+              horizontalPadding:
+                  desktopMode ||
+                      adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact
+                  ? 0
+                  : 16,
+            ),
+            emptyTitle: '',
+            emptySubtitle: '',
+          ),
+        ];
+
       case HomeSectionIds.recentlyPlayed:
         return <Widget>[
           _HomeSection<List<AlbumsTableData>>(
@@ -1863,6 +1903,7 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
 
 class _HomeSection<T> extends StatelessWidget {
   const new({
+    super.key,
     required this.title,
     required this.data,
     required this.builder,

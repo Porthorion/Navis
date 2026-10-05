@@ -10,7 +10,7 @@ import 'package:navis/src/utils/app_logger.dart';
 /// Each read returns the cached value while it is fresh and otherwise asks
 /// Deezer and caches the answer for the [DeezerCache] lifetime of its kind:
 /// artist details and related artists 7 days, an artist's albums 24 hours, an
-/// album 7 days. "Not on Deezer" is cached too. Request errors propagate and
+/// album 7 days, the chart 6 hours. "Not on Deezer" is cached too. Request errors propagate and
 /// are not cached. Callers check the feature switch first; the client's
 /// guard checks only the service.
 class DeezerCatalog {
@@ -21,6 +21,13 @@ class DeezerCatalog {
 
   /// Related artists requested per artist.
   static const relatedArtistLimit = 20;
+
+  /// Releases requested per artist for New releases: Deezer lists recent
+  /// releases first, so a few cover the last month.
+  static const recentAlbumLimit = 5;
+
+  /// Chart tracks requested for Trending.
+  static const chartTrackLimit = 100;
 
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
@@ -80,7 +87,47 @@ class DeezerCatalog {
     ],
   );
 
-  /// `/album/{id}`: one release with its track count.
+  /// The artist's first [recentAlbumLimit] releases (`/artist/{id}/albums`),
+  /// cached 24 hours apart from the full list.
+  Future<List<DeezerAlbum>> recentArtistAlbums(
+    int artistId, {
+    CancelToken? cancelToken,
+  }) => _cached(
+    namespace: DeezerCache.artistRecentAlbumsNamespace,
+    key: '$artistId',
+    ttl: DeezerCache.albumsTtl,
+    fetch: () => _client.getArtistAlbums(
+      artistId,
+      limit: recentAlbumLimit,
+      cancelToken: cancelToken,
+    ),
+    encode: (albums) => [for (final album in albums) album.toJson()],
+    decode: (json) => [
+      if (json is List)
+        for (final item in json.whereType<Map<Object?, Object?>>())
+          DeezerAlbum.fromJson(Map<String, dynamic>.from(item)),
+    ],
+  );
+
+  /// `/chart/0/tracks`: the [chartTrackLimit] most played tracks on Deezer
+  /// in the caller's country, cached 6 hours.
+  Future<List<DeezerTrack>> chartTracks({CancelToken? cancelToken}) => _cached(
+    namespace: DeezerCache.chartNamespace,
+    key: '0',
+    ttl: DeezerCache.chartTtl,
+    fetch: () => _client.getChartTracks(
+      limit: chartTrackLimit,
+      cancelToken: cancelToken,
+    ),
+    encode: (tracks) => [for (final track in tracks) track.toJson()],
+    decode: (json) => [
+      if (json is List)
+        for (final item in json.whereType<Map<Object?, Object?>>())
+          DeezerTrack.fromJson(Map<String, dynamic>.from(item)),
+    ],
+  );
+
+  /// `/album/{id}`: one release with its track count and tracklist.
   Future<DeezerAlbum?> album(int albumId, {CancelToken? cancelToken}) =>
       _cached(
         namespace: DeezerCache.albumNamespace,

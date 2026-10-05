@@ -106,7 +106,8 @@ class DeezerApiClient {
     return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
   }
 
-  /// `/artist/{id}/albums`: the artist's releases, newest first.
+  /// `/artist/{id}/albums`: the artist's releases, recent ones first (Deezer
+  /// does not order them strictly by date).
   Future<List<DeezerAlbum>> getArtistAlbums(
     int artistId, {
     int limit = 100,
@@ -147,8 +148,20 @@ class DeezerApiClient {
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 
-  /// `/album/{id}`: one release with its track count, or null when Deezer
-  /// has no such album.
+  /// `/chart/0/tracks`: the most played tracks on Deezer in the caller's
+  /// country, most played first.
+  Future<List<DeezerTrack>> getChartTracks({
+    int limit = 100,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await _getData('chart/0/tracks', <String, Object>{
+      'limit': limit,
+    }, cancelToken: cancelToken);
+    return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
+  }
+
+  /// `/album/{id}`: one release with its track count and tracklist, or null
+  /// when Deezer has no such album.
   Future<DeezerAlbum?> getAlbum(int albumId, {CancelToken? cancelToken}) async {
     final body = await getJson(
       'album/$albumId',

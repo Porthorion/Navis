@@ -55,7 +55,7 @@ class DeezerArtist {
   };
 }
 
-/// A Deezer album (`/artist/{id}/albums`, a track's `album`).
+/// A Deezer album (`/artist/{id}/albums`, `/album/{id}`, a track's `album`).
 class DeezerAlbum {
   const new({
     required this.id,
@@ -67,19 +67,30 @@ class DeezerAlbum {
     this.releaseDate,
     this.recordType,
     this.trackCount,
+    this.tracks,
   });
 
-  factory fromJson(Map<String, dynamic> json) => DeezerAlbum(
-    id: _int(json['id']) ?? 0,
-    title: _string(json['title']) ?? '',
-    coverSmall: _string(json['cover_small']),
-    coverMedium: _string(json['cover_medium']),
-    coverBig: _string(json['cover_big']),
-    coverXl: _string(json['cover_xl']),
-    releaseDate: _string(json['release_date']),
-    recordType: _string(json['record_type']),
-    trackCount: _int(json['nb_tracks']),
-  );
+  factory fromJson(Map<String, dynamic> json) {
+    final tracks = switch (json['tracks']) {
+      {'data': final List<Object?> data} => <DeezerTrack>[
+        for (final item in data.whereType<Map<Object?, Object?>>())
+          DeezerTrack.fromJson(Map<String, dynamic>.from(item)),
+      ],
+      _ => null,
+    };
+    return DeezerAlbum(
+      id: _int(json['id']) ?? 0,
+      title: _string(json['title']) ?? '',
+      coverSmall: _string(json['cover_small']),
+      coverMedium: _string(json['cover_medium']),
+      coverBig: _string(json['cover_big']),
+      coverXl: _string(json['cover_xl']),
+      releaseDate: _string(json['release_date']),
+      recordType: _string(json['record_type']),
+      trackCount: _int(json['nb_tracks']),
+      tracks: tracks,
+    );
+  }
 
   final int id;
   final String title;
@@ -95,6 +106,9 @@ class DeezerAlbum {
   final String? recordType;
   final int? trackCount;
 
+  /// The tracklist, in album order; only `/album/{id}` has one.
+  final List<DeezerTrack>? tracks;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'title': title,
@@ -105,10 +119,15 @@ class DeezerAlbum {
     'release_date': ?releaseDate,
     'record_type': ?recordType,
     'nb_tracks': ?trackCount,
+    if (tracks case final tracks?)
+      'tracks': <String, Object?>{
+        'data': [for (final track in tracks) track.toJson()],
+      },
   };
 }
 
-/// A Deezer track (`/artist/{id}/top`, `/search/track`).
+/// A Deezer track (`/artist/{id}/top`, `/search/track`, `/chart/0/tracks`,
+/// an album's tracklist).
 class DeezerTrack {
   const new({
     required this.id,

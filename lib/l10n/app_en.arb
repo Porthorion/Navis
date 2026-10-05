@@ -570,6 +570,7 @@
   "homeRecentlyAddedTitle": "Recently Added",
   "homeRecentlyAddedEmptyTitle": "No Recently Added Albums",
   "homeRecentlyAddedEmptySubtitle": "Pull to refresh to fetch newly added albums.",
+  "homeNewReleasesTitle": "New Releases",
   "homeFrequentTitle": "Frequent Albums",
   "homeFrequentEmptyTitle": "No Frequent Albums Yet",
   "homeFrequentEmptySubtitle": "Play more tracks to build listening history.",
@@ -1854,6 +1855,7 @@
   "homeSectionMostPlayed": "Most Played",
   "homeSectionRecentlyPlayedTracks": "Recently Played Tracks",
   "homeSectionFrequentAlbums": "Frequent Albums",
+  "homeSectionNewReleases": "New Releases",
   "homeSectionQuickActions": "Quick Actions",
 
   "cacheSettingsCoverArtSizeLabel": "Storage used: {size}",

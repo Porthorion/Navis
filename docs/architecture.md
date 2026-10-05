@@ -1395,7 +1395,8 @@ as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
 retried once after 5 seconds, code 800 ("no data") reads as an empty result,
 and any other code throws `DeezerApiException`. Endpoints used so far:
 `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
-`/artist/{id}/related`, `/artist/{id}/albums` and `/album/{id}`; new ones go
+`/artist/{id}/related`, `/artist/{id}/albums`, `/album/{id}` (with its
+tracklist) and `/chart/0/tracks`; new ones go
 through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
 and round-trip through `toJson` for the cache. In some regions
@@ -1551,7 +1552,55 @@ these sections on a first visit).
   desktop): cover, title, artist, "year • type • N songs" (the count from
   `/album/{id}` via `deezerReleaseDetailsProvider`) and "Search your server",
   which searches albums for "title artist". The card and sheet take the
-  feature they belong to, so Home's new releases can reuse them.
+  feature they belong to, so Home's new releases can reuse them. The sheet
+  also lists the tracklist from `/album/{id}` (number, title, length,
+  scrolling within the sheet).
+
+### Deezer on Home
+
+**Section order.** `HomeSectionIds.resolveOrder` and `resolveHidden`
+(`features/home/domain/home_section_ids.dart`) turn the saved order and hidden
+list into what Home shows; Home, the onboarding artwork warmup and the
+Appearance reorder list all use them. A default section a saved order lacks,
+such as one added in a later version, goes right after its nearest default
+predecessor that is present; unknown and repeated ids are dropped. A saved
+hidden list decides every section the user has seen; a section hidden by
+default that is in neither saved list (added after 1.4.2) stays hidden.
+
+**New Releases** (`deezer.newReleases`, section id `new_releases`, after
+Recently Added). `homeNewReleasesProvider`
+(`features/home/presentation/home_deezer_providers.dart`):
+- Candidates are up to 30 library artists from `LibraryDao.getTopPlayedArtists`:
+  by the summed play count of their songs, liked artists first among equal
+  counts; artists without plays count only when liked. With the switch off or
+  no candidates it returns nothing without asking Deezer.
+- It then waits for `homeDeezerIdleProvider`: no library sync running, then 3
+  seconds (`homeDeezerStartupDelayProvider`), once per session.
+- Three workers read each artist's Deezer id through the resolver (artists it
+  cannot identify are skipped) and its first five releases
+  (`DeezerCatalog.recentArtistAlbums`, `/artist/{id}/albums?limit=5`, cached 24
+  hours apart from the full list). An artist whose request fails is skipped;
+  leaving Home or switching the feature off cancels the requests. The
+  `home.newReleases` span counts artists, resolved, failed, releases and those
+  in the library.
+- `selectNewReleases` (`features/home/domain/new_releases.dart`) keeps releases
+  from the last 30 calendar days (today included, announced future dates
+  excluded), newest first with the higher-ranked artist first on a tie, one
+  per Deezer album and one per edition title of an artist (Deezer lists clean
+  and explicit releases apart), at most 12. `libraryAlbumIdForRelease` links a
+  release to the library album stored as `ext-deezer-album-<id>` or with the
+  same `normalizeMetadataKeepingEdition` title.
+- The section hides itself while it first loads, fails or is empty, and under
+  the downloaded-only and liked-only filters; a refresh keeps the shown cards.
+  `HomeNewReleasesShelf` (`home_new_releases.dart`) is Home's album carousel of
+  `ExternalAlbumCard`s: title, artist and "Oct 2 • Single" (the card label's
+  optional third line).
+- A tap (`openHomeNewRelease`) opens the library album when linked; else the
+  server's `ext-deezer-album-<id>` when `getAlbum` confirms it within 5
+  seconds; else the release sheet with the full release date
+  ("Oct 2, 2026 • Single • 3 songs") and tracklist.
+- The onboarding warmup returns no artwork for it, so onboarding never asks
+  Deezer. Pull-to-refresh invalidates it.
 
 ## Update Checker
 

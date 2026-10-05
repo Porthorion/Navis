@@ -14,11 +14,16 @@ class HomeSectionIds {
   static const String frequentAlbums = 'frequent_albums';
   static const String quickActions = 'quick_actions';
 
+  /// Recent Deezer releases by the user's artists; hides itself until it
+  /// has some.
+  static const String newReleases = 'new_releases';
+
   static const List<String> defaultOrder = <String>[
     randomAlbums,
     recentlyLikedAlbums,
     likedTracks,
     recentlyAdded,
+    newReleases,
     recentlyPlayed,
     mostPlayed,
     recentlyPlayedTracks,

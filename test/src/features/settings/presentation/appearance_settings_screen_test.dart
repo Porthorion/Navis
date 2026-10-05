@@ -24,12 +24,14 @@ void main() {
     bool dynamicAlbumColorEnabled = false,
     AdaptiveContext? adaptiveContext,
     TextScaler textScaler = TextScaler.noScaling,
+    List<String>? homeSectionOrder,
   }) async {
     final database = createTestDatabase();
     await tester.runAsync(database.appSettingsDao.getSettings);
     final settings = const AppSettingsModel.defaults().copyWith(
       colorSchemeSeed: colorSeed,
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
+      homeSectionOrder: homeSectionOrder,
     );
     final container = ProviderContainer(
       overrides: withTestDatabase(
@@ -375,5 +377,44 @@ void main() {
       find.byType(AppearanceSettingsScreen),
       matchesGoldenFile('goldens/appearance_settings_desktop_workspace.png'),
     );
+  });
+
+  testWidgets('a saved Home order lists New Releases after Recently Added', (
+    tester,
+  ) async {
+    // Saved by 1.4.2, before New Releases existed.
+    await pumpAppearance(
+      tester,
+      homeSectionOrder: const <String>[
+        'recently_added',
+        'random_albums',
+        'recently_liked_albums',
+        'liked_tracks',
+        'recently_played',
+        'most_played',
+        'recently_played_tracks',
+        'frequent_albums',
+      ],
+    );
+    final page = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Home Sections'),
+      200,
+      scrollable: page,
+    );
+    await tester.tap(find.text('Home Sections'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.scrollUntilVisible(
+      find.text('New Releases'),
+      200,
+      scrollable: page,
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final added = tester.getTopLeft(find.text('Recently Added').last).dy;
+    final releases = tester.getTopLeft(find.text('New Releases')).dy;
+    final random = tester.getTopLeft(find.text('You Might Like').last).dy;
+    expect(releases, greaterThan(added));
+    expect(releases, lessThan(random));
   });
 }

@@ -1384,6 +1384,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pull to refresh to fetch newly added albums.';
 
   @override
+  String get homeNewReleasesTitle => 'New Releases';
+
+  @override
   String get homeFrequentTitle => 'Frequent Albums';
 
   @override
@@ -4124,6 +4127,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeSectionFrequentAlbums => 'Frequent Albums';
+
+  @override
+  String get homeSectionNewReleases => 'New Releases';
 
   @override
   String get homeSectionQuickActions => 'Quick Actions';
