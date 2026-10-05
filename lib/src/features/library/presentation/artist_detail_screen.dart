@@ -186,7 +186,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   Widget _buildPendingBody(BuildContext context, ArtistsTableData? artist) {
     final l10n = AppLocalizations.of(context)!;
     final isRemote = _isRemote(artist);
-    final name = artist?.name ?? widget.nameHint?.trim();
+    final name = artist?.name ?? _nonBlank(widget.nameHint);
     final artwork = CoverArtImage(
       coverArtId: artist?.coverArt,
       width: kDetailStateArtworkExtent,
@@ -203,7 +203,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         name: name,
         isRemote: isRemote,
         onRetry: () => unawaited(_refresh()),
-        onSearch: name == null || name.isEmpty
+        onSearch: name == null
             ? null
             : () => NavService.openSearch(
                 context,
