@@ -263,7 +263,7 @@ void main() {
     );
   });
 
-  test('searches two at a time and stops when Home leaves', () async {
+  test('searches two at a time and stops when invalidated', () async {
     await library(<String>[_t(1)]);
     final deezer = _FakeDeezer(<DeezerTrack>[
       _chartTrack(1, _t(1), 'Known'),

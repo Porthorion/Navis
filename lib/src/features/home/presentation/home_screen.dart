@@ -49,7 +49,6 @@ import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
-import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -951,6 +950,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
     ref.invalidate(homeNewReleasesProvider);
+    ref.invalidate(homeTrendingProvider);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
     ref.invalidate(updateProvider);
   }
@@ -2939,9 +2939,10 @@ class _DesktopTrendingSongList extends ConsumerWidget {
     return ListView.builder(
       key: const PageStorageKey<String>('trending-desktop-songs'),
       padding: EdgeInsets.zero,
-      itemCount: item.tracks.length,
+      itemCount: item.entries.length,
       itemBuilder: (context, index) => _TrendingSongRow(
-        track: item.tracks[index],
+        rank: item.entries[index].rank,
+        song: item.entries[index].song,
         onTap: () => _playVirtualPlaylistSong(ref, songs, index),
       ),
     );
@@ -2949,14 +2950,15 @@ class _DesktopTrendingSongList extends ConsumerWidget {
 }
 
 class _TrendingSongRow extends ConsumerWidget {
-  const new({required this.track, required this.onTap});
+  const new({required this.rank, required this.song, required this.onTap});
 
-  final ResolvedArtistTopTrack track;
+  /// The chart position.
+  final int rank;
+  final Song song;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final song = track.resolvedSong!;
     final playbackState = ref.watch(
       songPlaybackIndicatorStateProvider(song.id),
     );
@@ -2981,7 +2983,7 @@ class _TrendingSongRow extends ConsumerWidget {
         child: Center(
           child: playbackState.isSelected
               ? SongPlaybackMarker(state: playbackState)
-              : Text('${track.rank}', maxLines: 1),
+              : Text('$rank', maxLines: 1),
         ),
       ),
       onTap: onTap,

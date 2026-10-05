@@ -58,12 +58,19 @@ final homeDeezerSyncRunningProvider = Provider<bool>((ref) {
 /// delay has passed. Kept for the session, so a pull to refresh or a switch
 /// turned back on does not wait again.
 final homeDeezerIdleProvider = FutureProvider<void>((ref) async {
-  while (ref.read(homeDeezerSyncRunningProvider)) {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    if (!ref.mounted) return;
+  Future<void> syncFinished() async {
+    while (ref.mounted && ref.read(homeDeezerSyncRunningProvider)) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
   }
+
+  await syncFinished();
   final delay = ref.read(homeDeezerStartupDelayProvider);
-  if (delay > Duration.zero) await Future<void>.delayed(delay);
+  if (delay > Duration.zero && ref.mounted) {
+    await Future<void>.delayed(delay);
+    // A sync that started during the delay goes first too.
+    await syncFinished();
+  }
 });
 
 /// Today, for the New releases window; overridden by tests.
@@ -80,7 +87,8 @@ final homeNewReleasesClockProvider = Provider<DateTime Function()>(
 /// [homeDeezerIdleProvider], then reads each artist's Deezer id (resolver,
 /// cached 30 days) and first releases (cached 24 hours) through the
 /// limiter. An artist Deezer does not know, or whose request fails, is
-/// skipped; leaving Home cancels the requests.
+/// skipped. The provider lives for the session; invalidating it (pull to
+/// refresh) or turning the switch off cancels its requests.
 final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   ref,
 ) async {
@@ -169,7 +177,9 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
 /// (100, cached 6 hours) and matches the songs with the artist Top Songs
 /// matcher under its own key: remembered matches and `ext-deezer-song-<id>`
 /// rows, the local pass, then `search3`, only for songs by artists in the
-/// library and by two workers, cancelled when Home leaves. The chart is
+/// library and by two workers. The provider lives for the session; invalidating
+/// it (pull to refresh) or turning the switch off cancels its searches. The
+/// chart is
 /// regional and mostly other people's music, so the rest stay unmatched and
 /// are dropped. Fewer than [kTrendingMinimumPlayable] playable songs, or a
 /// failed chart request, leaves Trending out.

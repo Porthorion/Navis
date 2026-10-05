@@ -199,16 +199,32 @@ final class HomeRandomShowcaseListenBrainz extends HomeRandomShowcasePlaylist {
 /// Trending Now: the Deezer chart songs the user can play, each ranked by
 /// its chart position (see `homeTrendingProvider`).
 final class HomeRandomShowcaseTrending extends HomeRandomShowcasePlaylist {
-  const new({required this.tracks});
+  /// Keeps only the [tracks] with a resolved song, so every row is playable
+  /// and [entries], [tracks] and [songs] share one index.
+  factory({required List<ResolvedArtistTopTrack> tracks}) {
+    final entries = <({int rank, Song song})>[
+      for (final track in tracks)
+        if (track.resolvedSong case final song?) (rank: track.rank, song: song),
+    ];
+    return HomeRandomShowcaseTrending._(
+      tracks: List<ResolvedArtistTopTrack>.unmodifiable(
+        tracks.where((track) => track.resolvedSong != null),
+      ),
+      entries: List<({int rank, Song song})>.unmodifiable(entries),
+    );
+  }
+
+  const new _({required this.tracks, required this.entries});
 
   /// Playable chart songs in chart order; every one has a resolved song.
   final List<ResolvedArtistTopTrack> tracks;
 
+  /// Each playable song with its chart position, in chart order.
+  final List<({int rank, Song song})> entries;
+
   /// The songs to queue, in chart order.
-  List<Song> get songs => tracks
-      .map((track) => track.resolvedSong)
-      .nonNulls
-      .toList(growable: false);
+  List<Song> get songs =>
+      entries.map((entry) => entry.song).toList(growable: false);
 
   @override
   bool get isLoading => false;

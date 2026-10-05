@@ -23,6 +23,7 @@ import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
@@ -3706,6 +3707,65 @@ void main() {
       expect(ringOpacityAfter.opacity, 0);
     },
   );
+
+  testWidgets('pull to refresh runs New Releases and Trending again', (
+    tester,
+  ) async {
+    var trendingRuns = 0;
+    var newReleasesRuns = 0;
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      overrides: <Override>[
+        homeTrendingProvider.overrideWith((ref) async {
+          trendingRuns++;
+          return const <ResolvedArtistTopTrack>[];
+        }),
+        homeNewReleasesProvider.overrideWith((ref) async {
+          newReleasesRuns++;
+          return const <HomeNewRelease>[];
+        }),
+      ],
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomeScreen)),
+    );
+    // The hero reads Trending; this test's hero is a fixed value.
+    final subscription = container.listen(homeTrendingProvider, (_, _) {});
+    addTearDown(subscription.close);
+    await tester.pumpAndSettle();
+    expect(trendingRuns, 1);
+    expect(newReleasesRuns, 1);
+
+    await tester.fling(find.byType(ListView).first, const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(trendingRuns, 2);
+    expect(newReleasesRuns, 2);
+  });
+
+  test('Trending keeps only playable songs, indexed together', () {
+    final trending = HomeRandomShowcaseTrending(
+      tracks: const <ResolvedArtistTopTrack>[
+        ResolvedArtistTopTrack(
+          rank: 1,
+          title: 'One',
+          artist: 'A',
+          resolvedSong: Song(id: 's1', title: 'One'),
+        ),
+        ResolvedArtistTopTrack(rank: 2, title: 'Gone', artist: 'A'),
+        ResolvedArtistTopTrack(
+          rank: 3,
+          title: 'Three',
+          artist: 'A',
+          resolvedSong: Song(id: 's3', title: 'Three'),
+        ),
+      ],
+    );
+    expect(trending.tracks.map((track) => track.rank), <int>[1, 3]);
+    expect(trending.entries.map((entry) => entry.rank), <int>[1, 3]);
+    expect(trending.songs.map((song) => song.id), <String>['s1', 's3']);
+  });
 
   group('HomeSectionIds', () {
     test('defaultOrder contains all section IDs', () {

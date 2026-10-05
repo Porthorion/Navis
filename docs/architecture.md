@@ -1576,12 +1576,14 @@ Recently Added). `homeNewReleasesProvider`
   counts; artists without plays count only when liked. With the switch off or
   no candidates it returns nothing without asking Deezer.
 - It then waits for `homeDeezerIdleProvider`: no library sync running, then 3
-  seconds (`homeDeezerStartupDelayProvider`), once per session.
+  seconds (`homeDeezerStartupDelayProvider`), then again no sync running (one
+  may have started meanwhile), once per session.
 - Three workers read each artist's Deezer id through the resolver (artists it
   cannot identify are skipped) and its first five releases
   (`DeezerCatalog.recentArtistAlbums`, `/artist/{id}/albums?limit=5`, cached 24
   hours apart from the full list). An artist whose request fails is skipped;
-  leaving Home or switching the feature off cancels the requests. The
+  the provider lives for the session, and invalidating it (pull to refresh)
+  or switching the feature off cancels the requests. The
   `home.newReleases` span counts artists, resolved, failed, releases and those
   in the library.
 - `selectNewReleases` (`features/home/domain/new_releases.dart`) keeps releases
@@ -1613,7 +1615,8 @@ the albums. `homeTrendingProvider` (`home_deezer_providers.dart`):
   (`ArtistTopTrackResolver.resolve` under the key `deezer-chart`): remembered
   matches and `ext-deezer-song-<id>` rows, the local pass, then `search3` only
   for songs by artists in the library (`libraryArtistNameIndexProvider`), two
-  at a time, cancelled when Home leaves. Spans: `trending.localMatch`,
+  at a time; invalidating the provider (pull to refresh re-runs it) or
+  switching the feature off cancels them. Spans: `trending.localMatch`,
   `trending.serverMatch` and `home.trending` (chart, by library artists,
   playable).
 - Keeps only playable songs (library or remote through the server), each

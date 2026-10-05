@@ -114,6 +114,7 @@ void main() {
   ProviderContainer container({
     IntegrationPolicy policy = const IntegrationPolicy(),
     IntegrationCallRecorder? recorder,
+    Duration startupDelay = Duration.zero,
     List<Override> extra = const <Override>[],
   }) {
     final root = cacheRoot;
@@ -126,7 +127,7 @@ void main() {
             IntegrationJsonCache(readRootDirectory: () async => root),
           ),
           deezerApiClientProvider.overrideWithValue(deezer),
-          homeDeezerStartupDelayProvider.overrideWithValue(Duration.zero),
+          homeDeezerStartupDelayProvider.overrideWithValue(startupDelay),
           homeDeezerSyncRunningProvider.overrideWith(
             (ref) => ref.watch(_syncState).isRunning,
           ),
@@ -274,6 +275,29 @@ void main() {
     final subscription = c.listen(homeNewReleasesProvider, (_, _) {});
     addTearDown(subscription.close);
     final result = c.read(homeNewReleasesProvider.future);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(deezer.calls, isEmpty);
+    c.read(_syncState.notifier).set(const LibrarySyncState.idle());
+    expect(await result, isEmpty);
+    expect(deezer.calls, contains('search/artist:Artist A'));
+  });
+
+  test('a sync that starts during the startup delay also goes first', () async {
+    await artist('a', 'Artist A');
+    deezer.artistIds['Artist A'] = 10;
+    final c = container(startupDelay: const Duration(milliseconds: 200));
+    final subscription = c.listen(homeNewReleasesProvider, (_, _) {});
+    addTearDown(subscription.close);
+    final result = c.read(homeNewReleasesProvider.future);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    c
+        .read(_syncState.notifier)
+        .set(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingSongs,
+          ),
+        );
     await Future<void>.delayed(const Duration(milliseconds: 600));
     expect(deezer.calls, isEmpty);
     c.read(_syncState.notifier).set(const LibrarySyncState.idle());
