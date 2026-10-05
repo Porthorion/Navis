@@ -1,30 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 const String listenBrainzWeeklyExplorationVirtualPlaylistId =
     'virtual:listenbrainz:weekly-exploration';
 const String listenBrainzWeeklyJamsVirtualPlaylistId =
     'virtual:listenbrainz:weekly-jams';
 
+/// Home's Trending Now as a Library playlist; opens the Trending page.
+const String trendingVirtualPlaylistId = NavService.trendingPlaylistId;
+
+/// A row of Library › Playlists: a ListenBrainz weekly playlist, Trending
+/// Now, or a server playlist.
 class PlaylistLibraryItem {
-  const new _({this.playlist, this.virtualPlaylist});
+  const new _({
+    this.playlist,
+    this.virtualPlaylist,
+    this.isTrending = false,
+    this.trendingTracks,
+  });
 
   const new normal(PlaylistsTableData playlist) : this._(playlist: playlist);
 
   const new virtual(ListenBrainzDiscoverPlaylist virtualPlaylist)
     : this._(virtualPlaylist: virtualPlaylist);
 
+  /// Trending Now with its chart rows, or null while they load.
+  const new trending(List<ResolvedArtistTopTrack>? tracks)
+    : this._(isTrending: true, trendingTracks: tracks);
+
   final PlaylistsTableData? playlist;
   final ListenBrainzDiscoverPlaylist? virtualPlaylist;
+  final bool isTrending;
+  final List<ResolvedArtistTopTrack>? trendingTracks;
 
-  bool get isVirtual => virtualPlaylist != null;
+  bool get isVirtual => virtualPlaylist != null || isTrending;
 
   String get id {
+    if (isTrending) return trendingVirtualPlaylistId;
     final virtual = virtualPlaylist;
     if (virtual != null) {
       return switch (virtual.playlist.sourcePatch) {
@@ -37,18 +58,15 @@ class PlaylistLibraryItem {
     return playlist!.id;
   }
 
-  String get name => virtualPlaylist?.displayTitle ?? playlist!.name;
+  /// The title; Trending Now's is localized where it is shown.
+  String get name =>
+      virtualPlaylist?.displayTitle ?? playlist?.name ?? 'Trending Now';
 
-  int get songCount => virtualPlaylist?.totalCount ?? playlist!.songCount ?? 0;
-}
-
-String listenBrainzPlaylistAvailabilityLabel(
-  ListenBrainzDiscoverPlaylist playlist,
-) {
-  if (!playlist.matchingComplete) {
-    return '${playlist.matchedCount} available · matching';
-  }
-  return '${playlist.matchedCount} of ${playlist.totalCount} available';
+  int get songCount =>
+      virtualPlaylist?.totalCount ??
+      trendingTracks?.length ??
+      playlist?.songCount ??
+      0;
 }
 
 /// Watches the local playlist list (synced from server).
@@ -59,10 +77,23 @@ final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
   return db.playlistDao.watchPlaylists();
 });
 
+/// Library › Playlists: the ListenBrainz weekly playlists, then Trending
+/// Now while `deezer.trending` is allowed (so it can always be found, even
+/// when the You Might Like hero leaves it out), then the server playlists.
 final playlistLibraryItemsProvider =
     Provider<AsyncValue<List<PlaylistLibraryItem>>>((ref) {
       final playlistsAsync = ref.watch(playlistListProvider);
       final virtualAsync = ref.watch(listenBrainzDiscoverStreamProvider);
+      final trendingAllowed =
+          ref.watch(
+            integrationPolicyProvider.select(
+              (policy) => policy.allows(IntegrationFeature.deezerTrending),
+            ),
+          ) &&
+          ref.watch(integrationAccountScopeProvider) != null;
+      final trending = trendingAllowed
+          ? PlaylistLibraryItem.trending(ref.watch(homeTrendingProvider).value)
+          : null;
 
       return playlistsAsync.when(
         data: (playlists) {
@@ -71,6 +102,7 @@ final playlistLibraryItemsProvider =
                 in virtualAsync.asData?.value ??
                     const <ListenBrainzDiscoverPlaylist>[])
               PlaylistLibraryItem.virtual(playlist),
+            ?trending,
             for (final playlist in playlists)
               PlaylistLibraryItem.normal(playlist),
           ];
@@ -82,6 +114,7 @@ final playlistLibraryItemsProvider =
             return AsyncData(<PlaylistLibraryItem>[
               for (final playlist in virtual)
                 PlaylistLibraryItem.virtual(playlist),
+              ?trending,
             ]);
           }
           return const AsyncLoading();

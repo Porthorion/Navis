@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
@@ -264,6 +265,10 @@ Widget _buildLibraryScreenRouter({
             builder: (context, state) => Text(
               'ListenBrainz detail ${state.pathParameters['sourcePatch']}',
             ),
+          ),
+          GoRoute(
+            path: 'library/trending',
+            builder: (context, state) => const Text('Trending detail'),
           ),
           GoRoute(
             path: 'library/playlists/:playlistId',
@@ -1815,7 +1820,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Weekly Jams'), findsOneWidget);
-        expect(find.text('0 of 1 available · ListenBrainz'), findsOneWidget);
+        expect(find.text('0 of 1 available • ListenBrainz'), findsOneWidget);
         expect(find.text('Server Mix'), findsOneWidget);
         expect(
           find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),
@@ -1825,6 +1830,83 @@ void main() {
           tester.getTopLeft(find.text('Weekly Jams')).dy,
           lessThan(tester.getTopLeft(find.text('Server Mix')).dy),
         );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab lists Trending Now under the weekly playlists',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                AsyncData<List<PlaylistLibraryItem>>(<PlaylistLibraryItem>[
+                  PlaylistLibraryItem.virtual(
+                    _virtualPlaylist(
+                      identifier: 'jams',
+                      title: 'Weekly Jams',
+                      sourcePatch: 'weekly-jams',
+                    ),
+                  ),
+                  const PlaylistLibraryItem.trending(<ResolvedArtistTopTrack>[
+                    ResolvedArtistTopTrack(
+                      rank: 1,
+                      title: 'One',
+                      artist: 'A',
+                      resolvedSong: Song(id: 's1', title: 'One'),
+                    ),
+                    ResolvedArtistTopTrack(rank: 2, title: 'Two', artist: 'A'),
+                  ]),
+                  const PlaylistLibraryItem.normal(
+                    PlaylistsTableData(
+                      id: 'server-mix',
+                      name: 'Server Mix',
+                      songCount: 3,
+                    ),
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Trending Now'), findsOneWidget);
+        expect(find.text('1 of 2 available • Deezer'), findsOneWidget);
+        final weekly = tester.getTopLeft(find.text('Weekly Jams')).dy;
+        final trending = tester.getTopLeft(find.text('Trending Now')).dy;
+        expect(weekly, lessThan(trending));
+        expect(
+          trending,
+          lessThan(
+            tester
+                .getTopLeft(
+                  find.byKey(
+                    const ValueKey<String>('listenBrainzPlaylistDivider'),
+                  ),
+                )
+                .dy,
+          ),
+        );
+
+        await tester.tap(find.text('Trending Now'));
+        await tester.pumpAndSettle();
+        expect(find.text('Trending detail'), findsOneWidget);
       },
     );
 

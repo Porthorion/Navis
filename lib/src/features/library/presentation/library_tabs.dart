@@ -219,6 +219,9 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         if (virtual != null) {
           return _buildVirtualPlaylistTile(item, virtual);
         }
+        if (item.isTrending) {
+          return _buildTrendingTile(item);
+        }
         return _buildPlaylistTile(item.playlist!);
       },
     );
@@ -228,13 +231,20 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     PlaylistLibraryItem item,
     ListenBrainzDiscoverPlaylist virtual,
   ) {
+    final l10n = AppLocalizations.of(context)!;
+    final availability = virtual.matchingComplete
+        ? l10n.weeklyPlaylistAvailableCount(
+            virtual.matchedCount,
+            virtual.totalCount,
+          )
+        : l10n.weeklyPlaylistAvailableMatching(virtual.matchedCount);
     return ListTile(
       minLeadingWidth: 48,
       horizontalTitleGap: 12,
       leading: ListenBrainzPlaylistArtwork(playlist: virtual, size: 48),
       title: Text(item.name),
       subtitle: Text(
-        '${listenBrainzPlaylistAvailabilityLabel(virtual)} · ListenBrainz',
+        <String>[availability, l10n.weeklyPlaylistServiceName].join(' • '),
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => NavService.openListenBrainzWeeklyDetail(
@@ -242,6 +252,35 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         ref,
         virtual.playlist.sourcePatch ?? '',
       ),
+    );
+  }
+
+  /// Trending Now, right under the weekly playlists: the chart's covers,
+  /// its availability while it is known, and Deezer.
+  Widget _buildTrendingTile(PlaylistLibraryItem item) {
+    final l10n = AppLocalizations.of(context)!;
+    final tracks = item.trendingTracks;
+    return ListTile(
+      key: const ValueKey<String>('library-playlist-trending'),
+      minLeadingWidth: 48,
+      horizontalTitleGap: 12,
+      leading: PlaylistCoverMosaic(
+        coverArtIds: <String>[
+          ...?tracks?.map((track) => track.resolvedSong?.coverArt).nonNulls,
+        ],
+        size: 48,
+        fallbackIcon: Icons.trending_up_rounded,
+      ),
+      title: Text(l10n.homeTrendingTitle),
+      subtitle: Text(
+        <String>[
+          if (tracks != null && tracks.isNotEmpty)
+            trendingAvailability(l10n, tracks),
+          l10n.trendingServiceName,
+        ].join(' • '),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => NavService.openPlaylistDetail(context, ref, item.id),
     );
   }
 

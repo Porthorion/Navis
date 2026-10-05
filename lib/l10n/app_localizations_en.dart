@@ -1361,6 +1361,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get trendingServiceName => 'Deezer';
+
+  @override
   String get trendingEmptyTitle => 'No Trending Songs';
 
   @override

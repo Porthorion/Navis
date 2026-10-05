@@ -105,12 +105,19 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.artistTopTracks(artistId));
   }
 
+  /// The Library playlist id of Home's Trending Now, which opens its page.
+  static const String trendingPlaylistId = 'virtual:trending:deezer';
+
   /// Open a playlist detail from the current context, preserving back.
   static void openPlaylistDetail(
     BuildContext context,
     WidgetRef ref,
     String playlistId,
   ) {
+    if (playlistId == trendingPlaylistId) {
+      openTrending(context, ref);
+      return;
+    }
     const virtualPrefix = 'virtual:listenbrainz:';
     if (playlistId.startsWith(virtualPrefix)) {
       openListenBrainzWeeklyDetail(

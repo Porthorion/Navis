@@ -17,6 +17,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -2343,6 +2344,10 @@ void main() {
       ];
       final container = ProviderContainer(
         overrides: <Override>[
+          // Trending Now has its own test (playlist_library_items_test).
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy.denyAll(),
+          ),
           playlistListProvider.overrideWithValue(
             const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
               PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),

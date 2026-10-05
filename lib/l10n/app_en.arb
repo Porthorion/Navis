@@ -552,6 +552,7 @@
       }
     }
   },
+  "trendingServiceName": "Deezer",
   "trendingEmptyTitle": "No Trending Songs",
   "trendingEmptySubtitle": "Trending Now appears once your library has synced and Deezer's chart can be read.",
   "trendingErrorTitle": "Could Not Load Trending",

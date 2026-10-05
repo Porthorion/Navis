@@ -2058,6 +2058,12 @@ abstract class AppLocalizations {
   /// **'Deezer chart • {count, plural, =1{1 song} other{{count} songs}}'**
   String trendingPlaylistMeta(int count);
 
+  /// No description provided for @trendingServiceName.
+  ///
+  /// In en, this message translates to:
+  /// **'Deezer'**
+  String get trendingServiceName;
+
   /// No description provided for @trendingEmptyTitle.
   ///
   /// In en, this message translates to:
