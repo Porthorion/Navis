@@ -214,6 +214,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('groups the services under section headings in order', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+
+    // Group key, heading text, then the services listed under it.
+    final groups = <(String, String, List<IntegrationService>)>[
+      (
+        'discovery',
+        'Discovery',
+        [IntegrationService.deezer, IntegrationService.lastFm],
+      ),
+      ('history', 'Listening history', [IntegrationService.listenBrainz]),
+      (
+        'lyrics-artwork',
+        'Lyrics & artwork',
+        [IntegrationService.lrclib, IntegrationService.serverLinkedArtwork],
+      ),
+      ('radio', 'Internet radio', [IntegrationService.radioMetadata]),
+      ('app', 'App', [IntegrationService.updates, IntegrationService.autoEq]),
+    ];
+    final master = tester.getTopLeft(find.text('Online services')).dy;
+    var previous = master;
+    for (final (id, title, services) in groups) {
+      final heading = find.byKey(ValueKey<String>('integrations-group-$id'));
+      expect(tester.widget<Text>(heading).data, title);
+      expect(heading, findsOneWidget, reason: title);
+      expect(
+        tester.getSemantics(heading),
+        matchesSemantics(label: title, isHeader: true),
+      );
+      final headingY = tester.getTopLeft(heading).dy;
+      expect(headingY, greaterThan(previous), reason: title);
+      previous = headingY;
+      for (final service in services) {
+        final y = tester.getTopLeft(h.service(service)).dy;
+        expect(y, greaterThan(previous), reason: service.key);
+        previous = y;
+      }
+    }
+  });
+
+  testWidgets('keeps the App group when only updates are unavailable', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await _pump(tester);
+      expect(find.text('App'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('every switch is on by default once credentials are verified', (
     tester,
   ) async {

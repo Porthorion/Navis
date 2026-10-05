@@ -1737,6 +1737,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Off: Navis only talks to your server.';
 
   @override
+  String get integrationsGroupDiscovery => 'Discovery';
+
+  @override
+  String get integrationsGroupListeningHistory => 'Listening history';
+
+  @override
+  String get integrationsGroupLyricsArtwork => 'Lyrics & artwork';
+
+  @override
+  String get integrationsGroupRadio => 'Internet radio';
+
+  @override
+  String get integrationsGroupApp => 'App';
+
+  @override
   String get integrationsServiceUpdates => 'Updates';
 
   @override

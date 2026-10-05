@@ -2700,6 +2700,36 @@ abstract class AppLocalizations {
   /// **'Off: Navis only talks to your server.'**
   String get integrationsMasterSubtitle;
 
+  /// No description provided for @integrationsGroupDiscovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovery'**
+  String get integrationsGroupDiscovery;
+
+  /// No description provided for @integrationsGroupListeningHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening history'**
+  String get integrationsGroupListeningHistory;
+
+  /// No description provided for @integrationsGroupLyricsArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics & artwork'**
+  String get integrationsGroupLyricsArtwork;
+
+  /// No description provided for @integrationsGroupRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet radio'**
+  String get integrationsGroupRadio;
+
+  /// No description provided for @integrationsGroupApp.
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get integrationsGroupApp;
+
   /// No description provided for @integrationsServiceUpdates.
   ///
   /// In en, this message translates to:

@@ -149,41 +149,76 @@ class _IntegrationsSettingsScreenState
               subtitle: Text(l10n.integrationsMasterSubtitle),
             ),
             const Divider(height: NavisSpace.lg),
-            for (final service in IntegrationService.values)
-              if (service != IntegrationService.updates || updatesAvailable)
-                _ServiceSection(
-                  service: service,
-                  policy: policy,
-                  onServiceChanged: (value) => _write(
-                    (repository) => repository.setIntegrationEnabled(
-                      service.key,
-                      enabled: value,
-                    ),
-                  ),
-                  onFeatureChanged: (feature, {required enabled}) => _write(
-                    (repository) => repository.setIntegrationEnabled(
-                      feature.key,
-                      enabled: enabled,
-                    ),
-                  ),
-                  credential: switch (service) {
-                    IntegrationService.lastFm => _buildLastFmCredential(
-                      context,
-                      masterOn: policy.masterEnabled,
-                    ),
-                    IntegrationService.listenBrainz =>
-                      _buildListenBrainzCredential(
-                        context,
-                        settings,
-                        masterOn: policy.masterEnabled,
-                      ),
-                    _ => null,
-                  },
-                ),
+            for (final group in _groups)
+              ..._buildGroup(
+                context,
+                settings,
+                policy,
+                group,
+                updatesAvailable: updatesAvailable,
+              ),
           ],
         ),
       ),
     );
+  }
+
+  /// One group heading followed by its services, or nothing when none of its
+  /// services apply on this platform.
+  List<Widget> _buildGroup(
+    BuildContext context,
+    AppSettingsModel settings,
+    IntegrationPolicy policy,
+    _ServiceGroup group, {
+    required bool updatesAvailable,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final services = <IntegrationService>[
+      for (final service in group.services)
+        if (service != IntegrationService.updates || updatesAvailable) service,
+    ];
+    if (services.isEmpty) return const <Widget>[];
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(top: NavisSpace.xl),
+        child: Semantics(
+          header: true,
+          child: Text(
+            group.title(l10n),
+            key: ValueKey<String>('integrations-group-${group.id}'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+      for (final service in services)
+        _ServiceSection(
+          service: service,
+          policy: policy,
+          onServiceChanged: (value) => _write(
+            (repository) =>
+                repository.setIntegrationEnabled(service.key, enabled: value),
+          ),
+          onFeatureChanged: (feature, {required enabled}) => _write(
+            (repository) =>
+                repository.setIntegrationEnabled(feature.key, enabled: enabled),
+          ),
+          credential: switch (service) {
+            IntegrationService.lastFm => _buildLastFmCredential(
+              context,
+              masterOn: policy.masterEnabled,
+            ),
+            IntegrationService.listenBrainz => _buildListenBrainzCredential(
+              context,
+              settings,
+              masterOn: policy.masterEnabled,
+            ),
+            _ => null,
+          },
+        ),
+    ];
   }
 
   Widget _buildLastFmCredential(
@@ -469,6 +504,54 @@ class _IntegrationsSettingsScreenState
     }
   }
 }
+
+/// A named group of services on the page. Every [IntegrationService] appears
+/// in exactly one group.
+class _ServiceGroup {
+  const new(this.id, this.title, this.services);
+
+  /// Stable key suffix for the heading.
+  final String id;
+  final String Function(AppLocalizations l10n) title;
+  final List<IntegrationService> services;
+}
+
+final List<_ServiceGroup> _groups = <_ServiceGroup>[
+  _ServiceGroup(
+    'discovery',
+    (l10n) => l10n.integrationsGroupDiscovery,
+    const <IntegrationService>[
+      IntegrationService.deezer,
+      IntegrationService.lastFm,
+    ],
+  ),
+  _ServiceGroup(
+    'history',
+    (l10n) => l10n.integrationsGroupListeningHistory,
+    const <IntegrationService>[IntegrationService.listenBrainz],
+  ),
+  _ServiceGroup(
+    'lyrics-artwork',
+    (l10n) => l10n.integrationsGroupLyricsArtwork,
+    const <IntegrationService>[
+      IntegrationService.lrclib,
+      IntegrationService.serverLinkedArtwork,
+    ],
+  ),
+  _ServiceGroup(
+    'radio',
+    (l10n) => l10n.integrationsGroupRadio,
+    const <IntegrationService>[IntegrationService.radioMetadata],
+  ),
+  _ServiceGroup(
+    'app',
+    (l10n) => l10n.integrationsGroupApp,
+    const <IntegrationService>[
+      IntegrationService.updates,
+      IntegrationService.autoEq,
+    ],
+  ),
+];
 
 /// One service: its heading with the service switch, what it sends and
 /// where, an optional credential, then one switch per feature.
