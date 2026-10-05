@@ -9311,6 +9311,12 @@ abstract class AppLocalizations {
   /// **'Fine-tune per feature in Settings › Integrations.'**
   String get onboardingIntegrationsFineTune;
 
+  /// No description provided for @onboardingIntegrationsStoredOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services are off on this device. Finish setup with them on, then connect in Settings › Integrations.'**
+  String get onboardingIntegrationsStoredOff;
+
   /// No description provided for @onboardingValidating.
   ///
   /// In en, this message translates to:

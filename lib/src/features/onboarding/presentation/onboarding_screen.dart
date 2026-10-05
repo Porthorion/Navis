@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
+import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -223,7 +225,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _validateLastFmKey() async {
     final current = _draft;
     final key = _lastFmKey.text.trim();
-    if (current == null || _lastFmBusy) return;
+    if (current == null || _lastFmBusy || _storedOnlineServicesOff) return;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _lastFmBusy = true;
@@ -265,7 +267,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _validateListenBrainz() async {
     final current = _draft;
     final token = _listenBrainzToken.text.trim();
-    if (current == null || _listenBrainzBusy) return;
+    if (current == null || _listenBrainzBusy || _storedOnlineServicesOff) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     if (token.isEmpty) {
       setState(
@@ -300,12 +304,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
       );
     } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'ListenBrainz token validation failed. $error\n$stackTrace',
-      );
+      // The guard refuses the check while stored settings keep online
+      // services off; say so rather than blaming the network.
+      final blocked =
+          error is DioException && error.error is IntegrationBlockedException;
+      if (!blocked) {
+        AppLogger.warning(
+          'ListenBrainz token validation failed. $error\n$stackTrace',
+        );
+      }
       if (mounted) {
         setState(
-          () => _listenBrainzError = l10n.configurationListenBrainzUnavailable,
+          () => _listenBrainzError = blocked
+              ? l10n.onboardingIntegrationsStoredOff
+              : l10n.configurationListenBrainzUnavailable,
         );
       }
     } finally {
@@ -404,7 +416,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                 child: Text(
                                   _saveError!,
                                   style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
+                                    color: previewTheme.colorScheme.error,
                                   ),
                                 ),
                               ),
@@ -569,16 +581,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         : buildDarkTheme(seed);
   }
 
-  Widget _buildStep(AppSettingsModel draft) => switch (_step) {
-    0 => _appearanceStep(draft),
-    1 => _listeningStep(draft),
-    2 => _queueStep(draft),
-    // Builder: its context is under the preview theme, so the step's text
-    // follows the look chosen in the first step.
-    _ => Builder(builder: (context) => _integrationsStep(context, draft)),
-  };
+  /// The current step, built under the preview theme: the [Builder]'s
+  /// context sits below `Theme(data: previewTheme)`, unlike the state's own
+  /// context, so every step's text follows the look chosen in the first step.
+  Widget _buildStep(AppSettingsModel draft) => Builder(
+    builder: (context) => switch (_step) {
+      0 => _appearanceStep(context, draft),
+      1 => _listeningStep(context, draft),
+      2 => _queueStep(context, draft),
+      _ => _integrationsStep(context, draft),
+    },
+  );
 
-  Widget _appearanceStep(AppSettingsModel draft) {
+  Widget _appearanceStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
     final customPresets = _draftCustomPresets ?? const <int>[];
     return _scrollStep(
@@ -722,7 +737,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _listeningStep(AppSettingsModel draft) {
+  Widget _listeningStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
     return _scrollStep(
       children: [
@@ -915,7 +930,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     ),
   );
 
-  Widget _queueStep(AppSettingsModel draft) {
+  Widget _queueStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
     return _scrollStep(
       children: [
@@ -1004,6 +1019,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
+  /// Whether the stored "Online services" switch is off, as when setup is
+  /// run again after turning it off. The guard reads stored settings, not
+  /// the draft, so no key or token can be checked until setup is finished.
+  bool get _storedOnlineServicesOff =>
+      ref.read(appSettingsProvider).asData?.value.externalIntegrationsEnabled ==
+      false;
+
   /// Room kept around a focused field when it scrolls into view. The step's
   /// list already ends at the keyboard, so the keyboard height is not added.
   static const _fieldScrollPadding = EdgeInsets.all(NavisSpace.lg);
@@ -1013,6 +1035,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final theme = Theme.of(context);
     final bundled = ref.watch(lastFmBundledKeyProvider);
     final policy = _draftIntegrationPolicy(draft);
+    final storedOff = ref.watch(
+      appSettingsProvider.select(
+        (settings) =>
+            settings.asData?.value.externalIntegrationsEnabled == false,
+      ),
+    );
     return _scrollStep(
       children: [
         Text(
@@ -1043,10 +1071,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 if (service == IntegrationService.lastFm &&
                     !bundled &&
                     policy.masterEnabled)
-                  _credential(_lastFmKeyField(l10n)),
+                  _credential(_lastFmKeyField(l10n, blocked: storedOff)),
                 if (service == IntegrationService.listenBrainz &&
                     policy.isServiceEnabled(service))
-                  _credential(_listenBrainzTokenField(draft, l10n)),
+                  _credential(
+                    _listenBrainzTokenField(draft, l10n, blocked: storedOff),
+                  ),
               ],
             ),
           ),
@@ -1129,8 +1159,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _listenBrainzTokenField(
     AppSettingsModel draft,
-    AppLocalizations l10n,
-  ) {
+    AppLocalizations l10n, {
+    required bool blocked,
+  }) {
     final valid = draft.listenBrainzTokenValid;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1144,10 +1175,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           obscureText: _obscureListenBrainzToken,
           textInputAction: TextInputAction.done,
           scrollPadding: _fieldScrollPadding,
-          onSubmitted: (_) => _validateListenBrainz(),
+          onSubmitted: blocked ? null : (_) => _validateListenBrainz(),
           decoration: InputDecoration(
             labelText: l10n.configurationListenBrainzTokenLabel,
             errorText: _listenBrainzError,
+            helperText: blocked ? l10n.onboardingIntegrationsStoredOff : null,
+            helperMaxLines: 3,
             prefixIcon: const Icon(Icons.token_outlined),
             suffixIcon: _visibilityToggle(
               obscured: _obscureListenBrainzToken,
@@ -1160,7 +1193,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (valid)
           ListenBrainzConnectionStatus(
             settings: draft,
-            enabled: !_listenBrainzBusy,
+            enabled: !_listenBrainzBusy && !blocked,
             onUpdate: _validateListenBrainz,
           )
         else
@@ -1172,7 +1205,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: [
             if (!valid)
               FilledButton.tonal(
-                onPressed: _listenBrainzBusy ? null : _validateListenBrainz,
+                onPressed: _listenBrainzBusy || blocked
+                    ? null
+                    : _validateListenBrainz,
                 child: Text(
                   _listenBrainzBusy
                       ? l10n.onboardingValidating
@@ -1191,7 +1226,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _lastFmKeyField(AppLocalizations l10n) {
+  Widget _lastFmKeyField(AppLocalizations l10n, {required bool blocked}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1204,11 +1239,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           obscureText: _obscureLastFmKey,
           textInputAction: TextInputAction.done,
           scrollPadding: _fieldScrollPadding,
-          onSubmitted: (_) => _validateLastFmKey(),
+          onSubmitted: blocked ? null : (_) => _validateLastFmKey(),
           decoration: InputDecoration(
             labelText: l10n.configurationLastFmApiKeyLabel,
             hintText: l10n.configurationLastFmApiKeyHint,
             errorText: _lastFmError,
+            helperText: blocked ? l10n.onboardingIntegrationsStoredOff : null,
+            helperMaxLines: 3,
             prefixIcon: const Icon(Icons.key_outlined),
             suffixIcon: _visibilityToggle(
               obscured: _obscureLastFmKey,
@@ -1224,7 +1261,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             FilledButton.tonal(
-              onPressed: _lastFmBusy ? null : _validateLastFmKey,
+              onPressed: _lastFmBusy || blocked ? null : _validateLastFmKey,
               child: Text(
                 _lastFmBusy
                     ? l10n.onboardingValidating

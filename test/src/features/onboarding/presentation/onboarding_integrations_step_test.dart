@@ -8,6 +8,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -120,13 +121,17 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   bool lastFmBundled = true,
+  Future<void> Function(AppSettingsDao dao)? seed,
   ListenBrainzApiClient? listenBrainzClient,
   LastFmApiClient Function(String)? lastFmClientFactory,
 }) async {
   // Tall enough to build every row of the lazy step list.
   setAdaptiveTestViewport(tester, const Size(500, 2400));
   final database = createTestDatabase();
-  await tester.runAsync(database.appSettingsDao.getSettings);
+  await tester.runAsync(() async {
+    await database.appSettingsDao.getSettings();
+    await seed?.call(database.appSettingsDao);
+  });
   final credentials = _MemoryCredentialStore();
   final container = ProviderContainer(
     overrides: withTestDatabase(
@@ -330,6 +335,55 @@ void main() {
     expect(h.credentials.listenBrainzToken, 'good-token');
     expect(find.text('Connected as navis-user.'), findsOneWidget);
     expect(tester.widget<TextField>(h.token).decoration!.errorText, isNull);
+  });
+
+  testWidgets('with Online services stored off, nothing can be checked yet', (
+    tester,
+  ) async {
+    // Setup run again after turning Online services off: the guard reads
+    // stored settings, so a check would be refused whatever the draft says.
+    final client = _FakeListenBrainzApiClient(valid: true);
+    final h = await _pump(
+      tester,
+      lastFmBundled: false,
+      seed: (dao) => dao.setExternalIntegrationsEnabled(enabled: false),
+      listenBrainzClient: client,
+      lastFmClientFactory: (_) => throw StateError('no Last.fm check'),
+    );
+    expect(h.token, findsNothing);
+
+    await h.tap(h.master);
+    const message =
+        'Online services are off on this device. Finish setup with them on, '
+        'then connect in Settings › Integrations.';
+    expect(tester.widget<TextField>(h.token).decoration!.helperText, message);
+    expect(
+      tester.widget<TextField>(h.lastFmKey).decoration!.helperText,
+      message,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Validate and connect'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Validate key'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(h.token);
+    await tester.enterText(h.token, 'good-token');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await h.settle();
+    expect(client.userInitiatedCalls, isEmpty);
+    expect(h.credentials.listenBrainzToken, isNull);
   });
 
   testWidgets('Finish saves the choices and marks the 1.4.3 note seen', (

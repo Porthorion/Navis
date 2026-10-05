@@ -142,6 +142,57 @@ void main() {
     expect(find.text('Crossfade type'), findsOneWidget);
   });
 
+  testWidgets('step text follows the theme chosen in the first step', (
+    tester,
+  ) async {
+    // The app itself stays light; the preview switches to dark.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
+            ),
+          ),
+          customColorPresetsProvider.overrideWithValue(
+            const AsyncData(<int>[]),
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: OnboardingScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    final preview = Theme.of(tester.element(find.byType(Scaffold)));
+    expect(preview.brightness, Brightness.dark);
+    final previewTitle = preview.textTheme.titleLarge!.color;
+    final appTitle = Theme.of(tester.element(find.byType(OnboardingScreen)))
+        .textTheme
+        .titleLarge!
+        .color;
+    expect(previewTitle, isNot(appTitle));
+
+    Color? titleColor(String title) =>
+        tester.widget<Text>(find.text(title)).style?.color;
+
+    expect(titleColor('Choose Your Look'), previewTitle);
+    for (final title in const [
+      'Tune Your Listening',
+      'Queue and Downloads',
+      'Integrations',
+    ]) {
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(titleColor(title), previewTitle, reason: title);
+    }
+  });
+
   testWidgets('presents an established ListenBrainz connection as status', (
     tester,
   ) async {

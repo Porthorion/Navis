@@ -2588,6 +2588,7 @@
   "onboardingIntegrationsTitle": "Integrations",
   "onboardingIntegrationsDescription": "Navis can use these online services as well as your server. Turn off any you don't want.",
   "onboardingIntegrationsFineTune": "Fine-tune per feature in Settings › Integrations.",
+  "onboardingIntegrationsStoredOff": "Online services are off on this device. Finish setup with them on, then connect in Settings › Integrations.",
   "onboardingValidating": "Validating…",
   "onboardingListenBrainzValidate": "Validate and connect",
   "onboardingLastFmValidateKey": "Validate key",

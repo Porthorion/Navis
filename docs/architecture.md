@@ -1410,7 +1410,12 @@ switch means "Navis only talks to your server" when off. See
   draft); the key field appears only in keyless builds. The ListenBrainz
   switch is not locked by a missing token: switched on, it shows the token
   field, whose validation (`userInitiated: true`) stores the token at once as
-  before. Both fields hide while the master switch is off.
+  before. Both fields hide while the master switch is off. When setup runs
+  again with Online services stored off, the guard (which reads stored
+  settings, not the draft) would refuse any check, so Validate is disabled and
+  the fields say to finish setup with them on and connect in Settings ›
+  Integrations. Every step is built under a `Builder` below the preview
+  `Theme`, so step text follows the look chosen in the first step.
 - **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
   and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
   the recorder's counters, calls and spans in every mode. See

@@ -5809,6 +5809,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Fine-tune per feature in Settings › Integrations.';
 
   @override
+  String get onboardingIntegrationsStoredOff =>
+      'Online services are off on this device. Finish setup with them on, then connect in Settings › Integrations.';
+
+  @override
   String get onboardingValidating => 'Validating…';
 
   @override
