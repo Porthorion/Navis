@@ -204,10 +204,13 @@ void main() {
       expect(span.counts['upgradeChecks'], 1);
       expect(span.counts['upgraded'], 0);
 
-      // Checked again: no search for another day.
+      // Remembered as remote again: no search for another day.
       api.queries.clear();
-      await emissions(resolver(), <ArtistTopTrackSeed>[_seed(1, 'Alpha')]);
+      final next = await emissions(resolver(), <ArtistTopTrackSeed>[
+        _seed(1, 'Alpha'),
+      ]);
       expect(api.queries, isEmpty);
+      expect(next.single.single.resolvedSong?.id, 'ext-deezer-song-1');
     }, skip: !sqliteAvailable);
 
     test('survives a failed search', () async {
@@ -265,64 +268,66 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'pending rows show first and progress arrives in batches',
-    () async {
-      await db.libraryDao.upsertSongs(<SongsTableCompanion>[
-        SongsTableCompanion.insert(
-          id: 'lib-Alpha',
-          title: 'Alpha',
-          artistName: const Value('Known'),
-        ),
-      ]);
-      final seeds = <ArtistTopTrackSeed>[
-        _seed(1, 'Alpha'),
-        _seed(2, 'Bravo'),
-        _seed(3, 'Charlie'),
-        _seed(4, 'Delta'),
-        _seed(5, 'Echo'),
-      ];
-      api.results['Bravo'] = <Song>[_remote('Bravo', id: 2)];
-
-      final result = await emissions(
-        resolver(),
-        seeds,
-        yieldPendingRows: true,
-        progressEvery: 2,
-        searchWorkers: 1,
-      );
-
-      // The local pass: Alpha from the library, the rest still matching.
-      expect(result.first.map((track) => track.isMatching), <bool>[
-        false,
-        true,
-        true,
-        true,
-        true,
-      ]);
-      expect(result.first.first.resolvedSong?.id, 'lib-Alpha');
-      // After two searches, then the end.
-      expect(result, hasLength(3));
-      expect(result[1].map((track) => track.isMatching), <bool>[
-        false,
-        false,
-        false,
-        true,
-        true,
-      ]);
-      expect(result[1][1].resolvedSong?.id, 'ext-deezer-song-2');
-      expect(result.last.any((track) => track.isMatching), isFalse);
-      expect(result.last.map((track) => track.rank), <int>[1, 2, 3, 4, 5]);
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test('nothing local and no pending rows wanted: one emission', () async {
-    final result = await emissions(resolver(), <ArtistTopTrackSeed>[
-      _seed(1, 'Alpha'),
+  test('pending rows show first and progress arrives in batches', () async {
+    await db.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'lib-Alpha',
+        title: 'Alpha',
+        artistName: const Value('Known'),
+      ),
     ]);
-    expect(result, hasLength(1));
-    expect(result.single.single.isMatching, isFalse);
+    final seeds = <ArtistTopTrackSeed>[
+      _seed(1, 'Alpha'),
+      _seed(2, 'Bravo'),
+      _seed(3, 'Charlie'),
+      _seed(4, 'Delta'),
+      _seed(5, 'Echo'),
+    ];
+    api.results['Bravo'] = <Song>[_remote('Bravo', id: 2)];
+
+    final result = await emissions(
+      resolver(),
+      seeds,
+      yieldPendingRows: true,
+      progressEvery: 2,
+      searchWorkers: 1,
+    );
+
+    // The local pass: Alpha from the library, the rest still matching.
+    expect(result.first.map((track) => track.isMatching), <bool>[
+      false,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(result.first.first.resolvedSong?.id, 'lib-Alpha');
+    // After two searches, then the end.
+    expect(result, hasLength(3));
+    expect(result[1].map((track) => track.isMatching), <bool>[
+      false,
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(result[1][1].resolvedSong?.id, 'ext-deezer-song-2');
+    expect(result.last.any((track) => track.isMatching), isFalse);
+    expect(result.last.map((track) => track.rank), <int>[1, 2, 3, 4, 5]);
+  }, skip: !sqliteAvailable);
+
+  test('nothing local: pending rows only when asked for', () async {
+    final seeds = <ArtistTopTrackSeed>[_seed(1, 'Alpha')];
+    final quiet = await emissions(resolver(), seeds);
+    expect(quiet, hasLength(1));
+    expect(quiet.single.single.isMatching, isFalse);
+
+    final pending = await emissions(resolver(), <ArtistTopTrackSeed>[
+      _seed(2, 'Bravo'),
+    ], yieldPendingRows: true);
+    expect(pending, hasLength(2));
+    expect(pending.first.single.isMatching, isTrue);
+    expect(pending.last.single.isMatching, isFalse);
   }, skip: !sqliteAvailable);
 
   test('the default store forgets a remote match after a day', () async {
