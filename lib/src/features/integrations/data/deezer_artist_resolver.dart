@@ -13,13 +13,17 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// 2. Otherwise the normalized name is looked up in the cache
 ///    ([DeezerCache.artistIdNamespace]: found for 30 days, not found for 7).
 /// 3. Otherwise `/search/artist` runs and only artists whose
-///    [normalizeMetadata] name equals the library name's are kept. When none
-///    does, artists whose [artistNameResolutionKey] equals the library
-///    name's are kept instead ("The Black Eyed Peas" is Deezer's "Black Eyed
-///    Peas", "Simon and Garfunkel" its "Simon & Garfunkel"). One is taken as
-///    is. Between several namesakes, the one whose Deezer albums share the
-///    most titles with the library's albums wins, when the caller can list
-///    them; equal overlap (or no album list) goes to the most fans.
+///    [normalizeMetadata] name equals the library name's are kept. One is
+///    taken as is. Between several namesakes, the one whose Deezer albums
+///    share the most titles with the library's albums wins, when the caller
+///    can list them; equal overlap (or no album list) goes to the most fans.
+/// 4. When no name is equal, artists whose names [artistNamesMatchLoosely]
+///    ("The Black Eyed Peas" and Deezer's "Black Eyed Peas", "Simon and
+///    Garfunkel" and "Simon & Garfunkel") are only candidates: one is taken
+///    only when its Deezer albums share at least one title with the library
+///    artist's (most shared, then most fans). Without library album titles,
+///    no loose match is accepted, so a different artist's photo, songs and
+///    missing albums are never bound to the page on a name alone.
 ///
 /// Request errors propagate and are not cached. Concurrent calls for the same
 /// library artist and name share one resolution.
@@ -106,18 +110,18 @@ class DeezerArtistResolver {
     }
 
     final found = await _client.searchArtists(name, cancelToken: cancelToken);
-    var namesakes = found
+    final namesakes = found
         .where((artist) => normalizeMetadata(artist.name) == key)
         .toList();
-    if (namesakes.isEmpty) {
-      final loose = artistNameResolutionKey(name);
-      namesakes = found
-          .where((artist) => artistNameResolutionKey(artist.name) == loose)
-          .toList();
-    }
     _sortByFans(namesakes);
     final id = switch (namesakes.length) {
-      0 => null,
+      0 => await _pickLooseMatch(
+        found
+            .where((artist) => artistNamesMatchLoosely(name, artist.name))
+            .toList(),
+        readLibraryAlbumTitles,
+        cancelToken,
+      ),
       1 => namesakes.single.id,
       _ when readLibraryAlbumTitles == null => namesakes.first.id,
       _ => await _pickByAlbumOverlap(
@@ -142,15 +146,56 @@ class DeezerArtistResolver {
     Future<Iterable<String>> Function() readLibraryAlbumTitles,
     CancelToken? cancelToken,
   ) async {
-    final libraryTitles = (await readLibraryAlbumTitles())
-        .map(normalizeMetadata)
-        .where((title) => title.isNotEmpty)
-        .toSet();
+    final libraryTitles = await _libraryTitleKeys(readLibraryAlbumTitles);
     if (libraryTitles.isEmpty) return namesakes.first.id;
+    return (await _mostSharedAlbums(
+          namesakes,
+          libraryTitles,
+          cancelToken,
+        ))?.id ??
+        namesakes.first.id;
+  }
 
-    var best = namesakes.first;
-    var bestOverlap = -1;
-    for (final artist in namesakes.take(maxAlbumOverlapCandidates)) {
+  /// Of [candidates] (names equal only loosely), the one sharing the most
+  /// album titles with the library artist, or null when none shares any or
+  /// the library's titles are unknown.
+  Future<int?> _pickLooseMatch(
+    List<DeezerArtist> candidates,
+    Future<Iterable<String>> Function()? readLibraryAlbumTitles,
+    CancelToken? cancelToken,
+  ) async {
+    if (candidates.isEmpty || readLibraryAlbumTitles == null) return null;
+    final libraryTitles = await _libraryTitleKeys(readLibraryAlbumTitles);
+    if (libraryTitles.isEmpty) return null;
+    _sortByFans(candidates);
+    final best = await _mostSharedAlbums(
+      candidates,
+      libraryTitles,
+      cancelToken,
+      minimumOverlap: 1,
+    );
+    return best?.id;
+  }
+
+  static Future<Set<String>> _libraryTitleKeys(
+    Future<Iterable<String>> Function() readLibraryAlbumTitles,
+  ) async => (await readLibraryAlbumTitles())
+      .map(normalizeMetadata)
+      .where((title) => title.isNotEmpty)
+      .toSet();
+
+  /// Of the first [maxAlbumOverlapCandidates] of [artists] (sorted by fans),
+  /// the one whose Deezer albums share the most titles with [libraryTitles],
+  /// at least [minimumOverlap]; equal overlap keeps the one with more fans.
+  Future<DeezerArtist?> _mostSharedAlbums(
+    List<DeezerArtist> artists,
+    Set<String> libraryTitles,
+    CancelToken? cancelToken, {
+    int minimumOverlap = 0,
+  }) async {
+    DeezerArtist? best;
+    var bestOverlap = minimumOverlap - 1;
+    for (final artist in artists.take(maxAlbumOverlapCandidates)) {
       var overlap = 0;
       try {
         final albums = await _client.getArtistAlbums(
@@ -171,7 +216,7 @@ class DeezerArtistResolver {
         bestOverlap = overlap;
       }
     }
-    return best.id;
+    return best;
   }
 
   static void _sortByFans(List<DeezerArtist> artists) {
@@ -185,7 +230,7 @@ class DeezerArtistResolver {
   }
 }
 
-/// Leading articles ignored when names are compared for resolution.
+/// Leading articles one name may have and the other lack.
 const Set<String> _leadingArticles = {
   'the',
   'a',
@@ -201,16 +246,10 @@ const Set<String> _leadingArticles = {
 
 final RegExp _ampersand = RegExp(r'[&\uFF06]');
 
-/// A looser key than [normalizeMetadata] for telling whether a Deezer artist
-/// is the library's, used only to resolve the artist and never shown.
-///
-/// "&" reads as "and", one leading article is dropped ("The", "A", "An",
-/// "Los", "Las", "Le", "La", "Les", "Die", "Der") and spaces are removed, so
-/// "The Black Eyed Peas", "Black Eyed Peas" and "Black-Eyed Peas" agree, as
-/// do "Simon & Garfunkel" and "Simon and Garfunkel", and "AC/DC" and "ACDC".
-/// The article stays when nothing but an article would remain, so "The The"
-/// is never "The".
-String artistNameResolutionKey(String name) {
+/// A name for loose comparison: its leading article, if any, and the rest
+/// without spaces. "&" reads as "and". The article stays part of the rest
+/// when nothing but an article would remain, so "The The" is never "The".
+({String? article, String rest}) _looseName(String name) {
   final words = normalizeMetadata(name.replaceAll(_ampersand, ' and '))
       .split(' ')
       .where((word) => word.isNotEmpty)
@@ -218,7 +257,25 @@ String artistNameResolutionKey(String name) {
   if (words.length > 1 &&
       _leadingArticles.contains(words.first) &&
       !(words.length == 2 && _leadingArticles.contains(words[1]))) {
-    words.removeAt(0);
+    return (article: words.first, rest: words.skip(1).join());
   }
-  return words.join();
+  return (article: null, rest: words.join());
+}
+
+/// Whether [libraryName] and [deezerName] may name the same artist although
+/// their [normalizeMetadata] forms differ, for resolution only (never shown).
+///
+/// They may differ in one leading article present on one side only ("The",
+/// "A", "An", "Los", "Las", "Le", "La", "Les", "Die", "Der"), in "&" against
+/// "and", and in spacing and punctuation: "The Black Eyed Peas" and "Black
+/// Eyed Peas", "Simon & Garfunkel" and "Simon and Garfunkel", "AC/DC" and
+/// "ACDC". Two different articles ("A Band", "The Band") never match. A
+/// loose match is only a candidate; the resolver also asks for shared albums.
+bool artistNamesMatchLoosely(String libraryName, String deezerName) {
+  final library = _looseName(libraryName);
+  final deezer = _looseName(deezerName);
+  if (library.rest.isEmpty || library.rest != deezer.rest) return false;
+  return library.article == null ||
+      deezer.article == null ||
+      library.article == deezer.article;
 }

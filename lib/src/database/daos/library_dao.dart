@@ -2318,9 +2318,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   /// Up to [limit] library artists, except [excludeIds], weighted by the
   /// library rather than by plays: most liked albums first, then most songs,
-  /// then most albums. Remote artists, artists without songs or liked albums,
-  /// and the placeholders "[Unknown Artist]" and "Various Artists" are left
-  /// out. Fills [getTopPlayedArtists] for a library with little play history.
+  /// then most albums. A liked album counts only when the server stores it
+  /// and it is not confirmed missing. Remote artists, artists without songs
+  /// or liked albums, and the placeholders "[Unknown Artist]" and "Various
+  /// Artists" are left out. Fills [getTopPlayedArtists] for a library with
+  /// little play history.
   Future<List<ArtistsTableData>> getArtistsByLibraryWeight({
     required int limit,
     Set<String> excludeIds = const <String>{},
@@ -2339,7 +2341,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       LEFT JOIN (
         SELECT artist_id, COUNT(*) AS liked
         FROM albums
-        WHERE starred IS NOT NULL AND is_provisional = 0
+        WHERE starred IS NOT NULL AND is_provisional = 0 AND is_external = 0
+          AND (catalog_availability IS NULL OR
+               catalog_availability != 'confirmedMissing')
         GROUP BY artist_id
       ) l ON l.artist_id = a.id
       WHERE a.is_provisional = 0 AND a.is_external = 0

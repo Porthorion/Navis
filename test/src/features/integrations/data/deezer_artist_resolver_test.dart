@@ -108,60 +108,193 @@ void main() {
   });
 
   group('names that differ only in form', () {
-    test('a leading "The" on either side still resolves', () async {
-      deezer.artists = const [
-        DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
-        DeezerArtist(
-          id: 4189978,
-          name: 'Made famous by The Black Eyed Peas',
-          fanCount: 440,
-        ),
-        DeezerArtist(
-          id: 189221687,
-          name: 'Black Eyed Peas & Daddy Yankee',
-          fanCount: 38,
-        ),
-        DeezerArtist(id: 414191872, name: 'Black Eyed Peas', fanCount: 0),
-        DeezerArtist(id: 1, name: 'The Beatles', fanCount: 100),
-      ];
+    /// The library artist's album titles, as the artist page reads them.
+    Future<Iterable<String>> Function() libraryAlbums(List<String> titles) =>
+        () async => titles;
 
-      expect(
-        await resolver.resolve(artistId: 'bep', name: 'The Black Eyed Peas'),
-        1020109,
-      );
-      expect(await resolver.resolve(artistId: 'b', name: 'Beatles'), 1);
-    });
+    test(
+      'a leading "The" on either side resolves with a shared album',
+      () async {
+        deezer
+          ..artists = const [
+            DeezerArtist(
+              id: 1020109,
+              name: 'Black Eyed Peas',
+              fanCount: 6110407,
+            ),
+            DeezerArtist(
+              id: 4189978,
+              name: 'Made famous by The Black Eyed Peas',
+              fanCount: 440,
+            ),
+            DeezerArtist(
+              id: 189221687,
+              name: 'Black Eyed Peas & Daddy Yankee',
+              fanCount: 38,
+            ),
+            DeezerArtist(id: 1, name: 'The Beatles', fanCount: 100),
+          ]
+          ..albumsByArtist = {
+            1020109: _albums(['Elephunk', 'Monkey Business']),
+            1: _albums(['Abbey Road']),
+          };
+
+        expect(
+          await resolver.resolve(
+            artistId: 'bep',
+            name: 'The Black Eyed Peas',
+            readLibraryAlbumTitles: libraryAlbums(['Elephunk']),
+          ),
+          1020109,
+        );
+        expect(
+          await resolver.resolve(
+            artistId: 'b',
+            name: 'Beatles',
+            readLibraryAlbumTitles: libraryAlbums(['Abbey Road (Remastered)']),
+          ),
+          1,
+        );
+      },
+    );
 
     test('"&" and "and" are the same', () async {
-      deezer.artists = const [
-        DeezerArtist(id: 2707, name: 'Simon & Garfunkel', fanCount: 1167649),
-        DeezerArtist(
-          id: 74334152,
-          name: 'Simon & Garfunkel Experience',
-          fanCount: 226,
-        ),
-      ];
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 2707, name: 'Simon & Garfunkel', fanCount: 1167649),
+          DeezerArtist(
+            id: 74334152,
+            name: 'Simon & Garfunkel Experience',
+            fanCount: 226,
+          ),
+        ]
+        ..albumsByArtist = {
+          2707: _albums(['Bookends']),
+        };
 
       expect(
-        await resolver.resolve(artistId: 'sg', name: 'Simon and Garfunkel'),
+        await resolver.resolve(
+          artistId: 'sg',
+          name: 'Simon and Garfunkel',
+          readLibraryAlbumTitles: libraryAlbums(['Bookends']),
+        ),
         2707,
       );
     });
 
     test('spacing and punctuation do not matter', () async {
-      deezer.artists = const [DeezerArtist(id: 115, name: 'AC/DC')];
+      deezer
+        ..artists = const [DeezerArtist(id: 115, name: 'AC/DC')]
+        ..albumsByArtist = {
+          115: _albums(['Back in Black']),
+        };
 
-      expect(await resolver.resolve(artistId: 'acdc', name: 'ACDC'), 115);
+      expect(
+        await resolver.resolve(
+          artistId: 'acdc',
+          name: 'ACDC',
+          readLibraryAlbumTitles: libraryAlbums(['Back In Black']),
+        ),
+        115,
+      );
     });
 
     test('Los, La, Die and Der are articles too', () async {
-      deezer.artists = const [
-        DeezerArtist(id: 1, name: 'Los Lobos'),
-        DeezerArtist(id: 2, name: 'Toten Hosen'),
-      ];
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1, name: 'Los Lobos'),
+          DeezerArtist(id: 2, name: 'Toten Hosen'),
+        ]
+        ..albumsByArtist = {
+          1: _albums(['Kiko']),
+          2: _albums(['Opium fürs Volk']),
+        };
 
-      expect(await resolver.resolve(artistId: 'l', name: 'Lobos'), 1);
-      expect(await resolver.resolve(artistId: 't', name: 'Die Toten Hosen'), 2);
+      expect(
+        await resolver.resolve(
+          artistId: 'l',
+          name: 'Lobos',
+          readLibraryAlbumTitles: libraryAlbums(['Kiko']),
+        ),
+        1,
+      );
+      expect(
+        await resolver.resolve(
+          artistId: 't',
+          name: 'Die Toten Hosen',
+          readLibraryAlbumTitles: libraryAlbums(['Opium fürs Volk']),
+        ),
+        2,
+      );
+    });
+
+    test('two different articles never match', () async {
+      deezer
+        ..artists = const [DeezerArtist(id: 2, name: 'The Band', fanCount: 500)]
+        ..albumsByArtist = {
+          2: _albums(['Shared Title']),
+        };
+
+      // Even an album title in common does not make "A Band" "The Band".
+      expect(
+        await resolver.resolve(
+          artistId: 'ab',
+          name: 'A Band',
+          readLibraryAlbumTitles: libraryAlbums(['Shared Title']),
+        ),
+        isNull,
+      );
+      expect(deezer.albumCalls, isEmpty);
+    });
+
+    test(
+      'a single loose candidate without a shared album is rejected',
+      () async {
+        deezer
+          ..artists = const [
+            DeezerArtist(id: 7, name: 'BIGBANG', fanCount: 900000),
+          ]
+          ..albumsByArtist = {
+            7: _albums(['MADE', 'Alive']),
+          };
+
+        expect(
+          await resolver.resolve(
+            artistId: 'bb',
+            name: 'Big Bang',
+            readLibraryAlbumTitles: libraryAlbums(['Some Local Band Album']),
+          ),
+          isNull,
+        );
+        expect(deezer.albumCalls, [7]);
+      },
+    );
+
+    test('no loose match is accepted without library albums', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumsByArtist = {
+          1020109: _albums(['Elephunk']),
+        };
+
+      expect(
+        await resolver.resolve(artistId: 'bep', name: 'The Black Eyed Peas'),
+        isNull,
+      );
+      // Nor when the library lists no album titles.
+      now = now.add(DeezerCache.artistNotFoundTtl);
+      expect(
+        await resolver.resolve(
+          artistId: 'bep',
+          name: 'The Black Eyed Peas',
+          readLibraryAlbumTitles: libraryAlbums(const []),
+        ),
+        isNull,
+      );
+      expect(deezer.searchCalls, 2);
+      expect(deezer.albumCalls, isEmpty);
     });
 
     test('an exact name wins over a looser one with more fans', () async {
@@ -173,34 +306,46 @@ void main() {
       expect(await resolver.resolve(artistId: 'tb', name: 'The Band'), 2);
     });
 
-    test('loose namesakes keep the album and fan tie-break', () async {
+    test('loose namesakes go to the most shared albums', () async {
       deezer
         ..artists = const [
           DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
           DeezerArtist(id: 414191872, name: 'Black Eyed Peas', fanCount: 0),
         ]
         ..albumsByArtist = {
-          1020109: _albums(['Elephunk']),
-          414191872: _albums(['Something Else']),
+          1020109: _albums(['Something Else']),
+          414191872: _albums(['Elephunk']),
         };
 
       final id = await resolver.resolve(
         artistId: 'bep',
         name: 'The Black Eyed Peas',
-        readLibraryAlbumTitles: () async => ['Elephunk'],
+        readLibraryAlbumTitles: libraryAlbums(['Elephunk']),
       );
 
-      expect(id, 1020109);
+      expect(id, 414191872);
       expect(deezer.albumCalls, [1020109, 414191872]);
     });
 
     test('"The The" is not the artist "The", nor another "The" band', () async {
-      deezer.artists = const [
-        DeezerArtist(id: 1, name: 'The', fanCount: 9000),
-        DeezerArtist(id: 2, name: 'The Weeknd', fanCount: 14720452),
-      ];
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1, name: 'The', fanCount: 9000),
+          DeezerArtist(id: 2, name: 'The Weeknd', fanCount: 14720452),
+        ]
+        ..albumsByArtist = {
+          1: _albums(['Soul Mining']),
+          2: _albums(['Soul Mining']),
+        };
 
-      expect(await resolver.resolve(artistId: 'tt', name: 'The The'), isNull);
+      expect(
+        await resolver.resolve(
+          artistId: 'tt',
+          name: 'The The',
+          readLibraryAlbumTitles: libraryAlbums(['Soul Mining']),
+        ),
+        isNull,
+      );
     });
 
     test('"The The" resolves to itself and "The" not to it', () async {
@@ -224,12 +369,20 @@ void main() {
         <String, Object?>{'id': null},
         ttl: DeezerCache.artistNotFoundTtl,
       );
-      deezer.artists = const [
-        DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
-      ];
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumsByArtist = {
+          1020109: _albums(['Elephunk']),
+        };
 
       expect(
-        await resolver.resolve(artistId: 'bep', name: 'The Black Eyed Peas'),
+        await resolver.resolve(
+          artistId: 'bep',
+          name: 'The Black Eyed Peas',
+          readLibraryAlbumTitles: libraryAlbums(['Elephunk']),
+        ),
         1020109,
       );
       expect(deezer.searchCalls, 1);

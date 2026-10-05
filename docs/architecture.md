@@ -1457,17 +1457,22 @@ fallback.
   (`deezerArtistResolverProvider`) uses the id of a library artist
   `ext-deezer-artist-<id>` directly. Otherwise it reads the cached mapping or
   runs `/search/artist` and keeps only artists whose `normalizeMetadata` name
-  equals the library name. When none does, it keeps those whose looser
-  `artistNameResolutionKey` agrees: "&" reads as "and", one leading article
-  (The, A, An, Los, Las, Le, La, Les, Die, Der) is dropped unless only an
-  article would remain ("The The"), and spaces are ignored. So "The Black Eyed
-  Peas" resolves to Deezer's "Black Eyed Peas" while an exact name still wins.
-  The looser key is for resolution only, never for display. Between
-  namesakes, the one whose Deezer albums share
-  the most normalized titles with the library artist's albums wins (up to
-  three are compared, one request each); equal overlap goes to the most fans.
-  Mappings carry a version; a "not on Deezer" cached before the looser key
-  existed is asked again.
+  equals the library name. Between such namesakes, the one whose Deezer
+  albums share the most normalized titles with the library artist's albums
+  wins (up to three are compared, one request each); equal overlap goes to the
+  most fans. Only when no name is equal, artists whose names
+  `artistNamesMatchLoosely` become candidates: one side may carry a leading
+  article the other lacks (The, A, An, Los, Las, Le, La, Les, Die, Der; two
+  different articles never match, and "The The" keeps its article), "&" reads
+  as "and", and spacing and punctuation are ignored. A loose candidate, even a
+  single one, is taken only when its Deezer albums share at least one title
+  with the library artist's (most shared, then most fans); without library
+  album titles no loose match is accepted, so another artist's photo, top
+  songs and Missing Albums are never bound to a page on a name alone. So "The
+  Black Eyed Peas" (with "Elephunk") resolves to Deezer's "Black Eyed Peas".
+  The loose comparison is for resolution only, never for display. Mappings
+  carry a version; a "not on Deezer" cached before loose matching existed is
+  asked again.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
   (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up

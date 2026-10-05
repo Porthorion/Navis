@@ -30,17 +30,24 @@ void main() {
         ),
       );
 
-  Future<void> album(String id, String artistId, {DateTime? starred}) =>
-      database
-          .into(database.albumsTable)
-          .insert(
-            AlbumsTableCompanion.insert(
-              id: id,
-              name: id,
-              artistId: Value(artistId),
-              starred: Value(starred),
-            ),
-          );
+  Future<void> album(
+    String id,
+    String artistId, {
+    DateTime? starred,
+    bool external = false,
+    String? availability,
+  }) => database
+      .into(database.albumsTable)
+      .insert(
+        AlbumsTableCompanion.insert(
+          id: id,
+          name: id,
+          artistId: Value(artistId),
+          starred: Value(starred),
+          isExternal: Value(external),
+          catalogAvailability: Value(availability),
+        ),
+      );
 
   Future<void> song(
     String id,
@@ -146,6 +153,30 @@ void main() {
         (await database.libraryDao.getArtistsByLibraryWeight(limit: 10))
             .map((a) => a.id),
         <String>['real'],
+      );
+    });
+
+    test('liked remote or missing albums do not count', () async {
+      final liked = DateTime(2026, 9);
+      await artist('remote-liked');
+      await artist('missing-liked');
+      await artist('more-songs');
+      await album('r1', 'remote-liked', starred: liked, external: true);
+      await album(
+        'm1',
+        'missing-liked',
+        starred: liked,
+        availability: 'confirmedMissing',
+      );
+      await song('r-song', 'remote-liked', null);
+      await song('m-song', 'missing-liked', null);
+      await song('s1', 'more-songs', null);
+      await song('s2', 'more-songs', null);
+
+      expect(
+        (await database.libraryDao.getArtistsByLibraryWeight(limit: 10))
+            .map((a) => a.id),
+        <String>['more-songs', 'missing-liked', 'remote-liked'],
       );
     });
 

@@ -692,10 +692,25 @@ void main() {
       expect(find.textContaining('6 albums'), findsNWidgets(2));
 
       sections.add(
-        ArtistAlbumSections(albums: [for (var i = 0; i < 27; i++) album(i)]),
+        ArtistAlbumSections(
+          albums: [for (var i = 0; i < 27; i++) album(i)],
+          // Another artist's album this one appears on is not counted.
+          featuredIn: const <AlbumsTableData>[
+            AlbumsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'featured-1',
+              name: 'Featured 1',
+              artistId: 'artist-2',
+              songsHydrated: true,
+              artists: <ArtistRef>[],
+            ),
+          ],
+        ),
       );
       await tester.pumpAndSettle();
 
+      expect(find.textContaining('28 albums'), findsNothing);
       expect(find.textContaining('6 albums'), findsNothing);
       expect(find.text('27 albums'), findsOneWidget);
       expect(find.text('Biography · 27 albums'), findsOneWidget);
