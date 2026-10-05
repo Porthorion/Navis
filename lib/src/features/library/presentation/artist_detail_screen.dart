@@ -252,6 +252,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                               const <AlbumsTableData>[])
                         ?album.coverArt,
                     ],
+                    // Only a loaded, empty album list says there is nothing
+                    // to shuffle; while loading or failed the card stays.
+                    hasNoSongs: albumSections.asData?.value.isEmpty ?? false,
                   ),
                 ],
               ),
@@ -843,7 +846,8 @@ class _ArtistInfoSection extends StatelessWidget {
 /// "This Is" the artist, opening the top songs page, while a top-songs source
 /// is allowed and some of the first ten songs are in the library. Otherwise
 /// "Shuffle everything by" the artist, which shuffles the artist's library
-/// songs, with the artist's album covers as artwork.
+/// songs, with the artist's album covers as artwork (a placeholder without
+/// covers). Only an artist with no albums gets no card.
 ///
 /// It watches the section's ten songs, never the 50-song playlist, so the
 /// artist page does not resolve all 50.
@@ -853,17 +857,19 @@ class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
     required this.artistName,
     required this.imageUrl,
     required this.albumCoverArtIds,
+    required this.hasNoSongs,
   });
 
   final String artistId;
   final String artistName;
   final String? imageUrl;
   final List<String> albumCoverArtIds;
+  final bool hasNoSongs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final shuffleCard = albumCoverArtIds.isEmpty
+    final shuffleCard = hasNoSongs
         ? const SizedBox.shrink()
         : _ArtistVirtualPlaylistCard(
             key: const ValueKey<String>('artist-shuffle-everything-card'),

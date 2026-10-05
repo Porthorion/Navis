@@ -77,6 +77,9 @@ class ArtistTopTrackResolver {
     final songs = List<Song?>.filled(seeds.length, null);
     final done = List<bool>.filled(seeds.length, false);
     final updates = <String, ArtistTopTrackMatchEntry>{};
+    // Read first: a library sync that clears the store during this run makes
+    // its results stale, and the store then drops them.
+    final generation = _store.generation;
     final remembered = await _store.load(artistId);
 
     // Steps 1 and 2: remembered songs and Deezer ids, in one query.
@@ -136,10 +139,7 @@ class ArtistTopTrackResolver {
         );
         for (final i in open) {
           final query = artistTopTrackMatchQuery(seeds[i]);
-          final match = pickBestTrackMatch(
-            track: query,
-            candidates: _rankArtistCandidates(snapshot.candidatesFor(query)),
-          );
+          final match = _pickWithHints(query, snapshot.candidatesFor(query));
           final song = match.song;
           if (match.isMatched && song != null) {
             songs[i] = song;
@@ -181,7 +181,7 @@ class ArtistTopTrackResolver {
 
     final api = _api;
     if (api == null || searchIndexes.isEmpty || cancelToken.isCancelled) {
-      unawaited(_store.save(artistId, updates));
+      unawaited(_store.save(artistId, updates, generation: generation));
       yield _results(seeds, songs);
       return;
     }
@@ -244,7 +244,7 @@ class ArtistTopTrackResolver {
       'matched': matched,
       'remote': remote,
     }, serverTimer.elapsed);
-    unawaited(_store.save(artistId, updates));
+    unawaited(_store.save(artistId, updates, generation: generation));
     yield _results(seeds, songs);
   }
 
@@ -358,13 +358,35 @@ Song? pickBestArtistTopTrackMatch({
   required TrackMatchQuery track,
   required List<Song> candidates,
 }) {
-  final match = pickBestTrackMatch(
-    track: track,
-    candidates: _rankArtistCandidates(
-      candidates.map(TrackMatchCandidate.fromSong).toList(growable: false),
+  return _pickWithHints(
+    track,
+    candidates.map(TrackMatchCandidate.fromSong).toList(growable: false),
+  ).song;
+}
+
+/// [pickBestTrackMatch] with the source's album and length as hints only.
+///
+/// They can raise a candidate (an equal title on the expected album wins),
+/// but never reject one that title and artist alone accept: a Deezer album
+/// ("... (Deluxe)") or a radio-edit length often differs from the library's.
+TrackMatchResult _pickWithHints(
+  TrackMatchQuery query,
+  List<TrackMatchCandidate> candidates,
+) {
+  final ranked = _rankArtistCandidates(candidates);
+  final hinted = pickBestTrackMatch(track: query, candidates: ranked);
+  if (hinted.isMatched ||
+      (query.album == null && query.durationSeconds == null)) {
+    return hinted;
+  }
+  return pickBestTrackMatch(
+    track: TrackMatchQuery(
+      title: query.title,
+      artist: query.artist,
+      recordingMbid: query.recordingMbid,
     ),
+    candidates: ranked,
   );
-  return match.song;
 }
 
 List<TrackMatchCandidate> _rankArtistCandidates(

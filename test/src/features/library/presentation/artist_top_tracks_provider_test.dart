@@ -768,6 +768,41 @@ void main() {
       expect(subsonic.searchCallCount, 4);
     }, skip: !sqliteAvailable);
 
+    test(
+      'a run that started before a sync clear writes nothing back',
+      () async {
+        final subsonic = _FakeSubsonicApiClient()..gate = Completer<void>();
+        final container = containerWith(
+          database(),
+          overrides: sourceOverrides(
+            deezer: _FakeDeezerApiClient(_deezerTracks(2)),
+            subsonic: subsonic,
+          ),
+        );
+        final store = container.read(artistTopTrackMatchStoreProvider);
+        final finished = Completer<void>();
+        container.listen(artistTopTracksProvider(_key), (_, next) {
+          if (next is AsyncData && !finished.isCompleted) finished.complete();
+        });
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (subsonic.searchCallCount < 2 &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(subsonic.searchCallCount, 2);
+
+        // A sync finishes while the searches run.
+        await store.clear();
+        subsonic.gate!.complete();
+        await finished.future.timeout(const Duration(seconds: 5));
+        await store.whenSaved();
+
+        // Their "unmatched" results predate the sync and are dropped.
+        expect(await store.load(_key.artistId), isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('the playlist resolves all 50 songs', () async {
       final subsonic = _FakeSubsonicApiClient();
       final container = containerWith(
@@ -885,6 +920,102 @@ void main() {
 
   TrackMatchQuery query({required String title, required String artist}) =>
       TrackMatchQuery(title: title, artist: artist);
+
+  test('album and length from the source never reject a match', () {
+    // Title and artist alone accept this library song: both differ a little
+    // ("Signal Fires", "Test Artist & Band") but stay above the threshold.
+    const seed = ArtistTopTrackSeed(
+      rank: 1,
+      title: 'Signal Fire (feat. Guest)',
+      artist: 'Test Artist',
+      source: ArtistTopTrackSource.deezer,
+      album: 'Signal Fire (Deluxe)',
+      durationSeconds: 200,
+    );
+
+    final match = pickBestArtistTopTrackMatch(
+      track: artistTopTrackMatchQuery(seed),
+      candidates: const [
+        Song(
+          id: 'library',
+          title: 'Signal Fires',
+          artist: 'Test Artist & Band',
+          album: 'Another Album',
+          duration: 240,
+        ),
+      ],
+    );
+
+    expect(match?.id, 'library');
+  });
+
+  test('a matching album and length still decide between equals', () {
+    const seed = ArtistTopTrackSeed(
+      rank: 1,
+      title: 'Wonder',
+      artist: 'Test Artist',
+      source: ArtistTopTrackSource.deezer,
+      album: 'Second Album',
+      durationSeconds: 200,
+    );
+
+    final match = pickBestArtistTopTrackMatch(
+      track: artistTopTrackMatchQuery(seed),
+      candidates: const [
+        Song(
+          id: 'first',
+          title: 'Wonder',
+          artist: 'Test Artist',
+          album: 'First Album',
+          duration: 260,
+        ),
+        Song(
+          id: 'second',
+          title: 'Wonder',
+          artist: 'Test Artist',
+          album: 'Second Album',
+          duration: 201,
+        ),
+      ],
+    );
+
+    expect(match?.id, 'second');
+  });
+
+  test('the local pass also ignores a mismatched album and length', () async {
+    final db = database();
+    await db.libraryDao.upsertSongs([
+      SongsTableCompanion.insert(
+        id: 'library',
+        title: 'Signal Fires',
+        artistName: const Value('Test Artist & Band'),
+        albumName: const Value('Another Album'),
+        duration: const Value(240),
+      ),
+    ]);
+    final subsonic = _FakeSubsonicApiClient();
+    final container = containerWith(
+      db,
+      overrides: sourceOverrides(
+        deezer: _FakeDeezerApiClient(const [
+          DeezerTrack(
+            id: 1000,
+            title: 'Signal Fire (feat. Guest)',
+            rank: 10,
+            durationSeconds: 200,
+            artist: DeezerArtist(id: 9, name: 'Test Artist'),
+            album: DeezerAlbum(id: 1, title: 'Signal Fire (Deluxe)'),
+          ),
+        ]),
+        subsonic: subsonic,
+      ),
+    );
+
+    final emissions = await sectionEmissions(container, count: 1);
+
+    expect(emissions.single.single.resolvedSong?.id, 'library');
+    expect(subsonic.searchCallCount, 0);
+  }, skip: !sqliteAvailable);
 
   test('selects exact match from candidates', () {
     final match = pickBestArtistTopTrackMatch(

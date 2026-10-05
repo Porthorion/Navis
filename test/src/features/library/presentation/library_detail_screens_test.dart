@@ -984,7 +984,7 @@ void main() {
 
     group('artist top songs card', () {
       const artistKey = (artistId: 'artist-1', name: 'Artist 1');
-      final artistOverrides = <Object>[
+      final baseArtistOverrides = <Object>[
         artistByIdProvider('artist-1').overrideWithValue(
           const AsyncData(
             ArtistsTableData(
@@ -996,6 +996,10 @@ void main() {
             ),
           ),
         ),
+        artistInfoProvider('artist-1').overrideWithValue(const AsyncData(null)),
+      ];
+      final artistOverrides = <Object>[
+        ...baseArtistOverrides,
         artistAlbumSectionsProvider('artist-1').overrideWithValue(
           const AsyncData(
             ArtistAlbumSections(
@@ -1014,7 +1018,6 @@ void main() {
             ),
           ),
         ),
-        artistInfoProvider('artist-1').overrideWithValue(const AsyncData(null)),
       ];
 
       testWidgets(
@@ -1106,6 +1109,74 @@ void main() {
           await _disposeApp(tester);
         },
       );
+
+      for (final entry in <String, AsyncValue<ArtistAlbumSections>>{
+        'without album covers': const AsyncData(
+          ArtistAlbumSections(
+            albums: <AlbumsTableData>[
+              AlbumsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'album-1',
+                name: 'Album 1',
+                artistId: 'artist-1',
+                songsHydrated: true,
+                artists: <ArtistRef>[],
+              ),
+            ],
+          ),
+        ),
+        'while albums load': const AsyncLoading(),
+        'when albums fail to load': AsyncError(
+          StateError('albums'),
+          StackTrace.empty,
+        ),
+      }.entries) {
+        testWidgets('the shuffle card shows ${entry.key}', (tester) async {
+          await tester.pumpWidget(
+            _buildApp(
+              child: const ArtistDetailScreen(artistId: 'artist-1'),
+              database: database,
+              overrides: [
+                ...baseArtistOverrides,
+                artistAlbumSectionsProvider('artist-1')
+                    .overrideWithValue(entry.value),
+                integrationPolicyProvider.overrideWithValue(
+                  const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
+                ),
+              ],
+            ),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+
+          expect(find.text('Shuffle everything by Artist 1'), findsOneWidget);
+          await _disposeApp(tester);
+        });
+      }
+
+      testWidgets('an artist without albums gets no shuffle card', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-1'),
+            database: database,
+            overrides: [
+              ...baseArtistOverrides,
+              artistAlbumSectionsProvider('artist-1')
+                  .overrideWithValue(const AsyncData(ArtistAlbumSections())),
+              integrationPolicyProvider.overrideWithValue(
+                const IntegrationPolicy(disabledKeys: {'deezer', 'lastfm'}),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Shuffle everything by Artist 1'), findsNothing);
+        await _disposeApp(tester);
+      });
 
       testWidgets('no section song in the library also shuffles the artist', (
         tester,

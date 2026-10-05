@@ -104,14 +104,24 @@ class ArtistTopTrackMatchStore {
     return result;
   }
 
-  /// Adds [updates] to the stored entries of [artistId].
+  /// Advances on every [clear]. A resolution captures it when it starts and
+  /// passes it to [save], so results computed before a library sync cannot
+  /// land after the sync cleared the store.
+  int get generation => _generation;
+  int _generation = 0;
+
+  /// Adds [updates] to the stored entries of [artistId], unless the store
+  /// was cleared since [generation] was read.
   Future<void> save(
     String artistId,
-    Map<String, ArtistTopTrackMatchEntry> updates,
-  ) {
-    if (updates.isEmpty) return Future<void>.value();
+    Map<String, ArtistTopTrackMatchEntry> updates, {
+    required int generation,
+  }) {
+    if (updates.isEmpty || generation != _generation) {
+      return Future<void>.value();
+    }
     final previous = _saveChains[artistId] ?? Future<void>.value();
-    final next = previous.then((_) => _merge(artistId, updates));
+    final next = previous.then((_) => _merge(artistId, updates, generation));
     _saveChains[artistId] = next;
     return next.whenComplete(() {
       if (identical(_saveChains[artistId], next)) {
@@ -123,14 +133,23 @@ class ArtistTopTrackMatchStore {
   /// Completes when the saves started so far are on disk.
   Future<void> whenSaved() => Future.wait(_saveChains.values.toList());
 
-  Future<void> clear() => _cache.clearNamespace(namespace);
+  /// Forgets every artist's entries. Saves already queued are dropped, and a
+  /// save already writing finishes before the files are deleted.
+  Future<void> clear() async {
+    _generation++;
+    await whenSaved();
+    await _cache.clearNamespace(namespace);
+  }
 
   Future<void> _merge(
     String artistId,
     Map<String, ArtistTopTrackMatchEntry> updates,
+    int generation,
   ) async {
+    if (generation != _generation) return;
     final merged = await load(artistId)
       ..addAll(updates);
+    if (generation != _generation) return;
     await _cache.write(namespace, artistId, <String, Object?>{
       'v': _formatVersion,
       'keyVersion': metadataKeyVersion,

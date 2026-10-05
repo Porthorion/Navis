@@ -1444,7 +1444,8 @@ fallback.
 - **Matching** (`ArtistTopTrackResolver`): remembered matches and Deezer
   tracks the library holds as `ext-deezer-song-<id>` are read in one DAO
   query; then the local pass (`getTrackMatchCandidates` and
-  `pickBestTrackMatch`, with album and length when the source gives them);
+  `pickBestTrackMatch`; a source's album and length only add confidence and
+  never reject a song that title and artist alone accept);
   then `search3` for what is left, by 4 workers pulling from one queue (no
   batch barrier) with the provider's `CancelToken`, cancelled when the
   provider is disposed. The stream emits after the local pass when it found
@@ -1461,6 +1462,12 @@ fallback.
   `artistTopTrackMatchSyncBridgeProvider` (watched by the app shell) clears the
   namespace and the session's searches after every library sync that
   succeeded fully or partly, mirroring the ListenBrainz weekly matcher.
+  `clear()` advances the store's generation; a resolution passes the
+  generation it started under to `save`, so results computed before the sync
+  are dropped instead of written back.
+- **No-source card.** "Shuffle everything by" stays visible while the
+  artist's albums load or fail (with a placeholder when there are no covers)
+  and is hidden only when the artist has no albums.
 - **No source.** With neither source allowed, or when none of the first ten
   songs is in the library, the artist page hides the section and shows
   "Shuffle everything by <Artist>" with the artist's album covers, which calls
