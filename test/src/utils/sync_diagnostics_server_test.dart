@@ -2412,134 +2412,143 @@ void main() {
     },
   );
 
-  test('release sheet control taps a card or dismisses, clone-only', () async {
-    final presentation = _MockPresentationController();
-    when(
-      () => presentation.tapReleaseCard(
-        surface: any(named: 'surface'),
-        index: any(named: 'index'),
-        location: any(named: 'location'),
-      ),
-    ).thenAnswer(
-      (_) async => const DiagnosticsReleaseCardResult(
-        outcome: 'sheet',
-        location: '/home',
-      ),
-    );
-    when(presentation.dismissReleaseSheet).thenAnswer((_) async {});
-    final fixture = await _startFixture(
-      SyncDiagnosticsMode.clone,
-      presentationController: presentation,
-    );
-    addTearDown(fixture.close);
-    Future<_Response> post(Map<String, Object?> body) => _request(
-      fixture.port,
-      '/v1/presentation/release-sheet',
-      method: 'POST',
-      token: fixture.token,
-      body: body,
-    );
-    final unauthorized = await _request(
-      fixture.port,
-      '/v1/presentation/release-sheet',
-      method: 'POST',
-      body: const {'dismiss': true},
-    );
-    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+  test(
+    'release card control taps a card and reports its page, clone-only',
+    () async {
+      final presentation = _MockPresentationController();
+      when(
+        () => presentation.tapReleaseCard(
+          surface: any(named: 'surface'),
+          index: any(named: 'index'),
+          location: any(named: 'location'),
+        ),
+      ).thenAnswer(
+        (_) async => const DiagnosticsReleaseCardResult(
+          outcome: 'albumPage',
+          location: '/library/albums/ext-deezer-album-1',
+        ),
+      );
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+      Future<_Response> post(Map<String, Object?> body) => _request(
+        fixture.port,
+        '/v1/presentation/release-card',
+        method: 'POST',
+        token: fixture.token,
+        body: body,
+      );
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/release-card',
+        method: 'POST',
+        body: const {'surface': 'newReleases'},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
 
-    for (final body in <Map<String, Object?>>[
-      {},
-      {'dismiss': false},
-      {'dismiss': true, 'surface': 'newReleases'},
-      {'surface': 'artists', 'index': 0},
-      {'surface': 'newReleases', 'index': -1},
-      {'surface': 'newReleases', 'index': '0'},
-      {'surface': 'newReleases', 'index': 0, 'extra': 1},
-      {'index': 0},
-    ]) {
-      final response = await post(body);
-      expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
-    }
-    verifyNever(presentation.dismissReleaseSheet);
+      for (final body in <Map<String, Object?>>[
+        {},
+        // The release sheet and its dismissal are gone.
+        {'dismiss': true},
+        {'dismiss': true, 'surface': 'newReleases'},
+        {'surface': 'artists', 'index': 0},
+        {'surface': 'newReleases', 'index': -1},
+        {'surface': 'newReleases', 'index': '0'},
+        {'surface': 'newReleases', 'index': 0, 'extra': 1},
+        {'index': 0},
+      ]) {
+        final response = await post(body);
+        expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
 
-    final tapped = await post({'surface': 'missingAlbums', 'index': 2});
-    expect(tapped.statusCode, HttpStatus.ok);
-    expect(tapped.body, {'outcome': 'sheet', 'location': '/home'});
-    verify(
-      () => presentation.tapReleaseCard(
-        surface: 'missingAlbums',
-        index: 2,
-        location: any(named: 'location'),
-      ),
-    ).called(1);
-    // The index defaults to the first card.
-    expect((await post({'surface': 'newReleases'})).statusCode, HttpStatus.ok);
-    verify(
-      () => presentation.tapReleaseCard(
-        surface: 'newReleases',
-        index: 0,
-        location: any(named: 'location'),
-      ),
-    ).called(1);
+      final tapped = await post({'surface': 'missingAlbums', 'index': 2});
+      expect(tapped.statusCode, HttpStatus.ok);
+      expect(tapped.body, {
+        'outcome': 'albumPage',
+        'location': '/library/albums/ext-deezer-album-1',
+      });
+      verify(
+        () => presentation.tapReleaseCard(
+          surface: 'missingAlbums',
+          index: 2,
+          location: any(named: 'location'),
+        ),
+      ).called(1);
+      // The index defaults to the first card.
+      expect(
+        (await post({'surface': 'newReleases'})).statusCode,
+        HttpStatus.ok,
+      );
+      verify(
+        () => presentation.tapReleaseCard(
+          surface: 'newReleases',
+          index: 0,
+          location: any(named: 'location'),
+        ),
+      ).called(1);
 
-    final dismissed = await post({'dismiss': true});
-    expect(dismissed.statusCode, HttpStatus.ok);
-    expect(dismissed.body, {'outcome': 'dismissed'});
-    verify(presentation.dismissReleaseSheet).called(1);
+      when(
+        () => presentation.tapReleaseCard(
+          surface: any(named: 'surface'),
+          index: any(named: 'index'),
+          location: any(named: 'location'),
+        ),
+      ).thenThrow(const DiagnosticsPresentationOutOfRange(3));
+      expect(
+        (await post({'surface': 'newReleases', 'index': 5})).statusCode,
+        HttpStatus.notFound,
+      );
+      when(
+        () => presentation.tapReleaseCard(
+          surface: any(named: 'surface'),
+          index: any(named: 'index'),
+          location: any(named: 'location'),
+        ),
+      ).thenThrow(const DiagnosticsPresentationUnavailable());
+      expect(
+        (await post({'surface': 'newReleases'})).statusCode,
+        HttpStatus.conflict,
+      );
+      // The old path no longer exists.
+      final retired = await _request(
+        fixture.port,
+        '/v1/presentation/release-sheet',
+        method: 'POST',
+        token: fixture.token,
+        body: const {'surface': 'newReleases'},
+      );
+      expect(retired.statusCode, HttpStatus.notFound);
+      await fixture.close();
 
-    when(
-      () => presentation.tapReleaseCard(
-        surface: any(named: 'surface'),
-        index: any(named: 'index'),
-        location: any(named: 'location'),
-      ),
-    ).thenThrow(const DiagnosticsPresentationOutOfRange(3));
-    expect(
-      (await post({'surface': 'newReleases', 'index': 5})).statusCode,
-      HttpStatus.notFound,
-    );
-    when(
-      () => presentation.tapReleaseCard(
-        surface: any(named: 'surface'),
-        index: any(named: 'index'),
-        location: any(named: 'location'),
-      ),
-    ).thenThrow(const DiagnosticsPresentationUnavailable());
-    expect(
-      (await post({'surface': 'newReleases'})).statusCode,
-      HttpStatus.conflict,
-    );
-    when(presentation.dismissReleaseSheet)
-        .thenThrow(const DiagnosticsPresentationUnavailable());
-    expect((await post({'dismiss': true})).statusCode, HttpStatus.conflict);
-    await fixture.close();
+      final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(noSurface.close);
+      final missing = await _request(
+        noSurface.port,
+        '/v1/presentation/release-card',
+        method: 'POST',
+        token: noSurface.token,
+        body: const {'surface': 'newReleases'},
+      );
+      expect(missing.statusCode, HttpStatus.serviceUnavailable);
+      await noSurface.close();
 
-    final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
-    addTearDown(noSurface.close);
-    final missing = await _request(
-      noSurface.port,
-      '/v1/presentation/release-sheet',
-      method: 'POST',
-      token: noSurface.token,
-      body: const {'dismiss': true},
-    );
-    expect(missing.statusCode, HttpStatus.serviceUnavailable);
-    await noSurface.close();
-
-    final primary = await _startFixture(
-      SyncDiagnosticsMode.primaryCertification,
-      presentationController: presentation,
-    );
-    addTearDown(primary.close);
-    final forbidden = await _request(
-      primary.port,
-      '/v1/presentation/release-sheet',
-      method: 'POST',
-      token: primary.token,
-      body: const {'dismiss': true},
-    );
-    expect(forbidden.statusCode, HttpStatus.forbidden);
-  });
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        presentationController: presentation,
+      );
+      addTearDown(primary.close);
+      final forbidden = await _request(
+        primary.port,
+        '/v1/presentation/release-card',
+        method: 'POST',
+        token: primary.token,
+        body: const {'surface': 'newReleases'},
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+    },
+  );
 
   test('adjustments can open only the Now Playing settings sheet', () async {
     final presentation = _MockPresentationController();

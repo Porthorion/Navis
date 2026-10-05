@@ -9,16 +9,14 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
-import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
-import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -79,7 +77,12 @@ HomeNewRelease _release(
 void main() {
   late NavisDatabase database;
 
-  setUp(() => database = createTestDatabase());
+  Uri? lastAlbumUri;
+
+  setUp(() {
+    database = createTestDatabase();
+    lastAlbumUri = null;
+  });
   tearDown(() => database.close());
 
   Future<List<String>> pumpHome(
@@ -89,6 +92,7 @@ void main() {
     bool downloadedOnly = false,
     List<Override> overrides = const <Override>[],
     DiagnosticsPresentationController? presentation,
+    Widget Function(String albumId)? albumPage,
   }) async {
     final openedAlbums = <String>[];
     final router = GoRouter(
@@ -102,7 +106,8 @@ void main() {
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             openedAlbums.add(id);
-            return Scaffold(body: Text('album:$id'));
+            lastAlbumUri = state.uri;
+            return albumPage?.call(id) ?? Scaffold(body: Text('album:$id'));
           },
         ),
       ],
@@ -212,96 +217,27 @@ void main() {
     verifyNever(() => api.getAlbum(any()));
   });
 
-  testWidgets('a remote album the server confirms opens on the server', (
-    tester,
-  ) async {
-    final api = _Api();
-    when(
-      () => api.getAlbum('ext-deezer-album-1'),
-    ).thenAnswer((_) async => const Album(id: 'ext-deezer-album-1', name: 'E'));
-    final opened = await pumpHome(
-      tester,
-      api: api,
-      releases: (ref) => releases,
-    );
-    await tester.tap(find.text('Encore'));
-    await tester.pumpAndSettle();
-    expect(opened, <String>['ext-deezer-album-1']);
-  });
-
-  testWidgets('otherwise the release sheet shows its day and tracklist', (
-    tester,
-  ) async {
-    final api = _Api();
-    when(() => api.getAlbum(any())).thenThrow(
-      const SubsonicApiException(code: 70, message: 'Album not found'),
-    );
-    final opened = await pumpHome(
-      tester,
-      api: api,
-      releases: (ref) => releases,
-      overrides: <Override>[
-        deezerReleaseDetailsProvider.overrideWith(
-          (ref, key) async => const DeezerAlbum(
-            id: 1,
-            title: 'Encore',
-            recordType: 'single',
-            trackCount: 2,
-            tracks: <DeezerTrack>[
-              DeezerTrack(
-                id: 11,
-                title: 'Encore',
-                durationSeconds: 209,
-                artist: DeezerArtist(id: 1, name: 'Artist 1'),
-              ),
-              DeezerTrack(
-                id: 12,
-                title: 'Encore (Acoustic)',
-                durationSeconds: 61,
-                artist: DeezerArtist(id: 1, name: 'Artist 1'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-    await tester.tap(find.text('Encore'));
-    await tester.pumpAndSettle();
-    expect(opened, isEmpty);
-    expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
-    expect(find.text('Oct 2, 2026 • Single • 2 songs'), findsOneWidget);
-    final tracklist = find.byKey(
-      const ValueKey<String>('deezer-release-tracklist'),
-    );
-    expect(
-      find.descendant(of: tracklist, matching: find.text('Encore (Acoustic)')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: tracklist, matching: find.text('3:29')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: tracklist, matching: find.text('1:01')),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('without a server the release sheet opens at once', (
-    tester,
-  ) async {
-    final opened = await pumpHome(
-      tester,
-      releases: (ref) => releases,
-      overrides: <Override>[
-        deezerReleaseDetailsProvider.overrideWith((ref, key) async => null),
-      ],
-    );
-    await tester.tap(find.text('Side B'));
-    await tester.pumpAndSettle();
-    expect(opened, isEmpty);
-    expect(find.text('Sep 28, 2026 • EP'), findsOneWidget);
-  });
+  testWidgets(
+    'a release the library lacks opens the server remote album, named',
+    (tester) async {
+      final api = _Api();
+      final opened = await pumpHome(
+        tester,
+        api: api,
+        releases: (ref) => releases,
+      );
+      await tester.tap(find.text('Encore'));
+      await tester.pumpAndSettle();
+      expect(opened, <String>['ext-deezer-album-1']);
+      // The page shows and searches for these while it loads the album.
+      expect(lastAlbumUri?.queryParameters, <String, String>{
+        AppRoutes.detailNameParam: 'Encore',
+        AppRoutes.detailArtistParam: 'Artist 1',
+      });
+      // The album page asks the server; the tap itself does not wait on it.
+      verifyNever(() => api.getAlbum(any()));
+    },
+  );
 
   group('diagnostics release card control', () {
     late DiagnosticsPresentationController presentation;
@@ -329,12 +265,9 @@ void main() {
       timeout: timeout,
     );
 
-    final failingServer = _Api();
-
     testWidgets('a library release reports the album page', (tester) async {
       final opened = await pumpHome(
         tester,
-        api: failingServer,
         presentation: presentation,
         releases: (ref) => <HomeNewRelease>[
           _release(1, 'Encore', DateTime(2026, 10, 2), libraryAlbumId: 'lib-1'),
@@ -345,52 +278,51 @@ void main() {
       expect(opened, <String>['lib-1']);
     });
 
-    testWidgets('a remote album the server has reports the album page', (
+    testWidgets('a remote album the page shows reports the album page', (
       tester,
     ) async {
-      final api = _Api();
-      when(() => api.getAlbum('ext-deezer-album-2')).thenAnswer(
-        (_) async => const Album(id: 'ext-deezer-album-2', name: 'S'),
-      );
       final opened = await pumpHome(
         tester,
-        api: api,
         presentation: presentation,
         releases: (ref) => releases,
       );
       final result = await tap(opened, index: 1);
       expect(result.outcome, 'albumPage');
-      expect(opened, <String>['ext-deezer-album-2']);
+      expect(result.location, 'ext-deezer-album-2');
     });
 
-    testWidgets('an unknown release opens the sheet, which can be dismissed', (
+    testWidgets('a remote album the server cannot provide reports failed', (
       tester,
     ) async {
-      final api = _Api();
-      when(() => api.getAlbum(any())).thenThrow(
-        const SubsonicApiException(code: 70, message: 'Album not found'),
-      );
       final opened = await pumpHome(
         tester,
-        api: api,
         presentation: presentation,
         releases: (ref) => releases,
-        overrides: <Override>[
-          deezerReleaseDetailsProvider.overrideWith((ref, key) async => null),
-        ],
+        albumPage: (id) => const Scaffold(
+          body: Text('Retry', key: DetailLoadFailedView.failedKey),
+        ),
       );
       final result = await tap(opened);
-      expect(result.outcome, 'sheet');
-      expect(opened, isEmpty);
-      expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
+      expect(result.outcome, 'failed');
+      expect(opened, <String>['ext-deezer-album-1']);
+    });
 
-      await presentation.dismissReleaseSheet();
-      await tester.pumpAndSettle();
-      expect(find.byType(DeezerReleaseSheetBody), findsNothing);
-      await expectLater(
-        presentation.dismissReleaseSheet(),
-        throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    testWidgets('a page still loading at the end of the wait reports loading', (
+      tester,
+    ) async {
+      final opened = await pumpHome(
+        tester,
+        presentation: presentation,
+        releases: (ref) => releases,
+        albumPage: (id) => const Scaffold(
+          body: Text('Loading', key: DetailLoadingView.loadingKey),
+        ),
       );
+      final result = await tap(
+        opened,
+        timeout: const Duration(milliseconds: 200),
+      );
+      expect(result.outcome, 'loading');
     });
 
     testWidgets('rejects an index past the cards and unknown surfaces', (

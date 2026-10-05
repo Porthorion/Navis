@@ -2367,20 +2367,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deezerReleaseTypeCompilation => 'Compilation';
 
   @override
-  String deezerReleaseTrackCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count songs',
-      one: '1 song',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get deezerReleaseSearchServer => 'Search your server';
-
-  @override
   String get artistDetailAlbumsErrorTitle => 'Could Not Load Artist Albums';
 
   @override
@@ -2388,6 +2374,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artistDetailLoadingLabel => 'Loading Artist Details';
+
+  @override
+  String get artistDetailLoadingRemote => 'Loading Remote Artist…';
+
+  @override
+  String get artistDetailLoadingServer => 'Loading Artist…';
+
+  @override
+  String get artistDetailLoadFailedTitle => 'Could Not Load This Artist';
+
+  @override
+  String get artistDetailRefreshError =>
+      'Could not refresh this artist. Check your connection and try again.';
+
+  @override
+  String get detailLoadFailedMessage =>
+      'Your server could not provide it right now.';
+
+  @override
+  String detailSearchFor(String name) {
+    return 'Search for $name';
+  }
+
+  @override
+  String get detailRefreshAction => 'Refresh';
 
   @override
   String get artistTopTracksSection => 'Top Tracks';
@@ -2436,13 +2447,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailTitle => 'Album';
 
   @override
-  String get albumDetailNotFoundTitle => 'Album Not Found';
-
-  @override
-  String get albumDetailNotFoundSubtitle =>
-      'This album is not available in local data.';
-
-  @override
   String get albumDetailUnknownArtist => 'Unknown artist';
 
   @override
@@ -2487,6 +2491,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get albumDetailRefreshError =>
       'Could not refresh this album. Check your connection and try again.';
+
+  @override
+  String get albumDetailLoadingRemote => 'Loading Remote Album…';
+
+  @override
+  String get albumDetailLoadingServer => 'Loading Album…';
+
+  @override
+  String get albumDetailLoadFailedTitle => 'Could Not Load This Album';
 
   @override
   String get albumDetailPlayAction => 'Play';

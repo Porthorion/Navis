@@ -19,7 +19,6 @@ import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
-import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
 import 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
@@ -88,19 +87,6 @@ const _mobileContext = AdaptiveContext(
   useRailNavigation: false,
 );
 
-const _desktopContext = AdaptiveContext(
-  desktopRuntime: true,
-  desktopWide: true,
-  desktopLayoutClass: DesktopLayoutClass.standardDesktop,
-  adaptiveLayoutClass: AdaptiveLayoutClass.tabletExpanded,
-  adaptiveShellMode: AdaptiveShellMode.standardRail,
-  isPhoneFormFactor: false,
-  useDesktopShell: true,
-  useStandardRailNavigation: false,
-  useCompactWideLandscape: false,
-  useRailNavigation: false,
-);
-
 AlbumsTableData _album(String id, String name, {int year = 2022}) =>
     AlbumsTableData(
       isProvisional: false,
@@ -127,8 +113,12 @@ DeezerAlbum _deezerAlbum(
   coverBig: 'https://cdn-images.dzcdn.net/images/cover/$id/500x500.jpg',
 );
 
-/// Pages: the artist page, any other artist, and search.
-GoRouter _router() => GoRouter(
+/// The router of the last [_router] call, for its location.
+late GoRouter _currentRouter;
+
+/// Pages: the artist page, any other artist (with the name it was opened
+/// with), any album (with its title and artist), and search.
+GoRouter _router() => _currentRouter = GoRouter(
   initialLocation: AppRoutes.artist(_artistId),
   routes: <RouteBase>[
     GoRoute(
@@ -139,7 +129,18 @@ GoRouter _router() => GoRouter(
           path: AppRoutes.artistSegment,
           builder: (_, state) => state.pathParameters['id'] == _artistId
               ? const ArtistDetailScreen(artistId: _artistId)
-              : Text('Artist ${state.pathParameters['id']}'),
+              : Text(
+                  'Artist ${state.pathParameters['id']} '
+                  '${state.uri.queryParameters[AppRoutes.detailNameParam]}',
+                ),
+        ),
+        GoRoute(
+          path: AppRoutes.albumSegment,
+          builder: (_, state) => Text(
+            'Album ${state.pathParameters['id']} | '
+            '${state.uri.queryParameters[AppRoutes.detailNameParam]} | '
+            '${state.uri.queryParameters[AppRoutes.detailArtistParam]}',
+          ),
         ),
       ],
     ),
@@ -225,15 +226,6 @@ void main() {
         ),
         artistDeezerAlbumsProvider(_key)
             .overrideWith((ref) async => deezerAlbums),
-        deezerReleaseDetailsProvider.overrideWith(
-          (ref, key) async => DeezerAlbum(
-            id: key.albumId,
-            title: 'details',
-            recordType: 'album',
-            releaseDate: '2017-01-11',
-            trackCount: 14,
-          ),
-        ),
       ],
       child: (presentation?.wrap ?? (Widget child) => child)(
         AdaptiveContextScope(
@@ -485,7 +477,12 @@ void main() {
     );
     const entries = [
       SimilarArtistEntry(name: 'MY FIRST STORY', libraryArtistId: 'lib-mfs'),
-      SimilarArtistEntry(name: 'Coldrain', imageUrl: 'https://x/c.jpg'),
+      SimilarArtistEntry(
+        name: 'Coldrain',
+        deezerArtistId: 4321,
+        imageUrl: 'https://x/c.jpg',
+      ),
+      SimilarArtistEntry(name: 'No Id', imageUrl: 'https://x/n.jpg'),
     ];
 
     testWidgets('replaces Similar Artists, library artists first', (
@@ -575,29 +572,44 @@ void main() {
       await dispose(tester);
     });
 
-    testWidgets('an artist outside the library opens search, a library '
-        'artist its page', (tester) async {
+    testWidgets('an artist outside the library opens the server remote '
+        'artist page, never search or "Artist Not Found"', (tester) async {
       await tester.pumpWidget(app(fansAlsoLike: entries));
       await tester.pumpAndSettle();
       await scrollTo(tester, find.text('Coldrain'));
 
       await tester.tap(find.text('Coldrain'));
       await tester.pumpAndSettle();
-      expect(find.text('SearchScreen'), findsOneWidget);
-      final container = ProviderScope.containerOf(
-        tester.element(find.text('SearchScreen')),
+      expect(
+        find.text('Artist ext-deezer-artist-4321 Coldrain'),
+        findsOneWidget,
       );
-      expect(container.read(searchQueryProvider), 'Coldrain');
-      expect(container.read(searchFilterProvider), SearchResultType.artists);
+      expect(find.text('SearchScreen'), findsNothing);
       expect(find.text('Artist Not Found'), findsNothing);
       await dispose(tester);
+    });
 
+    testWidgets('a library artist opens its page; one without a Deezer id '
+        'opens search', (tester) async {
       await tester.pumpWidget(app(fansAlsoLike: entries));
       await tester.pumpAndSettle();
       await scrollTo(tester, find.text('MY FIRST STORY'));
       await tester.tap(find.text('MY FIRST STORY'));
       await tester.pumpAndSettle();
-      expect(find.text('Artist lib-mfs'), findsOneWidget);
+      expect(find.text('Artist lib-mfs null'), findsOneWidget);
+      await dispose(tester);
+
+      await tester.pumpWidget(app(fansAlsoLike: entries));
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.text('No Id'));
+      await tester.tap(find.text('No Id'));
+      await tester.pumpAndSettle();
+      expect(find.text('SearchScreen'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.text('SearchScreen')),
+      );
+      expect(container.read(searchQueryProvider), 'No Id');
+      expect(container.read(searchFilterProvider), SearchResultType.artists);
       await dispose(tester);
     });
   });
@@ -636,7 +648,7 @@ void main() {
       await dispose(tester);
     });
 
-    testWidgets('a card opens the release sheet, which searches the server', (
+    testWidgets('a card opens the server remote album page, named', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -647,27 +659,17 @@ void main() {
 
       await tester.tap(find.byType(ExternalAlbumCard));
       await tester.pumpAndSettle();
-      expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
-      expect(find.text('2017 • Album • 14 songs'), findsOneWidget);
-
-      await tester.tap(
-        find.byKey(const ValueKey<String>('deezer-release-search-server')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byType(DeezerReleaseSheetBody), findsNothing);
-      expect(find.text('SearchScreen'), findsOneWidget);
-      final container = ProviderScope.containerOf(
-        tester.element(find.text('SearchScreen')),
-      );
       expect(
-        container.read(searchQueryProvider),
-        'Ambitions (Japanese Version) ONE OK ROCK',
+        find.text(
+          'Album ext-deezer-album-2 | Ambitions (Japanese Version) | '
+          'ONE OK ROCK',
+        ),
+        findsOneWidget,
       );
-      expect(container.read(searchFilterProvider), SearchResultType.albums);
       await dispose(tester);
     });
 
-    testWidgets('the diagnostics control taps a card and closes the sheet', (
+    testWidgets('the diagnostics control taps a card and reports the page', (
       tester,
     ) async {
       final root = Directory.systemTemp.createTempSync('navis_missing_card_');
@@ -687,51 +689,24 @@ void main() {
       await tester.pumpAndSettle();
       await scrollTo(tester, find.byType(ExternalAlbumCard));
 
+      String location() => _currentRouter.state.uri.path;
       final result = await presentation.tapReleaseCard(
         surface: 'missingAlbums',
         index: 0,
-        location: () => null,
+        location: location,
       );
       await tester.pumpAndSettle();
-      expect(result.outcome, 'sheet');
-      expect(find.byType(DeezerReleaseSheetBody), findsOneWidget);
-
-      await presentation.dismissReleaseSheet();
-      await tester.pumpAndSettle();
-      expect(find.byType(DeezerReleaseSheetBody), findsNothing);
+      expect(result.outcome, 'albumPage');
+      expect(result.location, AppRoutes.album('ext-deezer-album-2'));
       await expectLater(
         presentation.tapReleaseCard(
           surface: 'missingAlbums',
-          index: 1,
-          location: () => null,
+          index: 0,
+          location: location,
         ),
-        throwsA(isA<DiagnosticsPresentationOutOfRange>()),
+        // The album page now covers the artist page's shelf.
+        throwsA(isA<DiagnosticsPresentationUnavailable>()),
       );
-      await dispose(tester);
-    });
-
-    testWidgets('on desktop the release opens as a dialog', (tester) async {
-      setAdaptiveTestViewport(tester, const Size(1280, 800));
-      await tester.pumpWidget(
-        app(
-          adaptiveContext: _desktopContext,
-          deezerAlbums: [_deezerAlbum(2, 'Ambitions (Japanese Version)')],
-        ),
-      );
-      await tester.pumpAndSettle();
-      await scrollTo(tester, find.byType(ExternalAlbumCard));
-
-      await tester.tap(find.byType(ExternalAlbumCard));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.descendant(
-          of: find.byType(Dialog),
-          matching: find.byType(DeezerReleaseSheetBody),
-        ),
-        findsOneWidget,
-      );
-      expect(find.byType(BottomSheet), findsNothing);
       await dispose(tester);
     });
 

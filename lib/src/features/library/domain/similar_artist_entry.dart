@@ -5,18 +5,24 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// One artist in a "Similar Artists" or "Fans Also Like" grid.
 ///
 /// A library artist ([libraryArtistId] set) shows its library art and opens
-/// its artist page. Any other artist shows [imageUrl] and opens search, so a
-/// tap never lands on an "Artist Not Found" page.
+/// its artist page. A Deezer artist outside the library shows [imageUrl] and
+/// opens the server's remote artist `ext-deezer-artist-<deezerArtistId>`,
+/// whose page offers a search when the server cannot provide it; an artist
+/// with neither id opens search.
 class SimilarArtistEntry {
   const new({
     required this.name,
     this.libraryArtistId,
+    this.deezerArtistId,
     this.coverArt,
     this.imageUrl,
   });
 
   final String name;
   final String? libraryArtistId;
+
+  /// The Deezer id of an artist outside the library.
+  final int? deezerArtistId;
 
   /// The library cover-art id.
   final String? coverArt;
@@ -59,6 +65,7 @@ List<SimilarArtistEntry> fansAlsoLikeEntries({
       elsewhere.add(
         SimilarArtistEntry(
           name: artist.name,
+          deezerArtistId: artist.id > 0 ? artist.id : null,
           imageUrl: artist.pictureXl ?? artist.pictureBig,
         ),
       );

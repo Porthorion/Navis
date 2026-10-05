@@ -294,6 +294,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey,
                       child: ArtistDetailScreen(
                         artistId: state.pathParameters['id']!,
+                        nameHint: state
+                            .uri
+                            .queryParameters[AppRoutes.detailNameParam],
                       ),
                     ),
                     routes: <RouteBase>[
@@ -325,6 +328,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         child: AlbumDetailScreen(
                           albumId: state.pathParameters['id']!,
                           openingHeroTag: request.openingHeroTag,
+                          nameHint: state
+                              .uri
+                              .queryParameters[AppRoutes.detailNameParam],
+                          artistNameHint: state
+                              .uri
+                              .queryParameters[AppRoutes.detailArtistParam],
                         ),
                       );
                     },

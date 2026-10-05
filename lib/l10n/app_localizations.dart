@@ -3689,18 +3689,6 @@ abstract class AppLocalizations {
   /// **'Compilation'**
   String get deezerReleaseTypeCompilation;
 
-  /// No description provided for @deezerReleaseTrackCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 song} other{{count} songs}}'**
-  String deezerReleaseTrackCount(int count);
-
-  /// No description provided for @deezerReleaseSearchServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Search your server'**
-  String get deezerReleaseSearchServer;
-
   /// No description provided for @artistDetailAlbumsErrorTitle.
   ///
   /// In en, this message translates to:
@@ -3718,6 +3706,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading Artist Details'**
   String get artistDetailLoadingLabel;
+
+  /// Shown while an artist from the server's remote catalogue (such as Deezer through Octo-Fiesta) is fetched before its page can show.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Remote Artist…'**
+  String get artistDetailLoadingRemote;
+
+  /// Shown while an artist the library has not stored yet is fetched from the server before its page can show.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Artist…'**
+  String get artistDetailLoadingServer;
+
+  /// No description provided for @artistDetailLoadFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load This Artist'**
+  String get artistDetailLoadFailedTitle;
+
+  /// No description provided for @artistDetailRefreshError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not refresh this artist. Check your connection and try again.'**
+  String get artistDetailRefreshError;
+
+  /// Under 'Could Not Load This Artist/Album' when the server did not return a remote or unsynced artist or album.
+  ///
+  /// In en, this message translates to:
+  /// **'Your server could not provide it right now.'**
+  String get detailLoadFailedMessage;
+
+  /// Fallback action on an artist or album page that could not be loaded: searches for the artist or album by name.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for {name}'**
+  String detailSearchFor(String name);
+
+  /// No description provided for @detailRefreshAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get detailRefreshAction;
 
   /// No description provided for @artistTopTracksSection.
   ///
@@ -3797,18 +3827,6 @@ abstract class AppLocalizations {
   /// **'Album'**
   String get albumDetailTitle;
 
-  /// No description provided for @albumDetailNotFoundTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Album Not Found'**
-  String get albumDetailNotFoundTitle;
-
-  /// No description provided for @albumDetailNotFoundSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'This album is not available in local data.'**
-  String get albumDetailNotFoundSubtitle;
-
   /// No description provided for @albumDetailUnknownArtist.
   ///
   /// In en, this message translates to:
@@ -3868,6 +3886,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not refresh this album. Check your connection and try again.'**
   String get albumDetailRefreshError;
+
+  /// Shown while an album from the server's remote catalogue (such as Deezer through Octo-Fiesta) and its tracks are fetched before its page can show.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Remote Album…'**
+  String get albumDetailLoadingRemote;
+
+  /// Shown while an album the library has not stored yet is fetched from the server before its page can show.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Album…'**
+  String get albumDetailLoadingServer;
+
+  /// No description provided for @albumDetailLoadFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load This Album'**
+  String get albumDetailLoadFailedTitle;
 
   /// No description provided for @albumDetailPlayAction.
   ///

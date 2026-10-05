@@ -28,7 +28,10 @@ import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -41,17 +44,29 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
+/// An album's page. An album the library does not hold yet, or a remote
+/// (`ext-…`) album without tracks, is fetched from the server first: the page
+/// shows "Loading Remote Album…" until it has the album's title and tracks.
+/// When the server cannot provide it, the page offers Retry and a search for
+/// [nameHint] (with [artistNameHint]).
 class AlbumDetailScreen extends ConsumerStatefulWidget {
   const new({
     required this.albumId,
     this.likedOnly = false,
     this.openingHeroTag,
+    this.nameHint,
+    this.artistNameHint,
     super.key,
   });
 
   final String albumId;
   final bool likedOnly;
   final String? openingHeroTag;
+
+  /// The caller's title and artist for the album, shown and searched for
+  /// until the library holds the album.
+  final String? nameHint;
+  final String? artistNameHint;
 
   @override
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
@@ -62,6 +77,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarring = false;
   bool _isUpdatingRating = false;
   bool _isRefreshingAlbum = false;
+
+  /// The page's request for the album, which only matters while the page has
+  /// nothing to show (see [_showsAlbum]).
+  DetailHydrationPhase _hydration = DetailHydrationPhase.running;
   late bool _showLikedOnly = widget.likedOnly;
   bool _showDownloadedOnly = false;
 
@@ -77,10 +96,105 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   @override
   void initState() {
     super.initState();
-    ref
-        .read(librarySyncControllerProvider.notifier)
-        .registerAlbumInteraction(widget.albumId);
+    unawaited(
+      _hydrate(
+        ref
+            .read(librarySyncControllerProvider.notifier)
+            .hydrateOpenedAlbum(widget.albumId),
+      ),
+    );
     _scrollController.addListener(_onScroll);
+  }
+
+  /// Waits for [request] and records what it left in the library: failed
+  /// when the server did not answer, or the album (or a remote album's
+  /// tracks) is still not stored.
+  Future<DetailHydrationPhase> _hydrate(
+    Future<LibrarySyncState?> request,
+  ) async {
+    DetailHydrationPhase phase;
+    try {
+      phase = detailHydrationPhaseFor(await request);
+    } on Object {
+      phase = DetailHydrationPhase.failed;
+    }
+    if (!mounted) return phase;
+    final stored = await ref
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .getAlbumById(widget.albumId);
+    if (stored == null || (_isRemote(stored) && !stored.songsHydrated)) {
+      phase = DetailHydrationPhase.failed;
+    }
+    if (mounted) setState(() => _hydration = phase);
+    return phase;
+  }
+
+  bool _isRemote(AlbumsTableData? album) => isExternalCatalogSource(
+    id: widget.albumId,
+    apiIsExternal: album?.isExternal,
+  );
+
+  /// Whether the page has enough to show the album: a stored library album,
+  /// or a remote album with its tracks (or one the server confirmed has
+  /// none).
+  bool _showsAlbum(AlbumWithSongs? data) {
+    if (data == null) return false;
+    return !_isRemote(data.album) ||
+        data.songs.isNotEmpty ||
+        data.album.songsHydrated;
+  }
+
+  /// "Loading Remote Album…" while the album is fetched, or Retry and a
+  /// search when the server could not provide it.
+  Widget _buildPendingBody(BuildContext context, AlbumsTableData? album) {
+    final l10n = AppLocalizations.of(context)!;
+    final isRemote = _isRemote(album);
+    final name = album?.name ?? _nonBlank(widget.nameHint);
+    final artistName = album?.artistName ?? _nonBlank(widget.artistNameHint);
+    final artwork = CoverArtImage(
+      coverArtId: album?.coverArt,
+      revision: album?.coverArtRevision ?? 0,
+      width: kDetailStateArtworkExtent,
+      height: kDetailStateArtworkExtent,
+      shape: ArtworkShapeRole.cover,
+      placeholderIcon: Icons.album_outlined,
+      isExternalSource: isRemote,
+      remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+    );
+    final Widget body;
+    if (_hydration == DetailHydrationPhase.failed) {
+      body = DetailLoadFailedView(
+        title: l10n.albumDetailLoadFailedTitle,
+        artwork: artwork,
+        name: name,
+        isRemote: isRemote,
+        onRetry: () => unawaited(_refreshAlbum()),
+        onSearch: name == null
+            ? null
+            : () => NavService.openSearch(
+                context,
+                ref,
+                <String>[name, ?artistName].join(' '),
+                filter: SearchResultType.albums,
+              ),
+      );
+    } else {
+      body = DetailLoadingView(
+        status: isRemote
+            ? l10n.albumDetailLoadingRemote
+            : l10n.albumDetailLoadingServer,
+        artwork: artwork,
+        name: name,
+        isRemote: isRemote,
+        content: const DetailTrackListOutline(),
+      );
+    }
+    if (!resolveAdaptiveContextFor(context).useDesktopShell) return body;
+    return DesktopFrame(
+      layoutClass: resolveDesktopLayoutClass(MediaQuery.sizeOf(context).width),
+      child: body,
+    );
   }
 
   @override
@@ -112,22 +226,35 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final desktopMode = adaptiveContext.useDesktopShell;
     final compactWideMode = adaptiveContext.useCompactWideLandscape;
+    final showsAlbum = _showsAlbum(album.value);
 
     return Scaffold(
-      // AppBar is only shown on desktop or when album data is still loading/errored.
+      // AppBar is only shown on desktop or until the album can show.
       // The mobile data state uses a custom SliverAppBar with overlay nav buttons.
-      appBar: (desktopMode || album.asData?.value == null)
+      appBar: (desktopMode || !showsAlbum)
           ? AppBar(
+              // The page always offers a way back, even when it was opened
+              // without history while the album loads.
+              leading: showsAlbum
+                  ? null
+                  : BackButton(
+                      onPressed: () =>
+                          NavService.back(context, fallback: AppRoutes.library),
+                    ),
               // Once loaded, the header's large album title names the page.
-              title: album.asData?.value == null
-                  ? Text(l10n.albumDetailTitle)
-                  : null,
+              title: showsAlbum
+                  ? null
+                  : Text(
+                      album.value?.album.name ??
+                          _nonBlank(widget.nameHint) ??
+                          l10n.albumDetailTitle,
+                    ),
               backgroundColor: desktopMode
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
               actions: <Widget>[
                 IconButton(
-                  tooltip: l10n.commonRetry,
+                  tooltip: l10n.detailRefreshAction,
                   onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
                   icon: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 180),
@@ -151,18 +278,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         children: <Widget>[
           album.when(
             data: (data) {
-              if (data == null) {
-                return EmptyState(
-                  title: l10n.albumDetailNotFoundTitle,
-                  subtitle: l10n.albumDetailNotFoundSubtitle,
-                  icon: Icons.album_outlined,
-                  action: OutlinedButton.icon(
-                    key: const ValueKey<String>('album-detail-back-to-library'),
-                    onPressed: () => NavService.returnToLibrary(context, ref),
-                    icon: const Icon(Icons.library_music_outlined),
-                    label: Text(l10n.detailUnavailableBackToLibrary),
-                  ),
-                );
+              if (data == null || !showsAlbum) {
+                return _buildPendingBody(context, data?.album);
               }
               final details = data.album;
               final songs = data.songs;
@@ -201,14 +318,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     );
               // ── Build render items with disc headers for multi-disc ──
               final renderItems = _buildRenderItems(filteredSongs);
-              final loadingRemoteTracks =
-                  details.isExternal && !details.songsHydrated;
-              final tracksSliver = loadingRemoteTracks
-                  ? const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _RemoteAlbumTracksLoading(),
-                    )
-                  : renderItems.isEmpty
+              final tracksSliver = renderItems.isEmpty
                   ? SliverFillRemaining(
                       hasScrollBody: false,
                       child: _showDownloadedOnly
@@ -830,7 +940,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         ),
                                         const Spacer(),
                                         IconButton(
-                                          tooltip: l10n.commonRetry,
+                                          tooltip: l10n.detailRefreshAction,
                                           onPressed: _isRefreshingAlbum
                                               ? null
                                               : _refreshAlbum,
@@ -1030,7 +1140,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     actions: <Widget>[
                       _buildAnimatedNavButton(
                         icon: Icons.refresh,
-                        tooltip: l10n.commonRetry,
+                        tooltip: l10n.detailRefreshAction,
                         isLoading: _isRefreshingAlbum,
                         onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
                       ),
@@ -1326,7 +1436,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 ],
               );
             },
-            loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
+            // A remote album is fetched before it is stored, so its page says
+            // so from the start.
+            loading: () => _isRemote(null)
+                ? _buildPendingBody(context, null)
+                : const ShimmerListPage(count: 8, leadingSize: 56),
             error: (error, _) => ErrorState(
               title: l10n.albumDetailLoadErrorTitle,
               onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
@@ -1352,17 +1466,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
     await HapticFeedback.lightImpact();
-    setState(() => _isRefreshingAlbum = true);
+    setState(() {
+      _isRefreshingAlbum = true;
+      _hydration = DetailHydrationPhase.running;
+    });
     try {
-      final result = await ref
-          .read(librarySyncControllerProvider.notifier)
-          .requestTarget(LibrarySyncTarget.album(widget.albumId));
-      if (result.status == LibrarySyncStatus.failed) {
-        throw StateError(result.errorMessage ?? 'Album refresh failed.');
+      final phase = await _hydrate(
+        ref
+            .read(librarySyncControllerProvider.notifier)
+            .requestTarget(LibrarySyncTarget.album(widget.albumId)),
+      );
+      if (!mounted) {
+        return;
       }
       ref.invalidate(albumInfoProvider(widget.albumId));
-    } on Object {
-      if (!mounted) {
+      // A page without the album shows the failure itself.
+      if (phase != DetailHydrationPhase.failed ||
+          !_showsAlbum(ref.read(albumProvider(widget.albumId)).value)) {
         return;
       }
       showAppNotice(
@@ -2809,32 +2929,6 @@ class _RatingButtonState extends State<_RatingButton>
 
 // ── Render-item types for disc-grouped track lists ─────────────────────────
 
-class _RemoteAlbumTracksLoading extends StatelessWidget {
-  const new();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Loading tracks from the remote catalog…',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 enum _AlbumSongContextAction {
   playNow,
   addQueue,
@@ -2889,4 +2983,9 @@ final class _DiscHeader extends _AlbumRenderItem {
 final class _SongItem extends _AlbumRenderItem {
   const new({required this.song});
   final SongsTableData song;
+}
+
+String? _nonBlank(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
 }

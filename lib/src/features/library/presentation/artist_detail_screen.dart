@@ -14,6 +14,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -23,12 +24,14 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
-import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
+import 'package:navis/src/features/integrations/presentation/deezer_release_labels.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/artist_header_image.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/similar_artists_section.dart';
 import 'package:navis/src/common_widgets/artist_playback_action.dart';
@@ -36,8 +39,11 @@ import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
@@ -51,10 +57,19 @@ int? artistPageAlbumCount({required int? stored, required int? listed}) {
   return math.max(stored ?? 0, listed);
 }
 
+/// An artist's page. An artist the library does not hold yet, or a remote
+/// (`ext-…`) artist without albums, is fetched from the server first: the page
+/// shows "Loading Remote Artist…" until it has the artist's name and albums,
+/// then fills in the rest as it arrives. When the server cannot provide it,
+/// the page offers Retry and a search for [nameHint].
 class ArtistDetailScreen extends ConsumerStatefulWidget {
-  const new({required this.artistId, super.key});
+  const new({required this.artistId, this.nameHint, super.key});
 
   final String artistId;
+
+  /// The caller's name for the artist, shown and searched for until the
+  /// library holds the artist.
+  final String? nameHint;
 
   @override
   ConsumerState<ArtistDetailScreen> createState() => _ArtistDetailScreenState();
@@ -64,15 +79,149 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
 
-  /// Bumped by pull-to-refresh, which gives the header a fresh state.
+  /// Bumped by a refresh, which gives the header a fresh state.
   int _headerGeneration = 0;
+
+  /// The page's request for the artist, which only matters while the page
+  /// has nothing to show (see [_showsArtist]).
+  DetailHydrationPhase _hydration = DetailHydrationPhase.running;
+
+  /// The artist's stored albums when [_hydration] last ended, so a remote
+  /// artist page waits for albums the hydration stored.
+  int _settledAlbumCount = 0;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    ref
-        .read(librarySyncControllerProvider.notifier)
-        .registerArtistInteraction(widget.artistId);
+    unawaited(
+      _hydrate(
+        ref
+            .read(librarySyncControllerProvider.notifier)
+            .hydrateOpenedArtist(widget.artistId),
+      ),
+    );
+  }
+
+  /// Waits for [request] and records what it left in the library: failed
+  /// when the server did not answer or the artist is still not stored.
+  Future<DetailHydrationPhase> _hydrate(
+    Future<LibrarySyncState?> request,
+  ) async {
+    DetailHydrationPhase phase;
+    try {
+      phase = detailHydrationPhaseFor(await request);
+    } on Object {
+      phase = DetailHydrationPhase.failed;
+    }
+    if (!mounted) return phase;
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final stored = await dao.getArtistById(widget.artistId);
+    final albums = await dao.watchAlbumsByArtist(widget.artistId).first;
+    if (stored == null) phase = DetailHydrationPhase.failed;
+    if (mounted) {
+      setState(() {
+        _hydration = phase;
+        _settledAlbumCount = albums.length;
+      });
+    }
+    return phase;
+  }
+
+  /// Fetches the artist again (Refresh, Retry and pull to refresh). A page
+  /// that already shows the artist keeps it and reports a failure.
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() {
+      _refreshing = true;
+      _hydration = DetailHydrationPhase.running;
+      // A refresh also tries photos that failed to load again.
+      _headerGeneration++;
+    });
+    try {
+      final phase = await _hydrate(
+        ref
+            .read(librarySyncControllerProvider.notifier)
+            .refreshArtist(widget.artistId),
+      );
+      if (!mounted || phase != DetailHydrationPhase.failed) return;
+      final shown = _showsArtist(
+        ref.read(artistByIdProvider(widget.artistId)).value,
+        ref.read(artistAlbumSectionsProvider(widget.artistId)),
+      );
+      if (shown) {
+        showAppNotice(
+          context,
+          message: AppLocalizations.of(context)!.artistDetailRefreshError,
+          level: AppNoticeLevel.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  bool _isRemote(ArtistsTableData? artist) => isExternalCatalogSource(
+    id: widget.artistId,
+    apiIsExternal: artist?.isExternal,
+  );
+
+  /// Whether the page has enough to show the artist: a stored library
+  /// artist, or a remote artist with albums (or one the server confirmed has
+  /// none).
+  bool _showsArtist(
+    ArtistsTableData? artist,
+    AsyncValue<ArtistAlbumSections> sections,
+  ) {
+    if (artist == null) return false;
+    if (!_isRemote(artist)) return true;
+    final listed = sections.value;
+    if (listed == null) return false;
+    return !listed.isEmpty ||
+        (_hydration == DetailHydrationPhase.settled && _settledAlbumCount == 0);
+  }
+
+  /// "Loading Remote Artist…" while the artist is fetched, or Retry and a
+  /// search when the server could not provide it.
+  Widget _buildPendingBody(BuildContext context, ArtistsTableData? artist) {
+    final l10n = AppLocalizations.of(context)!;
+    final isRemote = _isRemote(artist);
+    final name = artist?.name ?? widget.nameHint?.trim();
+    final artwork = CoverArtImage(
+      coverArtId: artist?.coverArt,
+      width: kDetailStateArtworkExtent,
+      height: kDetailStateArtworkExtent,
+      shape: ArtworkShapeRole.artist,
+      placeholderIcon: Icons.person_outline,
+      isExternalSource: isRemote,
+      remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+    );
+    if (_hydration == DetailHydrationPhase.failed) {
+      return DetailLoadFailedView(
+        title: l10n.artistDetailLoadFailedTitle,
+        artwork: artwork,
+        name: name,
+        isRemote: isRemote,
+        onRetry: () => unawaited(_refresh()),
+        onSearch: name == null || name.isEmpty
+            ? null
+            : () => NavService.openSearch(
+                context,
+                ref,
+                name,
+                filter: SearchResultType.artists,
+              ),
+      );
+    }
+    return DetailLoadingView(
+      status: isRemote
+          ? l10n.artistDetailLoadingRemote
+          : l10n.artistDetailLoadingServer,
+      artwork: artwork,
+      name: name,
+      isRemote: isRemote,
+      content: const DetailAlbumGridOutline(),
+    );
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
@@ -112,22 +261,13 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     );
     final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
     final currentArtist = artist.value;
+    final showsArtist = _showsArtist(currentArtist, albumSections);
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final artistBody = artist.when(
       data: (artistData) {
-        if (artistData == null) {
-          return EmptyState(
-            title: l10n.artistDetailNotFoundTitle,
-            subtitle: l10n.artistDetailNotFoundSubtitle,
-            icon: Icons.person_off_outlined,
-            action: OutlinedButton.icon(
-              key: const ValueKey<String>('artist-detail-back-to-library'),
-              onPressed: () => NavService.returnToLibrary(context, ref),
-              icon: const Icon(Icons.library_music_outlined),
-              label: Text(l10n.detailUnavailableBackToLibrary),
-            ),
-          );
+        if (artistData == null || !showsArtist) {
+          return _buildPendingBody(context, artistData);
         }
 
         final isStarred = _isStarred || artistData.starred != null;
@@ -166,13 +306,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         ].join(' • ');
 
         return RefreshIndicator(
-          onRefresh: () {
-            // A refresh tries photos that failed to load again.
-            setState(() => _headerGeneration++);
-            return ref
-                .read(librarySyncControllerProvider.notifier)
-                .refreshArtist(widget.artistId);
-          },
+          onRefresh: _refresh,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
@@ -325,7 +459,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           ),
         );
       },
-      loading: () => const _ArtistDetailLoadingState(),
+      // A remote artist is fetched before it is stored, so its page says so
+      // from the start; a library artist shows the page's silhouette.
+      loading: () => _isRemote(null)
+          ? _buildPendingBody(context, null)
+          : const _ArtistDetailLoadingState(),
       error: (error, _) => ErrorState(
         title: l10n.artistDetailLoadErrorTitle,
         onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
@@ -333,32 +471,47 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(currentArtist?.name ?? l10n.artistDetailTitle),
-        actions: currentArtist == null
-            ? const <Widget>[]
-            : <Widget>[
-                Builder(
-                  builder: (buttonContext) => IconButton(
-                    icon: const Icon(Icons.more_horiz),
-                    tooltip: MaterialLocalizations.of(buttonContext)
-                        .showMenuTooltip,
-                    onPressed: () {
-                      final renderObject = buttonContext.findRenderObject();
-                      if (renderObject is! RenderBox) return;
-                      unawaited(
-                        showArtistContextMenu(
-                          context,
-                          ref,
-                          currentArtist.id,
-                          anchor: renderObject.localToGlobal(
-                            renderObject.size.center(Offset.zero),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+        // The page always offers a way back, even when it was opened without
+        // history while the artist loads.
+        leading: showsArtist
+            ? null
+            : BackButton(
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.library),
+              ),
+        title: Text(
+          currentArtist?.name ??
+              _nonBlank(widget.nameHint) ??
+              l10n.artistDetailTitle,
+        ),
+        actions: <Widget>[
+          DetailRefreshButton(
+            refreshing: _refreshing,
+            onRefresh: () => unawaited(_refresh()),
+          ),
+          if (currentArtist != null && showsArtist)
+            Builder(
+              builder: (buttonContext) => IconButton(
+                icon: const Icon(Icons.more_horiz),
+                tooltip: MaterialLocalizations.of(buttonContext)
+                    .showMenuTooltip,
+                onPressed: () {
+                  final renderObject = buttonContext.findRenderObject();
+                  if (renderObject is! RenderBox) return;
+                  unawaited(
+                    showArtistContextMenu(
+                      context,
+                      ref,
+                      currentArtist.id,
+                      anchor: renderObject.localToGlobal(
+                        renderObject.size.center(Offset.zero),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
       body: desktopMode
           ? DesktopFrame(
@@ -370,6 +523,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           : artistBody,
     );
   }
+}
+
+String? _nonBlank(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
 }
 
 /// The initial detail query has no artist identity to preserve yet. Keep the
@@ -1175,7 +1333,7 @@ class _RelatedArtistsSectionState
 /// Deezer albums and EPs of the artist that the server lacks, as a shelf
 /// below the album grids. Hidden while there are none (including while
 /// anything loads, and whenever the server has any remote album for the
-/// artist).
+/// artist). A card opens the server's remote album `ext-deezer-album-<id>`.
 class _MissingAlbumsSection extends ConsumerWidget {
   const new({required this.artistKey, required this.artistName});
 
@@ -1230,14 +1388,14 @@ class _MissingAlbumsSection extends ConsumerWidget {
                       coverUrl: deezerReleaseCoverUrl(album),
                       feature: IntegrationFeature.deezerMissingAlbums,
                       extent: extent,
-                      onTap: () => unawaited(
-                        showDeezerReleaseSheet(
-                          context,
-                          ref,
-                          album: album,
-                          artistName: artistName,
-                          feature: IntegrationFeature.deezerMissingAlbums,
-                        ),
+                      // The server's remote album, which plays like any
+                      // album; its page searches when the server lacks it.
+                      onTap: () => NavService.openAlbumDetail(
+                        context,
+                        ref,
+                        remoteDeezerAlbumId(album.id),
+                        name: album.title,
+                        artistName: artistName,
                       ),
                     );
                   },

@@ -650,8 +650,7 @@ class SyncDiagnosticsServer {
         }
         return;
       }
-      if (request.method == 'POST' &&
-          path == '/v1/presentation/release-sheet') {
+      if (request.method == 'POST' && path == '/v1/presentation/release-card') {
         if (!allowsMutations) {
           await _forbidden(request);
           return;
@@ -662,14 +661,11 @@ class SyncDiagnosticsServer {
           return;
         }
         final body = await _readJson(request);
-        final dismiss = body['dismiss'];
         final rawSurface = body['surface'];
         final rawIndex = body['index'] ?? 0;
         final surface = rawSurface is String ? rawSurface : null;
         final index = rawIndex is int ? rawIndex : null;
-        final isDismiss = body.length == 1 && dismiss == true;
         final isTap =
-            dismiss == null &&
             surface != null &&
             DiagnosticsPresentationController.releaseSurfaces.containsKey(
               surface,
@@ -677,37 +673,28 @@ class SyncDiagnosticsServer {
             index != null &&
             index >= 0 &&
             body.keys.every((key) => key == 'surface' || key == 'index');
-        if (!isDismiss && !isTap) {
+        if (!isTap) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
             'error':
-                'send {"dismiss": true} or {"surface": "missingAlbums" | '
-                '"newReleases", "index": <0-based integer>}',
+                'send {"surface": "missingAlbums" | "newReleases", '
+                '"index": <0-based integer>}',
           });
           return;
         }
         try {
-          if (isDismiss) {
-            await presentation.dismissReleaseSheet();
-            await _respond(request, HttpStatus.ok, <String, Object?>{
-              'outcome': 'dismissed',
-            });
-          } else {
-            final result = await presentation.tapReleaseCard(
-              surface: surface!,
-              index: index!,
-              location: () => _navigationDriver.location,
-            );
-            await _respond(request, HttpStatus.ok, result.toJson());
-          }
+          final result = await presentation.tapReleaseCard(
+            surface: surface,
+            index: index,
+            location: () => _navigationDriver.location,
+          );
+          await _respond(request, HttpStatus.ok, result.toJson());
         } on DiagnosticsPresentationOutOfRange catch (range) {
           await _respond(request, HttpStatus.notFound, <String, Object?>{
             'error': 'the surface shows ${range.count} cards',
           });
         } on DiagnosticsPresentationUnavailable {
           await _respond(request, HttpStatus.conflict, <String, Object?>{
-            'error': isDismiss
-                ? 'no release sheet is open'
-                : 'that surface has no tappable card',
+            'error': 'that surface has no tappable card',
           });
         }
         return;

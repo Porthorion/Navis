@@ -16,6 +16,7 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 export 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 
@@ -23,8 +24,9 @@ export 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 /// "Fans Also Like"), at most two rows.
 ///
 /// Library artists show their library art and open their artist page. Other
-/// artists show their Deezer photo with the quiet "Remote" mark and open
-/// search for their name, never a missing artist page.
+/// artists show their Deezer photo with the quiet "Remote" mark and open the
+/// server's remote artist page (search for their name when it has no Deezer
+/// id), never a missing artist page.
 class SimilarArtistsSection extends ConsumerWidget {
   const new({required this.title, required this.artists, super.key});
 
@@ -96,16 +98,28 @@ class _SimilarArtistCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final libraryArtistId = artist.libraryArtistId;
+    final deezerArtistId = artist.deezerArtistId;
     return InkWell(
       borderRadius: NavisRadius.mdAll,
-      onTap: () => libraryArtistId != null
-          ? NavService.openArtistDetail(context, ref, libraryArtistId)
-          : NavService.openSearch(
-              context,
-              ref,
-              artist.name,
-              filter: SearchResultType.artists,
-            ),
+      onTap: () {
+        if (libraryArtistId != null) {
+          NavService.openArtistDetail(context, ref, libraryArtistId);
+        } else if (deezerArtistId != null) {
+          NavService.openArtistDetail(
+            context,
+            ref,
+            remoteDeezerArtistId(deezerArtistId),
+            name: artist.name,
+          );
+        } else {
+          NavService.openSearch(
+            context,
+            ref,
+            artist.name,
+            filter: SearchResultType.artists,
+          );
+        }
+      },
       onLongPress: libraryArtistId == null
           ? null
           : () =>

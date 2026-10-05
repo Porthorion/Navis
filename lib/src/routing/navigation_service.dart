@@ -43,11 +43,17 @@ abstract final class NavService {
   // ---------------------------------------------------------------------------
 
   /// Open an album detail from the current context, preserving back.
+  ///
+  /// [name] and [artistName] name an album the library may not hold yet (a
+  /// remote album), for its page to show while it loads and to search for if
+  /// the server cannot provide it.
   static void openAlbumDetail(
     BuildContext context,
     WidgetRef ref,
     String albumId, {
     String? heroTag,
+    String? name,
+    String? artistName,
   }) {
     _prepareForNavigation(context, ref);
     final normalizedHeroTag = heroTag?.trim();
@@ -68,18 +74,26 @@ abstract final class NavService {
       context,
       ref,
       (router) => unawaited(
-        router.push<void>(AppRoutes.album(albumId), extra: request),
+        router.push<void>(
+          AppRoutes.album(albumId, name: name, artistName: artistName),
+          extra: request,
+        ),
       ),
     );
   }
 
   /// Open an artist detail from the current context, preserving back.
+  ///
+  /// [name] names an artist the library may not hold yet (a remote artist),
+  /// for its page to show while it loads and to search for if the server
+  /// cannot provide it.
   static void openArtistDetail(
     BuildContext context,
     WidgetRef ref,
-    String artistId,
-  ) {
-    _drillIn(context, ref, AppRoutes.artist(artistId));
+    String artistId, {
+    String? name,
+  }) {
+    _drillIn(context, ref, AppRoutes.artist(artistId, name: name));
   }
 
   /// Open an artist's virtual top-tracks playlist from the current context.

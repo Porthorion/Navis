@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
-import 'package:navis/src/features/integrations/presentation/deezer_release_sheet.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
 
@@ -36,9 +36,10 @@ class DiagnosticsPresentationOutOfRange implements Exception {
   final int count;
 }
 
-/// What tapping a release card did. [outcome] is `sheet` (the release sheet
-/// opened), `albumPage` (the app navigated to an album page) or `none` (nothing
-/// happened within the wait).
+/// What tapping a release card did. [outcome] is `albumPage` (the album page
+/// it opened shows the album), `failed` (that page could not load it and
+/// offers Retry and a search), `loading` (still loading at the end of the
+/// wait) or `none` (the tap did not navigate).
 class DiagnosticsReleaseCardResult {
   const new({required this.outcome, required this.location});
 
@@ -1053,16 +1054,18 @@ class DiagnosticsPresentationController {
   }
 
   /// Taps the release card at [index] of [surface] (a key of
-  /// [releaseSurfaces]) through the card's own callback, then reports what the
-  /// production handler did: opened the release sheet, or navigated (a
-  /// library or remote album page, seen as a change of [location]). Waits up
-  /// to [timeout] for the outcome, since a remote album is checked on the
-  /// server first.
+  /// [releaseSurfaces]) through the card's own callback, which opens an album
+  /// page: the library album, or the server's remote `ext-deezer-album-*`.
+  /// Reports how that page ended up: `albumPage` once it shows the album,
+  /// `failed` when the server could not provide it (the page offers Retry and
+  /// a search), `loading` when it still loads after [timeout], or `none` when
+  /// the tap did not navigate within [navigationTimeout].
   Future<DiagnosticsReleaseCardResult> tapReleaseCard({
     required String surface,
     required int index,
     required String? Function() location,
-    Duration timeout = const Duration(seconds: 8),
+    Duration navigationTimeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final prefix = releaseSurfaces[surface];
     if (prefix == null || index < 0) throw const FormatException();
@@ -1091,44 +1094,47 @@ class DiagnosticsPresentationController {
     if (onTap == null) throw const DiagnosticsPresentationUnavailable();
     final before = location();
     onTap();
+    final navigationDeadline = DateTime.now().add(navigationTimeout);
+    while (location() == before) {
+      if (!DateTime.now().isBefore(navigationDeadline)) {
+        return DiagnosticsReleaseCardResult(outcome: 'none', location: before);
+      }
+      await waitForFrame();
+    }
     final deadline = DateTime.now().add(timeout);
     while (true) {
       await waitForFrame();
       final after = location();
-      if (_releaseSheet() != null) {
-        return DiagnosticsReleaseCardResult(outcome: 'sheet', location: after);
+      if (_currentPageShows(DetailLoadFailedView.failedKey)) {
+        return DiagnosticsReleaseCardResult(outcome: 'failed', location: after);
       }
-      if (after != before) {
+      if (!_currentPageShows(DetailLoadingView.loadingKey)) {
         return DiagnosticsReleaseCardResult(
           outcome: 'albumPage',
           location: after,
         );
       }
       if (!DateTime.now().isBefore(deadline)) {
-        return DiagnosticsReleaseCardResult(outcome: 'none', location: after);
+        return DiagnosticsReleaseCardResult(
+          outcome: 'loading',
+          location: after,
+        );
       }
     }
   }
 
-  /// Closes the open Deezer release sheet (or dialog) with its route's own
-  /// pop, as a swipe or the barrier does.
-  Future<void> dismissReleaseSheet() async {
-    final sheet = _releaseSheet();
-    final route = sheet == null ? null : ModalRoute.of(sheet);
-    if (sheet == null || route == null || !route.isCurrent) {
-      throw const DiagnosticsPresentationUnavailable();
-    }
-    Navigator.of(sheet).pop();
-    await waitForFrame();
-  }
-
-  Element? _releaseSheet() {
+  /// Whether the current page shows a widget keyed [key].
+  bool _currentPageShows(Key key) {
     final root = _boundaryKey.currentContext;
-    if (root is! Element) return null;
+    if (root is! Element) return false;
     return _findElement(
-      root,
-      (element) => element.widget is DeezerReleaseSheetBody,
-    );
+          root,
+          (element) =>
+              element.widget.key == key &&
+              _isOnstage(element) &&
+              ModalRoute.of(element)?.isCurrent != false,
+        ) !=
+        null;
   }
 
   Element? _findElement(Element root, bool Function(Element) matches) {

@@ -93,10 +93,29 @@ abstract final class AppRoutes {
   static String librarySection(String sectionName) =>
       _withQuery(library, <String, String>{librarySectionParam: sectionName});
 
-  static String album(String id) => '$library/albums/${_encode(id)}';
-  static String artist(String id) => '$library/artists/${_encode(id)}';
+  /// Query parameters naming an album or artist page's entity before it is
+  /// stored: a remote (`ext-…`) entity opened from a search result or a
+  /// Deezer card. The page shows the name while it loads, and searches for it
+  /// if the server cannot provide the entity.
+  static const detailNameParam = 'name';
+  static const detailArtistParam = 'artist';
+
+  /// The album page; [name] and [artistName] are the caller's names for an
+  /// album the library may not hold yet.
+  static String album(String id, {String? name, String? artistName}) =>
+      _withOptionalQuery('$library/albums/${_encode(id)}', <String, String?>{
+        detailNameParam: name,
+        detailArtistParam: artistName,
+      });
+
+  /// The artist page; [name] is the caller's name for an artist the library
+  /// may not hold yet.
+  static String artist(String id, {String? name}) => _withOptionalQuery(
+    '$library/artists/${_encode(id)}',
+    <String, String?>{detailNameParam: name},
+  );
   static String artistTopTracks(String id) =>
-      '${artist(id)}/$artistTopTracksSegment';
+      '$library/artists/${_encode(id)}/$artistTopTracksSegment';
   static String playlist(String id) => '$library/playlists/${_encode(id)}';
   static String listenBrainzWeekly(String sourcePatch) =>
       '$library/listenbrainz/${_encode(sourcePatch)}';
@@ -144,4 +163,13 @@ abstract final class AppRoutes {
 
   static String _withQuery(String path, Map<String, String> query) =>
       Uri(path: path, queryParameters: query).toString();
+
+  /// [path] with the non-blank entries of [query], or [path] alone.
+  static String _withOptionalQuery(String path, Map<String, String?> query) {
+    final present = <String, String>{
+      for (final MapEntry(:key, :value) in query.entries)
+        if (value != null && value.trim().isNotEmpty) key: value.trim(),
+    };
+    return present.isEmpty ? path : _withQuery(path, present);
+  }
 }

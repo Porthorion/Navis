@@ -287,8 +287,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// server's artist list can count local albums only (Octo-Fiesta), so a
   /// matching count does not prove the page has every release.
   final Set<String> _sessionHydratedArtistIds = <String>{};
-  final Map<String, Future<void>> _artistInteractionHydrations =
-      <String, Future<void>>{};
+  final Map<String, Future<LibrarySyncState?>> _artistInteractionHydrations =
+      <String, Future<LibrarySyncState?>>{};
   int _artistSessionEpoch = 0;
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
@@ -604,18 +604,36 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   void registerAlbumInteraction(String albumId) {
+    unawaited(hydrateOpenedAlbum(albumId));
+  }
+
+  /// Hydrates an opened album unless its songs are already stored, and
+  /// returns the hydration's result: null when none was needed (or no server
+  /// is signed in). The album page waits for it while it has no tracks.
+  Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) {
     _addPriorityAlbum(albumId);
-    unawaited(_requestAlbumHydrationIfNeeded(albumId));
+    return _requestAlbumHydrationIfNeeded(albumId);
   }
 
   /// Hydrates an opened artist at least once per server session, and again
   /// whenever its stored albums fall short of its album count. Concurrent
   /// opens of one artist share a single request.
   void registerArtistInteraction(String artistId) {
+    unawaited(hydrateOpenedArtist(artistId));
+  }
+
+  /// [registerArtistInteraction], returning the hydration's result: null when
+  /// none was needed (or no server is signed in). An open while another of
+  /// the same artist is in flight shares its result. The artist page waits
+  /// for it while it has nothing to show.
+  Future<LibrarySyncState?> hydrateOpenedArtist(String artistId) {
     final normalizedId = artistId.trim();
-    if (normalizedId.isEmpty ||
-        _artistInteractionHydrations.containsKey(normalizedId)) {
-      return;
+    if (normalizedId.isEmpty) {
+      return Future<LibrarySyncState?>.value();
+    }
+    final inFlight = _artistInteractionHydrations[normalizedId];
+    if (inFlight != null) {
+      return inFlight;
     }
     final task = _requestArtistHydrationIfNeeded(normalizedId);
     _artistInteractionHydrations[normalizedId] = task;
@@ -626,6 +644,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         }
       }),
     );
+    return task;
   }
 
   Future<LibrarySyncState> refreshArtist(String artistId) {
@@ -636,28 +655,37 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return requestTarget(LibrarySyncTarget.artist(normalizedId));
   }
 
-  Future<void> _requestAlbumHydrationIfNeeded(String albumId) async {
+  Future<LibrarySyncState?> _requestAlbumHydrationIfNeeded(
+    String albumId,
+  ) async {
     final normalizedId = albumId.trim();
     if (normalizedId.isEmpty) {
-      return;
+      return null;
     }
     final album = await ref
         .read(navisDatabaseProvider)
         .libraryDao
         .getAlbumById(normalizedId);
     if (!ref.mounted || album?.songsHydrated == true) {
-      return;
+      return null;
     }
-    await requestTarget(LibrarySyncTarget.album(normalizedId));
+    // Without an engine requestTarget hands back the controller's own state,
+    // which is no hydration.
+    if (ref.read(librarySyncEngineProvider) == null) {
+      return null;
+    }
+    return await requestTarget(LibrarySyncTarget.album(normalizedId));
   }
 
-  Future<void> _requestArtistHydrationIfNeeded(String artistId) async {
+  Future<LibrarySyncState?> _requestArtistHydrationIfNeeded(
+    String artistId,
+  ) async {
     final epoch = _artistSessionEpoch;
     final dao = ref.read(navisDatabaseProvider).libraryDao;
     final artist = await dao.getArtistById(artistId);
     final albums = await dao.watchAlbumsByArtist(artistId).first;
     if (!ref.mounted || epoch != _artistSessionEpoch) {
-      return;
+      return null;
     }
     final albumsMissing =
         artist == null ||
@@ -673,13 +701,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           ref.read(serverReachabilityControllerProvider).status ==
           ServerReachabilityStatus.offline;
       if (!firstOpenThisSession || offline) {
-        return;
+        return null;
       }
     }
     // Without an engine requestTarget hands back the controller's own state,
     // which may be an earlier catalog success; that is no hydration.
     if (ref.read(librarySyncEngineProvider) == null) {
-      return;
+      return null;
     }
     final result = await requestTarget(LibrarySyncTarget.artist(artistId));
     if (ref.mounted &&
@@ -687,6 +715,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         result.status == LibrarySyncStatus.succeeded) {
       _sessionHydratedArtistIds.add(artistId);
     }
+    return result;
   }
 
   void _resetArtistSession() {

@@ -1030,18 +1030,33 @@
   "deezerReleaseTypeEp": "EP",
   "deezerReleaseTypeSingle": "Single",
   "deezerReleaseTypeCompilation": "Compilation",
-  "deezerReleaseTrackCount": "{count, plural, =1{1 song} other{{count} songs}}",
-  "@deezerReleaseTrackCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "deezerReleaseSearchServer": "Search your server",
   "artistDetailAlbumsErrorTitle": "Could Not Load Artist Albums",
   "artistDetailLoadErrorTitle": "Could Not Load Artist Details",
   "artistDetailLoadingLabel": "Loading Artist Details",
+  "artistDetailLoadingRemote": "Loading Remote Artist…",
+  "@artistDetailLoadingRemote": {
+    "description": "Shown while an artist from the server's remote catalogue (such as Deezer through Octo-Fiesta) is fetched before its page can show."
+  },
+  "artistDetailLoadingServer": "Loading Artist…",
+  "@artistDetailLoadingServer": {
+    "description": "Shown while an artist the library has not stored yet is fetched from the server before its page can show."
+  },
+  "artistDetailLoadFailedTitle": "Could Not Load This Artist",
+  "artistDetailRefreshError": "Could not refresh this artist. Check your connection and try again.",
+  "detailLoadFailedMessage": "Your server could not provide it right now.",
+  "@detailLoadFailedMessage": {
+    "description": "Under 'Could Not Load This Artist/Album' when the server did not return a remote or unsynced artist or album."
+  },
+  "detailSearchFor": "Search for {name}",
+  "@detailSearchFor": {
+    "description": "Fallback action on an artist or album page that could not be loaded: searches for the artist or album by name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "detailRefreshAction": "Refresh",
   "artistTopTracksSection": "Top Tracks",
   "artistTopTracksShowMore": "Show more",
   "artistTopTracksShowLess": "Show less",
@@ -1070,8 +1085,6 @@
   "artistTopTracksPlaylistEmptySubtitle": "No top songs are available for this artist.",
   "artistTopTracksPlaylistErrorTitle": "Failed to Load Top Tracks",
   "albumDetailTitle": "Album",
-  "albumDetailNotFoundTitle": "Album Not Found",
-  "albumDetailNotFoundSubtitle": "This album is not available in local data.",
   "albumDetailUnknownArtist": "Unknown artist",
   "albumDetailMeta": "{artist} • {year} • {trackCount, plural, =1{1 track} other{{trackCount} tracks}}",
   "@albumDetailMeta": {
@@ -1093,6 +1106,15 @@
   "@albumDetailFilterLabel": {"description": "Label above the filter chips in the album detail screen"},
   "albumDetailLoadErrorTitle": "Could Not Load Album Details",
   "albumDetailRefreshError": "Could not refresh this album. Check your connection and try again.",
+  "albumDetailLoadingRemote": "Loading Remote Album…",
+  "@albumDetailLoadingRemote": {
+    "description": "Shown while an album from the server's remote catalogue (such as Deezer through Octo-Fiesta) and its tracks are fetched before its page can show."
+  },
+  "albumDetailLoadingServer": "Loading Album…",
+  "@albumDetailLoadingServer": {
+    "description": "Shown while an album the library has not stored yet is fetched from the server before its page can show."
+  },
+  "albumDetailLoadFailedTitle": "Could Not Load This Album",
   "albumDetailPlayAction": "Play",
   "albumDetailShuffleAction": "Shuffle",
   "albumDetailStarAction": "Like",
