@@ -176,6 +176,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Trending Now joins You Might Like: the songs trending on Deezer that you can play from your server, numbered by chart position',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Home sections added in an update now appear even if you reordered or hid sections before',
         type: ChangelogEntryType.fix,
       ),

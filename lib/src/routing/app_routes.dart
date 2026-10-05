@@ -82,6 +82,7 @@ abstract final class AppRoutes {
   static const albumSegment = 'albums/:id';
   static const playlistSegment = 'playlists/:id';
   static const listenBrainzSegment = 'listenbrainz/:sourcePatch';
+  static const trendingSegment = 'trending';
   static const likedArtistsSegment = 'liked-artists';
   static const likedAlbumsSegment = 'liked-albums';
 
@@ -99,6 +100,7 @@ abstract final class AppRoutes {
   static String playlist(String id) => '$library/playlists/${_encode(id)}';
   static String listenBrainzWeekly(String sourcePatch) =>
       '$library/listenbrainz/${_encode(sourcePatch)}';
+  static const trending = '$library/$trendingSegment';
   static const likedArtists = '$library/$likedArtistsSegment';
   static const likedAlbums = '$library/$likedAlbumsSegment';
 

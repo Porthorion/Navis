@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
-import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 /// Library artists whose releases Home's New releases checks.
 const int kNewReleasesCandidateArtists = 30;
@@ -20,17 +23,42 @@ const int _kNewReleasesWorkers = 3;
 /// Span name on `IntegrationCallRecorder`, for the diagnostics endpoint.
 const String kHomeNewReleasesSpan = 'home.newReleases';
 
+/// The fewest playable chart songs Trending Now needs to show.
+const int kTrendingMinimumPlayable = 8;
+
+/// Chart songs searched on the server at once.
+const int _kTrendingSearchWorkers = 2;
+
+/// The key Trending's remembered matches are stored under.
+const String kTrendingMatchKey = 'deezer-chart';
+
+/// Span names on `IntegrationCallRecorder`: `home.trending`, and the
+/// matcher's `trending.localMatch` and `trending.serverMatch`.
+const String kHomeTrendingSpan = 'home.trending';
+const String kTrendingMatchSpanPrefix = 'trending';
+
 /// How long Home waits, once no library sync is running, before its Deezer
 /// sections ask Deezer, so the first screen and the sync come first.
 final homeDeezerStartupDelayProvider = Provider<Duration>(
   (_) => const Duration(seconds: 3),
 );
 
+/// Whether a library sync is running, for [homeDeezerIdleProvider].
+final homeDeezerSyncRunningProvider = Provider<bool>((ref) {
+  try {
+    return ref.watch(
+      librarySyncControllerProvider.select((state) => state.isRunning),
+    );
+  } on Object {
+    return false;
+  }
+});
+
 /// Completes once Home is idle: no library sync is running and the startup
 /// delay has passed. Kept for the session, so a pull to refresh or a switch
 /// turned back on does not wait again.
 final homeDeezerIdleProvider = FutureProvider<void>((ref) async {
-  while (ref.read(listenBrainzDiscoverStartupSyncStateProvider).isRunning) {
+  while (ref.read(homeDeezerSyncRunningProvider)) {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     if (!ref.mounted) return;
   }
@@ -131,4 +159,88 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
     'inLibrary': releases.where((r) => r.libraryAlbumId != null).length,
   }, timer.elapsed);
   return releases;
+});
+
+/// Trending Now (`deezer.trending`): the chart songs the user can play, in
+/// chart order, each ranked by its chart position.
+///
+/// Empty, without asking Deezer, while the switch is off or the library has
+/// no artists. Otherwise, once Home is idle, it reads `/chart/0/tracks`
+/// (100, cached 6 hours) and matches the songs with the artist Top Songs
+/// matcher under its own key: remembered matches and `ext-deezer-song-<id>`
+/// rows, the local pass, then `search3`, only for songs by artists in the
+/// library and by two workers, cancelled when Home leaves. The chart is
+/// regional and mostly other people's music, so the rest stay unmatched and
+/// are dropped. Fewer than [kTrendingMinimumPlayable] playable songs, or a
+/// failed chart request, leaves Trending out.
+final homeTrendingProvider = FutureProvider<List<ResolvedArtistTopTrack>>((
+  ref,
+) async {
+  final allowed = ref.watch(
+    integrationPolicyProvider.select(
+      (policy) => policy.allows(IntegrationFeature.deezerTrending),
+    ),
+  );
+  if (!allowed) return const <ResolvedArtistTopTrack>[];
+  final database = ref.watch(navisDatabaseProvider);
+  if (await database.libraryDao.countArtists() == 0) {
+    return const <ResolvedArtistTopTrack>[];
+  }
+  await ref.watch(homeDeezerIdleProvider.future);
+  if (!ref.mounted) return const <ResolvedArtistTopTrack>[];
+
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+  final timer = Stopwatch()..start();
+  final chart = await ref
+      .read(deezerCatalogProvider)
+      .chartTracks(cancelToken: cancelToken);
+  if (chart.isEmpty || cancelToken.isCancelled) {
+    return const <ResolvedArtistTopTrack>[];
+  }
+  final seeds = <ArtistTopTrackSeed>[
+    for (var i = 0; i < chart.length; i++)
+      ArtistTopTrackSeed(
+        rank: i + 1,
+        title: chart[i].title,
+        artist: chart[i].artist.name,
+        source: ArtistTopTrackSource.deezer,
+        popularity: chart[i].rank,
+        album: chart[i].album?.title,
+        durationSeconds: chart[i].durationSeconds,
+        deezerTrackId: chart[i].id,
+      ),
+  ];
+  final libraryArtists =
+      (await ref.read(libraryArtistNameIndexProvider).current()).lookupAll(
+        seeds.map((seed) => seed.artist),
+      );
+  final resolved = await ref
+      .read(artistTopTrackResolverProvider)
+      .resolve(
+        artistId: kTrendingMatchKey,
+        seeds: seeds,
+        cancelToken: cancelToken,
+        searchWorkers: _kTrendingSearchWorkers,
+        shouldSearch: (seed) =>
+            libraryArtists.containsKey(normalizeMetadata(seed.artist)),
+        spanPrefix: kTrendingMatchSpanPrefix,
+      )
+      .last;
+  if (cancelToken.isCancelled) return const <ResolvedArtistTopTrack>[];
+  final playable = resolved
+      .where((track) => track.resolvedSong != null)
+      .toList(growable: false);
+  ref.read(integrationCallRecorderProvider).span(kHomeTrendingSpan, {
+    'chart': chart.length,
+    'byLibraryArtists': seeds
+        .where(
+          (seed) => libraryArtists.containsKey(normalizeMetadata(seed.artist)),
+        )
+        .length,
+    'playable': playable.length,
+  }, timer.elapsed);
+  return playable.length < kTrendingMinimumPlayable
+      ? const <ResolvedArtistTopTrack>[]
+      : List<ResolvedArtistTopTrack>.unmodifiable(playable);
 });

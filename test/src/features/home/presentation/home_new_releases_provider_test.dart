@@ -8,7 +8,6 @@ import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
-import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -128,8 +127,8 @@ void main() {
           ),
           deezerApiClientProvider.overrideWithValue(deezer),
           homeDeezerStartupDelayProvider.overrideWithValue(Duration.zero),
-          listenBrainzDiscoverStartupSyncStateProvider.overrideWith(
-            (ref) => ref.watch(_syncState),
+          homeDeezerSyncRunningProvider.overrideWith(
+            (ref) => ref.watch(_syncState).isRunning,
           ),
           homeNewReleasesClockProvider.overrideWithValue(
             () => DateTime(2026, 10, 5),

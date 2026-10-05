@@ -2040,6 +2040,48 @@ abstract class AppLocalizations {
   /// **'ListenBrainz'**
   String get homeShowcaseReasonListenBrainz;
 
+  /// No description provided for @homeShowcaseReasonTrending.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular on Deezer'**
+  String get homeShowcaseReasonTrending;
+
+  /// No description provided for @homeTrendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending Now'**
+  String get homeTrendingTitle;
+
+  /// No description provided for @homeTrendingAvailableCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 song you can play} other{{count} songs you can play}}'**
+  String homeTrendingAvailableCount(int count);
+
+  /// No description provided for @trendingPlaylistMeta.
+  ///
+  /// In en, this message translates to:
+  /// **'Deezer chart • {count, plural, =1{1 song} other{{count} songs}}'**
+  String trendingPlaylistMeta(int count);
+
+  /// No description provided for @trendingEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Trending Songs'**
+  String get trendingEmptyTitle;
+
+  /// No description provided for @trendingEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Too few of the songs trending on Deezer are on your server right now.'**
+  String get trendingEmptySubtitle;
+
+  /// No description provided for @trendingErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load Trending'**
+  String get trendingErrorTitle;
+
   /// No description provided for @homeShowcasePlayTooltip.
   ///
   /// In en, this message translates to:

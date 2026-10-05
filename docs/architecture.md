@@ -625,7 +625,8 @@ header adds the same reason line and a compact Play/Shuffle pair.
   switches instantly.
 
 Paging, auto-advance and the test/diagnostics keys
-`home-random-hero-carousel(-page-N)` are unchanged.
+`home-random-hero-carousel(-page-N)` are unchanged. The hero's items and
+Trending Now are described in "Deezer on Home".
 
 ### Changelog and What's New (`lib/src/features/changelog/`)
 
@@ -1601,6 +1602,47 @@ Recently Added). `homeNewReleasesProvider`
   ("Oct 2, 2026 • Single • 3 songs") and tracklist.
 - The onboarding warmup returns no artwork for it, so onboarding never asks
   Deezer. Pull-to-refresh invalidates it.
+
+**Trending Now** (`deezer.trending`). No shelf of its own: a virtual playlist
+in the You Might Like hero, after the ListenBrainz weekly playlists and before
+the albums. `homeTrendingProvider` (`home_deezer_providers.dart`):
+- Returns nothing without asking Deezer while the switch is off or the library
+  has no artists; otherwise waits for `homeDeezerIdleProvider` and reads
+  `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours).
+- Matches the chart with the artist Top Songs matcher
+  (`ArtistTopTrackResolver.resolve` under the key `deezer-chart`): remembered
+  matches and `ext-deezer-song-<id>` rows, the local pass, then `search3` only
+  for songs by artists in the library (`libraryArtistNameIndexProvider`), two
+  at a time, cancelled when Home leaves. Spans: `trending.localMatch`,
+  `trending.serverMatch` and `home.trending` (chart, by library artists,
+  playable).
+- Keeps only playable songs (library or remote through the server), each
+  ranked by its chart position; with fewer than 8 it returns nothing. The
+  chart is regional and mostly not the user's music, so most songs drop out.
+- `homeRandomShowcaseProvider` adds it as a `HomeRandomShowcaseTrending`
+  unless the downloaded-only or liked-only filter is on; under them
+  `homeTrendingProvider` is not even read.
+
+**Hero items.** `HomeRandomShowcaseItem` is `sealed`: a
+`HomeRandomShowcaseAlbum`, or a `HomeRandomShowcasePlaylist` (sealed too:
+`HomeRandomShowcaseListenBrainz` or `HomeRandomShowcaseTrending`). The hero
+widgets switch over them exhaustively. Playlists share one look through
+`isLoading`, `coverArtIds` and `localizedTitle`: a `PlaylistCoverMosaic`
+(`listenbrainz_playlist_artwork.dart`; weekly playlists show ListenBrainz's
+own image when there is one), the title, an availability line ("12 of 50
+available", "24 songs you can play") and a reason ("ListenBrainz", "Popular
+on Deezer"). Tapping a playlist opens its page; only albums show Play. On
+desktop a playlist's page lists its songs, Trending's numbered by chart
+position; a row plays like a weekly song (the whole playlist from it with
+Album Queue on, match flows collapsed).
+
+**Trending page** (`AppRoutes.trending`, `/library/trending`,
+`NavService.openTrending`). `TrendingDetailScreen` shows
+`RankedVirtualPlaylistContent`
+(`features/library/presentation/ranked_virtual_playlist_content.dart`), the
+layout extracted from the "This Is" page so both share it: artwork, title,
+"Deezer chart • 24 songs", Play/Shuffle/Download and rows numbered by
+`ResolvedArtistTopTrack.rank`.
 
 ## Update Checker
 

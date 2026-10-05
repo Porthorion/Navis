@@ -1344,6 +1344,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeShowcaseReasonListenBrainz => 'ListenBrainz';
 
   @override
+  String get homeShowcaseReasonTrending => 'Popular on Deezer';
+
+  @override
+  String get homeTrendingTitle => 'Trending Now';
+
+  @override
+  String homeTrendingAvailableCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs you can play',
+      one: '1 song you can play',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trendingPlaylistMeta(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+    );
+    return 'Deezer chart • $_temp0';
+  }
+
+  @override
+  String get trendingEmptyTitle => 'No Trending Songs';
+
+  @override
+  String get trendingEmptySubtitle =>
+      'Too few of the songs trending on Deezer are on your server right now.';
+
+  @override
+  String get trendingErrorTitle => 'Could Not Load Trending';
+
+  @override
   String homeShowcasePlayTooltip(String album) {
     return 'Play $album';
   }

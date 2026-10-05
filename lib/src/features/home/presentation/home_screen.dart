@@ -48,6 +48,7 @@ import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -1882,16 +1883,26 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
     if (prior.stableId != incoming.stableId) {
       return true;
     }
-    if (prior is HomeRandomShowcaseListenBrainz &&
-        incoming is HomeRandomShowcaseListenBrainz) {
-      if (prior.isLoading != incoming.isLoading) {
-        return true;
-      }
-      final priorCount = prior.playlist?.recommendations.length ?? 0;
-      final incomingCount = incoming.playlist?.recommendations.length ?? 0;
-      if (priorCount != incomingCount) {
-        return true;
-      }
+    final changed = switch ((prior, incoming)) {
+      (
+        final HomeRandomShowcaseListenBrainz prior,
+        final HomeRandomShowcaseListenBrainz incoming,
+      ) =>
+        prior.isLoading != incoming.isLoading ||
+            (prior.playlist?.recommendations.length ?? 0) !=
+                (incoming.playlist?.recommendations.length ?? 0),
+      (
+        final HomeRandomShowcaseTrending prior,
+        final HomeRandomShowcaseTrending incoming,
+      ) =>
+        !listEquals(
+          prior.songs.map((song) => song.id).toList(growable: false),
+          incoming.songs.map((song) => song.id).toList(growable: false),
+        ),
+      _ => false,
+    };
+    if (changed) {
+      return true;
     }
   }
   return false;
@@ -2487,11 +2498,13 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final item = this.album;
-    if (item is HomeRandomShowcaseListenBrainz) {
-      return _DesktopListenBrainzPage(item: item);
-    }
-    final album = item as HomeRandomShowcaseAlbum;
+    return switch (album) {
+      final HomeRandomShowcasePlaylist item => _DesktopPlaylistPage(item: item),
+      final HomeRandomShowcaseAlbum album => _albumPage(context, album),
+    };
+  }
+
+  Widget _albumPage(BuildContext context, HomeRandomShowcaseAlbum album) {
     final colors = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2680,10 +2693,11 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
   }
 }
 
-class _DesktopListenBrainzPage extends ConsumerWidget {
+/// A hero playlist on desktop: its cover beside its song list.
+class _DesktopPlaylistPage extends ConsumerWidget {
   const new({required this.item});
 
-  final HomeRandomShowcaseListenBrainz item;
+  final HomeRandomShowcasePlaylist item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2699,7 +2713,7 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
             SizedBox(
               width: coverWidth,
               height: pageHeight,
-              child: _ListenBrainzShowcaseVisual(item: item),
+              child: _ShowcasePlaylistVisual(item: item),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -2717,10 +2731,18 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: _DesktopListenBrainzSongList(
-                      key: ValueKey<String>(item.stableId),
-                      item: item,
-                    ),
+                    child: switch (item) {
+                      final HomeRandomShowcaseListenBrainz item =>
+                        _DesktopListenBrainzSongList(
+                          key: ValueKey<String>(item.stableId),
+                          item: item,
+                        ),
+                      final HomeRandomShowcaseTrending item =>
+                        _DesktopTrendingSongList(
+                          key: ValueKey<String>(item.stableId),
+                          item: item,
+                        ),
+                    },
                   ),
                 ),
               ),
@@ -2732,10 +2754,11 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
   }
 }
 
-class _ListenBrainzShowcaseVisual extends ConsumerWidget {
+/// A hero playlist's cover on desktop, with its title and availability.
+class _ShowcasePlaylistVisual extends ConsumerWidget {
   const new({required this.item});
 
-  final HomeRandomShowcaseListenBrainz item;
+  final HomeRandomShowcasePlaylist item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2750,17 +2773,11 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
         ),
       ),
       child: InkWell(
-        onTap: item.isLoading
-            ? null
-            : () =>
-                  _showListenBrainzDiscoverDetail(context, ref, item.playlist!),
+        onTap: _showcasePlaylistOpener(context, ref, item),
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            if (item.isLoading)
-              const _ListenBrainzLoadingArtwork()
-            else
-              _ListenBrainzArtwork(playlist: item.playlist!, size: 480),
+            _ShowcasePlaylistArtwork(item: item, size: 480),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -2792,9 +2809,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.isLoading
-                        ? l10n.weeklyPlaylistFetching
-                        : _listenBrainzAvailabilityText(item.playlist!, l10n),
+                    _showcasePlaylistAvailability(l10n, item),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall
@@ -2902,13 +2917,84 @@ void _playWeeklyRecommendation(
 ) {
   final playback = listenBrainzPlaybackFrom(recommendations, index);
   if (playback == null) return;
-  final queueAll =
-      ref.read(albumQueueEnabledProvider) && playback.songs.length > 1;
+  _playVirtualPlaylistSong(ref, playback.songs, playback.startIndex);
+}
+
+/// Trending Now's songs in the desktop hero: numbered by chart position,
+/// played like a weekly playlist (see [_playVirtualPlaylistSong]).
+class _DesktopTrendingSongList extends ConsumerWidget {
+  const new({required this.item, super.key});
+
+  final HomeRandomShowcaseTrending item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songs = item.songs;
+    return ListView.builder(
+      key: const PageStorageKey<String>('trending-desktop-songs'),
+      padding: EdgeInsets.zero,
+      itemCount: item.tracks.length,
+      itemBuilder: (context, index) => _TrendingSongRow(
+        track: item.tracks[index],
+        onTap: () => _playVirtualPlaylistSong(ref, songs, index),
+      ),
+    );
+  }
+}
+
+class _TrendingSongRow extends ConsumerWidget {
+  const new({required this.track, required this.onTap});
+
+  final ResolvedArtistTopTrack track;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final song = track.resolvedSong!;
+    final playbackState = ref.watch(
+      songPlaybackIndicatorStateProvider(song.id),
+    );
+    final row = AdaptiveTrackRow(
+      key: ValueKey<String>('trending-desktop-row-${song.id}'),
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration,
+      selected: playbackState.isSelected,
+      isRemote: isExternalCatalogSource(
+        id: song.id,
+        apiIsExternal: song.isExternal,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      leadingExtent: 32,
+      leadingGap: 6,
+      // Numbered hero list without artwork: denser rows.
+      minHeight: 48,
+      leading: SizedBox(
+        width: 32,
+        child: Center(
+          child: playbackState.isSelected
+              ? SongPlaybackMarker(state: playbackState)
+              : Text('${track.rank}', maxLines: 1),
+        ),
+      ),
+      onTap: onTap,
+    );
+    return SongPlaybackSemantics(state: playbackState, child: row);
+  }
+}
+
+/// Plays the song at [index] of a virtual playlist's [songs]: with Album
+/// Queue on, the whole playlist from that song, otherwise only that song.
+/// Match flows stay collapsed: the playlist already chose these songs.
+void _playVirtualPlaylistSong(WidgetRef ref, List<Song> songs, int index) {
+  if (index < 0 || index >= songs.length) return;
+  final queueAll = ref.read(albumQueueEnabledProvider) && songs.length > 1;
   ref
       .read(queueProvider.notifier)
       .replaceWithSongs(
-        queueAll ? playback.songs : <Song>[playback.songs[playback.startIndex]],
-        startIndex: queueAll ? playback.startIndex : 0,
+        queueAll ? songs : <Song>[songs[index]],
+        startIndex: queueAll ? index : 0,
         expandMatchFlows: false,
       )
       .ignore();
@@ -3231,25 +3317,21 @@ class _RandomMiniCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final item = this.item;
-    if (item is HomeRandomShowcaseListenBrainz) {
-      return ClipRRect(
-        borderRadius: borderRadius,
-        child: item.isLoading
-            ? const _ListenBrainzLoadingArtwork()
-            : _ListenBrainzArtwork(playlist: item.playlist!, size: 96),
-      );
-    }
-    final album = item as HomeRandomShowcaseAlbum;
     return ClipRRect(
       borderRadius: borderRadius,
-      child: CoverArtImage(
-        coverArtId: album.coverArtId,
-        size: 96,
-        fit: BoxFit.cover,
-        placeholderIcon: Icons.album_outlined,
-        isExternalSource: album.isExternal,
-      ),
+      child: switch (item) {
+        final HomeRandomShowcasePlaylist playlist => _ShowcasePlaylistArtwork(
+          item: playlist,
+          size: 96,
+        ),
+        final HomeRandomShowcaseAlbum album => CoverArtImage(
+          coverArtId: album.coverArtId,
+          size: 96,
+          fit: BoxFit.cover,
+          placeholderIcon: Icons.album_outlined,
+          isExternalSource: album.isExternal,
+        ),
+      },
     );
   }
 }
@@ -3822,11 +3904,19 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final item = this.album;
-    if (item is HomeRandomShowcaseListenBrainz) {
-      return _RandomListenBrainzHeroCard(item: item);
-    }
-    final album = item as HomeRandomShowcaseAlbum;
+    return switch (album) {
+      final HomeRandomShowcasePlaylist item => _RandomPlaylistHeroCard(
+        item: item,
+      ),
+      final HomeRandomShowcaseAlbum album => _albumCard(context, ref, album),
+    };
+  }
+
+  Widget _albumCard(
+    BuildContext context,
+    WidgetRef ref,
+    HomeRandomShowcaseAlbum album,
+  ) {
     final heroTag = buildCoverArtHeroTag(
       coverArtId: album.coverArtId,
       context: '${heroContext}_hero',
@@ -3955,10 +4045,11 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
   }
 }
 
-class _RandomListenBrainzHeroCard extends ConsumerWidget {
+/// A hero playlist as one card, in the narrow desktop pager.
+class _RandomPlaylistHeroCard extends ConsumerWidget {
   const new({required this.item});
 
-  final HomeRandomShowcaseListenBrainz item;
+  final HomeRandomShowcasePlaylist item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3973,17 +4064,11 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
         ),
       ),
       child: InkWell(
-        onTap: item.isLoading
-            ? null
-            : () =>
-                  _showListenBrainzDiscoverDetail(context, ref, item.playlist!),
+        onTap: _showcasePlaylistOpener(context, ref, item),
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            if (item.isLoading)
-              const _ListenBrainzLoadingArtwork()
-            else
-              _ListenBrainzArtwork(playlist: item.playlist!, size: 420),
+            _ShowcasePlaylistArtwork(item: item, size: 420),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -4015,9 +4100,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      item.isLoading
-                          ? l10n.weeklyPlaylistFetching
-                          : _listenBrainzAvailabilityText(item.playlist!, l10n),
+                      _showcasePlaylistAvailability(l10n, item),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -4026,11 +4109,19 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      item.isLoading
-                          ? l10n.weeklyPlaylistLoading
-                          : item.playlist!.matchingComplete
-                          ? l10n.weeklyPlaylistReady
-                          : l10n.weeklyPlaylistMatching,
+                      switch (item) {
+                        HomeRandomShowcaseListenBrainz(
+                          :final playlist?,
+                          isLoading: false,
+                        ) =>
+                          playlist.matchingComplete
+                              ? l10n.weeklyPlaylistReady
+                              : l10n.weeklyPlaylistMatching,
+                        HomeRandomShowcaseListenBrainz() =>
+                          l10n.weeklyPlaylistLoading,
+                        HomeRandomShowcaseTrending() =>
+                          l10n.homeShowcaseReasonTrending,
+                      },
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(

@@ -122,6 +122,11 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.listenBrainzWeekly(normalized));
   }
 
+  /// Open Home's Trending Now virtual playlist.
+  static void openTrending(BuildContext context, WidgetRef ref) {
+    _drillIn(context, ref, AppRoutes.trending);
+  }
+
   /// Show a Library section, replacing the Library tab's pages.
   ///
   /// The section is part of the Library location, so returning to the tab,

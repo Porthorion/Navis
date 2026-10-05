@@ -23,7 +23,10 @@ import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -434,6 +437,27 @@ AlbumWithSongs _albumWithSongs(
   );
 }
 
+/// Trending Now with [count] playable chart songs at positions 1, 3, 5...
+HomeRandomShowcaseTrending _trending({int count = 8}) =>
+    HomeRandomShowcaseTrending(
+      tracks: <ResolvedArtistTopTrack>[
+        for (var i = 0; i < count; i++)
+          ResolvedArtistTopTrack(
+            rank: i * 2 + 1,
+            title: 'Chart Song ${i + 1}',
+            artist: 'Chart Artist',
+            resolvedSong: Song(
+              id: 'chart-${i + 1}',
+              title: 'Chart Song ${i + 1}',
+              artist: 'Chart Artist',
+              album: 'Chart Album',
+              duration: 200,
+              coverArt: 'chart-cover-${i % 4}',
+            ),
+          ),
+      ],
+    );
+
 /// Hides every default Home section except [visible]: a saved order alone
 /// gains the default sections it lacks.
 List<String> _hiddenExcept(List<String> visible) => <String>[
@@ -662,6 +686,10 @@ Future<void> _pumpRandomSectionHome(
         builder: (context, state) => ListenBrainzWeeklyDetailScreen(
           sourcePatch: state.pathParameters['sourcePatch']!,
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.trending,
+        builder: (context, state) => const TrendingDetailScreen(),
       ),
     ],
   );
@@ -3250,6 +3278,130 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('Trending in the phone hero opens its ranked page', (
+    tester,
+  ) async {
+    final trending = _trending();
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[trending],
+      overrides: <Override>[
+        homeTrendingProvider.overrideWith((ref) async => trending.tracks),
+      ],
+    );
+
+    final panel = find.byKey(const ValueKey<String>('home-showcase-info'));
+    expect(
+      find.descendant(of: panel, matching: find.text('Trending Now')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('8 songs you can play')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('Popular on Deezer')),
+      findsOneWidget,
+    );
+    // A playlist opens its page; only albums get a Play button.
+    expect(
+      find.byKey(const ValueKey<String>('home-showcase-play')),
+      findsNothing,
+    );
+
+    await tester.tap(find.bySemanticsLabel('Trending Now').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TrendingDetailScreen), findsOneWidget);
+    expect(find.text('Deezer chart • 8 songs'), findsOneWidget);
+    expect(find.text('Chart Song 2'), findsOneWidget);
+    // Rows are numbered by chart position.
+    final secondRow = find.ancestor(
+      of: find.text('Chart Song 2'),
+      matching: find.byType(AdaptiveTrackRow),
+    );
+    expect(
+      find.descendant(of: secondRow, matching: find.text('3')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'desktop Trending numbers songs by chart position and plays from a row',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: <HomeRandomShowcaseItem>[_trending()],
+        forceDesktop: true,
+        overrides: <Override>[
+          queueProvider.overrideWith(_QueueSpyController.new),
+          albumQueueEnabledProvider.overrideWithValue(true),
+        ],
+      );
+
+      final row = find.byKey(
+        const ValueKey<String>('trending-desktop-row-chart-2'),
+      );
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('3')),
+        findsOneWidget,
+      );
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      final queue = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      ).read(queueProvider.notifier) as _QueueSpyController;
+      expect(queue.lastReplaceIds, <String>[
+        for (var i = 1; i <= 8; i++) 'chart-$i',
+      ]);
+      expect(queue.lastStartIndex, 1);
+      expect(queue.lastExpandMatchFlows, isFalse);
+    },
+  );
+
+  testWidgets('every kind of hero item renders in the desktop strip', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1280, 900));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz(
+          playlist: _listenBrainzPlaylist('jams', 'Weekly Jams'),
+        ),
+        _trending(),
+        const HomeRandomShowcaseAlbum(
+          id: 'album',
+          name: 'Album',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ],
+      forceDesktop: true,
+    );
+
+    for (var index = 0; index < 3; index++) {
+      expect(
+        find.byKey(ValueKey<String>('home-random-desktop-mini-cover-$index')),
+        findsOneWidget,
+      );
+    }
+    await tester.tap(
+      find.byKey(const ValueKey<String>('home-random-desktop-mini-cover-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('trending-desktop-row-chart-1')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shows determinate sync ring around logo while syncing', (

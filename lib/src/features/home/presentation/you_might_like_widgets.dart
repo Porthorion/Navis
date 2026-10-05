@@ -5,42 +5,94 @@ String _showcaseReasonLabel(
   AppLocalizations l10n,
   HomeRandomShowcaseItem item,
 ) {
-  if (item is HomeRandomShowcaseListenBrainz) {
-    return l10n.homeShowcaseReasonListenBrainz;
-  }
-  return switch ((item as HomeRandomShowcaseAlbum).source) {
-    HomeRandomShowcaseSource.likedDiscovery =>
-      l10n.homeShowcaseReasonLikedDiscovery,
-    HomeRandomShowcaseSource.serverRandom => l10n.homeShowcaseReasonServer,
-    HomeRandomShowcaseSource.localFallback => l10n.homeShowcaseReasonLibrary,
+  return switch (item) {
+    HomeRandomShowcaseAlbum(:final source) => switch (source) {
+      HomeRandomShowcaseSource.likedDiscovery =>
+        l10n.homeShowcaseReasonLikedDiscovery,
+      HomeRandomShowcaseSource.serverRandom => l10n.homeShowcaseReasonServer,
+      HomeRandomShowcaseSource.localFallback => l10n.homeShowcaseReasonLibrary,
+    },
+    HomeRandomShowcaseListenBrainz() => l10n.homeShowcaseReasonListenBrainz,
+    HomeRandomShowcaseTrending() => l10n.homeShowcaseReasonTrending,
   };
 }
 
 /// Cover whose colours tint the section: an album's own cover, or the first
-/// cover in a weekly playlist's mosaic.
+/// cover in a playlist's mosaic.
 String? _showcaseWashCoverId(HomeRandomShowcaseItem item) {
-  if (item is HomeRandomShowcaseAlbum) return item.coverArtId;
-  final playlist = (item as HomeRandomShowcaseListenBrainz).playlist;
-  if (playlist == null) return null;
-  for (final recommendation in playlist.recommendations) {
-    final coverArt =
-        recommendation.song?.coverArt ?? recommendation.tableSong?.coverArt;
-    if (coverArt != null && coverArt.trim().isNotEmpty) return coverArt;
-  }
-  return null;
+  return switch (item) {
+    HomeRandomShowcaseAlbum(:final coverArtId) => coverArtId,
+    HomeRandomShowcasePlaylist() => item.coverArtIds.firstOrNull,
+  };
 }
 
 /// "2023 • 12 songs · Similar to your likes": unknown parts are left out.
 String _showcaseMetaLine(AppLocalizations l10n, HomeRandomShowcaseItem item) {
   final reason = _showcaseReasonLabel(l10n, item);
-  if (item is! HomeRandomShowcaseAlbum) return reason;
-  final year = item.year;
-  final songCount = item.songCount;
-  final summary = <String>[
-    if (year != null && year > 0) '$year',
-    if (songCount != null && songCount > 0) l10n.playlistsSongCount(songCount),
-  ].join(' • ');
-  return summary.isEmpty ? reason : '$summary · $reason';
+  switch (item) {
+    case HomeRandomShowcasePlaylist():
+      return reason;
+    case HomeRandomShowcaseAlbum(:final year, :final songCount):
+      final summary = <String>[
+        if (year != null && year > 0) '$year',
+        if (songCount != null && songCount > 0)
+          l10n.playlistsSongCount(songCount),
+      ].join(' • ');
+      return summary.isEmpty ? reason : '$summary · $reason';
+  }
+}
+
+/// Opens a hero playlist's page; null while a weekly playlist is fetched.
+VoidCallback? _showcasePlaylistOpener(
+  BuildContext context,
+  WidgetRef ref,
+  HomeRandomShowcasePlaylist item,
+) {
+  return switch (item) {
+    HomeRandomShowcaseListenBrainz(:final playlist?, isLoading: false) =>
+      () => _showListenBrainzDiscoverDetail(context, ref, playlist),
+    HomeRandomShowcaseListenBrainz() => null,
+    HomeRandomShowcaseTrending() => () => NavService.openTrending(context, ref),
+  };
+}
+
+/// "12 of 50 available" for a weekly playlist, "24 songs you can play" for
+/// Trending.
+String _showcasePlaylistAvailability(
+  AppLocalizations l10n,
+  HomeRandomShowcasePlaylist item,
+) {
+  return switch (item) {
+    HomeRandomShowcaseListenBrainz(:final playlist?, isLoading: false) =>
+      _listenBrainzAvailabilityText(playlist, l10n),
+    HomeRandomShowcaseListenBrainz() => l10n.weeklyPlaylistFetching,
+    HomeRandomShowcaseTrending(:final tracks) =>
+      l10n.homeTrendingAvailableCount(tracks.length),
+  };
+}
+
+/// A hero playlist's cover at [size]: the weekly playlist's artwork (a
+/// placeholder while it is fetched) or Trending's mosaic.
+class _ShowcasePlaylistArtwork extends StatelessWidget {
+  const new({required this.item, required this.size});
+
+  final HomeRandomShowcasePlaylist item;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = this.item;
+    return switch (item) {
+      HomeRandomShowcaseListenBrainz(:final playlist?, isLoading: false) =>
+        _ListenBrainzArtwork(playlist: playlist, size: size),
+      HomeRandomShowcaseListenBrainz() => const _ListenBrainzLoadingArtwork(),
+      HomeRandomShowcaseTrending() => PlaylistCoverMosaic(
+        coverArtIds: item.coverArtIds,
+        size: size,
+        fallbackIcon: Icons.trending_up_rounded,
+      ),
+    };
+  }
 }
 
 /// A square, uncropped cover for the phone carousel.
@@ -75,48 +127,44 @@ class _ShowcaseCoverCard extends ConsumerWidget {
     VoidCallback? onLongPress;
     GestureTapDownCallback? onSecondaryTapDown;
     VoidCallback? onPlay;
+    String? playName;
     String semanticLabel;
-    if (item is HomeRandomShowcaseAlbum) {
-      final heroTag = buildCoverArtHeroTag(
-        coverArtId: item.coverArtId,
-        context: '${heroContext}_hero',
-        entityId: item.id,
-      );
-      artwork = HeroCoverArt(
-        coverArtId: item.coverArtId,
-        heroTag: heroTag,
-        size: kCoverArtStandardSize,
-        fit: BoxFit.cover,
-        placeholderIcon: Icons.album_outlined,
-        borderRadius: radius,
-        isExternalSource: item.isExternal,
-      );
-      onTap = () =>
-          NavService.openAlbumDetail(context, ref, item.id, heroTag: heroTag);
-      onLongPress = () => showAlbumContextMenu(context, ref, item.id);
-      onSecondaryTapDown = (details) => showAlbumContextMenu(
-        context,
-        ref,
-        item.id,
-        anchor: details.globalPosition,
-      );
-      onPlay = () => unawaited(playAlbumById(ref, item.id));
-      final artist = item.artist?.trim() ?? '';
-      semanticLabel = artist.isEmpty
-          ? item.name
-          : l10n.homeShowcaseAlbumSemantics(item.name, artist);
-    } else {
-      final listenBrainz = item as HomeRandomShowcaseListenBrainz;
-      final playlist = listenBrainz.playlist;
-      artwork = listenBrainz.isLoading || playlist == null
-          ? const _ListenBrainzLoadingArtwork()
-          : _ListenBrainzArtwork(playlist: playlist, size: 420);
-      onTap = listenBrainz.isLoading || playlist == null
-          ? null
-          : () => _showListenBrainzDiscoverDetail(context, ref, playlist);
-      semanticLabel = listenBrainz.localizedTitle(
-        AppLocalizations.of(context)!,
-      );
+    switch (item) {
+      case HomeRandomShowcaseAlbum():
+        final heroTag = buildCoverArtHeroTag(
+          coverArtId: item.coverArtId,
+          context: '${heroContext}_hero',
+          entityId: item.id,
+        );
+        artwork = HeroCoverArt(
+          coverArtId: item.coverArtId,
+          heroTag: heroTag,
+          size: kCoverArtStandardSize,
+          fit: BoxFit.cover,
+          placeholderIcon: Icons.album_outlined,
+          borderRadius: radius,
+          isExternalSource: item.isExternal,
+        );
+        onTap = () =>
+            NavService.openAlbumDetail(context, ref, item.id, heroTag: heroTag);
+        onLongPress = () => showAlbumContextMenu(context, ref, item.id);
+        onSecondaryTapDown = (details) => showAlbumContextMenu(
+          context,
+          ref,
+          item.id,
+          anchor: details.globalPosition,
+        );
+        onPlay = () => unawaited(playAlbumById(ref, item.id));
+        playName = item.name;
+        final artist = item.artist?.trim() ?? '';
+        semanticLabel = artist.isEmpty
+            ? item.name
+            : l10n.homeShowcaseAlbumSemantics(item.name, artist);
+      case HomeRandomShowcasePlaylist():
+        // Playlists open their page; their songs play from there.
+        artwork = _ShowcasePlaylistArtwork(item: item, size: 420);
+        onTap = _showcasePlaylistOpener(context, ref, item);
+        semanticLabel = item.localizedTitle(l10n);
     }
 
     return Semantics(
@@ -162,7 +210,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
                           child: IconButton.filled(
                             key: focused ? playKey : null,
                             tooltip: l10n.homeShowcasePlayTooltip(
-                              (item as HomeRandomShowcaseAlbum).name,
+                              playName ?? '',
                             ),
                             iconSize: 26,
                             constraints: const BoxConstraints(
@@ -201,24 +249,18 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final motion = MotionPolicy.of(context);
     final item = this.item;
-    final title = item is HomeRandomShowcaseAlbum
-        ? item.name
-        : (item as HomeRandomShowcaseListenBrainz).localizedTitle(
-            AppLocalizations.of(context)!,
-          );
-    final subtitle = item is HomeRandomShowcaseAlbum
-        ? (item.artist?.trim() ?? '')
-        : _listenBrainzSubtitle(l10n, item as HomeRandomShowcaseListenBrainz);
-
-    VoidCallback? openItem;
-    if (item is HomeRandomShowcaseAlbum) {
-      openItem = () => NavService.openAlbumDetail(context, ref, item.id);
-    } else {
-      final playlist = (item as HomeRandomShowcaseListenBrainz).playlist;
-      if (!item.isLoading && playlist != null) {
-        openItem = () =>
-            _showListenBrainzDiscoverDetail(context, ref, playlist);
-      }
+    final String title;
+    final String subtitle;
+    final VoidCallback? openItem;
+    switch (item) {
+      case HomeRandomShowcaseAlbum():
+        title = item.name;
+        subtitle = item.artist?.trim() ?? '';
+        openItem = () => NavService.openAlbumDetail(context, ref, item.id);
+      case HomeRandomShowcasePlaylist():
+        title = item.localizedTitle(l10n);
+        subtitle = _showcasePlaylistAvailability(l10n, item);
+        openItem = _showcasePlaylistOpener(context, ref, item);
     }
 
     final content = Column(
@@ -274,15 +316,6 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
         child: content,
       ),
     );
-  }
-
-  static String _listenBrainzSubtitle(
-    AppLocalizations l10n,
-    HomeRandomShowcaseListenBrainz item,
-  ) {
-    final playlist = item.playlist;
-    if (item.isLoading || playlist == null) return l10n.weeklyPlaylistFetching;
-    return _listenBrainzAvailabilityText(playlist, l10n);
   }
 }
 

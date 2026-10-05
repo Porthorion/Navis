@@ -21,8 +21,9 @@ const int kArtistTopTrackSearchWorkers = 4;
 const int _kSearchSongCount = 10;
 
 // Span names on `IntegrationCallRecorder`, for the diagnostics endpoint.
-const String kTopSongsLocalMatchSpan = 'topSongs.localMatch';
-const String kTopSongsServerMatchSpan = 'topSongs.serverMatch';
+const String kTopSongsSpanPrefix = 'topSongs';
+const String kTopSongsLocalMatchSpan = '$kTopSongsSpanPrefix.localMatch';
+const String kTopSongsServerMatchSpan = '$kTopSongsSpanPrefix.serverMatch';
 
 /// Matches an artist's top songs to library songs.
 ///
@@ -63,10 +64,18 @@ class ArtistTopTrackResolver {
   /// Forgets this session's searches, after a library sync.
   void forgetSearches() => _searches.clear();
 
+  /// [artistId] keys the remembered matches and shared searches; another
+  /// ranked list, such as Home's Trending, passes its own key. Only seeds
+  /// [shouldSearch] accepts (all by default) go to the server, by
+  /// [searchWorkers] workers. Spans are named `<spanPrefix>.localMatch` and
+  /// `<spanPrefix>.serverMatch`.
   Stream<List<ResolvedArtistTopTrack>> resolve({
     required String artistId,
     required List<ArtistTopTrackSeed> seeds,
     required CancelToken cancelToken,
+    int searchWorkers = kArtistTopTrackSearchWorkers,
+    bool Function(ArtistTopTrackSeed seed)? shouldSearch,
+    String spanPrefix = kTopSongsSpanPrefix,
   }) async* {
     if (seeds.isEmpty) {
       yield const <ResolvedArtistTopTrack>[];
@@ -161,7 +170,14 @@ class ArtistTopTrackResolver {
     for (final i in open) {
       if (done[i]) continue;
       final entry = remembered[keys[i]];
-      if (entry == null) {
+      if (shouldSearch != null && !shouldSearch(seeds[i])) {
+        // Never searched: keep a remembered remote match, else no song.
+        if (entry?.remoteSong case final remote?) {
+          songs[i] = remote;
+          cached++;
+        }
+        done[i] = true;
+      } else if (entry == null) {
         searchIndexes.add(i);
       } else if (!_staysValidWithoutLibraryRow(entry)) {
         // A remembered library song that is gone: search again.
@@ -172,7 +188,7 @@ class ArtistTopTrackResolver {
         cached++;
       }
     }
-    _recorder.span(kTopSongsLocalMatchSpan, <String, int>{
+    _recorder.span('$spanPrefix.localMatch', <String, int>{
       'seeds': seeds.length,
       'cached': cached,
       'candidates': candidateCount,
@@ -231,14 +247,10 @@ class ArtistTopTrackResolver {
     }
 
     await Future.wait([
-      for (
-        var w = 0;
-        w < math.min(kArtistTopTrackSearchWorkers, searchIndexes.length);
-        w++
-      )
+      for (var w = 0; w < math.min(searchWorkers, searchIndexes.length); w++)
         worker(),
     ]);
-    _recorder.span(kTopSongsServerMatchSpan, <String, int>{
+    _recorder.span('$spanPrefix.serverMatch', <String, int>{
       'unresolved': searchIndexes.length,
       'search3Calls': searches,
       'matched': matched,

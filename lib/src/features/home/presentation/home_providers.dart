@@ -15,8 +15,10 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -30,13 +32,15 @@ import 'package:navis/src/utils/song_id_utils.dart';
 
 enum HomeRandomShowcaseSource { likedDiscovery, serverRandom, localFallback }
 
-abstract class HomeRandomShowcaseItem {
+/// An item of the You Might Like hero: an album, or a virtual playlist
+/// ([HomeRandomShowcasePlaylist]). Widgets switch over it exhaustively.
+sealed class HomeRandomShowcaseItem {
   const new();
 
   String get stableId;
 }
 
-class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
+final class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
   const new({
     required this.id,
     required this.name,
@@ -122,7 +126,23 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
   String get stableId => 'album:$id';
 }
 
-class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
+/// A virtual playlist in the hero: a weekly ListenBrainz playlist or
+/// Trending Now. They share one look: a mosaic of their songs' covers, a
+/// title, an availability line and a numbered song list.
+sealed class HomeRandomShowcasePlaylist extends HomeRandomShowcaseItem {
+  const new();
+
+  /// True while the playlist is still being fetched.
+  bool get isLoading;
+
+  /// The cover art of the playlist's songs, in order, for the mosaic and the
+  /// hero's colour wash.
+  Iterable<String> get coverArtIds;
+
+  String localizedTitle(AppLocalizations l10n);
+}
+
+final class HomeRandomShowcaseListenBrainz extends HomeRandomShowcasePlaylist {
   factory({required ListenBrainzDiscoverPlaylist playlist}) {
     return HomeRandomShowcaseListenBrainz._(
       playlist: playlist,
@@ -146,8 +166,20 @@ class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
   final ListenBrainzDiscoverPlaylist? playlist;
   final String? sourcePatch;
   final String displayTitle;
+  @override
   final bool isLoading;
 
+  @override
+  Iterable<String> get coverArtIds => <String>[
+    for (final recommendation
+        in playlist?.recommendations ??
+            const <ListenBrainzResolvedRecommendation>[])
+      if (recommendation.song?.coverArt ?? recommendation.tableSong?.coverArt
+          case final cover? when cover.trim().isNotEmpty)
+        cover,
+  ];
+
+  @override
   String localizedTitle(AppLocalizations l10n) => localizedWeeklyPlaylistTitle(
     l10n,
     sourcePatch: sourcePatch,
@@ -162,6 +194,38 @@ class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
     }
     return 'listenbrainz:${playlist!.playlist.identifier}';
   }
+}
+
+/// Trending Now: the Deezer chart songs the user can play, each ranked by
+/// its chart position (see `homeTrendingProvider`).
+final class HomeRandomShowcaseTrending extends HomeRandomShowcasePlaylist {
+  const new({required this.tracks});
+
+  /// Playable chart songs in chart order; every one has a resolved song.
+  final List<ResolvedArtistTopTrack> tracks;
+
+  /// The songs to queue, in chart order.
+  List<Song> get songs => tracks
+      .map((track) => track.resolvedSong)
+      .nonNulls
+      .toList(growable: false);
+
+  @override
+  bool get isLoading => false;
+
+  @override
+  Iterable<String> get coverArtIds => <String>[
+    for (final track in tracks)
+      if (track.resolvedSong?.coverArt case final cover?
+          when cover.trim().isNotEmpty)
+        cover,
+  ];
+
+  @override
+  String localizedTitle(AppLocalizations l10n) => l10n.homeTrendingTitle;
+
+  @override
+  String get stableId => 'trending:deezer';
 }
 
 const int _homeRandomShowcaseLimit = 12;
@@ -2097,14 +2161,24 @@ final homeRandomShowcaseProvider =
     >((ref, filters) {
       final listenBrainz = ref.watch(listenBrainzDiscoverStreamProvider);
       final albumsAsync = ref.watch(homeRandomAlbumShowcaseProvider(filters));
+      // Trending is chart music, so it never joins the downloaded-only or
+      // liked-only hero, and it is not even fetched under them.
+      final trendingTracks = filters.downloadedOnly || filters.likedOnly
+          ? null
+          : ref.watch(homeTrendingProvider).value;
+      final trending = trendingTracks == null || trendingTracks.isEmpty
+          ? null
+          : HomeRandomShowcaseTrending(tracks: trendingTracks);
+
+      List<HomeRandomShowcaseItem>? playlists() {
+        final weekly = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);
+        if (weekly == null && trending == null) return null;
+        return <HomeRandomShowcaseItem>[...?weekly, ?trending];
+      }
 
       return albumsAsync.when(
         loading: () {
-          final staged = _listenBrainzShowcasePrefix(
-            ref,
-            filters,
-            listenBrainz,
-          );
+          final staged = playlists();
           if (staged != null && staged.isNotEmpty) {
             return AsyncData(staged);
           }
@@ -2112,32 +2186,18 @@ final homeRandomShowcaseProvider =
         },
         error: AsyncError.new,
         data: (albums) {
-          final showcase = _prependListenBrainzShowcase(
-            ref,
-            filters,
-            albums,
-            listenBrainz,
+          final prefix = playlists();
+          return AsyncData(
+            prefix == null
+                ? albums
+                : <HomeRandomShowcaseItem>[
+                    ...prefix,
+                    ...albums.take(_homeRandomShowcaseLimit - prefix.length),
+                  ],
           );
-          return AsyncData(showcase);
         },
       );
     });
-
-List<HomeRandomShowcaseItem> _prependListenBrainzShowcase(
-  Ref ref,
-  ({bool downloadedOnly, bool likedOnly}) filters,
-  List<HomeRandomShowcaseAlbum> albums,
-  AsyncValue<List<ListenBrainzDiscoverPlaylist>> listenBrainz,
-) {
-  final prefix = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);
-  if (prefix == null) {
-    return albums;
-  }
-  return <HomeRandomShowcaseItem>[
-    ...prefix,
-    ...albums.take(_homeRandomShowcaseLimit - prefix.length),
-  ];
-}
 
 List<HomeRandomShowcaseItem>? _listenBrainzShowcasePrefix(
   Ref ref,

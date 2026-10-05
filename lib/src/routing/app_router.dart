@@ -9,6 +9,7 @@ import 'package:navis/src/features/cache/presentation/library_cache_reset_provid
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
 import 'package:navis/src/features/integrations/presentation/integrations_settings_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
@@ -346,6 +347,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       child: ListenBrainzWeeklyDetailScreen(
                         sourcePatch: state.pathParameters['sourcePatch']!,
                       ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.trendingSegment,
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: const TrendingDetailScreen(),
                     ),
                   ),
                   GoRoute(

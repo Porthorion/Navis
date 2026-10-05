@@ -542,6 +542,27 @@
   "homeShowcaseReasonServer": "From your server",
   "homeShowcaseReasonLibrary": "From your library",
   "homeShowcaseReasonListenBrainz": "ListenBrainz",
+  "homeShowcaseReasonTrending": "Popular on Deezer",
+  "homeTrendingTitle": "Trending Now",
+  "homeTrendingAvailableCount": "{count, plural, =1{1 song you can play} other{{count} songs you can play}}",
+  "@homeTrendingAvailableCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trendingPlaylistMeta": "Deezer chart • {count, plural, =1{1 song} other{{count} songs}}",
+  "@trendingPlaylistMeta": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trendingEmptyTitle": "No Trending Songs",
+  "trendingEmptySubtitle": "Too few of the songs trending on Deezer are on your server right now.",
+  "trendingErrorTitle": "Could Not Load Trending",
   "homeShowcasePlayTooltip": "Play {album}",
   "@homeShowcasePlayTooltip": {
     "placeholders": {

@@ -7,7 +7,8 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
-/// A weekly playlist's cover, shaped by the Cover Art Shape setting.
+/// A weekly playlist's cover, shaped by the Cover Art Shape setting:
+/// ListenBrainz's own image when it has one, else [PlaylistCoverMosaic].
 class ListenBrainzPlaylistArtwork extends ConsumerWidget {
   const new({required this.playlist, required this.size, super.key});
 
@@ -30,62 +31,64 @@ class ListenBrainzPlaylistArtwork extends ConsumerWidget {
           height: size,
           fit: BoxFit.cover,
           feature: IntegrationFeature.listenBrainzWeeklyPlaylists,
-          fallbackBuilder: (_) => _ListenBrainzArtworkMosaic(
-            playlist: playlist,
+          fallbackBuilder: (_) => PlaylistCoverMosaic(
+            coverArtIds: _coverArtIds(playlist),
             size: size,
-            borderRadius: borderRadius,
           ),
         ),
       );
     }
-    return _ListenBrainzArtworkMosaic(
-      playlist: playlist,
-      size: size,
-      borderRadius: borderRadius,
-    );
+    return PlaylistCoverMosaic(coverArtIds: _coverArtIds(playlist), size: size);
   }
+
+  static List<String> _coverArtIds(ListenBrainzDiscoverPlaylist playlist) => [
+    for (final recommendation in playlist.recommendations)
+      ?(recommendation.song?.coverArt ?? recommendation.tableSong?.coverArt),
+  ];
 }
 
-class _ListenBrainzArtworkMosaic extends StatelessWidget {
+/// A virtual playlist's cover: up to four distinct song covers in a grid
+/// (one fills it), shaped by the Cover Art Shape setting, or [fallbackIcon]
+/// on the secondary container when there are none. Weekly playlists and
+/// Trending Now share it.
+class PlaylistCoverMosaic extends ConsumerWidget {
   const new({
-    required this.playlist,
+    required this.coverArtIds,
     required this.size,
-    required this.borderRadius,
+    this.fallbackIcon = Icons.auto_awesome_outlined,
+    super.key,
   });
 
-  final ListenBrainzDiscoverPlaylist playlist;
+  final Iterable<String> coverArtIds;
   final double size;
-  final BorderRadius borderRadius;
+  final IconData fallbackIcon;
 
   @override
-  Widget build(BuildContext context) {
-    final covers = playlist.recommendations
-        .map(
-          (recommendation) =>
-              recommendation.song?.coverArt ??
-              recommendation.tableSong?.coverArt,
-        )
-        .whereType<String>()
+  Widget build(BuildContext context, WidgetRef ref) {
+    final borderRadius = artworkBorderRadius(
+      ref.watch(coverArtShapeProvider),
+      extent: size,
+    );
+    final covers = coverArtIds
         .where((id) => id.trim().isNotEmpty)
         .toSet()
         .take(4)
         .toList(growable: false);
     final theme = Theme.of(context);
-    final fallback = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: borderRadius,
-      ),
-      child: Icon(
-        Icons.auto_awesome_outlined,
-        color: theme.colorScheme.onSecondaryContainer,
-        size: size * 0.36,
-      ),
-    );
     if (covers.isEmpty) {
-      return fallback;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer,
+          borderRadius: borderRadius,
+        ),
+        child: Icon(
+          fallbackIcon,
+          color: theme.colorScheme.onSecondaryContainer,
+          size: size * 0.36,
+        ),
+      );
     }
     return ClipRRect(
       borderRadius: borderRadius,
