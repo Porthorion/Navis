@@ -669,28 +669,34 @@ final integrationAccountScopeProvider = Provider<String?>((ref) {
 
 /// Re-runs the integration results that are relative to the library, after a
 /// library sync changed it: an empty New Releases computed before the first
-/// sync must not outlive it.
+/// sync must not outlive it. Trending Now refreshes itself after a sync
+/// (`homeTrendingSyncRefreshBridgeProvider`).
 final refreshIntegrationLibraryResultsProvider = Provider<void Function()>(
   (ref) => () {
     ref
       ..invalidate(deezerArtistResolverProvider)
       ..invalidate(artistDeezerIdProvider)
       ..invalidate(artistTopTrackSeedsProvider)
-      ..invalidate(homeNewReleasesProvider)
-      ..invalidate(homeTrendingProvider);
+      ..invalidate(homeNewReleasesProvider);
   },
 );
 
-/// Deletes the remembered top-song matches and Deezer artist mappings, which
-/// point at library ids, when the server data is wiped (sign-out) or the
-/// library cache is reset, then refreshes what was built from them.
+/// Deletes the remembered top-song and Trending matches and Deezer artist
+/// mappings, which point at library ids, when the server data is wiped
+/// (sign-out) or the library cache is reset, then refreshes what was built
+/// from them.
 final clearIntegrationLibraryCacheProvider = Provider<Future<void> Function()>(
   (ref) => () async {
     final store = ref.read(artistTopTrackMatchStoreProvider);
+    final trendingStore = ref.read(trendingMatchStoreProvider);
     final cache = ref.read(integrationJsonCacheProvider);
     await store.clear();
+    await trendingStore.clear();
     await cache.clearNamespace(DeezerCache.artistIdNamespace);
     ref.read(refreshIntegrationLibraryResultsProvider)();
+    ref
+      ..invalidate(trendingTrackResolverProvider)
+      ..invalidate(homeTrendingProvider);
   },
 );
 

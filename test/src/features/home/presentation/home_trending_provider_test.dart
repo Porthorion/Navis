@@ -17,6 +17,8 @@ import 'package:navis/src/features/integrations/data/integration_call_recorder.d
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
@@ -42,7 +44,7 @@ class _FakeDeezer extends DeezerApiClient {
 /// Answers `search3` for "<title> <artist>" from [results], optionally
 /// holding every search at [gate], and tracks concurrency and tokens.
 class _FakeSubsonic extends SubsonicApiClient {
-  new({this.results = const <String, Song>{}})
+  new({this.results = const <String, List<Song>>{}})
     : super(
         baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
@@ -53,7 +55,7 @@ class _FakeSubsonic extends SubsonicApiClient {
         enableLogging: false,
       );
 
-  final Map<String, Song> results;
+  final Map<String, List<Song>> results;
   Completer<void>? gate;
   final List<String> queries = <String>[];
   final List<CancelToken?> tokens = <CancelToken?>[];
@@ -80,8 +82,7 @@ class _FakeSubsonic extends SubsonicApiClient {
     } finally {
       active--;
     }
-    final song = results[query];
-    return SearchResult3(songs: <Song>[?song]);
+    return SearchResult3(songs: results[query] ?? const <Song>[]);
   }
 }
 
@@ -102,6 +103,13 @@ const _titles = <String>[
 ];
 
 String _t(int position) => _titles[position - 1];
+
+class _MutableLibrarySyncController extends LibrarySyncController {
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  set value(LibrarySyncState next) => state = next;
+}
 
 DeezerTrack _chartTrack(int id, String title, String artist) => DeezerTrack(
   id: id,
@@ -147,6 +155,7 @@ void main() {
     _FakeSubsonic? api,
     IntegrationPolicy policy = const IntegrationPolicy(),
     IntegrationCallRecorder? recorder,
+    _MutableLibrarySyncController? sync,
   }) {
     final root = cacheRoot;
     final container = ProviderContainer(
@@ -162,6 +171,9 @@ void main() {
           subsonicApiProvider.overrideWithValue(api),
           homeDeezerStartupDelayProvider.overrideWithValue(Duration.zero),
           homeDeezerSyncRunningProvider.overrideWithValue(false),
+          librarySyncControllerProvider.overrideWith(
+            () => sync ?? _MutableLibrarySyncController(),
+          ),
           if (recorder != null)
             integrationCallRecorderProvider.overrideWithValue(recorder),
         ],
@@ -171,12 +183,30 @@ void main() {
     return container;
   }
 
-  Future<List<ResolvedArtistTopTrack>> read(ProviderContainer container) {
+  /// Every emission of Trending until one has no song still matching.
+  Future<List<List<ResolvedArtistTopTrack>>> emissions(
+    ProviderContainer container,
+  ) async {
+    final all = <List<ResolvedArtistTopTrack>>[];
+    final done = Completer<void>();
     // Riverpod pauses providers nobody listens to.
-    final subscription = container.listen(homeTrendingProvider, (_, _) {});
+    final subscription = container.listen(homeTrendingProvider, (_, next) {
+      if (next case AsyncData(:final value)) {
+        all.add(value);
+        if (!value.any((track) => track.isMatching) && !done.isCompleted) {
+          done.complete();
+        }
+      }
+    }, fireImmediately: true);
     addTearDown(subscription.close);
-    return container.read(homeTrendingProvider.future);
+    await done.future.timeout(const Duration(seconds: 5));
+    await container.read(trendingMatchStoreProvider).whenSaved();
+    return all;
   }
+
+  Future<List<ResolvedArtistTopTrack>> read(
+    ProviderContainer container,
+  ) async => (await emissions(container)).last;
 
   test('asks Deezer nothing while the switch is off', () async {
     await library(<String>['A']);
@@ -198,53 +228,77 @@ void main() {
     expect(deezer.chartCalls, 0);
   });
 
-  test('keeps the playable chart songs, ranked by chart position', () async {
-    await library(<String>[_t(1), for (var i = 3; i <= 9; i++) _t(i)]);
+  test('keeps every chart song in chart order, matched or not', () async {
+    await library(<String>[_t(1), _t(3)]);
     final deezer = _FakeDeezer(<DeezerTrack>[
       _chartTrack(1, _t(1), 'Known'),
       _chartTrack(2, 'Hit', 'Stranger'),
-      for (var i = 3; i <= 9; i++) _chartTrack(i, _t(i), 'Known'),
-      _chartTrack(10, _t(10), 'Known'),
-      _chartTrack(11, 'Gone', 'Known'),
+      _chartTrack(3, _t(3), 'Known'),
+      _chartTrack(4, 'Gone', 'Known'),
+      _chartTrack(5, 'Copy', 'Stranger'),
     ]);
     final api = _FakeSubsonic(
-      results: <String, Song>{
-        '${_t(10)} Known': Song(
-          id: 'ext-deezer-song-10',
-          title: _t(10),
-          artist: 'Known',
-          isExternal: true,
-        ),
+      results: <String, List<Song>>{
+        // A song by an artist the library does not have: searched too.
+        'Hit Stranger': <Song>[
+          const Song(
+            id: 'ext-deezer-song-2',
+            title: 'Hit',
+            artist: 'Stranger',
+            isExternal: true,
+          ),
+        ],
+        // A copy on the server wins over the remote one.
+        'Copy Stranger': <Song>[
+          const Song(
+            id: 'ext-deezer-song-5',
+            title: 'Copy',
+            artist: 'Stranger',
+            isExternal: true,
+          ),
+          const Song(id: 'server-copy', title: 'Copy', artist: 'Stranger'),
+        ],
       },
     );
     final recorder = IntegrationCallRecorder();
 
-    final tracks = await read(
+    final all = await emissions(
       container(deezer: deezer, api: api, recorder: recorder),
     );
 
-    expect(tracks.map((track) => track.rank), <int>[
-      1,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
+    // The rows show at once, the searched ones still matching.
+    expect(all.first.map((track) => track.isMatching), <bool>[
+      false,
+      true,
+      false,
+      true,
+      true,
     ]);
-    expect(tracks.first.resolvedSong?.id, 'lib-Alpha');
-    expect(tracks.last.resolvedSong?.id, 'ext-deezer-song-10');
-    // Only songs by library artists that the library lacks are searched.
-    expect(api.queries.toSet(), <String>{'Juliet Known', 'Gone Known'});
+    final tracks = all.last;
+    expect(tracks.map((track) => track.rank), <int>[1, 2, 3, 4, 5]);
+    expect(tracks.map((track) => track.resolvedSong?.id), <String?>[
+      'lib-Alpha',
+      'ext-deezer-song-2',
+      'lib-Charlie',
+      null,
+      'server-copy',
+    ]);
+    expect(tracks[3].title, 'Gone');
+    expect(api.queries.toSet(), <String>{
+      'Hit Stranger',
+      'Gone Known',
+      'Copy Stranger',
+    });
+    // The server copy is stored for the next library pass.
+    expect(await database.libraryDao.getSongById('server-copy'), isNotNull);
     final span = recorder.recentSpans().lastWhere(
       (span) => span.name == kHomeTrendingSpan,
     );
     expect(span.counts, <String, int>{
-      'chart': 11,
-      'byLibraryArtists': 10,
-      'playable': 9,
+      'chart': 5,
+      'playable': 4,
+      'remote': 1,
+      'manual': 0,
     });
     expect(
       recorder.recentSpans().map((span) => span.name),
@@ -252,16 +306,18 @@ void main() {
     );
   });
 
-  test('fewer than eight playable songs leave Trending out', () async {
-    await library(<String>[for (var i = 1; i <= 7; i++) _t(i)]);
+  test('shows the chart while nothing is matched yet', () async {
+    await library(<String>[_t(12)]);
     final deezer = _FakeDeezer(<DeezerTrack>[
-      for (var i = 1; i <= 7; i++) _chartTrack(i, _t(i), 'Known'),
-      _chartTrack(8, 'Missing', 'Known'),
+      _chartTrack(1, _t(1), 'Known'),
+      _chartTrack(2, _t(2), 'Known'),
     ]);
-    expect(
-      await read(container(deezer: deezer, api: _FakeSubsonic())),
-      isEmpty,
+    final all = await emissions(
+      container(deezer: deezer, api: _FakeSubsonic()),
     );
+    expect(all, hasLength(2));
+    expect(all.first.every((track) => track.isMatching), isTrue);
+    expect(all.last.every((track) => track.resolvedSong == null), isTrue);
   });
 
   test('searches two at a time and stops when invalidated', () async {
@@ -273,9 +329,6 @@ void main() {
     final api = _FakeSubsonic()..gate = Completer<void>();
     final c = container(deezer: deezer, api: api);
     final subscription = c.listen(homeTrendingProvider, (_, _) {});
-    unawaited(
-      c.read(homeTrendingProvider.future).then<void>((_) {}, onError: (_) {}),
-    );
     for (var i = 0; i < 50 && api.queries.length < 2; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
@@ -291,6 +344,106 @@ void main() {
     expect(api.queries, hasLength(2));
   });
 
+  test(
+    'a pull to refresh searches six at a time and unmatched songs again',
+    () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[
+        for (var i = 1; i <= 12; i++) _chartTrack(i, _t(i), 'Known'),
+      ]);
+      final api = _FakeSubsonic();
+      final c = container(deezer: deezer, api: api);
+      final first = await emissions(c);
+      expect(first.last.where((t) => t.resolvedSong == null), hasLength(11));
+      expect(api.queries, hasLength(11));
+      expect(api.maxActive, lessThanOrEqualTo(2));
+
+      api
+        ..maxActive = 0
+        ..gate = Completer<void>();
+      final updates = <List<ResolvedArtistTopTrack>>[];
+      c.listen(homeTrendingProvider, (_, next) {
+        if (next case AsyncData(:final value)) updates.add(value);
+      });
+      c.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
+      for (var i = 0; i < 50 && api.queries.length < 17; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(api.maxActive, 6);
+      api.gate!.complete();
+      for (var i = 0; i < 100 && api.queries.length < 22; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // All eleven unmatched songs were searched again, and the rows moved
+      // on in batches before the end.
+      expect(api.queries, hasLength(22));
+      expect(updates.length, greaterThanOrEqualTo(3));
+      expect(updates.last.any((track) => track.isMatching), isFalse);
+    },
+  );
+
+  test(
+    'a library sync matches again locally without searching again',
+    () async {
+      await library(<String>[_t(1)]);
+      final deezer = _FakeDeezer(<DeezerTrack>[
+        _chartTrack(1, _t(1), 'Known'),
+        _chartTrack(2, _t(2), 'Known'),
+        _chartTrack(3, 'Hit', 'Stranger'),
+      ]);
+      final api = _FakeSubsonic(
+        results: <String, List<Song>>{
+          'Hit Stranger': <Song>[
+            const Song(
+              id: 'ext-deezer-song-3',
+              title: 'Hit',
+              artist: 'Stranger',
+              isExternal: true,
+            ),
+          ],
+        },
+      );
+      final sync = _MutableLibrarySyncController();
+      final c = container(deezer: deezer, api: api, sync: sync);
+      final first = await emissions(c);
+      expect(first.last[1].resolvedSong, isNull);
+      expect(api.queries, hasLength(2));
+
+      // The sync brings the second song.
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'lib-${_t(2)}',
+          title: _t(2),
+          artistId: const Value('known'),
+          artistName: const Value('Known'),
+          duration: const Value(200),
+        ),
+      ]);
+      final updates = <List<ResolvedArtistTopTrack>>[];
+      c.listen(homeTrendingProvider, (_, next) {
+        if (next case AsyncData(:final value)) updates.add(value);
+      });
+      sync.value = const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.idle,
+      );
+      sync.value = const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.idle,
+      );
+      for (var i = 0; i < 100 && updates.isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(updates.last.map((track) => track.resolvedSong?.id), <String?>[
+        'lib-Alpha',
+        'lib-Bravo',
+        'ext-deezer-song-3',
+      ]);
+      expect(api.queries, hasLength(2));
+    },
+  );
+
   test('joins the hero after the weekly playlists, never filtered', () async {
     final tracks = <ResolvedArtistTopTrack>[
       for (var i = 1; i <= 8; i++)
@@ -300,6 +453,7 @@ void main() {
           artist: 'Known',
           resolvedSong: Song(id: 's$i', title: 'T$i', coverArt: 'c$i'),
         ),
+      const ResolvedArtistTopTrack(rank: 9, title: 'T9', artist: 'Other'),
     ];
     var trendingReads = 0;
     final c = ProviderContainer(
@@ -329,9 +483,9 @@ void main() {
               ),
             ],
           ),
-          homeTrendingProvider.overrideWith((ref) async {
+          homeTrendingProvider.overrideWith((ref) {
             trendingReads++;
-            return tracks;
+            return Stream.value(tracks);
           }),
         ],
       ),
@@ -351,6 +505,8 @@ void main() {
     ]);
     final trending = items[1] as HomeRandomShowcaseTrending;
     expect(trending.coverArtIds.take(2), <String>['c1', 'c2']);
+    expect(trending.tracks, hasLength(9));
+    expect(trending.songs, hasLength(8));
 
     for (final filters in <({bool downloadedOnly, bool likedOnly})>[
       (downloadedOnly: true, likedOnly: false),
@@ -368,5 +524,25 @@ void main() {
       );
     }
     expect(trendingReads, 1);
+  });
+
+  test('the hero needs eight playable chart songs, matched rows count', () {
+    List<ResolvedArtistTopTrack> chart(
+      int playable,
+    ) => <ResolvedArtistTopTrack>[
+      for (var i = 1; i <= 20; i++)
+        ResolvedArtistTopTrack(
+          rank: i,
+          title: 'T$i',
+          artist: 'A',
+          resolvedSong: i <= playable ? Song(id: 's$i', title: 'T$i') : null,
+        ),
+    ];
+    expect(HomeRandomShowcaseTrending.forHero(chart(7)), isNull);
+    final item = HomeRandomShowcaseTrending.forHero(chart(8));
+    expect(item?.tracks, hasLength(20));
+    expect(item?.entries.map((entry) => entry.rank), <int>[
+      for (var i = 1; i <= 8; i++) i,
+    ]);
   });
 }

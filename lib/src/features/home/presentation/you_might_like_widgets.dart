@@ -66,8 +66,10 @@ String _showcasePlaylistAvailability(
     HomeRandomShowcaseListenBrainz(:final playlist?, isLoading: false) =>
       _listenBrainzAvailabilityText(playlist, l10n),
     HomeRandomShowcaseListenBrainz() => l10n.weeklyPlaylistFetching,
-    HomeRandomShowcaseTrending(:final tracks) =>
-      l10n.homeTrendingAvailableCount(tracks.length),
+    HomeRandomShowcaseTrending(:final tracks) => trendingAvailability(
+      l10n,
+      tracks,
+    ),
   };
 }
 

@@ -440,10 +440,11 @@ AlbumWithSongs _albumWithSongs(
 }
 
 /// Trending Now with [count] playable chart songs at positions 1, 3, 5...
+/// and an unmatched one ("Missing Song <n>") after each.
 HomeRandomShowcaseTrending _trending({int count = 8}) =>
     HomeRandomShowcaseTrending(
       tracks: <ResolvedArtistTopTrack>[
-        for (var i = 0; i < count; i++)
+        for (var i = 0; i < count; i++) ...<ResolvedArtistTopTrack>[
           ResolvedArtistTopTrack(
             rank: i * 2 + 1,
             title: 'Chart Song ${i + 1}',
@@ -457,6 +458,12 @@ HomeRandomShowcaseTrending _trending({int count = 8}) =>
               coverArt: 'chart-cover-${i % 4}',
             ),
           ),
+          ResolvedArtistTopTrack(
+            rank: i * 2 + 2,
+            title: 'Missing Song ${i + 1}',
+            artist: 'Chart Artist',
+          ),
+        ],
       ],
     );
 
@@ -3364,7 +3371,9 @@ void main() {
       database: database,
       randomAlbums: <HomeRandomShowcaseItem>[trending],
       overrides: <Override>[
-        homeTrendingProvider.overrideWith((ref) async => trending.tracks),
+        homeTrendingProvider.overrideWith(
+          (ref) => Stream.value(trending.tracks),
+        ),
       ],
     );
 
@@ -3374,7 +3383,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: panel, matching: find.text('8 songs you can play')),
+      find.descendant(of: panel, matching: find.text('8 of 16 available')),
       findsOneWidget,
     );
     expect(
@@ -3391,8 +3400,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(TrendingDetailScreen), findsOneWidget);
-    expect(find.text('Deezer chart • 8 songs'), findsOneWidget);
+    expect(
+      find.text('Deezer chart • 16 songs • 8 of 16 available'),
+      findsOneWidget,
+    );
     expect(find.text('Chart Song 2'), findsOneWidget);
+    // Unmatched chart songs keep their place: no gaps in the numbering.
+    final missingRow = find.ancestor(
+      of: find.text('Missing Song 1'),
+      matching: find.byType(AdaptiveTrackRow),
+    );
+    expect(
+      find.descendant(of: missingRow, matching: find.text('2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: missingRow, matching: find.text('Not on server')),
+      findsOneWidget,
+    );
     // Rows are numbered by chart position.
     final secondRow = find.ancestor(
       of: find.text('Chart Song 2'),
@@ -3425,6 +3450,21 @@ void main() {
       expect(row, findsOneWidget);
       expect(
         find.descendant(of: row, matching: find.text('3')),
+        findsOneWidget,
+      );
+      // The unmatched song between them is listed, with a Search action.
+      final missing = find.byKey(
+        const ValueKey<String>('trending-desktop-row-rank-2'),
+      );
+      expect(
+        find.descendant(of: missing, matching: find.text('Not on server')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: missing,
+          matching: find.byIcon(Icons.search_rounded),
+        ),
         findsOneWidget,
       );
       await tester.tap(row);
@@ -3717,9 +3757,10 @@ void main() {
       tester,
       database: database,
       overrides: <Override>[
-        homeTrendingProvider.overrideWith((ref) async {
+        homeTrendingProvider.overrideWith((ref) {
+          ref.watch(homeTrendingRefreshProvider);
           trendingRuns++;
-          return const <ResolvedArtistTopTrack>[];
+          return Stream.value(const <ResolvedArtistTopTrack>[]);
         }),
         homeNewReleasesProvider.overrideWith((ref) async {
           newReleasesRuns++;
@@ -3741,10 +3782,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(trendingRuns, 2);
+    // A pull to refresh is a manual Trending refresh.
+    expect(container.read(homeTrendingRefreshProvider).manual, isTrue);
     expect(newReleasesRuns, 2);
   });
 
-  test('Trending keeps only playable songs, indexed together', () {
+  test('Trending keeps every chart song and indexes the playable ones', () {
     final trending = HomeRandomShowcaseTrending(
       tracks: const <ResolvedArtistTopTrack>[
         ResolvedArtistTopTrack(
@@ -3762,7 +3805,7 @@ void main() {
         ),
       ],
     );
-    expect(trending.tracks.map((track) => track.rank), <int>[1, 3]);
+    expect(trending.tracks.map((track) => track.rank), <int>[1, 2, 3]);
     expect(trending.entries.map((entry) => entry.rank), <int>[1, 3]);
     expect(trending.songs.map((song) => song.id), <String>['s1', 's3']);
   });

@@ -7,12 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
-import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
+import 'package:navis/src/features/library/data/artist_top_track_match_store.dart';
+import 'package:navis/src/features/library/data/artist_top_track_resolver.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
-import 'package:navis/src/utils/metadata_normalization.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 /// Library artists whose releases Home's New releases checks.
 const int kNewReleasesCandidateArtists = 30;
@@ -23,14 +25,26 @@ const int _kNewReleasesWorkers = 3;
 /// Span name on `IntegrationCallRecorder`, for the diagnostics endpoint.
 const String kHomeNewReleasesSpan = 'home.newReleases';
 
-/// The fewest playable chart songs Trending Now needs to show.
+/// The fewest playable chart songs Trending Now needs to join the You Might
+/// Like hero.
 const int kTrendingMinimumPlayable = 8;
 
-/// Chart songs searched on the server at once.
+/// Chart songs searched on the server at once while Home refreshes by
+/// itself, and after a pull to refresh.
 const int _kTrendingSearchWorkers = 2;
+const int _kTrendingManualSearchWorkers = 6;
+
+/// Finished searches between the updates a pull to refresh shows.
+const int _kTrendingProgressEvery = 6;
 
 /// The key Trending's remembered matches are stored under.
 const String kTrendingMatchKey = 'deezer-chart';
+
+/// Trending's remembered matches: their own namespace, which a library sync
+/// does not clear (every resolve checks the library again), kept two weeks
+/// so a remote match outlives its daily server recheck.
+const String kTrendingMatchNamespace = 'trending.matches';
+const Duration kTrendingMatchKeepFor = Duration(days: 14);
 
 /// Span names on `IntegrationCallRecorder`: `home.trending`, and the
 /// matcher's `trending.localMatch` and `trending.serverMatch`.
@@ -182,47 +196,125 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   return releases;
 });
 
-/// Trending Now (`deezer.trending`): the chart songs the user can play, in
-/// chart order, each ranked by its chart position.
+/// Trending's remembered matches, per server account. Sign-out and a
+/// library cache reset clear it; an account change drops its pending saves.
+final trendingMatchStoreProvider = Provider<ArtistTopTrackMatchStore>((ref) {
+  final store = ArtistTopTrackMatchStore(
+    cache: ref.watch(integrationJsonCacheProvider),
+    accountScope: ref.watch(integrationAccountScopeProvider) ?? 'signed-out',
+    namespace: kTrendingMatchNamespace,
+    keepFor: kTrendingMatchKeepFor,
+  );
+  ref.onDispose(store.invalidate);
+  return store;
+});
+
+/// The top-song matcher on Trending's own store.
+final trendingTrackResolverProvider = Provider<ArtistTopTrackResolver>((ref) {
+  return ArtistTopTrackResolver(
+    libraryDao: ref.watch(navisDatabaseProvider).libraryDao,
+    api: ref.watch(subsonicApiProvider),
+    store: ref.watch(trendingMatchStoreProvider),
+    recorder: ref.watch(integrationCallRecorderProvider),
+  );
+});
+
+/// Starts Trending Now again, through [HomeTrendingRefreshNotifier.refresh]:
+/// `manual` for a pull to refresh or a retry, which searches more songs at
+/// once, shows progress and searches unmatched songs again; otherwise as
+/// Home's own refresh after a library sync.
+class HomeTrendingRefreshNotifier extends Notifier<({int epoch, bool manual})> {
+  @override
+  ({int epoch, bool manual}) build() => (epoch: 0, manual: false);
+
+  void refresh({required bool manual}) =>
+      state = (epoch: state.epoch + 1, manual: manual);
+}
+
+final homeTrendingRefreshProvider =
+    NotifierProvider<HomeTrendingRefreshNotifier, ({int epoch, bool manual})>(
+      HomeTrendingRefreshNotifier.new,
+    );
+
+/// Matches Trending again after a library sync that changed the library,
+/// like the weekly playlists: the library pass finds songs the sync brought,
+/// and only songs due for their daily recheck are searched. A refresh
+/// started meanwhile (Home's pull to refresh starts one right after its
+/// sync) already sees the synced library, so it is not replaced.
+final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
+  ref.listen<bool>(
+    librarySyncControllerProvider.select(
+      (state) =>
+          state.status == LibrarySyncStatus.succeeded ||
+          state.status == LibrarySyncStatus.partial,
+    ),
+    (previous, finished) {
+      if (!finished || previous == true) return;
+      final epochAtSync = ref.read(homeTrendingRefreshProvider).epoch;
+      // Deferred past the widget build that may have delivered the sync.
+      unawaited(
+        Future<void>(() {
+          if (!ref.mounted ||
+              ref.read(homeTrendingRefreshProvider).epoch != epochAtSync) {
+            return;
+          }
+          ref.read(trendingTrackResolverProvider).forgetSearches();
+          ref.read(homeTrendingRefreshProvider.notifier).refresh(manual: false);
+        }),
+      );
+    },
+  );
+});
+
+/// Trending Now (`deezer.trending`): every song of Deezer's chart, in chart
+/// order and numbered by chart position, matched the way the ListenBrainz
+/// weekly playlists are.
 ///
 /// Empty, without asking Deezer, while the switch is off or the library has
 /// no artists. Otherwise, once Home is idle, it reads `/chart/0/tracks`
-/// (100, cached 6 hours) and matches the songs with the artist Top Songs
-/// matcher under its own key: remembered matches and `ext-deezer-song-<id>`
-/// rows, the local pass, then `search3`, only for songs by artists in the
-/// library and by two workers. The provider lives for the session; invalidating
-/// it (pull to refresh) or turning the switch off cancels its searches. The
-/// chart is
-/// regional and mostly other people's music, so the rest stay unmatched and
-/// are dropped. Fewer than [kTrendingMinimumPlayable] playable songs, or a
-/// failed chart request, leaves Trending out.
-final homeTrendingProvider = FutureProvider<List<ResolvedArtistTopTrack>>((
+/// (100, cached 6 hours) and matches every song with the top-song matcher
+/// on Trending's own store: remembered matches and `ext-deezer-song-<id>`
+/// rows, the library pass, then `search3` on the server, where a copy on
+/// the server wins over a remote one. The rows show at once, still matching,
+/// then with their songs; songs found nowhere stay as unmatched rows. Two
+/// songs are searched at once; a pull to refresh searches six, updates the
+/// rows as it goes and searches unmatched songs again. The provider lives
+/// for the session; a refresh or turning the switch off cancels its
+/// searches. A failed chart request leaves Trending empty.
+final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
-) async {
+) async* {
+  ref.watch(homeTrendingSyncRefreshBridgeProvider);
+  final manual = ref.watch(homeTrendingRefreshProvider).manual;
   final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
       (policy) => policy.allows(IntegrationFeature.deezerTrending),
     ),
   );
-  if (!allowed || scope == null) return const <ResolvedArtistTopTrack>[];
+  if (!allowed || scope == null) {
+    yield const <ResolvedArtistTopTrack>[];
+    return;
+  }
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
   final catalog = ref.watch(deezerCatalogProvider);
-  final resolver = ref.watch(artistTopTrackResolverProvider);
-  final artistIndex = ref.watch(libraryArtistNameIndexProvider);
+  final resolver = ref.watch(trendingTrackResolverProvider);
   final database = ref.watch(navisDatabaseProvider);
   if (await database.libraryDao.countArtists() == 0) {
-    return const <ResolvedArtistTopTrack>[];
+    yield const <ResolvedArtistTopTrack>[];
+    return;
   }
-  if (!ref.mounted) return const [];
+  if (!ref.mounted) return;
   await ref.watch(homeDeezerIdleProvider.future);
-  if (!ref.mounted) return const <ResolvedArtistTopTrack>[];
+  if (!ref.mounted) return;
 
   final timer = Stopwatch()..start();
   final chart = await catalog.chartTracks(cancelToken: cancelToken);
-  if (chart.isEmpty || cancelToken.isCancelled) {
-    return const <ResolvedArtistTopTrack>[];
+  if (cancelToken.isCancelled) return;
+  if (chart.isEmpty) {
+    yield const <ResolvedArtistTopTrack>[];
+    return;
   }
   final seeds = <ArtistTopTrackSeed>[
     for (var i = 0; i < chart.length; i++)
@@ -237,35 +329,36 @@ final homeTrendingProvider = FutureProvider<List<ResolvedArtistTopTrack>>((
         deezerTrackId: chart[i].id,
       ),
   ];
-  final libraryArtists = (await artistIndex.current()).lookupAll(
-    seeds.map((seed) => seed.artist),
-  );
-  if (!ref.mounted || cancelToken.isCancelled) return const [];
-  final resolved = await resolver
-      .resolve(
-        artistId: kTrendingMatchKey,
-        seeds: seeds,
-        cancelToken: cancelToken,
-        searchWorkers: _kTrendingSearchWorkers,
-        shouldSearch: (seed) =>
-            libraryArtists.containsKey(normalizeMetadata(seed.artist)),
-        spanPrefix: kTrendingMatchSpanPrefix,
-      )
-      .last;
-  if (cancelToken.isCancelled) return const <ResolvedArtistTopTrack>[];
-  final playable = resolved
-      .where((track) => track.resolvedSong != null)
-      .toList(growable: false);
+  var rows = const <ResolvedArtistTopTrack>[];
+  await for (final next in resolver.resolve(
+    artistId: kTrendingMatchKey,
+    seeds: seeds,
+    cancelToken: cancelToken,
+    searchWorkers: manual
+        ? _kTrendingManualSearchWorkers
+        : _kTrendingSearchWorkers,
+    spanPrefix: kTrendingMatchSpanPrefix,
+    researchUnmatched: manual,
+    yieldPendingRows: true,
+    progressEvery: manual ? _kTrendingProgressEvery : null,
+  )) {
+    if (cancelToken.isCancelled) return;
+    rows = next;
+    yield next;
+  }
+  if (cancelToken.isCancelled) return;
+  final playable = rows.map((row) => row.resolvedSong).nonNulls;
   ref.read(integrationCallRecorderProvider).span(kHomeTrendingSpan, {
     'chart': chart.length,
-    'byLibraryArtists': seeds
+    'playable': playable.length,
+    'remote': playable
         .where(
-          (seed) => libraryArtists.containsKey(normalizeMetadata(seed.artist)),
+          (song) => isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          ),
         )
         .length,
-    'playable': playable.length,
+    'manual': manual ? 1 : 0,
   }, timer.elapsed);
-  return playable.length < kTrendingMinimumPlayable
-      ? const <ResolvedArtistTopTrack>[]
-      : List<ResolvedArtistTopTrack>.unmodifiable(playable);
 });

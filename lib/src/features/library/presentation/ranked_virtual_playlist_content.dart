@@ -11,8 +11,11 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
+import 'package:navis/src/common_widgets/track_match_status_label.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/data/provisional_search_songs.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -24,8 +27,11 @@ import 'package:navis/src/utils/catalog_source.dart';
 /// A ranked virtual playlist page: artwork, title, a meta line, Play,
 /// Shuffle and Download, then numbered rows. The number is each track's
 /// [ResolvedArtistTopTrack.rank] ("This Is" an artist's position, Trending's
-/// chart position). A track without a song shows "Not available" and a
-/// search action.
+/// chart position). Rows look like the ListenBrainz weekly playlists' rows:
+/// a song still searched shows "Matching", one found nowhere is faded with
+/// "Not on server" and a Search action, and a playable song (a library or a
+/// remote one) opens the song menu, whose album and artist open their pages
+/// (remote ones through the server).
 ///
 /// "This Is" an artist and Home's Trending Now share it. [keyPrefix] names
 /// the page's test keys (`<prefix>-desktop-header`, `<prefix>-desktop-fade`).
@@ -158,7 +164,7 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
             child: const AdaptiveTrackHeader(
               numberColumnExtent: 30,
               leadingExtent: 82,
-              actionExtent: 48,
+              actionExtent: 96,
             ),
           ),
         ),
@@ -287,7 +293,8 @@ class _RankedTopTrackRow extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final song = track.resolvedSong;
     final colorScheme = Theme.of(context).colorScheme;
-    final unavailable = song == null;
+    final matching = song == null && track.isMatching;
+    final unavailable = song == null && !track.isMatching;
     final playbackState = song == null
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(song.id));
@@ -297,22 +304,21 @@ class _RankedTopTrackRow extends ConsumerWidget {
         isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal);
 
     final tile = AdaptiveTrackRow(
-      title: track.title,
-      artist: track.artist,
+      title: song?.title ?? track.title,
+      artist: song?.artist ?? track.artist,
       album: song?.album,
       duration: song?.duration,
       selected: isSelected,
       isRemote: isRemote,
       leadingExtent: 82,
-      actionExtent: 48,
-      badge: unavailable
-          ? Text(
-              l10n.artistTopTracksPlaylistUnavailable,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            )
-          : null,
+      actionExtent: 96,
+      titleBadge: song != null
+          ? null
+          : TrackMatchStatusLabel(
+              kind: matching
+                  ? TrackMatchLabelKind.matching
+                  : TrackMatchLabelKind.unavailable,
+            ),
       leading: SizedBox(
         height: 44,
         child: Row(
@@ -356,22 +362,103 @@ class _RankedTopTrackRow extends ConsumerWidget {
                   ], autoPlay: true),
                   label: 'playNow',
                 ),
+      onLongPress: song == null
+          ? null
+          : () => unawaited(_showMenu(context, ref, song)),
+      onSecondaryTapDown: song == null
+          ? null
+          : (details) => unawaited(
+              _showMenu(context, ref, song, anchor: details.globalPosition),
+            ),
       actions: song == null
-          ? IconButton(
-              tooltip: l10n.artistTopTracksPlaylistSearchAction,
-              onPressed: () => NavService.openSearch(
-                context,
-                ref,
-                '${track.title} ${track.artist}'.trim(),
+          ? Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: IconButton(
+                tooltip: matching
+                    ? l10n.weeklyPlaylistMatching
+                    : l10n.weeklyPlaylistSearchAction,
+                onPressed: matching
+                    ? null
+                    : () => NavService.openSearch(
+                        context,
+                        ref,
+                        '${track.title} ${track.artist}'.trim(),
+                      ),
+                icon: Icon(
+                  matching
+                      ? Icons.hourglass_empty_rounded
+                      : Icons.search_rounded,
+                ),
               ),
-              icon: const Icon(Icons.search_outlined),
             )
-          : SongDownloadStatusIcon(
-              songId: song.id,
-              onDownload: () => unawaited(_downloadSong(context, ref, song.id)),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: SongDownloadStatusIcon(
+                    songId: song.id,
+                    onDownload: () =>
+                        unawaited(_downloadSong(context, ref, song.id)),
+                  ),
+                ),
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    tooltip: MaterialLocalizations.of(buttonContext)
+                        .showMenuTooltip,
+                    icon: const Icon(Icons.more_vert),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    onPressed: () => unawaited(
+                      _showMenu(
+                        context,
+                        ref,
+                        song,
+                        anchor: _menuAnchorFor(buttonContext),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
-    return SongPlaybackSemantics(state: playbackState, child: tile);
+    return SongPlaybackSemantics(
+      state: playbackState,
+      child: Opacity(
+        opacity: unavailable ? TrackMatchStatusLabel.unavailableOpacity : 1,
+        child: tile,
+      ),
+    );
+  }
+
+  static Offset? _menuAnchorFor(BuildContext anchorContext) {
+    if (!isDesktopRuntime) return null;
+    final renderObject = anchorContext.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
+  }
+
+  /// The song menu. A song the library does not hold yet (a remote match)
+  /// is stored first, as playing it would, so the menu's queue actions find
+  /// it and its album and artist open their remote pages.
+  Future<void> _showMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Song song, {
+    Offset? anchor,
+  }) async {
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    var row = await dao.getSongById(song.id);
+    if (row == null) {
+      await persistProvisionalSearchSongs(dao, <Song>[song]);
+      row = await dao.getSongById(song.id) ?? provisionalSongTableData(song);
+    }
+    if (!context.mounted) return;
+    await showSongContextMenu(context, ref, row, anchor: anchor);
   }
 
   Future<void> _downloadSong(

@@ -2052,12 +2052,6 @@ abstract class AppLocalizations {
   /// **'Trending Now'**
   String get homeTrendingTitle;
 
-  /// No description provided for @homeTrendingAvailableCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 song you can play} other{{count} songs you can play}}'**
-  String homeTrendingAvailableCount(int count);
-
   /// No description provided for @trendingPlaylistMeta.
   ///
   /// In en, this message translates to:
@@ -2073,7 +2067,7 @@ abstract class AppLocalizations {
   /// No description provided for @trendingEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Too few of the songs trending on Deezer are on your server right now.'**
+  /// **'Trending Now appears once your library has synced and Deezer\'s chart can be read.'**
   String get trendingEmptySubtitle;
 
   /// No description provided for @trendingErrorTitle.
@@ -3790,18 +3784,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This Is {artist}'**
   String artistTopTracksPlaylistTitle(String artist);
-
-  /// No description provided for @artistTopTracksPlaylistUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Not available in your library'**
-  String get artistTopTracksPlaylistUnavailable;
-
-  /// No description provided for @artistTopTracksPlaylistSearchAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Search'**
-  String get artistTopTracksPlaylistSearchAction;
 
   /// No description provided for @artistTopTracksPlaylistEmptyTitle.
   ///

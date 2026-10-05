@@ -46,10 +46,12 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/recommendation_auto_advance.dart';
+import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -951,7 +953,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
     ref.invalidate(homeNewReleasesProvider);
-    ref.invalidate(homeTrendingProvider);
+    ref.read(homeTrendingRefreshProvider.notifier).refresh(manual: true);
     ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
     ref.invalidate(updateProvider);
   }
@@ -1902,10 +1904,12 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
         final HomeRandomShowcaseTrending prior,
         final HomeRandomShowcaseTrending incoming,
       ) =>
-        !listEquals(
-          prior.songs.map((song) => song.id).toList(growable: false),
-          incoming.songs.map((song) => song.id).toList(growable: false),
-        ),
+        prior.isMatching != incoming.isMatching ||
+            prior.tracks.length != incoming.tracks.length ||
+            !listEquals(
+              prior.songs.map((song) => song.id).toList(growable: false),
+              incoming.songs.map((song) => song.id).toList(growable: false),
+            ),
       _ => false,
     };
     if (changed) {
@@ -2927,8 +2931,10 @@ void _playWeeklyRecommendation(
   _playVirtualPlaylistSong(ref, playback.songs, playback.startIndex);
 }
 
-/// Trending Now's songs in the desktop hero: numbered by chart position,
-/// played like a weekly playlist (see [_playVirtualPlaylistSong]).
+/// Trending Now's chart in the desktop hero: every song numbered by chart
+/// position, playable ones played like a weekly playlist (see
+/// [_playVirtualPlaylistSong]), the others marked like weekly-playlist rows
+/// with a Search action.
 class _DesktopTrendingSongList extends ConsumerWidget {
   const new({required this.item, super.key});
 
@@ -2937,59 +2943,106 @@ class _DesktopTrendingSongList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final songs = item.songs;
+    // The play index of each chart row with a song.
+    final playIndexes = <int, int>{};
+    var playable = 0;
+    for (var i = 0; i < item.tracks.length; i++) {
+      if (item.tracks[i].resolvedSong != null) playIndexes[i] = playable++;
+    }
     return ListView.builder(
       key: const PageStorageKey<String>('trending-desktop-songs'),
       padding: EdgeInsets.zero,
-      itemCount: item.entries.length,
-      itemBuilder: (context, index) => _TrendingSongRow(
-        rank: item.entries[index].rank,
-        song: item.entries[index].song,
-        onTap: () => _playVirtualPlaylistSong(ref, songs, index),
-      ),
+      itemCount: item.tracks.length,
+      itemBuilder: (context, index) {
+        final playIndex = playIndexes[index];
+        return _TrendingSongRow(
+          track: item.tracks[index],
+          onTap: playIndex == null
+              ? null
+              : () => _playVirtualPlaylistSong(ref, songs, playIndex),
+        );
+      },
     );
   }
 }
 
 class _TrendingSongRow extends ConsumerWidget {
-  const new({required this.rank, required this.song, required this.onTap});
+  const new({required this.track, required this.onTap});
 
-  /// The chart position.
-  final int rank;
-  final Song song;
-  final VoidCallback onTap;
+  final ResolvedArtistTopTrack track;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playbackState = ref.watch(
-      songPlaybackIndicatorStateProvider(song.id),
-    );
+    final l10n = AppLocalizations.of(context)!;
+    final song = track.resolvedSong;
+    final unavailable = song == null && !track.isMatching;
+    final playbackState = song == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(song.id));
     final row = AdaptiveTrackRow(
-      key: ValueKey<String>('trending-desktop-row-${song.id}'),
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration,
-      selected: playbackState.isSelected,
-      isRemote: isExternalCatalogSource(
-        id: song.id,
-        apiIsExternal: song.isExternal,
+      key: ValueKey<String>(
+        song == null
+            ? 'trending-desktop-row-rank-${track.rank}'
+            : 'trending-desktop-row-${song.id}',
       ),
+      title: song?.title ?? track.title,
+      artist: song?.artist ?? track.artist,
+      album: song?.album,
+      duration: song?.duration,
+      selected: playbackState.isSelected,
+      isRemote:
+          song != null &&
+          isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       leadingExtent: 32,
       leadingGap: 6,
+      actionExtent: song == null ? 96 : null,
       // Numbered hero list without artwork: denser rows.
       minHeight: 48,
+      titleBadge: song != null
+          ? null
+          : TrackMatchStatusLabel(
+              kind: track.isMatching
+                  ? TrackMatchLabelKind.matching
+                  : TrackMatchLabelKind.unavailable,
+            ),
       leading: SizedBox(
         width: 32,
         child: Center(
           child: playbackState.isSelected
               ? SongPlaybackMarker(state: playbackState)
-              : Text('$rank', maxLines: 1),
+              : Text('${track.rank}', maxLines: 1),
         ),
       ),
+      actions: song != null
+          ? null
+          : IconButton(
+              tooltip: track.isMatching
+                  ? l10n.weeklyPlaylistMatching
+                  : l10n.weeklyPlaylistSearchAction,
+              icon: Icon(
+                track.isMatching
+                    ? Icons.hourglass_empty_rounded
+                    : Icons.search_rounded,
+              ),
+              onPressed: track.isMatching
+                  ? null
+                  : () => NavService.openSearch(
+                      context,
+                      ref,
+                      '${track.title} ${track.artist}'.trim(),
+                    ),
+            ),
       onTap: onTap,
     );
-    return SongPlaybackSemantics(state: playbackState, child: row);
+    return SongPlaybackSemantics(
+      state: playbackState,
+      child: Opacity(
+        opacity: unavailable ? TrackMatchStatusLabel.unavailableOpacity : 1,
+        child: row,
+      ),
+    );
   }
 }
 

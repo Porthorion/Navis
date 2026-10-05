@@ -544,14 +544,6 @@
   "homeShowcaseReasonListenBrainz": "ListenBrainz",
   "homeShowcaseReasonTrending": "Popular on Deezer",
   "homeTrendingTitle": "Trending Now",
-  "homeTrendingAvailableCount": "{count, plural, =1{1 song you can play} other{{count} songs you can play}}",
-  "@homeTrendingAvailableCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "trendingPlaylistMeta": "Deezer chart • {count, plural, =1{1 song} other{{count} songs}}",
   "@trendingPlaylistMeta": {
     "placeholders": {
@@ -561,7 +553,7 @@
     }
   },
   "trendingEmptyTitle": "No Trending Songs",
-  "trendingEmptySubtitle": "Too few of the songs trending on Deezer are on your server right now.",
+  "trendingEmptySubtitle": "Trending Now appears once your library has synced and Deezer's chart can be read.",
   "trendingErrorTitle": "Could Not Load Trending",
   "homeShowcasePlayTooltip": "Play {album}",
   "@homeShowcasePlayTooltip": {
@@ -1079,8 +1071,6 @@
       }
     }
   },
-  "artistTopTracksPlaylistUnavailable": "Not available in your library",
-  "artistTopTracksPlaylistSearchAction": "Search",
   "artistTopTracksPlaylistEmptyTitle": "No Top Tracks",
   "artistTopTracksPlaylistEmptySubtitle": "No top songs are available for this artist.",
   "artistTopTracksPlaylistErrorTitle": "Failed to Load Top Tracks",

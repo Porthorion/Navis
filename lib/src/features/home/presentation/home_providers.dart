@@ -197,27 +197,36 @@ final class HomeRandomShowcaseListenBrainz extends HomeRandomShowcasePlaylist {
   }
 }
 
-/// Trending Now: the Deezer chart songs the user can play, each ranked by
-/// its chart position (see `homeTrendingProvider`).
+/// Trending Now: every Deezer chart song in chart order, each ranked by its
+/// chart position, playable or not (see `homeTrendingProvider`).
 final class HomeRandomShowcaseTrending extends HomeRandomShowcasePlaylist {
-  /// Keeps only the [tracks] with a resolved song, so every row is playable
-  /// and [entries], [tracks] and [songs] share one index.
+  /// [entries] and [songs] keep only the [tracks] with a resolved song and
+  /// share one index.
   factory({required List<ResolvedArtistTopTrack> tracks}) {
     final entries = <({int rank, Song song})>[
       for (final track in tracks)
         if (track.resolvedSong case final song?) (rank: track.rank, song: song),
     ];
     return HomeRandomShowcaseTrending._(
-      tracks: List<ResolvedArtistTopTrack>.unmodifiable(
-        tracks.where((track) => track.resolvedSong != null),
-      ),
+      tracks: List<ResolvedArtistTopTrack>.unmodifiable(tracks),
       entries: List<({int rank, Song song})>.unmodifiable(entries),
     );
   }
 
   const new _({required this.tracks, required this.entries});
 
-  /// Playable chart songs in chart order; every one has a resolved song.
+  /// Builds the hero item when at least [kTrendingMinimumPlayable] chart
+  /// songs are playable, else null.
+  static HomeRandomShowcaseTrending? forHero(
+    List<ResolvedArtistTopTrack> tracks,
+  ) {
+    final playable = tracks.where((track) => track.resolvedSong != null);
+    return playable.length < kTrendingMinimumPlayable
+        ? null
+        : HomeRandomShowcaseTrending(tracks: tracks);
+  }
+
+  /// Every chart song in chart order, with its song when one was found.
   final List<ResolvedArtistTopTrack> tracks;
 
   /// Each playable song with its chart position, in chart order.
@@ -227,14 +236,16 @@ final class HomeRandomShowcaseTrending extends HomeRandomShowcasePlaylist {
   List<Song> get songs =>
       entries.map((entry) => entry.song).toList(growable: false);
 
+  /// Whether the server is still being searched for some songs.
+  bool get isMatching => tracks.any((track) => track.isMatching);
+
   @override
   bool get isLoading => false;
 
   @override
   Iterable<String> get coverArtIds => <String>[
-    for (final track in tracks)
-      if (track.resolvedSong?.coverArt case final cover?
-          when cover.trim().isNotEmpty)
+    for (final entry in entries)
+      if (entry.song.coverArt case final cover? when cover.trim().isNotEmpty)
         cover,
   ];
 
@@ -2094,9 +2105,9 @@ final homeRandomShowcaseProvider =
       final trendingTracks = filters.downloadedOnly || filters.likedOnly
           ? null
           : ref.watch(homeTrendingProvider).value;
-      final trending = trendingTracks == null || trendingTracks.isEmpty
+      final trending = trendingTracks == null
           ? null
-          : HomeRandomShowcaseTrending(tracks: trendingTracks);
+          : HomeRandomShowcaseTrending.forHero(trendingTracks);
 
       List<HomeRandomShowcaseItem>? playlists() {
         final weekly = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);

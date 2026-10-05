@@ -1350,17 +1350,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTrendingTitle => 'Trending Now';
 
   @override
-  String homeTrendingAvailableCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count songs you can play',
-      one: '1 song you can play',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String trendingPlaylistMeta(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1376,7 +1365,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trendingEmptySubtitle =>
-      'Too few of the songs trending on Deezer are on your server right now.';
+      'Trending Now appears once your library has synced and Deezer\'s chart can be read.';
 
   @override
   String get trendingErrorTitle => 'Could Not Load Trending';
@@ -2425,13 +2414,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String artistTopTracksPlaylistTitle(String artist) {
     return 'This Is $artist';
   }
-
-  @override
-  String get artistTopTracksPlaylistUnavailable =>
-      'Not available in your library';
-
-  @override
-  String get artistTopTracksPlaylistSearchAction => 'Search';
 
   @override
   String get artistTopTracksPlaylistEmptyTitle => 'No Top Tracks';
