@@ -1378,16 +1378,27 @@ switch means "Navis only talks to your server" when off. See
   explicitly. `CoverArtHttpFileService` repeats the check at service level
   (`allowUri`: master and service switches only) so code paths that bypass the
   widget are covered, which means radio art also needs the artwork service on.
-  It checks again once a download slot is granted (a queued cover may wait
-  while the policy changes) and follows redirects itself, checking every hop
-  before its request is sent and forwarding caller headers only to the
-  original origin; a refused hop releases the slot. The OS media session never
-  receives a radio art URL: `NavisAudioHandler.updateRadioMetadata` keeps it
-  only while `integrationAllowsRadioArtworkUri` (radio metadata and the host's
-  service) allows it, publishes the item without art, then fetches the image
-  through the cover cache (`fetchRadioArtwork`) and publishes the local file,
-  provided the policy and station still match. Every policy change re-runs
-  `updateRadioMetadata()`, which clears refused art.
+  A load that belongs to a feature (radio art) also carries
+  `coverArtFeatureHeader` (`coverArtFeatureHeaders(feature.key)`, set by
+  `ExternalArtworkImage` and the two URL-style consumers); the service consumes
+  it, never sends it, and asks `allowFeatureUri`
+  (`integrationAllowsArtworkFeatureKey`: master, service and that feature's
+  switch) at the same points as `allowUri`, so a radio download queued before
+  `radio.nowPlaying` was switched off is refused instead of dispatched.
+  The service checks again once a download slot is granted (a queued cover may
+  wait while the policy changes) and follows redirects itself, checking every
+  hop before its request is sent and forwarding caller headers only to the
+  original origin; a refused hop releases the slot. The OS media session
+  receives a radio art URL only while `integrationAllowsRadioArtworkUri`
+  allows it: the user's own server always qualifies (Online services off means
+  "only your server"), external hosts need radio metadata and the host's
+  service. `NavisAudioHandler.updateRadioMetadata` publishes the original
+  http(s) URL in `MediaItem.artUri` when allowed and no art when refused (the
+  station placeholder shows), so AudioService, which fetches whatever it is
+  given with its own unguarded cache, never sees a refused URL. Every policy
+  change re-runs `updateRadioMetadata()`, which clears refused art on the next
+  update. On Android `AndroidSystemArt` passes the http(s) URL through and
+  drops any `file:` URI, which Android Auto cannot open.
   It calls `onMissingCover` only for the server's own host (`isServerUri`), so an
   external 404 never asks the server to refresh a cover id. The two URL-style
   consumers (`now_playing_screen.dart`'s radio art provider and

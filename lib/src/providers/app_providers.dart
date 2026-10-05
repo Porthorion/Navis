@@ -1110,12 +1110,6 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         uri,
         serverHost: ref.read(serverHostProvider),
       ),
-      fetchRadioArtwork: (uri) async {
-        final file = await ref
-            .read(coverArtCacheManagerProvider)
-            .getSingleFile(uri.toString());
-        return file.uri;
-      },
       createRadioMetadataDio: () => ref.read(externalDioFactoryProvider)(
         IntegrationService.radioMetadata,
       ),

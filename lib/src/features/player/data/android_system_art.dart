@@ -23,7 +23,9 @@ typedef SystemArtLookup = String? Function(String coverArtId);
 /// Such an `artUri` is replaced by `content://<package>.artwork/cover/<key>`,
 /// which `NavisArtworkProvider` serves read-only from the cover cache
 /// ([PlaybackArtCache]); Android Auto runs in another process and can open
-/// it. Art without credentials (radio artwork) is passed through.
+/// it. Art without credentials (radio artwork, an http(s) URL the policy
+/// already allowed) is passed through; a `file:` URI, which URI-based clients
+/// cannot open, is dropped.
 ///
 /// The content URI is published only once the cover is on disk; until then
 /// the item has no art and the download is started. A URI the provider
@@ -61,6 +63,10 @@ class AndroidSystemArt {
   /// starts (or joins one in progress) when the cover is not cached yet.
   MediaItem forSystem(MediaItem item, {bool prefetch = false}) {
     final artUri = item.artUri;
+    // An app-private file cannot be opened from another process.
+    if (artUri != null && artUri.scheme == 'file') {
+      return item.copyWith(artUri: null);
+    }
     final coverArtId = _credentialedCoverId(artUri);
     if (coverArtId == null) return item;
     if (coverArtId.isEmpty) return item.copyWith(artUri: null);

@@ -14,6 +14,8 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -444,7 +446,6 @@ void main() {
     SubsonicApiClient? Function()? readApiClient,
     bool Function()? readCanStream,
     bool Function(Uri)? readRadioArtworkAllowed,
-    Future<Uri?> Function(Uri)? fetchRadioArtwork,
   }) async {
     final database = createTestDatabase();
     final apiClient = sidecarStreams
@@ -492,7 +493,6 @@ void main() {
     final handler = NavisAudioHandler(
       readRadioMetadataAllowed: () => false,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
-      fetchRadioArtwork: fetchRadioArtwork,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
       playQueueDao: database.playQueueDao,
@@ -552,21 +552,18 @@ void main() {
     return (handler, player, database);
   }
 
-  test(
-    'radio publishes only guarded local artwork and clears refused art',
-    () async {
+  group('radio artwork publication', () {
+    const ownArt = 'https://music.example.org:4533/rest/getCoverArt?id=r1';
+    const externalArt = 'https://art.example.invalid/cover.jpg';
+
+    Future<NavisAudioHandler> radioHandler(
+      bool Function(Uri) readRadioArtworkAllowed,
+    ) async {
       final directory = Directory.systemTemp.createTempSync('radio-art-');
-      var allowed = true;
-      var fetches = 0;
-      final pending = Completer<Uri?>();
       final (handler, _, database) = await createHandler(
         directory,
         0,
-        readRadioArtworkAllowed: (_) => allowed,
-        fetchRadioArtwork: (_) {
-          fetches++;
-          return pending.future;
-        },
+        readRadioArtworkAllowed: readRadioArtworkAllowed,
       );
       addTearDown(() async {
         await handler.disposeHandler();
@@ -578,32 +575,95 @@ void main() {
         stationName: 'Fixture',
         streamUrl: 'https://example.invalid/stream',
       );
-      handler.updateRadioMetadata(
-        title: 'Track',
-        artUrl: 'https://art.example.invalid/cover',
-      );
-      expect(handler.mediaItem.value!.artUri, isNull);
-      expect(fetches, 1);
+      return handler;
+    }
+
+    test(
+      'publishes the original http(s) URL while the policy allows it',
+      () async {
+        final handler = await radioHandler((_) => true);
+        handler.updateRadioMetadata(title: 'Track', artUrl: externalArt);
+        expect(handler.mediaItem.value!.artUri, Uri.parse(externalArt));
+        expect(handler.mediaItem.value!.artUri!.scheme, 'https');
+        expect(handler.snapshot.radioStation!.nowPlayingArtUrl, externalArt);
+      },
+    );
+
+    test('a refused URL is never published and refused art is cleared', () async {
+      var allowed = true;
+      final handler = await radioHandler((_) => allowed);
+      handler.updateRadioMetadata(title: 'Track', artUrl: externalArt);
+      expect(handler.mediaItem.value!.artUri, isNotNull);
+
+      // The policy changes while the station plays: the next update clears it.
       allowed = false;
       handler.updateRadioMetadata();
-      pending.complete(Uri.file('${directory.path}/cover.jpg'));
-      await Future<void>.delayed(Duration.zero);
       expect(handler.mediaItem.value!.artUri, isNull);
       expect(handler.snapshot.radioStation!.nowPlayingArtUrl, isNull);
+
       handler.updateRadioMetadata(
         title: 'Next',
-        artUrl: 'https://art.example.invalid/next',
+        artUrl: 'https://art.example.invalid/next.jpg',
       );
-      expect(fetches, 1);
+      expect(handler.mediaItem.value!.artUri, isNull);
+
       allowed = true;
       handler.updateRadioMetadata(
         title: 'Allowed',
-        artUrl: 'https://art.example.invalid/local',
+        artUrl: 'https://art.example.invalid/allowed.jpg',
       );
-      await Future<void>.delayed(Duration.zero);
-      expect(handler.mediaItem.value!.artUri!.scheme, 'file');
-    },
-  );
+      expect(
+        handler.mediaItem.value!.artUri,
+        Uri.parse('https://art.example.invalid/allowed.jpg'),
+      );
+    });
+
+    test(
+      'own-server art survives Online services off, external art does not',
+      () async {
+        var policy = const IntegrationPolicy();
+        final handler = await radioHandler(
+          (uri) => integrationAllowsRadioArtworkUri(
+            policy,
+            uri,
+            serverHost: 'music.example.org',
+          ),
+        );
+        handler.updateRadioMetadata(title: 'Own', artUrl: ownArt);
+        expect(handler.mediaItem.value!.artUri, Uri.parse(ownArt));
+
+        policy = const IntegrationPolicy(masterEnabled: false);
+        handler.updateRadioMetadata();
+        expect(handler.mediaItem.value!.artUri, Uri.parse(ownArt));
+
+        handler.updateRadioMetadata(title: 'Away', artUrl: externalArt);
+        expect(handler.mediaItem.value!.artUri, isNull);
+
+        policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+        handler.updateRadioMetadata(title: 'Radio off', artUrl: externalArt);
+        expect(handler.mediaItem.value!.artUri, isNull);
+        handler.updateRadioMetadata(title: 'Own again', artUrl: ownArt);
+        expect(handler.mediaItem.value!.artUri, Uri.parse(ownArt));
+      },
+    );
+
+    test('without a readable policy no art is published', () async {
+      final directory = Directory.systemTemp.createTempSync('radio-art-');
+      final (handler, _, database) = await createHandler(directory, 0);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://example.invalid/stream',
+      );
+      handler.updateRadioMetadata(title: 'Track', artUrl: externalArt);
+      expect(handler.mediaItem.value!.artUri, isNull);
+    });
+  });
 
   for (final preparationFailure in [true, false]) {
     test(

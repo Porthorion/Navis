@@ -99,6 +99,31 @@ void main() {
     );
   });
 
+  test(
+    'radio art stays http(s) and a private file URI is never published',
+    () async {
+      final art = _Fetches().art();
+      final radio = Uri.parse('http://radio.test/now.jpg');
+
+      final published = art.forSystem(
+        MediaItem(id: 'r', title: 'r', artUri: radio),
+      );
+      expect(published.artUri, radio);
+      expect(published.artUri!.scheme, anyOf('http', 'https'));
+
+      // Android Auto runs in another process and cannot open an app-private
+      // file, so such a URI is dropped rather than handed to the session.
+      final privateFile = MediaItem(
+        id: 'r',
+        title: 'r',
+        artUri: Uri.file('/data/user/0/app/cache/cover.jpg'),
+      );
+      expect(art.forSystem(privateFile).artUri, isNull);
+      final listed = await art.forSystemList(<MediaItem>[privateFile]);
+      expect(listed.single.artUri, isNull);
+    },
+  );
+
   test('browse lists wait for their covers, but not past the budget', () async {
     final fetches = _Fetches()..held['b'] = Completer<String?>();
     final art = fetches.art();

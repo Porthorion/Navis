@@ -93,7 +93,6 @@ class NavisAudioHandler extends BaseAudioHandler
     Future<void> Function(String)? togglePreferredMix,
     this._readRadioMetadataAllowed,
     this._readRadioArtworkAllowed,
-    this._fetchRadioArtwork,
     this._createRadioMetadataDio,
     AudioPlayer? player,
     this._adjustmentCapabilities,
@@ -417,19 +416,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Manages ICY / Azuracast metadata polling for radio streams.
   late RadioMetadataService _radioMetadataService;
 
-  /// Whether a station's now-playing artwork may load now: radio metadata
-  /// and the service its host maps to are both allowed. Null refuses all.
+  /// Whether a station's now-playing artwork may be shown and published to
+  /// the OS media session now: the user's own server always, an external host
+  /// only while radio metadata and the host's service are allowed. Null
+  /// refuses all. AudioService fetches whatever `artUri` it is given with its
+  /// own unguarded cache, so only URLs this accepts are ever published.
   final bool Function(Uri uri)? _readRadioArtworkAllowed;
-
-  /// Downloads radio artwork through the policy-guarded cover cache and
-  /// returns the local file. The system media session is only ever given
-  /// that file, never the remote URL, which audio_service would fetch with
-  /// its own unguarded cache.
-  final Future<Uri?> Function(Uri uri)? _fetchRadioArtwork;
-
-  /// Advances on every radio metadata publish, so artwork fetched for an
-  /// older one is dropped.
-  int _radioArtworkGeneration = 0;
 
   final bool Function()? _readRadioMetadataAllowed;
   final Dio Function()? _createRadioMetadataDio;
@@ -9462,54 +9454,22 @@ class NavisAudioHandler extends BaseAudioHandler
       nowPlayingArtUrl: nextArtUrl,
     );
 
-    // Update the MediaItem for lock-screen / notification display.
+    // Update the MediaItem for lock-screen / notification display. The art
+    // URL was checked above; a refused one publishes no art, so the station
+    // placeholder shows and AudioService has nothing to fetch.
     final updatedItem = MediaItem(
       id: 'radio:${current.stationId}',
       title: title ?? current.stationName,
       artist: artist ?? current.stationName,
-      // AudioService must never download an unguarded remote URL.
-      artUri: null,
+      artUri: nextArtUrl != null ? candidateUri : null,
       extras: <String, Object?>{
         'isRadio': true,
         'streamUrl': current.streamUrl,
       },
     );
-    final generation = ++_radioArtworkGeneration;
     _setCurrentMediaItem(updatedItem);
     _broadcastPlaybackState();
     _emitSnapshot();
-    if (nextArtUrl != null && candidateUri != null) {
-      unawaited(_publishRadioArtwork(candidateUri, updatedItem, generation));
-    }
-  }
-
-  Future<void> _publishRadioArtwork(
-    Uri uri,
-    MediaItem item,
-    int generation,
-  ) async {
-    final station = _radioStation;
-    try {
-      if (!(_readRadioArtworkAllowed?.call(uri) ?? false)) return;
-      final local = await _fetchRadioArtwork?.call(uri);
-      if (local == null ||
-          local.scheme != 'file' ||
-          generation != _radioArtworkGeneration ||
-          !identical(_radioStation, station) ||
-          _radioStation == null ||
-          mediaItem.value?.id != item.id ||
-          !(_readRadioArtworkAllowed?.call(uri) ?? false)) {
-        return;
-      }
-      _setCurrentMediaItem(
-        item.copyWith(
-          artUri: local,
-          extras: {...?item.extras, 'artCacheFile': local.toFilePath()},
-        ),
-      );
-    } on Object catch (error) {
-      AppLogger.debug('Radio artwork unavailable: $error');
-    }
   }
 
   Future<void> _replaceQueueFromIds(
