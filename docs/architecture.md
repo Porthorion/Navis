@@ -1773,6 +1773,18 @@ standard endpoints are unsupported. AudioMuse's installed Navidrome plugin
 answers the standard similarity calls through the server; the client neither
 calls AudioMuse directly nor attributes generic server results to it.
 
+A mix starts from the song its caller chose, which need not be the one
+playing (Android Auto starts mixes from browsed songs): the first refill uses
+the requested seed and later refills follow the current song. Starting a mix
+keeps only the seed in the queue, so the first refill treats only the seed as
+already queued; songs from an earlier mix still behind it are fair
+recommendations again. Similarity endpoints know only server ids, so a remote
+seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
+to, when the server has one: Server Mix asks for that copy before reporting
+unsupported, and Same Vibes uses it for its server fallback. A remote seed
+without a library copy never borrows the similar songs of an unrelated queue
+neighbour.
+
 Home and Android Auto **Instant Radio** use `PersonalRadioNotifier` and the
 queue-independent `RecommendationService`. Radio starts with likes and up to
 60 distinct recent songs, combines server and Last.fm library matches with
@@ -1786,7 +1798,9 @@ The Home action awaits an actual queue insertion before opening Now Playing.
 across these automatic modes. Replacement queues, queue clear, internet radio,
 server session changes, sign-out, or another recommendation activation
 invalidate ownership. The queue controller checks ownership within its
-serialized recommendation append and reports IDs actually inserted. A failed
+serialized recommendation append and reports IDs actually inserted. Every
+initial failure reports the session `failed` with an error category, so its
+status never stays `preparing` after the mode gave up. A failed
 initial fetch leaves the existing queue alone; failed initial queue commits
 attempt to restore the previous queue and play state. Persisted recommendation
 tracks restore as an ordinary queue after restart, without restarting refills.

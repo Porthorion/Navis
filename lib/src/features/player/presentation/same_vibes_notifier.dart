@@ -195,7 +195,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
 
     final snapshot = ref.read(playerStateProvider);
-    final seedSongId = snapshot.currentSongId ?? state.seedSongId;
+    // The first refill serves the song the caller chose, which need not be
+    // the one playing (Android Auto starts mixes from browsed songs). Later
+    // refills follow the current song.
+    final seedSongId = isInitial
+        ? state.seedSongId
+        : snapshot.currentSongId ?? state.seedSongId;
     if (seedSongId == null || seedSongId.trim().isEmpty) {
       AppLogger.debug('SameVibes diagnostics: refill skipped (missing seed)');
       return;
@@ -236,12 +241,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         return;
       }
 
-      final queuedIds = snapshot.queueSongIds
+      // The first refill keeps only the seed in the queue (it retains the
+      // seed before appending), so only the seed counts as already queued.
+      // Blocking the whole old queue made starting over from a song whose
+      // previous mix was still queued insert nothing.
+      final queueSongIds = isInitial
+          ? <String>[normalizedSeedSongId]
+          : snapshot.queueSongIds;
+      final queuedIds = queueSongIds
           .map((id) => id.trim())
           .where((id) => id.isNotEmpty)
           .toSet();
       final queuedSongKeys = <String>{
-        ...await _readQueueCanonicalSongKeys(snapshot.queueSongIds),
+        ...await _readQueueCanonicalSongKeys(queueSongIds),
       };
 
       final seed = await _resolveSeedMetadata(
@@ -350,6 +362,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
           snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
+          libraryCopyId: seed?.libraryCopyId,
         );
         fallbackSeedEligible = fallbackSeedSongId != null;
         if (fallbackSeedSongId == null) {
@@ -383,6 +396,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
           snapshot: snapshot,
           preferredSeedSongId: normalizedSeedSongId,
+          libraryCopyId: seed?.libraryCopyId,
         );
         if (fallbackSeedSongId != null) {
           AppLogger.debug(
@@ -433,6 +447,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             );
             if (endpointUnsupported && mappedSongs.isEmpty) {
               state = const SameVibesState(error: SameVibesError.unsupported);
+              _reportFailed(session, SameVibesError.unsupported);
               return;
             }
             fallbackReason = 'fallback_seed_not_found';
@@ -531,6 +546,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           _retryTimer = null;
           _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
           state = const SameVibesState(error: SameVibesError.networkError);
+          _reportFailed(session, SameVibesError.networkError);
           return;
         }
         _scheduleTransientRetry(reason: fallbackReason);
@@ -563,6 +579,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         _retryTimer = null;
         _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
+        _reportFailed(session, SameVibesError.networkError);
         return;
       }
       _scheduleTransientRetry(reason: 'unexpected_exception');
@@ -580,6 +597,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         _retryTimer = null;
         _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
+        _reportFailed(session, SameVibesError.networkError);
         return;
       }
       _scheduleTransientRetry(reason: 'unexpected_exception');
@@ -594,6 +612,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         state = state.copyWith(refilling: false);
       }
     }
+  }
+
+  /// Ends [session] as failed; without this the session would keep reading
+  /// "preparing" after the mix gave up.
+  void _reportFailed(RecommendationSession session, SameVibesError error) {
+    ref
+        .read(recommendationSessionProvider.notifier)
+        .report(session, stage: 'failed', errorCategory: error.name);
   }
 
   Future<void> _restorePreviousQueue(
@@ -636,7 +662,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (title.isEmpty || artist.isEmpty) {
         return null;
       }
-      return _SeedMetadata(title: title, artist: artist);
+      // A server with a remote catalogue answers for a remote song with its
+      // library copy when it has one; that id works for similar songs.
+      final copyId = song.id.trim();
+      return _SeedMetadata(
+        title: title,
+        artist: artist,
+        libraryCopyId:
+            copyId != seedSongId && _isServerAddressableSeedId(copyId)
+            ? copyId
+            : null,
+      );
     } on Exception {
       return null;
     }
@@ -784,16 +820,22 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   String? _resolveFallbackSeedSongId({
     required PlaybackSnapshot snapshot,
     required String preferredSeedSongId,
+    String? libraryCopyId,
   }) {
     if (_isServerAddressableSeedId(preferredSeedSongId)) {
       return preferredSeedSongId;
+    }
+    if (libraryCopyId != null) {
+      return libraryCopyId;
     }
 
     final queue = snapshot.queueSongIds
         .map((id) => id.trim())
         .where((id) => id.isNotEmpty)
         .toList(growable: false);
-    if (queue.isEmpty) {
+    // Neighbours stand in for the seed only while the seed is among them; a
+    // seed chosen from outside the queue replaces it.
+    if (queue.isEmpty || !queue.contains(preferredSeedSongId)) {
       return null;
     }
 
@@ -1190,10 +1232,13 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 }
 
 class _SeedMetadata {
-  const new({required this.artist, required this.title});
+  const new({required this.artist, required this.title, this.libraryCopyId});
 
   final String artist;
   final String title;
+
+  /// The server's library copy of a remote seed, when it has one.
+  final String? libraryCopyId;
 }
 
 class _CandidatePreferenceContext {

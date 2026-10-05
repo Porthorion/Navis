@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -14,6 +15,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 enum RecommendationSource { server, instantMix, lastFm, localTaste, shuffle }
 
@@ -144,18 +146,24 @@ class RecommendationService {
         issue: RecommendationIssue.networkFailure,
       );
     }
+    // The server's similarity endpoints know only its own ids. A remote song
+    // (an Octo-Fiesta `ext-` id) mixes from the library copy getSong maps it
+    // to, when the server has one.
+    final mixSeedId = isServerAddressableSongId(seedId)
+        ? seedId
+        : await _libraryCopyId(api, seedId, cancelToken) ?? seedId;
     final collected = <Song>[];
     var source = RecommendationSource.server;
     var issue = RecommendationIssue.empty;
     if (collected.length < count) {
       try {
         final generic = await api.getSimilarSongs2(
-          seedId,
+          mixSeedId,
           count: count,
           cancelToken: cancelToken,
         );
         final before = collected.length;
-        _addEligible(collected, generic, null, seedId, count);
+        _addEligible(collected, generic, null, mixSeedId, count);
         if (before == 0 && collected.isNotEmpty) {
           source = RecommendationSource.server;
         }
@@ -163,12 +171,12 @@ class RecommendationService {
       } on SubsonicNotFoundException {
         try {
           final legacy = await api.getLegacySimilarSongs(
-            seedId,
+            mixSeedId,
             count: count,
             cancelToken: cancelToken,
           );
           final before = collected.length;
-          _addEligible(collected, legacy, null, seedId, count);
+          _addEligible(collected, legacy, null, mixSeedId, count);
           if (before == 0 && collected.isNotEmpty) {
             source = RecommendationSource.server;
           }
@@ -176,11 +184,11 @@ class RecommendationService {
         } on SubsonicNotFoundException {
           try {
             final navidrome = await api.getInstantMix(
-              seedId,
+              mixSeedId,
               count: count,
               cancelToken: cancelToken,
             );
-            _addEligible(collected, navidrome, null, seedId, count);
+            _addEligible(collected, navidrome, null, mixSeedId, count);
             if (collected.isNotEmpty) {
               source = RecommendationSource.instantMix;
               issue = RecommendationIssue.none;
@@ -198,6 +206,22 @@ class RecommendationService {
       source: source,
       issue: collected.isEmpty ? issue : RecommendationIssue.none,
     );
+  }
+
+  /// The server's library copy of the remote song [seedId], or null when
+  /// getSong answers with the remote song itself or fails.
+  Future<String?> _libraryCopyId(
+    SubsonicApiClient api,
+    String seedId,
+    CancelToken? cancelToken,
+  ) async {
+    try {
+      final song = await api.getSong(seedId, cancelToken: cancelToken);
+      final id = song.id.trim();
+      return id != seedId && isServerAddressableSongId(id) ? id : null;
+    } on SubsonicException {
+      return null;
+    }
   }
 
   Future<RecommendationBatch> personalRadio(

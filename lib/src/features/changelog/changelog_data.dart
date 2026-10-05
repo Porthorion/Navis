@@ -205,6 +205,10 @@ const List<ChangelogVersion> changelogs = [
         'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Same Vibes now starts from the song you chose (for example from Android Auto), and Server Mix works from remote songs that have a library copy',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

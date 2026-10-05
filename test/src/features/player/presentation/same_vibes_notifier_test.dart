@@ -9,6 +9,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -684,6 +685,10 @@ void main() {
       expect(queued.appendedSongBatches, hasLength(1));
       expect(state.active, isFalse);
       expect(state.error, SameVibesError.networkError);
+      // The session ends instead of reading "preparing" forever.
+      final session = container.read(recommendationSessionProvider);
+      expect(session.stage, 'failed');
+      expect(session.insertedCount, 0);
     },
   );
 
@@ -1861,6 +1866,285 @@ void main() {
         ),
         <String>['plain'],
       );
+    });
+  });
+
+  group('the requested seed', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+
+    const playingSong = Song(
+      id: 'local-1',
+      title: 'Local Song',
+      artist: 'Local Artist',
+    );
+    const remoteSeed = Song(
+      id: 'ext-deezer-song-1',
+      title: 'Dystopia',
+      artist: 'ONE OK ROCK',
+    );
+
+    setUp(() {
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((invocation) async {
+            final id = invocation.positionalArguments.first as String;
+            return id == remoteSeed.id ? remoteSeed : playingSong;
+          });
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        ),
+      );
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[]);
+    });
+
+    /// A container whose player is on [queue]'s [current] song.
+    ProviderContainer playing({
+      required List<String> queue,
+      required String current,
+      String currentTitle = 'Local Song',
+      String currentArtist = 'Local Artist',
+    }) {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(_FakeQueueController.new),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream<MediaItem?>.value(
+              MediaItem(
+                id: current,
+                title: currentTitle,
+                artist: currentArtist,
+              ),
+            ),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(currentMediaItemProvider, (_, _) {});
+      container
+          .read(snapshotState.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queue,
+              currentSongId: current,
+              currentIndex: queue.indexOf(current),
+            ),
+          );
+      return container;
+    }
+
+    _FakeQueueController queueOf(ProviderContainer container) =>
+        container.read(queueProvider.notifier) as _FakeQueueController;
+
+    test('starts from the requested song while another song plays', () async {
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: 'ONE OK ROCK',
+          track: 'Dystopia',
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: <LastFmTrackRecommendation>[
+            LastFmTrackRecommendation(
+              artist: 'Coldrain',
+              title: 'Gone',
+              match: 1,
+            ),
+          ],
+        ),
+      );
+      when(
+        () => api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer(
+        (_) async => const SearchResult3(
+          songs: <Song>[Song(id: 'gone', title: 'Gone', artist: 'Coldrain')],
+        ),
+      );
+      final container = playing(
+        queue: const <String>['local-1', 'mix-a', 'mix-b'],
+        current: 'local-1',
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      verify(
+        () => lastFm.getSimilarTracksResult(
+          artist: 'ONE OK ROCK',
+          track: 'Dystopia',
+          limit: any(named: 'limit'),
+        ),
+      ).called(1);
+      verifyNever(
+        () => lastFm.getSimilarTracksResult(
+          artist: 'Local Artist',
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      );
+      final queue = queueOf(container);
+      expect(queue.retainedSongIds, <String>[remoteSeed.id]);
+      expect(queue.queuedSongs.map((song) => song.id), <String>['gone']);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.seedId, remoteSeed.id);
+      expect(session.stage, 'active');
+      expect(session.insertedCount, 1);
+    });
+
+    test('starting again from the same song queues its mix again', () async {
+      // The previous mix from this seed is still queued behind it; starting
+      // over keeps only the seed, so those songs are not duplicates.
+      final previousMix = List<Song>.generate(
+        5,
+        (index) => Song(id: 'sim-$index', title: 'Similar $index'),
+      );
+      when(
+        () => api.getSimilarSongs(
+          'local-1',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => previousMix);
+      final container = playing(
+        queue: <String>['local-1', ...previousMix.map((song) => song.id)],
+        current: 'local-1',
+      );
+
+      await container.read(sameVibesProvider.notifier).activate('local-1');
+
+      expect(
+        queueOf(container).queuedSongs.map((song) => song.id),
+        previousMix.map((song) => song.id),
+      );
+      final session = container.read(recommendationSessionProvider);
+      expect(session.stage, 'active');
+      expect(session.insertedCount, 5);
+    });
+
+    test('a remote seed asks the server about its library copy', () async {
+      when(
+        () =>
+            api.getSong(remoteSeed.id, cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'lib-copy',
+          title: 'Dystopia',
+          artist: 'ONE OK ROCK',
+        ),
+      );
+      when(
+        () => api.getSimilarSongs(
+          'lib-copy',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[Song(id: 'sim-copy', title: 'Copy Mix')],
+      );
+      when(
+        () => api.getSimilarSongs(
+          'local-1',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[Song(id: 'sim-local', title: 'Unrelated')],
+      );
+      final container = playing(
+        queue: const <String>['local-1', 'mix-a'],
+        current: 'local-1',
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      expect(queueOf(container).retainedSongIds, <String>[remoteSeed.id]);
+      expect(queueOf(container).queuedSongs.map((song) => song.id), <String>[
+        'sim-copy',
+      ]);
+      verifyNever(
+        () => api.getSimilarSongs(
+          'local-1',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+    });
+
+    test('a remote seed without a library copy does not borrow the playing '
+        "song's server mix", () async {
+      when(
+        () => api.getSimilarSongs(
+          'local-1',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[Song(id: 'sim-local', title: 'Unrelated')],
+      );
+      final container = playing(
+        queue: const <String>['local-1', 'mix-a'],
+        current: 'local-1',
+      );
+
+      await container.read(sameVibesProvider.notifier).activate(remoteSeed.id);
+
+      verifyNever(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+      expect(queueOf(container).queuedSongs, isEmpty);
+      expect(
+        container.read(sameVibesProvider).error,
+        SameVibesError.networkError,
+      );
+      expect(container.read(recommendationSessionProvider).stage, 'failed');
     });
   });
 }

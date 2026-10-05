@@ -11,6 +11,7 @@ import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -683,5 +684,166 @@ void main() {
     final state = container.read(instantMixProvider);
     expect(state.active, isFalse);
     expect(state.seedSongId, isNull);
+  });
+
+  group('a remote seed', () {
+    const remoteSeedId = 'ext-deezer-song-1';
+    late _MockSubsonicApiClient api;
+
+    setUp(() {
+      api = _MockSubsonicApiClient();
+      // Octo-Fiesta's similarity endpoints know only library ids (code 70).
+      for (final call in <Future<List<Song>> Function()>[
+        () => api.getSimilarSongs2(
+          remoteSeedId,
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+        () => api.getLegacySimilarSongs(
+          remoteSeedId,
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+        () => api.getInstantMix(
+          remoteSeedId,
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ]) {
+        when(
+          call,
+        ).thenThrow(const SubsonicNotFoundException(message: 'Song not found'));
+      }
+    });
+
+    ProviderContainer playingLocal({int? insertedCount}) {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(
+            () => _FakeQueueController(insertedCount: insertedCount),
+          ),
+          subsonicApiProvider.overrideWithValue(api),
+          audioMuseRepositoryProvider.overrideWith((_) => null),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(snapshotState.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['local-1', 'queued'],
+              currentSongId: 'local-1',
+              currentIndex: 0,
+            ),
+          );
+      return container;
+    }
+
+    test('mixes from its library copy on the server', () async {
+      when(
+        () => api.getSong(remoteSeedId, cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'lib-copy',
+          title: 'Dystopia',
+          artist: 'ONE OK ROCK',
+        ),
+      );
+      when(
+        () => api.getSimilarSongs2(
+          'lib-copy',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => <Song>[
+          const Song(id: 'lib-copy', title: 'Dystopia'),
+          ...songs(3),
+        ],
+      );
+      final container = playingLocal();
+
+      await container.read(instantMixProvider.notifier).activate(remoteSeedId);
+
+      final queue =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queue.retainedSongIds, <String>[remoteSeedId]);
+      // The library copy is the song just chosen, so it is not queued again.
+      expect(queue.mixTrackBatches.single.map((song) => song.id), <String>[
+        'rec-0',
+        'rec-1',
+        'rec-2',
+      ]);
+      final session = container.read(recommendationSessionProvider);
+      expect(session.seedId, remoteSeedId);
+      expect(session.stage, 'active');
+      expect(session.insertedCount, 3);
+      verifyNever(
+        () => api.getSimilarSongs2(
+          remoteSeedId,
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+    });
+
+    test('without a library copy reports unsupported', () async {
+      when(
+        () => api.getSong(remoteSeedId, cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: remoteSeedId,
+          title: 'Dystopia',
+          artist: 'ONE OK ROCK',
+        ),
+      );
+      final container = playingLocal();
+
+      await container.read(instantMixProvider.notifier).activate(remoteSeedId);
+
+      expect(
+        container.read(instantMixProvider).error,
+        InstantMixError.unsupported,
+      );
+      final session = container.read(recommendationSessionProvider);
+      expect(session.stage, 'failed');
+      expect(session.errorCategory, 'unsupported');
+      final queue =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queue.retainedSongIds, isEmpty);
+    });
+
+    test('an activation that queues nothing reports failure', () async {
+      when(
+        () => api.getSong(remoteSeedId, cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'lib-copy',
+          title: 'Dystopia',
+          artist: 'ONE OK ROCK',
+        ),
+      );
+      when(
+        () => api.getSimilarSongs2(
+          'lib-copy',
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(3));
+      final container = playingLocal(insertedCount: 0);
+
+      await container.read(instantMixProvider.notifier).activate(remoteSeedId);
+
+      expect(
+        container.read(instantMixProvider).error,
+        InstantMixError.networkError,
+      );
+      expect(container.read(recommendationSessionProvider).stage, 'failed');
+    });
   });
 }
