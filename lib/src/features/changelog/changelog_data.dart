@@ -201,6 +201,10 @@ const List<ChangelogVersion> changelogs = [
         'On Android, skipping songs on a slow connection no longer leaves the previous songs downloading in the background and stalls the new one',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

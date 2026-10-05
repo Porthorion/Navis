@@ -282,6 +282,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   ServerConfigModel? _androidScheduledConfig;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
+
+  /// Artists hydrated (one `getArtist`) since the server session began. A
+  /// server's artist list can count local albums only (Octo-Fiesta), so a
+  /// matching count does not prove the page has every release.
+  final Set<String> _sessionHydratedArtistIds = <String>{};
+  final Map<String, Future<void>> _artistInteractionHydrations =
+      <String, Future<void>>{};
+  int _artistSessionEpoch = 0;
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   int _automaticScheduleEpoch = 0;
@@ -600,8 +608,24 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(_requestAlbumHydrationIfNeeded(albumId));
   }
 
+  /// Hydrates an opened artist at least once per server session, and again
+  /// whenever its stored albums fall short of its album count. Concurrent
+  /// opens of one artist share a single request.
   void registerArtistInteraction(String artistId) {
-    unawaited(_requestArtistHydrationIfNeeded(artistId));
+    final normalizedId = artistId.trim();
+    if (normalizedId.isEmpty ||
+        _artistInteractionHydrations.containsKey(normalizedId)) {
+      return;
+    }
+    final task = _requestArtistHydrationIfNeeded(normalizedId);
+    _artistInteractionHydrations[normalizedId] = task;
+    unawaited(
+      task.whenComplete(() {
+        if (identical(_artistInteractionHydrations[normalizedId], task)) {
+          unawaited(_artistInteractionHydrations.remove(normalizedId));
+        }
+      }),
+    );
   }
 
   Future<LibrarySyncState> refreshArtist(String artistId) {
@@ -628,21 +652,41 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> _requestArtistHydrationIfNeeded(String artistId) async {
-    final normalizedId = artistId.trim();
-    if (normalizedId.isEmpty) {
+    final epoch = _artistSessionEpoch;
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final artist = await dao.getArtistById(artistId);
+    final albums = await dao.watchAlbumsByArtist(artistId).first;
+    if (!ref.mounted) {
       return;
     }
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    final artist = await dao.getArtistById(normalizedId);
-    final albums = await dao.watchAlbumsByArtist(normalizedId).first;
-    final needsHydration =
+    final albumsMissing =
         artist == null ||
         artist.albumCount == null ||
         albums.length < artist.albumCount!;
-    if (!ref.mounted || !needsHydration) {
-      return;
+    if (!albumsMissing) {
+      // The once-per-session check is only worth a request while the server
+      // is reachable, and an offline open must not use it up.
+      final firstOpenThisSession =
+          epoch == _artistSessionEpoch &&
+          !_sessionHydratedArtistIds.contains(artistId);
+      final offline =
+          ref.read(serverReachabilityControllerProvider).status ==
+          ServerReachabilityStatus.offline;
+      if (!firstOpenThisSession || offline) {
+        return;
+      }
     }
-    await requestTarget(LibrarySyncTarget.artist(normalizedId));
+    final result = await requestTarget(LibrarySyncTarget.artist(artistId));
+    if (ref.mounted &&
+        epoch == _artistSessionEpoch &&
+        result.status == LibrarySyncStatus.succeeded) {
+      _sessionHydratedArtistIds.add(artistId);
+    }
+  }
+
+  void _resetArtistSession() {
+    _artistSessionEpoch++;
+    _sessionHydratedArtistIds.clear();
   }
 
   void _onServerConfigChanged(AsyncValue<ServerConfigModel?> next) {
@@ -669,6 +713,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _sessionFingerprint = null;
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
+      _resetArtistSession();
       return;
     }
 
@@ -681,6 +726,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
       _priorityAlbumIds.clear();
+      _resetArtistSession();
       state = LibrarySyncState.idle(
         lastSyncedAt: serverConfig.lastSynced,
         freshness: _readPersistedFreshness(serverConfig.capabilitiesJson),

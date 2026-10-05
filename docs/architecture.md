@@ -2663,10 +2663,18 @@ states without starting audio or modifying a queue.
    `getIndexes` artist index before treating the catalog as unavailable.
 5. Unhydrated artist, album, and playlist interactions upgrade matching work to
    interactive priority instead of starting parallel hydrators. Artist detail
-   compares its visible album count with the server-advertised count and fetches
-   `getArtist` when the artist is absent, incomplete, or has no advertised
-   count; its explicit refresh always requests that exact artist rather than a
-   broad catalog run. Artist hydration stores the complete release metadata
+   fetches `getArtist` on its first open in each server session (an in-memory
+   set of hydrated artist ids, cleared on sign-out or server change; a
+   succeeded result marks the artist, so an offline or deferred open retries
+   next time and opens while the server is unreachable skip this check), and
+   on every open where the artist is absent, has fewer stored albums than its
+   advertised count, or has no advertised count. The session check exists
+   because a server's artist list can count local albums only: Octo-Fiesta's
+   `getArtists` reports the local count while `getArtist` adds the remote
+   `ext-deezer-album-*` releases under the same artist id, which then land in
+   the Albums grid with the Remote mark and hide Missing albums. Concurrent
+   opens of one artist share one request. Its explicit refresh always
+   requests that exact artist rather than a broad catalog run. Artist hydration stores the complete release metadata
    tree, while album hydration remains lazy and normally performs one
    `getAlbum` request plus one song transaction. Releases retain their stable
    provider IDs even when titles match, so distinct editions are never hidden.

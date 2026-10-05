@@ -15,6 +15,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 
@@ -80,6 +81,22 @@ class _MutableLibrarySyncEngine extends Notifier<LibrarySyncEngine?> {
     state = engine;
   }
 }
+
+class _ServerConfigSource extends Notifier<AsyncValue<ServerConfigModel?>> {
+  @override
+  AsyncValue<ServerConfigModel?> build() => const AsyncData(null);
+
+  // A setter would hide that this simulates a sign-in or sign-out.
+  // ignore: use_setters_to_change_properties
+  void set(AsyncValue<ServerConfigModel?> value) {
+    state = value;
+  }
+}
+
+final _serverConfigSource =
+    NotifierProvider<_ServerConfigSource, AsyncValue<ServerConfigModel?>>(
+      _ServerConfigSource.new,
+    );
 
 class _FakeLibrarySyncEngine extends LibrarySyncEngine {
   new(this._handlerIfStale, this._handlerNow, {this.requestHandler});
@@ -1340,13 +1357,9 @@ void main() {
         controller.registerArtistInteraction('complete');
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(
-          requestedArtistIds,
-          unorderedEquals(<String>['missing', 'incomplete', 'countless']),
-        );
-
-        await controller.refreshArtist('complete');
-
+        // The first open in a session hydrates every artist, including one
+        // whose stored albums already match its count: Octo-Fiesta counts
+        // local albums only, and getArtist adds the remote ones.
         expect(
           requestedArtistIds,
           unorderedEquals(<String>[
@@ -1356,8 +1369,222 @@ void main() {
             'complete',
           ]),
         );
+
+        controller.registerArtistInteraction('incomplete');
+        controller.registerArtistInteraction('complete');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        // Albums still missing keeps the existing rule; a complete artist
+        // already hydrated this session does not ask again.
+        expect(
+          requestedArtistIds.where((id) => id == 'incomplete'),
+          hasLength(2),
+        );
+        expect(
+          requestedArtistIds.where((id) => id == 'complete'),
+          hasLength(1),
+        );
+
+        await controller.refreshArtist('complete');
+
+        expect(
+          requestedArtistIds.where((id) => id == 'complete'),
+          hasLength(2),
+        );
       },
     );
+
+    group('artist page hydration once per session', () {
+      late NavisDatabase database;
+      late List<String> requestedArtistIds;
+      late Future<LibrarySyncState> Function() nextResult;
+
+      setUp(() async {
+        database = createTestDatabase();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: 'oor',
+            name: 'ONE OK ROCK',
+            albumCount: const Value(1),
+          ),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'ambitions',
+            name: 'Ambitions',
+            artistId: const Value('oor'),
+          ),
+        ]);
+        requestedArtistIds = <String>[];
+        nextResult = () async => LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        );
+      });
+
+      tearDown(() async {
+        await database.close();
+      });
+
+      ProviderContainer buildContainer({
+        ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
+        Override? serverConfig,
+      }) {
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          requestHandler: (request, {onProgress}) {
+            requestedArtistIds.add(request.target.entityId!);
+            return nextResult();
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _MutableReachabilityController(
+                ServerReachabilityState(status: reachability),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+            serverConfig ??
+                serverConfigStateProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+          ],
+        );
+        addTearDown(container.dispose);
+        return container;
+      }
+
+      Future<void> settle() =>
+          Future<void>.delayed(const Duration(milliseconds: 20));
+
+      test('a complete artist hydrates on the first open only', () async {
+        final container = buildContainer();
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        controller.registerArtistInteraction('oor');
+        await settle();
+        expect(requestedArtistIds, <String>['oor']);
+
+        controller.registerArtistInteraction('oor');
+        await settle();
+        expect(requestedArtistIds, <String>['oor']);
+      });
+
+      test('concurrent opens hydrate once', () async {
+        final release = Completer<LibrarySyncState>();
+        nextResult = () => release.future;
+        final container = buildContainer();
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        controller.registerArtistInteraction('oor');
+        controller.registerArtistInteraction(' oor ');
+        await settle();
+        controller.registerArtistInteraction('oor');
+        await settle();
+
+        expect(requestedArtistIds, <String>['oor']);
+        release.complete(
+          LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+        );
+        await settle();
+        controller.registerArtistInteraction('oor');
+        await settle();
+        expect(requestedArtistIds, <String>['oor']);
+      });
+
+      test('offline does not hydrate and does not use up the open', () async {
+        final container = buildContainer(
+          reachability: ServerReachabilityStatus.offline,
+        );
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        controller.registerArtistInteraction('oor');
+        await settle();
+        expect(requestedArtistIds, isEmpty);
+
+        (container.read(serverReachabilityControllerProvider.notifier)
+                as _MutableReachabilityController)
+            .setStatus(ServerReachabilityStatus.online);
+        controller.registerArtistInteraction('oor');
+        await settle();
+        expect(requestedArtistIds, <String>['oor']);
+      });
+
+      test(
+        'a hydration that did not succeed is retried on the next open',
+        () async {
+          nextResult = () async => const LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+          );
+          final container = buildContainer();
+          final controller = container.read(
+            librarySyncControllerProvider.notifier,
+          );
+
+          controller.registerArtistInteraction('oor');
+          await settle();
+          nextResult = () async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+          controller.registerArtistInteraction('oor');
+          await settle();
+          controller.registerArtistInteraction('oor');
+          await settle();
+
+          expect(requestedArtistIds, <String>['oor', 'oor']);
+        },
+      );
+
+      test('signing out starts a new session for artist hydration', () async {
+        final server = await _saveAuthenticatedServer(database);
+        final container = buildContainer(
+          serverConfig: serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+        );
+        container.read(_serverConfigSource.notifier).set(AsyncData(server));
+        // Riverpod pauses an unlistened provider's own listeners.
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        controller.registerArtistInteraction('oor');
+        await settle();
+        container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+        await settle();
+        container.read(_serverConfigSource.notifier).set(AsyncData(server));
+        await settle();
+        controller.registerArtistInteraction('oor');
+        await settle();
+
+        expect(requestedArtistIds, <String>['oor', 'oor']);
+      });
+    });
 
     test(
       'forceFullSync becomes visibly preparing before engine planning',
