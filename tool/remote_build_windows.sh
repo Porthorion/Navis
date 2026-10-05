@@ -441,6 +441,13 @@ if ($_devCmd) {
         flutter build windows @buildArgs
     }
 }
+# Scan the unpacked payload before Inno compresses it and before deleting
+# the private defines. Any read/traversal/scan error aborts packaging.
+$releaseDir = Join-Path $workspaceDir 'build/windows/x64/runner/Release'
+if ($definesPath -ne '') {
+    & (Join-Path $workspaceDir 'tool/windows/scan_release_secret.ps1') `
+      -ReleaseDir $releaseDir -DefinesPath $definesPath
+}
 } finally {
     if ($definesPath -ne '' -and (Test-Path $definesPath)) {
         Remove-Item -Force $definesPath

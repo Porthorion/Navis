@@ -741,6 +741,8 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       exit 1
     fi
 
+    scan_release_artifact "${WINDOWS_RELEASE_DIR}"
+
     if [[ "${WINDOWS_PACKAGE_MODE}" == "exe" ]]; then
       WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows-installer.exe"
       WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"

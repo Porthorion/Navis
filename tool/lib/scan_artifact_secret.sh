@@ -73,25 +73,34 @@ _scan_secret_unpack() {
 _scan_secret_walk() {
   local secret="$1" path="$2" label="$3" depth="$4"
 
-  if _scan_secret_grep "${secret}" "${path}"; then
-    echo "scan: plaintext secret found in ${label}" >&2
-    return 1
-  fi
+  local grep_status=0
+  _scan_secret_grep "${secret}" "${path}" || grep_status=$?
+  case "${grep_status}" in
+    0) echo "scan: plaintext secret found in ${label}" >&2; return 1 ;;
+    1) ;;
+    *) echo "scan: could not read ${label}; refusing to call it clean." >&2; return 2 ;;
+  esac
 
   # Directories: look inside every nested archive.
   if [[ -d "${path}" ]]; then
-    local nested status=0
-    while IFS= read -r -d '' nested; do
-      _scan_secret_walk "${secret}" "${nested}" "${label}!${nested#"${path}"/}" \
-        "${depth}" || status=$?
-      [[ ${status} -eq 0 ]] || return "${status}"
-    done < <(find "${path}" -type f \( -iname '*.zip' -o -iname '*.apk' \
+    local nested status=0 listing
+    listing="$(mktemp "${TMPDIR:-/tmp}/navis-scan-list-XXXXXX")" || return 2
+    if ! find "${path}" -type f \( -iname '*.zip' -o -iname '*.apk' \
       -o -iname '*.aab' -o -iname '*.ipa' -o -iname '*.jar' -o -iname '*.tar' \
       -o -iname '*.tar.gz' -o -iname '*.tgz' -o -iname '*.tar.xz' \
       -o -iname '*.txz' -o -iname '*.tar.zst' -o -iname '*.tzst' \
       -o -iname '*.tar.bz2' -o -iname '*.tbz2' -o -iname '*.deb' \
-      -o -name 'data.tar.*' -o -name 'control.tar.*' \) -print0)
-    return 0
+      -o -name 'data.tar.*' -o -name 'control.tar.*' \) -print0 >"${listing}"; then
+      rm -f "${listing}"
+      return 2
+    fi
+    while IFS= read -r -d '' nested; do
+      _scan_secret_walk "${secret}" "${nested}" "${label}!${nested#"${path}"/}" \
+        "${depth}" || status=$?
+      [[ ${status} -eq 0 ]] || break
+    done <"${listing}"
+    rm -f "${listing}" || return 2
+    return "${status}"
   fi
 
   if [[ "${depth}" -ge "${_scan_secret_max_depth}" ]]; then
@@ -100,22 +109,22 @@ _scan_secret_walk() {
   fi
 
   local unpacked unpack_status=0
-  unpacked="$(mktemp -d "${TMPDIR:-/tmp}/navis-scan-XXXXXX")"
+  unpacked="$(mktemp -d "${TMPDIR:-/tmp}/navis-scan-XXXXXX")" || return 2
   _scan_secret_unpack "${path}" "${unpacked}" || unpack_status=$?
   case "${unpack_status}" in
     0)
       local walk_status=0
       _scan_secret_walk "${secret}" "${unpacked}" "${label}" \
         "$((depth + 1))" || walk_status=$?
-      rm -rf "${unpacked}"
+      rm -rf "${unpacked}" || return 2
       return "${walk_status}"
       ;;
     3)
-      rm -rf "${unpacked}"
+      rm -rf "${unpacked}" || return 2
       return 0
       ;;
     *)
-      rm -rf "${unpacked}"
+      rm -rf "${unpacked}" || return 2
       echo "scan: could not unpack ${label}; refusing to call it clean." >&2
       return 2
       ;;

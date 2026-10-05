@@ -517,11 +517,15 @@ Last.fm key and fails the release before anything is tagged or uploaded if it
 appears. APK, AAB, IPA, macOS zip and Windows zip are unpacked; tarballs
 (gzip, xz, zstd, bzip2) and `.deb` files (via `dpkg-deb`, or `ar` plus the
 compressed `data.tar.*` inside) are extracted; nested archives are followed up
-to four levels deep. A Windows Inno
-Setup `.exe` is compressed and can only be scanned as raw bytes, so a clean
-result for it is weaker evidence. An artifact that cannot be unpacked (a missing
-decompressor such as `xz` or `zstd`, a corrupt archive, or nesting beyond the
-depth cap) fails the scan rather than passing it.
+to four levels deep. A Windows Inno Setup `.exe` is compressed and can only be
+scanned as raw bytes, so the unpacked Windows release directory is scanned
+before it is packaged: by `release.sh` on a Windows host, and by
+`tool/windows/scan_release_secret.ps1` on the remote Windows builder (it
+recovers the key from the masked defines in memory only). An artifact that
+cannot be unpacked (a missing decompressor such as `xz` or `zstd`, a corrupt
+archive, or nesting beyond the depth cap) fails the scan rather than passing
+it, and so does any `grep`, `find`, temporary-file or extraction error: a
+scanner failure is never read as "secret absent".
 
 Use `--allow-existing-version` only when intentionally rebuilding a version
 that was already tagged, such as retrying failed artifact publication. Normal

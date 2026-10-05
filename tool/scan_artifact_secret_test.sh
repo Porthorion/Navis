@@ -128,7 +128,7 @@ PY
 expect_status 1 "${tmp}/leaky.tar.xz" "tar.xz with the secret"
 expect_status 0 "${tmp}/clean.tar.xz" "clean tar.xz"
 expect_status 1 "${tmp}/leaky.tar.bz2" "tar.bz2 with the secret"
-if command -v zstd >/dev/null 2>&1; then
+if command -v zstd >/dev/null 2>&1 && tar --zstd -cf "${tmp}/zstd-probe.tar.zst" -T /dev/null >/dev/null 2>&1; then
   python3 - "${tmp}" <<'PY'
 import subprocess, sys
 tmp = sys.argv[1]
@@ -138,7 +138,7 @@ PY
 fi
 
 # A PATH holding only what the scanner needs, with no dpkg-deb, forces the
-# `ar x` fallback; a second one without xz proves an unreadable data.tar.xz
+# `ar x` fallback; a second one whose tar always fails proves an unreadable data.tar.xz
 # fails the scan instead of passing it.
 make_shim() {
   local dir="$1" tool path
@@ -148,10 +148,15 @@ make_shim() {
     path="$(command -v "${tool}" 2>/dev/null || true)"
     [[ -n "${path}" ]] && ln -sf "${path}" "${dir}/${tool}"
   done
+  return 0
 }
 shim_tools="grep tar unzip ar find mktemp tr basename dirname rm cat gzip bzip2 zstd xz"
 make_shim "${tmp}/shim-with-xz" ${shim_tools}
 make_shim "${tmp}/shim-no-xz" ${shim_tools/ xz/}
+# An extraction failure is independent of whether tar has a built-in xz reader.
+rm "${tmp}/shim-no-xz/tar"
+printf '#!/bin/sh\nexit 2\n' >"${tmp}/shim-no-xz/tar"
+chmod +x "${tmp}/shim-no-xz/tar"
 [[ ! -e "${tmp}/shim-with-xz/dpkg-deb" ]] || fail "shim must not provide dpkg-deb"
 
 # expect_status_on_path <path> <want> <artifact> <description>
@@ -168,8 +173,8 @@ expect_status_on_path() {
 }
 expect_status_on_path "${tmp}/shim-with-xz" 1 "${tmp}/leaky.deb" "deb (ar path) with the secret"
 expect_status_on_path "${tmp}/shim-with-xz" 0 "${tmp}/clean.deb" "clean deb (ar path)"
-expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.deb" "deb (ar path) without xz"
-expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.tar.xz" "tar.xz without xz"
+expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.deb" "deb (ar path) whose data.tar cannot be extracted"
+expect_status_on_path "${tmp}/shim-no-xz" 2 "${tmp}/leaky.tar.xz" "tar.xz that cannot be extracted"
 expect_status 1 "${tmp}/leaky.deb" "deb with the secret"
 
 # Nesting deeper than the cap is unscannable, not clean.
@@ -195,6 +200,15 @@ expect_status 2 "${tmp}/does-not-exist.apk" "missing artifact"
 got=0
 scan_artifact_for_secret "${tmp}/clean.apk" "" >/dev/null 2>&1 || got=$?
 [[ "${got}" -eq 2 ]] || fail "empty secret must be refused (status ${got})"
+
+# Tool errors must fail closed (including a traversal failing after output).
+for broken_tool in grep find mktemp; do
+  make_shim "${tmp}/shim-${broken_tool}" ${shim_tools}
+  rm "${tmp}/shim-${broken_tool}/${broken_tool}"
+  printf '#!/bin/sh\nexit 2\n' >"${tmp}/shim-${broken_tool}/${broken_tool}"
+  chmod +x "${tmp}/shim-${broken_tool}/${broken_tool}"
+  expect_status_on_path "${tmp}/shim-${broken_tool}" 2 "${tmp}/src/clean" "${broken_tool} failure"
+done
 
 # 7. The scan leaves no scratch directories or pattern files behind.
 leftover="$(find "${TMPDIR}" -mindepth 1 | wc -l)"
