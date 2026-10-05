@@ -195,6 +195,8 @@ class _IntegrationsSettingsScreenState
       ),
       for (final service in services)
         _ServiceSection(
+          // The first service sits close under its group heading.
+          topPadding: service == services.first ? NavisSpace.xs : NavisSpace.lg,
           service: service,
           policy: policy,
           onServiceChanged: (value) => _write(
@@ -561,10 +563,14 @@ class _ServiceSection extends StatelessWidget {
     required this.policy,
     required this.onServiceChanged,
     required this.onFeatureChanged,
+    required this.topPadding,
     this.credential,
   });
 
   final IntegrationService service;
+
+  /// Space above the section heading.
+  final double topPadding;
   final IntegrationPolicy policy;
   final ValueChanged<bool> onServiceChanged;
   final void Function(IntegrationFeature feature, {required bool enabled})
@@ -583,7 +589,7 @@ class _ServiceSection extends StatelessWidget {
     final serviceLocked = lock != null;
     final credential = this.credential;
     return Padding(
-      padding: const EdgeInsets.only(top: NavisSpace.lg),
+      padding: EdgeInsets.only(top: topPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
