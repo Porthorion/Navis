@@ -791,6 +791,16 @@
   "integrationsLastFmKeyIncluded": "Key included with this build",
   "integrationsSaveError": "Couldn't save this change. Try again.",
   "integrationsLoadError": "Could Not Load Integrations",
+  "integrationsNoticeTitle": "New in {version}",
+  "@integrationsNoticeTitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "integrationsNoticeBody": "Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.",
+  "integrationsNoticeDismiss": "Dismiss",
   "listenBrainzConnectedTitle": "ListenBrainz connected",
   "listenBrainzConnectedAs": "Connected as {account}.",
   "@listenBrainzConnectedAs": {

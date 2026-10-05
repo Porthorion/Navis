@@ -3018,6 +3018,24 @@ abstract class AppLocalizations {
   /// **'Could Not Load Integrations'**
   String get integrationsLoadError;
 
+  /// No description provided for @integrationsNoticeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New in {version}'**
+  String integrationsNoticeTitle(String version);
+
+  /// No description provided for @integrationsNoticeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.'**
+  String get integrationsNoticeBody;
+
+  /// No description provided for @integrationsNoticeDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get integrationsNoticeDismiss;
+
   /// No description provided for @listenBrainzConnectedTitle.
   ///
   /// In en, this message translates to:

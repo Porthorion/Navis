@@ -13,6 +13,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -172,6 +173,8 @@ List<Override> _authenticatedShellOverrides({
 }) {
   return <Override>[
     changelogToShowProvider.overrideWith((ref) async => null),
+    // Like the release notes row, the 1.4.3 notice is not part of the shell.
+    integrationsNoticeVisibleProvider.overrideWithValue(false),
     initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
     desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
     networkTypeProvider.overrideWithValue(NetworkType.wifi),

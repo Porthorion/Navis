@@ -1636,6 +1636,19 @@ desktop a playlist's page lists its songs, Trending's numbered by chart
 position; a row plays like a weekly song (the whole playlist from it with
 Album Queue on, match flows collapsed).
 
+**1.4.3 notice** (`IntegrationsNoticeCard`,
+`features/integrations/presentation/integrations_notice_card.dart`). A
+one-time row in the What's New row's place: "New in 1.4.3" and "Navis can now
+use Deezer for top songs, artist photos and new releases. Review
+integrations." `integrationsNoticeVisibleProvider` shows it once settings have
+loaded, `integrations_notice_dismissed` is false and onboarding is complete
+(`onboardingRequiredProvider == false`); Home then shows it instead of
+`ChangelogDiscoveryCard`, so the two never stack. Tapping it opens Settings ›
+Integrations; tapping it or its close button writes
+`updateIntegrationsNoticeDismissed(dismissed: true)`, after which the What's
+New row returns if the release is unseen. Marking it seen when onboarding is
+finished (not skipped) belongs to the onboarding Integrations step.
+
 **Trending page** (`AppRoutes.trending`, `/library/trending`,
 `NavService.openTrending`). `TrendingDetailScreen` shows
 `RankedVirtualPlaylistContent`

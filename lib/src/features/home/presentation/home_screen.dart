@@ -42,6 +42,7 @@ import 'package:navis/src/features/home/presentation/home_deezer_providers.dart'
 import 'package:navis/src/features/home/presentation/home_new_releases.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/recommendation_auto_advance.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
@@ -1195,7 +1196,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           const SizedBox(height: 10),
         ],
-        const ChangelogDiscoveryCard(),
+        // The one-time Integrations notice takes the What's New row's place
+        // while it shows, so the two never stack.
+        if (ref.watch(integrationsNoticeVisibleProvider))
+          const IntegrationsNoticeCard()
+        else
+          const ChangelogDiscoveryCard(),
         const _UpdateBanner(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))

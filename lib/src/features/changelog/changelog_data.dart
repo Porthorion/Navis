@@ -180,6 +180,9 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'A one-time note on Home tells you what Navis 1.4.3 can now use Deezer for and opens Integrations',
+      ),
+      ChangelogEntry(
         'Home sections added in an update now appear even if you reordered or hid sections before',
         type: ChangelogEntryType.fix,
       ),

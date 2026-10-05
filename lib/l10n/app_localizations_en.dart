@@ -1933,6 +1933,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get integrationsLoadError => 'Could Not Load Integrations';
 
   @override
+  String integrationsNoticeTitle(String version) {
+    return 'New in $version';
+  }
+
+  @override
+  String get integrationsNoticeBody =>
+      'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.';
+
+  @override
+  String get integrationsNoticeDismiss => 'Dismiss';
+
+  @override
   String get listenBrainzConnectedTitle => 'ListenBrainz connected';
 
   @override

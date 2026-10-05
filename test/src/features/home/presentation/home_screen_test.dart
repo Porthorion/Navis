@@ -28,6 +28,7 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -1086,6 +1087,79 @@ void main() {
     expect(
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsNothing,
+    );
+  });
+
+  testWidgets('the 1.4.3 Integrations notice takes the release notes row', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+    final changelog = changelogToShowProvider.overrideWith(
+      (ref) async => const ChangelogDiscovery(
+        current: _majorRelease,
+        featured: _majorRelease,
+      ),
+    );
+
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      overrides: <Override>[
+        changelog,
+        onboardingRequiredProvider.overrideWithValue(false),
+      ],
+    );
+    expect(
+      find.byKey(const ValueKey<String>('integrationsNoticeOpen')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsNothing,
+    );
+    await expectLater(
+      find.byType(HomeScreen),
+      matchesGoldenFile('goldens/home_integrations_notice_card.png'),
+    );
+
+    // Seen, or before setup is complete: the release notes row is back.
+    for (final override in <Override>[
+      onboardingRequiredProvider.overrideWithValue(true),
+    ]) {
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        overrides: <Override>[changelog, override],
+      );
+      expect(
+        find.byKey(const ValueKey<String>('integrationsNoticeOpen')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+        findsOneWidget,
+      );
+    }
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      appSettings: const AppSettingsModel.defaults().copyWith(
+        integrationsNoticeDismissed: true,
+      ),
+      overrides: <Override>[
+        changelog,
+        onboardingRequiredProvider.overrideWithValue(false),
+      ],
+    );
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsOneWidget,
     );
   });
 
