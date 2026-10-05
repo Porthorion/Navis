@@ -1494,8 +1494,8 @@ checked, so with all three off the page sends nothing to Deezer.
 `/artist/{id}/albums` and `/album/{id}` through the disk cache: artist details
 and related artists 7 days, albums 24 hours, an album 7 days, "not on Deezer"
 included; errors are not cached. The resolver shares one resolution between
-callers asking for the same name at once (Top Songs and these sections on a
-first visit).
+callers asking for the same library artist and name at once (Top Songs and
+these sections on a first visit).
 
 - **Header photo and fans** (`deezer.artistImages`,
   `artistDeezerDetailsProvider`). `artistHeaderImageUrls`
@@ -1505,27 +1505,37 @@ first visit).
   `2a96cbd8b46e442fc41c2b86b821562f`) and Deezer's picture without a hash are
   left out, and the integration policy filters the rest. The header tries
   them in order: a photo that fails to load hands over to the next after the
-  frame, and the plain name header is the last step, never a blank box. While
+  frame, and the plain name header is the last step, never a blank box.
+  Failures of photos no longer offered are forgotten, and pull-to-refresh
+  gives the header a fresh state, so failed photos are tried again. While
   the server's artist info loads, the name header stands in. The summary line
   under the name is "12 albums • 4.1M fans" (`artistDetailFanCount`, compact
   format). The "This Is" card uses the same first photo.
-- **Fans also like** (`deezer.similarArtists`,
+- **Fans Also Like** (`deezer.similarArtists`,
   `artistFansAlsoLikeProvider`). Deezer's related artists are matched to the
-  library by `normalizeMetadata` name in one query
-  (`LibraryDao.findArtistsByNormalizedNames`; between library namesakes a
-  server artist beats a remote one, then more albums). `fansAlsoLikeEntries`
+  library by `normalizeMetadata` name through
+  `libraryArtistNameIndexProvider` (`LibraryArtistNameIndexCache` in
+  `features/library/data/library_artist_name_index.dart`): one index of every library artist, keyed in a background isolate for more
+  than 64 artists, kept until the artists table changes (drift
+  `tableUpdates`, so a sync or a remote artist written by search marks it
+  stale) and rebuilt on the next lookup, so a sync's many artist batches cost
+  one rebuild and an artist page costs one map lookup per related artist.
+  Between library namesakes a server artist beats a remote one, then more
+  albums. `fansAlsoLikeEntries`
   puts library artists first, each group in Deezer's order, and drops the page
   artist. `SimilarArtistsSection`
   (`features/library/presentation/similar_artists_section.dart`) draws it in
   the same two-row grid as the server's Similar Artists, which it replaces when
   it has artists: library artists keep their art and open their page; others
   show the Deezer photo with the Remote mark and open search for the name
-  (artists filter), never a missing artist page. While Deezer loads nothing is
-  shown, so one list never replaces the other on screen.
-- **Missing albums** (`deezer.missingAlbums`, `artistMissingAlbumsProvider`).
+  (artists filter), never a missing artist page. The server's Similar Artists
+  show as soon as Deezer has nothing or fails, or when Deezer has not
+  answered within 2.5 seconds (`kFansAlsoLikeServerFallbackDelay`); whichever
+  list shows first stays, so a late Deezer answer never swaps it.
+- **Missing Albums** (`deezer.missingAlbums`, `artistMissingAlbumsProvider`).
   Hidden, without asking Deezer, while the library albums load, when the
-  artist is remote or when any of its albums is remote: the server's remote
-  catalogue (Octo-Fiesta) always wins. Otherwise `missingDeezerAlbums`
+  artist is remote or when any of its albums, own or Featured In, is remote:
+  the server's remote catalogue (Octo-Fiesta) always wins. Otherwise `missingDeezerAlbums`
   (`features/library/domain/missing_albums.dart`) keeps record types `album`
   and `ep` (singles belong to Home's new releases, compilations are left out),
   drops a Deezer album that a library album (own or featured) holds as
@@ -1534,7 +1544,9 @@ first visit).
   stays its own album, and lists them newest first, one per edition. A
   `ContentShelf` of `ExternalAlbumCard`s (`common_widgets/`, the `AlbumCard`
   look and `AlbumCardLabel`, with a policy-checked cover URL) follows the album
-  grids, subtitled "2021 • EP". A card opens `showDeezerReleaseSheet`
+  grids, subtitled "2021 • EP". Cards take `ContentLayout.shelfCardExtent`,
+  the size Home's album carousels also use (smaller under Home's compact
+  density). A card opens `showDeezerReleaseSheet`
   (`features/integrations/presentation/deezer_release_sheet.dart`, a dialog on
   desktop): cover, title, artist, "year • type • N songs" (the count from
   `/album/{id}` via `deezerReleaseDetailsProvider`) and "Search your server",

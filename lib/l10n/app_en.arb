@@ -978,8 +978,8 @@
   "artistDetailUnknownYear": "Unknown year",
   "artistDetailBioSection": "Biography",
   "artistDetailSimilarSection": "Similar Artists",
-  "artistDetailFansAlsoLikeSection": "Fans also like",
-  "artistDetailMissingAlbumsSection": "Missing albums",
+  "artistDetailFansAlsoLikeSection": "Fans Also Like",
+  "artistDetailMissingAlbumsSection": "Missing Albums",
   "artistDetailFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
   "@artistDetailFanCount": {
     "description": "Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.",

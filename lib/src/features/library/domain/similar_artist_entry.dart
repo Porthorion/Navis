@@ -2,7 +2,7 @@ import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 
-/// One artist in a "Similar Artists" or "Fans also like" grid.
+/// One artist in a "Similar Artists" or "Fans Also Like" grid.
 ///
 /// A library artist ([libraryArtistId] set) shows its library art and opens
 /// its artist page. Any other artist shows [imageUrl] and opens search, so a
@@ -27,7 +27,7 @@ class SimilarArtistEntry {
   bool get isInLibrary => libraryArtistId != null;
 }
 
-/// Deezer's related artists as "Fans also like" entries: artists in the
+/// Deezer's related artists as "Fans Also Like" entries: artists in the
 /// library first, then the rest, each group in Deezer's order.
 ///
 /// [libraryByName] maps `normalizeMetadata` names to library artists (see

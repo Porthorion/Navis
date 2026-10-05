@@ -20,7 +20,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 export 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 
 /// A grid of related artists below an artist's albums ("Similar Artists",
-/// "Fans also like"), at most two rows.
+/// "Fans Also Like"), at most two rows.
 ///
 /// Library artists show their library art and open their artist page. Other
 /// artists show their Deezer photo with the quiet "Remote" mark and open
@@ -38,16 +38,21 @@ class SimilarArtistsSection extends ConsumerWidget {
     }
 
     return Padding(
-      // The same 24 above the title as the album sections' headers.
-      padding: const EdgeInsets.fromLTRB(12, 24, 12, 8),
+      // The same space above the title as the album sections' headers.
+      padding: const EdgeInsets.fromLTRB(
+        NavisSpace.sm,
+        NavisSpace.xl,
+        NavisSpace.sm,
+        NavisSpace.xs,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xxs),
             child: NavisSectionHeader(title: title),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: NavisSpace.xs),
           LayoutBuilder(
             builder: (context, constraints) {
               final grid = ContentLayout.artists(
@@ -116,7 +121,7 @@ class _SimilarArtistCard extends ConsumerWidget {
               ),
             ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(NavisSpace.xs),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[

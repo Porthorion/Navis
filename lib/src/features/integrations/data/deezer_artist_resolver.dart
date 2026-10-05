@@ -19,7 +19,7 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 ///    can list them; equal overlap (or no album list) goes to the most fans.
 ///
 /// Request errors propagate and are not cached. Concurrent calls for the same
-/// name share one resolution.
+/// library artist and name share one resolution.
 class DeezerArtistResolver {
   new({required this._client, required this._cache});
 
@@ -31,7 +31,7 @@ class DeezerArtistResolver {
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
 
-  /// Resolutions running now, by normalized name.
+  /// Resolutions running now, by library artist id and normalized name.
   final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
 
   /// The Deezer id inside a library artist id `ext-deezer-artist-<id>`.
@@ -59,7 +59,8 @@ class DeezerArtistResolver {
 
     // Top songs and the artist page's other Deezer sections resolve the same
     // artist at the same time; they share one resolution.
-    final pending = _inFlight[key];
+    final flightKey = '${artistId.trim()}\u0000$key';
+    final pending = _inFlight[flightKey];
     if (pending != null) {
       try {
         return await pending;
@@ -75,7 +76,7 @@ class DeezerArtistResolver {
       readLibraryAlbumTitles: readLibraryAlbumTitles,
       cancelToken: cancelToken,
     );
-    _inFlight[key] = resolution;
+    _inFlight[flightKey] = resolution;
     try {
       return await resolution;
     } finally {

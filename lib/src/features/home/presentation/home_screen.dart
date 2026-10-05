@@ -2042,9 +2042,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final cardSize = width < 600
-            ? (compactDensity ? 138.0 : 150.0)
-            : (compactDensity ? 152.0 : 164.0);
+        final cardSize = ContentLayout.shelfCardExtent(
+          width,
+          compact: compactDensity,
+        );
         final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
         final usableWidth = (width - horizontalPadding * 2).clamp(
           0.0,
@@ -2119,9 +2120,10 @@ class _LocalAlbumCarousel extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final cardSize = width < 600
-            ? (compactDensity ? 138.0 : 150.0)
-            : (compactDensity ? 152.0 : 164.0);
+        final cardSize = ContentLayout.shelfCardExtent(
+          width,
+          compact: compactDensity,
+        );
         final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
         final usableWidth = (width - horizontalPadding * 2).clamp(
           0.0,

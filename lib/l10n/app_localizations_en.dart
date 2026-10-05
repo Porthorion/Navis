@@ -2268,10 +2268,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailSimilarSection => 'Similar Artists';
 
   @override
-  String get artistDetailFansAlsoLikeSection => 'Fans also like';
+  String get artistDetailFansAlsoLikeSection => 'Fans Also Like';
 
   @override
-  String get artistDetailMissingAlbumsSection => 'Missing albums';
+  String get artistDetailMissingAlbumsSection => 'Missing Albums';
 
   @override
   String artistDetailFanCount(int count) {

@@ -164,11 +164,11 @@ const List<ChangelogVersion> changelogs = [
         "Artist pages show the artist's Deezer photo when your server has none, only Last.fm's grey star or one that fails to load, and the Deezer fan count next to the album count",
       ),
       ChangelogEntry(
-        '"Fans also like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens a search instead of an empty artist page',
+        '"Fans Also Like" on artist pages shows Deezer\'s related artists, those in your library first; one you don\'t have opens a search instead of an empty artist page',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Missing albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to see it and search your server',
+        'Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to see it and search your server',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

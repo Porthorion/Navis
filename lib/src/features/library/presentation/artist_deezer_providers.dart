@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/library_artist_name_index.dart';
 import 'package:navis/src/features/library/domain/missing_albums.dart';
 import 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -36,6 +38,24 @@ final artistDeezerIdProvider = FutureProvider.autoDispose
       );
     });
 
+/// Library artists by normalized name, kept until the artists table changes
+/// (a library sync, a remote artist written by search), then rebuilt on the
+/// next lookup. Matching an artist page's related artists costs one lookup
+/// per name instead of a scan of the library.
+final libraryArtistNameIndexProvider = Provider<LibraryArtistNameIndexCache>((
+  ref,
+) {
+  final database = ref.watch(navisDatabaseProvider);
+  final cache = LibraryArtistNameIndexCache(
+    loadArtists: database.libraryDao.getAllArtists,
+  );
+  final subscription = database
+      .tableUpdates(TableUpdateQuery.onTable(database.artistsTable))
+      .listen((_) => cache.markStale());
+  ref.onDispose(subscription.cancel);
+  return cache;
+});
+
 /// The artist's Deezer photo and fan count (`deezer.artistImages`), or null
 /// when the switch is off or Deezer has no such artist.
 final artistDeezerDetailsProvider = FutureProvider.autoDispose
@@ -52,7 +72,7 @@ final artistDeezerDetailsProvider = FutureProvider.autoDispose
           .artist(deezerId, cancelToken: cancelToken);
     });
 
-/// "Fans also like" (`deezer.similarArtists`): Deezer's related artists, the
+/// "Fans Also Like" (`deezer.similarArtists`): Deezer's related artists, the
 /// ones in the library first. Empty when the switch is off or Deezer has
 /// none, and the page then shows the server's similar artists.
 final artistFansAlsoLikeProvider = FutureProvider.autoDispose
@@ -68,10 +88,12 @@ final artistFansAlsoLikeProvider = FutureProvider.autoDispose
           .watch(deezerCatalogProvider)
           .relatedArtists(deezerId, cancelToken: cancelToken);
       if (related.isEmpty) return const <SimilarArtistEntry>[];
-      final libraryByName = await ref
-          .watch(navisDatabaseProvider)
-          .libraryDao
-          .findArtistsByNormalizedNames(related.map((artist) => artist.name));
+      final libraryIndex = await ref
+          .watch(libraryArtistNameIndexProvider)
+          .current();
+      final libraryByName = libraryIndex.lookupAll(
+        related.map((artist) => artist.name),
+      );
       return fansAlsoLikeEntries(
         related: related,
         libraryByName: libraryByName,
@@ -100,8 +122,9 @@ final artistDeezerAlbumsProvider = FutureProvider.autoDispose
 /// [missingDeezerAlbums]).
 ///
 /// Empty, and Deezer is not asked, while the artist's library albums load or
-/// when the server already has remote albums for the artist (a remote
-/// catalogue such as Octo-Fiesta's always wins). Empty while Deezer loads or
+/// when the server already has any remote album for the artist, its own or
+/// one it is featured on (a remote catalogue such as Octo-Fiesta's always
+/// wins). Empty while Deezer loads or
 /// fails, so the section only ever appears complete.
 final artistMissingAlbumsProvider = Provider.autoDispose
     .family<List<DeezerAlbum>, ArtistPageKey>((ref, key) {
@@ -111,7 +134,8 @@ final artistMissingAlbumsProvider = Provider.autoDispose
       if (artist == null || artist.isExternal || library == null) {
         return const <DeezerAlbum>[];
       }
-      if (library.albums.any((album) => album.isExternal)) {
+      if (library.albums.any((album) => album.isExternal) ||
+          library.featuredIn.any((album) => album.isExternal)) {
         return const <DeezerAlbum>[];
       }
       final deezerAlbums = ref.watch(artistDeezerAlbumsProvider(key)).value;

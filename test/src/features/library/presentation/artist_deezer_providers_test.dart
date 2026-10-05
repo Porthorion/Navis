@@ -7,6 +7,7 @@ import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/library_artist_name_index.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
@@ -103,7 +104,9 @@ void main() {
     IntegrationPolicy policy = const IntegrationPolicy(),
     ArtistsTableData artist = _artist,
     List<AlbumsTableData> albums = const [],
+    List<AlbumsTableData> featuredIn = const [],
     NavisDatabase? database,
+    List<Override> extra = const [],
   }) {
     final db = database ?? createTestDatabase();
     if (database == null) addTearDown(db.close);
@@ -120,8 +123,11 @@ void main() {
           artistByIdProvider(_key.artistId)
               .overrideWith((ref) => Stream.value(artist)),
           artistAlbumSectionsProvider(_key.artistId).overrideWith(
-            (ref) => Stream.value(ArtistAlbumSections(albums: albums)),
+            (ref) => Stream.value(
+              ArtistAlbumSections(albums: albums, featuredIn: featuredIn),
+            ),
           ),
+          ...extra,
         ],
       ),
     );
@@ -233,6 +239,38 @@ void main() {
       expect(entries.last.imageUrl, 'https://x/c.jpg');
     });
 
+    test('a second artist page reuses the library name index', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      await db
+          .into(db.artistsTable)
+          .insert(ArtistsTableCompanion.insert(id: 'lib-sim', name: 'SiM'));
+      var scans = 0;
+      deezer.related = const [DeezerArtist(id: 4, name: 'SiM')];
+      final c = container(
+        database: db,
+        extra: [
+          libraryArtistNameIndexProvider.overrideWithValue(
+            LibraryArtistNameIndexCache(
+              loadArtists: () {
+                scans++;
+                return db.libraryDao.getAllArtists();
+              },
+            ),
+          ),
+        ],
+      );
+      const other = (artistId: 'ext-deezer-artist-77', name: 'Coldrain');
+
+      final first = await read(c, artistFansAlsoLikeProvider.call);
+      c.listen(artistFansAlsoLikeProvider(other), (_, _) {});
+      final second = await c.read(artistFansAlsoLikeProvider(other).future);
+
+      expect(first.single.libraryArtistId, 'lib-sim');
+      expect(second.single.libraryArtistId, 'lib-sim');
+      expect(scans, 1);
+    });
+
     test('no related artists reads as empty', () async {
       expect(await read(container(), artistFansAlsoLikeProvider.call), isEmpty);
     });
@@ -273,6 +311,21 @@ void main() {
           _album('al-1', 'Ambitions'),
           _album('ext-deezer-album-9', 'Remote', isExternal: true),
         ],
+      );
+
+      c.listen(artistMissingAlbumsProvider(_key), (_, _) {});
+      await pumpEventQueue();
+
+      expect(c.read(artistMissingAlbumsProvider(_key)), isEmpty);
+      expect(deezer.calls, isNot(contains('albums')));
+    });
+
+    test('hidden, without asking Deezer, when an album the artist is '
+        'featured on is remote', () async {
+      deezer.albums = deezerAlbums;
+      final c = container(
+        albums: [_album('al-1', 'Ambitions')],
+        featuredIn: [_album('ext-deezer-album-7', 'Feat', isExternal: true)],
       );
 
       c.listen(artistMissingAlbumsProvider(_key), (_, _) {});

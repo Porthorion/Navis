@@ -78,6 +78,14 @@ class ContentLayout {
     );
   }
 
+  /// The square card size of a horizontal album shelf: Home's album
+  /// carousels and an artist page's Missing Albums. [compact] is Home's
+  /// compact section density.
+  static double shelfCardExtent(double width, {bool compact = false}) {
+    if (width < 600) return compact ? 138 : 150;
+    return compact ? 152 : 164;
+  }
+
   static int shelfLimit(double width, double extent) =>
       math.max(1, ((width + gap(width)) / (extent + gap(width))).ceil()) * 2;
 

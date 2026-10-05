@@ -49,6 +49,7 @@ class _ScriptedCacheManager extends Fake implements CacheManager {
 
   final Set<String> failing;
   final Map<String, Uint8List> images;
+  final List<String> requests = <String>[];
   final _fileSystem = MemoryFileSystem();
 
   @override
@@ -58,6 +59,7 @@ class _ScriptedCacheManager extends Fake implements CacheManager {
     Map<String, String>? headers,
     bool withProgress = false,
   }) {
+    requests.add(url);
     if (failing.contains(url)) {
       return Stream<FileResponse>.error(StateError('no network in tests'));
     }
@@ -163,6 +165,7 @@ void main() {
     ArtistInfo? info,
     DeezerArtist? deezerArtist,
     List<SimilarArtistEntry> fansAlsoLike = const [],
+    Future<List<SimilarArtistEntry>> Function()? loadFansAlsoLike,
     List<DeezerAlbum> deezerAlbums = const [],
     List<AlbumsTableData> albums = const [],
     CacheManager? cacheManager,
@@ -214,8 +217,9 @@ void main() {
               ? deezerArtist
               : null,
         ),
-        artistFansAlsoLikeProvider(_key)
-            .overrideWith((ref) async => fansAlsoLike),
+        artistFansAlsoLikeProvider(_key).overrideWith(
+          (ref) => loadFansAlsoLike?.call() ?? Future.value(fansAlsoLike),
+        ),
         artistDeezerAlbumsProvider(_key)
             .overrideWith((ref) async => deezerAlbums),
         deezerReleaseDetailsProvider.overrideWith(
@@ -366,6 +370,33 @@ void main() {
       await dispose(tester);
     });
 
+    testWidgets('pull to refresh tries a failed photo again', (tester) async {
+      final images = _ScriptedCacheManager(failing: {_serverPhoto});
+      await tester.pumpWidget(
+        app(
+          info: const ArtistInfo(largeImageUrl: _serverPhoto),
+          cacheManager: images,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(nameHeader, findsOneWidget);
+      expect(images.requests.where((url) => url == _serverPhoto), hasLength(1));
+
+      // The failed load is not cached as an image either.
+      PaintingBinding.instance.imageCache
+        ..clear()
+        ..clearLiveImages();
+      await tester.fling(
+        find.byType(CustomScrollView),
+        const Offset(0, 400),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(images.requests.where((url) => url == _serverPhoto), hasLength(2));
+      await dispose(tester);
+    });
+
     testWidgets('a failing photo without Deezer shows the name header', (
       tester,
     ) async {
@@ -443,7 +474,7 @@ void main() {
     });
   });
 
-  group('Fans also like', () {
+  group('Fans Also Like', () {
     const serverSimilar = ArtistInfo(
       similarArtists: [Artist(id: 'server-sim', name: 'Server Similar')],
     );
@@ -457,7 +488,7 @@ void main() {
     ) async {
       await tester.pumpWidget(app(info: serverSimilar, fansAlsoLike: entries));
       await tester.pumpAndSettle();
-      await scrollTo(tester, find.text('Fans also like'));
+      await scrollTo(tester, find.text('Fans Also Like'));
 
       expect(find.text('Similar Artists'), findsNothing);
       expect(find.text('Server Similar'), findsNothing);
@@ -477,7 +508,65 @@ void main() {
       await scrollTo(tester, find.text('Similar Artists'));
 
       expect(find.text('Server Similar'), findsOneWidget);
-      expect(find.text('Fans also like'), findsNothing);
+      expect(find.text('Fans Also Like'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('a slow Deezer gives way to the server list, which stays', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 2400));
+      final deezer = Completer<List<SimilarArtistEntry>>();
+      await tester.pumpWidget(
+        app(info: serverSimilar, loadFansAlsoLike: () => deezer.future),
+      );
+      await tester.pump();
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('Server Similar'), findsNothing);
+      expect(find.text('Fans Also Like'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Similar Artists'), findsOneWidget);
+      expect(find.text('Server Similar'), findsOneWidget);
+
+      deezer.complete(entries);
+      await tester.pumpAndSettle();
+      expect(find.text('Server Similar'), findsOneWidget);
+      expect(find.text('Fans Also Like'), findsNothing);
+      expect(find.text('Coldrain'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('Deezer answering in time shows Fans Also Like', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 2400));
+      final deezer = Completer<List<SimilarArtistEntry>>();
+      await tester.pumpWidget(
+        app(info: serverSimilar, loadFansAlsoLike: () => deezer.future),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      deezer.complete(entries);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Fans Also Like'), findsOneWidget);
+      expect(find.text('Server Similar'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('a Deezer error shows the server list at once', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 2400));
+      await tester.pumpWidget(
+        app(
+          info: serverSimilar,
+          loadFansAlsoLike: () => Future.error(StateError('Deezer down')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Server Similar'), findsOneWidget);
       await dispose(tester);
     });
 
@@ -508,7 +597,7 @@ void main() {
     });
   });
 
-  group('Missing albums', () {
+  group('Missing Albums', () {
     testWidgets('shows the missing editions with year and type', (
       tester,
     ) async {
@@ -529,7 +618,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await scrollTo(tester, find.text('Missing albums'));
+      await scrollTo(tester, find.text('Missing Albums'));
 
       final cards = tester
           .widgetList<ExternalAlbumCard>(find.byType(ExternalAlbumCard))
@@ -618,7 +707,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Server Similar'), findsOneWidget);
-      expect(find.text('Missing albums'), findsNothing);
+      expect(find.text('Missing Albums'), findsNothing);
       expect(find.byType(ExternalAlbumCard), findsNothing);
       await dispose(tester);
     });

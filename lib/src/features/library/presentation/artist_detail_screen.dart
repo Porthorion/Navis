@@ -53,6 +53,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
 
+  /// Bumped by pull-to-refresh, which gives the header a fresh state.
+  int _headerGeneration = 0;
+
   @override
   void initState() {
     super.initState();
@@ -149,9 +152,13 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         ].join(' • ');
 
         return RefreshIndicator(
-          onRefresh: () => ref
-              .read(librarySyncControllerProvider.notifier)
-              .refreshArtist(widget.artistId),
+          onRefresh: () {
+            // A refresh tries photos that failed to load again.
+            setState(() => _headerGeneration++);
+            return ref
+                .read(librarySyncControllerProvider.notifier)
+                .refreshArtist(widget.artistId);
+          },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
@@ -159,6 +166,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 children: [
                   // ── Artist image header with name + heart overlaid ──────────
                   _ArtistHeader(
+                    key: ValueKey<int>(_headerGeneration),
                     artist: artistData,
                     imageUrls: headerImageUrls,
                     summary: headerSummary,
@@ -519,6 +527,7 @@ class _ArtistHeader extends StatefulWidget {
     required this.isStarring,
     required this.onStarToggle,
     required this.starTooltip,
+    super.key,
   });
 
   final ArtistsTableData artist;
@@ -538,6 +547,14 @@ class _ArtistHeader extends StatefulWidget {
 
 class _ArtistHeaderState extends State<_ArtistHeader> {
   final Set<String> _failedUrls = <String>{};
+
+  @override
+  void didUpdateWidget(covariant _ArtistHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Forget failures of photos the page no longer offers; a refresh replaces
+    // this state and forgets them all.
+    _failedUrls.retainWhere(widget.imageUrls.contains);
+  }
 
   /// Called while the failed image builds its fallback, so the switch to the
   /// next photo waits for the end of the frame.
@@ -1075,64 +1092,111 @@ class _ArtistAlbumSection extends ConsumerWidget {
   }
 }
 
-/// Deezer's "Fans also like" when it has artists for this artist, otherwise
-/// the server's similar artists. Nothing shows while Deezer loads, so one list
-/// never replaces the other on screen.
-class _RelatedArtistsSection extends ConsumerWidget {
+/// How long the artist page waits for Deezer's "Fans Also Like" before it
+/// shows the server's Similar Artists instead.
+const Duration kFansAlsoLikeServerFallbackDelay = Duration(milliseconds: 2500);
+
+/// Deezer's "Fans Also Like" when it has artists for this artist, otherwise
+/// the server's Similar Artists.
+///
+/// The server's list shows as soon as Deezer has nothing, fails, or has not
+/// answered within [kFansAlsoLikeServerFallbackDelay]. Whichever list shows
+/// first stays: a late Deezer answer never replaces the server's list.
+class _RelatedArtistsSection extends ConsumerStatefulWidget {
   const new({required this.artistKey, required this.artistInfo});
 
   final ArtistPageKey artistKey;
   final AsyncValue<ArtistInfo?> artistInfo;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    return ref
-        .watch(artistFansAlsoLikeProvider(artistKey))
-        .when(
-          data: (entries) => entries.isEmpty
-              ? _serverSimilarArtists(l10n)
-              : SimilarArtistsSection(
-                  key: const ValueKey<String>('artist-fans-also-like'),
-                  title: l10n.artistDetailFansAlsoLikeSection,
-                  artists: entries,
-                ),
-          loading: () => const SizedBox.shrink(),
-          error: (_, _) => _serverSimilarArtists(l10n),
-        );
+  ConsumerState<_RelatedArtistsSection> createState() =>
+      _RelatedArtistsSectionState();
+}
+
+enum _RelatedArtistsSource { deezer, server }
+
+class _RelatedArtistsSectionState
+    extends ConsumerState<_RelatedArtistsSection> {
+  Timer? _deezerWait;
+  bool _waitedForDeezer = false;
+
+  /// The list on screen, kept once it has shown artists.
+  _RelatedArtistsSource? _shown;
+
+  @override
+  void initState() {
+    super.initState();
+    _deezerWait = Timer(kFansAlsoLikeServerFallbackDelay, () {
+      if (mounted) setState(() => _waitedForDeezer = true);
+    });
   }
 
-  Widget _serverSimilarArtists(AppLocalizations l10n) {
-    return artistInfo.when(
-      data: (info) {
-        final currentArtistId = artistKey.artistId.trim();
-        final similar = (info?.similarArtists ?? const <Artist>[])
-            .where((artist) {
-              final candidateId = artist.id.trim();
-              return candidateId.isNotEmpty && candidateId != currentArtistId;
-            })
-            .map(
-              (artist) => SimilarArtistEntry(
-                name: artist.name,
-                libraryArtistId: artist.id,
-                coverArt: artist.coverArt,
-              ),
-            )
-            .toList(growable: false);
-        return SimilarArtistsSection(
-          title: l10n.artistDetailSimilarSection,
-          artists: similar,
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
-    );
+  @override
+  void dispose() {
+    _deezerWait?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final deezer = ref.watch(artistFansAlsoLikeProvider(widget.artistKey));
+    final deezerEntries = deezer.value ?? const <SimilarArtistEntry>[];
+    final serverEntries = _serverSimilarArtists();
+
+    final source = switch (_shown) {
+      _RelatedArtistsSource.deezer when deezerEntries.isNotEmpty =>
+        _RelatedArtistsSource.deezer,
+      _RelatedArtistsSource.server when serverEntries.isNotEmpty =>
+        _RelatedArtistsSource.server,
+      _ when deezerEntries.isNotEmpty => _RelatedArtistsSource.deezer,
+      _
+          when serverEntries.isNotEmpty &&
+              (deezer.hasValue || deezer.hasError || _waitedForDeezer) =>
+        _RelatedArtistsSource.server,
+      _ => null,
+    };
+    // A memo of what is on screen, not state that needs a rebuild.
+    _shown = source ?? _shown;
+    return switch (source) {
+      _RelatedArtistsSource.deezer => SimilarArtistsSection(
+        key: const ValueKey<String>('artist-fans-also-like'),
+        title: l10n.artistDetailFansAlsoLikeSection,
+        artists: deezerEntries,
+      ),
+      _RelatedArtistsSource.server => SimilarArtistsSection(
+        key: const ValueKey<String>('artist-server-similar'),
+        title: l10n.artistDetailSimilarSection,
+        artists: serverEntries,
+      ),
+      null => const SizedBox.shrink(),
+    };
+  }
+
+  /// The server's similar artists; empty while its artist info loads or
+  /// failed.
+  List<SimilarArtistEntry> _serverSimilarArtists() {
+    final currentArtistId = widget.artistKey.artistId.trim();
+    return (widget.artistInfo.value?.similarArtists ?? const <Artist>[])
+        .where((artist) {
+          final candidateId = artist.id.trim();
+          return candidateId.isNotEmpty && candidateId != currentArtistId;
+        })
+        .map(
+          (artist) => SimilarArtistEntry(
+            name: artist.name,
+            libraryArtistId: artist.id,
+            coverArt: artist.coverArt,
+          ),
+        )
+        .toList(growable: false);
   }
 }
 
 /// Deezer albums and EPs of the artist that the server lacks, as a shelf
 /// below the album grids. Hidden while there are none (including while
-/// anything loads, and whenever the server has remote albums for the artist).
+/// anything loads, and whenever the server has any remote album for the
+/// artist).
 class _MissingAlbumsSection extends ConsumerWidget {
   const new({required this.artistKey, required this.artistName});
 
@@ -1152,7 +1216,12 @@ class _MissingAlbumsSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            padding: const EdgeInsets.fromLTRB(
+              NavisSpace.md,
+              NavisSpace.xl,
+              NavisSpace.md,
+              NavisSpace.xs,
+            ),
             child: NavisSectionHeader(
               title: l10n.artistDetailMissingAlbumsSection,
             ),
@@ -1161,9 +1230,10 @@ class _MissingAlbumsSection extends ConsumerWidget {
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final padding = ContentLayout.padding(width);
-              // The Home carousel card size, so this shelf and Home's
-              // release shelves share one card.
-              final extent = width < 600 ? 150.0 : 164.0;
+              // Home's album shelf size, so this shelf and Home's release
+              // shelves share one card. Home's compact density is a Home
+              // setting, so the artist page keeps the comfortable size.
+              final extent = ContentLayout.shelfCardExtent(width);
               return Padding(
                 // The album grids' insets, bottom included.
                 padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),

@@ -3560,13 +3560,13 @@ abstract class AppLocalizations {
   /// No description provided for @artistDetailFansAlsoLikeSection.
   ///
   /// In en, this message translates to:
-  /// **'Fans also like'**
+  /// **'Fans Also Like'**
   String get artistDetailFansAlsoLikeSection;
 
   /// No description provided for @artistDetailMissingAlbumsSection.
   ///
   /// In en, this message translates to:
-  /// **'Missing albums'**
+  /// **'Missing Albums'**
   String get artistDetailMissingAlbumsSection;
 
   /// Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.
