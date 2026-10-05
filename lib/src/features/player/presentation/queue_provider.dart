@@ -500,6 +500,12 @@ class QueueController extends Notifier<List<String>> {
   ///
   /// If the full upsert (with FK parents) still fails for any reason, we
   /// retry with foreign-key columns set to NULL so playback is never blocked.
+  /// Stores [songs] the library lacks as provisional rows, as playing a
+  /// search result does, without touching the queue. Rows the server
+  /// catalogue already owns are left as they are.
+  Future<void> storeProvisionalSongs(List<Song> songs) =>
+      _ensureSongsInDatabase(songs);
+
   Future<void> _ensureSongsInDatabase(List<Song> songs) async {
     if (songs.isEmpty) return;
     final db = ref.read(navisDatabaseProvider);

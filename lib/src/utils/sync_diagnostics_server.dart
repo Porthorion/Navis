@@ -19,6 +19,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -2597,10 +2598,29 @@ class SyncDiagnosticsServer {
           return;
         }
         final database = _container.read(navisDatabaseProvider);
-        final songsById = <String, SongsTableData>{
+        var songsById = <String, SongsTableData>{
           for (final song in await database.libraryDao.getSongsByIds(songIds))
             song.id: song,
         };
+        final missingIds = songIds
+            .where((songId) => !songsById.containsKey(songId))
+            .toSet();
+        if (missingIds.isNotEmpty) {
+          // Like playing a search result: a remote song the library lacks is
+          // fetched and stored provisionally before it is queued.
+          final unknownId = await _storeRemoteSongs(missingIds);
+          if (unknownId != null) {
+            await _respond(request, HttpStatus.notFound, <String, Object?>{
+              'error': 'song not found',
+              'songId': unknownId,
+            });
+            return;
+          }
+          songsById = <String, SongsTableData>{
+            for (final song in await database.libraryDao.getSongsByIds(songIds))
+              song.id: song,
+          };
+        }
         final songs = <SongsTableData>[];
         for (final songId in songIds) {
           final song = songsById[songId];
@@ -3821,6 +3841,36 @@ class SyncDiagnosticsServer {
       LibrarySyncTargetKind.playlist => LibrarySyncTarget.playlist(entityId),
       _ => null,
     };
+  }
+
+  /// Fetches each of [songIds] with getSong and stores it provisionally, as
+  /// search-play stores remote results. A server that answers for a remote
+  /// song with its library copy still gets the requested id stored, the row
+  /// search would have stored. Returns the first id the server does not
+  /// know, or null when every song was stored.
+  Future<String?> _storeRemoteSongs(Iterable<String> songIds) async {
+    final api = _container.read(subsonicApiProvider);
+    final fetched = <Song>[];
+    for (final songId in songIds) {
+      if (api == null) return songId;
+      try {
+        final song = await api.getSong(songId);
+        fetched.add(
+          song.id == songId
+              ? song
+              : song.copyWith(
+                  id: songId,
+                  isExternal: isExternalCatalogSource(id: songId),
+                ),
+        );
+      } on SubsonicException {
+        return songId;
+      }
+    }
+    await _container
+        .read(queueProvider.notifier)
+        .storeProvisionalSongs(fetched);
+    return null;
   }
 
   Future<NavisPlaybackHandler> _waitForPlaybackHandler() async {

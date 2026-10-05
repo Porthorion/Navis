@@ -14,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -749,6 +750,78 @@ void main() {
     expect(span, containsPair('name', 'lyrics'));
     expect(span['counts'], {'songs': 2});
     expect(span, containsPair('ms', 7));
+  });
+
+  test('playback queue stores a remote song the library lacks', () async {
+    final handler = _MockPlaybackHandler();
+    final queued = <List<String>>[];
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(
+      () => handler.replaceQueueWithData(
+        any(),
+        startIndex: any(named: 'startIndex'),
+        autoPlay: any(named: 'autoPlay'),
+        expandMatchFlows: any(named: 'expandMatchFlows'),
+      ),
+    ).thenAnswer((invocation) async {
+      final songs =
+          invocation.positionalArguments.first as List<SongsTableData>;
+      queued.add(songs.map((song) => song.id).toList());
+    });
+    final api = _RemoteSongApiClient(<String, Song>{
+      // The server answers for a remote song with its library copy.
+      'ext-deezer-song-1': const Song(
+        id: 'lib-copy',
+        title: 'Dystopia',
+        artist: 'ONE OK ROCK',
+        duration: 200,
+      ),
+    });
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+      api: api,
+    );
+    addTearDown(clone.close);
+    final database = clone.database as NavisDatabase;
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(id: 'local-1', title: 'Local Song'),
+    ]);
+
+    final response = await _request(
+      clone.port,
+      '/v1/playback/queue',
+      method: 'POST',
+      token: clone.token,
+      body: <String, Object?>{
+        'songIds': <String>['ext-deezer-song-1', 'local-1'],
+      },
+    );
+
+    expect(response.statusCode, HttpStatus.accepted);
+    expect(queued, <List<String>>[
+      <String>['ext-deezer-song-1', 'local-1'],
+    ]);
+    expect(api.requested, <String>['ext-deezer-song-1']);
+    final stored = await database.libraryDao.getSongById('ext-deezer-song-1');
+    expect(stored?.title, 'Dystopia');
+    expect(stored?.isExternal, isTrue);
+    expect(stored?.isProvisional, isTrue);
+
+    final missing = await _request(
+      clone.port,
+      '/v1/playback/queue',
+      method: 'POST',
+      token: clone.token,
+      body: <String, Object?>{
+        'songIds': <String>['ext-deezer-song-404', 'local-1'],
+      },
+    );
+    expect(missing.statusCode, HttpStatus.notFound);
+    expect(missing.body['songId'], 'ext-deezer-song-404');
+    expect(queued, hasLength(1));
   });
 
   test(
@@ -3281,6 +3354,32 @@ class _SourceAuditApiClient extends SubsonicApiClient {
         Song(id: 'provider-song-1', title: 'Remote Song', isExternal: true),
       ],
     );
+  }
+}
+
+/// Answers getSong from [songs]; any other id is not found.
+class _RemoteSongApiClient extends SubsonicApiClient {
+  new(this.songs)
+    : super(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'test',
+          password: 'test',
+          apiVersion: '1.16.1',
+        ),
+      );
+
+  final Map<String, Song> songs;
+  final List<String> requested = <String>[];
+
+  @override
+  Future<Song> getSong(String id, {CancelToken? cancelToken}) async {
+    requested.add(id);
+    final song = songs[id];
+    if (song == null) {
+      throw const SubsonicNotFoundException(message: 'Song not found');
+    }
+    return song;
   }
 }
 

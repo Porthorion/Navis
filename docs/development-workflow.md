@@ -686,6 +686,13 @@ the tree remains otherwise usable.
   `NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE` to an owned regular mode-600 key file
   only for an isolated authenticated Last.fm run. The diagnostics launcher
   rejects symlinks and permissive file modes.
+  Clone-only `POST /v1/playback/queue` replaces the queue with `songIds` (at
+  least two) and starts the first. A remote song the library lacks is fetched
+  with `getSong` and stored provisionally, as playing a search result stores
+  it, so a remote seed can be played before a mix starts; when the server
+  answers with its library copy, the requested remote id is still the row
+  stored and queued. An id the server does not know returns 404 with that
+  `songId`.
   Clone-only `POST /v1/playback/queue-index` accepts a bounded zero-based
   index to advance the production handler and exercise recommendation refills.
 
