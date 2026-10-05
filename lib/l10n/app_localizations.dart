@@ -2865,7 +2865,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsFeatureDeezerTrendingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Trending songs in You Might Like.'**
+  /// **'Deezer\'s chart in You Might Like and your playlists.'**
   String get integrationsFeatureDeezerTrendingSubtitle;
 
   /// No description provided for @integrationsFeatureLastFmSameVibesTitle.

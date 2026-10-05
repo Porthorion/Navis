@@ -753,7 +753,7 @@
   "integrationsFeatureDeezerNewReleasesTitle": "New releases",
   "integrationsFeatureDeezerNewReleasesSubtitle": "New releases from your artists on Home.",
   "integrationsFeatureDeezerTrendingTitle": "Trending",
-  "integrationsFeatureDeezerTrendingSubtitle": "Trending songs in You Might Like.",
+  "integrationsFeatureDeezerTrendingSubtitle": "Deezer's chart in You Might Like and your playlists.",
   "integrationsFeatureLastFmSameVibesTitle": "Same Vibes mixes",
   "integrationsFeatureLastFmSameVibesSubtitle": "On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server's mix.",
   "integrationsFeatureLastFmRadioTitle": "Instant Radio",

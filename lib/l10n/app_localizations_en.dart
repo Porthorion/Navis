@@ -1831,7 +1831,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get integrationsFeatureDeezerTrendingSubtitle =>
-      'Trending songs in You Might Like.';
+      'Deezer\'s chart in You Might Like and your playlists.';
 
   @override
   String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes mixes';

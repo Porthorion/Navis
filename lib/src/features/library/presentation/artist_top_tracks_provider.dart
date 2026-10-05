@@ -89,8 +89,8 @@ final artistTopTrackResolverProvider = Provider<ArtistTopTrackResolver>((ref) {
 /// Forgets remembered top-song matches after every library sync that
 /// changed the library, fully or partly, so the next visit matches against
 /// the synced library, then refreshes the other library-relative integration
-/// results (Deezer artist ids, New Releases, Trending). Watched by the app
-/// shell.
+/// results (Deezer artist ids, New Releases; Trending Now refreshes itself
+/// and keeps its own matches). Watched by the app shell.
 final artistTopTrackMatchSyncBridgeProvider = Provider<void>((ref) {
   ref.listen<LibrarySyncState>(librarySyncControllerProvider, (previous, next) {
     final finished =
