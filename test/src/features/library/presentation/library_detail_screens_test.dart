@@ -645,6 +645,63 @@ void main() {
       await _disposeApp(tester);
     });
 
+    testWidgets('the album count follows albums stored after the page opens', (
+      tester,
+    ) async {
+      // The server's artist list counts its 6 local albums; opening the page
+      // stores the 21 remote ones too.
+      AlbumsTableData album(int i) => AlbumsTableData(
+        isProvisional: false,
+        isExternal: i >= 6,
+        id: 'album-$i',
+        name: 'Album $i',
+        artistId: 'artist-1',
+        songsHydrated: true,
+        artists: const <ArtistRef>[],
+      );
+      final sections = StreamController<ArtistAlbumSections>();
+      addTearDown(sections.close);
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistDetailScreen(artistId: 'artist-1'),
+          database: database,
+          overrides: [
+            artistByIdProvider('artist-1').overrideWithValue(
+              const AsyncData(
+                ArtistsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'artist-1',
+                  name: 'Artist 1',
+                  albumCount: 6,
+                ),
+              ),
+            ),
+            artistAlbumSectionsProvider('artist-1')
+                .overrideWith((ref) => sections.stream),
+            artistInfoProvider('artist-1').overrideWithValue(
+              const AsyncData(ArtistInfo(biography: 'Artist biography')),
+            ),
+          ],
+        ),
+      );
+      sections.add(
+        ArtistAlbumSections(albums: [for (var i = 0; i < 6; i++) album(i)]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('6 albums'), findsNWidgets(2));
+
+      sections.add(
+        ArtistAlbumSections(albums: [for (var i = 0; i < 27; i++) album(i)]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('6 albums'), findsNothing);
+      expect(find.text('27 albums'), findsOneWidget);
+      expect(find.text('Biography · 27 albums'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
     testWidgets(
       'artist top tracks keeps its artist-specific title when empty',
       (tester) async {

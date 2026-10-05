@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -39,6 +40,16 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+
+/// The album count an artist page shows: the larger of the artist row's
+/// [stored] count and the [listed] albums on the page. A server whose artist
+/// list counts only its local albums (Octo-Fiesta) leaves the row short of
+/// the remote albums that opening the page stores, and the page follows them
+/// as they arrive. Null when neither gives a count.
+int? artistPageAlbumCount({required int? stored, required int? listed}) {
+  if (listed == null || listed == 0) return stored;
+  return math.max(stored ?? 0, listed);
+}
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
   const new({required this.artistId, super.key});
@@ -145,9 +156,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 })
                 .toList(growable: false);
         final fanCount = deezerArtist?.fanCount ?? 0;
+        final albumCount = artistPageAlbumCount(
+          stored: artistData.albumCount,
+          listed: albumSections.asData?.value.albums.length,
+        );
         final headerSummary = <String>[
-          if (artistData.albumCount case final albumCount?)
-            l10n.artistCardAlbumCount(albumCount),
+          if (albumCount != null) l10n.artistCardAlbumCount(albumCount),
           if (fanCount > 0) l10n.artistDetailFanCount(fanCount),
         ].join(' • ');
 
@@ -189,7 +203,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       }
                       return _ArtistInfoSection(
                         info: info,
-                        albumCount: artistData.albumCount,
+                        albumCount: albumCount,
                       );
                     },
                     loading: () => const Padding(

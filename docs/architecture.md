@@ -1557,7 +1557,11 @@ these sections on a first visit).
   gives the header a fresh state, so failed photos are tried again. While
   the server's artist info loads, the name header stands in. The summary line
   under the name is "12 albums • 4.1M fans" (`artistDetailFanCount`, compact
-  format). The "This Is" card uses the same first photo.
+  format). Its album count, and the "Biography · N albums" title, is
+  `artistPageAlbumCount`: the larger of the artist row's count and the
+  page's listed albums, so the remote albums that opening the page stores
+  (an Octo-Fiesta artist list counts only local ones) update it as they
+  arrive. The "This Is" card uses the same first photo.
 - **Fans Also Like** (`deezer.similarArtists`,
   `artistFansAlsoLikeProvider`). Deezer's related artists are matched to the
   library by `normalizeMetadata` name through

@@ -205,7 +205,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh',
+        'Artist pages now show every release your server offers, including remote ones such as Japanese editions, without needing a manual refresh, and the album count under the name counts them as they appear',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
