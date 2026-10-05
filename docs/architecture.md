@@ -1664,8 +1664,9 @@ predecessor that is present; unknown and repeated ids are dropped. A saved
 hidden list decides every section the user has seen; a section hidden by
 default that is in neither saved list (added after 1.4.2) stays hidden.
 
-**New Releases** (`deezer.newReleases`, section id `new_releases`, after
-Recently Added). `homeNewReleasesProvider`
+**New Releases** (`deezer.newReleases`, section id `new_releases`, right under
+You Might Like in the default order; a saved order that lacks it gets it
+there, one that already places it is left alone). `homeNewReleasesProvider`
 (`features/home/presentation/home_deezer_providers.dart`):
 - Candidates are up to 30 library artists from `LibraryDao.getTopPlayedArtists`:
   by the summed play count of their songs, liked artists first among equal

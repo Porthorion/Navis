@@ -50,6 +50,60 @@ void main() {
       );
     });
 
+    test('New Releases is right under You Might Like by default', () {
+      final order = HomeSectionIds.defaultOrder;
+      expect(
+        order.indexOf(HomeSectionIds.newReleases),
+        order.indexOf(HomeSectionIds.randomAlbums) + 1,
+      );
+    });
+
+    test('a saved order that predates New Releases puts it under You Might '
+        'Like', () {
+      const saved = <String>[
+        HomeSectionIds.recentlyPlayed,
+        HomeSectionIds.randomAlbums,
+        HomeSectionIds.recentlyAdded,
+        HomeSectionIds.likedTracks,
+      ];
+      final resolved = HomeSectionIds.resolveOrder(saved);
+      expect(
+        resolved.indexOf(HomeSectionIds.newReleases),
+        resolved.indexOf(HomeSectionIds.randomAlbums) + 1,
+      );
+      // The user's own order of the rest is untouched.
+      expect(resolved.where(saved.contains).toList(), saved);
+    });
+
+    test('New Releases follows You Might Like wherever the user moved it', () {
+      const saved = <String>[
+        HomeSectionIds.recentlyAdded,
+        HomeSectionIds.likedTracks,
+        HomeSectionIds.recentlyPlayed,
+        HomeSectionIds.randomAlbums,
+      ];
+      final resolved = HomeSectionIds.resolveOrder(saved);
+      expect(
+        resolved.indexOf(HomeSectionIds.newReleases),
+        resolved.indexOf(HomeSectionIds.randomAlbums) + 1,
+      );
+    });
+
+    test('a user who already placed New Releases keeps it there', () {
+      const saved = <String>[
+        HomeSectionIds.randomAlbums,
+        HomeSectionIds.recentlyLikedAlbums,
+        HomeSectionIds.likedTracks,
+        HomeSectionIds.recentlyAdded,
+        HomeSectionIds.recentlyPlayed,
+        HomeSectionIds.mostPlayed,
+        HomeSectionIds.recentlyPlayedTracks,
+        HomeSectionIds.frequentAlbums,
+        HomeSectionIds.newReleases,
+      ];
+      expect(HomeSectionIds.resolveOrder(saved), saved);
+    });
+
     test('a saved order of the shipped sections keeps every default', () {
       final saved = HomeSectionIds.defaultOrder.reversed.toList();
       final resolved = HomeSectionIds.resolveOrder(saved);

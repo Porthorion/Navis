@@ -20,10 +20,10 @@ class HomeSectionIds {
 
   static const List<String> defaultOrder = <String>[
     randomAlbums,
+    newReleases,
     recentlyLikedAlbums,
     likedTracks,
     recentlyAdded,
-    newReleases,
     recentlyPlayed,
     mostPlayed,
     recentlyPlayedTracks,
