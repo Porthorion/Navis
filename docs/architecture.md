@@ -1560,31 +1560,45 @@ fallback.
   never reject a song that title and artist alone accept);
   then `search3` for what is left, by 4 workers pulling from one queue (no
   batch barrier) with the provider's `CancelToken`, cancelled when the
-  provider is disposed. The stream emits after the local pass when it found
-  songs and searches follow, and once at the end, so rows move at most twice
-  and an empty first result never hides the section or flips the card. A search running or
+  provider is disposed. Like the ListenBrainz weekly matcher, a copy on the
+  server is preferred over an equally good remote result, and server copies
+  the library does not hold yet are stored as provisional rows
+  (`persistProvisionalSearchSongs` in `provisional_search_songs.dart`, shared
+  with the weekly playlists), so the next local pass finds them. The stream
+  emits after the local pass when it found songs and searches follow, and
+  once at the end, so rows move at most twice and an empty first result never
+  hides the section or flips the card; rows still searched in that first
+  emission carry `ResolvedArtistTopTrack.isMatching`. Callers can also ask for
+  that emission when nothing is found yet (`yieldPendingRows`), for progress
+  batches (`progressEvery`) and for remembered unmatched songs to be searched
+  again (`researchUnmatched`); Trending uses them. A search running or
   finished in this session is shared by the section and the page.
 - **Remembered matches** (`ArtistTopTrackMatchStore`, namespace
-  `top-songs.matches`, one file per server account and library artist, the
-  chart's `deezer-chart` key included): seed key (edition title
+  `top-songs.matches`, one file per server account and library artist; a
+  store can use another namespace and keep entries longer, as Trending's
+  does): seed key (edition title
   and artist) to song id or unmatched, with when it was checked; remote matches
   keep the whole song. Entries are trusted for 24 hours. Remembered library
   songs must still exist (checked by the same DAO query), and remembered remote
   and unmatched songs go through the local pass again on every visit, so a
   synced copy replaces them; they skip `search3` until they are a day old.
+  A store that keeps entries longer than a day (Trending's) searches an
+  older remote match again only for a copy on the server: it is never
+  replaced by another remote result or lost to a failed search.
   `artistTopTrackMatchSyncBridgeProvider` (watched by the app shell) clears the
   namespace and the session's searches after every library sync that
   succeeded fully or partly, mirroring the ListenBrainz weekly matcher, then
   refreshes the library-relative integration results
   (`refreshIntegrationLibraryResultsProvider`: the resolver, artist pages'
-  Deezer ids, top songs, New Releases and Trending), so an empty Home result
+  Deezer ids, top songs and New Releases; Trending refreshes itself), so an
+  empty Home result
   does not outlive the sync that fills the library. `clear()` and the
   store's disposal on an account change advance its generation; a resolution
   passes the generation it started under to `save`, so results computed
   before the sync or for the previous account are dropped instead of written
   back. Server-data reset on sign-out (and the library cache reset) also
-  deletes the remembered matches and the Deezer artist mappings
-  (`clearIntegrationLibraryCacheProvider`).
+  deletes the remembered matches (Trending's too) and the Deezer artist
+  mappings (`clearIntegrationLibraryCacheProvider`).
 - **No source.** With neither source allowed (Online services off, or both
   top-songs switches off), or when none of the first ten songs is in the
   library, the artist page shows neither the section nor the "This Is" card;
@@ -1772,25 +1786,46 @@ there, one that already places it is left alone). `homeNewReleasesProvider`
 
 **Trending Now** (`deezer.trending`). No shelf of its own: a virtual playlist
 in the You Might Like hero, after the ListenBrainz weekly playlists and before
-the albums. `homeTrendingProvider` (`home_deezer_providers.dart`):
+the albums, and in Library › Playlists right under the weekly playlists. It
+works like the weekly playlists. `homeTrendingProvider`
+(`home_deezer_providers.dart`, a `StreamProvider`):
 - Returns nothing without asking Deezer while the switch is off, no account
   is signed in or the library has no artists (it watches the account scope,
   like New Releases); otherwise waits for `homeDeezerIdleProvider` and reads
   `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours).
-- Matches the chart with the artist Top Songs matcher
-  (`ArtistTopTrackResolver.resolve` under the key `deezer-chart`): remembered
-  matches and `ext-deezer-song-<id>` rows, the local pass, then `search3` only
-  for songs by artists in the library (`libraryArtistNameIndexProvider`), two
-  at a time; invalidating the provider (pull to refresh re-runs it) or
-  switching the feature off cancels them. Spans: `trending.localMatch`,
-  `trending.serverMatch` and `home.trending` (chart, by library artists,
-  playable).
-- Keeps only playable songs (library or remote through the server), each
-  ranked by its chart position; with fewer than 8 it returns nothing. The
-  chart is regional and mostly not the user's music, so most songs drop out.
+- Matches every chart song with the top-songs matcher on its own resolver
+  and store (`trendingTrackResolverProvider`, `trendingMatchStoreProvider`:
+  namespace `trending.matches`, key `deezer-chart`, per account, entries kept
+  14 days): remembered matches and `ext-deezer-song-<id>` rows, the library
+  pass, then `search3` for every song left, whoever the artist, with remote
+  results allowed and server copies preferred and stored as provisional rows.
+  Remembered remote and unmatched songs are searched again once a day; a
+  remote match is then only upgraded to a server copy.
+- Emits every chart row at once (`yieldPendingRows`), the unsearched ones
+  `isMatching`, then the final rows; unmatched songs stay as rows, so the
+  numbering has no gaps. Two searches run at once. A pull to refresh (or the
+  page's Retry) calls `homeTrendingRefreshProvider.refresh(manual: true)`:
+  six at a time, an update every six finished searches, and remembered
+  unmatched songs searched again. A refresh or turning the switch off
+  cancels the searches.
+- A library sync does not clear its store: `homeTrendingSyncRefreshBridgeProvider`
+  re-runs it after a sync that succeeded fully or partly (unless a refresh
+  started meanwhile, as Home's pull to refresh does), so the library pass
+  picks up synced copies and only songs due for their daily check are
+  searched. Sign-out and the library cache reset clear the store.
+- Spans: `trending.localMatch`, `trending.serverMatch` and `home.trending`
+  (`chart`, `playable`, `remote`, `manual`).
 - `homeRandomShowcaseProvider` adds it as a `HomeRandomShowcaseTrending`
-  unless the downloaded-only or liked-only filter is on; under them
+  (`HomeRandomShowcaseTrending.forHero`) once at least 8 chart songs are
+  playable, unless the downloaded-only or liked-only filter is on; under them
   `homeTrendingProvider` is not even read.
+- `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
+  the weekly playlists while the switch is allowed and an account is signed
+  in, whatever the chart holds (rows are still loading, or there is no chart
+  yet), so it can always be found. Its id `virtual:trending:deezer`
+  (`NavService.trendingPlaylistId`) makes `NavService.openPlaylistDetail`
+  open the Trending page. The row shows the chart's covers and "N of M
+  available • Deezer", like the weekly rows' "… • ListenBrainz".
 
 **Hero items.** `HomeRandomShowcaseItem` is `sealed`: a
 `HomeRandomShowcaseAlbum`, or a `HomeRandomShowcasePlaylist` (sealed too:
@@ -1799,11 +1834,12 @@ widgets switch over them exhaustively. Playlists share one look through
 `isLoading`, `coverArtIds` and `localizedTitle`: a `PlaylistCoverMosaic`
 (`listenbrainz_playlist_artwork.dart`; weekly playlists show ListenBrainz's
 own image when there is one), the title, an availability line ("12 of 50
-available", "24 songs you can play") and a reason ("ListenBrainz", "Popular
+available", "12 tracks available, matching") and a reason ("ListenBrainz", "Popular
 on Deezer"). Tapping a playlist opens its page; only albums show Play. On
 desktop a playlist's page lists its songs, Trending's numbered by chart
-position; a row plays like a weekly song (the whole playlist from it with
-Album Queue on, match flows collapsed).
+position with unmatched songs in place; a row plays like a weekly song (the
+whole playlist's playable songs from it with Album Queue on, match flows
+collapsed).
 
 **1.4.3 notice** (`IntegrationsNoticeCard`,
 `features/integrations/presentation/integrations_notice_card.dart`). A
@@ -1823,8 +1859,16 @@ it) also marks it seen, from the onboarding Integrations step.
 `RankedVirtualPlaylistContent`
 (`features/library/presentation/ranked_virtual_playlist_content.dart`), the
 layout extracted from the "This Is" page so both share it: artwork, title,
-"Deezer chart • 24 songs", Play/Shuffle/Download and rows numbered by
-`ResolvedArtistTopTrack.rank`.
+"Deezer chart • 100 songs • 40 of 100 available", Play/Shuffle/Download and
+rows numbered by `ResolvedArtistTopTrack.rank`. Rows use the weekly
+playlists' treatment (`TrackMatchStatusLabel`, shared with them): a song
+still searched shows "Matching" and a disabled hourglass; one found nowhere
+is faded with "Not on server" and a Search action; a playable song (library
+or remote, with the Remote mark) plays on tap and opens the song menu on
+long press, right click or its menu button. A remote song not stored yet is
+stored as a provisional row first, as playing it would, so the menu's
+queue actions work and its album and artist open as remote pages through
+the server.
 
 ## Update Checker
 

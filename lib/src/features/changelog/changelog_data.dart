@@ -182,8 +182,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Trending Now joins You Might Like: the songs trending on Deezer that you can play from your server, numbered by chart position',
+        'Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer\'s chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'An artist\'s top songs prefer a copy on your server over a remote one, and on "This Is" pages songs your server lacks are marked "Not on server" like in the weekly playlists, while every playable song opens the song menu',
       ),
       ChangelogEntry(
         'A one-time note on Home tells you what Navis 1.4.3 can now use Deezer for and opens Integrations',
