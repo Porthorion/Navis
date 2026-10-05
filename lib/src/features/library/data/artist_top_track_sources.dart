@@ -12,23 +12,50 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// Most top songs kept for an artist (the "This Is" playlist length).
 const int kArtistTopTrackSeedMax = 50;
 
-/// Tracks requested from Deezer's search when `/artist/{id}/top` is empty.
+/// Tracks requested from Deezer's search to fill a short top list.
 const int kDeezerTopTrackSearchLimit = 100;
+
+/// Below this many Deezer songs, Last.fm's songs are appended (when allowed).
+const int kArtistTopTrackLastFmFillBelow = 10;
 
 /// Last.fm top songs per normalized artist name.
 const String kLastFmTopTracksCacheNamespace = 'lastfm.artist-top-tracks';
 
-/// The top songs of one artist and whether they came from the disk cache.
+/// Layout of a `DeezerCache.artistTopTracksNamespace` entry. Entries written
+/// before the search fill (a plain list) read as a miss.
+const int _kDeezerTopTracksCacheVersion = 2;
+
+/// An artist's top songs, whether every source answered from the disk
+/// cache, and how many songs each step contributed.
 typedef ArtistTopTrackSeedsLoad = ({
   List<ArtistTopTrackSeed> seeds,
   bool cacheHit,
+  int fromTop,
+  int fromSearch,
+  int fromLastFm,
 });
 
-/// Loads an artist's top songs: Deezer first, then Last.fm, then none.
+const ArtistTopTrackSeedsLoad _none = (
+  seeds: <ArtistTopTrackSeed>[],
+  cacheHit: false,
+  fromTop: 0,
+  fromSearch: 0,
+  fromLastFm: 0,
+);
+
+/// Loads an artist's top songs (up to [kArtistTopTrackSeedMax]), each source
+/// only when its flag says the policy allows it:
 ///
-/// Each source is used only when its flag says the policy allows it, and a
-/// source that fails or has nothing for the artist hands over to the next.
-/// Results are cached for 24 hours per source.
+/// 1. Deezer's `/artist/{id}/top`. It returns no tracks in some regions and
+///    only a handful for niche artists, so whenever it gives fewer than the
+///    maximum, `/search/track` fills the list: tracks by the same Deezer
+///    artist id, most popular first, skipping editions already listed.
+/// 2. Last.fm: the whole list when Deezer has nothing or fails, or appended
+///    (editions not already listed) when Deezer has fewer than
+///    [kArtistTopTrackLastFmFillBelow]. Appended songs show no listener
+///    count, so a mixed list does not show numbers on some rows only.
+///
+/// Each source caches its answer for 24 hours.
 class ArtistTopTrackSources {
   new({required this._cache, this.deezer, this.deezerArtists, this.lastFm});
 
@@ -45,34 +72,75 @@ class ArtistTopTrackSources {
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
   }) async {
-    const none = (seeds: <ArtistTopTrackSeed>[], cacheHit: false);
     final name = artistName.trim();
-    if (name.isEmpty) return none;
+    if (name.isEmpty) return _none;
 
+    _DeezerTopTracks? fromDeezer;
     if (deezerAllowed) {
       try {
-        final fromDeezer = await _loadFromDeezer(
+        fromDeezer = await _loadFromDeezer(
           artistId: artistId,
           name: name,
           readLibraryAlbumTitles: readLibraryAlbumTitles,
           cancelToken: cancelToken,
         );
-        if (fromDeezer != null && fromDeezer.seeds.isNotEmpty) {
-          return fromDeezer;
-        }
       } on Object catch (error) {
         AppLogger.debug('Top songs: Deezer failed, trying Last.fm: $error');
       }
-      if (cancelToken?.isCancelled ?? false) return none;
+      if (cancelToken?.isCancelled ?? false) return _none;
     }
-    if (lastFmAllowed) {
-      return await _loadFromLastFm(name);
+    final deezerTracks = [...?fromDeezer?.top, ...?fromDeezer?.fill];
+    final deezerSeeds = _deezerSeeds(deezerTracks);
+    final deezerCached = fromDeezer?.cacheHit ?? false;
+    if (deezerSeeds.length >= kArtistTopTrackLastFmFillBelow ||
+        !lastFmAllowed) {
+      if (deezerSeeds.isEmpty) return _none;
+      return (
+        seeds: deezerSeeds,
+        cacheHit: deezerCached,
+        fromTop: fromDeezer!.top.length,
+        fromSearch: fromDeezer.fill.length,
+        fromLastFm: 0,
+      );
     }
-    return none;
+
+    final lastFmLoad = await _loadFromLastFm(name);
+    if (deezerSeeds.isEmpty) {
+      return (
+        seeds: lastFmLoad.seeds,
+        cacheHit: lastFmLoad.cacheHit,
+        fromTop: 0,
+        fromSearch: 0,
+        fromLastFm: lastFmLoad.seeds.length,
+      );
+    }
+    final listed = {
+      for (final seed in deezerSeeds) _seedEditionKey(seed.title),
+    };
+    final appended = [
+      for (final seed in lastFmLoad.seeds)
+        if (listed.add(_seedEditionKey(seed.title))) seed,
+    ].take(kArtistTopTrackSeedMax - deezerSeeds.length).toList();
+    return (
+      seeds: [
+        ...deezerSeeds,
+        for (var i = 0; i < appended.length; i++)
+          ArtistTopTrackSeed(
+            rank: deezerSeeds.length + i + 1,
+            title: appended[i].title,
+            artist: appended[i].artist,
+            source: ArtistTopTrackSource.lastFm,
+          ),
+      ],
+      cacheHit: deezerCached && lastFmLoad.cacheHit,
+      fromTop: fromDeezer!.top.length,
+      fromSearch: fromDeezer.fill.length,
+      fromLastFm: appended.length,
+    );
   }
 
   /// Null when Deezer has no artist of this name.
-  Future<ArtistTopTrackSeedsLoad?> _loadFromDeezer({
+  Future<_DeezerTopTracks?> _loadFromDeezer({
     required String artistId,
     required String name,
     required Future<Iterable<String>> Function()? readLibraryAlbumTitles,
@@ -90,48 +158,50 @@ class ArtistTopTrackSources {
     if (deezerId == null) return null;
 
     final cacheKey = '$deezerId';
-    final cached = await _cache.read(
-      DeezerCache.artistTopTracksNamespace,
-      cacheKey,
+    final cached = _DeezerTopTracks.fromCache(
+      (await _cache.read(
+        DeezerCache.artistTopTracksNamespace,
+        cacheKey,
+      ))?.value,
     );
-    if (cached != null && cached.value is List) {
-      final tracks = (cached.value! as List)
-          .whereType<Map<Object?, Object?>>()
-          .map((json) => DeezerTrack.fromJson(Map<String, dynamic>.from(json)))
-          .toList(growable: false);
-      return (seeds: _deezerSeeds(tracks), cacheHit: true);
-    }
+    if (cached != null) return cached;
 
-    var tracks = rankDeezerArtistTracks(
+    final top = rankDeezerArtistTracks(
       await client.getArtistTopTracks(
         deezerId,
         limit: kArtistTopTrackSeedMax,
         cancelToken: cancelToken,
       ),
       deezerArtistId: deezerId,
-    );
-    if (tracks.isEmpty) {
-      // `/artist/{id}/top` is empty in some regions for every artist.
-      tracks = rankDeezerArtistTracks(
-        await client.searchTracks(
-          name,
-          limit: kDeezerTopTrackSearchLimit,
-          cancelToken: cancelToken,
-        ),
-        deezerArtistId: deezerId,
-      );
+    ).take(kArtistTopTrackSeedMax).toList(growable: false);
+    var fill = const <DeezerTrack>[];
+    if (top.length < kArtistTopTrackSeedMax) {
+      final listed = {for (final track in top) _editionKey(track)};
+      fill = [
+        for (final track in rankDeezerArtistTracks(
+          await client.searchTracks(
+            name,
+            limit: kDeezerTopTrackSearchLimit,
+            cancelToken: cancelToken,
+          ),
+          deezerArtistId: deezerId,
+        ))
+          if (listed.add(_editionKey(track))) track,
+      ].take(kArtistTopTrackSeedMax - top.length).toList(growable: false);
     }
-    tracks = tracks.take(kArtistTopTrackSeedMax).toList(growable: false);
+    final result = _DeezerTopTracks(top: top, fill: fill, cacheHit: false);
     await _cache.write(
       DeezerCache.artistTopTracksNamespace,
       cacheKey,
-      tracks.map((track) => track.toJson()).toList(growable: false),
+      result.toCache(),
       ttl: DeezerCache.trackSearchTtl,
     );
-    return (seeds: _deezerSeeds(tracks), cacheHit: false);
+    return result;
   }
 
-  Future<ArtistTopTrackSeedsLoad> _loadFromLastFm(String name) async {
+  Future<({List<ArtistTopTrackSeed> seeds, bool cacheHit})> _loadFromLastFm(
+    String name,
+  ) async {
     final cacheKey = name.toLowerCase();
     final cached = await _cache.read(kLastFmTopTracksCacheNamespace, cacheKey);
     if (cached != null && cached.value is List) {
@@ -221,6 +291,40 @@ List<DeezerTrack> rankDeezerArtistTracks(
     for (final track in sorted)
       if (seen.add(_editionKey(track))) track,
   ];
+}
+
+String _seedEditionKey(String title) => normalizeMetadataKeepingEdition(title);
+
+/// Deezer's answer for one artist: the `/artist/{id}/top` tracks, then the
+/// `/search/track` tracks that fill the list.
+class _DeezerTopTracks {
+  const new({required this.top, required this.fill, required this.cacheHit});
+
+  final List<DeezerTrack> top;
+  final List<DeezerTrack> fill;
+  final bool cacheHit;
+
+  static _DeezerTopTracks? fromCache(Object? value) {
+    if (value is! Map || value['v'] != _kDeezerTopTracksCacheVersion) {
+      return null;
+    }
+    List<DeezerTrack> tracks(Object? list) => [
+      if (list is List)
+        for (final json in list.whereType<Map<Object?, Object?>>())
+          DeezerTrack.fromJson(Map<String, dynamic>.from(json)),
+    ];
+    return _DeezerTopTracks(
+      top: tracks(value['top']),
+      fill: tracks(value['fill']),
+      cacheHit: true,
+    );
+  }
+
+  Map<String, Object?> toCache() => <String, Object?>{
+    'v': _kDeezerTopTracksCacheVersion,
+    'top': [for (final track in top) track.toJson()],
+    'fill': [for (final track in fill) track.toJson()],
+  };
 }
 
 String _editionKey(DeezerTrack track) {

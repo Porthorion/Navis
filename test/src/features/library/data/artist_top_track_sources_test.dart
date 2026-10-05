@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
+import 'package:navis/src/features/integrations/data/deezer_cache.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/library/data/artist_top_track_sources.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
@@ -58,6 +59,14 @@ class _FakeLastFm extends LastFmApiClient {
   new() : super(apiKey: 'fake');
 
   int calls = 0;
+  List<LastFmArtistTopTrack> tracks = const [
+    LastFmArtistTopTrack(
+      rank: 1,
+      title: 'From Last.fm',
+      artist: 'Artist',
+      listeners: 1200,
+    ),
+  ];
 
   @override
   Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
@@ -65,14 +74,7 @@ class _FakeLastFm extends LastFmApiClient {
     int limit = 10,
   }) async {
     calls++;
-    return const [
-      LastFmArtistTopTrack(
-        rank: 1,
-        title: 'From Last.fm',
-        artist: 'Artist',
-        listeners: 1200,
-      ),
-    ];
+    return tracks;
   }
 }
 
@@ -128,7 +130,7 @@ void main() {
   test('Deezer top tracks come first, without listener counts', () async {
     deezer.top = [_track(1, 'Hit', rank: 900), _track(2, 'Second', rank: 800)];
 
-    final result = await load();
+    final result = await load(lastFmAllowed: false);
 
     expect(result.seeds.map((seed) => seed.title), ['Hit', 'Second']);
     expect(result.seeds.map((seed) => seed.rank), [1, 2]);
@@ -139,7 +141,8 @@ void main() {
     expect(first.deezerTrackId, 1);
     expect(first.album, 'Album');
     expect(first.durationSeconds, 200);
-    expect(deezer.searchCalls, 0);
+    // Fewer than 50: the search was asked to fill, and had nothing.
+    expect(deezer.searchCalls, 1);
     expect(lastFm.calls, 0);
   });
 
@@ -154,7 +157,7 @@ void main() {
         _track(5, 'Big Hit', rank: 800),
       ];
 
-      final result = await load();
+      final result = await load(lastFmAllowed: false);
 
       expect(deezer.topCalls, 1);
       expect(deezer.searchQuery, 'Artist');
@@ -178,13 +181,137 @@ void main() {
   });
 
   test('Deezer results are cached for the next load', () async {
-    deezer.top = [_track(1, 'Hit', rank: 900)];
+    deezer
+      ..top = [_track(1, 'Hit', rank: 900)]
+      ..search = [_track(2, 'Filler', rank: 10)];
 
-    expect((await load()).cacheHit, isFalse);
-    final second = await load();
+    expect((await load(lastFmAllowed: false)).cacheHit, isFalse);
+    final second = await load(lastFmAllowed: false);
 
     expect(second.cacheHit, isTrue);
-    expect(second.seeds.single.title, 'Hit');
+    expect(second.seeds.map((seed) => seed.title), ['Hit', 'Filler']);
+    expect((second.fromTop, second.fromSearch), (1, 1));
+    expect(deezer.topCalls, 1);
+    expect(deezer.searchCalls, 1);
+  });
+
+  List<DeezerTrack> numbered(int from, int to, {int rankBase = 1000}) => [
+    for (var i = from; i <= to; i++) _track(i, 'Song $i', rank: rankBase - i),
+  ];
+
+  test('a one-song top list is filled from the track search', () async {
+    deezer
+      ..top = [_track(1, 'eScape', rank: 5000)]
+      ..search = [
+        _track(1, 'eScape', rank: 5000),
+        _track(99, 'Cover', artistId: 77, rank: 9999),
+        ...numbered(2, 15),
+      ];
+
+    final result = await load();
+
+    expect(result.seeds.first.title, 'eScape');
+    expect(result.seeds, hasLength(15));
+    expect(result.seeds.map((seed) => seed.rank), [
+      for (var i = 1; i <= 15; i++) i,
+    ]);
+    expect(result.seeds.where((seed) => seed.title == 'eScape'), hasLength(1));
+    expect(result.seeds.any((seed) => seed.title == 'Cover'), isFalse);
+    expect((result.fromTop, result.fromSearch, result.fromLastFm), (1, 14, 0));
+    // Ten or more from Deezer: Last.fm is not asked.
+    expect(lastFm.calls, 0);
+  });
+
+  test('a nine-song top list is filled without repeating its songs', () async {
+    deezer
+      ..top = numbered(1, 9)
+      ..search = [...numbered(5, 20), _track(50, 'Song 3 (Remastered)')];
+
+    final result = await load();
+
+    expect(result.seeds.map((seed) => seed.title), [
+      for (var i = 1; i <= 20; i++) 'Song $i',
+    ]);
+    expect((result.fromTop, result.fromSearch), (9, 11));
+    expect(lastFm.calls, 0);
+  });
+
+  test('top and search together stop at 50 songs', () async {
+    deezer
+      ..top = numbered(1, 45)
+      ..search = numbered(46, 80);
+
+    final result = await load();
+
+    expect(result.seeds, hasLength(kArtistTopTrackSeedMax));
+    expect((result.fromTop, result.fromSearch), (45, 5));
+  });
+
+  test('a full top list skips the search', () async {
+    deezer.top = numbered(1, 50);
+
+    await load();
+
+    expect(deezer.searchCalls, 0);
+  });
+
+  test(
+    'fewer than ten Deezer songs get Last.fm songs appended, once each',
+    () async {
+      deezer.top = [
+        _track(1, 'Hit', rank: 900),
+        _track(2, 'Second', rank: 800),
+      ];
+      lastFm.tracks = const [
+        LastFmArtistTopTrack(rank: 1, title: 'HIT', artist: 'Artist'),
+        LastFmArtistTopTrack(
+          rank: 2,
+          title: 'Other',
+          artist: 'Artist',
+          listeners: 500,
+        ),
+        LastFmArtistTopTrack(rank: 3, title: 'Second (Live)', artist: 'Artist'),
+      ];
+
+      final result = await load();
+
+      expect(result.seeds.map((seed) => seed.title), [
+        'Hit',
+        'Second',
+        'Other',
+        'Second (Live)',
+      ]);
+      expect(result.seeds.map((seed) => seed.rank), [1, 2, 3, 4]);
+      expect(result.seeds.map((seed) => seed.source), [
+        ArtistTopTrackSource.deezer,
+        ArtistTopTrackSource.deezer,
+        ArtistTopTrackSource.lastFm,
+        ArtistTopTrackSource.lastFm,
+      ]);
+      // A mixed list shows no listener counts.
+      expect(result.seeds.every((seed) => seed.listeners == null), isTrue);
+      expect((result.fromTop, result.fromSearch, result.fromLastFm), (2, 0, 2));
+    },
+  );
+
+  test('Last.fm switched off is not asked to fill a short list', () async {
+    deezer.top = [_track(1, 'Hit', rank: 900)];
+
+    final result = await load(lastFmAllowed: false);
+
+    expect(result.seeds.single.title, 'Hit');
+    expect(lastFm.calls, 0);
+  });
+
+  test('a cache entry from before the search fill is fetched again', () async {
+    deezer.top = [_track(1, 'Hit', rank: 900)];
+    await cache.write(DeezerCache.artistTopTracksNamespace, '9', [
+      _track(1, 'Hit', rank: 900).toJson(),
+    ], ttl: const Duration(hours: 24));
+
+    final result = await load(lastFmAllowed: false);
+
+    expect(result.cacheHit, isFalse);
     expect(deezer.topCalls, 1);
   });
 

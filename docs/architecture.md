@@ -1423,14 +1423,19 @@ fallback.
   three are compared, one request each); equal overlap goes to the most fans.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
-  (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none; a
-  source that fails or has nothing hands over to the next. Deezer takes
-  `/artist/{id}/top?limit=50`, or when that is empty `/search/track?q=<name>&limit=100`
-  kept to tracks whose `artist.id` is the resolved id (search results include
-  covers and remixes by others), one per `normalizeMetadataKeepingEdition`
-  title (so "Wonder" and "Wonder (Japanese Version)" both stay while a
-  remaster folds in), most popular first. Each source caches its list for 24
-  hours. The result is a list of neutral `ArtistTopTrackSeed`s
+  (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up
+  to 50 songs. Deezer takes `/artist/{id}/top?limit=50`; whenever that gives
+  fewer than 50 (none in some regions, a handful for niche artists: one for
+  Masayoshi Soken when measured), `/search/track?q=<name>&limit=100` fills the
+  list. Search tracks are kept only when their `artist.id` is the resolved id
+  (results include covers and remixes by others), one per
+  `normalizeMetadataKeepingEdition` title and never an edition already listed
+  (so "Wonder" and "Wonder (Japanese Version)" both stay while a remaster
+  folds in), most popular first. Deezer failing or knowing nothing hands the
+  whole list to Last.fm; fewer than 10 Deezer songs get Last.fm's songs not
+  already listed appended, without listener counts. Each source caches its
+  answer for 24 hours (the Deezer entry keeps the top and search parts; an
+  entry written before the search fill reads as a miss). The result is a list of neutral `ArtistTopTrackSeed`s
   (`features/library/domain/artist_top_track.dart`: rank, title, artist,
   source, Deezer popularity, Last.fm listeners, album, length, Deezer track
   id). Only Last.fm seeds carry listeners, so only they show a number.

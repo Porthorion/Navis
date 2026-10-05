@@ -155,7 +155,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        "An artist's Top Tracks now come from Deezer (Last.fm when Deezer has none) and appear much sooner: songs in your library show first, and matches are remembered between visits",
+        "An artist's Top Tracks now come from Deezer (topped up from Last.fm when Deezer has only a few) and appear much sooner: songs in your library show first, and matches are remembered between visits",
       ),
       ChangelogEntry(
         'When no top tracks are available, "This Is <Artist>" becomes "Shuffle everything by <Artist>", a shuffle of the artist\'s songs in your library',

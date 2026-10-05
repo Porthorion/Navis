@@ -521,7 +521,7 @@ modes and returns `counters` per service key (`requests` that left the device,
 `error` or `blocked`, `blocked`, `at`) and the last 50 `spans`: named pipeline
 phases with the sizes they handled. Artist Top Songs records
 `topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
-them), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
+them, and per step `top`, `searchFill` and `lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
 `candidates` library rows read, `localHits`) and `topSongs.serverMatch`
 (`unresolved`, `search3Calls`, `matched`, `remote`). The section records them
 for its ten songs; the "This Is" page records them for up to 50. The recorder

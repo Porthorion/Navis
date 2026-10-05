@@ -313,7 +313,14 @@ void main() {
             .recentSpans()
             .single
             .counts,
-        {'seeds': 12, 'cacheHit': 0, 'deezer': 1},
+        {
+          'seeds': 12,
+          'cacheHit': 0,
+          'deezer': 1,
+          'top': 12,
+          'searchFill': 0,
+          'lastFm': 0,
+        },
       );
     });
 
@@ -876,6 +883,9 @@ void main() {
           'seeds': 3,
           'cacheHit': 0,
           'deezer': 0,
+          'top': 0,
+          'searchFill': 0,
+          'lastFm': 3,
         });
         expect(spans['topSongs.localMatch'], {
           'seeds': 3,

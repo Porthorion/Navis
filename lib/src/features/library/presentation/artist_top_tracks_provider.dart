@@ -173,6 +173,9 @@ final artistTopTrackSeedsProvider = FutureProvider.autoDispose
         'deezer': load.seeds.firstOrNull?.source == ArtistTopTrackSource.deezer
             ? 1
             : 0,
+        'top': load.fromTop,
+        'searchFill': load.fromSearch,
+        'lastFm': load.fromLastFm,
       }, timer.elapsed);
       return load.seeds;
     });
