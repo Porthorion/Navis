@@ -2095,6 +2095,122 @@ void main() {
     expect(forbidden.statusCode, HttpStatus.forbidden);
   });
 
+  test('page scroll is bounded, authenticated and clone-only', () async {
+    final presentation = _MockPresentationController();
+    when(
+      () => presentation.scrollPrimary(
+        by: any(named: 'by'),
+        to: any(named: 'to'),
+      ),
+    ).thenAnswer(
+      (_) async => const DiagnosticsScrollResult(
+        pixels: 640,
+        maxScrollExtent: 2400,
+        viewportDimension: 844,
+      ),
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+    final unauthorized = await _request(
+      fixture.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      body: const {'by': 640},
+    );
+    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+    for (final body in <Map<String, Object?>>[
+      {},
+      {'by': 1, 'to': 1},
+      {'by': 'down'},
+      {'by': 100001},
+      {'to': -1},
+      {'to': 100001},
+    ]) {
+      final response = await _request(
+        fixture.port,
+        '/v1/presentation/scroll',
+        method: 'POST',
+        token: fixture.token,
+        body: body,
+      );
+      expect(response.statusCode, HttpStatus.badRequest, reason: '$body');
+    }
+    verifyNever(
+      () => presentation.scrollPrimary(
+        by: any(named: 'by'),
+        to: any(named: 'to'),
+      ),
+    );
+    final scrolled = await _request(
+      fixture.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      token: fixture.token,
+      body: const {'by': -120.5},
+    );
+    expect(scrolled.statusCode, HttpStatus.ok);
+    expect(scrolled.body, <String, Object?>{
+      'pixels': 640,
+      'maxScrollExtent': 2400,
+      'viewportDimension': 844,
+    });
+    verify(() => presentation.scrollPrimary(by: -120.5)).called(1);
+    final jumped = await _request(
+      fixture.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      token: fixture.token,
+      body: const {'to': 0},
+    );
+    expect(jumped.statusCode, HttpStatus.ok);
+    verify(() => presentation.scrollPrimary(to: 0)).called(1);
+
+    when(
+      () => presentation.scrollPrimary(
+        by: any(named: 'by'),
+        to: any(named: 'to'),
+      ),
+    ).thenThrow(const DiagnosticsPresentationUnavailable());
+    final unavailable = await _request(
+      fixture.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      token: fixture.token,
+      body: const {'by': 10},
+    );
+    expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
+    await fixture.close();
+
+    final noSurface = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(noSurface.close);
+    final missing = await _request(
+      noSurface.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      token: noSurface.token,
+      body: const {'by': 10},
+    );
+    expect(missing.statusCode, HttpStatus.serviceUnavailable);
+    await noSurface.close();
+
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      presentationController: presentation,
+    );
+    addTearDown(primary.close);
+    final forbidden = await _request(
+      primary.port,
+      '/v1/presentation/scroll',
+      method: 'POST',
+      token: primary.token,
+      body: const {'by': 10},
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+  });
+
   test('adjustments can open only the Now Playing settings sheet', () async {
     final presentation = _MockPresentationController();
     when(presentation.openNowPlayingSettingsSheet).thenAnswer((_) async {});

@@ -1578,7 +1578,19 @@ unrelated live library's historical metadata.
 
 Clone-only `POST /v1/presentation/library-scroll` accepts `pixels` (0–100000)
 and animates the mounted Albums view through its real scroll controller, returning
-the actual position. `POST /v1/diagnostics/metrics/reset` clears frame/canary samples
+the actual position.
+
+Clone-only `POST /v1/presentation/scroll` scrolls the current page's primary
+vertical scroll view, such as Home, an artist page or a Settings page, so a
+screenshot can show content below the fold. Send exactly one of `{"by": px}`
+(−100000 to 100000, relative) or `{"to": px}` (0 to 100000, absolute). The
+offset is clamped to the view's extent. The primary view is the largest
+vertical scrollable on screen: views in hidden shell tabs, the hidden desktop
+workspace and covered pages are skipped, and nested lists lose to the page's
+own list. The response is `{"pixels", "maxScrollExtent", "viewportDimension"}`
+after the next quiet frame, so lazily built sections are included in the
+extent. A page without a scroll view returns 503; invalid bodies return 400;
+primary certification returns 403. `POST /v1/diagnostics/metrics/reset` clears frame/canary samples
 and playback-failure counts between timed scenarios. Reports include current and
 process-lifetime peak RSS. These support controlled sync/playback/scroll trials;
 API action latency and build+raster samples are not hardware input-latency or

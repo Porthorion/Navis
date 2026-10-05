@@ -434,6 +434,13 @@ AlbumWithSongs _albumWithSongs(
   );
 }
 
+/// Hides every default Home section except [visible]: a saved order alone
+/// gains the default sections it lacks.
+List<String> _hiddenExcept(List<String> visible) => <String>[
+  for (final id in HomeSectionIds.defaultOrder)
+    if (!visible.contains(id)) id,
+];
+
 Future<void> _pumpHomeWithSyncState(
   WidgetTester tester,
   LibrarySyncState syncState,
@@ -578,7 +585,7 @@ Future<void> _pumpRandomSectionHome(
         AsyncData(
           const AppSettingsModel.defaults().copyWith(
             homeSectionOrder: sectionOrder,
-            homeSectionsHidden: <String>[],
+            homeSectionsHidden: _hiddenExcept(sectionOrder),
           ),
         ),
       ),
@@ -1445,7 +1452,7 @@ void main() {
       );
       final settings = const AppSettingsModel.defaults().copyWith(
         homeSectionOrder: <String>[HomeSectionIds.likedTracks],
-        homeSectionsHidden: <String>[],
+        homeSectionsHidden: _hiddenExcept(<String>[HomeSectionIds.likedTracks]),
       );
 
       setAdaptiveTestViewport(tester, const Size(1000, 420));
@@ -1485,7 +1492,7 @@ void main() {
     (tester) async {
       final settings = const AppSettingsModel.defaults().copyWith(
         homeSectionOrder: <String>[HomeSectionIds.likedTracks],
-        homeSectionsHidden: <String>[],
+        homeSectionsHidden: _hiddenExcept(<String>[HomeSectionIds.likedTracks]),
       );
       final song = _songRow(
         id: 'desktop-home-song',
@@ -1527,7 +1534,7 @@ void main() {
       ];
       final settings = const AppSettingsModel.defaults().copyWith(
         homeSectionOrder: <String>[HomeSectionIds.likedTracks],
-        homeSectionsHidden: <String>[],
+        homeSectionsHidden: _hiddenExcept(<String>[HomeSectionIds.likedTracks]),
       );
 
       await _pumpHomeWithAppSettings(
@@ -1902,7 +1909,9 @@ void main() {
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
                   homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
-                  homeSectionsHidden: <String>[],
+                  homeSectionsHidden: _hiddenExcept(<String>[
+                    HomeSectionIds.randomAlbums,
+                  ]),
                 ),
               ),
             ),
@@ -2523,7 +2532,9 @@ void main() {
                 AsyncData(
                   const AppSettingsModel.defaults().copyWith(
                     homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
-                    homeSectionsHidden: <String>[],
+                    homeSectionsHidden: _hiddenExcept(<String>[
+                      HomeSectionIds.randomAlbums,
+                    ]),
                   ),
                 ),
               ),

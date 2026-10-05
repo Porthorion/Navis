@@ -218,10 +218,12 @@ Future<List<HomeArtworkWarmupTarget>> resolveHomeOnboardingWarmupTargets(
   Ref ref, {
   required bool desktopRuntime,
 }) async {
-  final sectionOrder =
-      ref.read(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
-  final hiddenSections =
-      ref.read(homeSectionsHiddenProvider) ?? HomeSectionIds.defaultHidden;
+  final persistedOrder = ref.read(homeSectionOrderProvider);
+  final sectionOrder = HomeSectionIds.resolveOrder(persistedOrder);
+  final hiddenSections = HomeSectionIds.resolveHidden(
+    ref.read(homeSectionsHiddenProvider),
+    persistedOrder: persistedOrder,
+  );
   final downloadedOnly = ref.read(downloadedOnlyFilterProvider);
   final likedOnly = ref.read(homeLikedOnlyFilterProvider);
   final selected = <HomeArtworkWarmupTarget>[];

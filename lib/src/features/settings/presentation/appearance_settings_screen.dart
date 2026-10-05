@@ -37,19 +37,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
     final languageControlEnabled = AppLocalizations.supportedLocales.length > 1;
     final theme = Theme.of(context);
-    final allowedHomeSectionIds = HomeSectionIds.defaultOrder.toSet();
     final persistedOrder = ref.watch(homeSectionOrderProvider);
-    final persistedHidden = ref.watch(homeSectionsHiddenProvider);
-    final baseHidden = persistedHidden ?? HomeSectionIds.defaultHidden;
-    final sanitizedOrder = <String>[
-      ...?persistedOrder?.where(allowedHomeSectionIds.contains),
-      ...HomeSectionIds.defaultOrder.where(
-        (id) => !(persistedOrder?.contains(id) ?? false),
-      ),
-    ];
-    final sanitizedHidden = baseHidden
-        .where(allowedHomeSectionIds.contains)
-        .toList(growable: false);
+    final sanitizedOrder = HomeSectionIds.resolveOrder(persistedOrder);
+    final sanitizedHidden = HomeSectionIds.resolveHidden(
+      ref.watch(homeSectionsHiddenProvider),
+      persistedOrder: persistedOrder,
+    );
     final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
     // Quick Actions are now always-visible below the home logo; remove from

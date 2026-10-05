@@ -79,6 +79,25 @@ class DiagnosticsScreenshot {
   };
 }
 
+/// Where [DiagnosticsPresentationController.scrollPrimary] left the page.
+class DiagnosticsScrollResult {
+  const new({
+    required this.pixels,
+    required this.maxScrollExtent,
+    required this.viewportDimension,
+  });
+
+  final double pixels;
+  final double maxScrollExtent;
+  final double viewportDimension;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'pixels': pixels,
+    'maxScrollExtent': maxScrollExtent,
+    'viewportDimension': viewportDimension,
+  };
+}
+
 class DiagnosticsPresentationController {
   new({required Directory artifactRoot, this.frameWaiter})
     : _artifactRoot = Directory(p.normalize(p.absolute(artifactRoot.path)));
@@ -922,6 +941,67 @@ class DiagnosticsPresentationController {
       result ??= _findElement(child, matches);
     });
     return result;
+  }
+
+  /// Scrolls the current page's primary vertical scroll view [by] pixels or
+  /// [to] an offset (exactly one), clamped to its extent, through the
+  /// production widget tree.
+  ///
+  /// The primary view is the largest vertical scrollable on screen: outside
+  /// any offstage or ticker-disabled subtree (hidden shell tabs, the hidden
+  /// desktop workspace) and on the current page of its navigator. Nested
+  /// lists, such as a hero's track list, are smaller than the page's own.
+  /// Returns the position after the next quiet frame, once lazily built
+  /// content has updated the extent.
+  Future<DiagnosticsScrollResult> scrollPrimary({
+    double? by,
+    double? to,
+  }) async {
+    if ((by == null) == (to == null)) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    ScrollableState? primary;
+    var primaryArea = 0.0;
+    void collect(Element element) {
+      final widget = element.widget;
+      if ((widget is Offstage && widget.offstage) ||
+          (widget is TickerMode && !widget.enabled)) {
+        return;
+      }
+      if (element is StatefulElement &&
+          element.state is ScrollableState &&
+          ModalRoute.of(element)?.isCurrent != false) {
+        final state = element.state as ScrollableState;
+        final box = element.findRenderObject();
+        if (axisDirectionToAxis(state.axisDirection) == Axis.vertical &&
+            box is RenderBox &&
+            box.attached &&
+            box.hasSize &&
+            state.position.hasContentDimensions) {
+          final area = box.size.width * box.size.height;
+          if (area > primaryArea) {
+            primary = state;
+            primaryArea = area;
+          }
+        }
+      }
+      element.visitChildElements(collect);
+    }
+
+    collect(root);
+    final position = primary?.position;
+    if (position == null) throw const DiagnosticsPresentationUnavailable();
+    final target = (to ?? position.pixels + by!).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    position.jumpTo(target);
+    await waitForFrame();
+    return DiagnosticsScrollResult(
+      pixels: position.pixels,
+      maxScrollExtent: position.maxScrollExtent,
+      viewportDimension: position.viewportDimension,
+    );
   }
 
   /// Dismisses app-owned popup routes without navigating away from a page.

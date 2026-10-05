@@ -854,6 +854,40 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, {'pixels': actual});
         return;
       }
+      if (request.method == 'POST' && path == '/v1/presentation/scroll') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final by = body['by'];
+        final to = body['to'];
+        bool inRange(Object? value, {required double min}) =>
+            value is num && value.isFinite && value >= min && value <= 100000;
+        if ((by == null) == (to == null) ||
+            (by != null && !inRange(by, min: -100000)) ||
+            (to != null && !inRange(to, min: 0))) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'send one of "by" (±100000) or "to" (0–100000) pixels',
+          });
+          return;
+        }
+        try {
+          final result = await presentation.scrollPrimary(
+            by: (by as num?)?.toDouble(),
+            to: (to as num?)?.toDouble(),
+          );
+          await _respond(request, HttpStatus.ok, result.toJson());
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+        }
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/presentation/notice') {
         if (!allowsMutations) {
           await _forbidden(request);

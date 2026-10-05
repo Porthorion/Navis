@@ -750,4 +750,96 @@ void main() {
       throwsA(isA<DiagnosticsPresentationUnavailable>()),
     );
   });
+  testWidgets(
+    'scrolls the visible page list, not hidden tabs or nested lists',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('navis_scroll_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final controller = DiagnosticsPresentationController(
+        artifactRoot: root,
+        frameWaiter: () => tester.pump(),
+      );
+      final hiddenTab = ScrollController();
+      final page = ScrollController();
+      final nested = ScrollController();
+      addTearDown(hiddenTab.dispose);
+      addTearDown(page.dispose);
+      addTearDown(nested.dispose);
+      Widget rows(int count) => Column(
+        children: <Widget>[
+          for (var i = 0; i < count; i++)
+            SizedBox(height: 50, child: Text('$i')),
+        ],
+      );
+      await tester.pumpWidget(
+        controller.wrap(
+          MaterialApp(
+            home: Stack(
+              children: <Widget>[
+                // A hidden shell tab with a larger list.
+                Offstage(
+                  child: TickerMode(
+                    enabled: false,
+                    child: SingleChildScrollView(
+                      controller: hiddenTab,
+                      child: rows(200),
+                    ),
+                  ),
+                ),
+                ListView(
+                  controller: page,
+                  children: <Widget>[
+                    SizedBox(
+                      height: 200,
+                      child: ListView(controller: nested, children: [rows(20)]),
+                    ),
+                    rows(60),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect((await controller.scrollPrimary(by: 300)).pixels, 300);
+      expect(page.offset, 300);
+      expect(hiddenTab.offset, 0);
+      expect(nested.offset, 0);
+
+      final top = await controller.scrollPrimary(to: 0);
+      expect(top.pixels, 0);
+      final end = await controller.scrollPrimary(to: 100000);
+      expect(end.pixels, end.maxScrollExtent);
+      expect(end.viewportDimension, 600);
+      expect((await controller.scrollPrimary(by: -100000)).pixels, 0);
+
+      await expectLater(
+        controller.scrollPrimary(by: 1, to: 1),
+        throwsA(isA<FormatException>()),
+      );
+      await expectLater(
+        controller.scrollPrimary(),
+        throwsA(isA<FormatException>()),
+      );
+    },
+  );
+
+  testWidgets('scrolling without a visible list is unavailable', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis_scroll_test_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () => tester.pump(),
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: SizedBox.expand())),
+    );
+    await expectLater(
+      controller.scrollPrimary(by: 10),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+  });
 }

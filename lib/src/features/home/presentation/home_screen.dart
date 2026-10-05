@@ -1100,10 +1100,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final desktopMode = adaptiveContext.useDesktopShell;
     final useCustomHomePullRefresh = !desktopMode;
     final homeDensity = ref.watch(homeDensityProvider);
-    final order =
-        ref.watch(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
-    final hidden =
-        ref.watch(homeSectionsHiddenProvider) ?? HomeSectionIds.defaultHidden;
+    final persistedOrder = ref.watch(homeSectionOrderProvider);
+    final order = HomeSectionIds.resolveOrder(persistedOrder);
+    final hidden = HomeSectionIds.resolveHidden(
+      ref.watch(homeSectionsHiddenProvider),
+      persistedOrder: persistedOrder,
+    );
 
     final content = ListView(
       controller: _scrollController,

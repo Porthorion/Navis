@@ -100,7 +100,12 @@ void main() {
             homeSectionOrderProvider.overrideWithValue(const <String>[
               HomeSectionIds.randomAlbums,
             ]),
-            homeSectionsHiddenProvider.overrideWithValue(const <String>[]),
+            // Every other section is hidden; a saved order gains the
+            // default sections it lacks.
+            homeSectionsHiddenProvider.overrideWithValue(<String>[
+              for (final id in HomeSectionIds.defaultOrder)
+                if (id != HomeSectionIds.randomAlbums) id,
+            ]),
             homeLikedOnlyFilterProvider.overrideWith(
               _LikedOnlyHomeFilterController.new,
             ),
