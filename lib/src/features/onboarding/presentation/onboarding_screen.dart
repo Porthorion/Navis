@@ -198,6 +198,12 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _saveIntegrationChoices(AppSettingsModel draft) async {
     final repository = ref.read(settingsRepositoryProvider);
     final policy = _draftIntegrationPolicy(draft);
+    await repository.updateLastFmApiKey(draft.lastFmApiKey);
+    await repository.updateListenBrainzConnection(
+      tokenValid: draft.listenBrainzTokenValid,
+      userName: draft.listenBrainzUserName,
+      scrobblingEnabled: draft.listenBrainzScrobblingEnabled,
+    );
     await repository.setExternalIntegrationsEnabled(
       enabled: draft.externalIntegrationsEnabled,
     );

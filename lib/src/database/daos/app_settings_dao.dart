@@ -139,6 +139,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Full-row save of the device settings. The integration-owned columns
+  /// (`updateCheckEnabled`, `useLrclib`, `legacyInstantMixEnabled`, the
+  /// Last.fm key and the ListenBrainz connection) are written only when
+  /// given, and `SettingsRepository.saveSettings` never gives them: they
+  /// belong to the targeted writers ([setIntegrationEnabled],
+  /// [updateLastFmApiKey], [updateListenBrainzScrobblingState]) so a stale
+  /// screen snapshot cannot revert a switch or a token clear.
   Future<void> saveSettings({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -166,15 +173,15 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String crossfadeType,
     required bool artTintedNowPlaying,
     required bool dynamicAlbumColorEnabled,
-    required bool updateCheckEnabled,
+    bool? updateCheckEnabled,
     required String updateChannel,
     String? audioMuseServerUrl,
     String? audioMuseApiKey,
     required bool audioMuseEnabled,
     required int syncIntervalMinutes,
     bool backgroundSyncUnmeteredOnly = true,
-    required bool useLrclib,
-    required bool legacyInstantMixEnabled,
+    bool? useLrclib,
+    bool? legacyInstantMixEnabled,
     required String replayGainMode,
     required double replayGainPreamp,
     double? playbackSpeed,
@@ -198,10 +205,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool matchFlowEnabled = false,
     bool likedQueueEnabled = true,
     String? lastFmApiKey,
-    bool lastFmScrobblingEnabled = false,
-    bool lastFmSessionConnected = false,
-    bool listenBrainzScrobblingEnabled = false,
-    bool listenBrainzTokenValid = false,
+    bool? lastFmScrobblingEnabled,
+    bool? lastFmSessionConnected,
+    bool? listenBrainzScrobblingEnabled,
+    bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
     String? customVoyageServers,
   }) {
@@ -234,15 +241,19 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeType: Value(crossfadeType),
         artTintedNowPlaying: Value(artTintedNowPlaying),
         dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
-        updateCheckEnabled: Value(updateCheckEnabled),
+        updateCheckEnabled: updateCheckEnabled == null
+            ? const Value.absent()
+            : Value(updateCheckEnabled),
         updateChannel: Value(updateChannel),
         audioMuseServerUrl: Value(audioMuseServerUrl),
         audioMuseApiKey: Value(audioMuseApiKey),
         audioMuseEnabled: Value(audioMuseEnabled),
         syncIntervalMinutes: Value(syncIntervalMinutes),
         backgroundSyncUnmeteredOnly: Value(backgroundSyncUnmeteredOnly),
-        useLrclib: Value(useLrclib),
-        legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
+        useLrclib: useLrclib == null ? const Value.absent() : Value(useLrclib),
+        legacyInstantMixEnabled: legacyInstantMixEnabled == null
+            ? const Value.absent()
+            : Value(legacyInstantMixEnabled),
         replayGainMode: Value(replayGainMode),
         replayGainPreamp: Value(replayGainPreamp),
         playbackSpeed: playbackSpeed == null
@@ -267,12 +278,24 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         albumQueueEnabled: Value(albumQueueEnabled),
         matchFlowEnabled: Value(matchFlowEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
-        lastFmApiKey: Value(lastFmApiKey),
-        lastFmScrobblingEnabled: Value(lastFmScrobblingEnabled),
-        lastFmSessionConnected: Value(lastFmSessionConnected),
-        listenBrainzScrobblingEnabled: Value(listenBrainzScrobblingEnabled),
-        listenBrainzTokenValid: Value(listenBrainzTokenValid),
-        listenBrainzUserName: Value(listenBrainzUserName),
+        lastFmApiKey: lastFmApiKey == null
+            ? const Value.absent()
+            : Value(lastFmApiKey),
+        lastFmScrobblingEnabled: lastFmScrobblingEnabled == null
+            ? const Value.absent()
+            : Value(lastFmScrobblingEnabled),
+        lastFmSessionConnected: lastFmSessionConnected == null
+            ? const Value.absent()
+            : Value(lastFmSessionConnected),
+        listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled == null
+            ? const Value.absent()
+            : Value(listenBrainzScrobblingEnabled),
+        listenBrainzTokenValid: listenBrainzTokenValid == null
+            ? const Value.absent()
+            : Value(listenBrainzTokenValid),
+        listenBrainzUserName: listenBrainzUserName == null
+            ? const Value.absent()
+            : Value(listenBrainzUserName),
         customVoyageServers: Value(customVoyageServers),
         updatedAt: DateTime.now(),
       ),
@@ -348,6 +371,14 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       pitchSemitones: 0,
       selectedPresetId: 'none',
     );
+    // Integration-owned columns are not written by [saveSettings] unless
+    // given; reset them through their targeted writers.
+    await updateLastFmApiKey(null);
+    await updateListenBrainzScrobblingState(
+      enabled: false,
+      tokenValid: false,
+      clearUserName: true,
+    );
     await saveSettings(
       wifiMaxBitRate: null,
       wifiFormat: null,
@@ -402,11 +433,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       albumQueueEnabled: true,
       matchFlowEnabled: false,
       likedQueueEnabled: true,
-      lastFmApiKey: null,
       lastFmScrobblingEnabled: false,
       lastFmSessionConnected: false,
-      listenBrainzScrobblingEnabled: false,
-      listenBrainzTokenValid: false,
       customVoyageServers: null,
     );
     // The full-row save leaves the policy columns alone; reset them here.
@@ -1110,6 +1138,12 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       ),
     );
   }
+
+  /// Writes only the custom Last.fm API key (null clears it), so saving a key
+  /// after a slow validation cannot revert integration switches changed
+  /// meanwhile.
+  Future<void> updateLastFmApiKey(String? key) =>
+      _writeSettings(AppSettingsTableCompanion(lastFmApiKey: Value(key)));
 
   Future<void> updateListenBrainzScrobblingState({
     bool? enabled,

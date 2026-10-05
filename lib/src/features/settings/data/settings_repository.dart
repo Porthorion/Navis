@@ -53,15 +53,12 @@ class SettingsRepository {
       crossfadeType: settings.crossfadeType,
       artTintedNowPlaying: settings.artTintedNowPlaying,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
-      updateCheckEnabled: settings.updateCheckEnabled,
       updateChannel: settings.updateChannel,
       audioMuseServerUrl: settings.audioMuseServerUrl,
       audioMuseApiKey: settings.audioMuseApiKey,
       audioMuseEnabled: settings.audioMuseEnabled,
       syncIntervalMinutes: settings.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly: settings.backgroundSyncUnmeteredOnly,
-      useLrclib: settings.useLrclib,
-      legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
       replayGainMode: settings.replayGainMode,
       replayGainPreamp: settings.replayGainPreamp,
       // Playback adjustments have a dedicated writer; stale screen snapshots
@@ -89,16 +86,11 @@ class SettingsRepository {
       albumQueueEnabled: settings.albumQueueEnabled,
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
-      lastFmApiKey: settings.lastFmApiKey,
-      lastFmScrobblingEnabled: settings.lastFmScrobblingEnabled,
-      lastFmSessionConnected: settings.lastFmSessionConnected,
-      listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
-      listenBrainzTokenValid: settings.listenBrainzTokenValid,
-      listenBrainzUserName: settings.listenBrainzUserName,
       customVoyageServers: null,
     );
-    // The integration policy columns are not part of the full-row save; see
-    // AppSettingsDao.updateIntegrationPolicy.
+    // Integration-owned columns (the policy columns, the legacy feature
+    // columns, the Last.fm key and the ListenBrainz connection) are not part
+    // of the full-row save; see AppSettingsDao.saveSettings.
     await _dao.saveGroupListeningSettings(
       groupListeningEnabled: false,
       voyageServerUrl: null,
@@ -107,6 +99,10 @@ class SettingsRepository {
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
+
+  /// Writes only the custom Last.fm API key; null clears it. The full-row
+  /// [saveSettings] leaves the key alone.
+  Future<void> updateLastFmApiKey(String? key) => _dao.updateLastFmApiKey(key);
 
   Future<void> savePlaybackAdjustments({
     required PlaybackAdjustments values,

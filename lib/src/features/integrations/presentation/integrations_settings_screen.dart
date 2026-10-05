@@ -350,19 +350,9 @@ class _IntegrationsSettingsScreenState
           return;
         }
       }
-      // Read the row after the network wait so switches changed meanwhile
-      // are kept.
-      final current = await ref.read(settingsRepositoryProvider).getSettings();
       await ref
           .read(settingsRepositoryProvider)
-          .saveSettings(
-            current.copyWith(
-              lastFmApiKey: key.isEmpty ? null : key,
-              clearLastFmApiKey: key.isEmpty,
-              lastFmScrobblingEnabled: false,
-              lastFmSessionConnected: false,
-            ),
-          );
+          .updateLastFmApiKey(key.isEmpty ? null : key);
       if (!mounted) return;
       setState(() {
         _lastFmKeyError = null;

@@ -726,6 +726,11 @@ void main() {
       // Real Drift-backed settings: every save emits a new model, as Playback
       // autosave, appearance changes and desktop volume persistence do.
       final repository = container.read(settingsRepositoryProvider);
+      await repository.updateListenBrainzConnection(
+        tokenValid: true,
+        userName: 'alice',
+        scrobblingEnabled: true,
+      );
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(
           listenBrainzScrobblingEnabled: true,

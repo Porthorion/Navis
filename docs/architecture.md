@@ -1300,7 +1300,14 @@ switch means "Navis only talks to your server" when off. See
   `updateIntegrationsNoticeDismissed` and `setIntegrationEnabled(key, enabled:)`,
   the single path for any feature or service toggle: it writes the legacy column
   for a column-backed feature and otherwise read-modify-writes the JSON set in a
-  transaction.
+  transaction. The other integration-owned columns (`useLrclib`,
+  `updateCheckEnabled`, `legacyInstantMixEnabled`, the Last.fm key and the
+  ListenBrainz connection) are written by `AppSettingsDao.saveSettings` only
+  when given, and `SettingsRepository.saveSettings` never gives them: they
+  change through `setIntegrationEnabled`, `updateLastFmApiKey` (the key
+  alone) and `updateListenBrainzConnection`, so a stale screen snapshot cannot
+  revert a switch, a key or a token clear. `resetDefaults` resets them through
+  those writers.
 - **Provider.** `integrationPolicyProvider` selects only scalar settings and the
   raw JSON string, so unrelated settings saves do not rebuild it, and it is
   **fail-closed**: while settings load or have failed it is

@@ -15,6 +15,7 @@ class _OfflineListenBrainz extends ListenBrainzApiClient {
   Future<ListenBrainzTokenDetails> validateTokenDetails(
     String userToken, {
     bool userInitiated = false,
+    CancelToken? cancelToken,
   }) {
     throw DioException(
       requestOptions: RequestOptions(path: '/1/validate-token'),

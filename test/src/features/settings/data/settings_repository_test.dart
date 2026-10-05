@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart' show Variable;
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -14,13 +13,95 @@ void main() {
     late SettingsRepository repository;
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       repository = SettingsRepository(database.appSettingsDao);
     });
 
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'stale generic saves preserve integration switches and credentials',
+      () async {
+        await repository.updateListenBrainzConnection(
+          tokenValid: true,
+          userName: 'fixture',
+          scrobblingEnabled: true,
+        );
+        final stale = await repository.getSettings();
+        await repository.setIntegrationEnabled('lrclib.lyrics', enabled: false);
+        await repository.setIntegrationEnabled(
+          'updates.automatic',
+          enabled: false,
+        );
+        await repository.setIntegrationEnabled(
+          'lastfm.sameVibes',
+          enabled: false,
+        );
+        await repository.setIntegrationEnabled(
+          'listenbrainz.scrobbling',
+          enabled: false,
+        );
+        await repository.updateListenBrainzConnection(tokenValid: false);
+        await repository.saveSettings(stale.copyWith(themeMode: 'dark'));
+        final saved = await repository.getSettings();
+        expect(saved.useLrclib, isFalse);
+        expect(saved.updateCheckEnabled, isFalse);
+        expect(saved.legacyInstantMixEnabled, isTrue);
+        expect(saved.listenBrainzScrobblingEnabled, isFalse);
+        expect(saved.listenBrainzTokenValid, isFalse);
+        expect(saved.listenBrainzUserName, isNull);
+        expect(saved.themeMode, 'dark');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('stale saves cannot restore a cleared Last.fm key', () async {
+      await repository.updateLastFmApiKey('fixture-key');
+      final stale = await repository.getSettings();
+      await repository.updateLastFmApiKey(null);
+      await repository.saveSettings(stale);
+      expect((await repository.getSettings()).lastFmApiKey, isNull);
+      await repository.setIntegrationEnabled('lrclib.lyrics', enabled: false);
+      await repository.updateLastFmApiKey('replacement-fixture-key');
+      expect((await repository.getSettings()).useLrclib, isFalse);
+    }, skip: !sqliteAvailable);
+
+    test('the key writer writes only the key', () async {
+      await repository.setIntegrationEnabled('lrclib.lyrics', enabled: false);
+      await repository.updateListenBrainzConnection(
+        tokenValid: true,
+        userName: 'fixture',
+        scrobblingEnabled: true,
+      );
+      await repository.updateLastFmApiKey('fixture-key');
+      final saved = await repository.getSettings();
+      expect(saved.lastFmApiKey, 'fixture-key');
+      expect(saved.useLrclib, isFalse);
+      expect(saved.listenBrainzTokenValid, isTrue);
+      expect(saved.listenBrainzUserName, 'fixture');
+      expect(saved.listenBrainzScrobblingEnabled, isTrue);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'resetDefaults clears the key and the ListenBrainz connection',
+      () async {
+        await repository.updateLastFmApiKey('fixture-key');
+        await repository.updateListenBrainzConnection(
+          tokenValid: true,
+          userName: 'fixture',
+          scrobblingEnabled: true,
+        );
+        await repository.resetDefaults();
+        final saved = await repository.getSettings();
+        expect(saved.lastFmApiKey, isNull);
+        expect(saved.listenBrainzTokenValid, isFalse);
+        expect(saved.listenBrainzUserName, isNull);
+        expect(saved.listenBrainzScrobblingEnabled, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('normalizes retired group listening settings to disabled', () async {
       final settings = const AppSettingsModel.defaults().copyWith(

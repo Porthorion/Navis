@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +41,7 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
   Future<ListenBrainzTokenDetails> validateTokenDetails(
     String userToken, {
     bool userInitiated = false,
+    CancelToken? cancelToken,
   }) async {
     userInitiatedCalls.add(userInitiated);
     return ListenBrainzTokenDetails(
@@ -335,6 +337,12 @@ void main() {
     expect(h.credentials.listenBrainzToken, 'good-token');
     expect(find.text('Connected as navis-user.'), findsOneWidget);
     expect(tester.widget<TextField>(h.token).decoration!.errorText, isNull);
+    expect((await h.row()).listenBrainzTokenValid, isFalse);
+    await h.finish();
+    final row = await h.row();
+    expect(row.listenBrainzTokenValid, isTrue);
+    expect(row.listenBrainzUserName, 'navis-user');
+    expect(row.listenBrainzScrobblingEnabled, isTrue);
   });
 
   testWidgets('with Online services stored off, nothing can be checked yet', (
