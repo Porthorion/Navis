@@ -16,8 +16,10 @@ fi
 
 mkdir -p "$OUTPUT_ROOT/cache"
 chmod 700 "$OUTPUT_ROOT"
-python3 - "$SOURCE_DB" "$CLONE_DB" "$OUTPUT_ROOT/cache" <<'PY'
+python3 - "$SOURCE_DB" "$CLONE_DB" "$OUTPUT_ROOT/cache" "$PROJECT_DIR/tool" <<'PY'
 import os, shutil, sqlite3, sys, wave, math, struct, time, hashlib
+sys.path.insert(0, sys.argv[4])
+from diagnostics_profile import disable_external_integrations
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
@@ -45,10 +47,9 @@ for index, identity in enumerate(('diagnostics-adjustment-tone-1', 'diagnostics-
     target.execute("INSERT OR REPLACE INTO cached_tracks (song_id,file_path,file_size,format,last_accessed_at,cache_type,download_status) VALUES (?,?,?,?,?,'permanent','complete')", (identity,identity_path,os.path.getsize(identity_path),'wav',int(time.time())))
 target.execute("UPDATE app_settings SET crossfade_enabled = 1, gapless_enabled = 1, crossfade_duration_seconds = 3, scrobble_enabled = 0, listen_brainz_scrobbling_enabled = 0")
 columns = {row[1] for row in target.execute('PRAGMA table_info(app_settings)')}
-# No external-service traffic in the measurement; the column is absent from a
-# profile that predates the integration policy.
-if 'external_integrations_enabled' in columns:
-    target.execute('UPDATE app_settings SET external_integrations_enabled = 0')
+# No external-service traffic in the measurement, including from a profile
+# that predates the integration policy (schema 91).
+disable_external_integrations(target)
 if 'playback_presets' in columns:
     target.execute("UPDATE app_settings SET playback_presets = '[]', selected_playback_preset_id = NULL, playback_speed = 1, playback_pitch_semitones = 0")
 if 'lock_pitch_to_speed' in columns:

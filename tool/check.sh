@@ -66,6 +66,7 @@ run_step "Last.fm key masking" ./tool/lastfm_key_defines_test.sh
 run_step "artifact secret scan" ./tool/scan_artifact_secret_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
+run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
 run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos

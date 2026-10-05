@@ -127,6 +127,9 @@ Checks performed:
   artifact secret scan (`tool/scan_artifact_secret_test.sh`), with a fake key
   and synthetic artifacts
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
+- Diagnostics profile preparation (`tool/diagnostics_profile_test.py`): an
+  isolated clone, including one from a profile older than schema 91, starts
+  with Online services off
 - Dart formatting (`./tool/dart_format.sh --check`): `lib/`, `test/`,
   `tool/` and the vendored `third_party/` path dependencies, which the root
   package config resolves to their own language versions; CargoKit is
@@ -831,8 +834,11 @@ column-backed feature such as `lrclib.lyrics` changes its own column. Primary
 certification returns 403. Clone diagnostics scripts that copy a real profile
 or build a synthetic one (`tool/perf_diagnostics.py`,
 `tool/artist_playback_diagnostics.py`, `tool/playback_adjustment_diagnostics.sh`,
-`tool/equalizer_diagnostics.sh`) set `external_integrations_enabled=0` so
-measurements carry no external-service traffic. A run that measures an
+`tool/equalizer_diagnostics.sh`) set `external_integrations_enabled=0`
+through `tool/diagnostics_profile.py` so measurements carry no
+external-service traffic. A profile older than schema 91 gets the column
+added as 0 before startup; the app's 90→91 migration keeps an existing column,
+so the clone never starts with the master on. A run that measures an
 external service, such as the Top Songs baseline, must turn the master switch
 back on through this endpoint and read `GET /v1/diagnostics/integrations`.
 
