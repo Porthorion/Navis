@@ -533,17 +533,13 @@ final List<_ServiceGroup> _groups = <_ServiceGroup>[
     const <IntegrationService>[IntegrationService.listenBrainz],
   ),
   _ServiceGroup(
-    'lyrics-artwork',
-    (l10n) => l10n.integrationsGroupLyricsArtwork,
+    'now-playing',
+    (l10n) => l10n.integrationsGroupNowPlaying,
     const <IntegrationService>[
       IntegrationService.lrclib,
+      IntegrationService.radioMetadata,
       IntegrationService.serverLinkedArtwork,
     ],
-  ),
-  _ServiceGroup(
-    'radio',
-    (l10n) => l10n.integrationsGroupRadio,
-    const <IntegrationService>[IntegrationService.radioMetadata],
   ),
   _ServiceGroup(
     'app',

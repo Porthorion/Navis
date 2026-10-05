@@ -1403,10 +1403,10 @@ switch means "Navis only talks to your server" when off. See
   (`features/integrations/presentation/integrations_settings_screen.dart`,
   listed under Connection) is where these switches change after setup; the
   onboarding Integrations step (below) writes the master and service switches
-  once, on Finish. It shows the master switch, then the services in five
+  once, on Finish. It shows the master switch, then the services in four
   groups with a Settings-hub-style group heading (Discovery: Deezer, Last.fm;
-  Listening history: ListenBrainz; Lyrics & artwork: LRCLIB, Artwork; Internet
-  radio; App: Updates, AutoEQ; a group with no applicable service is omitted).
+  Listening history: ListenBrainz; Now Playing: LRCLIB, Internet radio,
+  Artwork; App: Updates, AutoEQ; a group with no applicable service is omitted).
   Each service is a section: a
   `NavisSectionHeader` carrying the service switch, one line saying what is
   sent to which host, the credential (the Last.fm key field in keyless builds,

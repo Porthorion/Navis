@@ -228,11 +228,14 @@ void main() {
       ),
       ('history', 'Listening history', [IntegrationService.listenBrainz]),
       (
-        'lyrics-artwork',
-        'Lyrics & artwork',
-        [IntegrationService.lrclib, IntegrationService.serverLinkedArtwork],
+        'now-playing',
+        'Now Playing',
+        [
+          IntegrationService.lrclib,
+          IntegrationService.radioMetadata,
+          IntegrationService.serverLinkedArtwork,
+        ],
       ),
-      ('radio', 'Internet radio', [IntegrationService.radioMetadata]),
       ('app', 'App', [IntegrationService.updates, IntegrationService.autoEq]),
     ];
     final master = tester.getTopLeft(find.text('Online services')).dy;

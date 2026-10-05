@@ -1743,10 +1743,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get integrationsGroupListeningHistory => 'Listening history';
 
   @override
-  String get integrationsGroupLyricsArtwork => 'Lyrics & artwork';
-
-  @override
-  String get integrationsGroupRadio => 'Internet radio';
+  String get integrationsGroupNowPlaying => 'Now Playing';
 
   @override
   String get integrationsGroupApp => 'App';

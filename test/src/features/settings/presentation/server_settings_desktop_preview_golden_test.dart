@@ -25,7 +25,7 @@ void main() {
   });
 
   testWidgets(
-    'server settings after uses a continuous configuration workspace',
+    'server settings after uses a continuous server information workspace',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 720));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -88,7 +88,7 @@ class _ServerSettingsPreview extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.fromLTRB(300, 36, 56, 40),
         children: <Widget>[
-          Text('Configuration', style: text.headlineSmall),
+          Text('Server Information', style: text.headlineSmall),
           const SizedBox(height: 28),
           const Text('Server'),
           const SizedBox(height: 8),
@@ -125,7 +125,7 @@ class _ServerSettingsPreview extends StatelessWidget {
           style: TextButton.styleFrom(alignment: Alignment.centerLeft),
         ),
         const SizedBox(height: 8),
-        Text('Configuration', style: text.headlineSmall),
+        Text('Server Information', style: text.headlineSmall),
         const SizedBox(height: 28),
         const Text('Server'),
         const SizedBox(height: 12),

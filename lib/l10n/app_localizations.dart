@@ -2712,17 +2712,11 @@ abstract class AppLocalizations {
   /// **'Listening history'**
   String get integrationsGroupListeningHistory;
 
-  /// No description provided for @integrationsGroupLyricsArtwork.
+  /// No description provided for @integrationsGroupNowPlaying.
   ///
   /// In en, this message translates to:
-  /// **'Lyrics & artwork'**
-  String get integrationsGroupLyricsArtwork;
-
-  /// No description provided for @integrationsGroupRadio.
-  ///
-  /// In en, this message translates to:
-  /// **'Internet radio'**
-  String get integrationsGroupRadio;
+  /// **'Now Playing'**
+  String get integrationsGroupNowPlaying;
 
   /// No description provided for @integrationsGroupApp.
   ///
