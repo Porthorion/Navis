@@ -183,6 +183,13 @@ const List<ChangelogVersion> changelogs = [
         'A one-time note on Home tells you what Navis 1.4.3 can now use Deezer for and opens Integrations',
       ),
       ChangelogEntry(
+        'Setup now ends with Integrations: turn Online services or any service off before Navis contacts it; finishing setup also counts as seeing the 1.4.3 note',
+      ),
+      ChangelogEntry(
+        'Typing your ListenBrainz token during setup now works on phones: the keyboard no longer closes as soon as it opens, and the field stays in view above it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Home sections added in an update now appear even if you reordered or hid sections before',
         type: ChangelogEntryType.fix,
       ),

@@ -50,8 +50,10 @@ anything besides my server?" and no way to turn off one feature of a service.
 - Verification is a property of the service, not a user switch, so a missing key
   or token reads as "not verified" rather than "off" and clears itself when the
   credential appears.
-- Whether the Home notice for existing users is shown to new installs, and the
-  default for the ListenBrainz scrobbling column, are decided by the UI work
+- The Home notice flag defaults to unseen for new installs too. Finishing
+  setup marks it seen, because setup's Integrations step has just shown the
+  same choices; skipping setup leaves it pending, so the note appears once.
+  The default for the ListenBrainz scrobbling column is decided by the UI work
   that follows; unknown here.
 
 ## Consequences

@@ -5798,21 +5798,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Avoid downloading music over a metered connection.';
 
   @override
-  String get onboardingServicesTitle => 'Optional Music Services';
+  String get onboardingIntegrationsTitle => 'Integrations';
 
   @override
-  String get onboardingServicesDescription =>
-      'These services are optional. You can configure or remove them later in Settings.';
+  String get onboardingIntegrationsDescription =>
+      'Navis can use these online services as well as your server. Turn off any you don\'t want.';
 
   @override
-  String get onboardingListenBrainzDisclosure =>
-      'When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.';
-
-  @override
-  String get onboardingListenBrainzTokenLabel => 'ListenBrainz User Token';
-
-  @override
-  String get onboardingListenBrainzGetToken => 'Get a ListenBrainz user token';
+  String get onboardingIntegrationsFineTune =>
+      'Fine-tune per feature in Settings › Integrations.';
 
   @override
   String get onboardingValidating => 'Validating…';
@@ -5821,21 +5815,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingListenBrainzValidate => 'Validate and connect';
 
   @override
-  String get onboardingLastFmBundledDescription =>
-      'This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.';
-
-  @override
-  String get onboardingLastFmDescription =>
-      'A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.';
-
-  @override
-  String get onboardingLastFmApiKeyLabel => 'Last.fm API Key';
-
-  @override
   String get onboardingLastFmValidateKey => 'Validate key';
-
-  @override
-  String get onboardingLastFmGetApiKey => 'Get API key';
 
   @override
   String get routeNotFoundTitle => 'Page not found';

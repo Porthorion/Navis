@@ -906,7 +906,21 @@ ListenBrainz discovery. Artwork requests run one at a time at background
 priority, decode only the first three covers into Flutter's image cache, and
 stop scheduling when onboarding exits or the app backgrounds. The handoff is
 not persisted, is skipped offline, and never runs for repair, reset, failed,
-cancelled, or direct-to-Home flows.
+cancelled, or direct-to-Home flows. It asks no online service either (no
+Deezer or Last.fm): the user has not reached the Integrations step yet.
+
+Onboarding has four steps (look, listening, queue and downloads,
+Integrations) kept in one draft that Finish saves and Skip discards; the
+Integrations step is described under "External integration policy". The
+screen keeps its size when the keyboard opens (`resizeToAvoidBottomInset:
+false`) and pads itself by `MediaQuery.viewInsetsOf`, so the step list ends
+at the keyboard. On compact layouts the header and the actions step aside
+while the keyboard is up. The step list and its rows are keyed, and the
+"scroll for more" hint sits above the list, hidden while the keyboard is up:
+inserted into the list it used to shift the rows, rebuild the focused token
+field and close the keyboard again. The token and key fields have their own
+focus nodes, validate on the keyboard's Done action, show and hide their
+value, show errors on the field and are locked while validating.
 
 ### Shell Routes
 
@@ -1363,8 +1377,9 @@ switch means "Navis only talks to your server" when off. See
   spans.
 - **Settings › Integrations**
   (`features/integrations/presentation/integrations_settings_screen.dart`,
-  listed under Connection) is the only screen that changes these switches. It
-  shows the master switch, then one section per service: a
+  listed under Connection) is where these switches change after setup; the
+  onboarding Integrations step (below) writes the master and service switches
+  once, on Finish. It shows the master switch, then one section per service: a
   `NavisSectionHeader` carrying the service switch, one line saying what is
   sent to which host, the credential (the Last.fm key field in keyless builds,
   "Key included with this build" otherwise; the ListenBrainz token field) and a
@@ -1378,7 +1393,24 @@ switch means "Navis only talks to your server" when off. See
   only for a new connection. The Updates section is hidden where About hides
   update controls (iOS, web). Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
-  service switch is off.
+  service switch is off. Its service names, the line about what each service
+  sends and the lock reasons come from `integration_copy.dart`, shared with
+  onboarding.
+- **Onboarding Integrations step** (step 4 of `OnboardingScreen`). The master
+  switch, then one switch per service (Deezer, Last.fm, ListenBrainz, LRCLIB,
+  and Updates except on iOS and web) with the same one-line description, and
+  "Fine-tune per feature in Settings › Integrations". The choices live in the
+  onboarding draft (`externalIntegrationsEnabled`, `disabledIntegrations`) and
+  are written on Finish, after the full-row `saveSettings`, through
+  `setExternalIntegrationsEnabled` and `setIntegrationEnabled` (service keys
+  only; feature switches are untouched); Finish then writes
+  `updateIntegrationsNoticeDismissed(dismissed: true)`. Skip writes nothing, so
+  the defaults (all on) stay and the 1.4.3 notice stays pending. Last.fm is
+  locked with its reason until a key is verified (bundled, or validated in the
+  draft); the key field appears only in keyless builds. The ListenBrainz
+  switch is not locked by a missing token: switched on, it shows the token
+  field, whose validation (`userInitiated: true`) stores the token at once as
+  before. Both fields hide while the master switch is off.
 - **Diagnostics.** Clone-only `GET/POST /v1/presentation/integrations` reports
   and changes the policy; read-only `GET /v1/diagnostics/integrations` returns
   the recorder's counters, calls and spans in every mode. See
@@ -1649,8 +1681,8 @@ loaded, `integrations_notice_dismissed` is false and onboarding is complete
 `ChangelogDiscoveryCard`, so the two never stack. Tapping it opens Settings ›
 Integrations; tapping it or its close button writes
 `updateIntegrationsNoticeDismissed(dismissed: true)`, after which the What's
-New row returns if the release is unseen. Marking it seen when onboarding is
-finished (not skipped) belongs to the onboarding Integrations step.
+New row returns if the release is unseen. Finishing onboarding (not skipping
+it) also marks it seen, from the onboarding Integrations step.
 
 **Trending page** (`AppRoutes.trending`, `/library/trending`,
 `NavService.openTrending`). `TrendingDetailScreen` shows

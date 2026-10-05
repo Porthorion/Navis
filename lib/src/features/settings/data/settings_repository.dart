@@ -155,6 +155,10 @@ class SettingsRepository {
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
       _dao.setExternalIntegrationsEnabled(enabled: enabled);
 
+  /// Records whether the one-time 1.4.3 Integrations note on Home was seen.
+  Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
+      _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
+
   /// Records the outcome of a ListenBrainz token check without a full-row
   /// save, so a slow validation cannot overwrite switches changed meanwhile.
   /// A null [scrobblingEnabled] leaves the scrobbling switch as it is.

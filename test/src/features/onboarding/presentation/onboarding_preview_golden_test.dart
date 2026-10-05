@@ -32,6 +32,8 @@ void main() {
           externalScrobbleCredentialStoreProvider.overrideWithValue(
             CloneDiagnosticsExternalScrobbleCredentialStore(),
           ),
+          // Release builds carry a Last.fm key.
+          lastFmBundledKeyProvider.overrideWithValue(true),
         ],
         child: const MaterialApp(
           localizationsDelegates: navisLocalizationsDelegates,

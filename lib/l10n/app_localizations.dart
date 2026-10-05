@@ -9293,35 +9293,23 @@ abstract class AppLocalizations {
   /// **'Avoid downloading music over a metered connection.'**
   String get onboardingWifiOnlyDownloadsSubtitle;
 
-  /// No description provided for @onboardingServicesTitle.
+  /// No description provided for @onboardingIntegrationsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Optional Music Services'**
-  String get onboardingServicesTitle;
+  /// **'Integrations'**
+  String get onboardingIntegrationsTitle;
 
-  /// No description provided for @onboardingServicesDescription.
+  /// No description provided for @onboardingIntegrationsDescription.
   ///
   /// In en, this message translates to:
-  /// **'These services are optional. You can configure or remove them later in Settings.'**
-  String get onboardingServicesDescription;
+  /// **'Navis can use these online services as well as your server. Turn off any you don\'t want.'**
+  String get onboardingIntegrationsDescription;
 
-  /// No description provided for @onboardingListenBrainzDisclosure.
+  /// No description provided for @onboardingIntegrationsFineTune.
   ///
   /// In en, this message translates to:
-  /// **'When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.'**
-  String get onboardingListenBrainzDisclosure;
-
-  /// No description provided for @onboardingListenBrainzTokenLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'ListenBrainz User Token'**
-  String get onboardingListenBrainzTokenLabel;
-
-  /// No description provided for @onboardingListenBrainzGetToken.
-  ///
-  /// In en, this message translates to:
-  /// **'Get a ListenBrainz user token'**
-  String get onboardingListenBrainzGetToken;
+  /// **'Fine-tune per feature in Settings › Integrations.'**
+  String get onboardingIntegrationsFineTune;
 
   /// No description provided for @onboardingValidating.
   ///
@@ -9335,35 +9323,11 @@ abstract class AppLocalizations {
   /// **'Validate and connect'**
   String get onboardingListenBrainzValidate;
 
-  /// No description provided for @onboardingLastFmBundledDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.'**
-  String get onboardingLastFmBundledDescription;
-
-  /// No description provided for @onboardingLastFmDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.'**
-  String get onboardingLastFmDescription;
-
-  /// No description provided for @onboardingLastFmApiKeyLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Last.fm API Key'**
-  String get onboardingLastFmApiKeyLabel;
-
   /// No description provided for @onboardingLastFmValidateKey.
   ///
   /// In en, this message translates to:
   /// **'Validate key'**
   String get onboardingLastFmValidateKey;
-
-  /// No description provided for @onboardingLastFmGetApiKey.
-  ///
-  /// In en, this message translates to:
-  /// **'Get API key'**
-  String get onboardingLastFmGetApiKey;
 
   /// No description provided for @routeNotFoundTitle.
   ///

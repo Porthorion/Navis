@@ -210,7 +210,15 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
     }
-    await tester.enterText(find.byType(TextField).first, 'token');
+    final token = find.byKey(
+      const ValueKey<String>('onboarding-listenbrainz-token'),
+    );
+    await tester.scrollUntilVisible(
+      token,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(token, 'token');
     final validate = find.widgetWithText(FilledButton, 'Validate and connect');
     await tester.scrollUntilVisible(
       validate,
@@ -220,11 +228,10 @@ void main() {
     await tester.tap(validate);
     await tester.pumpAndSettle();
 
+    // Shown on the field itself.
     expect(
-      find.text(
-        'ListenBrainz is unavailable. Check your connection and try again.',
-      ),
-      findsOneWidget,
+      tester.widget<TextField>(token).decoration!.errorText,
+      'ListenBrainz is unavailable. Check your connection and try again.',
     );
     expect(find.textContaining('DioException'), findsNothing);
   });
