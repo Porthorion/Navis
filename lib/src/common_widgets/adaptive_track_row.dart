@@ -293,17 +293,19 @@ class AdaptiveTrackRow extends StatelessWidget {
         final stackControls = compactMobile
             ? mobileTextWidth < MediaQuery.textScalerOf(context).scale(96)
             : crowded;
+        final compactTitle = Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: selected ? theme.colorScheme.primary : null,
+          ),
+        );
         final rowInformation = compactMobile
             ? _CompactTrackInformation(
-                title: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: selected ? theme.colorScheme.primary : null,
-                  ),
-                ),
+                title: compactTitle,
+                status: titleBadge,
                 secondary: secondary,
                 duration: formatSeconds(duration, showHours: true),
                 style: style,
@@ -385,9 +387,15 @@ class _CompactTrackInformation extends StatelessWidget {
     required this.style,
     required this.isRemote,
     required this.badge,
+    this.status,
   });
 
   final Widget title;
+
+  /// The row's title badge. Narrow rows have no room for it beside the
+  /// title, so it takes the duration's place on the metadata line (rows with
+  /// a status have no song, hence no duration).
+  final Widget? status;
   final String secondary;
   final String duration;
   final TextStyle? style;
@@ -436,7 +444,9 @@ class _CompactTrackInformation extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
+        final status = this.status;
         final separateDuration =
+            status == null &&
             (secondary.isNotEmpty || isRemote) &&
             constraints.maxWidth - durationWidth - 8 - remoteWidth <
                 MediaQuery.textScalerOf(context).scale(24);
@@ -456,7 +466,15 @@ class _CompactTrackInformation extends StatelessWidget {
                 children: [
                   Expanded(child: metadata),
                   const SizedBox(width: 8),
-                  SizedBox(width: durationWidth, child: durationLabel),
+                  if (status != null)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth * 0.6,
+                      ),
+                      child: status,
+                    )
+                  else
+                    SizedBox(width: durationWidth, child: durationLabel),
                 ],
               ),
             ?badge,

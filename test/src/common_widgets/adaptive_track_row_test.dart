@@ -86,6 +86,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('crowded phone rows show the title badge on the metadata line', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 600));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: Column(
+            children: [
+              AdaptiveTrackRow(
+                title: 'Unmatched title',
+                artist: 'An artist',
+                leadingExtent: 82,
+                actionExtent: 96,
+                titleBadge: Text('Not on server'),
+                leading: Text('6'),
+                actions: Icon(Icons.search),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final artist = tester.getRect(find.text('An artist'));
+    final badge = tester.getRect(find.text('Not on server'));
+    expect(badge.center.dy, closeTo(artist.center.dy, 2));
+    expect(badge.left, greaterThan(artist.left));
+    // No duration placeholder beside it.
+    expect(find.text('--:--'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('wide remote rows keep the badge on the title line', (
     tester,
   ) async {
