@@ -6,10 +6,15 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 /// Clears the recoverable, server-derived local library state while retaining
 /// permanent downloads, account credentials, and device settings.
 class LibraryCacheResetService {
-  new({required this._database, this._clearCoverArt});
+  new({
+    required this._database,
+    this._clearCoverArt,
+    this._clearIntegrationMatches,
+  });
 
   final NavisDatabase _database;
   final Future<void> Function()? _clearCoverArt;
+  final Future<void> Function()? _clearIntegrationMatches;
 
   Future<void> reset() async {
     final rollingTracks = await _database.cacheDao
@@ -35,5 +40,6 @@ class LibraryCacheResetService {
     }
     await _clearCoverArt?.call();
     await _database.libraryDao.clearLibraryData();
+    await _clearIntegrationMatches?.call();
   }
 }

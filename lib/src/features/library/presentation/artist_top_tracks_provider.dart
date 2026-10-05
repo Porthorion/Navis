@@ -63,12 +63,16 @@ final artistTopTrackSourcesProvider = Provider<ArtistTopTrackSources>((ref) {
   );
 });
 
+/// Rebuilt for each server account; the old store drops its pending saves.
 final artistTopTrackMatchStoreProvider = Provider<ArtistTopTrackMatchStore>((
   ref,
 ) {
-  return ArtistTopTrackMatchStore(
+  final store = ArtistTopTrackMatchStore(
     cache: ref.watch(integrationJsonCacheProvider),
+    accountScope: ref.watch(integrationAccountScopeProvider) ?? 'signed-out',
   );
+  ref.onDispose(store.invalidate);
+  return store;
 });
 
 /// Kept for the app's lifetime so a search the section started is shared
@@ -84,7 +88,9 @@ final artistTopTrackResolverProvider = Provider<ArtistTopTrackResolver>((ref) {
 
 /// Forgets remembered top-song matches after every library sync that
 /// changed the library, fully or partly, so the next visit matches against
-/// the synced library. Watched by the app shell.
+/// the synced library, then refreshes the other library-relative integration
+/// results (Deezer artist ids, New Releases, Trending). Watched by the app
+/// shell.
 final artistTopTrackMatchSyncBridgeProvider = Provider<void>((ref) {
   ref.listen<LibrarySyncState>(librarySyncControllerProvider, (previous, next) {
     final finished =
@@ -98,6 +104,7 @@ final artistTopTrackMatchSyncBridgeProvider = Provider<void>((ref) {
         // Deferred past the clear, and past any widget build that delivered
         // the sync transition.
         if (!ref.mounted) return;
+        ref.read(refreshIntegrationLibraryResultsProvider)();
         ref
           ..invalidate(artistTopTracksProvider)
           ..invalidate(artistTopTracksPlaylistProvider);

@@ -40,8 +40,12 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
+import 'package:navis/src/features/integrations/data/deezer_cache.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
@@ -636,6 +640,52 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   );
 });
 
+/// The signed-in server account as a stable, non-credential key (a hash of
+/// the server URL and username), or null while signed out. Integration
+/// results that hold library ids (Deezer artist mappings, remembered top-song
+/// matches, Home's New Releases and Trending) are kept per account, since
+/// library ids are only unique within one server.
+final integrationAccountScopeProvider = Provider<String?>((ref) {
+  final identity = ref.watch(
+    serverConfigStateProvider.select((state) {
+      final config = state.asData?.value;
+      return config == null ? null : (config.url, config.username);
+    }),
+  );
+  return identity == null
+      ? null
+      : sha256
+            .convert(utf8.encode(jsonEncode([identity.$1, identity.$2])))
+            .toString();
+});
+
+/// Re-runs the integration results that are relative to the library, after a
+/// library sync changed it: an empty New Releases computed before the first
+/// sync must not outlive it.
+final refreshIntegrationLibraryResultsProvider = Provider<void Function()>(
+  (ref) => () {
+    ref
+      ..invalidate(deezerArtistResolverProvider)
+      ..invalidate(artistDeezerIdProvider)
+      ..invalidate(artistTopTrackSeedsProvider)
+      ..invalidate(homeNewReleasesProvider)
+      ..invalidate(homeTrendingProvider);
+  },
+);
+
+/// Deletes the remembered top-song matches and Deezer artist mappings, which
+/// point at library ids, when the server data is wiped (sign-out) or the
+/// library cache is reset, then refreshes what was built from them.
+final clearIntegrationLibraryCacheProvider = Provider<Future<void> Function()>(
+  (ref) => () async {
+    final store = ref.read(artistTopTrackMatchStoreProvider);
+    final cache = ref.read(integrationJsonCacheProvider);
+    await store.clear();
+    await cache.clearNamespace(DeezerCache.artistIdNamespace);
+    ref.read(refreshIntegrationLibraryResultsProvider)();
+  },
+);
+
 /// Refreshes Home's ListenBrainz weekly playlists after a token check, so
 /// Integrations need not import Home.
 final refreshWeeklyPlaylistsAfterTokenValidationProvider =
@@ -663,11 +713,13 @@ final integrationJsonCacheProvider = Provider<IntegrationJsonCache>(
   (_) => IntegrationJsonCache(),
 );
 
-/// Library artist → Deezer artist id, cached by name.
+/// Library artist → Deezer artist id, cached per server account and library
+/// artist.
 final deezerArtistResolverProvider = Provider<DeezerArtistResolver>((ref) {
   return DeezerArtistResolver(
     client: ref.watch(deezerApiClientProvider),
     cache: ref.watch(integrationJsonCacheProvider),
+    accountScope: ref.watch(integrationAccountScopeProvider) ?? 'signed-out',
   );
 });
 

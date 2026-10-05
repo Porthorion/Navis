@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import 'package:navis/src/api/deezer_api_client.dart';
@@ -10,8 +12,11 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 ///
 /// 1. A library id `ext-deezer-artist-<id>` (an artist the server imported
 ///    from Deezer) is used directly, with no request.
-/// 2. Otherwise the normalized name is looked up in the cache
-///    ([DeezerCache.artistIdNamespace]: found for 30 days, not found for 7).
+/// 2. Otherwise the mapping is looked up in the cache
+///    ([DeezerCache.artistIdNamespace]: found for 30 days, not found for 7),
+///    keyed by the server account ([accountScope]), the library artist id and
+///    the normalized name. Two library artists sharing a name (namesakes told
+///    apart by their albums) and two accounts never share a mapping.
 /// 3. Otherwise `/search/artist` runs and only artists whose
 ///    [normalizeMetadata] name equals the library name's are kept. One is
 ///    taken as is. Between several namesakes, the one whose Deezer albums
@@ -28,7 +33,7 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// Request errors propagate and are not cached. Concurrent calls for the same
 /// library artist and name share one resolution.
 class DeezerArtistResolver {
-  new({required this._client, required this._cache});
+  new({required this._client, required this._cache, this.accountScope = ''});
 
   /// Namesakes whose albums are compared; each costs one request.
   static const maxAlbumOverlapCandidates = 3;
@@ -39,10 +44,15 @@ class DeezerArtistResolver {
   /// caching "not on Deezer".
   static const _cacheVersion = 2;
 
+  /// A non-credential identity of the signed-in server account; library
+  /// artist ids are only unique within one server.
+  final String accountScope;
+
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
 
-  /// Resolutions running now, by library artist id and normalized name.
+  /// Resolutions running now, by account, library artist id and normalized
+  /// name.
   final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
 
   /// The Deezer id inside a library artist id `ext-deezer-artist-<id>`.
@@ -70,8 +80,8 @@ class DeezerArtistResolver {
 
     // Top songs and the artist page's other Deezer sections resolve the same
     // artist at the same time; they share one resolution.
-    final flightKey = '${artistId.trim()}\u0000$key';
-    final pending = _inFlight[flightKey];
+    final mappingKey = jsonEncode(<String>[accountScope, artistId.trim(), key]);
+    final pending = _inFlight[mappingKey];
     if (pending != null) {
       try {
         return await pending;
@@ -82,12 +92,13 @@ class DeezerArtistResolver {
       }
     }
     final resolution = _resolveByName(
-      key: key,
+      mappingKey: mappingKey,
+      nameKey: key,
       name: name,
       readLibraryAlbumTitles: readLibraryAlbumTitles,
       cancelToken: cancelToken,
     );
-    _inFlight[flightKey] = resolution;
+    _inFlight[mappingKey] = resolution;
     try {
       return await resolution;
     } finally {
@@ -96,12 +107,13 @@ class DeezerArtistResolver {
   }
 
   Future<int?> _resolveByName({
-    required String key,
+    required String mappingKey,
+    required String nameKey,
     required String name,
     required Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     required CancelToken? cancelToken,
   }) async {
-    final cached = await _cache.read(DeezerCache.artistIdNamespace, key);
+    final cached = await _cache.read(DeezerCache.artistIdNamespace, mappingKey);
     final value = cached?.value;
     if (value is Map) {
       final id = (value['id'] as num?)?.toInt();
@@ -111,7 +123,7 @@ class DeezerArtistResolver {
 
     final found = await _client.searchArtists(name, cancelToken: cancelToken);
     final namesakes = found
-        .where((artist) => normalizeMetadata(artist.name) == key)
+        .where((artist) => normalizeMetadata(artist.name) == nameKey)
         .toList();
     _sortByFans(namesakes);
     final id = switch (namesakes.length) {
@@ -132,7 +144,7 @@ class DeezerArtistResolver {
     };
     await _cache.write(
       DeezerCache.artistIdNamespace,
-      key,
+      mappingKey,
       <String, Object?>{'id': id, 'v': _cacheVersion},
       ttl: id == null
           ? DeezerCache.artistNotFoundTtl

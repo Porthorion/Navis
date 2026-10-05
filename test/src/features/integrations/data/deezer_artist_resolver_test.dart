@@ -77,6 +77,43 @@ void main() {
     if (root.existsSync()) root.deleteSync(recursive: true);
   });
 
+  test('library namesakes and accounts keep separate mappings', () async {
+    deezer.artists = const [
+      DeezerArtist(id: 1, name: 'Namesake', fanCount: 100),
+      DeezerArtist(id: 2, name: 'Namesake', fanCount: 10),
+    ];
+    deezer.albumsByArtist = {
+      1: _albums(['First']),
+      2: _albums(['Second']),
+    };
+    Future<int?> resolve(
+      DeezerArtistResolver owner,
+      String artistId,
+      String album,
+    ) => owner.resolve(
+      artistId: artistId,
+      name: 'Namesake',
+      readLibraryAlbumTitles: () async => [album],
+    );
+    // Two library artists of one name: the second is not given the
+    // first's cached mapping.
+    expect(await resolve(resolver, 'a', 'First'), 1);
+    expect(await resolve(resolver, 'b', 'Second'), 2);
+    // Each is then served from its own cached mapping.
+    final searches = deezer.searchCalls;
+    expect(await resolve(resolver, 'a', 'First'), 1);
+    expect(await resolve(resolver, 'b', 'Second'), 2);
+    expect(deezer.searchCalls, searches);
+    // Another account with the same artist id resolves on its own.
+    final other = DeezerArtistResolver(
+      client: deezer,
+      cache: IntegrationJsonCache(readRootDirectory: () async => root),
+      accountScope: 'other',
+    );
+    expect(await resolve(other, 'a', 'Second'), 2);
+    expect(deezer.searchCalls, searches + 1);
+  });
+
   test('an ext-deezer-artist id is used without a request', () async {
     final id = await resolver.resolve(
       artistId: 'ext-deezer-artist-416239',

@@ -69,6 +69,18 @@ final _syncState = NotifierProvider<_SyncState, LibrarySyncState>(
   _SyncState.new,
 );
 
+class _AccountScope extends Notifier<String?> {
+  @override
+  String? build() => 'first-account';
+  set scope(String? value) {
+    state = value;
+  }
+}
+
+final _accountScope = NotifierProvider<_AccountScope, String?>(
+  _AccountScope.new,
+);
+
 void main() {
   late Directory cacheRoot;
   late _FakeDeezer deezer;
@@ -116,6 +128,7 @@ void main() {
     IntegrationCallRecorder? recorder,
     Duration startupDelay = Duration.zero,
     List<Override> extra = const <Override>[],
+    Override? accountScope,
   }) {
     final root = cacheRoot;
     final container = ProviderContainer(
@@ -123,6 +136,10 @@ void main() {
         database,
         overrides: <Override>[
           integrationPolicyProvider.overrideWithValue(policy),
+          accountScope ??
+              integrationAccountScopeProvider.overrideWithValue(
+                'fixture-account',
+              ),
           integrationJsonCacheProvider.overrideWithValue(
             IntegrationJsonCache(readRootDirectory: () async => root),
           ),
@@ -150,6 +167,38 @@ void main() {
     addTearDown(subscription.close);
     return container.read(homeNewReleasesProvider.future);
   }
+
+  test('account changes rebuild results and signing out clears Home', () async {
+    await artist('a', 'Artist');
+    deezer.artistIds['Artist'] = 10;
+    deezer.albums[10] = const [
+      DeezerAlbum(id: 101, title: 'Release', releaseDate: '2026-10-02'),
+    ];
+    final c = container(
+      accountScope: integrationAccountScopeProvider.overrideWith(
+        (ref) => ref.watch(_accountScope),
+      ),
+    );
+    expect(await read(c), hasLength(1));
+    final firstCalls = deezer.calls.length;
+    c.read(_accountScope.notifier).scope = 'second-account';
+    expect(await read(c), hasLength(1));
+    expect(deezer.calls.length, greaterThan(firstCalls));
+    c.read(_accountScope.notifier).scope = null;
+    expect(await read(c), isEmpty);
+  });
+
+  test('sync refresh replaces an empty completed Home result', () async {
+    final c = container();
+    expect(await read(c), isEmpty);
+    await artist('a', 'Artist');
+    deezer.artistIds['Artist'] = 10;
+    deezer.albums[10] = const [
+      DeezerAlbum(id: 101, title: 'Release', releaseDate: '2026-10-02'),
+    ];
+    c.read(refreshIntegrationLibraryResultsProvider)();
+    expect(await read(c), hasLength(1));
+  });
 
   test('asks Deezer nothing while the switch is off', () async {
     await artist('a', 'Artist A');

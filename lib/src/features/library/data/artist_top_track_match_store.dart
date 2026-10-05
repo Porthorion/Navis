@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -46,7 +47,8 @@ class ArtistTopTrackMatchEntry {
 /// Remembers per library artist how each top song matched, so reopening an
 /// artist does not search the server again.
 ///
-/// One JSON file per artist in [IntegrationJsonCache] namespace [namespace]:
+/// One JSON file per server account ([accountScope]) and artist in
+/// [IntegrationJsonCache] namespace [namespace]:
 /// seed key → song id or unmatched, plus when it was checked. An entry is
 /// trusted for [freshFor]; the caller still checks the library for unmatched
 /// and remote entries and confirms that matched songs exist. Every library
@@ -54,16 +56,22 @@ class ArtistTopTrackMatchEntry {
 /// section (10 songs) and the "This Is" page (50) never drop each other's
 /// entries.
 class ArtistTopTrackMatchStore {
-  new({required this._cache, DateTime Function()? now})
+  new({required this._cache, this.accountScope = '', DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
   static const namespace = 'top-songs.matches';
   static const freshFor = Duration(hours: 24);
 
   /// Bumped when the stored layout or the seed key changes.
-  static const _formatVersion = 1;
+  static const _formatVersion = 2;
 
   final IntegrationJsonCache _cache;
+
+  /// A non-credential identity of the signed-in server account. Library ids
+  /// (and the constant chart key) are only unique within one server, so
+  /// another account never reads these matches.
+  final String accountScope;
+
   final DateTime Function() _now;
   final Map<String, Future<void>> _saveChains = <String, Future<void>>{};
 
@@ -75,12 +83,15 @@ class ArtistTopTrackMatchStore {
       '${normalizeMetadataKeepingEdition(seed.title)}\u001f'
       '${normalizeMetadata(seed.artist)}';
 
+  String _fileKey(String artistId) =>
+      jsonEncode(<String>[accountScope, artistId]);
+
   bool isFresh(ArtistTopTrackMatchEntry entry) =>
       _now().difference(entry.checkedAt) < freshFor;
 
   /// The fresh entries for [artistId]; stale and unreadable ones are left out.
   Future<Map<String, ArtistTopTrackMatchEntry>> load(String artistId) async {
-    final hit = await _cache.read(namespace, artistId);
+    final hit = await _cache.read(namespace, _fileKey(artistId));
     final value = hit?.value;
     if (value is! Map ||
         value['v'] != _formatVersion ||
@@ -104,11 +115,15 @@ class ArtistTopTrackMatchStore {
     return result;
   }
 
-  /// Advances on every [clear]. A resolution captures it when it starts and
-  /// passes it to [save], so results computed before a library sync cannot
-  /// land after the sync cleared the store.
+  /// Advances on every [clear] and [invalidate]. A resolution captures it
+  /// when it starts and passes it to [save], so results computed before a
+  /// library sync or an account change cannot land afterwards.
   int get generation => _generation;
   int _generation = 0;
+
+  /// Drops saves still pending from resolutions that started before now;
+  /// called when this store's account leaves.
+  void invalidate() => _generation++;
 
   /// Adds [updates] to the stored entries of [artistId], unless the store
   /// was cleared since [generation] was read.
@@ -150,7 +165,7 @@ class ArtistTopTrackMatchStore {
     final merged = await load(artistId)
       ..addAll(updates);
     if (generation != _generation) return;
-    await _cache.write(namespace, artistId, <String, Object?>{
+    await _cache.write(namespace, _fileKey(artistId), <String, Object?>{
       'v': _formatVersion,
       'keyVersion': metadataKeyVersion,
       'entries': <String, Object?>{

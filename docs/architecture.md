@@ -1488,8 +1488,10 @@ fallback.
   songs and Missing Albums are never bound to a page on a name alone. So "The
   Black Eyed Peas" (with "Elephunk") resolves to Deezer's "Black Eyed Peas".
   The loose comparison is for resolution only, never for display. Mappings
-  carry a version; a "not on Deezer" cached before loose matching existed is
-  asked again.
+  are cached by server account (`integrationAccountScopeProvider`, a hash of
+  the server URL and username), library artist id and normalized name, so two
+  library namesakes or two accounts never share one. They carry a version; a
+  "not on Deezer" cached before loose matching existed is asked again.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
   (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up
@@ -1528,7 +1530,8 @@ fallback.
   and an empty first result never hides the section or flips the card. A search running or
   finished in this session is shared by the section and the page.
 - **Remembered matches** (`ArtistTopTrackMatchStore`, namespace
-  `top-songs.matches`, one file per library artist): seed key (edition title
+  `top-songs.matches`, one file per server account and library artist, the
+  chart's `deezer-chart` key included): seed key (edition title
   and artist) to song id or unmatched, with when it was checked; remote matches
   keep the whole song. Entries are trusted for 24 hours. Remembered library
   songs must still exist (checked by the same DAO query), and remembered remote
@@ -1536,10 +1539,17 @@ fallback.
   synced copy replaces them; they skip `search3` until they are a day old.
   `artistTopTrackMatchSyncBridgeProvider` (watched by the app shell) clears the
   namespace and the session's searches after every library sync that
-  succeeded fully or partly, mirroring the ListenBrainz weekly matcher.
-  `clear()` advances the store's generation; a resolution passes the
-  generation it started under to `save`, so results computed before the sync
-  are dropped instead of written back.
+  succeeded fully or partly, mirroring the ListenBrainz weekly matcher, then
+  refreshes the library-relative integration results
+  (`refreshIntegrationLibraryResultsProvider`: the resolver, artist pages'
+  Deezer ids, top songs, New Releases and Trending), so an empty Home result
+  does not outlive the sync that fills the library. `clear()` and the
+  store's disposal on an account change advance its generation; a resolution
+  passes the generation it started under to `save`, so results computed
+  before the sync or for the previous account are dropped instead of written
+  back. Server-data reset on sign-out (and the library cache reset) also
+  deletes the remembered matches and the Deezer artist mappings
+  (`clearIntegrationLibraryCacheProvider`).
 - **No-source card.** "Shuffle everything by" stays visible while the
   artist's albums load or fail (with a placeholder when there are no covers)
   and is hidden only when the artist has no albums.
@@ -1649,8 +1659,9 @@ Recently Added). `homeNewReleasesProvider`
   `LibraryDao.getArtistsByLibraryWeight` fills the rest, ranked after them:
   most liked albums, then most songs, then most albums, leaving out remote
   artists, artists without songs or liked albums, "[Unknown Artist]" and
-  "Various Artists". With the switch off or no candidates it returns nothing
-  without asking Deezer.
+  "Various Artists". With the switch off, no signed-in account or no
+  candidates it returns nothing without asking Deezer. It watches the
+  account scope, so signing out empties it and another account recomputes it.
 - It then waits for `homeDeezerIdleProvider`: no library sync running, then 3
   seconds (`homeDeezerStartupDelayProvider`), then again no sync running (one
   may have started meanwhile), once per session.
@@ -1684,8 +1695,9 @@ Recently Added). `homeNewReleasesProvider`
 **Trending Now** (`deezer.trending`). No shelf of its own: a virtual playlist
 in the You Might Like hero, after the ListenBrainz weekly playlists and before
 the albums. `homeTrendingProvider` (`home_deezer_providers.dart`):
-- Returns nothing without asking Deezer while the switch is off or the library
-  has no artists; otherwise waits for `homeDeezerIdleProvider` and reads
+- Returns nothing without asking Deezer while the switch is off, no account
+  is signed in or the library has no artists (it watches the account scope,
+  like New Releases); otherwise waits for `homeDeezerIdleProvider` and reads
   `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours).
 - Matches the chart with the artist Top Songs matcher
   (`ArtistTopTrackResolver.resolve` under the key `deezer-chart`): remembered

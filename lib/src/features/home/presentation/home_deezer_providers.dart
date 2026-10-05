@@ -94,16 +94,22 @@ final homeNewReleasesClockProvider = Provider<DateTime Function()>(
 final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   ref,
 ) async {
+  final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
       (policy) => policy.allows(IntegrationFeature.deezerNewReleases),
     ),
   );
-  if (!allowed) return const <HomeNewRelease>[];
+  if (!allowed || scope == null) return const <HomeNewRelease>[];
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+  final resolver = ref.watch(deezerArtistResolverProvider);
+  final catalog = ref.watch(deezerCatalogProvider);
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   final played = await dao.getTopPlayedArtists(
     limit: kNewReleasesCandidateArtists,
   );
+  if (!ref.mounted) return const <HomeNewRelease>[];
   // Little play history (a new account): fill up with the library's own
   // favourites, ranked after every played artist.
   final artists = <ArtistsTableData>[
@@ -113,14 +119,10 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
       excludeIds: {for (final artist in played) artist.id},
     ),
   ];
-  if (artists.isEmpty) return const <HomeNewRelease>[];
+  if (!ref.mounted || artists.isEmpty) return const <HomeNewRelease>[];
   await ref.watch(homeDeezerIdleProvider.future);
   if (!ref.mounted) return const <HomeNewRelease>[];
 
-  final cancelToken = CancelToken();
-  ref.onDispose(cancelToken.cancel);
-  final resolver = ref.read(deezerArtistResolverProvider);
-  final catalog = ref.read(deezerCatalogProvider);
   final timer = Stopwatch()..start();
   final byArtist = List<ArtistReleases?>.filled(artists.length, null);
   var next = 0;
@@ -197,25 +199,28 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
 final homeTrendingProvider = FutureProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async {
+  final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
       (policy) => policy.allows(IntegrationFeature.deezerTrending),
     ),
   );
-  if (!allowed) return const <ResolvedArtistTopTrack>[];
+  if (!allowed || scope == null) return const <ResolvedArtistTopTrack>[];
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+  final catalog = ref.watch(deezerCatalogProvider);
+  final resolver = ref.watch(artistTopTrackResolverProvider);
+  final artistIndex = ref.watch(libraryArtistNameIndexProvider);
   final database = ref.watch(navisDatabaseProvider);
   if (await database.libraryDao.countArtists() == 0) {
     return const <ResolvedArtistTopTrack>[];
   }
+  if (!ref.mounted) return const [];
   await ref.watch(homeDeezerIdleProvider.future);
   if (!ref.mounted) return const <ResolvedArtistTopTrack>[];
 
-  final cancelToken = CancelToken();
-  ref.onDispose(cancelToken.cancel);
   final timer = Stopwatch()..start();
-  final chart = await ref
-      .read(deezerCatalogProvider)
-      .chartTracks(cancelToken: cancelToken);
+  final chart = await catalog.chartTracks(cancelToken: cancelToken);
   if (chart.isEmpty || cancelToken.isCancelled) {
     return const <ResolvedArtistTopTrack>[];
   }
@@ -232,12 +237,11 @@ final homeTrendingProvider = FutureProvider<List<ResolvedArtistTopTrack>>((
         deezerTrackId: chart[i].id,
       ),
   ];
-  final libraryArtists =
-      (await ref.read(libraryArtistNameIndexProvider).current()).lookupAll(
-        seeds.map((seed) => seed.artist),
-      );
-  final resolved = await ref
-      .read(artistTopTrackResolverProvider)
+  final libraryArtists = (await artistIndex.current()).lookupAll(
+    seeds.map((seed) => seed.artist),
+  );
+  if (!ref.mounted || cancelToken.isCancelled) return const [];
+  final resolved = await resolver
       .resolve(
         artistId: kTrendingMatchKey,
         seeds: seeds,

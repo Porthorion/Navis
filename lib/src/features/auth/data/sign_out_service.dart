@@ -83,7 +83,10 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
       ref.read(playerOverlayStackProvider.notifier).clear();
       resetPlaybackActionErrors(ref);
     },
-    wipeServerData: () => ref.read(serverDataResetServiceProvider).reset(),
+    wipeServerData: () async {
+      await ref.read(serverDataResetServiceProvider).reset();
+      await ref.read(clearIntegrationLibraryCacheProvider)();
+    },
     onTransition: (transition) {
       ref.read(sessionTransitionProvider.notifier).setTransition(transition);
     },

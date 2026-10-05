@@ -154,6 +154,7 @@ void main() {
         database,
         overrides: <Override>[
           integrationPolicyProvider.overrideWithValue(policy),
+          integrationAccountScopeProvider.overrideWithValue('fixture-account'),
           integrationJsonCacheProvider.overrideWithValue(
             IntegrationJsonCache(readRootDirectory: () async => root),
           ),
