@@ -1698,8 +1698,8 @@ Recently Added). `homeNewReleasesProvider`
 - The section hides itself while it first loads, fails or is empty, and under
   the downloaded-only and liked-only filters; a refresh keeps the shown cards.
   `HomeNewReleasesShelf` (`home_new_releases.dart`) is Home's album carousel of
-  `ExternalAlbumCard`s: title, artist and "Oct 2 • Single" (the card label's
-  optional third line).
+  `ExternalAlbumCard`s: two lines, title and artist, like the other album
+  carousels (the release date and type appear only in the release sheet).
 - A tap (`openHomeNewRelease`) opens the library album when linked; else the
   server's `ext-deezer-album-<id>` when `getAlbum` confirms it within 5
   seconds; else the release sheet with the full release date

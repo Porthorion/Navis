@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_ui/material_ui.dart';
-import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
@@ -16,18 +14,6 @@ import 'package:navis/src/utils/app_logger.dart';
 
 /// How long a tap waits for the server to confirm a remote album.
 const Duration _kRemoteAlbumCheckTimeout = Duration(seconds: 5);
-
-/// "Oct 2 • Single": the release day and type of [release], for its card.
-String homeNewReleaseDetail(
-  AppLocalizations l10n,
-  Locale locale,
-  HomeNewRelease release,
-) {
-  return <String?>[
-    DateFormat.MMMd(locale.toString()).format(release.releasedOn),
-    deezerReleaseTypeLabel(l10n, release.album.recordType),
-  ].nonNulls.join(' • ');
-}
 
 /// Opens a New releases card: the library album when the library has the
 /// release; else the server's remote album `ext-deezer-album-<id>` when
@@ -66,7 +52,7 @@ Future<void> openHomeNewRelease(
 }
 
 /// The New releases shelf: Home's album carousel with a card per release
-/// showing its title, artist and "Oct 2 • Single".
+/// showing its title and artist.
 class HomeNewReleasesShelf extends ConsumerStatefulWidget {
   const new({
     required this.releases,
@@ -102,8 +88,6 @@ class _HomeNewReleasesShelfState extends ConsumerState<HomeNewReleasesShelf> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final locale = Localizations.localeOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -128,7 +112,6 @@ class _HomeNewReleasesShelfState extends ConsumerState<HomeNewReleasesShelf> {
                 key: ValueKey<String>('home-new-release-${release.album.id}'),
                 title: release.album.title,
                 subtitle: release.artistName,
-                detail: homeNewReleaseDetail(l10n, locale, release),
                 coverUrl: deezerReleaseCoverUrl(release.album),
                 feature: IntegrationFeature.deezerNewReleases,
                 extent: extent,

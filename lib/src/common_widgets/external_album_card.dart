@@ -19,7 +19,6 @@ class ExternalAlbumCard extends ConsumerWidget {
     required this.subtitle,
     required this.coverUrl,
     required this.feature,
-    this.detail,
     this.extent,
     this.onTap,
     super.key,
@@ -30,8 +29,6 @@ class ExternalAlbumCard extends ConsumerWidget {
   /// One line under the title, such as "2021 • EP" or the artist.
   final String subtitle;
 
-  /// An optional line under [subtitle], such as "Oct 2 • Single".
-  final String? detail;
   final String? coverUrl;
   final IntegrationFeature feature;
 
@@ -71,11 +68,7 @@ class ExternalAlbumCard extends ConsumerWidget {
                     fit: BoxFit.cover,
                     fallbackBuilder: placeholder,
                   ),
-                AlbumCardLabel(
-                  title: title,
-                  subtitle: subtitle,
-                  detail: detail,
-                ),
+                AlbumCardLabel(title: title, subtitle: subtitle),
               ],
             ),
           ),

@@ -160,7 +160,7 @@ void main() {
     _release(2, 'Side B', DateTime(2026, 9, 28), type: 'ep'),
   ];
 
-  testWidgets('shows each release with its artist, day and type', (
+  testWidgets('shows each release as a title and artist, with no date line', (
     tester,
   ) async {
     await pumpHome(tester, releases: (ref) => releases);
@@ -168,8 +168,18 @@ void main() {
     expect(find.text('New Releases'), findsOneWidget);
     expect(find.text('Encore'), findsOneWidget);
     expect(find.text('Artist 1'), findsOneWidget);
-    expect(find.text('Oct 2 • Single'), findsOneWidget);
-    expect(find.text('Sep 28 • EP'), findsOneWidget);
+    expect(find.text('Side B'), findsOneWidget);
+    expect(find.text('Artist 2'), findsOneWidget);
+    // The card is a two-line label like other album carousels.
+    expect(find.text('Oct 2 • Single'), findsNothing);
+    expect(find.text('Sep 28 • EP'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('home-new-release-1')),
+        matching: find.byType(Text),
+      ),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets('hides itself while loading, empty, failed or filtered', (
