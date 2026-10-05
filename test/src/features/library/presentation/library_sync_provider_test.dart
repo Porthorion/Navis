@@ -1618,6 +1618,97 @@ void main() {
         expect(requestedArtistIds, <String>['oor']);
       });
 
+      // An open whose library read straddles a sign-out and sign-in: the
+      // read is held by a transaction until [release] completes.
+      Future<
+        ({
+          ProviderContainer container,
+          LibrarySyncController controller,
+          Completer<void> release,
+          Future<void> blocking,
+        })
+      >
+      openAcrossSessionChange() async {
+        final server = await _saveAuthenticatedServer(database);
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(
+            id: 'oor',
+            name: 'ONE OK ROCK',
+            albumCount: const Value(2),
+          ),
+        ]);
+        final container = buildContainer(
+          serverConfig: serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+        );
+        container.read(_serverConfigSource.notifier).set(AsyncData(server));
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        await settle();
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        final blocking = database.transaction(() async {
+          await database.libraryDao.getArtistById('oor');
+          entered.complete();
+          await release.future;
+        });
+        await entered.future;
+        // Albums are missing (none of 2 stored), so this open would enqueue.
+        controller.registerArtistInteraction('oor');
+        await settle();
+        container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+        await settle();
+        container
+            .read(_serverConfigSource.notifier)
+            .set(AsyncData(server.copyWith(username: 'other-account')));
+        await settle();
+        return (
+          container: container,
+          controller: controller,
+          release: release,
+          blocking: blocking,
+        );
+      }
+
+      test(
+        'an open from a previous session does not enqueue into the next',
+        () async {
+          final run = await openAcrossSessionChange();
+          run.release.complete();
+          await run.blocking;
+          await settle();
+          expect(requestedArtistIds, isEmpty);
+        },
+      );
+
+      test(
+        "an open from a previous session does not suppress the next one's",
+        () async {
+          final run = await openAcrossSessionChange();
+          run.controller.registerArtistInteraction('oor');
+          run.release.complete();
+          await run.blocking;
+          await settle();
+          expect(requestedArtistIds, <String>['oor']);
+          // That hydration counted as this session's open: with the albums
+          // now complete, opening again asks nothing.
+          await database.libraryDao.upsertAlbums([
+            for (final id in ['oor-1', 'oor-2'])
+              AlbumsTableCompanion.insert(
+                id: id,
+                name: id,
+                artistId: const Value('oor'),
+              ),
+          ]);
+          run.controller.registerArtistInteraction('oor');
+          await settle();
+          expect(requestedArtistIds, <String>['oor']);
+        },
+      );
+
       test('signing out starts a new session for artist hydration', () async {
         final server = await _saveAuthenticatedServer(database);
         final container = buildContainer(

@@ -2751,7 +2751,9 @@ states without starting audio or modifying a queue.
 5. Unhydrated artist, album, and playlist interactions upgrade matching work to
    interactive priority instead of starting parallel hydrators. Artist detail
    fetches `getArtist` on its first open in each server session (an in-memory
-   set of hydrated artist ids, cleared on sign-out or server change; a succeeded
+   set of hydrated artist ids, cleared on sign-out or server change together
+   with the opens still in flight; an open that started in an earlier session
+   enqueues nothing and cannot hold back the new session's open; a succeeded
    result marks the artist, so an offline or deferred open retries next time and
    opens while the server is unreachable skip this check), and on every open
    where the artist is absent, has fewer stored albums than its advertised

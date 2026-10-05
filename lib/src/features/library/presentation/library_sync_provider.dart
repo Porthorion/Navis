@@ -656,7 +656,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final dao = ref.read(navisDatabaseProvider).libraryDao;
     final artist = await dao.getArtistById(artistId);
     final albums = await dao.watchAlbumsByArtist(artistId).first;
-    if (!ref.mounted) {
+    if (!ref.mounted || epoch != _artistSessionEpoch) {
       return;
     }
     final albumsMissing =
@@ -666,9 +666,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (!albumsMissing) {
       // The once-per-session check is only worth a request while the server
       // is reachable, and an offline open must not use it up.
-      final firstOpenThisSession =
-          epoch == _artistSessionEpoch &&
-          !_sessionHydratedArtistIds.contains(artistId);
+      final firstOpenThisSession = !_sessionHydratedArtistIds.contains(
+        artistId,
+      );
       final offline =
           ref.read(serverReachabilityControllerProvider).status ==
           ServerReachabilityStatus.offline;
@@ -691,6 +691,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _resetArtistSession() {
     _artistSessionEpoch++;
+    // Old tasks will reject their epoch; they must not suppress new opens.
+    _artistInteractionHydrations.clear();
     _sessionHydratedArtistIds.clear();
   }
 
