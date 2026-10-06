@@ -429,11 +429,19 @@ mode. Fields are `stationId`, `stationName`, `streamHost` (host only, without
 port, path, credentials or query), `metadataSource` (`azuracast`, `icy` or `none`
 for the most recently applied metadata), `nowPlayingTitle`, `nowPlayingArtist`,
 `nowPlayingArtUrl` (the URL shown by the app, null when refused by policy), and
-`publishedArtUri` (the current `MediaItem.artUri`, null when absent). Title,
+`publishedArtUri` (the current `MediaItem.artUri` only when its ID matches the
+active station, null when absent or while a new station loads). The station
+fields use current handler state even before its next snapshot broadcast. Title,
 artist and artwork may be null before metadata arrives. A successful AzuraCast
 station retains its metadata during transient API failures; two initial API
 failures fall back to available ICY metadata. Integration policy changes stop
 or resume polling for the current station without reopening the audio stream.
+When radio now-playing lookups are off, the API title, artist and artwork are
+replaced by the stream's ICY title/artist (`metadataSource: icy`) or cleared
+(`nowPlayingTitle` and `nowPlayingArtist` null, `metadataSource: none`), with the
+station name used for display. On desktop, the vendored media_kit
+adapter obtains ICY titles from libmpv's observed metadata properties; genre
+metadata is ignored.
 
 ### Artist playback diagnostics
 

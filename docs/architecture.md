@@ -1406,7 +1406,10 @@ switch means "Navis only talks to your server" when off. See
   `RadioMetadataService` checks before every Azuracast poll and which stops the
   polling while it is false (ICY metadata, carried by the stream
   itself, is unaffected). Policy changes refresh the current station immediately:
-  disabling applies available ICY metadata, and re-enabling restarts polling
+  disabling replaces the API song and artwork with available ICY metadata, or
+  clears the song metadata so the station name is displayed and the source is
+  `none`. Missing ICY artist/artwork fields clear the previous API values.
+  Re-enabling restarts polling
   unless the candidate API already failed its initial probe. Re-enabling an
   unconfirmed candidate starts a fresh two-failure probe budget. The audio handler
   lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory.
@@ -1422,7 +1425,9 @@ switch means "Navis only talks to your server" when off. See
   of its displayed metadata until a fresh update arrives.
   Playback diagnostics report the active radio station, stream host only, last
   applied metadata source, displayed metadata/artwork and the actual published
-  media-item artwork URI;
+  media-item artwork URI for that station only. The diagnostics station comes
+  from current handler state rather than the last broadcast snapshot, and its
+  published artwork is null while the new station loads;
   see the field contract in [development-workflow.md](development-workflow.md).
 - **Server-linked images.** `ExternalArtworkImage`
   (`common_widgets/external_artwork_image.dart`) replaces the call sites that
@@ -2435,6 +2440,17 @@ refuses certificates the system does not trust. macOS's bundled mpv 0.36
 (Mbed TLS) is left as before until that build is replaced, because its
 certificate source has not been verified.
 `tool/stream_open_diagnostics.py` guards both at runtime.
+
+The vendored desktop adapter observes libmpv's `metadata` and `media-title`
+properties through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads
+`metadata/by-key/icy-title`, `icy-name` and `icy-url` with `getProperty`, mapping
+these to just_audio's ICY info and headers. `media-title` is a fallback only
+when ICY station headers identify the stream, so ordinary filenames are not
+radio metadata. Genre metadata is ignored. A changed title emits a playback
+metadata event; source loads and playlist entry changes clear the old metadata.
+Reads check the native `path` and a revision token so a previous source cannot
+publish a late title. Observers are removed before native player disposal.
+Android/iOS keep the native just_audio ICY path.
 
 Remote stream recovery is generation- and song-scoped. A failed remote source
 receives one retry at its current (or user-requested seek) position: a
