@@ -234,6 +234,24 @@ Located in `lib/src/providers/app_providers.dart`:
   and classification stay on the writer while an interactive read can proceed
   alongside a long catalog read, without a second `NavisDatabase` or candidate
   visibility in reactive providers.
+- All transactional writes go through `NavisDatabase.transaction`, including
+  DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
+  savepoint updates on the root stream store before the outer commit, so WAL
+  readers can re-read old data and otherwise remain stale. The outermost call
+  uses a database-specific zone key and subscribes to root `tableUpdates()`
+  before starting. It collects every announced table and update kind, waits
+  for a successful commit and the next microtask, cancels its listener, then
+  re-announces the collected updates with `notifyUpdates`. Nested calls retain
+  Drift's savepoints and `requireNew` behavior. Exceptions propagate unchanged
+  without replay; the listener is always canceled. Concurrent root writes may
+  be collected too, causing harmless extra re-queries rather than lost updates.
+  `customStatement` writers must call `notifyUpdates` for every table they
+  rewrite after their method's transaction succeeds, as `enqueueWork` and
+  identity remaps do. When composed inside an outer transaction, these
+  announcements are included in its post-commit replay. Ordinary Drift writes
+  and batches already announce their tables; raw SQL cannot be inferred by
+  this mechanism. Target artist/album hydration retains its explicit library
+  announcements and page re-read fallback as additional protection.
 - Linux and Windows profile diagnostics use the bearer-authenticated loopback
   control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
   launchers must use the same clone-only, isolated database/cache contract.

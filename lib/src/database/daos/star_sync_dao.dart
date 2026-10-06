@@ -6,7 +6,7 @@ part 'star_sync_dao.g.dart';
 
 @DriftAccessor(tables: [StarSyncQueueTable])
 class StarSyncDao extends DatabaseAccessor<NavisDatabase>
-    with _$StarSyncDaoMixin {
+    with NavisDaoTransactions, _$StarSyncDaoMixin {
   new(super.attachedDatabase);
 
   static const dispatchLeaseTtl = Duration(minutes: 1);

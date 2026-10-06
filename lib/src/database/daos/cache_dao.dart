@@ -8,7 +8,8 @@ import 'package:path/path.dart' as p;
 part 'cache_dao.g.dart';
 
 @DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
-class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
+class CacheDao extends DatabaseAccessor<NavisDatabase>
+    with NavisDaoTransactions, _$CacheDaoMixin {
   new(super.attachedDatabase);
 
   Stream<List<CachedTracksTableData>> watchCachedTracks() {

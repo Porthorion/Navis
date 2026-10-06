@@ -80,7 +80,7 @@ AppSettingsTableData? isolateCloneDownloadFolder(
 
 @DriftAccessor(tables: [AppSettingsTable])
 class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
-    with _$AppSettingsDaoMixin {
+    with NavisDaoTransactions, _$AppSettingsDaoMixin {
   new(super.attachedDatabase);
 
   static const int primarySettingsId = 1;

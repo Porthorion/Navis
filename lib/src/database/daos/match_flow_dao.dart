@@ -40,7 +40,7 @@ class MatchFlowExpansionResult {
 
 @DriftAccessor(tables: [MatchFlowsTable, MatchFlowSongsTable, SongsTable])
 class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
-    with _$MatchFlowDaoMixin {
+    with NavisDaoTransactions, _$MatchFlowDaoMixin {
   new(super.attachedDatabase);
 
   static const String defaultFlowName = 'New Flow';

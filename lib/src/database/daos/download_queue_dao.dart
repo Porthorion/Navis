@@ -7,7 +7,7 @@ part 'download_queue_dao.g.dart';
 
 @DriftAccessor(tables: [DownloadQueueTable])
 class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
-    with _$DownloadQueueDaoMixin {
+    with NavisDaoTransactions, _$DownloadQueueDaoMixin {
   new(super.attachedDatabase);
 
   Stream<List<DownloadQueueTableData>> watchQueue() {

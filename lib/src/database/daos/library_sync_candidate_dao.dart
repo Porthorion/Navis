@@ -38,7 +38,7 @@ class CandidateApplyCounts {
   ],
 )
 class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
-    with _$LibrarySyncCandidateDaoMixin {
+    with NavisDaoTransactions, _$LibrarySyncCandidateDaoMixin {
   new(super.attachedDatabase);
 
   static const _candidateWritePageSize = 384;

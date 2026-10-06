@@ -6,7 +6,7 @@ part 'scrobble_dao.g.dart';
 
 @DriftAccessor(tables: [ScrobbleQueueTable])
 class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
-    with _$ScrobbleDaoMixin {
+    with NavisDaoTransactions, _$ScrobbleDaoMixin {
   new(super.attachedDatabase);
 
   Future<void> enqueue({

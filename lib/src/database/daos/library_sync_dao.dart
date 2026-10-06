@@ -71,7 +71,7 @@ class LibrarySyncRunHistoryEntry {
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
-    with _$LibrarySyncDaoMixin {
+    with NavisDaoTransactions, _$LibrarySyncDaoMixin {
   new(super.attachedDatabase);
 
   static const int _runQueued = 0;

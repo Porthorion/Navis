@@ -170,7 +170,7 @@ class DownloadReconciliationSong {
   ],
 )
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
-    with _$LibraryDaoMixin {
+    with NavisDaoTransactions, _$LibraryDaoMixin {
   new(super.attachedDatabase);
 
   static const _safeSqlVariableChunkSize = 500;

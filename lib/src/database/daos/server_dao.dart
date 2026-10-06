@@ -5,7 +5,8 @@ import 'package:navis/src/database/tables/server_config_table.dart';
 part 'server_dao.g.dart';
 
 @DriftAccessor(tables: [ServerConfigTable])
-class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
+class ServerDao extends DatabaseAccessor<NavisDatabase>
+    with NavisDaoTransactions, _$ServerDaoMixin {
   new(super.attachedDatabase);
 
   Stream<ServerConfigTableData?> watchActiveServer() {

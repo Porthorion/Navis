@@ -27,7 +27,7 @@ class NetworkUsageTotal {
 
 @DriftAccessor(tables: [NetworkUsageTable])
 class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
-    with _$NetworkUsageDaoMixin {
+    with NavisDaoTransactions, _$NetworkUsageDaoMixin {
   new(super.attachedDatabase);
 
   Future<void> recordUsage({

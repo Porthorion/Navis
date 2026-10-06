@@ -82,7 +82,7 @@ class ProvisionalGarbageCollectionResult {
   ],
 )
 class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
-    with _$SongIdentityDaoMixin {
+    with NavisDaoTransactions, _$SongIdentityDaoMixin {
   new(super.attachedDatabase);
 
   /// Provisional candidates for identity reconciliation.
@@ -412,6 +412,22 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       await (update(songsTable)..where((table) => table.id.equals(canonicalId)))
           .write(const SongsTableCompanion(isProvisional: Value(false)));
       await (delete(songsTable)..where((table) => table.id.equals(oldId))).go();
+    }).then<void>((_) {
+      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
+      // transaction, its database override replays these updates after commit.
+      notifyUpdates(<TableUpdate>{
+        TableUpdate.onTable(attachedDatabase.downloadQueueTable),
+        TableUpdate.onTable(attachedDatabase.playQueueItemsTable),
+        TableUpdate.onTable(attachedDatabase.playHistoryTable),
+        TableUpdate.onTable(attachedDatabase.playlistSongsTable),
+        TableUpdate.onTable(attachedDatabase.matchFlowSongsTable),
+        TableUpdate.onTable(attachedDatabase.externalLyricsCacheTable),
+        TableUpdate.onTable(attachedDatabase.scrobbleQueueTable),
+        TableUpdate.onTable(attachedDatabase.listenBrainzFeedbackQueueTable),
+        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
+        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
+        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
+      });
     });
 
     final deletedPaths = <String>[];
@@ -563,6 +579,15 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       await (delete(
         albumsTable,
       )..where((table) => table.id.equals(oldId))).go();
+    }).then<void>((_) {
+      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
+      // transaction, its database override replays these updates after commit.
+      notifyUpdates(<TableUpdate>{
+        TableUpdate.onTable(attachedDatabase.songsTable),
+        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
+        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
+        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
+      });
     });
 
     return restoredLike;
@@ -665,6 +690,16 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       await (delete(
         artistsTable,
       )..where((table) => table.id.equals(oldId))).go();
+    }).then<void>((_) {
+      // Raw SQL does not invalidate Drift queries. If a caller owns an outer
+      // transaction, its database override replays these updates after commit.
+      notifyUpdates(<TableUpdate>{
+        TableUpdate.onTable(attachedDatabase.songsTable),
+        TableUpdate.onTable(attachedDatabase.albumsTable),
+        TableUpdate.onTable(attachedDatabase.starSyncQueueTable),
+        TableUpdate.onTable(attachedDatabase.starredAbsenceCandidatesTable),
+        TableUpdate.onTable(attachedDatabase.librarySyncLocalMutationsTable),
+      });
     });
 
     return restoredLike;

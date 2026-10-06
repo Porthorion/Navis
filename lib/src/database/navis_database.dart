@@ -1,5 +1,6 @@
 import 'package:navis/src/database/tables/annotation_dispatch_lease_table.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -153,6 +154,41 @@ class NavisDatabase extends _$NavisDatabase {
 
   new atPath(String databasePath)
     : this(_openFileConnection(File(databasePath)));
+
+  final _transactionZoneKey = Object();
+
+  /// Replays nested write announcements after the outer WAL commit.
+  ///
+  /// Drift 2.35 forwards savepoint updates to the root stream store before
+  /// commit. Pooled readers can then see old data with no later invalidation.
+  @override
+  Future<T> transaction<T>(
+    Future<T> Function() action, {
+    bool requireNew = false,
+  }) async {
+    if (Zone.current[_transactionZoneKey] != null) {
+      return await super.transaction(action, requireNew: requireNew);
+    }
+
+    final updates = <TableUpdate>{};
+    // Subscribe outside Drift's transaction zone to capture the root store.
+    final subscription = tableUpdates().listen(updates.addAll);
+    late T result;
+    try {
+      result = await runZoned(
+        () => super.transaction(action, requireNew: requireNew),
+        zoneValues: {_transactionZoneKey: true},
+      );
+      // tableUpdates forwards asynchronously. Let the commit's final updates
+      // arrive before canceling, and publish only after the writer committed.
+      await Future<void>.microtask(() {});
+    } finally {
+      await subscription.cancel();
+    }
+    // Exceptions skip this replay and retain their original stack trace.
+    if (updates.isNotEmpty) notifyUpdates(updates);
+    return result;
+  }
 
   /// Fences sync writes. A supplied [DatabaseConnection] keeps its own stream
   /// store, so tests can opt into synchronous stream closing.
@@ -2485,4 +2521,13 @@ void _configureNativeDatabase(Database database) {
   database.execute('PRAGMA cache_size = -8192');
   database.execute('PRAGMA temp_store = MEMORY');
   database.execute('PRAGMA journal_size_limit = 67108864');
+}
+
+/// Routes DAO transactions through the database's post-commit invalidation.
+mixin NavisDaoTransactions on DatabaseAccessor<NavisDatabase> {
+  @override
+  Future<T> transaction<T>(
+    Future<T> Function() action, {
+    bool requireNew = false,
+  }) => attachedDatabase.transaction(action, requireNew: requireNew);
 }

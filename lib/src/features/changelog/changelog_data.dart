@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Likes, ratings, hydrated playlists and synced library updates refresh immediately after saving; identity repairs also refresh saved queue and playlist references',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'New Settings › Integrations page: see what each online service receives and where, switch any service or feature off, or turn off Online services so Navis only talks to your server',
         type: ChangelogEntryType.newFeature,
       ),

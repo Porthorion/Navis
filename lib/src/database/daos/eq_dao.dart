@@ -5,7 +5,8 @@ import 'package:navis/src/database/tables/eq_tables.dart';
 part 'eq_dao.g.dart';
 
 @DriftAccessor(tables: [EqPresetsTable, EqStateTable])
-class EqDao extends DatabaseAccessor<NavisDatabase> with _$EqDaoMixin {
+class EqDao extends DatabaseAccessor<NavisDatabase>
+    with NavisDaoTransactions, _$EqDaoMixin {
   new(super.attachedDatabase);
 
   Future<List<EqPresetsTableData>> getPresets() => (select(

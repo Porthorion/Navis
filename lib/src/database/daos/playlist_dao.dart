@@ -8,7 +8,7 @@ part 'playlist_dao.g.dart';
 
 @DriftAccessor(tables: [PlaylistsTable, PlaylistSongsTable, SongsTable])
 class PlaylistDao extends DatabaseAccessor<NavisDatabase>
-    with _$PlaylistDaoMixin {
+    with NavisDaoTransactions, _$PlaylistDaoMixin {
   new(super.attachedDatabase);
 
   Stream<List<PlaylistsTableData>> watchPlaylists() {

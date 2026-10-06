@@ -11,7 +11,7 @@ part 'history_dao.g.dart';
   tables: [PlayHistoryTable, RecentSearchesTable, SongsTable, AlbumsTable],
 )
 class HistoryDao extends DatabaseAccessor<NavisDatabase>
-    with _$HistoryDaoMixin {
+    with NavisDaoTransactions, _$HistoryDaoMixin {
   new(super.attachedDatabase);
 
   Stream<List<PlayHistoryTableData>> watchPlayHistory({int limit = 100}) {
