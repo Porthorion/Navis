@@ -1440,8 +1440,10 @@ switch means "Navis only talks to your server" when off. See
   (`integrationCallRecorderProvider`) is an in-memory ring buffer (200 calls,
   100 spans) fed by the guard interceptor and by `recorder.span(name, counts,
   duration)`. It stores service, method, path (no host, query or headers),
-  status, duration and `ok`/`error`/`blocked`, plus per-service counters. The
-  Top Songs pipeline records its source fetch, local match and server match as
+  status, duration and `ok`/`error`/`blocked`, plus per-service counters. User
+  identifiers after `/user/` or `/users/` are replaced with `*` before path
+  truncation, recording and info logging. The Top Songs pipeline records its
+  source fetch, local match and server match as
   spans, including source fetches that throw (zero result counts).
 - **Settings › Integrations**
   (`features/integrations/presentation/integrations_settings_screen.dart`,

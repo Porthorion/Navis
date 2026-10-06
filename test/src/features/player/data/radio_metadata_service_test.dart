@@ -57,14 +57,8 @@ void main() {
   late IntegrationPolicy policy;
   late IntegrationCallRecorder recorder;
 
-  RadioMetadataService build({bool useGuardedDio = false}) {
-    final dio = useGuardedDio
-        ? createExternalDio(
-            IntegrationService.radioMetadata,
-            readPolicy: () => policy,
-            recorder: recorder,
-          )
-        : Dio();
+  RadioMetadataService build() {
+    final dio = Dio();
     dio.httpClientAdapter = adapter;
     return RadioMetadataService(
       handler: handler,

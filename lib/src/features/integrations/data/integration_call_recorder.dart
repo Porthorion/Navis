@@ -140,9 +140,13 @@ class IntegrationCallRecorder {
     required IntegrationCallOutcome outcome,
     int? statusCode,
   }) {
-    final path = uri.path.length > _maxPathLength
-        ? uri.path.substring(0, _maxPathLength)
-        : uri.path;
+    final redactedPath = uri.path.replaceAllMapped(
+      RegExp('(/users?/)[^/]+', caseSensitive: false),
+      (match) => '${match[1]}*',
+    );
+    final path = redactedPath.length > _maxPathLength
+        ? redactedPath.substring(0, _maxPathLength)
+        : redactedPath;
     final record = IntegrationCallRecord(
       service: service,
       method: method.toUpperCase(),
@@ -193,24 +197,6 @@ class IntegrationCallRecorder {
     }
   }
 
-  /// Runs [action], records it as a span and returns its result. [counts] is
-  /// read after [action] completes, so it can describe what the action found.
-  Future<T> timeSpan<T>(
-    String name,
-    Future<T> Function() action, {
-    Map<String, int> Function(T result)? counts,
-  }) async {
-    final stopwatch = Stopwatch()..start();
-    final result = await action();
-    stopwatch.stop();
-    span(
-      name,
-      counts?.call(result) ?? const <String, int>{},
-      stopwatch.elapsed,
-    );
-    return result;
-  }
-
   /// The most recent calls, oldest first.
   List<IntegrationCallRecord> recentCalls({int? limit}) => _tail(_calls, limit);
 
@@ -219,18 +205,6 @@ class IntegrationCallRecorder {
 
   IntegrationServiceCounters countersFor(IntegrationService service) =>
       _counters[service]!;
-
-  void clear() {
-    _calls.clear();
-    _spans.clear();
-    for (final counters in _counters.values) {
-      counters
-        ..requests = 0
-        ..blocked = 0
-        ..errors = 0
-        ..totalMs = 0;
-    }
-  }
 
   /// The diagnostics payload. Oldest entries come first in each list.
   Map<String, Object?> toJson({int callLimit = 100, int spanLimit = 50}) =>

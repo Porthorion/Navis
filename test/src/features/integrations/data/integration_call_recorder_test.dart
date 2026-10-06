@@ -110,22 +110,6 @@ void main() {
     expect(spans.last.durationMs, 3);
   });
 
-  test(
-    'timeSpan records the elapsed time and the counts of the result',
-    () async {
-      final recorder = newRecorder();
-      final result = await recorder.timeSpan<List<int>>(
-        'work',
-        () async => <int>[1, 2, 3],
-        counts: (items) => {'items': items.length},
-      );
-      expect(result, [1, 2, 3]);
-      final span = recorder.recentSpans().single;
-      expect(span.name, 'work');
-      expect(span.counts, {'items': 3});
-    },
-  );
-
   test('toJson caps calls at 100 and spans at 50 by default', () {
     final recorder = newRecorder();
     for (var i = 0; i < 150; i++) {
@@ -144,14 +128,25 @@ void main() {
     );
   });
 
-  test('clear empties calls, spans and counters', () {
+  test('redacts user identifiers before recording paths', () {
     final recorder = newRecorder();
-    record(recorder);
-    recorder.span('a', const {}, Duration.zero);
-    recorder.clear();
-    expect(recorder.recentCalls(), isEmpty);
-    expect(recorder.recentSpans(), isEmpty);
-    expect(recorder.countersFor(IntegrationService.lastFm).requests, 0);
+    for (final path in [
+      '/1/user/private-name/playlists',
+      '/1/user/private%2Fname/playlists',
+      '/users/private-name/listens',
+    ]) {
+      record(
+        recorder,
+        service: IntegrationService.listenBrainz,
+        url: 'https://api.listenbrainz.org$path',
+      );
+    }
+    expect(recorder.recentCalls().map((call) => call.path), [
+      '/1/user/*/playlists',
+      '/1/user/*/playlists',
+      '/users/*/listens',
+    ]);
+    expect(jsonEncode(recorder.toJson()), isNot(contains('private')));
   });
 
   group('redaction', () {
