@@ -239,6 +239,28 @@ void main() {
     });
   });
 
+  test('policy re-enable gives an unconfirmed API a fresh failure budget', () {
+    adapter.statusCode = 404;
+    fakeAsync((async) {
+      final service = build();
+      listen(service);
+      settle(async);
+      expect(adapter.requested, hasLength(1));
+      policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+      service.refreshPolicy();
+      policy = const IntegrationPolicy();
+      service.refreshPolicy();
+      settle(async);
+      expect(adapter.requested, hasLength(2));
+      adapter.statusCode = 200;
+      async.elapse(RadioMetadataService.pollingInterval);
+      settle(async);
+      expect(adapter.requested, hasLength(3));
+      expect(service.metadataSource, RadioMetadataSource.azuracast);
+      service.dispose();
+    });
+  });
+
   test('policy re-enable does not retry a rejected candidate API', () {
     adapter.statusCode = 404;
     fakeAsync((async) {

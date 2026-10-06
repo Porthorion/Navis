@@ -131,6 +131,7 @@ class RadioMetadataService {
         !_candidateRejected &&
         _azuracastBaseUrl != null &&
         shortName != null) {
+      _initialFailureCount = 0;
       _isReducedPolling = false;
       _unchangedCycleCount = 0;
       _startAzuracastPolling(shortName);

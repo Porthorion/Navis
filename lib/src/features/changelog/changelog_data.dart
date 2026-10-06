@@ -145,7 +145,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio now-playing lookups resume when you turn the integration back on while a station is playing',
+        'Radio now-playing lookups resume with a fresh retry budget when you turn the integration back on while a station is playing',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

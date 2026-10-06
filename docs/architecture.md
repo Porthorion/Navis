@@ -1387,7 +1387,8 @@ switch means "Navis only talks to your server" when off. See
   polling while it is false (ICY metadata, carried by the stream
   itself, is unaffected). Policy changes refresh the current station immediately:
   disabling applies available ICY metadata, and re-enabling restarts polling
-  unless the candidate API already failed its initial probe. The audio handler
+  unless the candidate API already failed its initial probe. Re-enabling an
+  unconfirmed candidate starts a fresh two-failure probe budget. The audio handler
   lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory.
   Two failed initial polls (HTTP, timeout, malformed JSON or missing
   `now_playing.song`) abandon the candidate
