@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Local search reuses existing search text while upgraded matching keys refresh in the background, avoiding a full-library pause on each keystroke',
+        'Local search reuses existing search text while upgraded matching keys refresh in the background, returning results before checking for stale keys and skipping that check during a refresh',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -157,7 +157,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fans Also Like and Go to artist link unique library names that differ by a leading article or ampersand, even when server and remote entries duplicate the same name; spacing-only aliases such as Black Star and Blackstar require album evidence',
+        'Fans Also Like and Go to artist match leading articles, ampersands and punctuation word boundaries; Go to artist leaves duplicate names ambiguous, while Fans Also Like prefers the server entry. Joining words such as Black Star and Blackstar requires album evidence',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

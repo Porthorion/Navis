@@ -3330,7 +3330,9 @@ contract.
    isolate and only when missing, before its single upload to a SAF folder.
    Legacy matching looks each distinct file title up in `song_search_text`
    (an indexed prefix read in the `normalizeSearchText` form, so titles in
-   any script match) instead of normalizing the whole library, and FLAC
+   any script match) instead of normalizing the whole library. The caller
+   refreshes first, and title lookup accepts only the current key version and
+   unchanged raw metadata, excluding stale entries. FLAC
    identity reads are bounded to metadata rather than loading complete audio
    files; Android SAF reads identity metadata directly through
    `ContentResolver` without staging audio files. The Android storage channel
@@ -3485,8 +3487,10 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   (including pre-versioned sources) while raw metadata is unchanged, avoiding
   per-keystroke normalization of the whole library on the UI isolate. The
   background refresh still re-keys old rows, including `\u001f1` sources;
-  old folding behavior remains until it finishes. Key version 4 repairs
-  featured credits in square brackets and unclosed-bracket handling.
+  old folding behavior remains until it finishes. Search returns ranked song
+  rows before scheduling the stale-row check on the event queue; that check
+  is skipped while a shared refresh runs, and failures are logged. Key version
+  4 repairs featured credits in square brackets and unclosed-bracket handling.
   `getTrackMatchCandidates` selects only songs
   that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
@@ -3541,13 +3545,16 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
 - Related-artist links and name-based artist navigation share a cached
   `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
   are tried first; a miss uses `looseArtistKey` to find candidates but links
-  only leading-article and "&"/"and" differences, with one exact normalized
-  candidate name. Spacing/punctuation-only aliases require album
+  only one exact normalized candidate name. Loose comparison folds punctuation
+  to word boundaries, preserves the word sequence, and permits a leading
+  article or "&"/"and" difference. Joining or splitting words requires album
   corroboration in the Deezer resolver; "Black Star" cannot link "Blackstar"
-  without that evidence.
-  Duplicate rows of that name retain the server/more-albums/id preference.
-  Different leading articles never match. Navigation retains exact-name
-  ambiguity; related links retain their server/more-albums/id preference.
+  without that evidence. Bracketed words remain significant in loose links:
+  "The Streets (UK)" may link "Streets UK", but cannot link "Streets".
+  Different leading articles never match. Navigation requires one row on
+  both exact and loose paths; duplicate rows are ambiguous. Related links
+  may select the server/more-albums/id preference among duplicate rows of the
+  single matching name group.
 - The artist page reads its albums through `album_artist_index`, a derived
   table of each album's artist keys (`i:<id>` for the album artist and each
   credit, `n:<normalized name>` for a name-only album artist and each credited
