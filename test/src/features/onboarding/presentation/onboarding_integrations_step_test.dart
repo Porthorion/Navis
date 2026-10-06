@@ -302,6 +302,32 @@ void main() {
     expect(unlocked.onChanged, isNotNull);
   });
 
+  testWidgets(
+    'a keyless build shows the Last.fm key only while its switch is on',
+    (tester) async {
+      final h = await _pump(
+        tester,
+        lastFmBundled: false,
+        lastFmClientFactory: (_) => _FakeLastFmApiClient(
+          const LastFmApiKeyValidationResult(valid: true),
+        ),
+      );
+      expect(h.lastFmKey, findsOneWidget);
+
+      await tester.enterText(h.lastFmKey, 'good-key');
+      await h.tap(find.text('Validate key'));
+      expect(h.serviceTile(IntegrationService.lastFm).value, isTrue);
+      expect(h.lastFmKey, findsOneWidget);
+
+      await h.tap(h.service(IntegrationService.lastFm));
+      expect(h.serviceTile(IntegrationService.lastFm).value, isFalse);
+      expect(h.lastFmKey, findsNothing);
+
+      await h.tap(h.service(IntegrationService.lastFm));
+      expect(h.lastFmKey, findsOneWidget);
+    },
+  );
+
   testWidgets('the token is checked as the user, with errors on the field', (
     tester,
   ) async {

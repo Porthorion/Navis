@@ -1099,7 +1099,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 _integrationServiceTile(draft, policy, service),
                 if (service == IntegrationService.lastFm &&
                     !bundled &&
-                    policy.masterEnabled)
+                    policy.isServiceEnabled(service))
                   _credential(_lastFmKeyField(l10n, blocked: storedOff)),
                 if (service == IntegrationService.listenBrainz &&
                     policy.isServiceEnabled(service))

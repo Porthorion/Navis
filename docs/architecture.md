@@ -1462,7 +1462,8 @@ switch means "Navis only talks to your server" when off. See
   draft); the key field appears only in keyless builds. The ListenBrainz
   switch is not locked by a missing token: switched on, it shows the token
   field, whose validation (`userInitiated: true`) stores the token at once as
-  before. Both fields hide while the master switch is off. When setup runs
+  before. Both fields hide while the master switch or their own service
+  switch is off. When setup runs
   again with Online services stored off, the guard (which reads stored
   settings, not the draft) would refuse any check, so Validate is disabled and
   the fields say to finish setup with them on and connect in Settings ›
