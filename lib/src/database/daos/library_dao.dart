@@ -3697,13 +3697,25 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return true;
   }
 
+  Future<void> _awaitSongSearchIndexRefresh() async {
+    var refresh = _songSearchIndexRefresh;
+    if (refresh == null && await _hasStaleSongSearchIndexRows()) {
+      refresh = scheduleSongSearchIndexRefresh();
+    }
+    if (refresh == null) return;
+    // The refresh keeps running; stale rows remain safe match candidates.
+    await refresh.timeout(const Duration(seconds: 2), onTimeout: () => 0);
+  }
+
   /// Songs that could match any of [tracks] (title and artist) under
   /// `LocalTrackMatchSnapshot` rules: every song whose title key equals a
   /// track's, and every song whose artist key could satisfy its artist
   /// fallback (equal, containing or contained, or sharing a word). A snapshot
   /// built from these makes the same matches as one built from the whole
-  /// library, without loading every song. Awaits the shared index refresh
-  /// first, so an upgrade never sends every stale song to the UI matcher.
+  /// library, without loading every song. When rows are stale or a refresh
+  /// is running, waits at most two seconds for the shared refresh. Fresh
+  /// indexes require no refresh writes; a slow refresh continues in the
+  /// background while matching falls back to the safe stale candidates.
   /// Rows changed concurrently, or left stale by a failed index write, remain
   /// candidates so the derived index cannot hide a possible match.
   ///
@@ -3713,7 +3725,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> getTrackMatchCandidates(
     Iterable<({String title, String artist})> tracks,
   ) async {
-    await scheduleSongSearchIndexRefresh();
+    await _awaitSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final matchedArtists = <String>[];
     if (artistKeys.isNotEmpty) {
@@ -3774,7 +3786,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> debugTrackMatchCandidatesByFullScan(
     Iterable<({String title, String artist})> tracks,
   ) async {
-    await scheduleSongSearchIndexRefresh();
+    await _awaitSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final conditions = <String>[
       't.source IS NOT ($_songSearchSourceSql)',

@@ -141,7 +141,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'The first library match after an upgrade refreshes old keys in the background before selecting candidates, avoiding a full-library UI pause',
+        'Library matching refreshes old keys in the background with a two-second wait limit and skips refresh writes when the index is current',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

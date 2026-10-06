@@ -3492,11 +3492,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   `match_artist` key (indexed, like `match_title`), not once per song, and
   the matching songs are read through the two key indexes;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
-  reference. Candidate selection awaits the shared stale-row refresh before
-  matching, so the first lookup after an upgrade stays bounded instead of
-  normalizing the full library on the UI isolate. Refresh normalization runs
-  in an isolate; concurrent changes or failed writes retain the safe stale-row
-  fallback.
+  reference. Candidate selection starts a refresh only when stale rows exist,
+  or joins one already running, and waits at most two seconds. Fresh indexes
+  trigger no refresh writes. Normalization runs in an isolate; a slow refresh
+  keeps running in the background while matching includes safe stale-row
+  candidates, as it does for concurrent changes or failed writes.
 - Matching external metadata (Last.fm, ListenBrainz, LRCLIB, Subsonic
   search) to library songs, albums and artists uses two keys from
   `lib/src/utils/metadata_normalization.dart`. `normalizeMetadata` is the

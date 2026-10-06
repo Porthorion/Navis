@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 
 import '../../../helpers/test_database.dart';
@@ -40,6 +42,20 @@ SongsTableCompanion _song(
   albumId: Value(albumId),
   albumName: Value(albumName),
 );
+
+class _ControlledRefreshDao extends LibraryDao {
+  new(super.attachedDatabase);
+
+  int refreshCalls = 0;
+  Completer<void>? refreshGate;
+
+  @override
+  Future<int> refreshSongSearchIndex({int batchSize = 2000}) async {
+    refreshCalls++;
+    await refreshGate?.future;
+    return super.refreshSongSearchIndex(batchSize: batchSize);
+  }
+}
 
 void main() {
   late NavisDatabase database;
@@ -164,6 +180,52 @@ void main() {
       await pending;
       await database.libraryDao.scheduleSongSearchIndexRefresh();
     });
+  }
+
+  for (final fullScan in [false, true]) {
+    Future<List<SongsTableData>> match(_ControlledRefreshDao dao) => fullScan
+        ? dao.debugTrackMatchCandidatesByFullScan([
+            (title: 'Target', artist: 'Artist'),
+          ])
+        : dao.getTrackMatchCandidates([(title: 'Target', artist: 'Artist')]);
+
+    test(
+      'fresh matching starts no refresh writes (full scan: $fullScan)',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song('target', 'Target', artistName: 'Artist'),
+        ]);
+        await database.libraryDao.refreshSongSearchIndex();
+        final dao = _ControlledRefreshDao(database);
+        expect((await match(dao)).map((song) => song.id), ['target']);
+        expect(dao.refreshCalls, 0);
+      },
+    );
+
+    for (final alreadyRunning in [false, true]) {
+      test('matching times out its refresh wait and retains stale candidates '
+          '(full scan: $fullScan, running: $alreadyRunning)', () async {
+        await database.libraryDao.upsertSongs([
+          _song('target', 'Target', artistName: 'Artist'),
+        ]);
+        final gate = Completer<void>();
+        final dao = _ControlledRefreshDao(database)..refreshGate = gate;
+        final pending = alreadyRunning
+            ? dao.scheduleSongSearchIndexRefresh()
+            : null;
+        try {
+          expect(
+            (await match(dao).timeout(const Duration(seconds: 3)))
+                .map((song) => song.id),
+            contains('target'),
+          );
+          expect(dao.refreshCalls, 1);
+        } finally {
+          gate.complete();
+          await (pending ?? dao.scheduleSongSearchIndexRefresh());
+        }
+      });
+    }
   }
 
   Future<void> expectBucketsMatchFullScan(String artistId) async {
