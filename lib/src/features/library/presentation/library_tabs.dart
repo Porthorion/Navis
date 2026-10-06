@@ -122,6 +122,11 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     final l10n = AppLocalizations.of(context)!;
     final playlistsAsync = ref.watch(playlistLibraryItemsProvider);
     final playlistSyncAsync = ref.watch(playlistSyncProvider);
+    // The list still shows the weekly playlists and Trending when the server
+    // playlists cannot be read; the failure then shows as a row under them.
+    final serverPlaylistsFailed = ref.watch(
+      playlistListProvider.select((async) => async.hasError),
+    );
 
     playlistsAsync.whenData((items) {
       _cachedPlaylistItems = items;
@@ -153,7 +158,10 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                 );
               }
 
-              return _buildPlaylistList(effectiveItems);
+              return _buildPlaylistList(
+                effectiveItems,
+                serverPlaylistsFailed: serverPlaylistsFailed,
+              );
             },
             loading: () {
               if (effectiveItems.isNotEmpty) {
@@ -193,16 +201,28 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     );
   }
 
-  Widget _buildPlaylistList(List<PlaylistLibraryItem> items) {
+  Widget _buildPlaylistList(
+    List<PlaylistLibraryItem> items, {
+    bool serverPlaylistsFailed = false,
+  }) {
     final firstNormalIndex = items.indexWhere((item) => !item.isVirtual);
     final hasVirtualPlaylists = items.any((item) => item.isVirtual);
     final showGroupDivider = hasVirtualPlaylists && firstNormalIndex > 0;
+    final rowCount = items.length + (showGroupDivider ? 1 : 0);
 
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 80),
-      itemCount: items.length + (showGroupDivider ? 1 : 0),
+      itemCount: rowCount + (serverPlaylistsFailed ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == rowCount) {
+          final l10n = AppLocalizations.of(context)!;
+          return ErrorState(
+            key: const ValueKey<String>('library-playlists-load-error'),
+            title: l10n.playlistsLoadError,
+            onRetry: _retryServerPlaylists,
+          );
+        }
         if (showGroupDivider && index == firstNormalIndex) {
           return const Divider(
             key: ValueKey<String>('listenBrainzPlaylistDivider'),
@@ -225,6 +245,13 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         return _buildPlaylistTile(item.playlist!);
       },
     );
+  }
+
+  /// Reads the server playlists again and asks the server for them.
+  void _retryServerPlaylists() {
+    ref
+      ..invalidate(playlistListProvider)
+      ..invalidate(playlistSyncProvider);
   }
 
   Widget _buildVirtualPlaylistTile(

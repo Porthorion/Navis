@@ -1841,7 +1841,9 @@ works like the weekly playlists. `homeTrendingProvider`
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart
   yet), so it can always be found. The virtual rows also stay listed, on
-  their own, while the server playlists load or fail to load. Its id `virtual:trending:deezer`
+  their own, while the server playlists load or fail to load; a failure
+  then shows as the usual error state (with Retry, which reads and syncs the
+  server playlists again) as a row under them. Its id `virtual:trending:deezer`
   (`NavService.trendingPlaylistId`) makes `NavService.openPlaylistDetail`
   open the Trending page. The row shows the chart's covers and "N of M
   available • Deezer", like the weekly rows' "… • ListenBrainz".

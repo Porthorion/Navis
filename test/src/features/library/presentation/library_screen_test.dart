@@ -18,6 +18,8 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -1907,6 +1909,81 @@ void main() {
         await tester.tap(find.text('Trending Now'));
         await tester.pumpAndSettle();
         expect(find.text('Trending detail'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'a server playlist read failure keeps Trending listed with a retry row',
+      (tester) async {
+        var reads = 0;
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              integrationPolicyProvider.overrideWithValue(
+                const IntegrationPolicy(),
+              ),
+              integrationAccountScopeProvider.overrideWithValue('account'),
+              homeTrendingProvider.overrideWith(
+                (ref) => Stream.value(const <ResolvedArtistTopTrack>[]),
+              ),
+              listenBrainzDiscoverStreamProvider.overrideWith(
+                (ref) => Stream.value(const <ListenBrainzDiscoverPlaylist>[]),
+              ),
+              playlistListProvider.overrideWith((ref) {
+                reads++;
+                return reads == 1
+                    ? Stream<List<PlaylistsTableData>>.error(
+                        StateError('database'),
+                      )
+                    : Stream.value(const <PlaylistsTableData>[
+                        PlaylistsTableData(
+                          id: 'server-mix',
+                          name: 'Server Mix',
+                          songCount: 3,
+                        ),
+                      ]);
+              }),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        // Trending stays findable; the failure shows under it.
+        expect(find.text('Trending Now'), findsOneWidget);
+        final errorRow = find.byKey(
+          const ValueKey<String>('library-playlists-load-error'),
+        );
+        expect(errorRow, findsOneWidget);
+        expect(
+          tester.getTopLeft(errorRow).dy,
+          greaterThan(tester.getTopLeft(find.text('Trending Now')).dy),
+        );
+        expect(find.text('Server Mix'), findsNothing);
+
+        await tester.tap(
+          find.descendant(of: errorRow, matching: find.text('Retry')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(reads, 2);
+        expect(errorRow, findsNothing);
+        expect(find.text('Trending Now'), findsOneWidget);
+        expect(find.text('Server Mix'), findsOneWidget);
       },
     );
 
