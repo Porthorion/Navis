@@ -89,7 +89,21 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   /// A successful hydration found the remote artist without albums: the
   /// only case where the page shows a remote artist with none.
   bool _confirmedNoAlbums = false;
+
+  /// The artist's stored albums when the request last ended: the page shows
+  /// once they are stored, even before the album list has read them.
+  int _storedAlbumCount = 0;
   bool _refreshing = false;
+
+  /// The current request; an older one's answer or timeout is ignored.
+  int _hydrationGeneration = 0;
+  Timer? _hydrationTimeout;
+
+  @override
+  void dispose() {
+    _hydrationTimeout?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -108,9 +122,21 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   /// hydration confirming it; failed otherwise, including when the request
   /// or the library read throws. Returns whether the server did not answer.
   Future<bool> _hydrate(Future<LibrarySyncState?> request) async {
+    final generation = ++_hydrationGeneration;
+    _hydrationTimeout?.cancel();
+    // Loading never lasts forever: after the timeout the page offers Retry
+    // and a search, and a late answer still fills it.
+    _hydrationTimeout = Timer(kDetailHydrationTimeout, () {
+      if (mounted &&
+          generation == _hydrationGeneration &&
+          _hydration == DetailHydrationPhase.running) {
+        setState(() => _hydration = DetailHydrationPhase.failed);
+      }
+    });
     var requestFailed = false;
     var phase = DetailHydrationPhase.failed;
     bool? confirmedNoAlbums;
+    var storedAlbums = 0;
     try {
       final result = await request;
       requestFailed = detailHydrationFailed(result);
@@ -118,6 +144,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       final stored = await dao.getArtistById(widget.artistId);
       final albums = await dao.watchAlbumsByArtist(widget.artistId).first;
+      storedAlbums = albums.length;
       // This request, or an earlier successful one this server session,
       // confirms what the server holds; no request alone confirms nothing.
       final confirmed =
@@ -134,9 +161,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     } on Object {
       requestFailed = true;
     }
-    if (mounted) {
+    if (generation == _hydrationGeneration) _hydrationTimeout?.cancel();
+    if (mounted && generation == _hydrationGeneration) {
       setState(() {
         _hydration = phase;
+        _storedAlbumCount = storedAlbums;
         _confirmedNoAlbums = confirmedNoAlbums ?? _confirmedNoAlbums;
       });
     }
@@ -181,10 +210,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     }
   }
 
-  bool _isRemote(ArtistsTableData? artist) => isExternalCatalogSource(
-    id: widget.artistId,
-    apiIsExternal: artist?.isExternal,
-  );
+  /// An `ext-…` id is remote whatever its row says.
+  bool _isRemote(ArtistsTableData? artist) =>
+      (artist?.isExternal ?? false) ||
+      isExternalCatalogSource(id: widget.artistId);
 
   /// Whether the page has enough to show the artist: a stored library
   /// artist, or a remote artist with albums (or one the server confirmed has
@@ -196,8 +225,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     if (artist == null) return false;
     if (!_isRemote(artist)) return true;
     final listed = sections.value;
-    if (listed == null) return false;
-    return !listed.isEmpty || _confirmedNoAlbums;
+    // An album list that cannot be read shows the failure state instead.
+    if (sections.hasError && listed == null) return false;
+    // Albums the request stored are enough; the album list may still be
+    // reading them while the library is busy.
+    if (_storedAlbumCount > 0 || _confirmedNoAlbums) return true;
+    return listed != null && !listed.isEmpty;
   }
 
   /// "Loading Remote Artist…" while the artist is fetched, or Retry and a

@@ -19,6 +19,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
@@ -697,12 +698,20 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (normalizedId.isEmpty) {
       return null;
     }
-    final album = await ref
-        .read(navisDatabaseProvider)
-        .libraryDao
-        .getAlbumById(normalizedId);
-    if (!ref.mounted || album?.songsHydrated == true) {
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final album = await dao.getAlbumById(normalizedId);
+    if (!ref.mounted) {
       return null;
+    }
+    if (album?.songsHydrated == true) {
+      // A remote album marked hydrated without a stored track is fetched
+      // again: its page can only show the tracks the server returns.
+      final remote =
+          album!.isExternal || isExternalCatalogSource(id: normalizedId);
+      if (!remote || await dao.countSongsByAlbum(normalizedId) > 0) {
+        return null;
+      }
+      if (!ref.mounted) return null;
     }
     // Without an engine requestTarget hands back the controller's own state,
     // which is no hydration.

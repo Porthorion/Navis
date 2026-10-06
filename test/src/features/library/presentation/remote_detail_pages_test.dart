@@ -450,6 +450,48 @@ void main() {
       await dispose(tester);
     });
 
+    testWidgets(
+      'shows once its albums are stored, before the album list catches up',
+      (tester) async {
+        await open(
+          tester,
+          AppRoutes.artist(_remoteArtistId),
+          overrides: [
+            // The album buckets have not emitted yet (a busy library).
+            artistAlbumSectionsProvider(_remoteArtistId).overrideWith(
+              (ref) => StreamController<ArtistAlbumSections>().stream,
+            ),
+          ],
+        );
+        await storeRemoteArtist();
+        script.answer(_succeeded);
+        await settle(tester);
+
+        expect(loading, findsNothing);
+        expect(find.byKey(detailPageShownKey), findsOneWidget);
+        await dispose(tester);
+      },
+    );
+
+    testWidgets('loading is bounded: a request that never ends fails, and a '
+        'late answer still fills the page', (tester) async {
+      await open(tester, AppRoutes.artist(_remoteArtistId, name: 'coldrain'));
+      await settle(tester);
+      expect(loading, findsOneWidget);
+
+      await tester.pump(kDetailHydrationTimeout);
+      await settle(tester);
+      expect(failed, findsOneWidget);
+      expect(find.text('Search for coldrain'), findsOneWidget);
+
+      await storeRemoteArtist();
+      script.answer(_succeeded);
+      await settle(tester);
+      expect(failed, findsNothing);
+      expect(find.text('The Side Effects'), findsOneWidget);
+      await dispose(tester);
+    });
+
     testWidgets('an artist the server confirms has no albums still shows', (
       tester,
     ) async {
@@ -683,6 +725,62 @@ void main() {
       await settle(tester);
       expect(failed, findsNothing);
       expect(find.text('Mayday'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets(
+      'a remote album marked hydrated without tracks never reads "No Tracks"',
+      (tester) async {
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: _remoteAlbumId,
+            name: 'The Side Effects',
+            artistName: const Value('Coldrain'),
+            isExternal: const Value(true),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await open(tester, AppRoutes.album(_remoteAlbumId));
+        await settle(tester);
+        expect(loading, findsOneWidget);
+        expect(find.text('No Tracks for This Album'), findsNothing);
+
+        // The server answered, but still no track is stored.
+        script.answer(_succeeded);
+        await settle(tester);
+        expect(failed, findsOneWidget);
+        expect(find.text('No Tracks for This Album'), findsNothing);
+        expect(find.text('Search for The Side Effects'), findsOneWidget);
+        await dispose(tester);
+      },
+    );
+
+    testWidgets('an ext album stored without the remote flag is still remote', (
+      tester,
+    ) async {
+      await database.libraryDao.upsertProvisionalAlbums([
+        AlbumsTableCompanion.insert(
+          id: _remoteAlbumId,
+          name: 'The Side Effects',
+          isExternal: const Value(false),
+        ),
+      ]);
+      await open(tester, AppRoutes.album(_remoteAlbumId));
+      await settle(tester);
+      expect(loading, findsOneWidget);
+      expect(find.text('Loading Remote Album…'), findsOneWidget);
+      expect(find.text('No Tracks for This Album'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('album loading is bounded too', (tester) async {
+      await open(
+        tester,
+        AppRoutes.album(_remoteAlbumId, name: 'The Side Effects'),
+      );
+      await tester.pump(kDetailHydrationTimeout);
+      await settle(tester);
+      expect(failed, findsOneWidget);
       await dispose(tester);
     });
 

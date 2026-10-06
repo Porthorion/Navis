@@ -33,6 +33,11 @@ bool detailHydrationFailed(LibrarySyncState? result) =>
       _ => false,
     };
 
+/// How long an artist or album page waits for the server before it offers
+/// Retry and a search. The request keeps running: a late answer still fills
+/// the page.
+const Duration kDetailHydrationTimeout = Duration(seconds: 20);
+
 /// Marks the content of an artist or album page once it shows its entity
 /// (not the loading or failed view), for diagnostics.
 const detailPageShownKey = ValueKey<String>('detail-page-shown');

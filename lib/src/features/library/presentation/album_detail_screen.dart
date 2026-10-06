@@ -80,6 +80,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   /// The page's request for the album, which only matters while the page has
   /// nothing to show (see [_showsAlbum]).
   DetailHydrationPhase _hydration = DetailHydrationPhase.running;
+
+  /// The current request; an older one's answer or timeout is ignored.
+  int _hydrationGeneration = 0;
+  Timer? _hydrationTimeout;
   late bool _showLikedOnly = widget.likedOnly;
   bool _showDownloadedOnly = false;
 
@@ -106,43 +110,56 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   /// Waits for [request] and records what it left in the library: settled
-  /// once the album is stored (a remote album with its tracks), failed
-  /// otherwise, including when the request or the library read throws.
-  /// Returns whether the server did not answer.
+  /// once the album is stored (a remote album with at least one track),
+  /// failed otherwise, including when the request or the library read
+  /// throws, or when it has not answered within [kDetailHydrationTimeout]
+  /// (a late answer still fills the page). Returns whether the server did
+  /// not answer.
   Future<bool> _hydrate(Future<LibrarySyncState?> request) async {
+    final generation = ++_hydrationGeneration;
+    _hydrationTimeout?.cancel();
+    _hydrationTimeout = Timer(kDetailHydrationTimeout, () {
+      if (mounted &&
+          generation == _hydrationGeneration &&
+          _hydration == DetailHydrationPhase.running) {
+        setState(() => _hydration = DetailHydrationPhase.failed);
+      }
+    });
     var requestFailed = false;
     var phase = DetailHydrationPhase.failed;
     try {
       final result = await request;
       requestFailed = detailHydrationFailed(result);
       if (!mounted) return requestFailed;
-      final stored = await ref
-          .read(navisDatabaseProvider)
-          .libraryDao
-          .getAlbumById(widget.albumId);
-      if (stored != null && (!_isRemote(stored) || stored.songsHydrated)) {
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      final stored = await dao.getAlbumById(widget.albumId);
+      if (stored != null &&
+          (!_isRemote(stored) ||
+              await dao.countSongsByAlbum(widget.albumId) > 0)) {
         phase = DetailHydrationPhase.settled;
       }
     } on Object {
       requestFailed = true;
     }
-    if (mounted) setState(() => _hydration = phase);
+    if (generation == _hydrationGeneration) _hydrationTimeout?.cancel();
+    if (mounted && generation == _hydrationGeneration) {
+      setState(() => _hydration = phase);
+    }
     return requestFailed;
   }
 
-  bool _isRemote(AlbumsTableData? album) => isExternalCatalogSource(
-    id: widget.albumId,
-    apiIsExternal: album?.isExternal,
-  );
+  /// An `ext-…` id is remote whatever its row says.
+  bool _isRemote(AlbumsTableData? album) =>
+      (album?.isExternal ?? false) ||
+      isExternalCatalogSource(id: widget.albumId);
 
   /// Whether the page has enough to show the album: a stored library album,
-  /// or a remote album with its tracks (or one the server confirmed has
-  /// none).
+  /// or a remote album with at least one track. A remote album without one
+  /// cannot play, so it never shows as an empty album: it loads, then offers
+  /// Retry and a search.
   bool _showsAlbum(AlbumWithSongs? data) {
     if (data == null) return false;
-    return !_isRemote(data.album) ||
-        data.songs.isNotEmpty ||
-        data.album.songsHydrated;
+    return !_isRemote(data.album) || data.songs.isNotEmpty;
   }
 
   /// "Loading Remote Album…" while the album is fetched, or Retry and a
@@ -204,6 +221,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   @override
   void dispose() {
+    _hydrationTimeout?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

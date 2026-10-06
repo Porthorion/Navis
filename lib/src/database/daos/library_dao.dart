@@ -889,6 +889,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// How many songs [watchSongsByAlbum] lists for [albumId].
+  Future<int> countSongsByAlbum(String albumId) async {
+    final count = songsTable.id.count();
+    final query = selectOnly(songsTable)
+      ..addColumns([count])
+      ..where(
+        songsTable.albumId.equals(albumId) &
+            (songsTable.isProvisional.equals(false) |
+                songsTable.isExternal.equals(true)) &
+            songsTable.serverDeletedAt.isNull(),
+      );
+    return (await query.getSingle()).read(count) ?? 0;
+  }
+
   Stream<List<SongsTableData>> watchSongsByAlbum(String albumId) {
     final query = select(songsTable)
       ..where(

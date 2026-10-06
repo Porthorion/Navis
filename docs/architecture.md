@@ -1623,10 +1623,14 @@ reads "Not Found".
   as `registerArtistInteraction` / `registerAlbumInteraction`, returning the
   result (null when none was needed or no server is signed in). Concurrent
   opens of an artist share one request. Rows land as provisional external
-  rows, as before.
-- Until the page has its minimum (artist: the stored artist and its albums,
-  or a successful hydration that stored none; album: the stored album and
-  its tracks, or one marked hydrated), it shows `DetailLoadingView`
+  rows, as before. A remote album marked hydrated without a stored track
+  is fetched again (`LibraryDao.countSongsByAlbum`).
+- An `ext-…` id is remote whatever its row's flag says. Until the page has
+  its minimum (artist: the stored artist with albums the request stored,
+  even before the page's album list has read them, or a successful
+  hydration that stored none; album: the stored album and, for a remote
+  album, at least one track: a remote album without one never shows as an
+  empty album), it shows `DetailLoadingView`
   (`features/library/presentation/detail_load_states.dart`) inside the
   page's own scaffold: an app bar with a back button
   (`NavService.back`, the Library when there is no history) and Refresh,
@@ -1640,7 +1644,10 @@ reads "Not Found".
   stored (a remote album songs-hydrated, a remote artist with albums), or a
   remote artist has none and the hydration succeeded
   (`detailHydrationConfirmed`; no request, a partial or a skipped one
-  confirms nothing). The controller remembers a successful hydration that
+  confirms nothing). Loading is bounded: after `kDetailHydrationTimeout`
+  (20 seconds, for example while the request waits behind a running library
+  sync) the page shows the failure state, and a late answer still fills it.
+  The controller remembers a successful hydration that
   found an artist without albums for the server session
   (`artistConfirmedWithoutAlbums`, cleared with the per-session hydration
   set), so a reopen that needs no request still shows the artist as empty. Anything else, including a request or library read that
