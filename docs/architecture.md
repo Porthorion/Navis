@@ -1624,7 +1624,13 @@ reads "Not Found".
   result (null when none was needed or no server is signed in). Concurrent
   opens of an artist share one request. Rows land as provisional external
   rows, as before. A remote album marked hydrated without a stored track
-  is fetched again (`LibraryDao.countSongsByAlbum`).
+  is fetched again (`LibraryDao.countSongsByAlbum`). Artist and album
+  hydrations announce the artists, albums and songs tables again once their
+  transaction commits: the DAO writes nest their own transactions, drift
+  announces a nested transaction's tables before the outer commit, and a
+  stream re-reading then on the WAL read pool would keep the old rows. The
+  pages also re-read their artist or album stream when it still misses a
+  row the request stored.
 - An `ext-…` id is remote whatever its row's flag says. Until the page has
   its minimum (artist: the stored artist with albums the request stored,
   even before the page's album list has read them, or a successful
