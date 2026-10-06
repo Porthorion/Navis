@@ -14,6 +14,11 @@ import 'dart:collection';
 /// limits hold across all features that call Deezer. When Deezer reports its
 /// quota exceeded, [pauseStarts] holds every new start, so concurrent
 /// requests stop piling into the quota.
+///
+/// Waiting requests start in order, except that a foreground request (what
+/// the user is looking at) always takes the next free slot before any
+/// `background` one (Home's warm-up work). Background requests start
+/// whenever no foreground request is waiting.
 class DeezerRequestLimiter {
   new({
     this.maxPerWindow = 5,
@@ -33,10 +38,16 @@ class DeezerRequestLimiter {
   /// When the requests of the current window started, oldest first.
   final Queue<Duration> _starts = Queue<Duration>();
   int _inFlight = 0;
-  Completer<void>? _released;
+
+  /// Requests waiting for a slot, oldest first.
+  final Queue<Completer<void>> _foreground = Queue<Completer<void>>();
+  final Queue<Completer<void>> _background = Queue<Completer<void>>();
 
   /// No request starts before this point of [_elapsed].
   Duration _pausedUntil = Duration.zero;
+
+  /// Whether a timed wake-up is pending (for the window or a pause).
+  bool _wakeScheduled = false;
 
   /// Requests running now.
   int get inFlight => _inFlight;
@@ -50,44 +61,61 @@ class DeezerRequestLimiter {
   }
 
   /// Runs [request] once a slot is free under both limits and no pause holds
-  /// it.
-  Future<T> run<T>(Future<T> Function() request) async {
-    await _acquire();
+  /// it. A [background] request waits while any foreground one is waiting.
+  Future<T> run<T>(
+    Future<T> Function() request, {
+    bool background = false,
+  }) async {
+    final slot = Completer<void>();
+    (background ? _background : _foreground).addLast(slot);
+    _dispatch();
+    await slot.future;
     try {
       return await request();
     } finally {
-      _release();
+      _inFlight--;
+      _dispatch();
     }
   }
 
-  Future<void> _acquire() async {
-    while (true) {
+  /// Starts waiting requests, foreground first, while both limits allow.
+  void _dispatch() {
+    while (_foreground.isNotEmpty || _background.isNotEmpty) {
+      // A finishing request dispatches again.
+      if (_inFlight >= maxInFlight) return;
       final now = _elapsed();
       if (now < _pausedUntil) {
-        await _delay(_pausedUntil - now);
-        continue;
+        _wakeAfter(_pausedUntil - now);
+        return;
       }
       while (_starts.isNotEmpty && now - _starts.first >= window) {
         _starts.removeFirst();
       }
-      if (_inFlight < maxInFlight && _starts.length < maxPerWindow) {
-        _inFlight++;
-        _starts.addLast(now);
+      if (_starts.length >= maxPerWindow) {
+        _wakeAfter(_starts.first + window - now);
         return;
       }
-      if (_inFlight >= maxInFlight) {
-        await (_released ??= Completer<void>()).future;
-      } else {
-        await _delay(_starts.first + window - now);
-      }
+      _inFlight++;
+      _starts.addLast(now);
+      final next = _foreground.isNotEmpty
+          ? _foreground.removeFirst()
+          : _background.removeFirst();
+      next.complete();
     }
   }
 
-  void _release() {
-    _inFlight--;
-    final released = _released;
-    _released = null;
-    released?.complete();
+  /// Dispatches again after [wait]. Only one wake-up is pending at a time:
+  /// the window's oldest start only ages and a pause only extends, so a
+  /// pending one is never later than needed.
+  void _wakeAfter(Duration wait) {
+    if (_wakeScheduled) return;
+    _wakeScheduled = true;
+    unawaited(
+      _delay(wait).whenComplete(() {
+        _wakeScheduled = false;
+        _dispatch();
+      }),
+    );
   }
 
   static Duration Function() _monotonicElapsed() {

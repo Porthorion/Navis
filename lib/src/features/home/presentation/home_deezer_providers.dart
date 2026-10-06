@@ -102,8 +102,9 @@ final homeNewReleasesClockProvider = Provider<DateTime Function()>(
 /// artist has songs. Otherwise it waits for
 /// [homeDeezerIdleProvider], then reads each artist's Deezer id (resolver,
 /// cached 30 days) and first releases (cached 24 hours) through the
-/// limiter. An artist Deezer does not know, or whose request fails, is
-/// skipped. The provider lives for the session; invalidating it (pull to
+/// limiter, as background requests that yield to the artist page and other
+/// foreground Deezer requests. An artist Deezer does not know, or whose
+/// request fails, is skipped. The provider lives for the session; invalidating it (pull to
 /// refresh) or turning the switch off cancels its requests.
 final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   ref,
@@ -156,12 +157,14 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
           readLibraryAlbumTitles: () async =>
               (await readLibraryAlbums()).map((album) => album.name),
           cancelToken: cancelToken,
+          background: true,
         );
         if (deezerId == null) continue;
         resolved++;
         final releases = await catalog.recentArtistAlbums(
           deezerId,
           cancelToken: cancelToken,
+          background: true,
         );
         if (releases.isEmpty) continue;
         byArtist[index] = (
@@ -287,10 +290,10 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 ///
 /// Empty, without asking Deezer, while the switch is off or the library has
 /// no artists. Otherwise, once Home is idle, it reads `/chart/0/tracks`
-/// (100, cached 6 hours) and matches every song with the top-song matcher
-/// on Trending's own store: remembered matches and `ext-deezer-song-<id>`
-/// rows, the library pass, then `search3` on the server, where a copy on
-/// the server wins over a remote one. The rows show at once, still matching,
+/// (100, cached 6 hours, a background request) and matches every song with
+/// the top-song matcher on Trending's own store: remembered matches and
+/// `ext-deezer-song-<id>` rows, the library pass, then `search3` on the
+/// server, where a copy on the server wins over a remote one. The rows show at once, still matching,
 /// then with their songs; songs found nowhere stay as unmatched rows. Two
 /// songs are searched at once; a pull to refresh searches six, updates the
 /// rows as it goes and searches unmatched songs again. The provider lives
@@ -327,7 +330,10 @@ final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   if (!ref.mounted) return;
 
   final timer = Stopwatch()..start();
-  final chart = await catalog.chartTracks(cancelToken: cancelToken);
+  final chart = await catalog.chartTracks(
+    cancelToken: cancelToken,
+    background: true,
+  );
   if (cancelToken.isCancelled) return;
   if (chart.isEmpty) {
     yield const <ResolvedArtistTopTrack>[];

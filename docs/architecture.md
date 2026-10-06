@@ -1482,16 +1482,18 @@ with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every
 Deezer feature together under 5 requests per second and 4 in flight. Deezer
 documents a quota of about 50 requests per 5 seconds, but answered code 4
 while Navis started at most 32 per 5 seconds from one IP, so the limit stays
-well below that. Deezer reports errors
-as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota)
-pauses the shared limiter for 5 seconds, so every Deezer request waits it out
-rather than piling into the quota, and the request that hit it is retried
-once; code 800 ("no data") reads as an empty result,
-and any other code throws `DeezerApiException`. Endpoints used so far:
-`/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
-`/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new
-ones go
-through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
+well below that. Waiting requests start in order, except that foreground
+ones (the artist page and the other pages the user opens) always go before
+`background` ones (Home's New Releases, its artist resolution and the
+Trending chart); background requests start whenever no foreground one waits.
+Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
+"code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds, so every
+Deezer request waits it out rather than piling into the quota, and the
+request that hit it is retried once; code 800 ("no data") reads as an empty
+result, and any other code throws `DeezerApiException`. Endpoints used so
+far: `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
+`/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new ones
+go through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
 and round-trip through `toJson` for the cache. In some regions
 `/artist/{id}/top` returns no tracks for every artist, so callers must have a
@@ -1799,7 +1801,9 @@ there, one that already places it is left alone). `homeNewReleasesProvider`
 - Three workers read each artist's Deezer id through the resolver (artists it
   cannot identify are skipped) and its first five releases
   (`DeezerCatalog.recentArtistAlbums`, `/artist/{id}/albums?limit=5`, cached 24
-  hours apart from the full list). An artist whose request fails is skipped;
+  hours apart from the full list), all as background requests: the Deezer
+  limiter starts any waiting artist-page request first, so warming Home never
+  delays the page the user opened. An artist whose request fails is skipped;
   the provider lives for the session, and invalidating it (pull to refresh)
   or switching the feature off cancels the requests. The
   `home.newReleases` span counts artists, resolved, failed, releases and those
@@ -1830,7 +1834,8 @@ works like the weekly playlists. `homeTrendingProvider`
 - Returns nothing without asking Deezer while the switch is off, no account
   is signed in or the library has no artists (it watches the account scope,
   like New Releases); otherwise waits for `homeDeezerIdleProvider` and reads
-  `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours).
+  `/chart/0/tracks?limit=100` (`DeezerCatalog.chartTracks`, cached 6 hours)
+  as a background request.
 - Matches every chart song with the top-songs matcher on its own resolver
   and store (`trendingTrackResolverProvider`, `trendingMatchStoreProvider`:
   namespace `trending.matches`, key `deezer-chart`, per account, entries kept

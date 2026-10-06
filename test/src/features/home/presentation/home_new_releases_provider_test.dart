@@ -28,13 +28,18 @@ class _FakeDeezer extends DeezerApiClient {
   final Map<int, List<DeezerAlbum>> albums = <int, List<DeezerAlbum>>{};
   final Set<int> failingArtists = <int>{};
 
+  /// The priority of every request, in order.
+  final List<bool> background = <bool>[];
+
   @override
   Future<List<DeezerArtist>> searchArtists(
     String name, {
     int limit = 25,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     calls.add('search/artist:$name');
+    this.background.add(background);
     final id = artistIds[name];
     return id == null
         ? const <DeezerArtist>[]
@@ -46,8 +51,10 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     calls.add('albums:$artistId');
+    this.background.add(background);
     albumLimits.add(limit);
     if (failingArtists.contains(artistId)) {
       throw const DeezerApiException(code: 2, message: 'boom');
@@ -327,6 +334,18 @@ void main() {
       'releases': 3,
       'inLibrary': 1,
     });
+  });
+
+  test('asks Deezer in the background, after what the user opens', () async {
+    await artist('a', 'Artist A');
+    deezer.artistIds['Artist A'] = 10;
+    deezer.albums[10] = const <DeezerAlbum>[
+      DeezerAlbum(id: 101, title: 'Encore', releaseDate: '2026-10-02'),
+    ];
+
+    expect(await read(container()), hasLength(1));
+    expect(deezer.calls, ['search/artist:Artist A', 'albums:10']);
+    expect(deezer.background, [true, true]);
   });
 
   test('an artist whose request fails is skipped', () async {

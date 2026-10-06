@@ -70,12 +70,14 @@ class DeezerArtistResolver {
   /// null when Deezer has no artist of that name.
   ///
   /// [readLibraryAlbumTitles] is called only when several Deezer artists
-  /// share the name.
+  /// share the name. A [background] resolution (Home's warm-up) yields the
+  /// Deezer limiter to what the user is looking at.
   Future<int?> resolve({
     required String artistId,
     required String name,
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     final direct = idFromLibraryArtistId(artistId);
     if (direct != null) return direct;
@@ -102,6 +104,7 @@ class DeezerArtistResolver {
       name: name,
       readLibraryAlbumTitles: readLibraryAlbumTitles,
       cancelToken: cancelToken,
+      background: background,
     );
     _inFlight[mappingKey] = resolution;
     try {
@@ -117,6 +120,7 @@ class DeezerArtistResolver {
     required String name,
     required Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     required CancelToken? cancelToken,
+    required bool background,
   }) async {
     final cached = await _cache.read(DeezerCache.artistIdNamespace, mappingKey);
     final value = cached?.value;
@@ -126,7 +130,11 @@ class DeezerArtistResolver {
       if (id != null || value['v'] == _cacheVersion) return id;
     }
 
-    final found = await _client.searchArtists(name, cancelToken: cancelToken);
+    final found = await _client.searchArtists(
+      name,
+      cancelToken: cancelToken,
+      background: background,
+    );
     final namesakes = found
         .where((artist) => normalizeMetadata(artist.name) == nameKey)
         .toList();
@@ -138,6 +146,7 @@ class DeezerArtistResolver {
             .toList(),
         readLibraryAlbumTitles,
         cancelToken,
+        background,
       ),
       1 => (id: namesakes.single.id, conclusive: true),
       _ when readLibraryAlbumTitles == null => (
@@ -148,6 +157,7 @@ class DeezerArtistResolver {
         namesakes,
         readLibraryAlbumTitles,
         cancelToken,
+        background,
       ),
     };
     // Asked again next time rather than remembered for days.
@@ -169,6 +179,7 @@ class DeezerArtistResolver {
     List<DeezerArtist> namesakes,
     Future<Iterable<String>> Function() readLibraryAlbumTitles,
     CancelToken? cancelToken,
+    bool background,
   ) async {
     final libraryTitles = await _libraryTitleKeys(readLibraryAlbumTitles);
     if (libraryTitles.isEmpty) {
@@ -178,6 +189,7 @@ class DeezerArtistResolver {
       namesakes,
       libraryTitles,
       cancelToken,
+      background: background,
     );
     return (id: best?.id ?? namesakes.first.id, conclusive: conclusive);
   }
@@ -189,6 +201,7 @@ class DeezerArtistResolver {
     List<DeezerArtist> candidates,
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
+    bool background,
   ) async {
     if (candidates.isEmpty || readLibraryAlbumTitles == null) {
       return (id: null, conclusive: true);
@@ -201,6 +214,7 @@ class DeezerArtistResolver {
       libraryTitles,
       cancelToken,
       minimumOverlap: 1,
+      background: background,
     );
     return (id: best?.id, conclusive: conclusive);
   }
@@ -224,6 +238,7 @@ class DeezerArtistResolver {
     Set<String> libraryTitles,
     CancelToken? cancelToken, {
     int minimumOverlap = 0,
+    required bool background,
   }) async {
     DeezerArtist? best;
     var bestOverlap = minimumOverlap - 1;
@@ -233,6 +248,7 @@ class DeezerArtistResolver {
         albums = await _client.getArtistAlbums(
           artist.id,
           cancelToken: cancelToken,
+          background: background,
         );
       } on Exception catch (error) {
         if ((error is DioException && CancelToken.isCancel(error)) ||

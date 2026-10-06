@@ -8,6 +8,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/deezer_request_limiter.dart';
 
+/// Records the priority of every request it runs.
+class _RecordingLimiter extends DeezerRequestLimiter {
+  final List<bool> background = <bool>[];
+
+  @override
+  Future<T> run<T>(Future<T> Function() request, {bool background = false}) {
+    this.background.add(background);
+    return super.run(request, background: background);
+  }
+}
+
 /// Answers every request with the next body queued for its path.
 class _DeezerAdapter implements HttpClientAdapter {
   final Map<String, List<Object>> bodies = <String, List<Object>>{};
@@ -363,6 +374,29 @@ void main() {
     expect(await client.searchArtists('  '), isEmpty);
     expect(await client.searchTracks(''), isEmpty);
     expect(adapter.requests, isEmpty);
+  });
+
+  test('background requests reach the limiter as background', () async {
+    final recording = _RecordingLimiter();
+    final limited = DeezerApiClient(
+      dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+      limiter: recording,
+    );
+    const empty = <String, Object?>{'data': <Object?>[]};
+    adapter
+      ..queue('/search/artist', empty)
+      ..queue('/artist/1/albums', empty)
+      ..queue('/chart/0/tracks', empty);
+
+    await limited.searchArtists('a', background: true);
+    await limited.getArtistAlbums(1, background: true);
+    await limited.getChartTracks(background: true);
+    expect(recording.background, [true, true, true]);
+
+    await limited.searchArtists('a');
+    await limited.getArtistAlbums(1);
+    await limited.getChartTracks();
+    expect(recording.background.skip(3), [false, false, false]);
   });
 
   test('every request goes through the shared limiter', () async {

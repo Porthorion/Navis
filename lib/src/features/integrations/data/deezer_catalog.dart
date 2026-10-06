@@ -12,7 +12,8 @@ import 'package:navis/src/utils/app_logger.dart';
 /// artist details and related artists 7 days, an artist's albums 24 hours, an
 /// album 7 days, the chart 6 hours. "Not on Deezer" is cached too. Request errors propagate and
 /// are not cached. Callers check the feature switch first; the client's
-/// guard checks only the service.
+/// guard checks only the service. Reads for Home's warm-up pass
+/// `background`, so the Deezer limiter serves what the user opened first.
 class DeezerCatalog {
   new({required this._client, required this._cache});
 
@@ -92,6 +93,7 @@ class DeezerCatalog {
   Future<List<DeezerAlbum>> recentArtistAlbums(
     int artistId, {
     CancelToken? cancelToken,
+    bool background = false,
   }) => _cached(
     namespace: DeezerCache.artistRecentAlbumsNamespace,
     key: '$artistId',
@@ -100,6 +102,7 @@ class DeezerCatalog {
       artistId,
       limit: recentAlbumLimit,
       cancelToken: cancelToken,
+      background: background,
     ),
     encode: (albums) => [for (final album in albums) album.toJson()],
     decode: (json) => [
@@ -111,13 +114,17 @@ class DeezerCatalog {
 
   /// `/chart/0/tracks`: the [chartTrackLimit] most played tracks on Deezer
   /// in the caller's country, cached 6 hours.
-  Future<List<DeezerTrack>> chartTracks({CancelToken? cancelToken}) => _cached(
+  Future<List<DeezerTrack>> chartTracks({
+    CancelToken? cancelToken,
+    bool background = false,
+  }) => _cached(
     namespace: DeezerCache.chartNamespace,
     key: '0',
     ttl: DeezerCache.chartTtl,
     fetch: () => _client.getChartTracks(
       limit: chartTrackLimit,
       cancelToken: cancelToken,
+      background: background,
     ),
     encode: (tracks) => [for (final track in tracks) track.toJson()],
     decode: (json) => [

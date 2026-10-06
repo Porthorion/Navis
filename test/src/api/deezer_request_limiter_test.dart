@@ -129,6 +129,92 @@ void main() {
     });
   });
 
+  group('priority', () {
+    test('a waiting foreground request takes the next free slot', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(
+          elapsed: () => async.elapsed,
+          maxInFlight: 1,
+        );
+        final started = <String>[];
+        void queue(String name, {required bool background}) => unawaited(
+          limiter.run(() async {
+            started.add(name);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }, background: background),
+        );
+
+        for (var i = 0; i < 4; i++) {
+          queue('background $i', background: true);
+        }
+        async.flushMicrotasks();
+        queue('foreground', background: false);
+
+        async.elapse(const Duration(seconds: 2));
+        expect(started, [
+          'background 0',
+          'foreground',
+          'background 1',
+          'background 2',
+          'background 3',
+        ]);
+      });
+    });
+
+    test('a waiting foreground request takes the next start of the window', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final started = <String>[];
+        for (var i = 0; i < 8; i++) {
+          unawaited(
+            limiter.run(() async {
+              started.add('background $i');
+            }, background: true),
+          );
+        }
+        async.flushMicrotasks();
+        expect(started, hasLength(5));
+        unawaited(
+          limiter.run(() async {
+            started.add('foreground');
+          }),
+        );
+
+        async.elapse(const Duration(seconds: 1));
+        expect(started.sublist(5), [
+          'foreground',
+          'background 5',
+          'background 6',
+          'background 7',
+        ]);
+      });
+    });
+
+    test('background requests run whenever no foreground one waits', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(
+          elapsed: () => async.elapsed,
+          maxInFlight: 1,
+        );
+        var finished = 0;
+        for (var i = 0; i < 6; i++) {
+          unawaited(
+            limiter
+                .run(
+                  () => Future<void>.delayed(const Duration(milliseconds: 10)),
+                  background: true,
+                )
+                .then((_) => finished++),
+          );
+        }
+
+        async.elapse(const Duration(seconds: 3));
+        expect(finished, 6);
+        expect(limiter.inFlight, 0);
+      });
+    });
+  });
+
   test('a failing request frees its slot', () async {
     final limiter = DeezerRequestLimiter(maxInFlight: 1);
 

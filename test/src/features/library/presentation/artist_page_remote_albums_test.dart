@@ -96,6 +96,7 @@ class _FakeDeezer extends DeezerApiClient {
     String name, {
     int limit = 25,
     CancelToken? cancelToken,
+    bool background = false,
   }) async => const [DeezerArtist(id: 1105, name: 'ONE OK ROCK')];
 
   @override
@@ -103,6 +104,7 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async => const [
     DeezerAlbum(
       id: 302127,

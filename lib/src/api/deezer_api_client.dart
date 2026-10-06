@@ -30,7 +30,8 @@ class DeezerApiException implements Exception {
 /// Production code passes a `dio` from `externalDioFactoryProvider`, built
 /// with [baseOptions], so the integration guard and call recorder apply.
 /// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
-/// flight). Errors arrive in the body of an HTTP 200 response: code 4 (quota)
+/// flight); a `background` request (Home's warm-up) waits while any
+/// foreground one is waiting. Errors arrive in the body of an HTTP 200 response: code 4 (quota)
 /// pauses the shared limiter for [quotaRetryDelay], so every Deezer request
 /// waits, and the request that hit it is then retried once; code 800 ("no
 /// data") reads as an empty result; any other code throws
@@ -61,13 +62,16 @@ class DeezerApiClient {
     String name, {
     int limit = 25,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     final query = name.trim();
     if (query.isEmpty) return const [];
-    final data = await _getData('search/artist', <String, Object>{
-      'q': query,
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'search/artist',
+      <String, Object>{'q': query, 'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+    );
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 
@@ -108,10 +112,14 @@ class DeezerApiClient {
     int artistId, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
-    final data = await _getData('artist/$artistId/albums', <String, Object>{
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'artist/$artistId/albums',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+    );
     return data.map(DeezerAlbum.fromJson).where((a) => a.id > 0).toList();
   }
 
@@ -149,10 +157,14 @@ class DeezerApiClient {
   Future<List<DeezerTrack>> getChartTracks({
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
-    final data = await _getData('chart/0/tracks', <String, Object>{
-      'limit': limit,
-    }, cancelToken: cancelToken);
+    final data = await _getData(
+      'chart/0/tracks',
+      <String, Object>{'limit': limit},
+      cancelToken: cancelToken,
+      background: background,
+    );
     return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
   }
 
@@ -161,8 +173,14 @@ class DeezerApiClient {
     String path,
     Map<String, Object> query, {
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
-    final body = await getJson(path, query, cancelToken: cancelToken);
+    final body = await getJson(
+      path,
+      query,
+      cancelToken: cancelToken,
+      background: background,
+    );
     final data = body?['data'];
     if (data is! List) return const [];
     return data
@@ -175,11 +193,13 @@ class DeezerApiClient {
   /// without a leading slash), or null for code 800 ("no data").
   ///
   /// The building block for every endpoint, so a new endpoint inherits the
-  /// limiter and the error handling.
+  /// limiter and the error handling. A [background] request yields the
+  /// limiter to foreground ones.
   Future<Map<String, dynamic>?> getJson(
     String path,
     Map<String, Object> query, {
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     for (var attempt = 0; ; attempt++) {
       final response = await _limiter.run(
@@ -188,6 +208,7 @@ class DeezerApiClient {
           queryParameters: query,
           cancelToken: cancelToken,
         ),
+        background: background,
       );
       final body = response.data;
       if (body is! Map) {

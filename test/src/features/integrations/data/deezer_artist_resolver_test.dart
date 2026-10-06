@@ -23,13 +23,18 @@ class _FakeDeezer extends DeezerApiClient {
   Completer<void>? searchGate;
   final List<int> albumCalls = <int>[];
 
+  /// The priority of every search and album lookup, in order.
+  final List<bool> background = <bool>[];
+
   @override
   Future<List<DeezerArtist>> searchArtists(
     String name, {
     int limit = 25,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     searchCalls++;
+    this.background.add(background);
     if (searchGate case final gate?) await gate.future;
     if (cancelToken?.isCancelled ?? false) {
       throw DioException.requestCancelled(
@@ -46,8 +51,10 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     albumCalls.add(artistId);
+    this.background.add(background);
     if (albumErrors[artistId] case final error?) throw error;
     return albumsByArtist[artistId] ?? const [];
   }
@@ -678,6 +685,31 @@ void main() {
       await resolve();
       expect(deezer.searchCalls, 2);
     });
+  });
+
+  test('a background resolution asks Deezer in the background', () async {
+    deezer
+      ..artists = const [
+        DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+      ]
+      ..albumsByArtist = {
+        1020109: _albums(['Elephunk']),
+      };
+
+    await resolver.resolve(
+      artistId: 'bep',
+      name: 'The Black Eyed Peas',
+      readLibraryAlbumTitles: () async => ['Elephunk'],
+      background: true,
+    );
+    expect(deezer.background, [true, true]);
+
+    await resolver.resolve(
+      artistId: 'other',
+      name: 'The Black Eyed Peas',
+      readLibraryAlbumTitles: () async => ['Elephunk'],
+    );
+    expect(deezer.background.skip(2), [false, false]);
   });
 
   test('callers resolving the same name at once share one search', () async {

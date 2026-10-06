@@ -39,8 +39,9 @@ class _FakeDeezer extends DeezerApiClient {
     int artistId, {
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
-    calls.add('artist/$artistId/albums?limit=$limit');
+    calls.add('artist/$artistId/albums?limit=$limit${_mark(background)}');
     return const [DeezerAlbum(id: 9, title: 'Ambitions', recordType: 'album')];
   }
 
@@ -48,8 +49,9 @@ class _FakeDeezer extends DeezerApiClient {
   Future<List<DeezerTrack>> getChartTracks({
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
-    calls.add('chart/0/tracks?limit=$limit');
+    calls.add('chart/0/tracks?limit=$limit${_mark(background)}');
     return const [
       DeezerTrack(
         id: 1,
@@ -59,6 +61,8 @@ class _FakeDeezer extends DeezerApiClient {
     ];
   }
 }
+
+String _mark(bool background) => background ? ' (background)' : '';
 
 void main() {
   late Directory root;
@@ -121,6 +125,17 @@ void main() {
     now = now.add(const Duration(hours: 1));
     await catalog.recentArtistAlbums(1);
     expect(deezer.calls, hasLength(3));
+  });
+
+  test('first releases and the chart can be read in the background', () async {
+    await catalog.recentArtistAlbums(1, background: true);
+    await catalog.chartTracks(background: true);
+    await catalog.artistAlbums(2);
+    expect(deezer.calls, [
+      'artist/1/albums?limit=5 (background)',
+      'chart/0/tracks?limit=100 (background)',
+      'artist/2/albums?limit=100',
+    ]);
   });
 
   test('the chart is kept for 6 hours', () async {

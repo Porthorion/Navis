@@ -31,12 +31,17 @@ class _FakeDeezer extends DeezerApiClient {
   final List<DeezerTrack> chart;
   int chartCalls = 0;
 
+  /// The priority of every chart request, in order.
+  final List<bool> background = <bool>[];
+
   @override
   Future<List<DeezerTrack>> getChartTracks({
     int limit = 100,
     CancelToken? cancelToken,
+    bool background = false,
   }) async {
     chartCalls++;
+    this.background.add(background);
     return chart;
   }
 }
@@ -226,6 +231,14 @@ void main() {
     final deezer = _FakeDeezer(const <DeezerTrack>[]);
     expect(await read(container(deezer: deezer)), isEmpty);
     expect(deezer.chartCalls, 0);
+  });
+
+  test('reads the chart in the background', () async {
+    await library(<String>[_t(1)]);
+    final deezer = _FakeDeezer(<DeezerTrack>[_chartTrack(1, _t(1), 'Known')]);
+
+    await read(container(deezer: deezer));
+    expect(deezer.background, [true]);
   });
 
   test('keeps every chart song in chart order, matched or not', () async {
