@@ -129,6 +129,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Radio diagnostics hide artwork URLs and credentials while keeping artwork comparisons available',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Song-title navigation falls back to search when unrelated artists have matching song and album names',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio keeps the station name until a real stream title arrives and clears earlier playback errors after a successful station switch',
         type: ChangelogEntryType.fix,
       ),
@@ -153,7 +161,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio now-playing lookups resume with a fresh retry budget when you turn the integration back on while a station is playing',
+        'Radio now-playing resumes when turned back on for stations with a working now-playing service; restarting the station retries detection',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

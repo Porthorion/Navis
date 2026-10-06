@@ -428,14 +428,23 @@ While an internet radio station is active, authenticated
 mode. Fields are `stationId`, `stationName`, `streamHost` (host only, without
 port, path, credentials or query), `metadataSource` (`azuracast`, `icy` or `none`
 for the most recently applied metadata), `nowPlayingTitle`, `nowPlayingArtist`,
-`nowPlayingArtUrl` (the URL shown by the app, null when refused by policy), and
-`publishedArtUri` (the current `MediaItem.artUri` only when its ID matches the
-active station, null when absent or while a new station loads). The station
-fields use current handler state even before its next snapshot broadcast. Title,
+`nowPlayingArtHost` and `nowPlayingArtHash` (the artwork shown by the app, null
+when absent or refused by policy), and `publishedArtHost` and `publishedArtHash`
+(the current `MediaItem.artUri` only when its ID matches the active station,
+null when absent or while a new station loads). Artwork hosts omit port,
+userinfo, path, query and fragment. Artwork hashes are the first 16 hexadecimal
+characters of SHA-256 of the full URL: compare hashes to verify displayed and
+published artwork agree, or differ from the previous station's artwork, without
+exposing URLs or credentials. The station fields use current handler state even
+before its next snapshot broadcast. Title,
 artist and artwork may be null before metadata arrives. A successful AzuraCast
 station retains its metadata during transient API failures; two initial API
 failures fall back to available ICY metadata. Integration policy changes stop
 or resume polling for the current station without reopening the audio stream.
+Re-enabling resumes polling for working or still-unconfirmed now-playing
+services; an unconfirmed service gets a fresh two-failure probe budget. A service
+rejected after two initial failures stays on ICY metadata until the station is
+restarted, which retries detection.
 When radio now-playing lookups are off, the API title, artist and artwork are
 replaced by the stream's ICY title/artist (`metadataSource: icy`) or cleared
 (`nowPlayingTitle` and `nowPlayingArtist` null, `metadataSource: none`), with the

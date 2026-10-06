@@ -1411,7 +1411,8 @@ switch means "Navis only talks to your server" when off. See
   `none`. Missing ICY artist/artwork fields clear the previous API values.
   Re-enabling restarts polling
   unless the candidate API already failed its initial probe. Re-enabling an
-  unconfirmed candidate starts a fresh two-failure probe budget. The audio handler
+  unconfirmed candidate starts a fresh two-failure probe budget. Restarting the
+  station retries detection for a rejected candidate. The audio handler
   lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory.
   Two failed initial polls (HTTP, timeout, malformed JSON or missing
   `now_playing.song`) abandon the candidate
@@ -1427,9 +1428,11 @@ switch means "Navis only talks to your server" when off. See
   the system media item. Rebinding the same station to a replacement player preserves the source
   of its displayed metadata until a fresh update arrives.
   Playback diagnostics report the active radio station, stream host only, last
-  applied metadata source, displayed metadata/artwork and the actual published
-  media-item artwork URI for that station only. The diagnostics station comes
-  from current handler state rather than the last broadcast snapshot, and its
+  applied metadata source, displayed title/artist and artwork hosts plus opaque
+  URL hashes for displayed and published media-item artwork for that station only.
+  Artwork URLs, credentials, paths, queries and fragments are never emitted.
+  The diagnostics station comes from current handler state rather than the last
+  broadcast snapshot, and its
   published artwork is null while the new station loads;
   see the field contract in [development-workflow.md](development-workflow.md).
 - **Server-linked images.** `ExternalArtworkImage`
@@ -3635,10 +3638,12 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   Vibes mapping, LRCLIB, the exact library lookups behind player metadata
   navigation) prefer the candidate whose edition key equals the expected
   one. Same Vibes applies its minimum score before edition/availability
-  tie-breaks. Within an artist- or album-filtered match, navigation chooses
-  an exact raw title within a matching edition, then the smallest id, so
-  mastering duplicates stay usable. Unfiltered edition ties return no match
-  and leave navigation to the search fallback.
+  tie-breaks. Within a matching edition, album navigation with artist context
+  prefers an exact raw name, then the smallest id. Song navigation uses that
+  tie-break only when candidates share a nonempty artist ID or album ID, so
+  mastering duplicates stay usable. Name-only song namesakes across different
+  identities and unfiltered edition ties return no match and leave navigation
+  to the search fallback.
   Candidate edition keys are computed once on first access.
   `pickBestTrackMatch` drops another edition only when a passing
   same-edition candidate has at least as good artist and album scores, and

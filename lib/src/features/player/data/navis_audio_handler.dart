@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:crypto/crypto.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart' show Dio;
 import 'package:drift/drift.dart' show Value;
@@ -6247,6 +6249,11 @@ class NavisAudioHandler extends BaseAudioHandler
     return parsed.pathSegments.isEmpty ? null : parsed.pathSegments.last;
   }
 
+  /// Stable opaque artwork identity for comparisons without exposing URL parts.
+  static String? _diagnosticArtworkHash(String? url) => url == null
+      ? null
+      : sha256.convert(utf8.encode(url)).toString().substring(0, 16);
+
   /// Whether [player] holds exactly the materialised queue, by song id (an
   /// id remapped to its canonical song since it was loaded still matches).
   bool _sequenceMatchesQueue(AudioPlayer player) {
@@ -6272,6 +6279,10 @@ class NavisAudioHandler extends BaseAudioHandler
     final cacheActivity = _rollingCacheActivities.values.lastOrNull;
     final partialCacheBytes = _partialCacheBytesForSong(songId);
     final radio = _radioStation;
+    final publishedArt =
+        radio != null && mediaItem.value?.id == 'radio:${radio.stationId}'
+        ? mediaItem.value?.artUri?.toString()
+        : null;
     return <String, Object?>{
       'songId': songId,
       'radio': radio == null
@@ -6283,11 +6294,16 @@ class NavisAudioHandler extends BaseAudioHandler
               'metadataSource': _radioMetadataService.metadataSource.name,
               'nowPlayingTitle': radio.nowPlayingTitle,
               'nowPlayingArtist': radio.nowPlayingArtist,
-              'nowPlayingArtUrl': radio.nowPlayingArtUrl,
-              'publishedArtUri':
-                  mediaItem.value?.id == 'radio:${radio.stationId}'
-                  ? mediaItem.value?.artUri?.toString()
-                  : null,
+              'nowPlayingArtHost': radio.nowPlayingArtUrl == null
+                  ? null
+                  : Uri.tryParse(radio.nowPlayingArtUrl!)?.host,
+              'nowPlayingArtHash': _diagnosticArtworkHash(
+                radio.nowPlayingArtUrl,
+              ),
+              'publishedArtHost': publishedArt == null
+                  ? null
+                  : Uri.tryParse(publishedArt)?.host,
+              'publishedArtHash': _diagnosticArtworkHash(publishedArt),
             },
       'currentIndex': snapshot.currentIndex,
       'queueLength': snapshot.queueSongIds.length,

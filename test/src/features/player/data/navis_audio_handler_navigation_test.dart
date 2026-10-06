@@ -692,8 +692,8 @@ void main() {
         radio['nowPlayingArtist'],
         icyTitle != null && icyTitle.contains(' - ') ? 'ICY Artist' : null,
       );
-      expect(radio['nowPlayingArtUrl'], isNull);
-      expect(radio['publishedArtUri'], isNull);
+      expect(radio['nowPlayingArtHash'], isNull);
+      expect(radio['publishedArtHash'], isNull);
     });
   }
 
@@ -850,8 +850,8 @@ void main() {
         );
         expect(
           (handler.collectPlaybackDiagnostics()['radio']!
-              as Map)['publishedArtUri'],
-          'https://art.example.invalid/old.jpg',
+              as Map)['publishedArtHash'],
+          '522085851bcf10e0',
         );
         final gate = Completer<void>();
         final entered = Completer<void>();
@@ -868,7 +868,7 @@ void main() {
         await entered.future;
         final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
         expect(radio['stationId'], 'b');
-        expect(radio['publishedArtUri'], isNull);
+        expect(radio['publishedArtHash'], isNull);
         gate.complete();
         await switching;
         handler.updateRadioMetadata(
@@ -876,8 +876,8 @@ void main() {
         );
         expect(
           (handler.collectPlaybackDiagnostics()['radio']!
-              as Map)['publishedArtUri'],
-          'https://art.example.invalid/new.jpg',
+              as Map)['publishedArtHash'],
+          'b46273cb236821e0',
         );
       },
     );
@@ -965,13 +965,38 @@ void main() {
           'metadataSource': 'none',
           'nowPlayingTitle': null,
           'nowPlayingArtist': null,
-          'nowPlayingArtUrl': null,
-          'publishedArtUri': null,
+          'nowPlayingArtHost': null,
+          'nowPlayingArtHash': null,
+          'publishedArtHost': null,
+          'publishedArtHash': null,
         });
         await handler.stopRadio();
         expect(handler.collectPlaybackDiagnostics()['radio'], isNull);
       },
     );
+
+    test('radio artwork diagnostics redact credentials and retain identity', () async {
+      final handler = await radioHandler((_) => true);
+      const art =
+          'https://fixture:placeholder@art.example.invalid:8443/private/cover'
+          '?u=fixture&t=placeholder&s=placeholder&p=placeholder&token=placeholder#private';
+      handler.updateRadioMetadata(artUrl: art);
+      final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
+      expect(radio, isNot(contains('nowPlayingArtUrl')));
+      expect(radio, isNot(contains('publishedArtUri')));
+      expect(radio['nowPlayingArtHost'], 'art.example.invalid');
+      expect(radio['publishedArtHost'], 'art.example.invalid');
+      final identity = radio['nowPlayingArtHash'];
+      expect(identity, matches(RegExp(r'^[0-9a-f]{16}$')));
+      expect(radio['publishedArtHash'], identity);
+      expect(handler.collectPlaybackDiagnostics()['radio'], radio);
+      expect(radio.toString(), isNot(contains('placeholder')));
+      expect(radio.toString(), isNot(contains('/private')));
+      handler.updateRadioMetadata(artUrl: '$art-changed');
+      final changed = handler.collectPlaybackDiagnostics()['radio']! as Map;
+      expect(changed['nowPlayingArtHash'], isNot(identity));
+      expect(changed['publishedArtHash'], changed['nowPlayingArtHash']);
+    });
 
     test(
       'radio diagnostics identify ICY metadata and published artwork',
@@ -991,18 +1016,16 @@ void main() {
         radio =
             handler.collectPlaybackDiagnostics()['radio']!
                 as Map<String, Object?>;
-        expect(radio['nowPlayingArtUrl'], externalArt);
-        expect(
-          radio['publishedArtUri'],
-          handler.mediaItem.value!.artUri.toString(),
-        );
+        expect(radio['nowPlayingArtHost'], 'art.example.invalid');
+        expect(radio['nowPlayingArtHash'], '006b2f45dd4bfe45');
+        expect(radio['publishedArtHash'], radio['nowPlayingArtHash']);
         allowed = false;
         handler.updateRadioMetadata();
         radio =
             handler.collectPlaybackDiagnostics()['radio']!
                 as Map<String, Object?>;
-        expect(radio['nowPlayingArtUrl'], isNull);
-        expect(radio['publishedArtUri'], isNull);
+        expect(radio['nowPlayingArtHash'], isNull);
+        expect(radio['publishedArtHash'], isNull);
         expect(radio['metadataSource'], 'icy');
         expect(handler.mediaItem.value!.title, 'ICY Song');
         expect(handler.mediaItem.value!.artist, 'ICY Artist');

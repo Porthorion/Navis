@@ -289,8 +289,10 @@ void main() {
         'metadataSource': 'azuracast',
         'nowPlayingTitle': 'Song',
         'nowPlayingArtist': 'Artist',
-        'nowPlayingArtUrl': 'https://art.example.invalid/cover.jpg',
-        'publishedArtUri': 'https://art.example.invalid/cover.jpg',
+        'nowPlayingArtHost': 'art.example.invalid',
+        'nowPlayingArtHash': '006b2f45dd4bfe45',
+        'publishedArtHost': 'art.example.invalid',
+        'publishedArtHash': '006b2f45dd4bfe45',
       };
       when(handler.collectPlaybackDiagnostics)
           .thenAnswer((_) => {'radio': radio});
@@ -308,6 +310,9 @@ void main() {
       );
       expect(observed.statusCode, HttpStatus.ok);
       expect(observed.body['radio'], radio);
+      expect(observed.body.toString(), isNot(contains('https://')));
+      expect(observed.body['radio'], isNot(contains('nowPlayingArtUrl')));
+      expect(observed.body['radio'], isNot(contains('publishedArtUri')));
       expect(observed.body, contains('providerCacheActivity'));
       radio = null;
       final stopped = await _request(

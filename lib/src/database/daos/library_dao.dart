@@ -2714,7 +2714,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         title,
         (song) => song.title,
         (song) => song.id,
-        allowTies: true,
+        // A shared name alone cannot establish artist or album identity.
+        allowTies:
+            (matches.first.artistId?.isNotEmpty ?? false) &&
+                matches.every(
+                  (song) => song.artistId == matches.first.artistId,
+                ) ||
+            (matches.first.albumId?.isNotEmpty ?? false) &&
+                matches.every((song) => song.albumId == matches.first.albumId),
       );
     }
 

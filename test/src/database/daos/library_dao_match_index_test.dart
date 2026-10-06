@@ -698,9 +698,19 @@ void main() {
       'same-edition contextual lookup prefers a raw title then the smallest id',
       () async {
         await database.libraryDao.upsertSongs([
-          _song('z-remaster', 'Song (Remastered)', artistName: '嵐'),
-          _song('a-raw', 'Song', artistName: '嵐'),
-          _song('0-first', 'Song (Deluxe Edition)', artistName: '嵐'),
+          _song(
+            'z-remaster',
+            'Song (Remastered)',
+            artistId: 'oor',
+            artistName: '嵐',
+          ),
+          _song('a-raw', 'Song', artistId: 'oor', artistName: '嵐'),
+          _song(
+            '0-first',
+            'Song (Deluxe Edition)',
+            artistId: 'oor',
+            artistName: '嵐',
+          ),
         ]);
         await database.customStatement('PRAGMA reverse_unordered_selects = ON');
         expect(
@@ -760,6 +770,94 @@ void main() {
               artistName: artist,
             ),
             isNull,
+          );
+        }
+      },
+    );
+
+    test(
+      'album name fallback keeps unrelated song namesakes ambiguous',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song(
+            'abba-song',
+            'Song',
+            artistId: 'oor',
+            artistName: 'ABBA',
+            albumId: 'jp-name',
+            albumName: 'Greatest Hits',
+          ),
+          _song(
+            'blondie-song',
+            'Song',
+            artistId: 'oor-latin',
+            artistName: 'Blondie',
+            albumId: 'full-width',
+            albumName: 'Greatest Hits',
+          ),
+        ]);
+        for (final artist in [null, 'Queen']) {
+          expect(
+            await database.libraryDao.findOneExactNormalizedSongByTitle(
+              'Song',
+              artistId: 'missing',
+              artistName: artist,
+              albumName: 'Greatest Hits',
+            ),
+            isNull,
+          );
+        }
+      },
+    );
+
+    test(
+      'matching artist names do not permit ties across artist identities',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song('a-song', 'Song', artistId: 'oor', artistName: 'Namesake'),
+          _song(
+            'b-song',
+            'Song',
+            artistId: 'oor-latin',
+            artistName: 'Namesake',
+          ),
+        ]);
+        expect(
+          await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song',
+            artistName: 'Namesake',
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'album identity permits deterministic song ties without an artist',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song(
+            'z-song',
+            'Song',
+            albumId: 'jp-name',
+            albumName: 'Greatest Hits',
+          ),
+          _song(
+            'a-song',
+            'Song',
+            albumId: 'jp-name',
+            albumName: 'Greatest Hits',
+          ),
+        ]);
+        await database.customStatement('PRAGMA reverse_unordered_selects = ON');
+        for (final albumId in [null, 'jp-name']) {
+          expect(
+            (await database.libraryDao.findOneExactNormalizedSongByTitle(
+              'Song',
+              albumId: albumId,
+              albumName: 'Greatest Hits',
+            ))?.id,
+            'a-song',
           );
         }
       },
