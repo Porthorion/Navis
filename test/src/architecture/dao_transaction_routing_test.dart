@@ -14,7 +14,7 @@ void main() {
               !file.path.endsWith('.g.dart'),
         );
     final accessors = RegExp(
-      r'class\s+\w+\s+extends\s+DatabaseAccessor<NavisDatabase>\s+with\s+([^\{]+)\{',
+      r'class\s+\w+\s+extends\s+DatabaseAccessor<NavisDatabase>\s*([^\{]*)\{',
     );
     var count = 0;
     for (final file in files) {

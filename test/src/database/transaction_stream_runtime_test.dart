@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:path/path.dart' as p;
 
 class _Watch<T> {
-  _Watch(Stream<T> stream) {
+  new(Stream<T> stream) {
     _subscription = stream.listen(values.add);
     addTearDown(() => _subscription.cancel());
   }
@@ -38,7 +38,7 @@ class _Watch<T> {
 // Adds only a commit barrier; the executor is still NavisDatabase.atPath's
 // production WAL connection with both reader isolates.
 class _CommitBarrierDatabase extends NavisDatabase {
-  _CommitBarrierDatabase.atPath(super.databasePath) : super.atPath();
+  new atPath(super.databasePath) : super.atPath();
 
   Future<void> Function()? beforeCommit;
   final _barrierZoneKey = Object();
@@ -238,6 +238,40 @@ void main() {
     await joinedQueue.until((rows) => rows.single.id == 'canonical');
     await joinedPlaylist.until((rows) => rows.single.id == 'canonical');
   });
+
+  for (final type in ['album', 'artist']) {
+    test('$type remap refreshes pending annotation references', () async {
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'old-artist', name: 'Old artist'),
+        ArtistsTableCompanion.insert(id: 'new-artist', name: 'New artist'),
+      ]);
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(id: 'old-album', name: 'Old album'),
+        AlbumsTableCompanion.insert(id: 'new-album', name: 'New album'),
+      ]);
+      await database.starSyncDao.queueStarAction(
+        itemId: 'old-$type',
+        itemType: type,
+        action: 'star',
+      );
+      final watch = _Watch(database.starSyncDao.watchPendingActions());
+      await watch.until((rows) => rows.single.itemId == 'old-$type');
+      if (type == 'album') {
+        await database.songIdentityDao.remapAlbumIdentity(
+          oldAlbumId: 'old-album',
+          canonicalAlbumId: 'new-album',
+          matchReason: 'test',
+        );
+      } else {
+        await database.songIdentityDao.remapArtistIdentity(
+          oldArtistId: 'old-artist',
+          canonicalArtistId: 'new-artist',
+          matchReason: 'test',
+        );
+      }
+      await watch.until((rows) => rows.single.itemId == 'new-$type');
+    });
+  }
 
   test(
     'rollback propagates unchanged without replay and later commit updates',
