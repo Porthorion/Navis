@@ -8,23 +8,31 @@ import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'src/audio_request_batch.dart';
 import 'src/deferred_seek.dart';
+import 'src/icy_metadata.dart';
+import 'src/icy_property_source.dart';
 import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
-  MediaKitPlayer(super.id, {EqualizerConfigurationMessage? equalizer}) {
+  MediaKitPlayer(super.id,
+      {EqualizerConfigurationMessage? equalizer,
+      IcyPropertySource? icyPropertySource,
+      Player? player}) {
     _equalizer = equalizer;
-    _player = Player(
-        configuration: PlayerConfiguration(
-      pitch: JustAudioMediaKit.pitch,
-      protocolWhitelist: JustAudioMediaKit.protocolWhitelist,
-      title: JustAudioMediaKit.title,
-      bufferSize: JustAudioMediaKit.bufferSize,
-      logLevel: JustAudioMediaKit.mpvLogLevel,
-      ready: _readyCompleter.complete,
-    ));
+    _player = player ??
+        Player(
+            configuration: PlayerConfiguration(
+          pitch: JustAudioMediaKit.pitch,
+          protocolWhitelist: JustAudioMediaKit.protocolWhitelist,
+          title: JustAudioMediaKit.title,
+          bufferSize: JustAudioMediaKit.bufferSize,
+          logLevel: JustAudioMediaKit.mpvLogLevel,
+          ready: _readyCompleter.complete,
+        ));
+
+    if (player != null) _readyCompleter.complete();
 
     // Navis: Subsonic progressive streams are often not marked seekable by
     // lavf/libmpv (especially opus transcodes). Without this, seeks hang or
@@ -86,6 +94,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       }
       _updatePlaybackEvent();
     });
+
+    _icyMetadata = IcyMetadataObserver(
+      source: icyPropertySource ?? createIcyPropertySource(_player),
+      onChanged: (_) {
+        if (!_released) _updatePlaybackEvent();
+      },
+    );
+    _icyMetadataReady = _icyMetadata.start();
 
     _streamSubscriptions = [
       _player.stream.audioParams.listen((params) {
@@ -196,6 +212,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           _bufferedPosition = _position = Duration.zero;
           _currentIndex = playlist.index;
         }
+        final uri = _currentMedia?.uri;
+        if (_mediaOpened && uri != _icyMetadata.sourceUri) {
+          _icyMetadata.setSource(uri);
+          unawaited(_icyMetadata.refresh());
+        }
         _duration = _currentMedia?.extras?['overrideDuration'];
         if (!_bulkPlaylistMutation) _updatePlaybackEvent();
       }),
@@ -218,6 +239,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// `package:media_kit`'s [Player]
   late final Player _player;
+  late final IcyMetadataObserver _icyMetadata;
+  late final Future<void> _icyMetadataReady;
 
   /// The subscriptions that have to be disposed
   late final List<StreamSubscription> _streamSubscriptions;
@@ -400,7 +423,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       updatePosition: _position,
       bufferedPosition: _bufferedPosition,
       duration: _duration,
-      icyMetadata: null,
+      icyMetadata: _icyMetadata.value,
       currentIndex: _currentIndex,
       androidAudioSessionId: null,
       errorCode: _errorCode,
@@ -419,6 +442,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     unawaited(
         load.future.then<void>((_) {}, onError: (Object _, StackTrace __) {}));
     _mediaOpened = false;
+    _icyMetadata.setSource(null);
     _playbackInitialized = false;
     _loadCompleter = load;
     _deferredSeek.beginLoad(request.initialPosition);
@@ -439,6 +463,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     try {
       await _nativeSeekingReady;
+      await _icyMetadataReady;
       if (request.audioSourceMessage is ConcatenatingAudioSourceMessage) {
         final audioSource =
             request.audioSourceMessage as ConcatenatingAudioSourceMessage;
@@ -446,15 +471,20 @@ class MediaKitPlayer extends AudioPlayerPlatform {
             audioSource.children.map(_convertAudioSourceIntoMediaKit).toList(),
             index: _currentIndex);
 
+        _icyMetadata.setSource(playable.medias.isEmpty
+            ? null
+            : playable.medias[_currentIndex].uri);
         await _player.open(playable, play: _playing);
       } else {
         final playable =
             _convertAudioSourceIntoMediaKit(request.audioSourceMessage);
         _logger.finest('playable is $playable');
+        _icyMetadata.setSource(playable.uri);
         await _player.open(playable, play: _playing);
       }
       if (generation != _loadGeneration) return LoadResponse(duration: null);
       _mediaOpened = true;
+      await _icyMetadata.refresh();
       if (_equalizer != null) await _serializeAudio(_applyAudio);
 
       await _finishLoad(generation);
@@ -701,6 +731,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _loadCompleter = null;
     _mediaOpened = false;
     _nativeStart = null;
+    await _icyMetadata.dispose();
     await _player.dispose();
     // cancel all stream subscriptions
     for (final subscription in _streamSubscriptions) {

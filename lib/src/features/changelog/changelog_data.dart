@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Internet radio shows live song titles on desktop and falls back to stream titles or the station name when radio now-playing lookups are turned off',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Likes, ratings, hydrated playlists and synced library updates refresh immediately after saving without unnecessary refreshes; identity repairs also refresh saved queue and playlist references',
         type: ChangelogEntryType.fix,
       ),
