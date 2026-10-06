@@ -170,7 +170,7 @@ class LocalTrackMatchSnapshot {
 
     final expectedArtistTokens = expectedArtist
         .split(' ')
-        .where((token) => token.length > 1)
+        .where((token) => token.runes.length > 1)
         .toSet();
 
     return all
@@ -178,7 +178,8 @@ class LocalTrackMatchSnapshot {
           final candidateArtist = candidate.normalizedArtist;
           if (candidateArtist.isEmpty) return false;
           if (candidateArtist == expectedArtist) return true;
-          if (expectedArtist.length < 2 || candidateArtist.length < 2) {
+          if (expectedArtist.runes.length < 2 ||
+              candidateArtist.runes.length < 2) {
             return false;
           }
           if (candidateArtist.contains(expectedArtist) ||
@@ -187,7 +188,7 @@ class LocalTrackMatchSnapshot {
           }
           final candidateArtistTokens = candidateArtist
               .split(' ')
-              .where((token) => token.length > 1)
+              .where((token) => token.runes.length > 1)
               .toSet();
           return expectedArtistTokens
               .intersection(candidateArtistTokens)

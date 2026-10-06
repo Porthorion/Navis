@@ -117,9 +117,15 @@ void main() {
       _song('xx', 'Other', artistName: 'XX'),
       _song('arashi', '花', artistName: '嵐'),
       _song('other-arashi', 'Other', artistName: '嵐山'),
+      _song('supplementary', '花', artistName: '𠮷'),
+      _song('other-supplementary', 'Other', artistName: '𠮷田'),
     ]);
     await database.libraryDao.refreshSongSearchIndex();
-    for (final (artist, id) in [('X', 'x'), ('嵐', 'arashi')]) {
+    for (final (artist, id) in [
+      ('X', 'x'),
+      ('嵐', 'arashi'),
+      ('𠮷', 'supplementary'),
+    ]) {
       final candidates = await database.libraryDao.getTrackMatchCandidates([
         (title: 'Unknown', artist: artist),
       ]);

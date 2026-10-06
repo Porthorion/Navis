@@ -3481,9 +3481,9 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
-  share a word. Artist keys shorter than two characters require equality
-  in both the DAO and snapshot fallback. A snapshot built from those makes the same matches as one
-  built from the whole library. The artist rules are tested once per distinct
+  share a word. Artist keys shorter than two Unicode characters require
+  equality in both the DAO and snapshot fallback. A snapshot built from those
+  makes the same matches as one built from the whole library. The artist rules are tested once per distinct
   `match_artist` key (indexed, like `match_title`), not once per song, and
   the matching songs are read through the two key indexes;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test

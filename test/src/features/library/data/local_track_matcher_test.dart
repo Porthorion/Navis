@@ -47,6 +47,20 @@ void main() {
         isProvisional: false,
         isExternal: false,
       ),
+      SongsTableData(
+        id: 'supplementary',
+        title: '花',
+        artistName: '𠮷',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'other-supplementary',
+        title: 'Other',
+        artistName: '𠮷田',
+        isProvisional: false,
+        isExternal: false,
+      ),
     ]);
     expect(
       snapshot
@@ -59,6 +73,12 @@ void main() {
           .candidatesFor(const TrackMatchQuery(title: 'Unknown', artist: '嵐'))
           .map((c) => c.song.id),
       ['arashi'],
+    );
+    expect(
+      snapshot
+          .candidatesFor(const TrackMatchQuery(title: 'Unknown', artist: '𠮷'))
+          .map((c) => c.song.id),
+      ['supplementary'],
     );
   });
 

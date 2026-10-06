@@ -3692,8 +3692,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         if (artistKeys.any(
               (artist) =>
                   key == artist ||
-                  (key.length >= 2 &&
-                      artist.length >= 2 &&
+                  (key.runes.length >= 2 &&
+                      artist.runes.length >= 2 &&
                       (key.contains(artist) || artist.contains(key))),
             ) ||
             key.split(' ').any(artistTokens.contains)) {
@@ -3761,7 +3761,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       );
       variables
         ..add(Variable<String>(artist))
-        ..add(Variable<int>(artist.length))
+        ..add(Variable<int>(artist.runes.length))
         ..add(Variable<String>(artist))
         ..add(Variable<String>(artist));
     }
@@ -3802,7 +3802,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       artistKeys: artistKeys,
       artistTokens: <String>{
         for (final artist in artistKeys)
-          ...artist.split(' ').where((token) => token.length > 1),
+          ...artist.split(' ').where((token) => token.runes.length > 1),
       },
     );
   }

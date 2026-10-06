@@ -137,7 +137,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates and single-character artists match consistently',
+        'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates and single-character Unicode artists match consistently',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
