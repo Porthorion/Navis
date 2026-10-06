@@ -53,7 +53,7 @@ class _ControlledRefreshDao extends LibraryDao {
   Future<int> refreshSongSearchIndex({int batchSize = 2000}) async {
     refreshCalls++;
     await refreshGate?.future;
-    return super.refreshSongSearchIndex(batchSize: batchSize);
+    return await super.refreshSongSearchIndex(batchSize: batchSize);
   }
 }
 
