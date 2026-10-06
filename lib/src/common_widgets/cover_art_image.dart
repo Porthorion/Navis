@@ -157,6 +157,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   @override
   void didUpdateWidget(covariant CoverArtImage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverArtId != widget.coverArtId ||
+        oldWidget.size != widget.size ||
+        oldWidget.lockedSize != widget.lockedSize ||
+        oldWidget.revision != widget.revision) {
+      _cancelPendingRetry();
+    }
     if (oldWidget.loadPriority != widget.loadPriority ||
         oldWidget.preloadScreens != widget.preloadScreens) {
       _scheduleLoadWindowCheck();
@@ -165,7 +171,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
 
   @override
   void dispose() {
-    _retryTimer?.cancel();
+    _cancelPendingRetry();
     _scrollPosition?.removeListener(_handleScrollPositionChanged);
     _clearInterest();
     super.dispose();
@@ -339,6 +345,8 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
         identical(_cacheProbeManager, cacheManager)) {
       return;
     }
+    // Layout constraints can also change the resolved size and cache key.
+    if (_cacheProbeKey != cacheKey) _cancelPendingRetry();
     _cacheProbeKey = cacheKey;
     _cacheProbeManager = cacheManager;
     _cachedFileInfo = null;
@@ -556,6 +564,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       },
     );
     return _clip(image);
+  }
+
+  void _cancelPendingRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
   }
 
   /// Loads a server cover again, once per [cacheKey], after it timed out, so

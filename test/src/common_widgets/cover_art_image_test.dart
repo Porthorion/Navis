@@ -403,6 +403,62 @@ void main() {
         expect(find.byType(RawImage), findsOneWidget);
       });
 
+      testWidgets('unmounting after a timeout cancels the pending retry', (
+        tester,
+      ) async {
+        final manager = await pumpTimingOut(tester, timeouts: 98);
+        await settle(tester, Duration.zero);
+        expect(manager.downloads, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await settle(
+          tester,
+          kCoverArtTimeoutRetryDelay + const Duration(seconds: 1),
+        );
+        expect(manager.downloads, 1);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('changing the cover clears its pending retry', (
+        tester,
+      ) async {
+        final manager = await pumpTimingOut(tester, timeouts: 97);
+        await settle(tester, Duration.zero);
+        expect(manager.downloads, 1);
+        // Keep the same state mounted while removing its cover identity.
+        await tester.pumpWidget(
+          _buildWidget(
+            overrides: <Object>[
+              subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+              coverArtLoadCoordinatorProvider.overrideWithValue(
+                CoverArtLoadCoordinator(),
+              ),
+              coverArtCacheManagerProvider.overrideWithValue(manager),
+            ],
+            child: const CoverArtImage(
+              coverArtId: null,
+              width: 64,
+              height: 64,
+              placeholderIcon: Icons.music_note_outlined,
+            ),
+          ),
+        );
+        await tester.pump();
+        final placeholder = tester.widget<Icon>(
+          find.byIcon(Icons.music_note_outlined),
+        );
+        await settle(
+          tester,
+          kCoverArtTimeoutRetryDelay + const Duration(seconds: 1),
+        );
+        // An obsolete timer would rebuild the replacement placeholder.
+        expect(
+          tester.widget<Icon>(find.byIcon(Icons.music_note_outlined)),
+          same(placeholder),
+        );
+        expect(manager.downloads, 1);
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('is never retried more than once', (tester) async {
         final manager = await pumpTimingOut(tester, timeouts: 99);
         await settle(tester, Duration.zero);
