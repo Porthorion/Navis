@@ -1562,8 +1562,11 @@ fallback.
   no longer read. On the first cache operation, an asynchronous sweep deletes
   only root files matching `^lastfm_top_[0-9a-f]{16}\.json$`; directories,
   symlinks, nested files and other names are untouched. The initialization
-  future is shared across concurrent operations and runs once per cache
-  instance. Existence checks during cache operations are asynchronous.
+  future is shared across concurrent operations; a failed root lookup is
+  cleared so the next operation retries. The sweep runs once per cache instance
+  (once per launch for the app-owned cache); an entry that cannot be deleted
+  does not prevent cleaning up the others. Existence checks during cache
+  operations are asynchronous.
 - **Artist resolution.** `DeezerArtistResolver`
   (`deezerArtistResolverProvider`) uses the id of a library artist
   `ext-deezer-artist-<id>` directly. Otherwise it reads the cached mapping or

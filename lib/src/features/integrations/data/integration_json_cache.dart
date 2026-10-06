@@ -123,8 +123,15 @@ class IntegrationJsonCache {
     if (!_namespacePattern.hasMatch(namespace)) {
       throw ArgumentError.value(namespace, 'namespace');
     }
-    final root = await (_root ??= _initializeRoot());
-    return Directory(p.join(root.path, directoryName, namespace));
+    final initialization = _root ??= _initializeRoot();
+    try {
+      final root = await initialization;
+      return Directory(p.join(root.path, directoryName, namespace));
+    } on Object {
+      // A late failure from another caller must not clear a newer retry.
+      if (identical(_root, initialization)) _root = null;
+      rethrow;
+    }
   }
 
   Future<Directory> _initializeRoot() async {
@@ -136,7 +143,13 @@ class IntegrationJsonCache {
         final legacyName = RegExp(r'^lastfm_top_[0-9a-f]{16}\.json$');
         await for (final entry in root.list(followLinks: false)) {
           if (entry is File && legacyName.hasMatch(p.basename(entry.path))) {
-            await entry.delete();
+            try {
+              await entry.delete();
+            } on FileSystemException catch (error) {
+              AppLogger.debug(
+                'IntegrationJsonCache: legacy entry cleanup failed: $error',
+              );
+            }
           }
         }
       }
