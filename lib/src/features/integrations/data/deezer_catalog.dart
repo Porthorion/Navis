@@ -127,19 +127,6 @@ class DeezerCatalog {
     ],
   );
 
-  /// `/album/{id}`: one release with its track count and tracklist.
-  Future<DeezerAlbum?> album(int albumId, {CancelToken? cancelToken}) =>
-      _cached(
-        namespace: DeezerCache.albumNamespace,
-        key: '$albumId',
-        ttl: DeezerCache.albumTtl,
-        fetch: () => _client.getAlbum(albumId, cancelToken: cancelToken),
-        encode: (album) => album?.toJson(),
-        decode: (json) => json is Map
-            ? DeezerAlbum.fromJson(Map<String, dynamic>.from(json))
-            : null,
-      );
-
   Future<T> _cached<T>({
     required String namespace,
     required String key,

@@ -17,9 +17,6 @@ abstract final class DeezerCache {
   /// Deezer artist id → `/artist/{id}/albums`.
   static const artistAlbumsNamespace = 'deezer.artist-albums';
 
-  /// Deezer album id → `/album/{id}` (track count and tracklist).
-  static const albumNamespace = 'deezer.album';
-
   /// Deezer artist id → the first few `/artist/{id}/albums`, for New
   /// releases on Home.
   static const artistRecentAlbumsNamespace = 'deezer.artist-recent-albums';
@@ -33,8 +30,6 @@ abstract final class DeezerCache {
   static const relatedArtistsTtl = Duration(days: 7);
   static const albumsTtl = Duration(hours: 24);
 
-  /// One release's details; they barely change once it is out.
-  static const albumTtl = Duration(days: 7);
   static const trackSearchTtl = Duration(hours: 24);
   static const chartTtl = Duration(hours: 6);
 }

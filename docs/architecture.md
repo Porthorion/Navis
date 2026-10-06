@@ -1485,8 +1485,8 @@ as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
 retried once after 5 seconds, code 800 ("no data") reads as an empty result,
 and any other code throws `DeezerApiException`. Endpoints used so far:
 `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
-`/artist/{id}/related`, `/artist/{id}/albums`, `/album/{id}` (with its
-tracklist) and `/chart/0/tracks`; new ones go
+`/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new
+ones go
 through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
 and round-trip through `toJson` for the cache. In some regions
@@ -1501,7 +1501,7 @@ fallback.
   because the directory comes from `path_provider`, which clones replace.
   `DeezerCache` holds the Deezer namespaces and lifetimes: artist name to id
   30 days ("not on Deezer" 7), artist details and related artists 7 days,
-  an artist's albums and track searches 24 hours, one album 7 days, charts 6
+  an artist's albums and track searches 24 hours, charts 6
   hours. It replaced
   `LastFmArtistCache`; files that cache wrote (`lastfm_top_<hash>.json`) are
   no longer read.
@@ -1658,10 +1658,8 @@ resolver above), which is only watched after a feature switch has been
 checked, so with all three off the page sends nothing to Deezer.
 `DeezerCatalog` (`features/integrations/data/deezer_catalog.dart`,
 `deezerCatalogProvider`) reads `/artist/{id}`, `/artist/{id}/related`,
-`/artist/{id}/albums` and `/album/{id}` (no longer read by the app since the
-release sheet was retired) through the disk cache: artist details
-and related artists 7 days, albums 24 hours, an album 7 days, "not on Deezer"
-included; errors are not cached. The resolver shares one resolution between
+and `/artist/{id}/albums` through the disk cache: artist details and related
+artists 7 days, albums 24 hours, "not on Deezer" included; errors are not cached. The resolver shares one resolution between
 callers asking for the same library artist and name at once (Top Songs and
 these sections on a first visit).
 

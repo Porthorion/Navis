@@ -205,13 +205,10 @@ void main() {
     );
   });
 
-  test('getArtist and getAlbum read code 800 as not found', () async {
-    adapter
-      ..queue('/artist/9', _error(800, 'DataException', 'no data'))
-      ..queue('/album/9', _error(800, 'DataException', 'no data'));
+  test('getArtist reads code 800 as not found', () async {
+    adapter.queue('/artist/9', _error(800, 'DataException', 'no data'));
 
     expect(await client.getArtist(9), isNull);
-    expect(await client.getAlbum(9), isNull);
   });
 
   test('getRelatedArtists parses artists and sends the limit', () async {
@@ -226,58 +223,6 @@ void main() {
 
     expect(related.map((artist) => artist.name), ['Coldrain']);
     expect(adapter.requests.single.queryParameters['limit'], '12');
-  });
-
-  test('getAlbum parses the track count', () async {
-    adapter.queue('/album/302127', <String, Object?>{
-      'id': 302127,
-      'title': 'Ambitions (Japanese Version)',
-      'record_type': 'album',
-      'release_date': '2017-01-11',
-      'nb_tracks': 14,
-    });
-
-    final album = await client.getAlbum(302127);
-
-    expect(album?.title, 'Ambitions (Japanese Version)');
-    expect(album?.trackCount, 14);
-    expect(album?.releaseDate, '2017-01-11');
-  });
-
-  test('getAlbum parses the tracklist, which round-trips', () async {
-    adapter.queue('/album/910510411', <String, Object?>{
-      'id': 910510411,
-      'title': 'Dracula (with JENNIE)',
-      'record_type': 'single',
-      'release_date': '2026-02-06',
-      'nb_tracks': 2,
-      'tracks': <String, Object?>{
-        'data': <Object?>[
-          _track(3818963601, 'Dracula (with JENNIE)'),
-          _track(3818963602, 'Dracula (with JENNIE) [Instrumental]'),
-        ],
-      },
-    });
-
-    final album = await client.getAlbum(910510411);
-
-    expect(album?.tracks?.map((track) => track.title), <String>[
-      'Dracula (with JENNIE)',
-      'Dracula (with JENNIE) [Instrumental]',
-    ]);
-    expect(album?.tracks?.first.durationSeconds, 175);
-    final cached = DeezerAlbum.fromJson(
-      jsonDecode(jsonEncode(album!.toJson())) as Map<String, dynamic>,
-    );
-    expect(cached.tracks?.map((track) => track.id), <int>[
-      3818963601,
-      3818963602,
-    ]);
-    // A listed album has no tracklist, and none is written for it.
-    expect(
-      const DeezerAlbum(id: 1, title: 'A').toJson(),
-      isNot(contains('tracks')),
-    );
   });
 
   test('getChartTracks parses the chart and sends the limit', () async {

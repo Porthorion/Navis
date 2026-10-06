@@ -160,19 +160,6 @@ class DeezerApiClient {
     return data.map(DeezerTrack.fromJson).where(_hasTrackId).toList();
   }
 
-  /// `/album/{id}`: one release with its track count and tracklist, or null
-  /// when Deezer has no such album.
-  Future<DeezerAlbum?> getAlbum(int albumId, {CancelToken? cancelToken}) async {
-    final body = await getJson(
-      'album/$albumId',
-      const <String, Object>{},
-      cancelToken: cancelToken,
-    );
-    if (body == null) return null;
-    final album = DeezerAlbum.fromJson(body);
-    return album.id > 0 ? album : null;
-  }
-
   /// The `data` list of a list endpoint, empty for code 800.
   Future<List<Map<String, dynamic>>> _getData(
     String path,

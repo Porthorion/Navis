@@ -58,12 +58,6 @@ class _FakeDeezer extends DeezerApiClient {
       ),
     ];
   }
-
-  @override
-  Future<DeezerAlbum?> getAlbum(int albumId, {CancelToken? cancelToken}) async {
-    calls.add('album/$albumId');
-    return DeezerAlbum(id: albumId, title: 'Ambitions', trackCount: 14);
-  }
 }
 
 void main() {
@@ -138,13 +132,6 @@ void main() {
     now = now.add(const Duration(minutes: 1));
     await catalog.chartTracks();
     expect(deezer.calls, hasLength(2));
-  });
-
-  test('an album is kept for 7 days with its track count', () async {
-    expect((await catalog.album(9))?.trackCount, 14);
-    now = now.add(const Duration(days: 6));
-    expect((await catalog.album(9))?.trackCount, 14);
-    expect(deezer.calls, ['album/9']);
   });
 
   test('"not on Deezer" is cached too', () async {
