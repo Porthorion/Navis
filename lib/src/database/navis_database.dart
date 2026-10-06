@@ -171,20 +171,25 @@ class NavisDatabase extends _$NavisDatabase {
     }
 
     final updates = <TableUpdate>{};
-    // Subscribe outside Drift's transaction zone to capture the root store.
-    final subscription = tableUpdates().listen(updates.addAll);
-    late T result;
-    try {
-      result = await runZoned(
-        () => super.transaction(action, requireNew: requireNew),
-        zoneValues: {_transactionZoneKey: true},
-      );
-      // tableUpdates forwards asynchronously. Let the commit's final updates
-      // arrive before canceling, and publish only after the writer committed.
-      await Future<void>.microtask(() {});
-    } finally {
-      await subscription.cancel();
-    }
+    // Capture the root store outside Drift's zone, but only listen once this
+    // transaction owns the writer lock. Queued transactions must not collect
+    // announcements from the transaction ahead of them.
+    final rootUpdates = tableUpdates();
+    final result = await runZoned(
+      () => super.transaction(() async {
+        final subscription = rootUpdates.listen(updates.addAll);
+        try {
+          return await action();
+        } finally {
+          // Stream.multi forwards root updates asynchronously. Drain the
+          // action's pending deliveries before canceling, while still holding
+          // the lock and before Drift dispatches this transaction's own tables.
+          await Future<void>.microtask(() {});
+          await subscription.cancel();
+        }
+      }, requireNew: requireNew),
+      zoneValues: {_transactionZoneKey: true},
+    );
     // Exceptions skip this replay and retain their original stack trace.
     if (updates.isNotEmpty) notifyUpdates(updates);
     return result;

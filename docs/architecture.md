@@ -238,15 +238,19 @@ Located in `lib/src/providers/app_providers.dart`:
   DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
   savepoint updates on the root stream store before the outer commit, so WAL
   readers can re-read old data and otherwise remain stale. The outermost call
-  uses a database-specific zone key and subscribes to root `tableUpdates()`
-  before starting. It collects every announced table and update kind, waits
-  for a successful commit and the next microtask, cancels its listener, then
-  re-announces the collected updates with `notifyUpdates`. Nested calls retain
-  Drift's savepoints and `requireNew` behavior. Exceptions propagate unchanged
-  without replay; the listener is always canceled. Concurrent root writes may
-  be collected too, causing harmless extra re-queries rather than lost updates.
-  `customStatement` writers must call `notifyUpdates` for every table they
-  rewrite after their method's transaction succeeds, as `enqueueWork` and
+  uses a database-specific zone key and creates root `tableUpdates()` outside
+  Drift's transaction zone. It starts listening inside the transaction action,
+  once the writer lock is held, collects premature root announcements with
+  their update kinds, then drains their pending asynchronous deliveries and
+  cancels the listener before committing. After a successful commit it replays
+  only those collected updates with `notifyUpdates`. Drift dispatches the
+  outer transaction's own tables after commit; these are not collected or
+  re-announced. A transaction waiting for the writer lock does not collect
+  the preceding transaction's announcements. Nested calls retain Drift's
+  savepoints and `requireNew` behavior. Exceptions propagate unchanged without
+  replay; the listener is always canceled.
+  `customStatement` writers must call `notifyUpdates` for every table a stream
+  may watch after their method's transaction succeeds, as `enqueueWork` and
   identity remaps do. When composed inside an outer transaction, these
   announcements are included in its post-commit replay. Ordinary Drift writes
   and batches already announce their tables; raw SQL cannot be inferred by
@@ -1663,12 +1667,12 @@ reads "Not Found".
   opens of an artist share one request. Rows land as provisional external
   rows, as before. A remote album marked hydrated without a stored track
   is fetched again (`LibraryDao.countSongsByAlbum`). Artist and album
-  hydrations announce the artists, albums and songs tables again once their
-  transaction commits: the DAO writes nest their own transactions, drift
-  announces a nested transaction's tables before the outer commit, and a
-  stream re-reading then on the WAL read pool would keep the old rows. The
-  pages also re-read their artist or album stream when it still misses a
-  row the request stored.
+  hydrations are covered by `NavisDatabase.transaction`'s general post-commit
+  replay: the nested DAO announcements that could make a WAL reader re-read
+  old rows are replayed after commit. The sync engine's explicit artists,
+  albums and songs announcements remain as belt-and-braces protection. The
+  pages also re-read their artist or album stream when it still misses a row
+  the request stored.
 - An `ext-…` id is remote whatever its row's flag says. Until the page has
   its minimum (artist: the stored artist with albums the request stored,
   even before the page's album list has read them, or a successful

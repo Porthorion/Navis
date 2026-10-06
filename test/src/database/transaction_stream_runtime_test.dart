@@ -48,7 +48,7 @@ class _CommitBarrierDatabase extends NavisDatabase {
     Future<T> Function() action, {
     bool requireNew = false,
   }) {
-    if (Zone.current[_barrierZoneKey] != null) {
+    if (beforeCommit == null || Zone.current[_barrierZoneKey] != null) {
       return super.transaction(action, requireNew: requireNew);
     }
     return runZoned(
@@ -81,6 +81,116 @@ void main() {
     await database.close();
     await directory.delete(recursive: true);
   });
+
+  test('plain outermost write announces each table exactly once', () async {
+    final updates = <Set<TableUpdate>>[];
+    final subscription = database.tableUpdates().listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    await database.playQueueDao.saveQueue(songIds: ['old']);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(updates, hasLength(1));
+    expect(updates.single.map((update) => update.table).toSet(), {
+      'play_queue',
+      'play_queue_items',
+    });
+  });
+
+  for (final nested in [false, true]) {
+    test(
+      'queued transaction does not replay preceding commit (nested: $nested)',
+      () async {
+        final updates = <Set<TableUpdate>>[];
+        final subscription = database.tableUpdates().listen(updates.add);
+        addTearDown(subscription.cancel);
+        final firstLocked = Completer<void>();
+        final releaseFirst = Completer<void>();
+        final secondLocked = Completer<void>();
+        final releaseSecond = Completer<void>();
+        addTearDown(() {
+          if (!releaseFirst.isCompleted) releaseFirst.complete();
+          if (!releaseSecond.isCompleted) releaseSecond.complete();
+        });
+
+        final first = database.transaction(() async {
+          Future<void> write() async {
+            await database
+                .into(database.artistsTable)
+                .insert(
+                  ArtistsTableCompanion.insert(id: 'first', name: 'First'),
+                );
+          }
+
+          if (nested) {
+            await database.transaction(write, requireNew: true);
+          } else {
+            await write();
+          }
+          firstLocked.complete();
+          await releaseFirst.future;
+        });
+        await firstLocked.future;
+        final second = database.transaction(() async {
+          secondLocked.complete();
+          await releaseSecond.future;
+          await database
+              .into(database.albumsTable)
+              .insert(
+                AlbumsTableCompanion.insert(id: 'second', name: 'Second'),
+              );
+        });
+        // Give the second call time to request the writer lock, while the first
+        // transaction is deliberately still holding it.
+        await Future<void>.delayed(Duration.zero);
+        expect(secondLocked.isCompleted, isFalse);
+        releaseFirst.complete();
+        await first;
+        await secondLocked.future;
+        await Future<void>.delayed(Duration.zero);
+        final beforeSecondCommit = updates.length;
+        releaseSecond.complete();
+        await second;
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          updates
+              .skip(beforeSecondCommit)
+              .expand((set) => set)
+              .map((u) => u.table),
+          isNot(contains('artists')),
+        );
+        expect(
+          updates.where((set) => set.any((u) => u.table == 'artists')),
+          hasLength(nested ? 2 : 1),
+        );
+      },
+    );
+  }
+
+  test(
+    'last asynchronous nested announcement is replayed after commit',
+    () async {
+      final updates = <Set<TableUpdate>>[];
+      final subscription = database.tableUpdates().listen(updates.add);
+      addTearDown(subscription.cancel);
+      await database.transaction(() async {
+        // This is the action's final write: no watch barrier or event-loop wait
+        // may be needed to collect tableUpdates' asynchronous delivery.
+        await database.transaction(() async {
+          await database
+              .into(database.artistsTable)
+              .insert(ArtistsTableCompanion.insert(id: 'last', name: 'Last'));
+        }, requireNew: true);
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        updates.where((set) => set.any((u) => u.table == 'artists')),
+        hasLength(2),
+      );
+      expect(await database.libraryDao.getArtistById('last'), isNotNull);
+    },
+  );
 
   test('DAO setStarred publishes liked songs after outer commit', () async {
     final watch = _Watch(database.libraryDao.watchAllStarredSongs());

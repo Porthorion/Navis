@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Likes, ratings, hydrated playlists and synced library updates refresh immediately after saving; identity repairs also refresh saved queue and playlist references',
+        'Likes, ratings, hydrated playlists and synced library updates refresh immediately after saving without unnecessary refreshes; identity repairs also refresh saved queue and playlist references',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
