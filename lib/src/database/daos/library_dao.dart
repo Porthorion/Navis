@@ -2563,11 +2563,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           contextMatches,
           albumName,
           (album) => album.name,
+          (album) => album.id,
+          allowTies: true,
         );
       }
     }
 
-    return _singleOrSameEdition(exactAlbums, albumName, (album) => album.name);
+    return _singleOrSameEdition(
+      exactAlbums,
+      albumName,
+      (album) => album.name,
+      (album) => album.id,
+    );
   }
 
   Future<List<AlbumsTableData>> getLikedAlbums() {
@@ -2699,21 +2706,35 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (matches.isEmpty) {
         continue;
       }
-      return _singleOrSameEdition(matches, title, (song) => song.title);
+      return _singleOrSameEdition(
+        matches,
+        title,
+        (song) => song.title,
+        (song) => song.id,
+        allowTies: true,
+      );
     }
 
-    return _singleOrSameEdition(exactSongs, title, (song) => song.title);
+    return _singleOrSameEdition(
+      exactSongs,
+      title,
+      (song) => song.title,
+      (song) => song.id,
+    );
   }
 
   /// The only entry of [matches], which share [name]'s normalized key, or
   /// else a candidate with the same edition as [name] ("Wonder
   /// (Japanese Version)" rather than "Wonder"). Within that edition, prefer
-  /// the exact raw name, then the first candidate. Null if no edition matches.
+  /// the exact raw name, then the smallest id, only with artist/album context.
+  /// Unfiltered edition ties and missing editions remain ambiguous.
   static T? _singleOrSameEdition<T>(
     List<T> matches,
     String name,
     String Function(T) nameOf,
-  ) {
+    String Function(T) idOf, {
+    bool allowTies = false,
+  }) {
     if (matches.length == 1) return matches.single;
     final edition = normalizeMetadataKeepingEdition(name);
     final sameEdition = matches
@@ -2722,6 +2743,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         )
         .toList(growable: false);
     if (sameEdition.isEmpty) return null;
+    if (sameEdition.length == 1) return sameEdition.single;
+    if (!allowTies) return null;
+    sameEdition.sort((a, b) => idOf(a).compareTo(idOf(b)));
     return sameEdition.firstWhere(
       (match) => nameOf(match) == name,
       orElse: () => sameEdition.first,

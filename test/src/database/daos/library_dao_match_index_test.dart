@@ -540,32 +540,105 @@ void main() {
     });
 
     test(
-      'same-edition lookup prefers a raw title then the first candidate',
+      'same-edition contextual lookup prefers a raw title then the smallest id',
       () async {
         await database.libraryDao.upsertSongs([
-          _song('remaster', 'Song (Remastered)', artistName: '嵐'),
-          _song('raw', 'Song', artistName: '嵐'),
+          _song('z-remaster', 'Song (Remastered)', artistName: '嵐'),
+          _song('a-raw', 'Song', artistName: '嵐'),
+          _song('0-first', 'Song (Deluxe Edition)', artistName: '嵐'),
         ]);
+        await database.customStatement('PRAGMA reverse_unordered_selects = ON');
         expect(
           (await database.libraryDao.findOneExactNormalizedSongByTitle(
             'Song',
             artistName: '嵐',
           ))?.id,
-          'raw',
+          'a-raw',
         );
         expect(
           (await database.libraryDao.findOneExactNormalizedSongByTitle(
             'Song (Remastered)',
             artistName: '嵐',
           ))?.id,
-          'remaster',
+          'z-remaster',
         );
         expect(
           (await database.libraryDao.findOneExactNormalizedSongByTitle(
             'Song (2011 Remaster)',
             artistName: '嵐',
           ))?.id,
-          'raw',
+          '0-first',
+        );
+      },
+    );
+
+    test(
+      'unfiltered namesakes stay ambiguous for missing artist context',
+      () async {
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'abba-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('ABBA'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'blondie-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('Blondie'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          _song('abba-song', 'Greatest Hits', artistName: 'ABBA'),
+          _song('blondie-song', 'Greatest Hits', artistName: 'Blondie'),
+        ]);
+        for (final artist in [null, 'Queen']) {
+          expect(
+            await database.libraryDao.findOneExactNormalizedAlbumByName(
+              'Greatest Hits',
+              artistName: artist,
+            ),
+            isNull,
+          );
+          expect(
+            await database.libraryDao.findOneExactNormalizedSongByTitle(
+              'Greatest Hits',
+              artistName: artist,
+            ),
+            isNull,
+          );
+        }
+      },
+    );
+
+    test(
+      'contextual album ties use id order rather than insertion order',
+      () async {
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'z-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('Queen'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'a-hits',
+            name: 'Greatest Hits (Remastered)',
+            artistName: const Value('Queen'),
+          ),
+        ]);
+        await database.customStatement('PRAGMA reverse_unordered_selects = ON');
+        expect(
+          (await database.libraryDao.findOneExactNormalizedAlbumByName(
+            'Greatest Hits (2011 Remaster)',
+            artistName: 'Queen',
+          ))?.id,
+          'a-hits',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedAlbumByName(
+            'Greatest Hits',
+            artistName: 'Queen',
+          ))?.id,
+          'z-hits',
         );
       },
     );

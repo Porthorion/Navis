@@ -3503,7 +3503,8 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
   " - " qualifiers. A bracket starting with "feat" or "ft" is a featured
   credit and is dropped; the trailing featuring rule applies only outside
-  closed brackets (unclosed brackets do not mask credits), preserving locations such as "(Live at Ft. Worth)". "Wonder" and
+  closed brackets (unclosed brackets do not mask credits), preserving
+  locations such as "(Live at Ft. Worth)". "Wonder" and
   "Wonder (Japanese Version)" share a
   fuzzy key but not an edition key. Mastering and packaging qualifiers
   (remasters, bare years, deluxe/anniversary editions, explicit/clean,
@@ -3512,8 +3513,10 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   Vibes mapping, LRCLIB, the exact library lookups behind player metadata
   navigation) prefer the candidate whose edition key equals the expected
   one. Same Vibes applies its minimum score before edition/availability
-  tie-breaks. Navigation chooses an exact raw title within a matching
-  edition, then the first candidate, so mastering duplicates stay usable.
+  tie-breaks. Within an artist- or album-filtered match, navigation chooses
+  an exact raw title within a matching edition, then the smallest id, so
+  mastering duplicates stay usable. Unfiltered edition ties return no match
+  and leave navigation to the search fallback.
   Candidate edition keys are computed once on first access.
   `pickBestTrackMatch` drops another edition only when a passing
   same-edition candidate has at least as good artist and album scores, and
