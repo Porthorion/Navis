@@ -118,14 +118,6 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  /// Increment the retry count for a queue item.
-  Future<void> incrementRetryCount(int id) {
-    return customStatement(
-      'UPDATE download_queue SET retry_count = retry_count + 1 WHERE id = ?',
-      [id],
-    );
-  }
-
   /// Update status and increment retry count atomically.
   Future<void> markForRetry(int id) async {
     // A custom update that names its table, so queue watchers (the Downloads
