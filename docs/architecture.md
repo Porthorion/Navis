@@ -3471,9 +3471,9 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   without them count as stale). The `source` ends with `metadataKeyVersion`,
   so rows keyed by an older normalizer are stale for track matching and the
   same lazy refresh re-keys them; no migration is needed when the normalizer
-  changes. Search and downloads-folder matching accept a row of any key
-  version whose raw fields match, because `search_text` does not depend on
-  it, so a bump never sends search down the stale path. `getTrackMatchCandidates` selects only songs
+  changes. Key version 3 folds half-width kana and composes dakuten/handakuten in
+  both search text and matching keys; search therefore also rebuilds rows
+  from older versions, including sources ending in `\u001f1`. `getTrackMatchCandidates` selects only songs
   that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
@@ -3486,12 +3486,14 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
 - Matching external metadata (Last.fm, ListenBrainz, LRCLIB, Subsonic
   search) to library songs, albums and artists uses two keys from
   `lib/src/utils/metadata_normalization.dart`. `normalizeMetadata` is the
-  fuzzy key: it folds full-width ASCII and the ideographic space, case, Latin
+  fuzzy key: it folds full-width ASCII, half-width kana and the ideographic
+  space, composes kana voicing marks, and folds case, Latin
   diacritics and Arabic letter variants, drops parenthesized qualifiers and
   featured credits, and keeps letters and digits of every script, so
   Japanese, Korean, Arabic and accented titles get real keys.
   `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
-  " - " qualifiers, so "Wonder" and "Wonder (Japanese Version)" share a
+  " - " qualifiers (featuring credits are stripped only outside brackets),
+  so "Wonder" and "Wonder (Japanese Version)" share a
   fuzzy key but not an edition key. Mastering and packaging qualifiers
   (remasters, bare years, deluxe/anniversary editions, explicit/clean,
   mono/stereo, album/single/original version, bonus track) are not

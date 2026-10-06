@@ -6,7 +6,7 @@ import 'package:navis/src/utils/search_text.dart';
 /// this form and include the version in their `source`, so rows written by an
 /// older version count as stale and are re-keyed by the existing lazy
 /// refreshes. Bump it whenever [normalizeMetadata] output changes.
-const int metadataKeyVersion = 2;
+const int metadataKeyVersion = 3;
 
 final RegExp _parentheses = RegExp(r'\([^)]*\)');
 final RegExp _bracketedFeaturing = RegExp(r'[(\[]\s*(?:feat|ft)\b[^)\]]*[)\]]');
@@ -26,9 +26,7 @@ final RegExp _whitespace = RegExp(r'\s+');
 /// and "Wonder" therefore share a key; use
 /// [normalizeMetadataKeepingEdition] to tell them apart.
 String normalizeMetadata(String value) {
-  return _words(
-    _fold(value).replaceAll(_parentheses, ' ').replaceAll(_featuring, ' '),
-  );
+  return _words(_stripFeaturing(_fold(value).replaceAll(_parentheses, ' ')));
 }
 
 /// Qualifiers that mark mastering or packaging rather than a different
@@ -71,18 +69,31 @@ final RegExp _nonEditionQualifier = RegExp(
 /// candidates that share a [normalizeMetadata] key, and to deduplicate
 /// releases without merging language versions.
 String normalizeMetadataKeepingEdition(String value) {
-  final folded = _fold(value)
-      .replaceAll(_bracketedFeaturing, ' ')
-      .replaceAll(_featuring, ' ')
-      .replaceAllMapped(
-        _bracketed,
-        (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
-      )
-      .replaceFirstMapped(
-        _dashSuffix,
-        (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
-      );
+  final folded =
+      _stripFeaturing(_fold(value).replaceAll(_bracketedFeaturing, ' '))
+          .replaceAllMapped(
+            _bracketed,
+            (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
+          )
+          .replaceFirstMapped(
+            _dashSuffix,
+            (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
+          );
   return _words(folded);
+}
+
+// Preserve locations such as "Live at Ft. Worth" inside brackets. Masking
+// retains offsets, so only an outside featuring credit truncates the title.
+String _stripFeaturing(String value) {
+  var depth = 0;
+  final outside = StringBuffer();
+  for (final unit in value.codeUnits) {
+    if (unit == 0x28 || unit == 0x5B) depth++;
+    outside.writeCharCode(depth > 0 ? 0x20 : unit);
+    if ((unit == 0x29 || unit == 0x5D) && depth > 0) depth--;
+  }
+  final match = _featuring.firstMatch(outside.toString());
+  return match == null ? value : value.substring(0, match.start);
 }
 
 bool _isNonEdition(String qualifier) =>

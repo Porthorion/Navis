@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Matching and search now fold half-width Japanese kana and decomposed voicing marks, and live editions keep locations such as Ft. Worth',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fans Also Like and Go to artist now link unique library names that differ by a leading article, ampersand or spacing',
         type: ChangelogEntryType.fix,
       ),

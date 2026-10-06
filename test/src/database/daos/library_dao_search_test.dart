@@ -83,6 +83,26 @@ void main() {
     expect(remaining.read<int>('c'), 7);
   });
 
+  test('search rekeys half-width kana from key-version suffix 1', () async {
+    await database.libraryDao.upsertSongs([
+      _song('kana', 'ｶﾞｯﾂﾎﾟｰｽﾞ', '嵐', '残響リファレンス'),
+    ]);
+    await database.customStatement(
+      'INSERT INTO song_search_text(song_id, source, search_text, match_title, match_artist, match_album) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        'kana',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ\u001f嵐\u001f残響リファレンス\u001f1',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ|嵐|残響リファレンス',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ',
+        '嵐',
+        '残響リファレンス',
+      ],
+    );
+    expect(await search('ガッツポーズ'), ['kana']);
+    expect(normalizeSearchText('カ\u3099ッツホ\u309aース\u3099'), 'ガッツポーズ');
+    await database.libraryDao.scheduleSongSearchIndexRefresh();
+  });
+
   test('normalizeSearchText keeps letters from every script', () {
     expect(
       normalizeSearchText('AC/DC — Back in Black!'),

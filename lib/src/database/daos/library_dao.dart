@@ -3803,15 +3803,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   static const String _songSearchSourceSql =
       "$_songSearchFieldsSql || char(31) || '$metadataKeyVersion'";
 
-  /// Whether `t.search_text` is current. It depends only on the raw fields,
-  /// so a row of any key version (or from before versions) qualifies and a
-  /// key-version bump never sends search down the stale path. Current rows
-  /// settle on the first, cheap comparison; a missing row is never current.
+  // Kana width/voicing folding also changes search text in key version 3,
+  // so pre-versioned and older-version rows must be rebuilt for search too.
   static const String _songSearchTextCurrentSql =
-      '(ifnull(t.source = ($_songSearchSourceSql), 0) OR '
-      'ifnull(substr(t.source || char(31), 1, '
-      'length($_songSearchFieldsSql) + 1) = '
-      '($_songSearchFieldsSql) || char(31), 0))';
+      'ifnull(t.source = ($_songSearchSourceSql), 0)';
 
   static String _songSearchSource(
     String title,

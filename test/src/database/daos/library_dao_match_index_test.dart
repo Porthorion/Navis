@@ -437,10 +437,10 @@ void main() {
       );
     });
 
-    test('search text from before the key version stays current', () async {
+    test('search text from before kana folding is rebuilt', () async {
       await database.libraryDao.refreshSongSearchIndex();
-      // A row an older build wrote: the plain source. Its search text is
-      // replaced by a marker that only the stored row can match.
+      // An older build wrote search text using the previous folding rules.
+      // A marker proves search recomputes the stale row from raw metadata.
       await database.customStatement(
         'UPDATE song_search_text SET source = (SELECT songs.title || char(31) '
         "|| ifnull(songs.artist_name, '') || char(31) "
@@ -448,8 +448,9 @@ void main() {
         'WHERE songs.id = song_search_text.song_id), '
         "search_text = 'zzmarker|beyonce|' WHERE song_id = 'beyonce'",
       );
-      final found = await database.libraryDao.searchCachedSongs('zzmarker');
+      final found = await database.libraryDao.searchCachedSongs('halo');
       expect(found.map((song) => song.id), <String>['beyonce']);
+      expect(await database.libraryDao.searchCachedSongs('zzmarker'), isEmpty);
       // The match keys are still re-keyed.
       final candidates = await database.libraryDao.getTrackMatchCandidates(
         const <({String title, String artist})>[
