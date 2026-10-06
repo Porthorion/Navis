@@ -358,21 +358,51 @@ void main() {
     });
   });
 
-  test('a second code 4 throws a quota exception', () async {
+  test('a foreground request retries code 4 up to 3 times', () async {
+    final quota = _error(4, 'Exception', 'Quota limit exceeded');
+    adapter
+      ..queue('/search/track', quota)
+      ..queue('/search/track', quota)
+      ..queue('/search/track', quota)
+      ..queue('/search/track', <String, Object?>{
+        'data': <Object?>[_track(3, 'Believer')],
+      });
+
+    final tracks = await client.searchTracks('Imagine Dragons');
+
+    expect(tracks.single.title, 'Believer');
+    expect(adapter.requests, hasLength(4));
+    // Each retry waited for the shared pause.
+    expect(waits, List.filled(3, const Duration(seconds: 5)));
+  });
+
+  final throwsQuota = throwsA(
+    isA<DeezerApiException>().having(
+      (error) => error.isQuotaExceeded,
+      'isQuotaExceeded',
+      isTrue,
+    ),
+  );
+
+  test('a fourth code 4 throws a quota exception', () async {
     adapter.queue(
       '/search/track',
       _error(4, 'Exception', 'Quota limit exceeded'),
     );
 
+    await expectLater(client.searchTracks('Imagine Dragons'), throwsQuota);
+    expect(adapter.requests, hasLength(4));
+  });
+
+  test('a background request retries code 4 once', () async {
+    adapter.queue(
+      '/search/artist',
+      _error(4, 'Exception', 'Quota limit exceeded'),
+    );
+
     await expectLater(
-      client.searchTracks('Imagine Dragons'),
-      throwsA(
-        isA<DeezerApiException>().having(
-          (error) => error.isQuotaExceeded,
-          'isQuotaExceeded',
-          isTrue,
-        ),
-      ),
+      client.searchArtists('Queen', background: true),
+      throwsQuota,
     );
     expect(adapter.requests, hasLength(2));
   });

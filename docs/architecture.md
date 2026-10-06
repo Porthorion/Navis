@@ -1494,8 +1494,9 @@ requests start whenever no foreground one waits and their own rate allows.
 Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
 "code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds, so every
 Deezer request waits it out rather than piling into the quota, and the
-request that hit it is retried once; code 800 ("no data") reads as an empty
-result, and any other code throws `DeezerApiException`. Endpoints used so
+request that hit it is retried after the pause: up to 3 times for a
+foreground request, once for a background one; code 800 ("no data") reads as
+an empty result, and any other code throws `DeezerApiException`. Endpoints used so
 far: `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
 `/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new ones
 go through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in

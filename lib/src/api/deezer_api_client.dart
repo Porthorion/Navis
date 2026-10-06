@@ -10,7 +10,7 @@ export 'package:navis/src/api/models/deezer_models.dart';
 /// Deezer answers errors with HTTP 200 and
 /// `{"error": {"type", "message", "code"}}`. Code 800 ("no data") is not an
 /// error for Navis and never surfaces as this exception; code 4 (quota) does
-/// only after its one retry.
+/// only after its retries.
 class DeezerApiException implements Exception {
   const new({this.code, this.type, this.message});
 
@@ -34,7 +34,9 @@ class DeezerApiException implements Exception {
 /// foreground one is waiting. Errors arrive in the body of an HTTP 200
 /// response: code 4 (quota) pauses the shared limiter for [quotaRetryDelay],
 /// so every Deezer request waits, and the request that hit it is then
-/// retried once; code 800 ("no data") reads as an empty result; any other
+/// retried, up to [foregroundQuotaRetries] times for a foreground request
+/// and [backgroundQuotaRetries] for a background one, each retry after the
+/// pause; code 800 ("no data") reads as an empty result; any other
 /// code throws [DeezerApiException]. Transport failures, including a request
 /// the integration guard refused, throw [DioException].
 class DeezerApiClient {
@@ -52,6 +54,11 @@ class DeezerApiClient {
   static const int quotaErrorCode = 4;
   static const int noDataErrorCode = 800;
   static const Duration quotaRetryDelay = Duration(seconds: 5);
+
+  /// Retries after code 4: a foreground request (what the user opened)
+  /// tries harder than Home's background warm-up.
+  static const int foregroundQuotaRetries = 3;
+  static const int backgroundQuotaRetries = 1;
 
   final Dio _dio;
   final DeezerRequestLimiter _limiter;
@@ -244,9 +251,12 @@ class DeezerApiClient {
       if (exception == null) return json;
       if (exception.code == noDataErrorCode) return null;
       // The limiter is already paused (above), so every request waits out
-      // the quota, the retry included; a request cancelled meanwhile fails
+      // the quota, each retry included; a request cancelled meanwhile fails
       // there with Dio's cancellation, without being sent.
-      if (exception.isQuotaExceeded && attempt == 0) continue;
+      final quotaRetries = background
+          ? backgroundQuotaRetries
+          : foregroundQuotaRetries;
+      if (exception.isQuotaExceeded && attempt < quotaRetries) continue;
       throw exception;
     }
   }
