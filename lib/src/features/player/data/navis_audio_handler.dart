@@ -6269,8 +6269,21 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId = snapshot.currentSongId;
     final cacheActivity = _rollingCacheActivities.values.lastOrNull;
     final partialCacheBytes = _partialCacheBytesForSong(songId);
+    final radio = snapshot.radioStation;
     return <String, Object?>{
       'songId': songId,
+      'radio': radio == null
+          ? null
+          : <String, Object?>{
+              'stationId': radio.stationId,
+              'stationName': radio.stationName,
+              'streamHost': Uri.tryParse(radio.streamUrl)?.host,
+              'metadataSource': _radioMetadataService.metadataSource.name,
+              'nowPlayingTitle': radio.nowPlayingTitle,
+              'nowPlayingArtist': radio.nowPlayingArtist,
+              'nowPlayingArtUrl': radio.nowPlayingArtUrl,
+              'publishedArtUri': mediaItem.value?.artUri?.toString(),
+            },
       'currentIndex': snapshot.currentIndex,
       'queueLength': snapshot.queueSongIds.length,
       'playerSequenceLength': _player.sequence.length,

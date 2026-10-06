@@ -287,8 +287,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Stream<IcyMetadata?> get icyMetadataStream =>
       const Stream<IcyMetadata?>.empty();
 
+  IcyMetadata? currentIcyMetadata;
+
   @override
-  IcyMetadata? get icyMetadata => null;
+  IcyMetadata? get icyMetadata => currentIcyMetadata;
 
   @override
   Future<Duration?> setAudioSource(
@@ -612,6 +614,12 @@ void main() {
         handler.updateRadioMetadata();
         await Future<void>.delayed(Duration.zero);
         expect(requests, before + 1);
+        final radio =
+            handler.collectPlaybackDiagnostics()['radio']!
+                as Map<String, Object?>;
+        expect(radio['metadataSource'], 'azuracast');
+        expect(radio['nowPlayingTitle'], 'Song');
+        expect(radio['nowPlayingArtist'], 'Artist');
       },
     );
   }
@@ -621,10 +629,12 @@ void main() {
     const externalArt = 'https://art.example.invalid/cover.jpg';
 
     Future<NavisAudioHandler> radioHandler(
-      bool Function(Uri) readRadioArtworkAllowed,
-    ) async {
+      bool Function(Uri) readRadioArtworkAllowed, {
+      String? icyTitle,
+      String streamUrl = 'https://example.invalid/stream',
+    }) async {
       final directory = Directory.systemTemp.createTempSync('radio-art-');
-      final (handler, _, database) = await createHandler(
+      final (handler, player, database) = await createHandler(
         directory,
         0,
         readRadioArtworkAllowed: readRadioArtworkAllowed,
@@ -634,13 +644,75 @@ void main() {
         await database.close();
         directory.deleteSync(recursive: true);
       });
+      if (icyTitle != null) {
+        player.currentIcyMetadata = IcyMetadata(
+          info: IcyInfo(title: icyTitle, url: null),
+          headers: null,
+        );
+      }
       await handler.playRadioStream(
         stationId: 'fixture',
         stationName: 'Fixture',
-        streamUrl: 'https://example.invalid/stream',
+        streamUrl: streamUrl,
       );
       return handler;
     }
+
+    test(
+      'radio diagnostics report host only and no metadata before reception',
+      () async {
+        final handler = await radioHandler(
+          (_) => true,
+          streamUrl: 'https://fixture:placeholder@stream.example.invalid:8443/live?token=placeholder',
+        );
+        expect(handler.collectPlaybackDiagnostics()['radio'], {
+          'stationId': 'fixture',
+          'stationName': 'Fixture',
+          'streamHost': 'stream.example.invalid',
+          'metadataSource': 'none',
+          'nowPlayingTitle': null,
+          'nowPlayingArtist': null,
+          'nowPlayingArtUrl': null,
+          'publishedArtUri': null,
+        });
+        await handler.stopRadio();
+        expect(handler.collectPlaybackDiagnostics()['radio'], isNull);
+      },
+    );
+
+    test(
+      'radio diagnostics identify ICY metadata and published artwork',
+      () async {
+        var allowed = true;
+        final handler = await radioHandler(
+          (_) => allowed,
+          icyTitle: 'ICY Artist - ICY Song',
+        );
+        var radio =
+            handler.collectPlaybackDiagnostics()['radio']!
+                as Map<String, Object?>;
+        expect(radio['metadataSource'], 'icy');
+        expect(radio['nowPlayingTitle'], 'ICY Song');
+        expect(radio['nowPlayingArtist'], 'ICY Artist');
+        handler.updateRadioMetadata(artUrl: externalArt);
+        radio =
+            handler.collectPlaybackDiagnostics()['radio']!
+                as Map<String, Object?>;
+        expect(radio['nowPlayingArtUrl'], externalArt);
+        expect(
+          radio['publishedArtUri'],
+          handler.mediaItem.value!.artUri.toString(),
+        );
+        allowed = false;
+        handler.updateRadioMetadata();
+        radio =
+            handler.collectPlaybackDiagnostics()['radio']!
+                as Map<String, Object?>;
+        expect(radio['nowPlayingArtUrl'], isNull);
+        expect(radio['publishedArtUri'], isNull);
+        expect(radio['metadataSource'], 'icy');
+      },
+    );
 
     test(
       'publishes the original http(s) URL while the policy allows it',

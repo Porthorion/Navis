@@ -423,6 +423,18 @@ the TLS server sees the connection, that no request completes (libmpv refuses
 the certificate) and that the station never plays. The radio stream needs
 `ffmpeg` with an MP3 encoder and the certificate needs `openssl`.
 
+While an internet radio station is active, authenticated
+`GET /v1/playback/status` includes a `radio` object; it is `null` outside radio
+mode. Fields are `stationId`, `stationName`, `streamHost` (host only, without
+port, path, credentials or query), `metadataSource` (`azuracast`, `icy` or `none`
+for the most recently applied metadata), `nowPlayingTitle`, `nowPlayingArtist`,
+`nowPlayingArtUrl` (the URL shown by the app, null when refused by policy), and
+`publishedArtUri` (the current `MediaItem.artUri`, null when absent). Title,
+artist and artwork may be null before metadata arrives. A successful AzuraCast
+station retains its metadata during transient API failures; two initial API
+failures fall back to available ICY metadata. Integration policy changes stop
+or resume polling for the current station without reopening the audio stream.
+
 ### Artist playback diagnostics
 
 Run `python3 tool/artist_playback_diagnostics.py` for the artist queue regression.

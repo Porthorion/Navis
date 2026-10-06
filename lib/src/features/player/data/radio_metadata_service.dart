@@ -5,6 +5,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
+enum RadioMetadataSource { azuracast, icy, none }
+
 /// Manages live metadata for radio streams.
 ///
 /// Supports two metadata sources:
@@ -41,6 +43,9 @@ class RadioMetadataService {
   int _initialFailureCount = 0;
   bool _hasAzuracastSuccess = false;
   IcyMetadata? _latestIcyMetadata;
+  RadioMetadataSource _metadataSource = RadioMetadataSource.none;
+
+  RadioMetadataSource get metadataSource => _metadataSource;
 
   // ── Dead-stream detection state ─────────────────────────────────────────
   String? _lastMetadataTitle;
@@ -88,6 +93,7 @@ class RadioMetadataService {
   /// Stop all metadata listeners.
   void stop() {
     _generation++;
+    _metadataSource = RadioMetadataSource.none;
     _initialFailureCount = 0;
     _candidateRejected = false;
     _stationShortName = null;
@@ -183,6 +189,7 @@ class RadioMetadataService {
       final artist = song['artist'] as String?;
       final art = song['art'] as String?;
 
+      _metadataSource = RadioMetadataSource.azuracast;
       _hasAzuracastSuccess = true;
       _initialFailureCount = 0;
 
@@ -289,6 +296,7 @@ class RadioMetadataService {
       parsedTitle = title;
     }
 
+    _metadataSource = RadioMetadataSource.icy;
     _handler.updateRadioMetadata(title: parsedTitle, artist: parsedArtist);
   }
 

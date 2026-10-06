@@ -151,10 +151,12 @@ void main() {
       final service = build();
       listen(service);
       settle(async);
+      expect(service.metadataSource, RadioMetadataSource.azuracast);
       adapter.statusCode = 503;
       async.elapse(RadioMetadataService.pollingInterval * 3);
       settle(async);
       expect(adapter.requested, hasLength(4));
+      expect(service.metadataSource, RadioMetadataSource.azuracast);
       adapter.statusCode = 200;
       async.elapse(RadioMetadataService.pollingInterval);
       settle(async);
@@ -165,6 +167,74 @@ void main() {
           artUrl: null,
         ),
       ).called(2);
+      service.dispose();
+    });
+  });
+
+  test(
+    'fallback applies ICY received while the initial API probe was active',
+    () {
+      fakeAsync((async) {
+        final icy = StreamController<IcyMetadata?>.broadcast();
+        when(() => player.icyMetadataStream).thenAnswer((_) => icy.stream);
+        adapter.statusCode = 404;
+        final service = build();
+        listen(service);
+        settle(async);
+        icy.add(
+          IcyMetadata(
+            info: IcyInfo(title: 'Stream Artist - Stream Song', url: null),
+            headers: null,
+          ),
+        );
+        settle(async);
+        verifyNever(
+          () => handler.updateRadioMetadata(
+            title: 'Stream Song',
+            artist: 'Stream Artist',
+          ),
+        );
+        async.elapse(RadioMetadataService.pollingInterval);
+        settle(async);
+        verify(
+          () => handler.updateRadioMetadata(
+            title: 'Stream Song',
+            artist: 'Stream Artist',
+          ),
+        ).called(1);
+        expect(service.metadataSource, RadioMetadataSource.icy);
+        service.dispose();
+        unawaited(icy.close());
+      });
+    },
+  );
+
+  test('station switch rejects a late response and resets metadata source', () {
+    fakeAsync((async) {
+      final pending = Completer<ResponseBody>();
+      adapter.pending = pending;
+      final service = build();
+      listen(service);
+      settle(async);
+      service.startListening(stationId: 'icy-station');
+      pending.complete(
+        ResponseBody.fromString(
+          '{"now_playing":{"song":{"title":"Old Station"}}}',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        ),
+      );
+      settle(async);
+      expect(service.metadataSource, RadioMetadataSource.none);
+      verifyNever(
+        () => handler.updateRadioMetadata(
+          title: 'Old Station',
+          artist: null,
+          artUrl: null,
+        ),
+      );
       service.dispose();
     });
   });

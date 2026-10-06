@@ -275,6 +275,51 @@ void main() {
     expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
   });
 
+  test(
+    'playback status exposes radio metadata and null outside radio mode',
+    () async {
+      final handler = _MockPlaybackHandler();
+      when(() => handler.loadFailureStream)
+          .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+      when(handler.waitUntilReady).thenAnswer((_) async {});
+      Map<String, Object?>? radio = {
+        'stationId': 'fixture',
+        'stationName': 'Fixture Radio',
+        'streamHost': 'stream.example.invalid',
+        'metadataSource': 'azuracast',
+        'nowPlayingTitle': 'Song',
+        'nowPlayingArtist': 'Artist',
+        'nowPlayingArtUrl': 'https://art.example.invalid/cover.jpg',
+        'publishedArtUri': 'https://art.example.invalid/cover.jpg',
+      };
+      when(handler.collectPlaybackDiagnostics)
+          .thenAnswer((_) => {'radio': radio});
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        handler: handler,
+      );
+      addTearDown(fixture.close);
+      final unauthorized = await _request(fixture.port, '/v1/playback/status');
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      final observed = await _request(
+        fixture.port,
+        '/v1/playback/status',
+        token: fixture.token,
+      );
+      expect(observed.statusCode, HttpStatus.ok);
+      expect(observed.body['radio'], radio);
+      expect(observed.body, contains('providerCacheActivity'));
+      radio = null;
+      final stopped = await _request(
+        fixture.port,
+        '/v1/playback/status',
+        token: fixture.token,
+      );
+      expect(stopped.statusCode, HttpStatus.ok);
+      expect(stopped.body, containsPair('radio', null));
+    },
+  );
+
   test('adjustments API applies both values and manages presets', () async {
     registerFallbackValue(const PlaybackAdjustments());
     final handler = _MockPlaybackHandler();

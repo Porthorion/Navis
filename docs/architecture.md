@@ -1388,11 +1388,16 @@ switch means "Navis only talks to your server" when off. See
   itself, is unaffected). Policy changes refresh the current station immediately:
   disabling applies available ICY metadata, and re-enabling restarts polling
   unless the candidate API already failed its initial probe. The audio handler
-  lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory. Two failed initial polls (HTTP,
-  timeout, malformed JSON or missing `now_playing.song`) abandon the candidate
+  lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory.
+  Two failed initial polls (HTTP, timeout, malformed JSON or missing
+  `now_playing.song`) abandon the candidate
   API for that station and immediately apply the latest ICY title. A station
   with a successful API response keeps polling through transient failures.
   Requests from an earlier station/listening generation cannot publish metadata.
+  Playback diagnostics report the active radio station, stream host only, last
+  applied metadata source, displayed metadata/artwork and the actual published
+  media-item artwork URI;
+  see the field contract in [development-workflow.md](development-workflow.md).
 - **Server-linked images.** `ExternalArtworkImage`
   (`common_widgets/external_artwork_image.dart`) replaces the call sites that
   loaded arbitrary URLs with `CachedNetworkImage` or `Image.network`. It checks
