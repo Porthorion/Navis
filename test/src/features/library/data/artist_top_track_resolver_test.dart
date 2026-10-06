@@ -12,6 +12,7 @@ import 'package:navis/src/features/integrations/data/integration_call_recorder.d
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/library/data/artist_top_track_match_store.dart';
 import 'package:navis/src/features/library/data/artist_top_track_resolver.dart';
+import 'package:navis/src/features/library/data/provisional_search_songs.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -253,20 +254,95 @@ void main() {
       await emissions(shared, seeds);
       expect(api.queries, hasLength(1));
 
+      // A day later the same remembered unmatched song is searched again.
+      now = now.add(const Duration(hours: 25));
+      final later = await emissions(resolver(), seeds);
+      expect(api.queries, <String>['Alpha Known', 'Alpha Known']);
+      expect(later.last.single.resolvedSong, isNull);
+
       // A manual refresh searches again, even with this session's earlier
       // search still fresh.
       api.results['Alpha'] = <Song>[_remote('Alpha')];
       final refreshed = await emissions(shared, seeds, researchUnmatched: true);
-      expect(api.queries, hasLength(2));
-      expect(refreshed.last.single.resolvedSong?.id, 'ext-deezer-song-1');
-
-      now = now.add(const Duration(hours: 25));
-      api.results.remove('Alpha');
-      await emissions(resolver(), <ArtistTopTrackSeed>[_seed(2, 'Bravo')]);
       expect(api.queries, hasLength(3));
+      expect(refreshed.last.single.resolvedSong?.id, 'ext-deezer-song-1');
     },
     skip: !sqliteAvailable,
   );
+
+  group('a remote song the library holds as a row', () {
+    // A remote match that was played (or whose menu opened) is stored as a
+    // provisional external row.
+    setUp(() async {
+      api.results['Alpha'] = <Song>[_remote('Alpha')];
+      await emissions(resolver(), <ArtistTopTrackSeed>[_seed(1, 'Alpha')]);
+      await persistProvisionalSearchSongs(db.libraryDao, <Song>[
+        _remote('Alpha'),
+      ]);
+      expect(
+        (await db.libraryDao.getSongById('ext-deezer-song-1'))?.isExternal,
+        isTrue,
+      );
+      api.queries.clear();
+    });
+
+    test('stays remote and unsearched while fresh', () async {
+      final result = await emissions(resolver(), <ArtistTopTrackSeed>[
+        _seed(1, 'Alpha'),
+      ]);
+      expect(result.single.single.resolvedSong?.id, 'ext-deezer-song-1');
+      expect(api.queries, isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test('is checked for a server copy after a day', () async {
+      now = now.add(const Duration(hours: 25));
+      api.results['Alpha'] = <Song>[_remote('Alpha'), _server('Alpha')];
+      final result = await emissions(resolver(), <ArtistTopTrackSeed>[
+        _seed(1, 'Alpha'),
+      ]);
+      expect(api.queries, hasLength(1));
+      expect(result.first.single.resolvedSong?.id, 'ext-deezer-song-1');
+      expect(result.last.single.resolvedSong?.id, 'server-Alpha');
+    }, skip: !sqliteAvailable);
+
+    test('switches to a library copy without a search', () async {
+      await db.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'lib-Alpha',
+          title: 'Alpha',
+          artistName: const Value('Known'),
+        ),
+      ]);
+      final result = await emissions(resolver(), <ArtistTopTrackSeed>[
+        _seed(1, 'Alpha'),
+      ]);
+      expect(result.single.single.resolvedSong?.id, 'lib-Alpha');
+      expect(api.queries, isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test('held by its Deezer id is upgradeable too', () async {
+      // No remembered match: only the ext-deezer-song row and the Deezer id.
+      final root = cacheRoot;
+      store = ArtistTopTrackMatchStore(
+        cache: IntegrationJsonCache(readRootDirectory: () async => root),
+        namespace: 'other.matches',
+        keepFor: const Duration(days: 7),
+        now: () => now,
+      );
+      api.results['Alpha'] = <Song>[_server('Alpha')];
+      final result = await emissions(resolver(), <ArtistTopTrackSeed>[
+        const ArtistTopTrackSeed(
+          rank: 1,
+          title: 'Alpha',
+          artist: 'Known',
+          source: ArtistTopTrackSource.deezer,
+          deezerTrackId: 1,
+        ),
+      ]);
+      expect(result.first.single.resolvedSong?.id, 'ext-deezer-song-1');
+      expect(result.last.single.resolvedSong?.id, 'server-Alpha');
+    }, skip: !sqliteAvailable);
+  });
 
   test('pending rows show first and progress arrives in batches', () async {
     await db.libraryDao.upsertSongs(<SongsTableCompanion>[

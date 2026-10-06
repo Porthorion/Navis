@@ -584,32 +584,30 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test(
-      'a Deezer track held as ext-deezer-song is matched without a search',
-      () async {
-        final db = database();
-        await db.libraryDao.upsertSongs([
-          _librarySong('ext-deezer-song-1000', 'Renamed In Library'),
-        ]);
-        final subsonic = _FakeSubsonicApiClient();
-        final container = containerWith(
-          db,
-          overrides: sourceOverrides(
-            deezer: _FakeDeezerApiClient(_deezerTracks(1)),
-            subsonic: subsonic,
-          ),
-        );
+    test('a Deezer track held as ext-deezer-song plays at once and is checked '
+        'for a server copy', () async {
+      final db = database();
+      await db.libraryDao.upsertSongs([
+        _librarySong('ext-deezer-song-1000', 'Renamed In Library'),
+      ]);
+      final subsonic = _FakeSubsonicApiClient();
+      final container = containerWith(
+        db,
+        overrides: sourceOverrides(
+          deezer: _FakeDeezerApiClient(_deezerTracks(1)),
+          subsonic: subsonic,
+        ),
+      );
 
-        final emissions = await sectionEmissions(container, count: 1);
+      final emissions = await sectionEmissions(container, count: 2);
 
-        expect(
-          emissions.single.single.resolvedSong?.id,
-          'ext-deezer-song-1000',
-        );
-        expect(subsonic.searchCallCount, 0);
-      },
-      skip: !sqliteAvailable,
-    );
+      // Shown before the server answers, and kept: the server has no copy.
+      for (final emission in emissions) {
+        expect(emission.single.resolvedSong?.id, 'ext-deezer-song-1000');
+      }
+      // A remote row stays upgradeable: one search for a server copy.
+      expect(subsonic.searchCallCount, 1);
+    }, skip: !sqliteAvailable);
 
     test(
       'reopening an artist reuses remembered matches without searching',

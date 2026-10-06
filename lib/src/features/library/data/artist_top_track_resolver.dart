@@ -127,13 +127,21 @@ class ArtistTopTrackResolver {
       AppLogger.debug('Top songs: remembered matches unreadable: $error');
     }
     var cached = 0;
+    // Remote songs the library holds as rows (a remote match that was
+    // played, or stored when its menu opened). They play, but stay
+    // upgradeable: the local pass and the daily server check still run.
+    final heldRemote = <int>{};
     for (var i = 0; i < seeds.length; i++) {
       final entry = remembered[keys[i]];
       final row = entry?.songId == null ? null : rowsById[entry!.songId];
       if (row != null) {
         songs[i] = _songFromRow(row);
-        done[i] = true;
-        cached++;
+        if (_isRemote(songs[i]!)) {
+          heldRemote.add(i);
+        } else {
+          done[i] = true;
+          cached++;
+        }
         continue;
       }
       final deezerId = seeds[i].deezerTrackId;
@@ -142,6 +150,10 @@ class ArtistTopTrackResolver {
           : rowsById[_deezerSongId(deezerId)];
       if (deezerRow != null) {
         songs[i] = _songFromRow(deezerRow);
+        if (_isRemote(songs[i]!)) {
+          heldRemote.add(i);
+          continue;
+        }
         done[i] = true;
         updates[keys[i]] = ArtistTopTrackMatchEntry(
           songId: deezerRow.id,
@@ -169,11 +181,24 @@ class ArtistTopTrackResolver {
         );
         for (final i in open) {
           final query = artistTopTrackMatchQuery(seeds[i]);
-          final match = _pickWithHints(query, snapshot.candidatesFor(query));
+          // Remote rows are never library copies. (The DAO already leaves
+          // out provisional rows, which is how remote songs are stored.)
+          final match = _pickWithHints(
+            query,
+            snapshot
+                .candidatesFor(query)
+                .where(
+                  (candidate) =>
+                      !(candidate.tableSong?.isExternal ?? false) &&
+                      !_isRemote(candidate.song),
+                )
+                .toList(growable: false),
+          );
           final song = match.song;
           if (match.isMatched && song != null) {
             songs[i] = song;
             done[i] = true;
+            heldRemote.remove(i);
             localHits++;
             updates[keys[i]] = ArtistTopTrackMatchEntry(
               songId: song.id,
@@ -194,12 +219,24 @@ class ArtistTopTrackResolver {
       if (done[i]) continue;
       final entry = remembered[keys[i]];
       if (shouldSearch != null && !shouldSearch(seeds[i])) {
-        // Never searched: keep a remembered remote match, else no song.
-        if (entry?.remoteSong case final remote?) {
+        // Never searched: keep a remote match, else no song.
+        if (heldRemote.contains(i)) {
+          cached++;
+        } else if (entry?.remoteSong case final remote?) {
           songs[i] = remote;
           cached++;
         }
         done[i] = true;
+      } else if (heldRemote.contains(i)) {
+        // A remote song held as a row: checked on the server for a copy
+        // once a day, like a remembered remote match.
+        cached++;
+        if (entry != null && entry.isMatched && _store.isFresh(entry)) {
+          done[i] = true;
+        } else {
+          searchIndexes.add(i);
+          upgradeOnly.add(i);
+        }
       } else if (entry == null) {
         searchIndexes.add(i);
       } else if (!_staysValidWithoutLibraryRow(entry)) {
@@ -436,8 +473,14 @@ class ArtistTopTrackResolver {
   static String _deezerSongId(int deezerTrackId) =>
       'ext-deezer-song-$deezerTrackId';
 
+  /// The row as a song, keeping whether it comes from a remote catalogue.
   static Song _songFromRow(SongsTableData row) =>
-      TrackMatchCandidate.fromTableSong(row).song;
+      // A row's id prefix still decides when the flag is unset.
+      TrackMatchCandidate.fromTableSong(row).song
+          .copyWith(isExternal: row.isExternal ? true : null);
+
+  static bool _isRemote(Song song) =>
+      isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal);
 }
 
 class _SearchOutcome {
