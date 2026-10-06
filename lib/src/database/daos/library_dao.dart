@@ -1051,7 +1051,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       -- otherwise SQLite may scan every song (about 500 times slower).
       CROSS JOIN songs ON songs.id = t.song_id
       WHERE t.search_text >= ? AND t.search_text < ?
-        AND $_songSearchTextCurrentSql
+        AND t.source = ($_songSearchSourceSql)
         AND songs.server_deleted_at IS NULL AND songs.is_provisional = 0
       ''',
       variables: <Variable<Object>>[
@@ -2393,6 +2393,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.map((row) => artistsTable.map(row.data)).toList();
   }
 
+  /// Finds one exact normalized artist, falling back to a unique loose row.
+  ///
+  /// Duplicate rows on either path are ambiguous and return `null`.
   Future<ArtistsTableData?> findOneExactNormalizedArtistByName(
     String name,
   ) async {
@@ -3572,12 +3575,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
     }
-    if (stale.isNotEmpty || await _hasStaleSongSearchIndexRows()) {
-      // Searches reuse legacy text while the background refresh re-keys it.
-      // Only missing rows or changed raw metadata are normalized here.
-      unawaited(scheduleSongSearchIndexRefresh());
-    }
-
     matches.sort((a, b) {
       final scoreDiff = a.score.compareTo(b.score);
       if (scoreDiff != 0) return scoreDiff;
@@ -3585,7 +3582,26 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (titleDiff != 0) return titleDiff;
       return a.songId.compareTo(b.songId);
     });
-    return getSongsByIds(matches.take(limit).map((match) => match.songId));
+    final results = await getSongsByIds(
+      matches.take(limit).map((match) => match.songId),
+    );
+    if (_songSearchIndexRefresh == null) {
+      // Defer the full stale-row scan until the caller has the results.
+      // Searches can reuse legacy text while the shared refresh re-keys it.
+      unawaited(
+        Future<void>(() async {
+          try {
+            if (_songSearchIndexRefresh == null &&
+                (stale.isNotEmpty || await _hasStaleSongSearchIndexRows())) {
+              await scheduleSongSearchIndexRefresh();
+            }
+          } on Object catch (error) {
+            AppLogger.debug('Song search index stale check skipped: $error');
+          }
+        }),
+      );
+    }
+    return results;
   }
 
   Future<int>? _songSearchIndexRefresh;

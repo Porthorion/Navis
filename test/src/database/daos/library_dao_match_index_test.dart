@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart'
+    show QueryRow, ResultSetImplementation, Selectable, Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -45,6 +46,22 @@ SongsTableCompanion _song(
 
 class _ControlledRefreshDao extends LibraryDao {
   new(super.attachedDatabase);
+
+  int staleChecks = 0;
+
+  @override
+  Selectable<QueryRow> customSelect(
+    String query, {
+    List<Variable> variables = const [],
+    Set<ResultSetImplementation<dynamic, dynamic>> readsFrom = const {},
+  }) {
+    if (query.startsWith('SELECT 1 FROM songs ')) staleChecks++;
+    return super.customSelect(
+      query,
+      variables: variables,
+      readsFrom: readsFrom,
+    );
+  }
 
   int refreshCalls = 0;
   Completer<void>? refreshGate;
@@ -126,6 +143,67 @@ void main() {
       );
     },
   );
+
+  test(
+    'search returns before stale scanning and skips it during refresh',
+    () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      final dao = _ControlledRefreshDao(database);
+      expect((await dao.searchCachedSongs('Guest')).map((s) => s.id), [
+        'guest',
+      ]);
+      expect(dao.staleChecks, 0);
+      await pumpEventQueue();
+      expect(dao.staleChecks, 1);
+
+      dao.staleChecks = 0;
+      dao.refreshGate = Completer<void>();
+      final refresh = dao.scheduleSongSearchIndexRefresh();
+      expect((await dao.searchCachedSongs('Guest')).map((s) => s.id), [
+        'guest',
+      ]);
+      await pumpEventQueue();
+      expect(dao.staleChecks, 0);
+      dao.refreshGate!.complete();
+      await refresh;
+    },
+  );
+
+  test(
+    'download title lookup excludes older key versions until refreshed',
+    () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      await database.customStatement(
+        "UPDATE song_search_text SET source = 'Guest Spot' || char(31) || char(31) || char(31) || '1' WHERE song_id = 'guest'",
+      );
+      expect(
+        await database.libraryDao.getDownloadReconciliationSongsByTitleKey(
+          'guest spot',
+        ),
+        isEmpty,
+      );
+      await database.libraryDao.refreshSongSearchIndex();
+      expect(
+        (await database.libraryDao.getDownloadReconciliationSongsByTitleKey(
+          'guest spot',
+        )).single.song.id,
+        'guest',
+      );
+    },
+  );
+
+  test('artist navigation rejects duplicate loose-name rows', () async {
+    await database.libraryDao.upsertArtists([
+      ArtistsTableCompanion.insert(id: 'peas-a', name: 'The Black Eyed Peas'),
+      ArtistsTableCompanion.insert(id: 'peas-b', name: 'The Black Eyed Peas'),
+    ]);
+    for (final name in ['The Black Eyed Peas', 'Black Eyed Peas']) {
+      expect(
+        await database.libraryDao.findOneExactNormalizedArtistByName(name),
+        isNull,
+      );
+    }
+  });
 
   test('artist navigation rejects uncorroborated spacing-only links', () async {
     await database.libraryDao.upsertArtists([
