@@ -14,6 +14,9 @@ Located in `lib/src/providers/app_providers.dart`:
   - `appSettingsProvider` - Reactive settings stream
   - `integrationPolicyProvider` - The external-integration policy (see
     "External integration policy"); denies everything until settings load
+  - `updateProvider` selects only settings loading, updates service enablement
+    and the automatic-check switch. Unrelated settings or integration changes
+    do not repeat update checks.
 
 - **Network & Connectivity**
   - `connectivityProvider` - Network connectivity state

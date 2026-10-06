@@ -2865,22 +2865,30 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
 /// Checks whether a newer Navis release is available on Forgejo.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
-  final settingsAsync = ref.watch(appSettingsProvider);
-  if (settingsAsync.isLoading) {
+  final isLoading = ref.watch(
+    appSettingsProvider.select((settings) => settings.isLoading),
+  );
+  if (isLoading) {
     return null;
   }
-  final policy = ref.watch(integrationPolicyProvider);
+  final (serviceEnabled, automaticEnabled) = ref.watch(
+    integrationPolicyProvider.select(
+      (policy) => (
+        policy.isServiceEnabled(IntegrationService.updates),
+        policy.isFeatureSwitchOn(IntegrationFeature.updatesAutomatic),
+      ),
+    ),
+  );
   // Only the master and updates service switches block a manual "Check now".
   // Read the flag before deciding, so an automatic check that is off never
   // swallows a pending manual request.
   final forceCheck = ref
       .read(updateForceCheckProvider.notifier)
       .consumeForceCheck();
-  if (!policy.isServiceEnabled(IntegrationService.updates)) {
+  if (!serviceEnabled) {
     return null;
   }
-  if (!forceCheck &&
-      !policy.isFeatureSwitchOn(IntegrationFeature.updatesAutomatic)) {
+  if (!forceCheck && !automaticEnabled) {
     return null;
   }
 

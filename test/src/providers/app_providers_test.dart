@@ -2386,6 +2386,37 @@ void main() {
   });
 
   group('updateProvider', () {
+    test(
+      'unrelated settings and policy changes do not rerun updates',
+      () async {
+        TestWidgetsFlutterBinding.ensureInitialized();
+        final settings = StreamController<AppSettingsModel>();
+        addTearDown(settings.close);
+        final store = _RecordingUpdateCheckStore();
+        final container = ProviderContainer(
+          overrides: [
+            appSettingsProvider.overrideWith((ref) => settings.stream),
+            updateCheckStoreProvider.overrideWithValue(store),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(appSettingsProvider, (_, _) {});
+        settings.add(const AppSettingsModel.defaults());
+        await container.read(appSettingsProvider.future);
+        container.listen(updateProvider, (_, _) {});
+        await container.read(updateProvider.future);
+        expect(store.forceArguments, [false]);
+        settings.add(
+          const AppSettingsModel.defaults().copyWith(
+            disabledIntegrations: '["deezer"]',
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await container.read(updateProvider.future);
+        expect(store.forceArguments, [false]);
+      },
+    );
+
     test('returns null when auto update checks are disabled', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
       final settings = const AppSettingsModel.defaults().copyWith(
