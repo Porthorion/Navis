@@ -3,7 +3,7 @@ import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
 import 'dart:io';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Migrator, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -15,6 +15,26 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test('v91 migration can be rerun with existing columns', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.appSettingsDao.getSettings();
+    await database.appSettingsDao.updateIntegrationPolicy(
+      master: false,
+      disabledJson: '["deezer"]',
+    );
+    await database.appSettingsDao.updateIntegrationsNoticeDismissed(
+      dismissed: true,
+    );
+    for (var run = 0; run < 2; run++) {
+      await database.from90To91(Migrator(database));
+    }
+    final settings = (await database.appSettingsDao.getSettings())!;
+    expect(settings.externalIntegrationsEnabled, isFalse);
+    expect(settings.disabledIntegrations, '["deezer"]');
+    expect(settings.integrationsNoticeDismissed, isTrue);
+  }, skip: !sqliteAvailable);
+
   test(
     'a branch-built v87 database without the v87 and v88 changes is repaired',
     () async {

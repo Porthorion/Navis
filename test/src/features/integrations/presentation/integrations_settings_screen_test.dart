@@ -16,7 +16,7 @@ import 'package:navis/src/features/settings/data/external_scrobble_credentials.d
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -119,6 +119,7 @@ Future<_Harness> _pump(
   // Tall enough to build every row of the lazy list.
   Size size = const Size(600, 5000),
   bool desktop = false,
+  double textScale = 1,
   ThemeData? theme,
 }) async {
   setAdaptiveTestViewport(tester, size);
@@ -153,6 +154,11 @@ Future<_Harness> _pump(
       container: container,
       child: MaterialApp(
         theme: theme ?? testTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: desktop
@@ -178,6 +184,39 @@ Finder _textFieldWithLabel(String label) => find.byWidgetPredicate(
 );
 
 void main() {
+  testWidgets('credential fields remain reachable at 200 percent text scale', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      lastFmBundled: false,
+      lastFmApiKey: '',
+      size: const Size(390, 844),
+      textScale: 2,
+    );
+    for (final label in ['API Key', 'User Token']) {
+      final field = _textFieldWithLabel(label);
+      await tester.scrollUntilVisible(
+        field,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'test-credential');
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(field).controller!.text,
+        'test-credential',
+      );
+      final rect = tester.getRect(field);
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(390));
+      expect(rect.top, greaterThanOrEqualTo(0));
+      expect(rect.bottom, lessThanOrEqualTo(844));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('lists every service with what it sends and where', (
     tester,
   ) async {

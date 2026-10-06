@@ -13,7 +13,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 
@@ -230,6 +230,31 @@ void main() {
     expect(await read(container()), isEmpty);
     expect(deezer.calls, isEmpty);
   });
+
+  test(
+    'liked artists without play history still produce new releases',
+    () async {
+      await database
+          .into(database.artistsTable)
+          .insert(
+            ArtistsTableCompanion.insert(
+              id: 'liked',
+              name: 'Liked Artist',
+              starred: Value(DateTime(2026, 10, 1)),
+            ),
+          );
+      expect(await database.libraryDao.getAllSongs(), isEmpty);
+      deezer.artistIds['Liked Artist'] = 10;
+      deezer.albums[10] = const [
+        DeezerAlbum(id: 101, title: 'Liked Release', releaseDate: '2026-10-02'),
+      ];
+
+      final releases = await read(container());
+      expect(releases.map((release) => release.album.id), [101]);
+      expect(releases.single.artistId, 'liked');
+      expect(deezer.calls, ['search/artist:Liked Artist', 'albums:10']);
+    },
+  );
 
   test('little play history is topped up with library artists', () async {
     await artist('played', 'Played Artist', plays: 1);

@@ -147,6 +147,26 @@ void main() {
     ]);
   });
 
+  test(
+    'weekly playlists stay listed when server playlist reads fail',
+    () async {
+      final result = await items(
+        container(
+          playlists: AsyncError(
+            StateError('server read failed'),
+            StackTrace.empty,
+          ),
+          policy: const IntegrationPolicy(disabledKeys: {'deezer.trending'}),
+        ),
+      );
+      expect(result.map((item) => item.id), [
+        listenBrainzWeeklyJamsVirtualPlaylistId,
+      ]);
+      expect(result.single.isVirtual, isTrue);
+      expect(result.single.name, 'Weekly Jams');
+    },
+  );
+
   test('nothing virtual: loading and errors show as before', () {
     for (final (playlists, isError)
         in <(AsyncValue<List<PlaylistsTableData>>, bool)>[

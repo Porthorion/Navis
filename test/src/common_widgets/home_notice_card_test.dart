@@ -47,7 +47,32 @@ void main() {
           )
           .first,
     );
-    expect(material.color, isNotNull);
+    expect(
+      material.color,
+      Theme.of(tester.element(find.byType(HomeNoticeCard)))
+          .colorScheme
+          .surfaceContainerHigh,
+    );
+    final openRect = tester.getRect(find.byKey(const ValueKey<String>('open')));
+    final titleRect = tester.getRect(find.text('Title'));
+    expect(titleRect.left - openRect.left, NavisSpace.md);
+    final padding = tester.widget<Padding>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey<String>('open')),
+            matching: find.byType(Padding),
+          )
+          .first,
+    );
+    expect(
+      padding.padding,
+      const EdgeInsets.fromLTRB(
+        NavisSpace.md,
+        NavisSpace.sm,
+        NavisSpace.xxs,
+        NavisSpace.sm,
+      ),
+    );
     expect(material.borderRadius, NavisRadius.lgAll);
   });
 
@@ -58,6 +83,14 @@ void main() {
     await tester.pumpWidget(_card());
 
     expect(find.text('Title'), findsOneWidget);
+    expect(find.text(''), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(HomeNoticeCard),
+        matching: find.byType(Text),
+      ),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey<String>('leading')), findsNothing);
     expect(find.bySemanticsLabel(RegExp('Row label')), findsNothing);
     semantics.dispose();
@@ -81,6 +114,14 @@ void main() {
 
     expect(find.byKey(const ValueKey<String>('leading')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Row label')), findsOneWidget);
+    final leadingRect = tester.getRect(
+      find.byKey(const ValueKey<String>('leading')),
+    );
+    final openRect = tester.getRect(find.byKey(const ValueKey<String>('open')));
+    final titleRect = tester.getRect(find.text('Title'));
+    expect(leadingRect.left - openRect.left, NavisSpace.md);
+    expect(titleRect.left - leadingRect.right, NavisSpace.sm);
+    expect(leadingRect.center.dy, openRect.center.dy);
     expect(find.byTooltip('Dismiss it'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey<String>('open')));

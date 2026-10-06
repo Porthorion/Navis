@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/search_text.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -81,6 +82,39 @@ void main() {
         .customSelect('SELECT COUNT(*) AS c FROM song_search_text')
         .getSingle();
     expect(remaining.read<int>('c'), 7);
+  });
+
+  test('rebuilds a stored search key with an older version suffix', () async {
+    await database.libraryDao.refreshSongSearchIndex();
+    final before = await database
+        .customSelect(
+          "SELECT source FROM song_search_text WHERE song_id = 'beyonce-1'",
+        )
+        .getSingle();
+    final source = before.read<String>('source');
+    final older = '${source.substring(0, source.lastIndexOf('\u001f'))}\u001f1';
+    expect(older, isNot(source));
+    await database.customStatement(
+      "UPDATE song_search_text SET source = ?, match_title = 'obsolete' "
+      "WHERE song_id = 'beyonce-1'",
+      [older],
+    );
+
+    expect(await database.libraryDao.refreshSongSearchIndex(), 1);
+    final rebuilt = await database
+        .customSelect(
+          'SELECT source, match_title FROM song_search_text '
+          "WHERE song_id = 'beyonce-1'",
+        )
+        .getSingle();
+    expect(rebuilt.read<String>('source'), source);
+    expect(
+      rebuilt.read<String>('source'),
+      endsWith('\u001f$metadataKeyVersion'),
+    );
+    expect(rebuilt.read<String>('match_title'), normalizeMetadata('Halo'));
+    expect(await search('halo'), ['beyonce-1']);
+    expect(await database.libraryDao.refreshSongSearchIndex(), 0);
   });
 
   test('normalizeSearchText keeps letters from every script', () {
