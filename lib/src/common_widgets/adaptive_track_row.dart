@@ -265,13 +265,17 @@ class AdaptiveTrackRow extends StatelessWidget {
         // reserves; otherwise narrower actions widen the flex columns and
         // every value drifts right of its heading. Wider actions keep their
         // natural width rather than overflowing.
+        // Compact desktop rows reserve it too: one row's More button next to
+        // another row's empty action would otherwise shift its Time.
         final Widget? actionWidget;
         if (actionExtent != null) {
           actionWidget = SizedBox(
             width: actionExtent,
             child: Align(alignment: Alignment.centerRight, child: actions),
           );
-        } else if (actions != null && mode != TrackRowMode.compact) {
+        } else if (actions != null &&
+            (mode != TrackRowMode.compact ||
+                resolveAdaptiveContextFor(context).desktopRuntime)) {
           actionWidget = ConstrainedBox(
             constraints: BoxConstraints(minWidth: estimatedActions),
             child: Align(

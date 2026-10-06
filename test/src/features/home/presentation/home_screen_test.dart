@@ -3428,6 +3428,37 @@ void main() {
     );
   });
 
+  for (final size in <Size>[const Size(1100, 800), const Size(1280, 900)]) {
+    testWidgets(
+      'desktop Trending Time column ends at one x on matched and unmatched '
+      'rows at ${size.width} px',
+      (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        await _pumpRandomSectionHome(
+          tester,
+          database: database,
+          randomAlbums: <HomeRandomShowcaseItem>[_trending()],
+          forceDesktop: true,
+        );
+
+        Finder time(String key) => find.descendant(
+          of: find.byKey(ValueKey<String>(key)),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is Text && widget.textAlign == TextAlign.right,
+          ),
+        );
+        final matched = time('trending-desktop-row-chart-2');
+        final unmatched = time('trending-desktop-row-rank-2');
+        expect(matched, findsOneWidget);
+        expect(unmatched, findsOneWidget);
+        expect(
+          tester.getTopRight(matched).dx,
+          tester.getTopRight(unmatched).dx,
+        );
+      },
+    );
+  }
+
   testWidgets(
     'desktop Trending numbers songs by chart position and plays from a row',
     (tester) async {

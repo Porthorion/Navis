@@ -232,7 +232,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  for (final width in <double>[900, 1400]) {
+  // 700 is compact, 900 medium and 1400 wide track-row mode; a 1100 px
+  // window with the sidebar leaves the compact content width.
+  for (final width in <double>[700, 900, 1400]) {
     testWidgets(
       'desktop top tracks keep Artist and Time columns aligned across '
       'local and remote rows at $width px',
@@ -319,13 +321,16 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final artists = find.text('Test Artist');
-        expect(artists, findsNWidgets(2));
-        expect(
-          tester.getTopLeft(artists.at(0)).dx,
-          tester.getTopLeft(artists.at(1)).dx,
-          reason: 'Artist column must start at the same x on every row',
-        );
+        // Compact rows fold the artist into the secondary line.
+        if (width >= 720) {
+          final artists = find.text('Test Artist');
+          expect(artists, findsNWidgets(2));
+          expect(
+            tester.getTopLeft(artists.at(0)).dx,
+            tester.getTopLeft(artists.at(1)).dx,
+            reason: 'Artist column must start at the same x on every row',
+          );
+        }
         final remoteTime = find.text('3:34');
         final localTime = find.text('4:15');
         expect(remoteTime, findsOneWidget);
