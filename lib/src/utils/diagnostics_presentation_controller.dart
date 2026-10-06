@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -39,7 +40,9 @@ class DiagnosticsPresentationOutOfRange implements Exception {
 /// What tapping a release card did. [outcome] is `albumPage` (the album page
 /// it opened shows the album), `failed` (that page could not load it and
 /// offers Retry and a search), `loading` (still loading at the end of the
-/// wait) or `none` (the tap did not navigate).
+/// wait), `unknown` (an album page showing neither at the end of the wait),
+/// `otherPage` (the app left the album page) or `none` (the tap did not
+/// navigate).
 class DiagnosticsReleaseCardResult {
   const new({required this.outcome, required this.location});
 
@@ -1056,10 +1059,12 @@ class DiagnosticsPresentationController {
   /// Taps the release card at [index] of [surface] (a key of
   /// [releaseSurfaces]) through the card's own callback, which opens an album
   /// page: the library album, or the server's remote `ext-deezer-album-*`.
-  /// Reports how that page ended up: `albumPage` once it shows the album,
-  /// `failed` when the server could not provide it (the page offers Retry and
-  /// a search), `loading` when it still loads after [timeout], or `none` when
-  /// the tap did not navigate within [navigationTimeout].
+  /// Reports how that page ended up: `albumPage` once it marks the album as
+  /// shown, `failed` when the server could not provide it (the page offers
+  /// Retry and a search), `loading` when it still loads after [timeout],
+  /// `unknown` when it shows neither by then, `otherPage` when the location
+  /// is not an album page, or `none` when the tap did not navigate within
+  /// [navigationTimeout].
   Future<DiagnosticsReleaseCardResult> tapReleaseCard({
     required String surface,
     required int index,
@@ -1105,10 +1110,17 @@ class DiagnosticsPresentationController {
     while (true) {
       await waitForFrame();
       final after = location();
+      final path = after == null ? null : Uri.tryParse(after)?.path;
+      if (path == null || !path.startsWith(AppRoutes.album(''))) {
+        return DiagnosticsReleaseCardResult(
+          outcome: 'otherPage',
+          location: after,
+        );
+      }
       if (_currentPageShows(DetailLoadFailedView.failedKey)) {
         return DiagnosticsReleaseCardResult(outcome: 'failed', location: after);
       }
-      if (!_currentPageShows(DetailLoadingView.loadingKey)) {
+      if (_currentPageShows(detailPageShownKey)) {
         return DiagnosticsReleaseCardResult(
           outcome: 'albumPage',
           location: after,
@@ -1116,7 +1128,9 @@ class DiagnosticsPresentationController {
       }
       if (!DateTime.now().isBefore(deadline)) {
         return DiagnosticsReleaseCardResult(
-          outcome: 'loading',
+          outcome: _currentPageShows(DetailLoadingView.loadingKey)
+              ? 'loading'
+              : 'unknown',
           location: after,
         );
       }

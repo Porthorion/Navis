@@ -359,6 +359,7 @@ void main() {
         script.answer(_succeeded);
         await settle(tester);
         expect(loading, findsNothing);
+        expect(find.byKey(detailPageShownKey), findsOneWidget);
         expect(find.text('Albums'), findsOneWidget);
         expect(find.text('The Side Effects'), findsOneWidget);
         // The artist info is still loading: the page did not wait for it.
@@ -594,6 +595,7 @@ void main() {
       await settle(tester);
 
       expect(loading, findsOneWidget);
+      expect(find.byKey(detailPageShownKey), findsNothing);
       expect(find.text('Loading Remote Album…'), findsOneWidget);
       expect(find.text('The Side Effects'), findsWidgets);
       expect(find.byType(BackButton), findsOneWidget);
@@ -605,6 +607,8 @@ void main() {
       await settle(tester);
 
       expect(loading, findsNothing);
+      // Diagnostics read this mark as the album page showing the album.
+      expect(find.byKey(detailPageShownKey), findsOneWidget);
       expect(find.text('Mayday'), findsOneWidget);
       expect(find.text('Speak'), findsOneWidget);
       await dispose(tester);

@@ -22,6 +22,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -140,6 +141,7 @@ GoRouter _router() => _currentRouter = GoRouter(
             'Album ${state.pathParameters['id']} | '
             '${state.uri.queryParameters[AppRoutes.detailNameParam]} | '
             '${state.uri.queryParameters[AppRoutes.detailArtistParam]}',
+            key: detailPageShownKey,
           ),
         ),
       ],

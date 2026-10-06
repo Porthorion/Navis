@@ -1634,9 +1634,11 @@ Missing Albums shelf or Home's New Releases shelf. Cards that are not built yet
 with `/v1/presentation/scroll`. A card opens an album page: the library album,
 or the server's remote `ext-deezer-album-<id>`, which the page loads from the
 server. The response is `{"outcome", "location"}` where `outcome` reports how
-that page ended up: `albumPage` (it shows the album), `failed` (the server
-could not provide it, and the page offers Retry and a search), `loading` (still
-loading after 30 seconds) or `none` (the tap did not navigate within 8
+that page ended up: `albumPage` (the page marks the album as shown), `failed`
+(the server could not provide it, or the library could not be read, and the
+page offers Retry and a search), `loading` (still loading after 30 seconds),
+`unknown` (an album page showing neither after 30 seconds), `otherPage` (the
+location is not an album page) or `none` (the tap did not navigate within 8
 seconds); `location` is the route afterwards. A surface with no tappable card
 returns 409; an index past the cards returns 404; malformed bodies return 400.
 It replaced `POST /v1/presentation/release-sheet` when the release sheet was

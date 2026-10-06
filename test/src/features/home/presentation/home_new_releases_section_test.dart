@@ -107,7 +107,8 @@ void main() {
             final id = state.pathParameters['id']!;
             openedAlbums.add(id);
             lastAlbumUri = state.uri;
-            return albumPage?.call(id) ?? Scaffold(body: Text('album:$id'));
+            return albumPage?.call(id) ??
+                Scaffold(body: Text('album:$id', key: detailPageShownKey));
           },
         ),
       ],
@@ -258,10 +259,13 @@ void main() {
       String surface = 'newReleases',
       int index = 0,
       Duration timeout = const Duration(seconds: 8),
+      String? Function()? location,
     }) => presentation.tapReleaseCard(
       surface: surface,
       index: index,
-      location: () => opened.join(','),
+      location:
+          location ??
+          () => opened.isEmpty ? AppRoutes.home : AppRoutes.album(opened.last),
       timeout: timeout,
     );
 
@@ -288,7 +292,7 @@ void main() {
       );
       final result = await tap(opened, index: 1);
       expect(result.outcome, 'albumPage');
-      expect(result.location, 'ext-deezer-album-2');
+      expect(result.location, AppRoutes.album('ext-deezer-album-2'));
     });
 
     testWidgets('a remote album the server cannot provide reports failed', (
@@ -323,6 +327,35 @@ void main() {
         timeout: const Duration(milliseconds: 200),
       );
       expect(result.outcome, 'loading');
+    });
+
+    testWidgets('an album page showing neither the album nor a state is '
+        'unknown, not the album page', (tester) async {
+      final opened = await pumpHome(
+        tester,
+        presentation: presentation,
+        releases: (ref) => releases,
+        albumPage: (id) => const Scaffold(body: Text('Something went wrong')),
+      );
+      final result = await tap(
+        opened,
+        timeout: const Duration(milliseconds: 200),
+      );
+      expect(result.outcome, 'unknown');
+    });
+
+    testWidgets('leaving for another page is reported as such', (tester) async {
+      final opened = await pumpHome(
+        tester,
+        presentation: presentation,
+        releases: (ref) => releases,
+      );
+      final result = await tap(
+        opened,
+        location: () => opened.isEmpty ? AppRoutes.home : AppRoutes.search,
+      );
+      expect(result.outcome, 'otherPage');
+      expect(result.location, AppRoutes.search);
     });
 
     testWidgets('rejects an index past the cards and unknown surfaces', (

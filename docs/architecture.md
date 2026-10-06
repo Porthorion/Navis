@@ -1631,17 +1631,27 @@ reads "Not Found".
   still outline of the albums or tracks to come. Everything else (photo,
   biography, Deezer sections, top songs) fills in through its usual
   providers once the page shows.
-- `detailHydrationPhaseFor` turns the result into running, settled or
-  failed: a failed, cancelled or network-deferred request fails, and so does
-  a settled one after which the entity (or a remote album's tracks) is still
-  not stored. Only then does `DetailLoadFailedView` replace the loading
-  view: "Could Not Load This Artist/Album", Retry, and "Search for <name>"
-  (artists filter, or albums with "title artist") when a name is known.
+- When the request ends the page settles only on real data: the entity is
+  stored (a remote album songs-hydrated, a remote artist with albums), or a
+  remote artist has none and the hydration succeeded
+  (`detailHydrationConfirmed`; no request, a partial or a skipped one
+  confirms nothing). Anything else, including a request or library read that
+  throws, a failed, cancelled or network-deferred request
+  (`detailHydrationFailed`), or an artist, album or album-list stream that
+  cannot be read, ends in `DetailLoadFailedView`: "Could Not Load This
+  Artist/Album", Retry (which also re-reads a failed stream), and "Search
+  for <name>" (artists filter, or albums with "title artist") when a name is
+  known.
 - The name comes from the stored row, else from the route: `NavService`
   `openArtistDetail(…, name:)` and `openAlbumDetail(…, name:, artistName:)`
   add `?name=` and `&artist=` (`AppRoutes.detailNameParam` /
-  `detailArtistParam`). Search results, song menus, Fans Also Like, Missing
-  Albums and New Releases pass them.
+  `detailArtistParam`). Every link to an artist or album that may not be
+  stored passes them: search results, song menus (library, album, playlist,
+  search), album artist links, the artist and album menus, AudioMuse album
+  chips, Fans Also Like, Missing Albums and New Releases. Library lists and
+  Now Playing links open stored entities only.
+- A page showing its entity carries `detailPageShownKey`, which the
+  diagnostics release-card control reads.
 - Refresh (`DetailRefreshButton`, on every artist and album page) and Retry
   re-run the hydration (`refreshArtist`, `requestTarget(album)`). A page
   that already shows its entity keeps it and reports a failed refresh with a
