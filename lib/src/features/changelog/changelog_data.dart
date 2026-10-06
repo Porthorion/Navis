@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Matching drops square-bracketed featured credits and handles unclosed brackets; Last.fm accepts symbol-only artist names when the raw names agree',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever',
         type: ChangelogEntryType.fix,
       ),

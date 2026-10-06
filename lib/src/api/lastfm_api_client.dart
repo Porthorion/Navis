@@ -335,7 +335,9 @@ class LastFmApiClient {
   static bool _artistNamesMatch(String requested, String resolved) {
     final a = normalizeMetadata(requested);
     final b = normalizeMetadata(resolved);
-    if (a.isEmpty || b.isEmpty) return false;
+    if (a.isEmpty || b.isEmpty) {
+      return requested.trim().toLowerCase() == resolved.trim().toLowerCase();
+    }
     return a == b || a.contains(b) || b.contains(a);
   }
 

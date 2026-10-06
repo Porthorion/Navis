@@ -15,6 +15,11 @@ void main() {
   for (final (requested, resolved, accepted) in [
     ('ワンオクロック', '嵐', false),
     ('Sigur Ros', 'Sigur Rós', true),
+    (' !!! ', '!!!', true),
+    ('★☆', ' ★☆ ', true),
+    ('!!!', '???', false),
+    ('!!!', 'Queen', false),
+    ('嵐', '嵐', true),
   ]) {
     test(
       'top tracks validates Unicode artist $requested against $resolved',
@@ -36,7 +41,7 @@ void main() {
                   {
                     'name': '残響リファレンス',
                     '@attr': {'rank': '1'},
-                    'artist': {'name': resolved},
+                    if (requested.trim() != '!!!') 'artist': {'name': resolved},
                   },
                 ],
               },

@@ -28,6 +28,22 @@ void main() {
     }
   });
 
+  test('drops square-bracketed featuring credits', () {
+    expect(normalizeMetadata('Wonder [ft. X]'), 'wonder');
+    expect(normalizeMetadata('Wonder [feat. X]'), 'wonder');
+    expect(normalizeMetadata('Song (Live at Ft. Worth)'), 'song');
+  });
+
+  test('unclosed brackets do not mask featuring credits', () {
+    for (final normalize in [
+      normalizeMetadata,
+      normalizeMetadataKeepingEdition,
+    ]) {
+      expect(normalize('Song (feat. X'), 'song');
+      expect(normalize('Song [feat. X'), 'song');
+    }
+  });
+
   group('normalizeMetadata', () {
     test('keeps Japanese text and drops its punctuation', () {
       expect(normalizeMetadata('「残響リファレンス」'), '残響リファレンス');

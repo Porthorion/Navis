@@ -3503,7 +3503,7 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
   " - " qualifiers. A bracket starting with "feat" or "ft" is a featured
   credit and is dropped; the trailing featuring rule applies only outside
-  brackets, preserving locations such as "(Live at Ft. Worth)". "Wonder" and
+  closed brackets (unclosed brackets do not mask credits), preserving locations such as "(Live at Ft. Worth)". "Wonder" and
   "Wonder (Japanese Version)" share a
   fuzzy key but not an edition key. Mastering and packaging qualifiers
   (remasters, bare years, deluxe/anniversary editions, explicit/clean,
@@ -3523,6 +3523,8 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   output requires bumping `metadataKeyVersion`. Last.fm validates both its
   resolved artist and per-track credits with this Unicode-aware fuzzy key,
   so unrelated CJK names are rejected and Latin accents fold consistently.
+  Empty normalized keys fall back to trimmed, case-insensitive raw equality,
+  preserving symbol-only artists such as "!!!".
 - Related-artist links and name-based artist navigation share a cached
   `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
   are tried first; a miss uses `looseArtistKey` (articles, ampersands and
