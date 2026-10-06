@@ -49,6 +49,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   /// How many steps the flow has (diagnostics reads it to bound a step jump).
   static const stepCount = _steps;
+
+  /// Zero-based step where external-service credential fields are shown.
+  static const integrationsStep = 3;
   int _step = 0;
   bool _hydrated = false;
   bool _saving = false;
@@ -703,7 +706,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       context,
       children: children,
       showHint:
-          (_step == 1 || _step == 3) &&
+          (_step == 1 || _step == integrationsStep) &&
           _stepHasMoreBelow[_step] &&
           MediaQuery.viewInsetsOf(context).bottom == 0 &&
           constraints.maxHeight >= _minStepHeightForScrollHint,

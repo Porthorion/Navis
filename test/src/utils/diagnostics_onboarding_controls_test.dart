@@ -15,6 +15,17 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 
 /// The clone-only onboarding controls, against the real onboarding screen.
 void main() {
+  test('diagnostics uses the onboarding-owned Integrations step', () {
+    final source = File(
+      'lib/src/utils/diagnostics_presentation_controller.dart',
+    ).readAsStringSync();
+    expect(
+      source.contains('screen.step != OnboardingScreenState.integrationsStep'),
+      isTrue,
+      reason: 'the focus guard must use the screen-owned step',
+    );
+  });
+
   setUpAll(() async {
     final inter = FontLoader(navisFontFamily)
       ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
@@ -85,7 +96,12 @@ void main() {
     await pumpOnboarding(tester);
     expect(tokenField, findsNothing);
 
-    expect(await controller.setOnboardingStep(3), 3);
+    expect(
+      await controller.setOnboardingStep(
+        OnboardingScreenState.integrationsStep,
+      ),
+      3,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Step 4 of 4'), findsWidgets);
     expect(tokenField, findsOneWidget);
@@ -117,7 +133,7 @@ void main() {
     tester,
   ) async {
     await pumpOnboarding(tester);
-    await controller.setOnboardingStep(3);
+    await controller.setOnboardingStep(OnboardingScreenState.integrationsStep);
     await tester.pumpAndSettle();
 
     bool hasFocus() => tester
@@ -148,7 +164,7 @@ void main() {
 
   testWidgets('focuses the Last.fm key field when it is shown', (tester) async {
     await pumpOnboarding(tester, bundledKey: false);
-    await controller.setOnboardingStep(3);
+    await controller.setOnboardingStep(OnboardingScreenState.integrationsStep);
     await tester.pumpAndSettle();
     expect(lastFmField, findsOneWidget);
     expect(await controller.focusOnboardingField('lastFmKey'), isTrue);
@@ -172,7 +188,7 @@ void main() {
     tester,
   ) async {
     await pumpOnboarding(tester, size: const Size(360, 400));
-    await controller.setOnboardingStep(3);
+    await controller.setOnboardingStep(OnboardingScreenState.integrationsStep);
     await tester.pumpAndSettle();
     expect(tokenField, findsNothing, reason: 'below the lazily built extent');
     expect(await controller.focusOnboardingField('listenBrainzToken'), isTrue);

@@ -1026,7 +1026,7 @@ class DiagnosticsPresentationController {
       await waitForFrame();
       return false;
     }
-    if (screen.step != 3) {
+    if (screen.step != OnboardingScreenState.integrationsStep) {
       throw const DiagnosticsPresentationUnavailable();
     }
     final root = _boundaryElement();
