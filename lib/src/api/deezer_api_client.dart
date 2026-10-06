@@ -219,14 +219,19 @@ class DeezerApiClient {
     bool background = false,
   }) async {
     for (var attempt = 0; ; attempt++) {
-      final response = await _limiter.run(
-        () => _dio.get<Object?>(
+      final response = await _limiter.run(() async {
+        final response = await _dio.get<Object?>(
           path,
           queryParameters: query,
           cancelToken: cancelToken,
-        ),
-        background: background,
-      );
+        );
+        // Paused before this request's slot is released, so no waiting
+        // request starts into the quota in between.
+        if (bodyError(response.data)?.isQuotaExceeded ?? false) {
+          _limiter.pauseStarts(quotaRetryDelay);
+        }
+        return response;
+      }, background: background);
       final body = response.data;
       if (body is! Map) {
         throw const DeezerApiException(
@@ -238,13 +243,10 @@ class DeezerApiClient {
       final exception = bodyError(json);
       if (exception == null) return json;
       if (exception.code == noDataErrorCode) return null;
-      if (exception.isQuotaExceeded) {
-        // Every request waits out the quota, not only this one.
-        _limiter.pauseStarts(quotaRetryDelay);
-        // The retry waits for the pause in the limiter; a request cancelled
-        // meanwhile fails there with Dio's cancellation, without being sent.
-        if (attempt == 0) continue;
-      }
+      // The limiter is already paused (above), so every request waits out
+      // the quota, the retry included; a request cancelled meanwhile fails
+      // there with Dio's cancellation, without being sent.
+      if (exception.isQuotaExceeded && attempt == 0) continue;
       throw exception;
     }
   }

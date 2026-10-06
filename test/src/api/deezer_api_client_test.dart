@@ -324,6 +324,40 @@ void main() {
     });
   });
 
+  test('code 4 pauses before its slot goes to a waiting request', () {
+    fakeAsync((async) {
+      final shared = DeezerRequestLimiter(
+        elapsed: () => async.elapsed,
+        maxInFlight: 1,
+      );
+      final limited = DeezerApiClient(
+        dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+        limiter: shared,
+      );
+      final sentAt = <String, List<Duration>>{};
+      adapter
+        ..onFetch = ((uri) => (sentAt[uri.path] ??= []).add(async.elapsed))
+        ..queue('/search/track', _error(4, 'Exception', 'Quota limit exceeded'))
+        ..queue('/search/track', <String, Object?>{'data': <Object?>[]})
+        ..queue('/search/artist', <String, Object?>{'data': <Object?>[]});
+
+      // The second request waits for the only slot before the quota answer.
+      unawaited(limited.searchTracks('Imagine Dragons'));
+      unawaited(limited.searchArtists('Queen'));
+      async.elapse(Duration.zero);
+      expect(sentAt['/search/track'], [Duration.zero]);
+
+      async.elapse(const Duration(milliseconds: 4999));
+      expect(sentAt['/search/artist'], isNull);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(sentAt.values.expand((times) => times), [
+        Duration.zero,
+        const Duration(seconds: 5),
+        const Duration(seconds: 5),
+      ]);
+    });
+  });
+
   test('a second code 4 throws a quota exception', () async {
     adapter.queue(
       '/search/track',
