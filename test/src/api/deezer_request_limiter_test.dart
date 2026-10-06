@@ -37,6 +37,26 @@ void main() {
     });
   });
 
+  test('waits whole milliseconds, never a sub-millisecond spin', () {
+    // Dart runs a sub-millisecond timer after 0 ms, so a wait shorter than
+    // the time left in the window would fire early and reschedule in a loop.
+    var now = Duration.zero;
+    final waits = <Duration>[];
+    final limiter = DeezerRequestLimiter(
+      maxPerWindow: 1,
+      elapsed: () => now,
+      delay: (wait) {
+        waits.add(wait);
+        return Completer<void>().future;
+      },
+    );
+    unawaited(limiter.run(() async {}));
+    now = const Duration(microseconds: 999500);
+    unawaited(limiter.run(() async {}));
+
+    expect(waits, [const Duration(milliseconds: 1)]);
+  });
+
   test('runs at most 4 requests at once', () {
     fakeAsync((async) {
       final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);

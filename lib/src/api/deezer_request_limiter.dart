@@ -122,12 +122,18 @@ class DeezerRequestLimiter {
     }
   }
 
-  /// Dispatches again after [wait], unless a wake-up at least as early is
+  /// Dispatches again after [remaining], unless a wake-up at least as early is
   /// already pending. A background wait (its own rate) can be pending when a
   /// foreground request needs an earlier one (the whole window), so a later
   /// pending wake-up does not stand in for an earlier one; a wake-up that
-  /// turns out early just schedules the next.
-  void _wakeAfter(Duration wait) {
+  /// turns out early just schedules the next. The wait is rounded up to
+  /// whole milliseconds: Dart runs a shorter timer after 0 ms, which would
+  /// reschedule in a loop until the window frees.
+  void _wakeAfter(Duration remaining) {
+    final micros = remaining.inMicroseconds;
+    final wait = micros <= 0
+        ? Duration.zero
+        : Duration(milliseconds: (micros + 999) ~/ 1000);
     final at = _elapsed() + wait;
     final pending = _wakeAt;
     if (pending != null && pending <= at) return;

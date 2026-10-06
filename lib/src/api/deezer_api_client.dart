@@ -31,7 +31,7 @@ class DeezerApiException implements Exception {
 /// with [baseOptions], so the integration guard and call recorder apply.
 /// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
 /// flight); a `background` request (Home's warm-up) waits while any
-/// foreground one is waiting. Errors arrive in the body of an HTTP 200
+/// foreground one is waiting and starts at most 2 per second. Errors arrive in the body of an HTTP 200
 /// response: code 4 (quota) pauses the shared limiter for [quotaRetryDelay],
 /// so every Deezer request waits, and the request that hit it is then
 /// retried, up to [foregroundQuotaRetries] times for a foreground request

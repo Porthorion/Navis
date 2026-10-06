@@ -1496,8 +1496,8 @@ Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
 Deezer request waits it out rather than piling into the quota, and the
 request that hit it is retried after the pause: up to 3 times for a
 foreground request, once for a background one; code 800 ("no data") reads as
-an empty result, and any other code throws `DeezerApiException`. Endpoints used so
-far: `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
+an empty result, and any other code throws `DeezerApiException`. Endpoints
+used so far: `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
 `/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new ones
 go through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
