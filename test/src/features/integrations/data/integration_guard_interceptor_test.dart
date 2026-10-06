@@ -9,9 +9,10 @@ import 'package:navis/src/features/integrations/data/integration_guard_intercept
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 class _RecordingAdapter implements HttpClientAdapter {
-  new({this.status = 200});
+  new({this.status = 200, this.body = const <String, Object?>{'ok': true}});
 
   final int status;
+  final Object? body;
   final requested = <Uri>[];
 
   @override
@@ -22,7 +23,7 @@ class _RecordingAdapter implements HttpClientAdapter {
   ) async {
     requested.add(options.uri);
     return ResponseBody.fromString(
-      jsonEncode(<String, Object?>{'ok': true}),
+      jsonEncode(body),
       status,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
@@ -39,8 +40,12 @@ void main() {
   late IntegrationCallRecorder recorder;
   late _RecordingAdapter adapter;
 
-  Dio build(IntegrationService service, {int status = 200}) {
-    adapter = _RecordingAdapter(status: status);
+  Dio build(
+    IntegrationService service, {
+    int status = 200,
+    Object? body = const <String, Object?>{'ok': true},
+  }) {
+    adapter = _RecordingAdapter(status: status, body: body);
     return createExternalDio(
       service,
       readPolicy: () => policy,
@@ -212,6 +217,68 @@ void main() {
       expect(output, contains('/api/validate-token'));
     },
   );
+
+  group('errors Deezer reports in the body', () {
+    Map<String, Object?> deezerError(Object code, String message) =>
+        <String, Object?>{
+          'error': <String, Object?>{
+            'type': 'Exception',
+            'message': message,
+            'code': code,
+          },
+        };
+
+    test('count as service errors, keeping the HTTP status', () async {
+      final dio = build(
+        IntegrationService.deezer,
+        body: deezerError(4, 'Quota limit exceeded'),
+      );
+      await dio.get<Object?>('/search/artist', queryParameters: {'q': 'x'});
+
+      final call = recorder.recentCalls().single;
+      expect(call.outcome, IntegrationCallOutcome.serviceError);
+      expect(call.statusCode, 200);
+      final counters = recorder.countersFor(IntegrationService.deezer);
+      expect(counters.requests, 1);
+      expect(counters.errors, 1);
+      // Neither the body nor the query is recorded.
+      final output = jsonEncode(recorder.toJson());
+      expect(output, contains('"outcome":"serviceError"'));
+      expect(output, isNot(contains('Quota')));
+      expect(output, isNot(contains('q=')));
+    });
+
+    test('a code given as a string counts too', () async {
+      final dio = build(
+        IntegrationService.deezer,
+        body: deezerError('100', 'Wrong parameter'),
+      );
+      await dio.get<Object?>('/search/artist');
+      expect(
+        recorder.recentCalls().single.outcome,
+        IntegrationCallOutcome.serviceError,
+      );
+    });
+
+    test('code 800 (no data) is an answer, not an error', () async {
+      final dio = build(
+        IntegrationService.deezer,
+        body: deezerError(800, 'no data'),
+      );
+      await dio.get<Object?>('/artist/0/top');
+      expect(recorder.recentCalls().single.outcome, IntegrationCallOutcome.ok);
+      expect(recorder.countersFor(IntegrationService.deezer).errors, 0);
+    });
+
+    test('other services keep their own error conventions', () async {
+      final dio = build(
+        IntegrationService.lrclib,
+        body: deezerError(4, 'Quota limit exceeded'),
+      );
+      await dio.get<Object?>('/get');
+      expect(recorder.recentCalls().single.outcome, IntegrationCallOutcome.ok);
+    });
+  });
 
   test('the guard works without a recorder', () async {
     adapter = _RecordingAdapter();

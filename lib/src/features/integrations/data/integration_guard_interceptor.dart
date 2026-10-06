@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
@@ -34,6 +35,12 @@ class IntegrationBlockedException implements Exception {
 /// Defense in depth for the call-site gates: rejects a request for a disabled
 /// service, or any request while the master switch is off, before it leaves
 /// the device, and records every call.
+///
+/// A Deezer response whose body carries an error (HTTP 200 with
+/// `{"error": {...}}`, such as code 4 for the quota) is recorded as
+/// [IntegrationCallOutcome.serviceError]; code 800 ("no data") is an answer
+/// and stays [IntegrationCallOutcome.ok]. Only the outcome is kept, never
+/// the body.
 ///
 /// It checks service-level enablement only; whether a particular feature of
 /// the service is on is decided where the feature is used.
@@ -82,7 +89,9 @@ class IntegrationGuardInterceptor extends Interceptor {
   ) {
     _record(
       response.requestOptions,
-      IntegrationCallOutcome.ok,
+      _reportsError(response)
+          ? IntegrationCallOutcome.serviceError
+          : IntegrationCallOutcome.ok,
       statusCode: response.statusCode,
     );
     handler.next(response);
@@ -99,6 +108,13 @@ class IntegrationGuardInterceptor extends Interceptor {
       );
     }
     handler.next(err);
+  }
+
+  /// Whether the service reported an error in a successful response's body.
+  bool _reportsError(Response<dynamic> response) {
+    if (service != IntegrationService.deezer) return false;
+    final error = DeezerApiClient.bodyError(response.data);
+    return error != null && error.code != DeezerApiClient.noDataErrorCode;
   }
 
   void _record(

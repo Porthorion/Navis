@@ -56,6 +56,23 @@ class DeezerApiClient {
   final Dio _dio;
   final DeezerRequestLimiter _limiter;
 
+  /// The error Deezer reported in the decoded response [body], or null when
+  /// it reported none. Code 800 ("no data") is returned like any other code.
+  static DeezerApiException? bodyError(Object? body) {
+    if (body is! Map) return null;
+    final error = body['error'];
+    if (error is! Map) return null;
+    return DeezerApiException(
+      code: switch (error['code']) {
+        final num code => code.toInt(),
+        final String code => int.tryParse(code),
+        _ => null,
+      },
+      type: error['type']?.toString(),
+      message: error['message']?.toString(),
+    );
+  }
+
   /// `/search/artist?q=<name>`: artists whose name matches [name], in
   /// Deezer's relevance order.
   Future<List<DeezerArtist>> searchArtists(
@@ -218,18 +235,8 @@ class DeezerApiClient {
         );
       }
       final json = Map<String, dynamic>.from(body);
-      final error = json['error'];
-      if (error is! Map) return json;
-
-      final exception = DeezerApiException(
-        code: switch (error['code']) {
-          final num code => code.toInt(),
-          final String code => int.tryParse(code),
-          _ => null,
-        },
-        type: error['type']?.toString(),
-        message: error['message']?.toString(),
-      );
+      final exception = bodyError(json);
+      if (exception == null) return json;
       if (exception.code == noDataErrorCode) return null;
       if (exception.isQuotaExceeded) {
         // Every request waits out the quota, not only this one.

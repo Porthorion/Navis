@@ -11,6 +11,11 @@ enum IntegrationCallOutcome {
   /// The request failed or the response had an error status.
   error,
 
+  /// The service answered with a success status but reported an error in
+  /// the body, such as Deezer's `{"error": {"code": 4}}` (quota exceeded).
+  /// Deezer's code 800 ("no data") is an answer, recorded as [ok].
+  serviceError,
+
   /// The guard rejected it before it left the device.
   blocked,
 }
@@ -56,7 +61,8 @@ class IntegrationServiceCounters {
   int requests = 0;
   int blocked = 0;
 
-  /// Sent calls that failed or answered with an error status.
+  /// Sent calls that failed, answered with an error status or reported an
+  /// error in the body ([IntegrationCallOutcome.serviceError]).
   int errors = 0;
 
   /// Round-trip time summed over [requests].
@@ -156,7 +162,10 @@ class IntegrationCallRecorder {
     } else {
       counters.requests++;
       counters.totalMs += record.durationMs;
-      if (outcome == IntegrationCallOutcome.error) counters.errors++;
+      if (outcome == IntegrationCallOutcome.error ||
+          outcome == IntegrationCallOutcome.serviceError) {
+        counters.errors++;
+      }
     }
     if (_logCalls) {
       AppLogger.info(

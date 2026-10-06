@@ -520,9 +520,13 @@ Read-only `GET /v1/diagnostics/integrations` answers "is this slow because of
 Navis or the API" for every external call. It is available in all diagnostics
 modes and returns `counters` per service key (`requests` that left the device,
 `blocked` by the policy, `errors` among the requests and `totalMs`), the last
-100 `calls` (`service`, `method`, `path`, `status`, `ms`, `outcome` of `ok`,
-`error` or `blocked`, `blocked`, `at`) and the last 50 `spans`: named pipeline
-phases with the sizes they handled. Artist Top Songs records
+100 `calls` (`service`, `method`, `path`, `status`, `ms`, `outcome`, `blocked`,
+`at`) and the last 50 `spans`: named pipeline phases with the sizes they
+handled. `outcome` is `ok`, `error` (the request failed or had an error
+status), `serviceError` (a success status whose body reports an error: Deezer
+answers HTTP 200 with `{"error": {...}}`, so a quota hit, code 4, shows here
+with `status` 200; Deezer's code 800, "no data", stays `ok`) or `blocked`.
+`errors` counts both `error` and `serviceError` calls. Artist Top Songs records
 `topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
 them, and per step `top`, `searchFill` and `lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
 `candidates` library rows read, `localHits`) and `topSongs.serverMatch`

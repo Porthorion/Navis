@@ -77,6 +77,25 @@ void main() {
     expect(recorder.countersFor(IntegrationService.deezer).requests, 0);
   });
 
+  test('service errors are sent calls counted as errors', () {
+    final recorder = newRecorder();
+    record(
+      recorder,
+      service: IntegrationService.deezer,
+      url: 'https://api.deezer.com/search/artist',
+      outcome: IntegrationCallOutcome.serviceError,
+    );
+
+    final deezer = recorder.countersFor(IntegrationService.deezer);
+    expect(deezer.requests, 1);
+    expect(deezer.errors, 1);
+    expect(deezer.blocked, 0);
+    final call = (recorder.toJson()['calls']! as List).single as Map;
+    expect(call['outcome'], 'serviceError');
+    expect(call['blocked'], isFalse);
+    expect(call['status'], 200);
+  });
+
   test('keeps the newest spans and copies their counts', () {
     final recorder = newRecorder(spans: 2);
     final counts = <String, int>{'tracks': 5};
