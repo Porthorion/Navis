@@ -179,13 +179,22 @@ class RadioTabContent extends ConsumerWidget {
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) return;
 
+    ref.read(regularQueueReplacementEpochProvider.notifier).bump();
     if (isPlaying) {
       unawaited(handler.stopRadio());
       return;
     }
 
     ref.read(queueProvider.notifier).reserveSelection();
-    ref.read(regularQueueReplacementEpochProvider.notifier).bump();
+    final epoch = ref.read(regularQueueReplacementEpochProvider);
+    final notices = AppNoticeScope.maybeOf(context);
+    final errorMessage = AppLocalizations.of(context)!.radioPlaybackError;
+    final previousFailureId = notices?.notice?.message == errorMessage
+        ? notices?.notice?.id
+        : null;
+    bool isCurrent() =>
+        context.mounted &&
+        ref.read(regularQueueReplacementEpochProvider) == epoch;
     unawaited(
       handler
           .playRadioStream(
@@ -194,8 +203,17 @@ class RadioTabContent extends ConsumerWidget {
             streamUrl: station.streamUrl,
             homePageUrl: station.homePageUrl,
           )
+          .then((_) {
+            if (!isCurrent()) return;
+            // A retry resolves this radio error, but must preserve a newer or
+            // unrelated recovery notice.
+            if (previousFailureId != null &&
+                notices?.notice?.id == previousFailureId) {
+              notices?.dismiss();
+            }
+          })
           .catchError((Object error) {
-            if (!context.mounted) return;
+            if (!context.mounted || !isCurrent()) return;
             final l10n = AppLocalizations.of(context)!;
             showAppNotice(
               context,

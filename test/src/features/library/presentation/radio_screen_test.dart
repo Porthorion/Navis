@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -24,6 +27,7 @@ Future<void> _pumpRadio(
   String? activeId,
   NavisPlaybackHandler? handler,
   double scale = 1,
+  AppNoticeController? notices,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -38,10 +42,13 @@ Future<void> _pumpRadio(
         supportedLocales: AppLocalizations.supportedLocales,
         home: MediaQuery(
           data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-          child: Scaffold(
-            body: RadioTabContent(
-              typeFilterQuery: query,
-              onClearTypeFilter: onClearTypeFilter,
+          child: AppNoticeScope(
+            notifier: notices,
+            child: Scaffold(
+              body: RadioTabContent(
+                typeFilterQuery: query,
+                onClearTypeFilter: onClearTypeFilter,
+              ),
             ),
           ),
         ),
@@ -54,6 +61,7 @@ class _RadioHandler implements NavisPlaybackHandler {
   String? startedUrl;
   String? startedId;
   int stops = 0;
+  final loads = <String, Completer<void>>{};
   @override
   Future<void> playRadioStream({
     required String stationId,
@@ -63,6 +71,7 @@ class _RadioHandler implements NavisPlaybackHandler {
   }) async {
     startedId = stationId;
     startedUrl = streamUrl;
+    await loads[stationId]?.future;
   }
 
   @override
@@ -72,6 +81,98 @@ class _RadioHandler implements NavisPlaybackHandler {
 }
 
 void main() {
+  const nextStation = InternetRadioStation(
+    id: 'next',
+    name: 'Next Station',
+    streamUrl: 'https://example.invalid/next',
+  );
+
+  for (final lateFailure in [false, true]) {
+    testWidgets(
+      lateFailure
+          ? 'superseded station failure cannot show a toast'
+          : 'successful station switch dismisses the previous radio failure',
+      (tester) async {
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        final handler = _RadioHandler();
+        final first = Completer<void>();
+        final second = Completer<void>();
+        handler.loads[_station.id] = first;
+        handler.loads[nextStation.id] = second;
+        await _pumpRadio(
+          tester,
+          stations: const [_station, nextStation],
+          query: '',
+          onClearTypeFilter: null,
+          handler: handler,
+          notices: notices,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('radioStation-ambient-station')),
+        );
+        await tester.pump();
+        if (!lateFailure) {
+          first.completeError(StateError('failed'));
+          await tester.pump();
+          expect(notices.notice?.message, 'Could not play this radio station.');
+        }
+        await tester.tap(find.byKey(const ValueKey('radioStation-next')));
+        await tester.pump();
+        second.complete();
+        await tester.pump();
+        if (lateFailure) {
+          first.completeError(StateError('old failure'));
+          await tester.pump();
+        }
+        expect(notices.notice, isNull);
+      },
+    );
+  }
+
+  for (final newerNotice in [false, true]) {
+    testWidgets(
+      'successful radio load preserves ${newerNotice ? 'newer' : 'unrelated'} errors',
+      (tester) async {
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        notices.show(
+          message: newerNotice
+              ? 'Could not play this radio station.'
+              : 'Library refresh failed',
+          level: AppNoticeLevel.error,
+        );
+        final handler = _RadioHandler();
+        final load = Completer<void>();
+        handler.loads[_station.id] = load;
+        await _pumpRadio(
+          tester,
+          stations: const [_station],
+          query: '',
+          onClearTypeFilter: null,
+          handler: handler,
+          notices: notices,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('radioStation-ambient-station')),
+        );
+        await tester.pump();
+        if (newerNotice) {
+          notices.show(
+            message: 'Could not play this radio station.',
+            level: AppNoticeLevel.error,
+          );
+        }
+        final noticeId = notices.notice!.id;
+        load.complete();
+        await tester.pump();
+        expect(notices.notice?.id, noticeId);
+      },
+    );
+  }
+
   testWidgets('radio cards resize lazily and display only the safe host', (
     tester,
   ) async {

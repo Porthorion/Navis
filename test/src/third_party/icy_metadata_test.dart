@@ -66,10 +66,7 @@ void main() {
     expect(observer.value?.headers?.name, 'Station A');
     expect(observer.value?.headers?.genre, isNull);
     expect(properties.reads, isNot(contains('metadata/by-key/icy-genre')));
-    expect(
-      properties.listeners.keys,
-      unorderedEquals(['metadata', 'media-title']),
-    );
+    expect(properties.listeners.keys, unorderedEquals(['metadata']));
   });
 
   test('only a changed title emits another metadata event', () async {
@@ -84,12 +81,26 @@ void main() {
     expect(events.last?.info?.title, 'Artist - Next Song');
   });
 
-  test('media-title is a fallback for an identified ICY stream', () async {
-    properties.values['metadata/by-key/icy-title'] = '';
-    properties.values['media-title'] = 'Artist - Fallback Song';
-    await properties.change('media-title');
-    expect(events.last?.info?.title, 'Artist - Fallback Song');
-  });
+  for (final fallback in [
+    'groovesalad-128-mp3',
+    'groovesalad-128.mp3',
+    'https://stream.example.invalid/groovesalad-128.mp3',
+    'Artist - Unverified Song',
+  ]) {
+    test('media-title $fallback is ignored until real ICY metadata', () async {
+      const uri = 'https://stream.example.invalid/groovesalad-128.mp3';
+      observer.setSource(uri);
+      properties.values
+        ..['path'] = uri
+        ..['metadata/by-key/icy-title'] = ''
+        ..['media-title'] = fallback;
+      await properties.change('metadata');
+      expect(observer.value, isNull);
+      properties.values['metadata/by-key/icy-title'] = 'Artist - Real Song';
+      await properties.change('metadata');
+      expect(observer.value?.info?.title, 'Artist - Real Song');
+    });
+  }
 
   test('a cleared ICY title clears the published song', () async {
     properties.values['metadata/by-key/icy-title'] = '';

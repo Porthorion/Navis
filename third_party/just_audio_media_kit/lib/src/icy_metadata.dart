@@ -26,7 +26,7 @@ class IcyMetadataObserver {
   Future<void> start() => _starting ??= _start();
 
   Future<void> _start() async {
-    for (final property in ['metadata', 'media-title']) {
+    for (final property in ['metadata']) {
       if (_disposed) return;
       await source.observe(property, (_) => refresh());
       _observed.add(property);
@@ -54,13 +54,11 @@ class IcyMetadataObserver {
       source.read('metadata/by-key/icy-title'),
       source.read('metadata/by-key/icy-name'),
       source.read('metadata/by-key/icy-url'),
-      source.read('media-title'),
     ]);
     if (_disposed || revision != _revision) return;
     final icyTitle = values[0];
     final name = values[1];
     final url = values[2];
-    final mediaTitle = values[3];
     final path = await source.read('path');
     if (_disposed || revision != _revision || path != uri) {
       return;
@@ -69,12 +67,9 @@ class IcyMetadataObserver {
         value.trim().isEmpty ? null : value.trim();
     final stationName = nonEmpty(name);
     final stationUrl = nonEmpty(url);
-    // media-title also contains filenames for ordinary music. Only use it
-    // when the stream identifies itself as ICY.
-    final title = nonEmpty(icyTitle) ??
-        (stationName != null || stationUrl != null
-            ? nonEmpty(mediaTitle)
-            : null);
+    // mpv's media-title falls back to the URL basename before ICY arrives.
+    // Only stream metadata is authoritative for the current song.
+    final title = nonEmpty(icyTitle);
     if (title == _value?.info?.title) return;
     _value = title == null
         ? null

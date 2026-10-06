@@ -82,6 +82,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool nativePositionFrozen = false;
   bool keepStreamsAfterDispose = false;
   int seekCalls = 0;
+  int stopCalls = 0;
   int? index;
   double appliedSpeed = 1;
   double appliedPitch = 1;
@@ -279,6 +280,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> stop() => _mutate(() async {
+    stopCalls++;
     await _hangIf('stop');
     isPlaying = false;
     state = ProcessingState.idle;
@@ -723,6 +725,40 @@ void main() {
       );
       return (handler, player);
     }
+
+    test(
+      'superseded radio source failure completes without reporting error',
+      () async {
+        final (handler, player) = await setup();
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        final stopsBeforeSwitch = player.stopCalls;
+        player.loadGate = gate;
+        player.loadEntered = entered;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final oldLoad = handler.playRadioStream(
+          stationId: 'b',
+          stationName: 'Station B',
+          streamUrl: 'https://stream.example.invalid/b',
+        );
+        final oldResult = expectLater(oldLoad, completes);
+        await entered.future;
+        final newLoad = handler.playRadioStream(
+          stationId: 'c',
+          stationName: 'Station C',
+          streamUrl: 'https://stream.example.invalid/c',
+        );
+        gate.completeError(StateError('superseded load failed'));
+        await oldResult;
+        await newLoad;
+        expect(player.stopCalls, stopsBeforeSwitch + 2);
+        expect(handler.snapshot.radioStation?.stationId, 'c');
+        expect(handler.mediaItem.value?.title, 'Station C');
+        expect(player.playing, isTrue);
+      },
+    );
 
     for (final failLoad in [false, true]) {
       test(

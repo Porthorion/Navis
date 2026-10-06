@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Radio keeps the station name until a real stream title arrives and clears earlier playback errors after a successful station switch',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Internet radio shows live song titles on desktop and falls back to stream titles or the station name when radio now-playing lookups are turned off',
         type: ChangelogEntryType.fix,
       ),

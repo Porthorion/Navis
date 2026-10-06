@@ -1419,9 +1419,12 @@ switch means "Navis only talks to your server" when off. See
   with a successful API response keeps polling through transient failures.
   Requests from an earlier station/listening generation cannot publish metadata.
   Switching stations stops metadata listeners before replacing the station or
-  awaiting its source load; a failed source load also stops them. Policy-driven
-  artwork refreshes retain the current song title and artist in the system media
-  item. Rebinding the same station to a replacement player preserves the source
+  awaiting its source load; a current failed source load also stops them.
+  Superseded radio failures cannot clear station state or report failure. Radio
+  card callbacks use the queue selection epoch to discard stale errors; a
+  successful retry dismisses its earlier radio error notice by notice identity.
+  Policy-driven artwork refreshes retain the current song title and artist in
+  the system media item. Rebinding the same station to a replacement player preserves the source
   of its displayed metadata until a fresh update arrives.
   Playback diagnostics report the active radio station, stream host only, last
   applied metadata source, displayed metadata/artwork and the actual published
@@ -2441,13 +2444,13 @@ refuses certificates the system does not trust. macOS's bundled mpv 0.36
 certificate source has not been verified.
 `tool/stream_open_diagnostics.py` guards both at runtime.
 
-The vendored desktop adapter observes libmpv's `metadata` and `media-title`
-properties through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads
+The vendored desktop adapter observes libmpv's `metadata`
+property through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads
 `metadata/by-key/icy-title`, `icy-name` and `icy-url` with `getProperty`, mapping
-these to just_audio's ICY info and headers. `media-title` is a fallback only
-when ICY station headers identify the stream, so ordinary filenames are not
-radio metadata. Genre metadata is ignored. A changed title emits a playback
-metadata event; source loads and playlist entry changes clear the old metadata.
+these to just_audio's ICY info and headers. Only `icy-title` supplies a song
+title; `media-title` is ignored because mpv substitutes a URL or filename
+before stream metadata arrives. Until then Navis displays the station name.
+Genre metadata is ignored. A changed title emits a playback metadata event; source loads and playlist entry changes clear the old metadata.
 Reads check the native `path` and a revision token so a previous source cannot
 publish a late title. Observers are removed before native player disposal.
 Android/iOS keep the native just_audio ICY path.

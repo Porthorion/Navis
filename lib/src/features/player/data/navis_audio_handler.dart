@@ -9329,6 +9329,7 @@ class NavisAudioHandler extends BaseAudioHandler
             timeout: _playerLoadTimeout,
           );
         } on Object catch (error, stackTrace) {
+          _checkQueueWorkCurrent(token, generation);
           AppLogger.error(
             'Failed to start radio stream: $streamUrl',
             error,
@@ -9362,6 +9363,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'playRadioStream cancelled — superseded by newer command.',
         );
       } on Object {
+        if (token.isCancelled || !_isActiveLoadGeneration(generation)) return;
         _completeQueueLoad(generation);
         rethrow;
       }
