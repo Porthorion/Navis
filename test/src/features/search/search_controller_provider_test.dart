@@ -13,7 +13,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../helpers/test_database.dart';
 

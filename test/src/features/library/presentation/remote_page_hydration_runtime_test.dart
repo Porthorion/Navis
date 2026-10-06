@@ -158,7 +158,17 @@ void main() {
     final result = await container
         .read(librarySyncControllerProvider.notifier)
         .hydrateOpenedArtist(id);
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (!(container
+                    .read(artistAlbumSectionsProvider(id))
+                    .value
+                    ?.albums
+                    .length ==
+                25 &&
+            container.read(artistByIdProvider(id)).value?.name == 'coldrain') &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
 
     expect(result?.status, LibrarySyncStatus.succeeded, reason: '$result');
     expect((await database.libraryDao.getArtistById(id))?.name, 'coldrain');

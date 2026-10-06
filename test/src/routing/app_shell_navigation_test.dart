@@ -42,7 +42,7 @@ import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';

@@ -6,7 +6,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../helpers/test_database.dart';
 

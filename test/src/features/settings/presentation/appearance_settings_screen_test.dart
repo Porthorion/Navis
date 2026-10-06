@@ -8,7 +8,7 @@ import 'package:navis/src/features/settings/presentation/appearance_settings_scr
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';

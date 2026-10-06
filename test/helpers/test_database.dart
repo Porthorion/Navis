@@ -4,7 +4,7 @@ import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:sqlite3/sqlite3.dart';
 
 NavisDatabase createTestDatabase({File? file}) {

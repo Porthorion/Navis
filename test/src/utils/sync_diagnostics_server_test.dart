@@ -46,7 +46,7 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../helpers/test_database.dart';
 

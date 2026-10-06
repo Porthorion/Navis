@@ -6,7 +6,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../helpers/adaptive_test_harness.dart';
 import '../../../helpers/test_database.dart';

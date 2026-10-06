@@ -2,10 +2,6 @@ import 'dart:math' as math;
 
 import 'package:navis/src/utils/metadata_normalization.dart';
 
-// Re-exported so importers of the lyrics matcher keep the shared normalizer.
-export 'package:navis/src/utils/metadata_normalization.dart'
-    show normalizeMetadata;
-
 class LrclibMatchCandidate {
   const new({
     required this.artist,

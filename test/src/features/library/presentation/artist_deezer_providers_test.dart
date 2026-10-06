@@ -10,7 +10,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/library/data/library_artist_name_index.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 

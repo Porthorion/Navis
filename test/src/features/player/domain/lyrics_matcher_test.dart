@@ -48,8 +48,4 @@ void main() {
     expect(score('Wonder').sameEdition, isFalse);
     expect(score('Wonder').value, score('Wonder (Japanese Version)').value);
   });
-
-  test('normalizeMetadata stays importable from the lyrics matcher', () {
-    expect(normalizeMetadata('Beyoncé'), 'beyonce');
-  });
 }

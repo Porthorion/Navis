@@ -21,7 +21,7 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_provid
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 

@@ -10,7 +10,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 class _StaticRequiredRebuildController
     extends RequiredLibraryRebuildController {

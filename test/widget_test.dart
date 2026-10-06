@@ -10,7 +10,7 @@ import 'package:navis/src/features/player/presentation/playback_recovery_provide
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'helpers/test_theme.dart';
 

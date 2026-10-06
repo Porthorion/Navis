@@ -226,7 +226,17 @@ void main() {
         .read(librarySyncControllerProvider.notifier)
         .registerArtistInteraction('oor');
     // The artist page's album buckets re-read at most four times a second.
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (!(container.read(artistMissingAlbumsProvider(_key)).isEmpty &&
+            container
+                    .read(artistAlbumSectionsProvider('oor'))
+                    .value
+                    ?.albums
+                    .length ==
+                2) &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
     await pumpEventQueue();
 
     expect(api.calls, <String>['getArtist:oor']);

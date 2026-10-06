@@ -39,7 +39,7 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -1137,23 +1137,22 @@ void main() {
     );
 
     // Seen, or before setup is complete: the release notes row is back.
-    for (final override in <Override>[
-      onboardingRequiredProvider.overrideWithValue(true),
-    ]) {
-      await _pumpHomeWithAppSettings(
-        tester,
-        database: database,
-        overrides: <Override>[changelog, override],
-      );
-      expect(
-        find.byKey(const ValueKey<String>('integrationsNoticeOpen')),
-        findsNothing,
-      );
-      expect(
-        find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
-        findsOneWidget,
-      );
-    }
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      overrides: <Override>[
+        changelog,
+        onboardingRequiredProvider.overrideWithValue(true),
+      ],
+    );
+    expect(
+      find.byKey(const ValueKey<String>('integrationsNoticeOpen')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsOneWidget,
+    );
     await _pumpHomeWithAppSettings(
       tester,
       database: database,

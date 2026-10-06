@@ -22,7 +22,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
-import 'package:riverpod/src/framework.dart' show Override;
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 
