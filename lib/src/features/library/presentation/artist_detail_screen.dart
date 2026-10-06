@@ -130,7 +130,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       if (mounted &&
           generation == _hydrationGeneration &&
           _hydration == DetailHydrationPhase.running) {
-        setState(() => _hydration = DetailHydrationPhase.failed);
+        setState(() {
+          _hydration = DetailHydrationPhase.failed;
+          // Retry must work again even while the request keeps running.
+          _refreshing = false;
+        });
       }
     });
     var requestFailed = false;
@@ -192,13 +196,18 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       // A refresh also tries photos that failed to load again.
       _headerGeneration++;
     });
+    final request = _hydrate(
+      ref
+          .read(librarySyncControllerProvider.notifier)
+          .refreshArtist(widget.artistId),
+    );
+    // A later refresh (Retry after a timeout) owns the guard and the notice.
+    final generation = _hydrationGeneration;
     try {
-      final requestFailed = await _hydrate(
-        ref
-            .read(librarySyncControllerProvider.notifier)
-            .refreshArtist(widget.artistId),
-      );
-      if (!mounted || !requestFailed) return;
+      final requestFailed = await request;
+      if (!mounted || !requestFailed || generation != _hydrationGeneration) {
+        return;
+      }
       final shown = _showsArtist(
         ref.read(artistByIdProvider(widget.artistId)).value,
         ref.read(artistAlbumSectionsProvider(widget.artistId)),
@@ -211,7 +220,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _refreshing = false);
+      if (mounted && generation == _hydrationGeneration) {
+        setState(() => _refreshing = false);
+      }
     }
   }
 

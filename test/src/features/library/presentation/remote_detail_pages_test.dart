@@ -492,6 +492,44 @@ void main() {
       await dispose(tester);
     });
 
+    testWidgets('Retry keeps working through repeated timeouts, and a late '
+        'answer fills the page', (tester) async {
+      await open(tester, AppRoutes.artist(_remoteArtistId, name: 'coldrain'));
+      await tester.pump(kDetailHydrationTimeout);
+      await settle(tester);
+      expect(failed, findsOneWidget);
+
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        await tester.tap(find.byKey(DetailLoadFailedView.retryKey));
+        await settle(tester);
+        expect(
+          script.calls.where((call) => call.startsWith('refresh-artist')),
+          hasLength(attempt),
+        );
+        expect(loading, findsOneWidget);
+        // The server still does not answer.
+        await tester.pump(kDetailHydrationTimeout);
+        await settle(tester);
+        expect(failed, findsOneWidget);
+      }
+      await tester.tap(find.byKey(DetailLoadFailedView.retryKey));
+      await settle(tester);
+      expect(
+        script.calls.where((call) => call.startsWith('refresh-artist')),
+        hasLength(3),
+      );
+
+      // The server finally answers every request.
+      await storeRemoteArtist();
+      while (script.pending.isNotEmpty) {
+        script.answer(_succeeded);
+      }
+      await settle(tester);
+      expect(failed, findsNothing);
+      expect(find.text('The Side Effects'), findsOneWidget);
+      await dispose(tester);
+    });
+
     testWidgets('an artist the server confirms has no albums still shows', (
       tester,
     ) async {
@@ -770,6 +808,44 @@ void main() {
       expect(loading, findsOneWidget);
       expect(find.text('Loading Remote Album…'), findsOneWidget);
       expect(find.text('No Tracks for This Album'), findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('album Retry keeps working through repeated timeouts, and a '
+        'late answer fills the page', (tester) async {
+      await open(
+        tester,
+        AppRoutes.album(_remoteAlbumId, name: 'The Side Effects'),
+      );
+      await tester.pump(kDetailHydrationTimeout);
+      await settle(tester);
+      expect(failed, findsOneWidget);
+
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        await tester.tap(find.byKey(DetailLoadFailedView.retryKey));
+        await settle(tester);
+        expect(
+          script.calls.where((call) => call.startsWith('refresh-album')),
+          hasLength(attempt),
+        );
+        await tester.pump(kDetailHydrationTimeout);
+        await settle(tester);
+        expect(failed, findsOneWidget);
+      }
+      await tester.tap(find.byKey(DetailLoadFailedView.retryKey));
+      await settle(tester);
+      expect(
+        script.calls.where((call) => call.startsWith('refresh-album')),
+        hasLength(3),
+      );
+
+      await storeRemoteAlbum(withSongs: true);
+      while (script.pending.isNotEmpty) {
+        script.answer(_succeeded);
+      }
+      await settle(tester);
+      expect(failed, findsNothing);
+      expect(find.text('Mayday'), findsOneWidget);
       await dispose(tester);
     });
 

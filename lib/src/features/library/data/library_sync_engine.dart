@@ -5,7 +5,8 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show TableUpdate, Value, Variable;
+import 'package:drift/drift.dart'
+    show Table, TableInfo, TableUpdate, Value, Variable;
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -940,17 +941,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     };
   }
 
-  /// Re-announces the library tables a target hydration wrote, once its
+  /// Re-announces [tables], which a target hydration wrote, once its
   /// transaction has committed. The DAO writes nest their own transactions,
   /// and drift announces a nested transaction's tables when it completes,
   /// before the outer commit; a stream re-reading then on a separate reader
   /// connection (the app's WAL read pool) sees the old rows and is not told
   /// again, so an artist or album page would wait for rows already stored.
-  void _notifyCommittedTargetWrites() {
+  void _notifyCommittedTargetWrites(
+    Iterable<TableInfo<Table, Object?>> tables,
+  ) {
     _database.notifyUpdates(<TableUpdate>{
-      TableUpdate.onTable(_database.artistsTable),
-      TableUpdate.onTable(_database.albumsTable),
-      TableUpdate.onTable(_database.songsTable),
+      for (final table in tables) TableUpdate.onTable(table),
     });
   }
 
@@ -1153,7 +1154,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           );
         }
       });
-      _notifyCommittedTargetWrites();
+      _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
+        _database.artistsTable,
+        _database.albumsTable,
+        _database.songsTable,
+      ]);
       await _database.libraryDao.cleanupRemovedCacheFiles(deferredCacheFiles);
       metrics.addDbWriteBatch();
       state = _withMetrics(
@@ -1368,7 +1373,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           );
         }
       });
-      _notifyCommittedTargetWrites();
+      _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
+        _database.artistsTable,
+        _database.albumsTable,
+      ]);
       metrics.addDbWriteBatch();
       state = _withMetrics(
         state.copyWith(

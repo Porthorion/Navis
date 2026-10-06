@@ -122,7 +122,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (mounted &&
           generation == _hydrationGeneration &&
           _hydration == DetailHydrationPhase.running) {
-        setState(() => _hydration = DetailHydrationPhase.failed);
+        setState(() {
+          _hydration = DetailHydrationPhase.failed;
+          // Retry must work again even while the request keeps running.
+          _isRefreshingAlbum = false;
+        });
       }
     });
     var requestFailed = false;
@@ -1505,13 +1509,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       _isRefreshingAlbum = true;
       _hydration = DetailHydrationPhase.running;
     });
+    final request = _hydrate(
+      ref
+          .read(librarySyncControllerProvider.notifier)
+          .requestTarget(LibrarySyncTarget.album(widget.albumId)),
+    );
+    // A later refresh (Retry after a timeout) owns the guard and the notice.
+    final generation = _hydrationGeneration;
     try {
-      final requestFailed = await _hydrate(
-        ref
-            .read(librarySyncControllerProvider.notifier)
-            .requestTarget(LibrarySyncTarget.album(widget.albumId)),
-      );
-      if (!mounted) {
+      final requestFailed = await request;
+      if (!mounted || generation != _hydrationGeneration) {
         return;
       }
       ref.invalidate(albumInfoProvider(widget.albumId));
@@ -1526,7 +1533,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         level: AppNoticeLevel.error,
       );
     } finally {
-      if (mounted) {
+      if (mounted && generation == _hydrationGeneration) {
         setState(() => _isRefreshingAlbum = false);
       }
     }
