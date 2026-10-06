@@ -299,12 +299,11 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// the top-song matcher on Trending's own store: remembered matches and
 /// `ext-deezer-song-<id>` rows, the library pass, then `search3` on the
 /// server, where a copy on the server wins over a remote one. The rows show
-/// at once, still matching, then with their songs; songs found nowhere stay
-/// as unmatched rows. Two
-/// songs are searched at once; a pull to refresh searches six, updates the
-/// rows as it goes and searches unmatched songs again. The provider lives
-/// for the session; a refresh or turning the switch off cancels its
-/// searches. A failed chart request leaves Trending empty.
+/// at once, still matching, then with their songs; songs found nowhere stay as
+/// unmatched rows. Two songs are searched at once; a pull to refresh searches
+/// six, updates the rows as it goes and searches unmatched songs again. The
+/// provider lives for the session; a refresh or turning the switch off cancels
+/// its searches. A failed chart request leaves Trending empty.
 final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async* {
