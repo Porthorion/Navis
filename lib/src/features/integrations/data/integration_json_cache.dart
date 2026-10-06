@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:navis/src/utils/app_logger.dart';
@@ -39,12 +40,15 @@ class IntegrationJsonCache {
   final Future<Directory> Function() _readRootDirectory;
   final DateTime Function() _now;
   var _tempCounter = 0;
+  Future<Directory>? _root;
 
   /// The entry for [key], or null when it is absent, expired or unreadable.
   Future<IntegrationCacheHit?> read(String namespace, String key) async {
     try {
       final file = await _file(namespace, key);
-      if (!file.existsSync()) return null;
+      // Keep filesystem checks off the UI isolate during cache operations.
+      // ignore: avoid_slow_async_io
+      if (!(await file.exists())) return null;
       final json = jsonDecode(await file.readAsString());
       if (json is! Map<String, dynamic> || json['key'] != key) return null;
       final storedAt = DateTime.tryParse(json['storedAt'] as String? ?? '');
@@ -91,7 +95,9 @@ class IntegrationJsonCache {
   Future<void> remove(String namespace, String key) async {
     try {
       final file = await _file(namespace, key);
-      if (file.existsSync()) await file.delete();
+      // Keep filesystem checks off the UI isolate during cache operations.
+      // ignore: avoid_slow_async_io
+      if (await file.exists()) await file.delete();
     } on Object catch (error) {
       AppLogger.debug(
         'IntegrationJsonCache: remove failed in $namespace: $error',
@@ -103,7 +109,9 @@ class IntegrationJsonCache {
   Future<void> clearNamespace(String namespace) async {
     try {
       final directory = await _namespaceDirectory(namespace);
-      if (directory.existsSync()) await directory.delete(recursive: true);
+      // Keep filesystem checks off the UI isolate during cache operations.
+      // ignore: avoid_slow_async_io
+      if (await directory.exists()) await directory.delete(recursive: true);
     } on Object catch (error) {
       AppLogger.debug(
         'IntegrationJsonCache: clear failed in $namespace: $error',
@@ -115,13 +123,32 @@ class IntegrationJsonCache {
     if (!_namespacePattern.hasMatch(namespace)) {
       throw ArgumentError.value(namespace, 'namespace');
     }
+    final root = await (_root ??= _initializeRoot());
+    return Directory(p.join(root.path, directoryName, namespace));
+  }
+
+  Future<Directory> _initializeRoot() async {
     final root = await _readRootDirectory();
-    return Directory('${root.path}/$directoryName/$namespace');
+    try {
+      // Initialization must not block the UI isolate either.
+      // ignore: avoid_slow_async_io
+      if (await root.exists()) {
+        final legacyName = RegExp(r'^lastfm_top_[0-9a-f]{16}\.json$');
+        await for (final entry in root.list(followLinks: false)) {
+          if (entry is File && legacyName.hasMatch(p.basename(entry.path))) {
+            await entry.delete();
+          }
+        }
+      }
+    } on FileSystemException catch (error) {
+      AppLogger.debug('IntegrationJsonCache: legacy cleanup failed: $error');
+    }
+    return root;
   }
 
   Future<File> _file(String namespace, String key) async {
     final directory = await _namespaceDirectory(namespace);
     final hash = sha256.convert(utf8.encode(key)).toString().substring(0, 24);
-    return File('${directory.path}/$hash.json');
+    return File(p.join(directory.path, '$hash.json'));
   }
 }

@@ -21,6 +21,38 @@ void main() {
     if (root.existsSync()) root.deleteSync(recursive: true);
   });
 
+  test('sweeps only legacy root files once', () async {
+    final legacy = File('${root.path}/lastfm_top_0123456789abcdef.json');
+    await legacy.writeAsString('{}');
+    final keep = [
+      'lastfm_top_0123456789abcdeg.json',
+      'lastfm_top_123.json',
+      'lastfm_top_0123456789ABCDEF.json',
+      'other.json',
+    ];
+    for (final name in keep) {
+      await File('${root.path}/$name').writeAsString('{}');
+    }
+    final nested = Directory('${root.path}/nested');
+    await nested.create();
+    final nestedFile = File('${nested.path}/lastfm_top_0123456789abcdef.json');
+    await nestedFile.writeAsString('{}');
+    final matchingDirectory = Directory(
+      '${root.path}/lastfm_top_fedcba9876543210.json',
+    );
+    await matchingDirectory.create();
+    await cache.read('ns', 'missing');
+    expect(legacy.existsSync(), isFalse);
+    for (final name in keep) {
+      expect(File('${root.path}/$name').existsSync(), isTrue);
+    }
+    expect(nestedFile.existsSync(), isTrue);
+    expect(matchingDirectory.existsSync(), isTrue);
+    await legacy.writeAsString('{}');
+    await cache.read('ns', 'missing');
+    expect(legacy.existsSync(), isTrue, reason: 'sweep runs once per cache');
+  });
+
   test('a value reads back until its time to live ends', () async {
     await cache.write('deezer.artist-id', 'queen', <String, Object?>{
       'id': 412,

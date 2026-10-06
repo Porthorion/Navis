@@ -1550,7 +1550,11 @@ fallback.
   an artist's albums and track searches 24 hours, charts 6
   hours. It replaced
   `LastFmArtistCache`; files that cache wrote (`lastfm_top_<hash>.json`) are
-  no longer read.
+  no longer read. On the first cache operation, an asynchronous sweep deletes
+  only root files matching `^lastfm_top_[0-9a-f]{16}\.json$`; directories,
+  symlinks, nested files and other names are untouched. The initialization
+  future is shared across concurrent operations and runs once per cache
+  instance. Existence checks during cache operations are asynchronous.
 - **Artist resolution.** `DeezerArtistResolver`
   (`deezerArtistResolverProvider`) uses the id of a library artist
   `ext-deezer-artist-<id>` directly. Otherwise it reads the cached mapping or
