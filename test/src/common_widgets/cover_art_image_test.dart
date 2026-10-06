@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:file/local.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -57,6 +60,48 @@ Future<CacheManager> _createCacheManager(
     return manager;
   }))!;
 }
+
+/// Times out its first [timeouts] downloads, then serves [file].
+class _TimingOutCacheManager extends Fake implements CacheManager {
+  new(this.file, {required this.timeouts});
+
+  final File file;
+  final int timeouts;
+  int downloads = 0;
+
+  @override
+  Future<FileInfo?> getFileFromCache(
+    String key, {
+    bool ignoreMemCache = false,
+  }) async => null;
+
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) {
+    downloads++;
+    if (downloads <= timeouts) {
+      return Stream<FileResponse>.error(
+        TimeoutException('cover timed out', const Duration(seconds: 20)),
+      );
+    }
+    return Stream<FileResponse>.value(
+      FileInfo(
+        const LocalFileSystem().file(file.path),
+        FileSource.Online,
+        DateTime.now().add(const Duration(days: 1)),
+        url,
+      ),
+    );
+  }
+}
+
+final Uint8List _onePixelPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -293,6 +338,80 @@ void main() {
             },
           );
       expect(files, contains(stored.path));
+    });
+
+    group('a server cover that times out', () {
+      Future<_TimingOutCacheManager> pumpTimingOut(
+        WidgetTester tester, {
+        required int timeouts,
+      }) async {
+        final file = File('${cacheDirectory.path}/timeout-retry-$timeouts.png')
+          ..writeAsBytesSync(_onePixelPng);
+        final manager = _TimingOutCacheManager(file, timeouts: timeouts);
+        await tester.pumpWidget(
+          _buildWidget(
+            overrides: <Object>[
+              subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+              coverArtLoadCoordinatorProvider.overrideWithValue(
+                CoverArtLoadCoordinator(),
+              ),
+              coverArtCacheManagerProvider.overrideWithValue(manager),
+            ],
+            child: CoverArtImage(
+              // A distinct id per test: the global image cache keys on it.
+              coverArtId: 'slow-cover-$timeouts',
+              size: 300,
+              width: 64,
+              height: 64,
+              placeholderIcon: Icons.music_note_outlined,
+              loadPriority: CoverArtLoadPriority.critical,
+            ),
+          ),
+        );
+        return manager;
+      }
+
+      Future<void> settle(WidgetTester tester, Duration time) async {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump(time);
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+      }
+
+      testWidgets('is retried once and then shows the cover', (tester) async {
+        final manager = await pumpTimingOut(tester, timeouts: 1);
+        await settle(tester, Duration.zero);
+
+        expect(manager.downloads, 1);
+        expect(find.byIcon(Icons.music_note_outlined), findsOneWidget);
+
+        await settle(tester, const Duration(seconds: 3));
+        expect(manager.downloads, 2);
+        // The image decodes outside fake time.
+        for (
+          var i = 0;
+          i < 20 && find.byType(RawImage).evaluate().isEmpty;
+          i++
+        ) {
+          await settle(tester, const Duration(milliseconds: 50));
+        }
+        expect(find.byIcon(Icons.music_note_outlined), findsNothing);
+        expect(find.byType(RawImage), findsOneWidget);
+      });
+
+      testWidgets('is never retried more than once', (tester) async {
+        final manager = await pumpTimingOut(tester, timeouts: 99);
+        await settle(tester, Duration.zero);
+        await settle(tester, const Duration(seconds: 3));
+        await settle(tester, const Duration(seconds: 30));
+
+        expect(manager.downloads, 2);
+        expect(find.byIcon(Icons.music_note_outlined), findsOneWidget);
+      });
     });
 
     testWidgets('visibility changes register and unregister interest', (

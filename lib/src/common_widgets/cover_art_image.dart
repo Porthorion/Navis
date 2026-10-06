@@ -25,6 +25,9 @@ export 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
         coverArtImageCacheKey,
         kCoverArtStandardSize;
 
+/// How long a server cover waits before its single retry after a timeout.
+const kCoverArtTimeoutRetryDelay = Duration(seconds: 2);
+
 class CoverArtImage extends ConsumerStatefulWidget {
   const new({
     required this.coverArtId,
@@ -138,6 +141,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   var _isInLoadWindow = false;
   var _loadWindowCheckScheduled = false;
 
+  /// Keys the network image so a timed-out load starts again. Bumped by the
+  /// one retry [_retryTimedOutLoad] schedules per cache key.
+  var _retryNonce = 0;
+  String? _retriedCacheKey;
+  Timer? _retryTimer;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -156,6 +165,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _scrollPosition?.removeListener(_handleScrollPositionChanged);
     _clearInterest();
     super.dispose();
@@ -499,6 +509,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       revision: widget.revision,
     );
     final image = OctoImage(
+      key: ValueKey<int>(_retryNonce),
       image: _boundedImageProvider(
         CachedNetworkImageProvider(
           api
@@ -526,7 +537,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       placeholderBuilder: (_) => widget.showLoadingPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),
-      errorBuilder: (_, _, _) {
+      errorBuilder: (_, error, _) {
         // Offline or unreachable: a downloaded song still has its cover.
         final permanentFile = _permanentFile;
         if (permanentFile != null) {
@@ -538,12 +549,27 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
             recoverCacheEntry: false,
           );
         }
+        if (error is TimeoutException) _retryTimedOutLoad(cacheKey);
         return widget.showErrorPlaceholder
             ? _fallback(context)
             : _emptyPlaceholder();
       },
     );
     return _clip(image);
+  }
+
+  /// Loads a server cover again, once per [cacheKey], after it timed out, so
+  /// a slow moment does not leave the placeholder until the page is reopened.
+  /// A second timeout keeps the placeholder; this never loops.
+  void _retryTimedOutLoad(String cacheKey) {
+    if (_retriedCacheKey == cacheKey) return;
+    _retriedCacheKey = cacheKey;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(kCoverArtTimeoutRetryDelay, () {
+      _retryTimer = null;
+      if (!mounted) return;
+      setState(() => _retryNonce++);
+    });
   }
 
   void _reportImageReady(String cacheKey) {

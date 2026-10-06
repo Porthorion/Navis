@@ -3239,7 +3239,11 @@ contract.
   bounded refetch, and coalesces one entity-metadata refresh per missing
   cover reference (cooldown per cover identity per session) routed through
   the sync engine's targeted hydration so widgets retry the resulting cover
-  identity.
+  identity. A server cover whose load times out is also retried by
+  `CoverArtImage` itself, once per cache key after
+  `kCoverArtTimeoutRetryDelay`, instead of keeping its placeholder until the
+  page is reopened; a second timeout keeps the placeholder (external artwork
+  is not retried).
 
 ### Cache Flow
 
