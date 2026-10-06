@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/home_notice_card.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
-import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 /// The release that introduced Integrations, named on the notice.
@@ -32,8 +31,8 @@ final integrationsNoticeVisibleProvider = Provider<bool>((ref) {
 /// Integrations; tapping it or its close button records the notice as seen
 /// (`integrations_notice_dismissed`), so it never returns.
 ///
-/// Styled like the What's New row (`ChangelogDiscoveryCard`), which it
-/// replaces while shown.
+/// Shares its frame ([HomeNoticeCard]) with the What's New row
+/// (`ChangelogDiscoveryCard`), which it replaces while shown.
 class IntegrationsNoticeCard extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -70,65 +69,14 @@ class _IntegrationsNoticeCardState
       return const SizedBox.shrink();
     }
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-    final horizontal = desktopMode ? NavisSpace.md : NavisSpace.sm;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontal,
-        NavisSpace.xxs,
-        horizontal,
-        NavisSpace.sm,
-      ),
-      child: Material(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: NavisRadius.lgAll,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: const ValueKey<String>('integrationsNoticeOpen'),
-          onTap: _open,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              NavisSpace.md,
-              NavisSpace.sm,
-              NavisSpace.xxs,
-              NavisSpace.sm,
-            ),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        l10n.integrationsNoticeTitle(
-                          kIntegrationsNoticeVersion,
-                        ),
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        l10n.integrationsNoticeBody,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey<String>('integrationsNoticeDismiss'),
-                  tooltip: l10n.integrationsNoticeDismiss,
-                  onPressed: _markSeen,
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return HomeNoticeCard(
+      openKey: const ValueKey<String>('integrationsNoticeOpen'),
+      dismissKey: const ValueKey<String>('integrationsNoticeDismiss'),
+      title: l10n.integrationsNoticeTitle(kIntegrationsNoticeVersion),
+      subtitle: l10n.integrationsNoticeBody,
+      dismissTooltip: l10n.integrationsNoticeDismiss,
+      onOpen: _open,
+      onDismiss: _markSeen,
     );
   }
 }

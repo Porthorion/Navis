@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/home_notice_card.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
-import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
@@ -61,10 +61,6 @@ class _ChangelogDiscoveryCardState
     }
 
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-    final horizontal = desktopMode ? NavisSpace.md : NavisSpace.sm;
     final featured = discovery.featured;
     final current = discovery.current;
 
@@ -87,70 +83,20 @@ class _ChangelogDiscoveryCardState
       cover = null;
     }
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontal,
-        NavisSpace.xxs,
-        horizontal,
-        NavisSpace.sm,
-      ),
-      child: Semantics(
-        container: true,
-        label: l10n.changelogDiscoverySemanticLabel(current.version),
-        child: Material(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: NavisRadius.lgAll,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: const ValueKey<String>('changelogDiscoveryOpen'),
-            onTap: () => _open(context, discovery),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                NavisSpace.sm,
-                NavisSpace.sm,
-                NavisSpace.xxs,
-                NavisSpace.sm,
-              ),
-              child: Row(
-                children: <Widget>[
-                  if (cover != null) ...<Widget>[
-                    ChangelogReleaseCover(version: cover, size: 48),
-                    const SizedBox(width: NavisSpace.sm),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (subtitle.isNotEmpty)
-                          Text(
-                            subtitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    key: const ValueKey<String>('changelogDiscoveryDismiss'),
-                    tooltip: l10n.changelogDiscoveryDismiss,
-                    onPressed: () => _markSeen(discovery.seenVersion),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return HomeNoticeCard(
+      openKey: const ValueKey<String>('changelogDiscoveryOpen'),
+      dismissKey: const ValueKey<String>('changelogDiscoveryDismiss'),
+      title: title,
+      subtitle: subtitle,
+      subtitleMaxLines: 2,
+      dismissTooltip: l10n.changelogDiscoveryDismiss,
+      semanticLabel: l10n.changelogDiscoverySemanticLabel(current.version),
+      leading: cover == null
+          ? null
+          : ChangelogReleaseCover(version: cover, size: 48),
+      startPadding: NavisSpace.sm,
+      onOpen: () => _open(context, discovery),
+      onDismiss: () => _markSeen(discovery.seenVersion),
     );
   }
 

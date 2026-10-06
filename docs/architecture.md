@@ -648,7 +648,7 @@ through `release_notes_markdown.dart`.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
   3–5 highlights for majors from 1.2.0 on, and that icon files exist.
 
-**Home card (`ChangelogDiscoveryCard`).** It is inline and non-blocking
+**Home card (`ChangelogDiscoveryCard`, drawn in `HomeNoticeCard`).** It is inline and non-blocking
 (design-ux-audit D5). `changelogToShowProvider` calls
 `resolveChangelogDiscovery`: it returns nothing once the running version is
 recorded in `changelog_seen_version.txt` (Application Support), otherwise the
@@ -1909,7 +1909,10 @@ loaded, `integrations_notice_dismissed` is false and onboarding is complete
 Integrations; tapping it or its close button writes
 `updateIntegrationsNoticeDismissed(dismissed: true)`, after which the What's
 New row returns if the release is unseen. Finishing onboarding (not skipping
-it) also marks it seen, from the onboarding Integrations step.
+it) also marks it seen, from the onboarding Integrations step. The notice and
+the What's New row draw the same frame, `HomeNoticeCard`
+(`common_widgets/home_notice_card.dart`: surface, optional leading widget,
+title, subtitle and close button); each keeps its own text and actions.
 
 **Trending page** (`AppRoutes.trending`, `/library/trending`,
 `NavService.openTrending`). `TrendingDetailScreen` shows
