@@ -99,7 +99,8 @@ class _RemoteArtViewerScreen extends StatelessWidget {
                       fit: BoxFit.contain,
                       // Opened from radio now-playing art.
                       feature: IntegrationFeature.radioNowPlaying,
-                      fallbackBuilder: (_) => const SizedBox.shrink(),
+                      fallbackBuilder: (context) =>
+                          _RadioArtPlaceholder(side: side),
                     ),
                   ),
                 ),
@@ -108,6 +109,30 @@ class _RemoteArtViewerScreen extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// The radio placeholder (as in Now Playing) for station art that the
+/// integration policy refuses or that cannot load, so the viewer is never blank.
+class _RadioArtPlaceholder extends StatelessWidget {
+  const new({required this.side});
+
+  final double side;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: side,
+      height: side,
+      color: scheme.primaryContainer,
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.radio,
+        size: side * 0.4,
+        color: scheme.onPrimaryContainer,
       ),
     );
   }

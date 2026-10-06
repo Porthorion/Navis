@@ -74,6 +74,26 @@ void main() {
     expect(find.byType(FadeTransition), findsNothing);
   });
 
+  testWidgets('radio art the policy refuses shows the radio placeholder', (
+    tester,
+  ) async {
+    await _pumpViewerHarness(
+      tester,
+      reduceMotion: true,
+      observer: _RouteObserver(),
+    );
+
+    // The harness denies every integration, so the station art is refused.
+    final icon = find.byIcon(Icons.radio);
+    expect(icon, findsOneWidget);
+    final placeholder = find.ancestor(
+      of: icon,
+      matching: find.byType(Container),
+    );
+    expect(placeholder, findsOneWidget);
+    expect(tester.getSize(placeholder).width, greaterThan(0));
+  });
+
   testWidgets(
     'full-resolution viewer art replaces its preview only when ready',
     (tester) async {

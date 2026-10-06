@@ -1378,6 +1378,8 @@ switch means "Navis only talks to your server" when off. See
   explicitly. `CoverArtHttpFileService` repeats the check at service level
   (`allowUri`: master and service switches only) so code paths that bypass the
   widget are covered, which means radio art also needs the artwork service on.
+  When station art is refused or fails to load, the fullscreen radio art viewer
+  shows the same radio placeholder as Now Playing instead of a blank area.
   A load that belongs to a feature (radio art) also carries
   `coverArtFeatureHeader` (`coverArtFeatureHeaders(feature.key)`, set by
   `ExternalArtworkImage` and the two URL-style consumers); the service consumes
