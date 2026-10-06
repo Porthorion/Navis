@@ -133,6 +133,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Artist Top Songs keeps available Deezer tracks when the search that fills the list fails',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Deezer quota retries back off after repeated limits, and cancelled requests no longer delay other pages',
         type: ChangelogEntryType.fix,
       ),

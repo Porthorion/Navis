@@ -181,19 +181,27 @@ class ArtistTopTrackSources {
     ).take(kArtistTopTrackSeedMax).toList(growable: false);
     var fill = const <DeezerTrack>[];
     if (top.length < kArtistTopTrackSeedMax) {
-      final listed = {for (final track in top) _editionKey(track)};
-      fill = [
-        for (final track in rankDeezerArtistTracks(
-          await client.searchTracks(
-            name,
-            limit: kDeezerTopTrackSearchLimit,
-            cancelToken: cancelToken,
-          ),
-          deezerArtistId: deezerId,
-        ))
-          if (listed.add(_editionKey(track))) track,
-      ].take(kArtistTopTrackSeedMax - top.length).toList(growable: false);
+      try {
+        final listed = {for (final track in top) _editionKey(track)};
+        fill = [
+          for (final track in rankDeezerArtistTracks(
+            await client.searchTracks(
+              name,
+              limit: kDeezerTopTrackSearchLimit,
+              cancelToken: cancelToken,
+            ),
+            deezerArtistId: deezerId,
+          ))
+            if (listed.add(_editionKey(track))) track,
+        ].take(kArtistTopTrackSeedMax - top.length).toList(growable: false);
+      } on Object catch (error) {
+        if (cancelToken?.isCancelled ?? false) rethrow;
+        if (error is DioException && CancelToken.isCancel(error)) rethrow;
+        AppLogger.debug('Top songs: Deezer search fill failed: $error');
+        return _DeezerTopTracks(top: top, fill: const [], cacheHit: false);
+      }
     }
+
     final result = _DeezerTopTracks(top: top, fill: fill, cacheHit: false);
     await _cache.write(
       DeezerCache.artistTopTracksNamespace,

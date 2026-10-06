@@ -18,6 +18,7 @@ class _FakeDeezer extends DeezerApiClient {
   List<DeezerTrack> top = const [];
   List<DeezerTrack> search = const [];
   Exception? error;
+  Exception? searchError;
   int topCalls = 0;
   int searchCalls = 0;
   String? searchQuery;
@@ -51,6 +52,7 @@ class _FakeDeezer extends DeezerApiClient {
     CancelToken? cancelToken,
   }) async {
     searchCalls++;
+    if (searchError case final error?) throw error;
     searchQuery = query;
     searchLimit = limit;
     return search;
@@ -165,6 +167,27 @@ void main() {
       },
     );
   }
+
+  test(
+    'failed search fill preserves top tracks without caching partial data',
+    () async {
+      deezer.top = [_track(1, 'Hit')];
+      deezer.searchError = const DeezerApiException(code: 4);
+      final result = await load(lastFmAllowed: false);
+      expect(result.seeds.map((seed) => seed.title), ['Hit']);
+      expect(result.fromTop, 1);
+      expect(result.fromSearch, 0);
+      expect(result.cacheHit, isFalse);
+      expect(
+        await cache.read(DeezerCache.artistTopTracksNamespace, '9'),
+        isNull,
+      );
+      deezer.searchError = null;
+      deezer.search = [_track(2, 'Fill')];
+      expect((await load(lastFmAllowed: false)).seeds, hasLength(2));
+      expect(deezer.topCalls, 2);
+    },
+  );
 
   test('Deezer top tracks come first, without listener counts', () async {
     deezer.top = [_track(1, 'Hit', rank: 900), _track(2, 'Second', rank: 800)];

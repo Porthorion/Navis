@@ -42,6 +42,7 @@ class _FakeLastFmApiClient extends LastFmApiClient {
   final List<LastFmArtistTopTrack> tracks;
   int? requestedLimit;
   int callCount = 0;
+  Error? error;
 
   @override
   Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
@@ -50,6 +51,7 @@ class _FakeLastFmApiClient extends LastFmApiClient {
     CancelToken? cancelToken,
   }) async {
     callCount++;
+    if (error case final error?) throw error;
     requestedLimit = limit;
     return tracks.take(limit).toList(growable: false);
   }
@@ -278,6 +280,23 @@ void main() {
     container.listen(artistTopTrackSeedsProvider(_key), (_, _) {});
     return container.read(artistTopTrackSeedsProvider(_key).future);
   }
+
+  test('source fetch span is recorded when loading throws', () async {
+    final lastFm = _FakeLastFmApiClient(const [])
+      ..error = StateError('fetch failed');
+    final container = containerWith(
+      database(),
+      overrides: sourceOverrides(policy: _lastFmOnly, lastFm: lastFm),
+    );
+    await expectLater(seeds(container), throwsStateError);
+    expect(
+      container
+          .read(integrationCallRecorderProvider)
+          .recentSpans()
+          .where((span) => span.name == kTopSongsSourceFetchSpan),
+      hasLength(1),
+    );
+  }, skip: !sqliteAvailable);
 
   group('sources', () {
     test('Last.fm is asked for up to 50 tracks', () async {

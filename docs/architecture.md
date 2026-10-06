@@ -1442,7 +1442,7 @@ switch means "Navis only talks to your server" when off. See
   duration)`. It stores service, method, path (no host, query or headers),
   status, duration and `ok`/`error`/`blocked`, plus per-service counters. The
   Top Songs pipeline records its source fetch, local match and server match as
-  spans.
+  spans, including source fetches that throw (zero result counts).
 - **Settings › Integrations**
   (`features/integrations/presentation/integrations_settings_screen.dart`,
   listed under Connection) is where these switches change after setup; the
@@ -1588,7 +1588,9 @@ fallback.
   (results include covers and remixes by others), one per
   `normalizeMetadataKeepingEdition` title and never an edition already listed
   (so "Wonder" and "Wonder (Japanese Version)" both stay while a remaster
-  folds in), most popular first. Deezer failing or knowing nothing hands the
+  folds in), most popular first. If the search fill fails, successful top
+  tracks remain available and the partial response is not cached; cancellation
+  still stops the load. Deezer failing or knowing nothing hands the
   whole list to Last.fm; fewer than 10 Deezer songs get Last.fm's songs not
   already listed appended, without listener counts. Each source caches its
   answer for 24 hours (the Deezer entry keeps the top and search parts; an

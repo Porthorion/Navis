@@ -161,35 +161,41 @@ final artistTopTrackSeedsProvider = FutureProvider.autoDispose
       ref.onDispose(cancelToken.cancel);
 
       final timer = Stopwatch()..start();
-      final load = await sources.load(
-        artistId: key.artistId,
-        artistName: key.name,
-        deezerAllowed: deezerAllowed,
-        lastFmAllowed: lastFmAllowed,
-        readLibraryAlbumTitles: () async {
-          final buckets = await libraryDao
-              .watchArtistAlbumBuckets(key.artistId)
-              .first;
-          return buckets.primaryAlbums.map((album) => album.name);
-        },
-        cancelToken: cancelToken,
-        readLastFmAllowed: () =>
-            ref.mounted &&
-            ref
-                .read(integrationPolicyProvider)
-                .allows(IntegrationFeature.lastFmTopSongs),
-      );
-      recorder.span(kTopSongsSourceFetchSpan, <String, int>{
-        'seeds': load.seeds.length,
-        'cacheHit': load.cacheHit ? 1 : 0,
-        'deezer': load.seeds.firstOrNull?.source == ArtistTopTrackSource.deezer
-            ? 1
-            : 0,
-        'top': load.fromTop,
-        'searchFill': load.fromSearch,
-        'lastFm': load.fromLastFm,
-      }, timer.elapsed);
-      return load.seeds;
+      ArtistTopTrackSeedsLoad? load;
+      try {
+        load = await sources.load(
+          artistId: key.artistId,
+          artistName: key.name,
+          deezerAllowed: deezerAllowed,
+          lastFmAllowed: lastFmAllowed,
+          readLibraryAlbumTitles: () async {
+            final buckets = await libraryDao
+                .watchArtistAlbumBuckets(key.artistId)
+                .first;
+            return buckets.primaryAlbums.map((album) => album.name);
+          },
+          cancelToken: cancelToken,
+          readLastFmAllowed: () =>
+              ref.mounted &&
+              ref
+                  .read(integrationPolicyProvider)
+                  .allows(IntegrationFeature.lastFmTopSongs),
+        );
+        return load.seeds;
+      } finally {
+        timer.stop();
+        recorder.span(kTopSongsSourceFetchSpan, <String, int>{
+          'seeds': load?.seeds.length ?? 0,
+          'cacheHit': (load?.cacheHit ?? false) ? 1 : 0,
+          'deezer':
+              load?.seeds.firstOrNull?.source == ArtistTopTrackSource.deezer
+              ? 1
+              : 0,
+          'top': load?.fromTop ?? 0,
+          'searchFill': load?.fromSearch ?? 0,
+          'lastFm': load?.fromLastFm ?? 0,
+        }, timer.elapsed);
+      }
     });
 
 /// The artist page's Top Tracks: the first [kArtistTopTracksSectionMax]
