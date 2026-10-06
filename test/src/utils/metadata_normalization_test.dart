@@ -44,6 +44,30 @@ void main() {
     }
   });
 
+  test('strict loose names fold boundaries without joining words', () {
+    for (final (a, b, matches) in [
+      ('Earth, Wind & Fire', 'Earth Wind and Fire', true),
+      ('The Black Eyed Peas', 'Black Eyed Peas', true),
+      ('Simon & Garfunkel', 'Simon and Garfunkel', true),
+      ('The Black-Eyed Peas', 'Black Eyed Peas', true),
+      ('Black Star', 'Blackstar', false),
+      ('The Streets (UK)', 'Streets', false),
+      ('The Streets (UK)', 'Streets UK', true),
+    ]) {
+      for (final (left, right) in [(a, b), (b, a)]) {
+        expect(
+          artistNamesMatchLoosely(
+            left,
+            right,
+            allowSpacingAndPunctuation: false,
+          ),
+          matches,
+          reason: '$left / $right',
+        );
+      }
+    }
+  });
+
   group('normalizeMetadata', () {
     test('keeps Japanese text and drops its punctuation', () {
       expect(normalizeMetadata('「残響リファレンス」'), '残響リファレンス');

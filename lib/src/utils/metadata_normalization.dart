@@ -155,7 +155,7 @@ final RegExp _ampersand = RegExp(r'[&\uFF06]');
   final expanded = name.replaceAll(_ampersand, ' and ');
   final text = allowSpacingAndPunctuation
       ? normalizeMetadata(expanded)
-      : _fold(expanded);
+      : _words(_fold(expanded));
   final separator = allowSpacingAndPunctuation ? '' : ' ';
   final words = text
       .replaceAll(_whitespace, ' ')
@@ -180,7 +180,9 @@ final RegExp _ampersand = RegExp(r'[&\uFF06]');
 /// "ACDC". Two different articles ("A Band", "The Band") never match. A
 /// loose match is only a candidate; callers must resolve ambiguity before linking.
 /// Without album corroboration, set [allowSpacingAndPunctuation] to false:
-/// only a leading article and "&"/"and" may differ beyond letter folding.
+/// punctuation becomes word boundaries, but words cannot be joined or split.
+/// A leading article and "&"/"and" may differ. Bracketed words stay significant:
+/// "The Streets (UK)" matches "Streets UK", but never "Streets".
 bool artistNamesMatchLoosely(
   String libraryName,
   String deezerName, {

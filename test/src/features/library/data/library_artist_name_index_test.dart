@@ -30,6 +30,7 @@ void main() {
         final index = await LibraryArtistNameIndex.build([
           _artist('peas', 'The Black Eyed Peas'),
           _artist('simon', 'Simon & Garfunkel'),
+          _artist('earth', 'Earth, Wind & Fire'),
           _artist('a', 'A Band'),
           _artist('the', 'The Band'),
           _artist('jp', '嵐'),
@@ -41,6 +42,11 @@ void main() {
         expect(
           index.lookupAll(['Simon and Garfunkel'])['simon and garfunkel']?.id,
           'simon',
+        );
+        expect(index.lookupUnique('Earth Wind and Fire')?.id, 'earth');
+        expect(
+          index.lookupAll(['Earth Wind and Fire'])['earth wind and fire']?.id,
+          'earth',
         );
         expect(index.lookupAll(['Band']), isEmpty);
         expect(index.lookupAll(['Le Band']), isEmpty);
@@ -67,18 +73,19 @@ void main() {
           index.lookupAll(['Black Eyed Peas'])['black eyed peas']?.id,
           'server-a',
         );
-        expect(index.lookupUnique('Black Eyed Peas')?.id, 'server-a');
+        expect(index.lookupUnique('Black Eyed Peas'), isNull);
         expect(index.lookupUnique('The Black Eyed Peas'), isNull);
       },
     );
 
-    test('uncorroborated links do not bridge spacing or punctuation', () async {
+    test('uncorroborated links preserve word boundaries', () async {
       final index = await LibraryArtistNameIndex.build([
         _artist('star', 'Blackstar'),
         _artist('acdc', 'AC/DC'),
         _artist('peas', 'The Black-Eyed Peas'),
       ]);
-      for (final name in ['Black Star', 'ACDC', 'Black Eyed Peas']) {
+      expect(index.lookupUnique('Black Eyed Peas')?.id, 'peas');
+      for (final name in ['Black Star', 'ACDC']) {
         expect(index.lookupAll([name]), isEmpty, reason: name);
         expect(index.lookupUnique(name), isNull, reason: name);
       }

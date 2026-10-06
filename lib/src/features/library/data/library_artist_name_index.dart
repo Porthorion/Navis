@@ -49,7 +49,10 @@ class LibraryArtistNameIndex {
     return LibraryArtistNameIndex._(byName, exactCandidates, byLooseName);
   }
 
-  /// The library artists named like [names], keyed by normalized name.
+  /// Finds library artists named like [names], keyed by normalized name.
+  ///
+  /// Exact matches and single loose name groups use the preferred row,
+  /// including when that name has duplicate rows.
   Map<String, ArtistsTableData> lookupAll(Iterable<String> names) {
     final found = <String, ArtistsTableData>{};
     for (final name in names) {
@@ -60,16 +63,18 @@ class LibraryArtistNameIndex {
     return found;
   }
 
-  /// A unique exact artist, or on a miss one loose exact-name group.
-  /// Loose links bridge only leading articles and "&"/"and" differences.
-  /// Unlike [lookupAll], duplicate exact names remain ambiguous.
+  /// Finds a unique exact artist, or on a miss a single loose candidate row.
+  ///
+  /// Loose links fold punctuation to word boundaries and bridge leading
+  /// articles and "&"/"and", while preserving words and bracketed qualifiers.
+  /// Unlike [lookupAll], duplicate rows remain ambiguous on either path.
   ArtistsTableData? lookupUnique(String name) {
     final exact = _exactCandidates[normalizeMetadata(name)];
     if (exact != null) return exact.length == 1 ? exact.single : null;
-    return _uniqueLoose(name);
+    return _uniqueLoose(name, requireUniqueRow: true);
   }
 
-  ArtistsTableData? _uniqueLoose(String name) {
+  ArtistsTableData? _uniqueLoose(String name, {bool requireUniqueRow = false}) {
     final keys = (_byLooseName[looseArtistKey(name)] ?? const [])
         .where(
           (artist) => artistNamesMatchLoosely(
@@ -80,7 +85,10 @@ class LibraryArtistNameIndex {
         )
         .map((artist) => normalizeMetadata(artist.name))
         .toSet();
-    return keys.length == 1 ? _byName[keys.single] : null;
+    if (keys.length != 1) return null;
+    final key = keys.single;
+    if (requireUniqueRow && _exactCandidates[key]!.length != 1) return null;
+    return _byName[key];
   }
 
   static bool _isPreferred(
