@@ -571,6 +571,33 @@ void main() {
       expect(deezer.searchCalls, 2);
     });
 
+    test('the outcome tells an inconclusive null from not on Deezer', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumErrors = {1020109: quota}
+        ..searchGate = Completer<void>();
+      Future<DeezerArtistResolution> resolve() => resolver.resolveWithOutcome(
+        artistId: 'bep',
+        name: 'The Black Eyed Peas',
+        readLibraryAlbumTitles: () async => ['Elephunk'],
+      );
+
+      // A caller sharing the resolution learns it was inconclusive too.
+      final first = resolve();
+      final second = resolve();
+      await pumpEventQueue();
+      deezer.searchGate!.complete();
+      expect(await Future.wait([first, second]), [
+        (id: null, conclusive: false),
+        (id: null, conclusive: false),
+      ]);
+
+      deezer.albumErrors = {};
+      expect(await resolve(), (id: null, conclusive: true));
+    });
+
     test('a failed lookup stops comparing the other candidates', () async {
       deezer
         ..artists = const [

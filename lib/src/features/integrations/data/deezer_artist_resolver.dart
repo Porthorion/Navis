@@ -58,7 +58,8 @@ class DeezerArtistResolver {
 
   /// Resolutions running now, by account, library artist id and normalized
   /// name.
-  final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
+  final Map<String, Future<DeezerArtistResolution>> _inFlight =
+      <String, Future<DeezerArtistResolution>>{};
 
   /// The Deezer id inside a library artist id `ext-deezer-artist-<id>`.
   static int? idFromLibraryArtistId(String artistId) {
@@ -78,12 +79,29 @@ class DeezerArtistResolver {
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
     bool background = false,
+  }) async => (await resolveWithOutcome(
+    artistId: artistId,
+    name: name,
+    readLibraryAlbumTitles: readLibraryAlbumTitles,
+    cancelToken: cancelToken,
+    background: background,
+  )).id;
+
+  /// [resolve], also telling whether the answer is conclusive: false when an
+  /// album lookup failed, so the answer was not cached and a null id may not
+  /// mean "not on Deezer".
+  Future<DeezerArtistResolution> resolveWithOutcome({
+    required String artistId,
+    required String name,
+    Future<Iterable<String>> Function()? readLibraryAlbumTitles,
+    CancelToken? cancelToken,
+    bool background = false,
   }) async {
     final direct = idFromLibraryArtistId(artistId);
-    if (direct != null) return direct;
+    if (direct != null) return (id: direct, conclusive: true);
 
     final key = normalizeMetadata(name);
-    if (key.isEmpty) return null;
+    if (key.isEmpty) return (id: null, conclusive: true);
 
     // Top songs and the artist page's other Deezer sections resolve the same
     // artist at the same time; they share one resolution.
@@ -114,7 +132,7 @@ class DeezerArtistResolver {
     }
   }
 
-  Future<int?> _resolveByName({
+  Future<DeezerArtistResolution> _resolveByName({
     required String mappingKey,
     required String nameKey,
     required String name,
@@ -127,7 +145,9 @@ class DeezerArtistResolver {
     if (value is Map) {
       final id = (value['id'] as num?)?.toInt();
       // "Not on Deezer" from before loose names were tried is asked again.
-      if (id != null || value['v'] == _cacheVersion) return id;
+      if (id != null || value['v'] == _cacheVersion) {
+        return (id: id, conclusive: true);
+      }
     }
 
     final found = await _client.searchArtists(
@@ -161,7 +181,7 @@ class DeezerArtistResolver {
       ),
     };
     // Asked again next time rather than remembered for days.
-    if (!conclusive) return id;
+    if (!conclusive) return (id: id, conclusive: false);
     await _cache.write(
       DeezerCache.artistIdNamespace,
       mappingKey,
@@ -170,12 +190,12 @@ class DeezerArtistResolver {
           ? DeezerCache.artistNotFoundTtl
           : DeezerCache.artistFoundTtl,
     );
-    return id;
+    return (id: id, conclusive: true);
   }
 
   /// Of [namesakes] (sorted by fans), the one sharing the most album titles
   /// with the library artist; the first when an album lookup failed.
-  Future<_Pick> _pickByAlbumOverlap(
+  Future<DeezerArtistResolution> _pickByAlbumOverlap(
     List<DeezerArtist> namesakes,
     Future<Iterable<String>> Function() readLibraryAlbumTitles,
     CancelToken? cancelToken,
@@ -197,7 +217,7 @@ class DeezerArtistResolver {
   /// Of [candidates] (names equal only loosely), the one sharing the most
   /// album titles with the library artist, or null when none shares any, the
   /// library's titles are unknown or an album lookup failed.
-  Future<_Pick> _pickLooseMatch(
+  Future<DeezerArtistResolution> _pickLooseMatch(
     List<DeezerArtist> candidates,
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
@@ -286,8 +306,9 @@ class DeezerArtistResolver {
   }
 }
 
-/// A resolver decision, and whether every lookup it depends on answered.
-typedef _Pick = ({int? id, bool conclusive});
+/// A Deezer artist id (null: none found), and whether every lookup the
+/// decision depends on answered; an inconclusive one is not cached.
+typedef DeezerArtistResolution = ({int? id, bool conclusive});
 
 /// Leading articles one name may have and the other lack.
 const Set<String> _leadingArticles = {

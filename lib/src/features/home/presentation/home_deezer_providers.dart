@@ -151,7 +151,7 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
       Future<List<AlbumsTableData>> readLibraryAlbums() async =>
           libraryAlbums ??= await dao.getAlbumsByArtist(artist.id);
       try {
-        final deezerId = await resolver.resolve(
+        final (id: deezerId, :conclusive) = await resolver.resolveWithOutcome(
           artistId: artist.id,
           name: artist.name,
           readLibraryAlbumTitles: () async =>
@@ -159,7 +159,11 @@ final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
           cancelToken: cancelToken,
           background: true,
         );
-        if (deezerId == null) continue;
+        if (deezerId == null) {
+          // A failed album lookup, not "not on Deezer": counted as failed.
+          if (!conclusive) failed++;
+          continue;
+        }
         resolved++;
         final releases = await catalog.recentArtistAlbums(
           deezerId,

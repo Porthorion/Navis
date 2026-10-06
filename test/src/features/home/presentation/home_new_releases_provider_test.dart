@@ -28,6 +28,9 @@ class _FakeDeezer extends DeezerApiClient {
   final Map<int, List<DeezerAlbum>> albums = <int, List<DeezerAlbum>>{};
   final Set<int> failingArtists = <int>{};
 
+  /// The name Deezer gives the artist found for a search, when it differs.
+  final Map<String, String> deezerNames = <String, String>{};
+
   /// The priority of every request, in order.
   final List<bool> background = <bool>[];
 
@@ -43,7 +46,7 @@ class _FakeDeezer extends DeezerApiClient {
     final id = artistIds[name];
     return id == null
         ? const <DeezerArtist>[]
-        : <DeezerArtist>[DeezerArtist(id: id, name: name)];
+        : <DeezerArtist>[DeezerArtist(id: id, name: deezerNames[name] ?? name)];
   }
 
   @override
@@ -347,6 +350,26 @@ void main() {
     expect(deezer.calls, ['search/artist:Artist A', 'albums:10']);
     expect(deezer.background, [true, true]);
   });
+
+  test(
+    'an artist skipped by an inconclusive resolution counts as failed',
+    () async {
+      // A loose name, so the resolver compares albums, and that lookup fails.
+      await artist('a', 'The Artist A', plays: 9);
+      await libraryAlbum('lib-a', 'Shared', 'a');
+      deezer.artistIds['The Artist A'] = 10;
+      deezer.deezerNames['The Artist A'] = 'Artist A';
+      deezer.failingArtists.add(10);
+      final recorder = IntegrationCallRecorder();
+
+      expect(await read(container(recorder: recorder)), isEmpty);
+      final span = recorder.recentSpans().lastWhere(
+        (span) => span.name == kHomeNewReleasesSpan,
+      );
+      expect(span.counts['resolved'], 0);
+      expect(span.counts['failed'], 1);
+    },
+  );
 
   test('an artist whose request fails is skipped', () async {
     await artist('a', 'Artist A', plays: 9);
