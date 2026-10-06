@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates and single-character artists match consistently',
         type: ChangelogEntryType.fix,
       ),

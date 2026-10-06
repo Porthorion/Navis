@@ -806,7 +806,11 @@ lyrics as fallback; otherwise the server only. The switch lives in Settings ›
 Integrations › LRCLIB. An LRCLIB result passes on its `normalizeMetadata`
 title, artist, album and duration score; among passing results one with the
 same edition qualifiers ("(Japanese Version)") wins over another version,
-whose lyrics may be in another language.
+whose lyrics may be in another language. Schema 92 deletes only legacy
+LRCLIB cache rows (camelCase and snake_case sources) once during upgrade;
+server lyrics and all newly fetched edition-aware lyrics survive reopen.
+The schema version is the durable completion marker, so no settings column
+or repeated TTL-based purge is needed.
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
