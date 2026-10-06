@@ -60,7 +60,8 @@ class LibraryArtistNameIndex {
     return found;
   }
 
-  /// A unique exact artist, or on an exact miss a unique loose candidate.
+  /// A unique exact artist, or on a miss one loose exact-name group.
+  /// Loose links bridge only leading articles and "&"/"and" differences.
   /// Unlike [lookupAll], duplicate exact names remain ambiguous.
   ArtistsTableData? lookupUnique(String name) {
     final exact = _exactCandidates[normalizeMetadata(name)];
@@ -70,7 +71,13 @@ class LibraryArtistNameIndex {
 
   ArtistsTableData? _uniqueLoose(String name) {
     final keys = (_byLooseName[looseArtistKey(name)] ?? const [])
-        .where((artist) => artistNamesMatchLoosely(artist.name, name))
+        .where(
+          (artist) => artistNamesMatchLoosely(
+            artist.name,
+            name,
+            allowSpacingAndPunctuation: false,
+          ),
+        )
         .map((artist) => normalizeMetadata(artist.name))
         .toSet();
     return keys.length == 1 ? _byName[keys.single] : null;

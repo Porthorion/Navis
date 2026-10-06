@@ -3535,8 +3535,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   preserving symbol-only artists such as "!!!".
 - Related-artist links and name-based artist navigation share a cached
   `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
-  are tried first; a miss uses `looseArtistKey` (articles, ampersands and
-  spacing) only when matching candidates share one exact normalized name.
+  are tried first; a miss uses `looseArtistKey` to find candidates but links
+  only leading-article and "&"/"and" differences, with one exact normalized
+  candidate name. Spacing/punctuation-only aliases require album
+  corroboration in the Deezer resolver; "Black Star" cannot link "Blackstar"
+  without that evidence.
   Duplicate rows of that name retain the server/more-albums/id preference.
   Different leading articles never match. Navigation retains exact-name
   ambiguity; related links retain their server/more-albums/id preference.

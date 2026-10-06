@@ -72,6 +72,18 @@ void main() {
       },
     );
 
+    test('uncorroborated links do not bridge spacing or punctuation', () async {
+      final index = await LibraryArtistNameIndex.build([
+        _artist('star', 'Blackstar'),
+        _artist('acdc', 'AC/DC'),
+        _artist('peas', 'The Black-Eyed Peas'),
+      ]);
+      for (final name in ['Black Star', 'ACDC', 'Black Eyed Peas']) {
+        expect(index.lookupAll([name]), isEmpty, reason: name);
+        expect(index.lookupUnique(name), isNull, reason: name);
+      }
+    });
+
     test('matches normalized names', () async {
       final index = await LibraryArtistNameIndex.build([
         _artist('oor', 'ＯＮＥ　ＯＫ　ＲＯＣＫ'),

@@ -127,6 +127,18 @@ void main() {
     },
   );
 
+  test('artist navigation rejects uncorroborated spacing-only links', () async {
+    await database.libraryDao.upsertArtists([
+      ArtistsTableCompanion.insert(id: 'star', name: 'Blackstar'),
+    ]);
+    expect(
+      await database.libraryDao.findOneExactNormalizedArtistByName(
+        'Black Star',
+      ),
+      isNull,
+    );
+  });
+
   test('indexed artist fallback requires equality for short keys', () async {
     await database.libraryDao.upsertSongs([
       _song('x', 'Song', artistName: 'X'),

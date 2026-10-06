@@ -145,19 +145,29 @@ const Set<String> _leadingArticles = {
 final RegExp _ampersand = RegExp(r'[&\uFF06]');
 
 /// A name for loose comparison: its leading article, if any, and the rest
-/// without spaces. "&" reads as "and". The article stays part of the rest
+/// without spaces or punctuation by default. "&" reads as "and".
+/// The article stays part of the rest
 /// when nothing but an article would remain, so "The The" is never "The".
-({String? article, String rest}) _looseName(String name) {
-  final words = normalizeMetadata(name.replaceAll(_ampersand, ' and '))
+({String? article, String rest}) _looseName(
+  String name, {
+  bool allowSpacingAndPunctuation = true,
+}) {
+  final expanded = name.replaceAll(_ampersand, ' and ');
+  final text = allowSpacingAndPunctuation
+      ? normalizeMetadata(expanded)
+      : _fold(expanded);
+  final separator = allowSpacingAndPunctuation ? '' : ' ';
+  final words = text
+      .replaceAll(_whitespace, ' ')
       .split(' ')
       .where((word) => word.isNotEmpty)
       .toList();
   if (words.length > 1 &&
       _leadingArticles.contains(words.first) &&
       !(words.length == 2 && _leadingArticles.contains(words[1]))) {
-    return (article: words.first, rest: words.skip(1).join());
+    return (article: words.first, rest: words.skip(1).join(separator));
   }
-  return (article: null, rest: words.join());
+  return (article: null, rest: words.join(separator));
 }
 
 /// Whether [libraryName] and [deezerName] may name the same artist although
@@ -169,9 +179,21 @@ final RegExp _ampersand = RegExp(r'[&\uFF06]');
 /// Eyed Peas", "Simon & Garfunkel" and "Simon and Garfunkel", "AC/DC" and
 /// "ACDC". Two different articles ("A Band", "The Band") never match. A
 /// loose match is only a candidate; callers must resolve ambiguity before linking.
-bool artistNamesMatchLoosely(String libraryName, String deezerName) {
-  final library = _looseName(libraryName);
-  final deezer = _looseName(deezerName);
+/// Without album corroboration, set [allowSpacingAndPunctuation] to false:
+/// only a leading article and "&"/"and" may differ beyond letter folding.
+bool artistNamesMatchLoosely(
+  String libraryName,
+  String deezerName, {
+  bool allowSpacingAndPunctuation = true,
+}) {
+  final library = _looseName(
+    libraryName,
+    allowSpacingAndPunctuation: allowSpacingAndPunctuation,
+  );
+  final deezer = _looseName(
+    deezerName,
+    allowSpacingAndPunctuation: allowSpacingAndPunctuation,
+  );
   if (library.rest.isEmpty || library.rest != deezer.rest) return false;
   return library.article == null ||
       deezer.article == null ||

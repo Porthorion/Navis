@@ -157,7 +157,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fans Also Like and Go to artist link unique library names that differ by a leading article, ampersand or spacing, even when server and remote entries duplicate the same name',
+        'Fans Also Like and Go to artist link unique library names that differ by a leading article or ampersand, even when server and remote entries duplicate the same name; spacing-only aliases such as Black Star and Blackstar require album evidence',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
