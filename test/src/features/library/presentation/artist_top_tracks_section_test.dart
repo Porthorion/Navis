@@ -232,6 +232,116 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  for (final width in <double>[900, 1400]) {
+    testWidgets(
+      'desktop top tracks keep Artist and Time columns aligned across '
+      'local and remote rows at $width px',
+      (tester) async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, 700);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        const localSong = SongsTableData(
+          id: 'song-local',
+          title: 'Local Song',
+          artistName: 'Test Artist',
+          isProvisional: false,
+          isExternal: false,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                albumQueueEnabledProvider.overrideWithValue(false),
+                artistTopTracksProvider.overrideWith(
+                  (ref, key) => Stream.value([
+                    ResolvedArtistTopTrack(
+                      rank: 1,
+                      title: 'Remote Song',
+                      artist: 'Test Artist',
+                      resolvedSong: const Song(
+                        id: 'ext-deezer-song-1',
+                        title: 'Remote Song',
+                        artist: 'Test Artist',
+                        album: 'Top Tracks',
+                        duration: 214,
+                        isExternal: true,
+                      ),
+                    ),
+                    ResolvedArtistTopTrack(
+                      rank: 2,
+                      title: 'Local Song',
+                      artist: 'Test Artist',
+                      resolvedSong: const Song(
+                        id: 'song-local',
+                        title: 'Local Song',
+                        artist: 'Test Artist',
+                        album: 'Top Tracks',
+                        duration: 255,
+                      ),
+                    ),
+                  ]),
+                ),
+                songByIdProvider.overrideWith(
+                  (ref, songId) =>
+                      Stream.value(songId == 'song-local' ? localSong : null),
+                ),
+                songDownloadStateProvider.overrideWith(
+                  (ref, songId) => SongDownloadState.none,
+                ),
+                subsonicApiProvider.overrideWithValue(null),
+              ],
+            ),
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: AdaptiveContextScope(
+                adaptiveContext: resolveAdaptiveContext(
+                  desktopRuntime: true,
+                  viewportSize: Size(width, 700),
+                  safePadding: EdgeInsets.zero,
+                ),
+                child: const Scaffold(
+                  body: ArtistTopTracksSection(
+                    artistId: 'artist-1',
+                    artistName: 'Test Artist',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final artists = find.text('Test Artist');
+        expect(artists, findsNWidgets(2));
+        expect(
+          tester.getTopLeft(artists.at(0)).dx,
+          tester.getTopLeft(artists.at(1)).dx,
+          reason: 'Artist column must start at the same x on every row',
+        );
+        final remoteTime = find.text('3:34');
+        final localTime = find.text('4:15');
+        expect(remoteTime, findsOneWidget);
+        expect(localTime, findsOneWidget);
+        expect(
+          tester.getTopRight(remoteTime).dx,
+          tester.getTopRight(localTime).dx,
+          reason: 'Time column must end at the same x on every row',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
+  }
+
   testWidgets('queues all resolved top tracks when Album Queue is enabled', (
     tester,
   ) async {

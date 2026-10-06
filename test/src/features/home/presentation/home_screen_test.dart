@@ -3466,6 +3466,20 @@ void main() {
         ),
         findsOneWidget,
       );
+      // Matched and unmatched rows reserve the same action column, so the
+      // Artist column starts at one x on every row.
+      expect(
+        tester
+            .getTopLeft(
+              find.descendant(of: row, matching: find.text('Chart Artist')),
+            )
+            .dx,
+        tester
+            .getTopLeft(
+              find.descendant(of: missing, matching: find.text('Chart Artist')),
+            )
+            .dx,
+      );
       await tester.tap(row);
       await tester.pumpAndSettle();
 

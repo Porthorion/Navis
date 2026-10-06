@@ -2997,7 +2997,9 @@ class _TrendingSongRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       leadingExtent: 32,
       leadingGap: 6,
-      actionExtent: song == null ? 96 : null,
+      // Constant so matched rows (no action) line up with unmatched rows
+      // (Search action).
+      actionExtent: 96,
       // Numbered hero list without artwork: denser rows.
       minHeight: 48,
       titleBadge: song != null

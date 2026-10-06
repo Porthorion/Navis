@@ -400,56 +400,61 @@ class _TopTrackTile extends ConsumerWidget {
 
     // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
     Widget? trailing;
-    if (resolvedId != null) {
-      trailing = desktopRuntime && dbSong != null
-          ? DesktopSongActions(song: dbSong, keyPrefix: 'artist-top-track')
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: SongDownloadStatusIcon(
-                    songId: resolvedId,
-                    onDownload: () => _downloadSong(context, ref, resolvedId),
-                    size: 20,
-                  ),
-                ),
-                Builder(
-                  builder: (buttonContext) => IconButton(
-                    tooltip: MaterialLocalizations.of(buttonContext)
-                        .showMenuTooltip,
-                    icon: const Icon(Icons.more_vert),
-                    iconSize: 20,
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    onPressed: dbSong == null
-                        ? null
-                        : () {
-                            final renderObject = buttonContext
-                                .findRenderObject();
-                            final anchor =
-                                !desktopRuntime || renderObject is! RenderBox
-                                ? null
-                                : renderObject.localToGlobal(
-                                    renderObject.size.center(Offset.zero),
-                                  );
-                            unawaited(
-                              showSongContextMenu(
-                                context,
-                                ref,
-                                dbSong,
-                                anchor: anchor,
-                              ),
+    if (desktopRuntime && dbSong != null) {
+      trailing = DesktopSongActions(
+        song: dbSong,
+        keyPrefix: 'artist-top-track',
+      );
+    } else if (desktopRuntime) {
+      // Remote, unresolved and still-loading rows have no library row to act
+      // on. An empty action still makes the row reserve the same action
+      // column as rows with actions, so Artist and Time stay aligned; the
+      // phone-style download/More pair is wider than that column and would
+      // push this row's columns left.
+      trailing = const SizedBox.shrink();
+    } else if (resolvedId != null) {
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: SongDownloadStatusIcon(
+              songId: resolvedId,
+              onDownload: () => _downloadSong(context, ref, resolvedId),
+              size: 20,
+            ),
+          ),
+          Builder(
+            builder: (buttonContext) => IconButton(
+              tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              padding: const EdgeInsets.all(8),
+              onPressed: dbSong == null
+                  ? null
+                  : () {
+                      final renderObject = buttonContext.findRenderObject();
+                      final anchor =
+                          !desktopRuntime || renderObject is! RenderBox
+                          ? null
+                          : renderObject.localToGlobal(
+                              renderObject.size.center(Offset.zero),
                             );
-                          },
-                  ),
-                ),
-              ],
-            );
+                      unawaited(
+                        showSongContextMenu(
+                          context,
+                          ref,
+                          dbSong,
+                          anchor: anchor,
+                        ),
+                      );
+                    },
+            ),
+          ),
+        ],
+      );
     }
 
     // ── Tile ────────────────────────────────────────────────────────────
