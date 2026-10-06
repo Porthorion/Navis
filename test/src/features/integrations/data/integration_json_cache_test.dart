@@ -5,9 +5,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 
-class _MockDirectory extends Mock implements Directory {}
+class _MockDirectory extends Mock implements Directory;
 
-class _MockFile extends Mock implements File {}
+class _MockFile extends Mock implements File;
 
 void main() {
   late Directory root;
@@ -49,15 +49,14 @@ void main() {
     final blocked = _MockFile();
     when(() => blocked.path)
         .thenReturn(p.join(root.path, 'lastfm_top_0000000000000000.json'));
-    when(() => blocked.delete())
-        .thenThrow(const FileSystemException('delete refused'));
+    when(blocked.delete).thenThrow(const FileSystemException('delete refused'));
     final removable = File(
       p.join(root.path, 'lastfm_top_1111111111111111.json'),
     );
     await removable.writeAsString('{}');
     final directory = _MockDirectory();
     when(() => directory.path).thenReturn(root.path);
-    when(() => directory.exists()).thenAnswer((_) async => true);
+    when(directory.exists).thenAnswer((_) async => true);
     when(() => directory.list(followLinks: false)).thenAnswer(
       (_) => Stream<FileSystemEntity>.fromIterable([blocked, removable]),
     );
@@ -65,7 +64,7 @@ void main() {
       readRootDirectory: () async => directory,
     );
     await sweeping.read('ns', 'missing');
-    verify(() => blocked.delete()).called(1);
+    verify(blocked.delete).called(1);
     expect(removable.existsSync(), isFalse);
     await sweeping.write('ns', 'key', 42, ttl: const Duration(days: 1));
     expect((await sweeping.read('ns', 'key'))?.value, 42);
