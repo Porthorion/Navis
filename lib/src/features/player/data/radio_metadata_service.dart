@@ -35,6 +35,10 @@ class RadioMetadataService {
   StreamSubscription<IcyMetadata?>? _icySubscription;
   String? _activeStationId;
   String? _azuracastBaseUrl;
+  int _generation = 0;
+  int _initialFailureCount = 0;
+  bool _hasAzuracastSuccess = false;
+  IcyMetadata? _latestIcyMetadata;
 
   // ── Dead-stream detection state ─────────────────────────────────────────
   String? _lastMetadataTitle;
@@ -81,6 +85,10 @@ class RadioMetadataService {
 
   /// Stop all metadata listeners.
   void stop() {
+    _generation++;
+    _initialFailureCount = 0;
+    _hasAzuracastSuccess = false;
+    _latestIcyMetadata = null;
     _pollingTimer?.cancel();
     _pollingTimer = null;
     unawaited(_icySubscription?.cancel());
@@ -102,6 +110,7 @@ class RadioMetadataService {
   }
 
   Future<void> _fetchAzuracastMetadata(String stationShortName) async {
+    final generation = _generation;
     final baseUrl = _azuracastBaseUrl;
     if (baseUrl == null || _activeStationId == null) {
       return;
@@ -123,24 +132,35 @@ class RadioMetadataService {
         ),
       );
 
+      if (generation != _generation || !_isAllowed()) return;
       if (response.statusCode != 200 || response.data == null) {
         AppLogger.debug(
           'Azuracast metadata fetch returned ${response.statusCode} '
           'for $stationShortName',
         );
+        _recordInitialFailure();
         return;
       }
 
       final json = response.data!;
       final nowPlaying = json['now_playing'] as Map<String, dynamic>?;
-      if (nowPlaying == null) return;
+      if (nowPlaying == null) {
+        _recordInitialFailure();
+        return;
+      }
 
       final song = nowPlaying['song'] as Map<String, dynamic>?;
-      if (song == null) return;
+      if (song == null) {
+        _recordInitialFailure();
+        return;
+      }
 
       final title = song['title'] as String?;
       final artist = song['artist'] as String?;
       final art = song['art'] as String?;
+
+      _hasAzuracastSuccess = true;
+      _initialFailureCount = 0;
 
       // Dead-stream detection: track whether the title has changed.
       _updateDeadStreamCounter(title, stationShortName);
@@ -150,11 +170,25 @@ class RadioMetadataService {
       }
     } on DioException catch (error) {
       AppLogger.debug('Azuracast metadata fetch failed: ${error.message}');
-      // Preserve existing metadata on polling failure — do not clear.
+      if (generation == _generation && _isAllowed()) {
+        _recordInitialFailure();
+      }
     } on Object catch (error, stackTrace) {
       AppLogger.debug('Azuracast metadata fetch failed: $error\n$stackTrace');
-      // Preserve existing metadata on polling failure — do not clear.
+      if (generation == _generation && _isAllowed()) {
+        _recordInitialFailure();
+      }
     }
+  }
+
+  void _recordInitialFailure() {
+    if (_hasAzuracastSuccess || ++_initialFailureCount < 2) return;
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    _azuracastBaseUrl = null;
+    _generation++;
+    // The stream may not emit again until its title changes.
+    _applyIcyMetadata(_latestIcyMetadata ?? _player.icyMetadata);
   }
 
   /// Track whether the metadata title has changed across polling cycles.
@@ -196,6 +230,7 @@ class RadioMetadataService {
   void _startIcyListening() {
     _icySubscription = _player.icyMetadataStream.listen((metadata) {
       if (_activeStationId == null) return;
+      _latestIcyMetadata = metadata;
       // Only use ICY if we don't have Azuracast polling active.
       if (_pollingTimer != null) return;
 

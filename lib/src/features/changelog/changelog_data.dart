@@ -141,6 +141,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Internet radio falls back to stream titles when a station website does not provide an AzuraCast now-playing API',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'New Settings › Integrations page: see what each online service receives and where, switch any service or feature off, or turn off Online services so Navis only talks to your server',
         type: ChangelogEntryType.newFeature,
       ),

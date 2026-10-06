@@ -18,6 +18,9 @@ class _MockPlayer extends Mock implements AudioPlayer;
 
 class _CountingAdapter implements HttpClientAdapter {
   final requested = <Uri>[];
+  String? body;
+  int statusCode = 200;
+  DioExceptionType? failure;
 
   @override
   Future<ResponseBody> fetch(
@@ -26,13 +29,17 @@ class _CountingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requested.add(options.uri);
+    if (failure case final type?) {
+      throw DioException(requestOptions: options, type: type);
+    }
     return ResponseBody.fromString(
-      jsonEncode(<String, Object?>{
-        'now_playing': {
-          'song': {'title': 'Song', 'artist': 'Artist', 'art': null},
-        },
-      }),
-      200,
+      body ??
+          jsonEncode(<String, Object?>{
+            'now_playing': {
+              'song': {'title': 'Song', 'artist': 'Artist', 'art': null},
+            },
+          }),
+      statusCode,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
       },
@@ -91,6 +98,73 @@ void main() {
     azuracastApiUrl: 'https://radio.example.invalid',
     stationShortName: 'main',
   );
+
+  for (final failure in ['http', 'timeout', 'non-json', 'shape']) {
+    test('falls back to cached ICY after two initial $failure failures', () {
+      switch (failure) {
+        case 'http':
+          adapter.statusCode = 404;
+        case 'timeout':
+          adapter.failure = DioExceptionType.receiveTimeout;
+        case 'non-json':
+          adapter.body = '<html>Not an API</html>';
+        case 'shape':
+          adapter.body = '{"station": "ordinary Icecast"}';
+      }
+      when(() => player.icyMetadata).thenReturn(
+        IcyMetadata(
+          info: IcyInfo(title: 'ICY Artist - ICY Song', url: null),
+          headers: null,
+        ),
+      );
+      fakeAsync((async) {
+        final service = build();
+        listen(service);
+        settle(async);
+        verifyNever(
+          () => handler.updateRadioMetadata(
+            title: 'ICY Song',
+            artist: 'ICY Artist',
+          ),
+        );
+        async.elapse(RadioMetadataService.pollingInterval);
+        settle(async);
+        verify(
+          () => handler.updateRadioMetadata(
+            title: 'ICY Song',
+            artist: 'ICY Artist',
+          ),
+        ).called(1);
+        async.elapse(RadioMetadataService.pollingInterval * 6);
+        settle(async);
+        expect(adapter.requested, hasLength(2));
+        service.dispose();
+      });
+    });
+  }
+
+  test('keeps polling through failures after an Azuracast success', () {
+    fakeAsync((async) {
+      final service = build();
+      listen(service);
+      settle(async);
+      adapter.statusCode = 503;
+      async.elapse(RadioMetadataService.pollingInterval * 3);
+      settle(async);
+      expect(adapter.requested, hasLength(4));
+      adapter.statusCode = 200;
+      async.elapse(RadioMetadataService.pollingInterval);
+      settle(async);
+      verify(
+        () => handler.updateRadioMetadata(
+          title: 'Song',
+          artist: 'Artist',
+          artUrl: null,
+        ),
+      ).called(2);
+      service.dispose();
+    });
+  });
 
   test('polls Azuracast every interval while allowed', () {
     fakeAsync((async) {
