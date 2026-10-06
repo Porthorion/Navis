@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:collection';
 
-/// Keeps Navis well under Deezer's public quota (about 50 requests per
-/// 5 seconds): at most [maxPerWindow] requests start in any [window], and at
-/// most [maxInFlight] run at once.
+/// Keeps Navis under Deezer's public quota: at most [maxPerWindow] requests
+/// start in any [window], and at most [maxInFlight] run at once.
+///
+/// Deezer documents about 50 requests per 5 seconds, but from one IP it
+/// answered "Quota limit exceeded" (code 4) while Navis started at most 32
+/// requests in 5 seconds (8 per second, measured on a fresh cache in
+/// 2026-10). Five per second (25 per 5 seconds) leaves room for that
+/// stricter real limit.
 ///
 /// One limiter is shared by every request of a `DeezerApiClient`, so the
 /// limits hold across all features that call Deezer.
 class DeezerRequestLimiter {
   new({
-    this.maxPerWindow = 8,
+    this.maxPerWindow = 5,
     this.window = const Duration(seconds: 1),
     this.maxInFlight = 4,
     Duration Function()? elapsed,

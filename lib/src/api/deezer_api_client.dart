@@ -29,7 +29,7 @@ class DeezerApiException implements Exception {
 ///
 /// Production code passes a `dio` from `externalDioFactoryProvider`, built
 /// with [baseOptions], so the integration guard and call recorder apply.
-/// Every request goes through one [DeezerRequestLimiter] (8 per second, 4 in
+/// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
 /// flight). Errors arrive in the body of an HTTP 200 response: code 4 (quota)
 /// is retried once after [quotaRetryDelay], code 800 ("no data") reads as an
 /// empty result, any other code throws [DeezerApiException]. Transport

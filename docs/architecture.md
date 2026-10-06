@@ -1479,8 +1479,10 @@ Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
 (`lib/src/api/deezer_api_client.dart`) is built by `deezerApiClientProvider`
 through `externalDioFactoryProvider`, so the guard and the call recorder apply,
 with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every
-Deezer feature together under 8 requests per second and 4 in flight, well
-below Deezer's quota of about 50 requests per 5 seconds. Deezer reports errors
+Deezer feature together under 5 requests per second and 4 in flight. Deezer
+documents a quota of about 50 requests per 5 seconds, but answered code 4
+while Navis started at most 32 per 5 seconds from one IP, so the limit stays
+well below that. Deezer reports errors
 as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
 retried once after 5 seconds, code 800 ("no data") reads as an empty result,
 and any other code throws `DeezerApiException`. Endpoints used so far:
