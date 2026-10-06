@@ -67,6 +67,68 @@ void main() {
     });
   });
 
+  test('a pause holds every new start, not the running ones', () {
+    fakeAsync((async) {
+      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final starts = <Duration>[];
+      var running = 0;
+      unawaited(
+        limiter.run(() async {
+          starts.add(async.elapsed);
+          running++;
+          await Future<void>.delayed(const Duration(seconds: 1));
+          running--;
+        }),
+      );
+      async.flushMicrotasks();
+      expect(running, 1);
+
+      limiter.pauseStarts(const Duration(seconds: 5));
+      for (var i = 0; i < 3; i++) {
+        unawaited(
+          limiter.run(() async {
+            starts.add(async.elapsed);
+          }),
+        );
+      }
+      async.flushMicrotasks();
+      expect(starts, hasLength(1));
+
+      // The running request finishes during the pause.
+      async.elapse(const Duration(seconds: 1));
+      expect(running, 0);
+      expect(starts, hasLength(1));
+
+      async.elapse(const Duration(milliseconds: 3999));
+      expect(starts, hasLength(1));
+      async.elapse(const Duration(milliseconds: 1));
+      expect(starts, hasLength(4));
+      expect(starts.skip(1), everyElement(const Duration(seconds: 5)));
+    });
+  });
+
+  test('a later pause extends an earlier one, never shortens it', () {
+    fakeAsync((async) {
+      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final starts = <Duration>[];
+      limiter.pauseStarts(const Duration(seconds: 5));
+      async.elapse(const Duration(seconds: 2));
+      limiter
+        ..pauseStarts(const Duration(seconds: 5))
+        ..pauseStarts(const Duration(seconds: 1));
+      unawaited(
+        limiter.run(() async {
+          starts.add(async.elapsed);
+        }),
+      );
+
+      async.elapse(const Duration(milliseconds: 4999));
+      expect(starts, isEmpty);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(starts, [const Duration(seconds: 7)]);
+    });
+  });
+
   test('a failing request frees its slot', () async {
     final limiter = DeezerRequestLimiter(maxInFlight: 1);
 

@@ -31,17 +31,14 @@ class DeezerApiException implements Exception {
 /// with [baseOptions], so the integration guard and call recorder apply.
 /// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
 /// flight). Errors arrive in the body of an HTTP 200 response: code 4 (quota)
-/// is retried once after [quotaRetryDelay], code 800 ("no data") reads as an
-/// empty result, any other code throws [DeezerApiException]. Transport
-/// failures, including a request the integration guard refused, throw
-/// [DioException].
+/// pauses the shared limiter for [quotaRetryDelay], so every Deezer request
+/// waits, and the request that hit it is then retried once; code 800 ("no
+/// data") reads as an empty result; any other code throws
+/// [DeezerApiException]. Transport failures, including a request the
+/// integration guard refused, throw [DioException].
 class DeezerApiClient {
-  new({
-    required this._dio,
-    DeezerRequestLimiter? limiter,
-    Future<void> Function(Duration)? wait,
-  }) : _limiter = limiter ?? DeezerRequestLimiter(),
-       _wait = wait ?? Future<void>.delayed;
+  new({required this._dio, DeezerRequestLimiter? limiter})
+    : _limiter = limiter ?? DeezerRequestLimiter();
 
   static final baseOptions = BaseOptions(
     baseUrl: 'https://api.deezer.com/',
@@ -57,7 +54,6 @@ class DeezerApiClient {
 
   final Dio _dio;
   final DeezerRequestLimiter _limiter;
-  final Future<void> Function(Duration) _wait;
 
   /// `/search/artist?q=<name>`: artists whose name matches [name], in
   /// Deezer's relevance order.
@@ -214,10 +210,12 @@ class DeezerApiClient {
         message: error['message']?.toString(),
       );
       if (exception.code == noDataErrorCode) return null;
-      if (exception.isQuotaExceeded && attempt == 0) {
-        await _wait(quotaRetryDelay);
-        if (cancelToken?.isCancelled ?? false) throw exception;
-        continue;
+      if (exception.isQuotaExceeded) {
+        // Every request waits out the quota, not only this one.
+        _limiter.pauseStarts(quotaRetryDelay);
+        // The retry waits for the pause in the limiter; a request cancelled
+        // meanwhile fails there with Dio's cancellation, without being sent.
+        if (attempt == 0) continue;
       }
       throw exception;
     }

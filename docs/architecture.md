@@ -1483,8 +1483,10 @@ Deezer feature together under 5 requests per second and 4 in flight. Deezer
 documents a quota of about 50 requests per 5 seconds, but answered code 4
 while Navis started at most 32 per 5 seconds from one IP, so the limit stays
 well below that. Deezer reports errors
-as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) is
-retried once after 5 seconds, code 800 ("no data") reads as an empty result,
+as HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota)
+pauses the shared limiter for 5 seconds, so every Deezer request waits it out
+rather than piling into the quota, and the request that hit it is retried
+once; code 800 ("no data") reads as an empty result,
 and any other code throws `DeezerApiException`. Endpoints used so far:
 `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
 `/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new

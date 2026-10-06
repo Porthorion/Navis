@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/deezer_request_limiter.dart';
@@ -10,6 +12,7 @@ import 'package:navis/src/api/deezer_request_limiter.dart';
 class _DeezerAdapter implements HttpClientAdapter {
   final Map<String, List<Object>> bodies = <String, List<Object>>{};
   final List<Uri> requests = <Uri>[];
+  void Function(Uri uri)? onFetch;
 
   void queue(String path, Object body) =>
       (bodies[path] ??= <Object>[]).add(body);
@@ -21,6 +24,7 @@ class _DeezerAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options.uri);
+    onFetch?.call(options.uri);
     final queued = bodies[options.uri.path];
     if (queued == null || queued.isEmpty) {
       throw StateError('No response queued for ${options.uri.path}');
@@ -73,17 +77,25 @@ Map<String, Object?> _track(
 
 void main() {
   late _DeezerAdapter adapter;
+
+  /// What the limiter waited for; its clock moves on by each wait.
   late List<Duration> waits;
+  late DeezerRequestLimiter limiter;
   late DeezerApiClient client;
 
   setUp(() {
     adapter = _DeezerAdapter();
     waits = <Duration>[];
-    final dio = Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter;
-    client = DeezerApiClient(
-      dio: dio,
-      wait: (duration) async => waits.add(duration),
+    var clock = Duration.zero;
+    limiter = DeezerRequestLimiter(
+      elapsed: () => clock,
+      delay: (duration) async {
+        waits.add(duration);
+        clock += duration;
+      },
     );
+    final dio = Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter;
+    client = DeezerApiClient(dio: dio, limiter: limiter);
   });
 
   test('base options use 8 second timeouts against api.deezer.com', () {
@@ -248,18 +260,57 @@ void main() {
     expect(waits, isEmpty);
   });
 
-  test('code 4 (quota) waits 5 seconds and retries once', () async {
-    adapter
-      ..queue('/search/track', _error(4, 'Exception', 'Quota limit exceeded'))
-      ..queue('/search/track', <String, Object?>{
-        'data': <Object?>[_track(3, 'Believer')],
-      });
+  test(
+    'code 4 (quota) pauses the shared limiter 5 seconds and retries once',
+    () async {
+      adapter
+        ..queue('/search/track', _error(4, 'Exception', 'Quota limit exceeded'))
+        ..queue('/search/track', <String, Object?>{
+          'data': <Object?>[_track(3, 'Believer')],
+        });
 
-    final tracks = await client.searchTracks('Imagine Dragons');
+      final tracks = await client.searchTracks('Imagine Dragons');
 
-    expect(tracks.single.title, 'Believer');
-    expect(waits, <Duration>[const Duration(seconds: 5)]);
-    expect(adapter.requests, hasLength(2));
+      expect(tracks.single.title, 'Believer');
+      expect(waits, <Duration>[const Duration(seconds: 5)]);
+      expect(adapter.requests, hasLength(2));
+    },
+  );
+
+  test('code 4 holds the other requests for the pause too', () {
+    fakeAsync((async) {
+      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limited = DeezerApiClient(
+        dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+        limiter: shared,
+      );
+      final sentAt = <String, List<Duration>>{};
+      adapter
+        ..onFetch = ((uri) => (sentAt[uri.path] ??= []).add(async.elapsed))
+        ..queue('/search/track', _error(4, 'Exception', 'Quota limit exceeded'))
+        ..queue('/search/track', <String, Object?>{'data': <Object?>[]})
+        ..queue('/search/artist', <String, Object?>{'data': <Object?>[]});
+
+      unawaited(limited.searchTracks('Imagine Dragons'));
+      // Dio dispatches through zero-length timers.
+      async.elapse(Duration.zero);
+      expect(sentAt['/search/track'], [Duration.zero]);
+
+      // A request from another feature, after the quota error.
+      var artistsDone = false;
+      unawaited(limited.searchArtists('Queen').then((_) => artistsDone = true));
+      async.elapse(const Duration(milliseconds: 4999));
+      expect(sentAt['/search/artist'], isNull);
+      expect(sentAt['/search/track'], hasLength(1));
+
+      async.elapse(const Duration(milliseconds: 1));
+      expect(sentAt['/search/artist'], [const Duration(seconds: 5)]);
+      expect(sentAt['/search/track'], [
+        Duration.zero,
+        const Duration(seconds: 5),
+      ]);
+      expect(artistsDone, isTrue);
+    });
   });
 
   test('a second code 4 throws a quota exception', () async {

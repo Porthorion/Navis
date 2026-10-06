@@ -11,7 +11,9 @@ import 'dart:collection';
 /// stricter real limit.
 ///
 /// One limiter is shared by every request of a `DeezerApiClient`, so the
-/// limits hold across all features that call Deezer.
+/// limits hold across all features that call Deezer. When Deezer reports its
+/// quota exceeded, [pauseStarts] holds every new start, so concurrent
+/// requests stop piling into the quota.
 class DeezerRequestLimiter {
   new({
     this.maxPerWindow = 5,
@@ -33,10 +35,22 @@ class DeezerRequestLimiter {
   int _inFlight = 0;
   Completer<void>? _released;
 
+  /// No request starts before this point of [_elapsed].
+  Duration _pausedUntil = Duration.zero;
+
   /// Requests running now.
   int get inFlight => _inFlight;
 
-  /// Runs [request] once a slot is free under both limits.
+  /// Holds every request that has not started yet until [duration] from now;
+  /// requests already running continue. A pause that ends later than the
+  /// current one extends it; an earlier end never shortens it.
+  void pauseStarts(Duration duration) {
+    final until = _elapsed() + duration;
+    if (until > _pausedUntil) _pausedUntil = until;
+  }
+
+  /// Runs [request] once a slot is free under both limits and no pause holds
+  /// it.
   Future<T> run<T>(Future<T> Function() request) async {
     await _acquire();
     try {
@@ -49,6 +63,10 @@ class DeezerRequestLimiter {
   Future<void> _acquire() async {
     while (true) {
       final now = _elapsed();
+      if (now < _pausedUntil) {
+        await _delay(_pausedUntil - now);
+        continue;
+      }
       while (_starts.isNotEmpty && now - _starts.first >= window) {
         _starts.removeFirst();
       }
