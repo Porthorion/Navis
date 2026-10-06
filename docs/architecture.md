@@ -1584,7 +1584,12 @@ fallback.
   synced copy replaces them; they skip `search3` until they are a day old.
   A store that keeps entries longer than a day (Trending's) searches an
   older remote match again only for a copy on the server: it is never
-  replaced by another remote result or lost to a failed search.
+  replaced by another remote result or lost to a failed search. A remote
+  song the library holds as a row (provisional and external: one that was
+  played or whose song menu opened, or an `ext-deezer-song-<id>` row) is
+  treated the same way: it plays at once, but never counts as a library
+  match, so the library pass and the daily upgrade-only check still run
+  (the DAO's candidates leave provisional rows out).
   `artistTopTrackMatchSyncBridgeProvider` (watched by the app shell) clears the
   namespace and the session's searches after every library sync that
   succeeded fully or partly, mirroring the ListenBrainz weekly matcher, then
@@ -1817,8 +1822,10 @@ works like the weekly playlists. `homeTrendingProvider`
   numbering has no gaps. Two searches run at once. A pull to refresh (or the
   page's Retry) calls `homeTrendingRefreshProvider.refresh(manual: true)`:
   six at a time, an update every six finished searches, and remembered
-  unmatched songs searched again. A refresh or turning the switch off
-  cancels the searches.
+  unmatched songs searched again. That mode applies only to the run the
+  request starts (`HomeTrendingRefreshNotifier.takeManual`); any later
+  rebuild, such as a switch toggled, is automatic again. A refresh or
+  turning the switch off cancels the searches.
 - A library sync does not clear its store: `homeTrendingSyncRefreshBridgeProvider`
   re-runs it after a sync that succeeded fully or partly (unless a refresh
   started meanwhile, as Home's pull to refresh does), so the library pass
@@ -1833,7 +1840,8 @@ works like the weekly playlists. `homeTrendingProvider`
 - `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart
-  yet), so it can always be found. Its id `virtual:trending:deezer`
+  yet), so it can always be found. The virtual rows also stay listed, on
+  their own, while the server playlists load or fail to load. Its id `virtual:trending:deezer`
   (`NavService.trendingPlaylistId`) makes `NavService.openPlaylistDetail`
   open the Trending page. The row shows the chart's covers and "N of M
   available • Deezer", like the weekly rows' "… • ListenBrainz".
