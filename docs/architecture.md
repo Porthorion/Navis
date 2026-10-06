@@ -673,12 +673,12 @@ through `release_notes_markdown.dart`.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
   3–5 highlights for majors from 1.2.0 on, and that icon files exist.
 
-**Home card (`ChangelogDiscoveryCard`, drawn in `HomeNoticeCard`).** It is inline and non-blocking
-(design-ux-audit D5). `changelogToShowProvider` calls
+**Home card (`ChangelogDiscoveryCard`, drawn in `HomeNoticeCard`).** It is
+inline and non-blocking (design-ux-audit D5). `changelogToShowProvider` calls
 `resolveChangelogDiscovery`: it returns nothing once the running version is
 recorded in `changelog_seen_version.txt` (Application Support), otherwise the
-running release plus the newest *major* in the unseen range
-(last seen, current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
+running release plus the newest *major* in the unseen range (last seen,
+current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
 - It is a flat row styled like a library row.
 - With a featured major: a 48 px cover, "Check out 1.4 “Navi”", and one plain
   line naming up to three highlights ("…and 2 more").
@@ -885,22 +885,28 @@ Settings):
 
 - `/` - Home
 - `/library?section=<albums|liked|artists|playlists|radio>` - Library; the section is part of the location
-- `/library/artists/:id` and `/library/artists/:id/top-tracks` - Artist detail and its top-tracks playlist; `?name=` names an artist the library may not hold yet
-- `/library/albums/:id` - Album detail; `?name=` and `&artist=` name an album the library may not hold yet
+- `/library/artists/:id` and `/library/artists/:id/top-tracks` - Artist detail
+  and its top-tracks playlist; `?name=` names an artist the library may not hold
+  yet
+- `/library/albums/:id` - Album detail; `?name=` and `&artist=` name an album
+  the library may not hold yet
 - `/library/playlists/:id` - Playlist detail
 - `/library/listenbrainz/:sourcePatch` - ListenBrainz weekly playlist
 - `/library/liked-albums`, `/library/liked-artists` - Full liked lists
 - `/search` - Search
 - `/settings` - Settings
-- `/settings/server` (Server Information), `/settings/integrations`, `/settings/cache`, `/settings/downloads`, `/settings/sync`, `/settings/playback`, `/settings/equalizer`, `/settings/appearance`, `/settings/about`, `/settings/unavailable-items`
+- `/settings/server` (Server Information), `/settings/integrations`,
+  `/settings/cache`, `/settings/downloads`, `/settings/sync`,
+  `/settings/playback`, `/settings/equalizer`, `/settings/appearance`,
+  `/settings/about`, `/settings/unavailable-items`
 - `/settings/playback/match-flow` and `/settings/playback/match-flow/:flowId/search`
 - `/settings/about/changelog`, `/settings/about/privacy`
 - `/settings/desktop-window`, `/settings/shortcuts` - desktop only; other platforms are redirected to `/settings`
 
 The retired `/settings/group-listening` path redirects to Server Information
 (`/settings/server`) and `/settings/external-services` to Integrations
-(`/settings/integrations`); neither is shown in navigation. A location that matches no route shows a localized not-found page
-with a Home action.
+(`/settings/integrations`); neither is shown in navigation. A location that
+matches no route shows a localized not-found page with a Home action.
 
 `appRouterProvider` owns one stable `GoRouter` instance. Authentication and
 first-sync phase changes refresh its redirects in place rather than rebuilding
@@ -934,19 +940,19 @@ not persisted, is skipped offline, and never runs for repair, reset, failed,
 cancelled, or direct-to-Home flows. It asks no online service either (no
 Deezer or Last.fm): the user has not reached the Integrations step yet.
 
-Onboarding has four steps (look, listening, queue and downloads,
-Integrations) kept in one draft that Finish saves and Skip discards; the
-Integrations step is described under "External integration policy". The
-screen keeps its size when the keyboard opens (`resizeToAvoidBottomInset:
-false`) and pads itself by `MediaQuery.viewInsetsOf`, so the step list ends
-at the keyboard. On compact layouts the header and the actions step aside
-while the keyboard is up. The step list and its rows are keyed, and the
-"scroll for more" hint sits above the list, hidden while the keyboard is up
-and once the list is scrolled to (or within 24 dp of) its end, back when
-scrolled up: inserted into the list it used to shift the rows, rebuild the focused token
-field and close the keyboard again. The token and key fields have their own
-focus nodes, validate on the keyboard's Done action, show and hide their
-value, show errors on the field and are locked while validating.
+Onboarding has four steps (look, listening, queue and downloads, Integrations)
+kept in one draft that Finish saves and Skip discards; the Integrations step is
+described under "External integration policy". The screen keeps its size when
+the keyboard opens (`resizeToAvoidBottomInset: false`) and pads itself by
+`MediaQuery.viewInsetsOf`, so the step list ends at the keyboard. On compact
+layouts the header and the actions step aside while the keyboard is up. The step
+list and its rows are keyed, and the "scroll for more" hint sits above the list,
+hidden while the keyboard is up and once the list is scrolled to (or within 24
+dp of) its end, back when scrolled up: inserted into the list it used to shift
+the rows, rebuild the focused token field and close the keyboard again. The
+token and key fields have their own focus nodes, validate on the keyboard's Done
+action, show and hide their value, show errors on the field and are locked while
+validating.
 
 ### Shell Routes
 
@@ -1350,9 +1356,9 @@ switch means "Navis only talks to your server" when off. See
 - **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists
-  lose the virtual playlists at once. The check is repeated after every wait (the
-  stored token, the caches, the startup idle delay), and its requests carry a
-  `CancelToken` cancelled when the provider rebuilds, so turning the switch
+  lose the virtual playlists at once. The check is repeated after every wait
+  (the stored token, the caches, the startup idle delay), and its requests carry
+  a `CancelToken` cancelled when the provider rebuilds, so turning the switch
   off while the token is read sends no token validation. Artist Top Songs
   likewise re-reads `lastfm.topSongs` after its Last.fm cache read and passes
   its `CancelToken` to `artist.getTopTracks`; the guard interceptor checks only
@@ -1361,17 +1367,17 @@ switch means "Navis only talks to your server" when off. See
   instead of failing: Same Vibes (`lastfm.sameVibes`), the radio fill
   (`lastfm.radio`), artist Top Songs (`deezer.topSongs` or `lastfm.topSongs`,
   via `artistTopSongsAllowedProvider`; with neither, the section and the "This
-  Is" card are hidden), scrobbling and feedback (their credential readers return no
-  token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the download
-  service takes a `readLyricsAllowed` callback instead of reading the column),
-  the update banner and provider, the AutoEQ dialog (search still uses the
-  bundled catalogue; refresh and download are disabled) and the weekly
+  Is" card are hidden), scrobbling and feedback (their credential readers return
+  no token), lyrics (`useLrclibProvider` is `allows(lrclib.lyrics)`; the
+  download service takes a `readLyricsAllowed` callback instead of reading the
+  column), the update banner and provider, the AutoEQ dialog (search still uses
+  the bundled catalogue; refresh and download are disabled) and the weekly
   playlists stream. Gates use `allows(feature)`, which includes the credential
   check, except weekly playlists (`isEnabled`, see above). *The guard
   interceptor* is defense in depth. `createExternalDio(service, ...)`
   (`features/integrations/data/external_dio.dart`) builds the `Dio` of every
-  external client (Deezer, Last.fm, ListenBrainz, LRCLIB, the update repository and
-  service, AutoEQ, and the radio `RadioMetadataService` inside
+  external client (Deezer, Last.fm, ListenBrainz, LRCLIB, the update repository
+  and service, AutoEQ, and the radio `RadioMetadataService` inside
   `NavisAudioHandler`) from `externalDioFactoryProvider`.
   `IntegrationGuardInterceptor` rejects a request, before it leaves the device,
   when the master switch or that service's switch is off. It checks the service
@@ -1381,8 +1387,9 @@ switch means "Navis only talks to your server" when off. See
   `userInitiatedOptions`) and bypasses the service switch, never the master
   switch. `ListenBrainzApiClient.validateTokenDetails` sets it only when its
   caller passes `userInitiated: true` (Integrations and onboarding), so the
-  weekly stream's automatic revalidation obeys the service switch. The policy is read per request, so clients that already exist obey
-  later changes. `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
+  weekly stream's automatic revalidation obeys the service switch. The policy is
+  read per request, so clients that already exist obey later changes.
+  `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
   `RadioMetadataService` checks before every Azuracast poll and which stops the
   polling while it is false (ICY metadata, carried by the stream
   itself, is unaffected). Policy changes refresh the current station immediately:
@@ -1532,35 +1539,34 @@ signed or whitespace-prefixed pairs are rejected.
 Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
 (`lib/src/api/deezer_api_client.dart`) is built by `deezerApiClientProvider`
 through `externalDioFactoryProvider`, so the guard and the call recorder apply,
-with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every
-Deezer feature together under 5 requests per second and 4 in flight, at most
-2 of the 5 for background requests. Deezer documents a quota of about 50
-requests per 5 seconds, but answered code 4 while Navis started at most 32
-per 5 seconds from one IP, and at 5 per second still for 17 of the 106
-requests of a fresh first launch (Home's warm-up with an artist page opened
-during it). The real budget is lower than documented and may be shared with
-the user's server, which also calls Deezer (a server with a Deezer remote
-source searches it for every `search3`), so Navis cannot know it. Waiting
-requests start in order, except that foreground ones (the artist page and
-the other pages the user opens) always go before `background` ones (Home's
-New Releases, its artist resolution and the Trending chart); background
-requests start whenever no foreground one waits and their own rate allows.
-Cancelled waiters fail promptly, even during a pause, and consume neither
-the total nor the background start budget, including cancellation after a slot
-is granted but before the request callback runs.
-Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
-"code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds initially,
-doubling consecutive quota pause episodes up to 80 seconds. Concurrent
-answers from requests already in flight share one episode. A successful answer
-(including code 800) resets the backoff only if its request started at or after
-the latest pause ended. The pause is set before releasing
-the request slot, so every Deezer request waits it out, and the
-request that hit it is retried after the pause: up to 3 times for a
-foreground request, once for a background one; code 800 ("no data") reads as
-an empty result, and any other code throws `DeezerApiException`. Endpoints
-used so far: `/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
-`/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new ones
-go through `getJson` to inherit the limiter and error handling. The models (`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
+with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every Deezer
+feature together under 5 requests per second and 4 in flight, at most 2 of the 5
+for background requests. Deezer documents a quota of about 50 requests per 5
+seconds, but answered code 4 while Navis started at most 32 per 5 seconds from
+one IP, and at 5 per second still for 17 of the 106 requests of a fresh first
+launch (Home's warm-up with an artist page opened during it). The real budget is
+lower than documented and may be shared with the user's server, which also calls
+Deezer (a server with a Deezer remote source searches it for every `search3`),
+so Navis cannot know it. Waiting requests start in order, except that foreground
+ones (the artist page and the other pages the user opens) always go before
+`background` ones (Home's New Releases, its artist resolution and the Trending
+chart); background requests start whenever no foreground one waits and their own
+rate allows. Cancelled waiters fail promptly, even during a pause, and consume
+neither the total nor the background start budget, including cancellation after
+a slot is granted but before the request callback runs. Deezer reports errors as
+HTTP 200 with `{"error": {"type", "message", "code"}}`: code 4 (quota) pauses
+the shared limiter for 5 seconds initially, doubling consecutive quota pause
+episodes up to 80 seconds. Concurrent answers from requests already in flight
+share one episode. A successful answer (including code 800) resets the backoff
+only if its request started at or after the latest pause ended. The pause is set
+before releasing the request slot, so every Deezer request waits it out, and the
+request that hit it is retried after the pause: up to 3 times for a foreground
+request, once for a background one; code 800 ("no data") reads as an empty
+result, and any other code throws `DeezerApiException`. Endpoints used so far:
+`/search/artist`, `/artist/{id}/top`, `/search/track`, `/artist/{id}`,
+`/artist/{id}/related`, `/artist/{id}/albums` and `/chart/0/tracks`; new ones go
+through `getJson` to inherit the limiter and error handling. The models
+(`DeezerArtist`, `DeezerAlbum`, `DeezerTrack` in
 `api/models/deezer_models.dart`) are hand-written, like the ListenBrainz ones,
 and round-trip through `toJson` for the cache. In some regions
 `/artist/{id}/top` returns no tracks for every artist, so callers must have a
@@ -1614,24 +1620,25 @@ fallback.
   again instead of hiding the artist's Deezer sections for a week.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
-  (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up
-  to 50 songs. Deezer takes `/artist/{id}/top?limit=50`; whenever that gives
-  fewer than 50 (none in some regions, a handful for niche artists: one for
-  Masayoshi Soken when measured), `/search/track?q=<name>&limit=100` fills the
-  list. Search tracks are kept only when their `artist.id` is the resolved id
-  (results include covers and remixes by others), one per
+  (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up to
+  50 songs. Deezer takes `/artist/{id}/top?limit=50`; whenever that gives fewer
+  than 50 (none in some regions, a handful for niche artists: one for Masayoshi
+  Soken when measured), `/search/track?q=<name>&limit=100` fills the list.
+  Search tracks are kept only when their `artist.id` is the resolved id (results
+  include covers and remixes by others), one per
   `normalizeMetadataKeepingEdition` title and never an edition already listed
-  (so "Wonder" and "Wonder (Japanese Version)" both stay while a remaster
-  folds in), most popular first. If the search fill fails, successful top
-  tracks remain available and the partial response is not cached; cancellation
-  still stops the load. Deezer failing or knowing nothing hands the
-  whole list to Last.fm; fewer than 10 Deezer songs get Last.fm's songs not
-  already listed appended, without listener counts. Each source caches its
-  answer for 24 hours (the Deezer entry keeps the top and search parts; an
-  entry written before the search fill reads as a miss). The result is a list of neutral `ArtistTopTrackSeed`s
-  (`features/library/domain/artist_top_track.dart`: rank, title, artist,
-  source, Deezer popularity, Last.fm listeners, album, length, Deezer track
-  id). Only Last.fm seeds carry listeners, so only they show a number.
+  (so "Wonder" and "Wonder (Japanese Version)" both stay while a remaster folds
+  in), most popular first. If the search fill fails, successful top tracks
+  remain available and the partial response is not cached; cancellation still
+  stops the load. Deezer failing or knowing nothing hands the whole list to
+  Last.fm; fewer than 10 Deezer songs get Last.fm's songs not already listed
+  appended, without listener counts. Each source caches its answer for 24 hours
+  (the Deezer entry keeps the top and search parts; an entry written before the
+  search fill reads as a miss). The result is a list of neutral
+  `ArtistTopTrackSeed`s (`features/library/domain/artist_top_track.dart`: rank,
+  title, artist, source, Deezer popularity, Last.fm listeners, album, length,
+  Deezer track id). Only Last.fm seeds carry listeners, so only they show a
+  number.
 - **Providers** (`artist_top_tracks_provider.dart`, keyed by
   `(artistId, name)`): `artistTopTrackSeedsProvider` loads up to 50 seeds and
   stays alive 5 minutes after its last listener. The artist page's
@@ -1733,23 +1740,22 @@ reads "Not Found".
   still outline of the albums or tracks to come. Everything else (photo,
   biography, Deezer sections, top songs) fills in through its usual
   providers once the page shows.
-- When the request ends the page settles only on real data: the entity is
-  stored (a remote album songs-hydrated, a remote artist with albums), or a
-  remote artist has none and the hydration succeeded
-  (`detailHydrationConfirmed`; no request, a partial or a skipped one
-  confirms nothing). Loading is bounded: after `kDetailHydrationTimeout`
-  (20 seconds, for example while the request waits behind a running library
-  sync) the page shows the failure state, and a late answer still fills it.
-  The controller remembers a successful hydration that
-  found an artist without albums for the server session
-  (`artistConfirmedWithoutAlbums`, cleared with the per-session hydration
-  set), so a reopen that needs no request still shows the artist as empty. Anything else, including a request or library read that
-  throws, a failed, cancelled or network-deferred request
-  (`detailHydrationFailed`), or an artist, album or album-list stream that
-  cannot be read, ends in `DetailLoadFailedView`: "Could Not Load This
-  Artist/Album", Retry (which also re-reads a failed stream), and "Search
-  for <name>" (artists filter, or albums with "title artist") when a name is
-  known.
+- When the request ends the page settles only on real data: the entity is stored
+  (a remote album songs-hydrated, a remote artist with albums), or a remote
+  artist has none and the hydration succeeded (`detailHydrationConfirmed`; no
+  request, a partial or a skipped one confirms nothing). Loading is bounded:
+  after `kDetailHydrationTimeout` (20 seconds, for example while the request
+  waits behind a running library sync) the page shows the failure state, and a
+  late answer still fills it. The controller remembers a successful hydration
+  that found an artist without albums for the server session
+  (`artistConfirmedWithoutAlbums`, cleared with the per-session hydration set),
+  so a reopen that needs no request still shows the artist as empty. Anything
+  else, including a request or library read that throws, a failed, cancelled or
+  network-deferred request (`detailHydrationFailed`), or an artist, album or
+  album-list stream that cannot be read, ends in `DetailLoadFailedView`: "Could
+  Not Load This Artist/Album", Retry (which also re-reads a failed stream), and
+  "Search for <name>" (artists filter, or albums with "title artist") when a
+  name is known.
 - The name comes from the stored row, else from the route: `NavService`
   `openArtistDetail(…, name:)` and `openAlbumDetail(…, name:, artistName:)`
   add `?name=` and `&artist=` (`AppRoutes.detailNameParam` /
@@ -1767,19 +1773,19 @@ reads "Not Found".
 
 ### Deezer on the artist page
 
-Three more artist-page features use Deezer, each behind its own switch and
-each hiding itself or falling back when the switch is off, Deezer has nothing
-or a request fails. The providers are in
+Three more artist-page features use Deezer, each behind its own switch and each
+hiding itself or falling back when the switch is off, Deezer has nothing or a
+request fails. The providers are in
 `features/library/presentation/artist_deezer_providers.dart`, keyed by
 `ArtistPageKey` `(artistId, name)`. They share `artistDeezerIdProvider` (the
-resolver above), which is only watched after a feature switch has been
-checked, so with all three off the page sends nothing to Deezer.
-`DeezerCatalog` (`features/integrations/data/deezer_catalog.dart`,
-`deezerCatalogProvider`) reads `/artist/{id}`, `/artist/{id}/related`,
-and `/artist/{id}/albums` through the disk cache: artist details and related
-artists 7 days, albums 24 hours, "not on Deezer" included; errors are not cached. The resolver shares one resolution between
-callers asking for the same library artist and name at once (Top Songs and
-these sections on a first visit).
+resolver above), which is only watched after a feature switch has been checked,
+so with all three off the page sends nothing to Deezer. `DeezerCatalog`
+(`features/integrations/data/deezer_catalog.dart`, `deezerCatalogProvider`)
+reads `/artist/{id}`, `/artist/{id}/related`, and `/artist/{id}/albums` through
+the disk cache: artist details and related artists 7 days, albums 24 hours, "not
+on Deezer" included; errors are not cached. The resolver shares one resolution
+between callers asking for the same library artist and name at once (Top Songs
+and these sections on a first visit).
 
 - **Header photo and fans** (`deezer.artistImages`,
   `artistDeezerDetailsProvider`). `artistHeaderImageUrls`
@@ -1799,52 +1805,52 @@ these sections on a first visit).
   page's listed albums, so the remote albums that opening the page stores
   (an Octo-Fiesta artist list counts only local ones) update it as they
   arrive. The "This Is" card uses the same first photo.
-- **Fans Also Like** (`deezer.similarArtists`,
-  `artistFansAlsoLikeProvider`). Deezer's related artists are matched to the
-  library by `normalizeMetadata` name through
-  `libraryArtistNameIndexProvider` (`LibraryArtistNameIndexCache` in
-  `features/library/data/library_artist_name_index.dart`): one index of every library artist, keyed in a background isolate for more
-  than 64 artists, kept until the artists table changes (drift
-  `tableUpdates`, so a sync or a remote artist written by search marks it
-  stale) and rebuilt on the next lookup, so a sync's many artist batches cost
-  one rebuild and an artist page costs one map lookup per related artist.
-  Between library namesakes a server artist beats a remote one, then more
-  albums. `fansAlsoLikeEntries`
-  puts library artists first, each group in Deezer's order, and drops the page
-  artist. `SimilarArtistsSection`
-  (`features/library/presentation/similar_artists_section.dart`) draws it in
-  the same two-row grid as the server's Similar Artists, which it replaces when
-  it has artists: library artists keep their art and open their page; others
-  show the Deezer photo with the Remote mark and open the server's remote
-  artist `ext-deezer-artist-<id>` (`SimilarArtistEntry.deezerArtistId`) on a
-  remote artist page (see *Remote artist and album pages*), which offers a
-  search for the name when the server cannot provide it. The server's Similar Artists
-  show as soon as Deezer has nothing or fails, or when Deezer has not
-  answered within 2.5 seconds (`kFansAlsoLikeServerFallbackDelay`); whichever
-  list shows first stays, so a late Deezer answer never swaps it.
+- **Fans Also Like** (`deezer.similarArtists`, `artistFansAlsoLikeProvider`).
+  Deezer's related artists are matched to the library by `normalizeMetadata`
+  name through `libraryArtistNameIndexProvider` (`LibraryArtistNameIndexCache`
+  in `features/library/data/library_artist_name_index.dart`): one index of every
+  library artist, keyed in a background isolate for more than 64 artists, kept
+  until the artists table changes (drift `tableUpdates`, so a sync or a remote
+  artist written by search marks it stale) and rebuilt on the next lookup, so a
+  sync's many artist batches cost one rebuild and an artist page costs one map
+  lookup per related artist. Between library namesakes a server artist beats a
+  remote one, then more albums. `fansAlsoLikeEntries` puts library artists
+  first, each group in Deezer's order, and drops the page artist.
+  `SimilarArtistsSection`
+  (`features/library/presentation/similar_artists_section.dart`) draws it in the
+  same two-row grid as the server's Similar Artists, which it replaces when it
+  has artists: library artists keep their art and open their page; others show
+  the Deezer photo with the Remote mark and open the server's remote artist
+  `ext-deezer-artist-<id>` (`SimilarArtistEntry.deezerArtistId`) on a remote
+  artist page (see *Remote artist and album pages*), which offers a search for
+  the name when the server cannot provide it. The server's Similar Artists show
+  as soon as Deezer has nothing or fails, or when Deezer has not answered within
+  2.5 seconds (`kFansAlsoLikeServerFallbackDelay`); whichever list shows first
+  stays, so a late Deezer answer never swaps it.
 - **Missing Albums** (`deezer.missingAlbums`, `artistMissingAlbumsProvider`).
-  Hidden, without asking Deezer, while the library albums load, when the
-  artist is remote or when any of its albums, own or Featured In, is remote:
-  the server's remote catalogue (Octo-Fiesta) always wins. Otherwise `missingDeezerAlbums`
-  (`features/library/domain/missing_albums.dart`) keeps record types `album`
-  and `ep` (singles belong to Home's new releases, compilations are left out),
-  drops a Deezer album that a library album (own or featured) holds as
-  `ext-deezer-album-<id>` or under the same `normalizeMetadataKeepingEdition`
-  title, so remaster and deluxe packaging match while "(Japanese Version)"
-  stays its own album, and lists them newest first, one per edition. A
-  `ContentShelf` of `ExternalAlbumCard`s (`common_widgets/`, the `AlbumCard`
-  look and `AlbumCardLabel`, with a policy-checked cover URL) follows the album
-  grids, subtitled "2021 • EP". Cards take `ContentLayout.shelfCardExtent`,
-  the size Home's album carousels also use (smaller under Home's compact
-  density). A card opens the server's remote album `ext-deezer-album-<id>`
-  (`remoteDeezerAlbumId`) with its title and artist as route names, on a
-  remote album page that plays like any album and offers a search when the
-  server cannot provide it. The card takes the feature it belongs to, so
-  Home's new releases reuse it; its "2021 • EP" label and cover come from
-  `features/integrations/presentation/deezer_release_labels.dart`. (The
-  release sheet with a "Search your server" button that cards opened before
-  was retired in favour of these pages; the user expects a missing album to
-  open and play like any album.)
+  Hidden, without asking Deezer, while the library albums load, when the artist
+  is remote or when any of its albums, own or Featured In, is remote: the
+  server's remote catalogue (Octo-Fiesta) always wins. Otherwise
+  `missingDeezerAlbums` (`features/library/domain/missing_albums.dart`) keeps
+  record types `album` and `ep` (singles belong to Home's new releases,
+  compilations are left out), drops a Deezer album that a library album (own or
+  featured) holds as `ext-deezer-album-<id>` or under the same
+  `normalizeMetadataKeepingEdition` title, so remaster and deluxe packaging
+  match while "(Japanese Version)" stays its own album, and lists them newest
+  first, one per edition. A `ContentShelf` of `ExternalAlbumCard`s
+  (`common_widgets/`, the `AlbumCard` look and `AlbumCardLabel`, with a
+  policy-checked cover URL) follows the album grids, subtitled "2021 • EP".
+  Cards take `ContentLayout.shelfCardExtent`, the size Home's album carousels
+  also use (smaller under Home's compact density). A card opens the server's
+  remote album `ext-deezer-album-<id>` (`remoteDeezerAlbumId`) with its title
+  and artist as route names, on a remote album page that plays like any album
+  and offers a search when the server cannot provide it. The card takes the
+  feature it belongs to, so Home's new releases reuse it; its "2021 • EP" label
+  and cover come from
+  `features/integrations/presentation/deezer_release_labels.dart`. (The release
+  sheet with a "Search your server" button that cards opened before was retired
+  in favour of these pages; the user expects a missing album to open and play
+  like any album.)
 
 ### Deezer on Home
 
@@ -1929,11 +1935,12 @@ works like the weekly playlists. `homeTrendingProvider`
   request starts (`HomeTrendingRefreshNotifier.takeManual`); any later
   rebuild, such as a switch toggled, is automatic again. A refresh or
   turning the switch off cancels the searches.
-- A library sync does not clear its store: `homeTrendingSyncRefreshBridgeProvider`
-  re-runs it after a sync that succeeded fully or partly (unless a refresh
-  started meanwhile, as Home's pull to refresh does), so the library pass
-  picks up synced copies and only songs due for their daily check are
-  searched. Sign-out and the library cache reset clear the store.
+- A library sync does not clear its store:
+  `homeTrendingSyncRefreshBridgeProvider` re-runs it after a sync that succeeded
+  fully or partly (unless a refresh started meanwhile, as Home's pull to refresh
+  does), so the library pass picks up synced copies and only songs due for their
+  daily check are searched. Sign-out and the library cache reset clear the
+  store.
 - Spans: `trending.localMatch`, `trending.serverMatch` and `home.trending`
   (`chart`, `playable`, `remote`, `manual`).
 - `homeRandomShowcaseProvider` adds it as a `HomeRandomShowcaseTrending`
@@ -1956,14 +1963,13 @@ works like the weekly playlists. `homeTrendingProvider`
 `HomeRandomShowcaseListenBrainz` or `HomeRandomShowcaseTrending`). The hero
 widgets switch over them exhaustively. Playlists share one look through
 `isLoading`, `coverArtIds` and `localizedTitle`: a `PlaylistCoverMosaic`
-(`listenbrainz_playlist_artwork.dart`; weekly playlists show ListenBrainz's
-own image when there is one), the title, an availability line ("12 of 50
-available", "12 tracks available, matching") and a reason ("ListenBrainz", "Popular
-on Deezer"). Tapping a playlist opens its page; only albums show Play. On
-desktop a playlist's page lists its songs, Trending's numbered by chart
-position with unmatched songs in place; a row plays like a weekly song (the
-whole playlist's playable songs from it with Album Queue on, match flows
-collapsed).
+(`listenbrainz_playlist_artwork.dart`; weekly playlists show ListenBrainz's own
+image when there is one), the title, an availability line ("12 of 50 available",
+"12 tracks available, matching") and a reason ("ListenBrainz", "Popular on
+Deezer"). Tapping a playlist opens its page; only albums show Play. On desktop a
+playlist's page lists its songs, Trending's numbered by chart position with
+unmatched songs in place; a row plays like a weekly song (the whole playlist's
+playable songs from it with Album Queue on, match flows collapsed).
 
 **1.4.3 notice** (`IntegrationsNoticeCard`,
 `features/integrations/presentation/integrations_notice_card.dart`). A
@@ -2004,7 +2010,6 @@ The in-app update checker lives in `lib/src/features/settings/`:
 Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
-
 
 - `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
   channel, parses semver, and selects the correct platform artifact using
@@ -2057,26 +2062,29 @@ The update channel (`stable` or `dev`) is baked in at compile time via
 with `navis-dev-`, while the `stable` channel matches assets prefixed with `navis-`. This
 ensures sidecar/dev builds never suggest a stable release as an upgrade.
 
-The Last.fm API key used by "Same Vibes" instant mix mode is injected at build time as a
-masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random pad) and
-`NAVIS_LASTFM_API_KEY_PAD`, both hex, passed through `--dart-define-from-file`.
-`AppConstants.lastFmApiKey` XORs them back once at runtime and returns an empty key for a
-missing, malformed or mismatched pair. A plain `NAVIS_LASTFM_API_KEY` define is still accepted
-when the pair is absent so local dev runs work. Masking deters casual extraction and is not
-secrecy: a Last.fm API key is a client identifier and no shared secret is used. See
-[ci-cd.md](ci-cd.md#lastfm-key) for the build scripts and the post-build artifact scan.
+The Last.fm API key used by "Same Vibes" instant mix mode is injected at build
+time as a masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random
+pad) and `NAVIS_LASTFM_API_KEY_PAD`, both hex, passed through
+`--dart-define-from-file`. `AppConstants.lastFmApiKey` XORs them back once at
+runtime and returns an empty key for a missing, malformed or mismatched pair. A
+plain `NAVIS_LASTFM_API_KEY` define is still accepted when the pair is absent so
+local dev runs work. Masking deters casual extraction and is not secrecy: a
+Last.fm API key is a client identifier and no shared secret is used. See
+[ci-cd.md](ci-cd.md#lastfm-key) for the build scripts and the post-build
+artifact scan.
 
 ### Recommendation sessions
 
-Song-based **Server Mix** and **Last.fm · Same Vibes** are the two Instant
-Mix modes. Settings › Integrations › Last.fm › "Same Vibes mixes" chooses
-between them (`preferredMixModeProvider`); Server Mix is used whenever the
-policy does not allow `lastfm.sameVibes`. Server Mix calls the standard Subsonic `getSimilarSongs2` endpoint,
-then the original `getSimilarSongs` when unsupported. The existing Navidrome
-`getInstantMix` endpoint is a final compatibility fallback only when both
-standard endpoints are unsupported. AudioMuse's installed Navidrome plugin
-answers the standard similarity calls through the server; the client neither
-calls AudioMuse directly nor attributes generic server results to it.
+Song-based **Server Mix** and **Last.fm · Same Vibes** are the two Instant Mix
+modes. Settings › Integrations › Last.fm › "Same Vibes mixes" chooses between
+them (`preferredMixModeProvider`); Server Mix is used whenever the policy does
+not allow `lastfm.sameVibes`. Server Mix calls the standard Subsonic
+`getSimilarSongs2` endpoint, then the original `getSimilarSongs` when
+unsupported. The existing Navidrome `getInstantMix` endpoint is a final
+compatibility fallback only when both standard endpoints are unsupported.
+AudioMuse's installed Navidrome plugin answers the standard similarity calls
+through the server; the client neither calls AudioMuse directly nor attributes
+generic server results to it.
 
 A mix starts from the song its caller chose, which need not be the one
 playing (Android Auto starts mixes from browsed songs): the first refill uses
@@ -3313,7 +3321,8 @@ contract.
   `CoverArtImage` itself, once per cache key after
   `kCoverArtTimeoutRetryDelay`, instead of keeping its placeholder until the
   page is reopened; a second timeout keeps the placeholder (external artwork
-  is not retried).
+  is not retried). Changing the cover identity cancels a pending retry, as
+  does removing the widget.
 
 ### Cache Flow
 
@@ -3539,27 +3548,27 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   `source` column equals the song's raw fields, so no song write path needs to
   maintain it: stale or missing rows are normalized by the search itself and
   rewritten by `scheduleSongSearchIndexRefresh`, which also runs from deferred
-  startup maintenance. Normalization keeps letters and numbers from every
-  script and folds Latin diacritics and common Arabic letter variants. The SQL
+  startup maintenance. Normalization keeps letters and numbers from every script
+  and folds Latin diacritics and common Arabic letter variants. The SQL
   prefilter requires each query token as an in-order subsequence, which every
-  ranked match (exact, prefix, substring, token, fuzzy) satisfies, so ranking
-  is unchanged. Since schema 87 each row also stores `match_title`,
-  `match_artist`, and `match_album` in the `normalizeMetadata` form (rows
-  without them count as stale). The `source` ends with `metadataKeyVersion`,
-  so rows keyed by an older normalizer are stale for track matching and the
-  same lazy refresh re-keys them; no migration is needed when the normalizer
-  changes. Search and downloads-folder matching accept a row of any key
-  version whose raw fields match, because `search_text` does not depend on
-  it, so a bump never sends search down the stale path. `getTrackMatchCandidates` selects only songs
-  that could match a list of external tracks (artist top songs,
-  ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
-  title keys, or artist keys that are equal, contain or are contained, or
-  share a word. A snapshot built from those makes the same matches as one
-  built from the whole library. The artist rules are tested once per distinct
-  `match_artist` key (indexed, like `match_title`), not once per song, and
-  the matching songs are read through the two key indexes;
-  `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
-  reference. Deferred maintenance normalizes in an isolate.
+  ranked match (exact, prefix, substring, token, fuzzy) satisfies, so ranking is
+  unchanged. Since schema 87 each row also stores `match_title`, `match_artist`,
+  and `match_album` in the `normalizeMetadata` form (rows without them count as
+  stale). The `source` ends with `metadataKeyVersion`, so rows keyed by an older
+  normalizer are stale for track matching and the same lazy refresh re-keys
+  them; no migration is needed when the normalizer changes. Search and
+  downloads-folder matching accept a row of any key version whose raw fields
+  match, because `search_text` does not depend on it, so a bump never sends
+  search down the stale path. `getTrackMatchCandidates` selects only songs that
+  could match a list of external tracks (artist top songs, ListenBrainz
+  recommendations) under `LocalTrackMatchSnapshot` rules: equal title keys, or
+  artist keys that are equal, contain or are contained, or share a word. A
+  snapshot built from those makes the same matches as one built from the whole
+  library. The artist rules are tested once per distinct `match_artist` key
+  (indexed, like `match_title`), not once per song, and the matching songs are
+  read through the two key indexes; `debugTrackMatchCandidatesByFullScan` keeps
+  the per-song query as the test reference. Deferred maintenance normalizes in
+  an isolate.
 - Matching external metadata (Last.fm, ListenBrainz, LRCLIB, Subsonic
   search) to library songs, albums and artists uses two keys from
   `lib/src/utils/metadata_normalization.dart`. `normalizeMetadata` is the
@@ -3581,15 +3590,15 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   identity uses the edition key without spaces, computed once per song per
   batch. Changing `normalizeMetadata`
   output requires bumping `metadataKeyVersion`.
-- The artist page reads its albums through `album_artist_index`, a derived
-  table of each album's artist keys (`i:<id>` for the album artist and each
-  credit, `n:<normalized name>` for a name-only album artist and each credited
-  name), current only while its `source` equals the album's raw artist id,
-  name, and credits plus `metadataKeyVersion`. Readers repair stale rows before querying, so no album
-  write path maintains it. `watchArtistAlbumBuckets` re-reads only the
-  artist's candidate albums (plus albums of the artist's songs) at most four
-  times a second, classifies them with the same rules as before, and emits
-  only changes; `getArtistPlaybackSnapshot` uses the same candidates.
+- The artist page reads its albums through `album_artist_index`, a derived table
+  of each album's artist keys (`i:<id>` for the album artist and each credit,
+  `n:<normalized name>` for a name-only album artist and each credited name),
+  current only while its `source` equals the album's raw artist id, name, and
+  credits plus `metadataKeyVersion`. Readers repair stale rows before querying,
+  so no album write path maintains it. `watchArtistAlbumBuckets` re-reads only
+  the artist's candidate albums (plus albums of the artist's songs) at most four
+  times a second, classifies them with the same rules as before, and emits only
+  changes; `getArtistPlaybackSnapshot` uses the same candidates.
 - Per-song and per-page provider families (`songByIdProvider`,
   `songStarredProvider`, `songDownloadStateProvider`,
   `songPlaybackIndicatorStateProvider`, `pagedAlbumsProvider`, …) are

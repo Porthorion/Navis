@@ -147,17 +147,18 @@ Integrations lists each one with what it sends and to which host, a switch per
 service and per feature, and a master "Online services" switch; with it off,
 Navis only talks to your server. Everything is on by default.
 
-- **Deezer** — artist top songs (Last.fm as fallback; with neither, "This
-  Is <Artist>" becomes a shuffle of the artist's library songs), artist
-  photos and fan counts, "Fans also like", missing albums (hidden when your
-  server has its own remote catalogue for the artist), New Releases from
-  the artists you play most on Home (or your library's main artists while
-  you have little play history), and a Trending Now playlist of the chart
-  in You Might Like and Library › Playlists, matched to your server like
-  the ListenBrainz weekly playlists. A related artist, missing album or
-  new release you don't have opens as a normal page loaded from your server's
-  remote catalogue (such as Octo-Fiesta), with a search only when your server
-  cannot provide it.
+- **Deezer** — artist top songs (Last.fm as fallback), matched to your server in
+  "This Is <Artist>" using the shared weekly-playlist resolver rules; with
+  neither source enabled, Top Tracks and the "This Is" card are hidden. It also
+  supplies artist photos and fan counts, "Fans also like", missing albums
+  (hidden when your server has its own remote catalogue for the artist), New
+  Releases from the artists you play most on Home (or your library's main
+  artists while you have little play history), and a Trending Now playlist of
+  the chart in You Might Like and Library › Playlists, matched to your server
+  like the ListenBrainz weekly playlists. A related artist, missing album or new
+  release you don't have opens as a normal page loaded from your server's remote
+  catalogue (such as Octo-Fiesta), with a search only when your server cannot
+  provide it.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No
   Last.fm scrobbling. Release builds bundle an API key, masked at build time to

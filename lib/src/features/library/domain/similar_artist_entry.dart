@@ -37,7 +37,7 @@ class SimilarArtistEntry {
 /// library first, then the rest, each group in Deezer's order.
 ///
 /// [libraryByName] maps `normalizeMetadata` names to library artists (see
-/// `LibraryDao.findArtistsByNormalizedNames`). The artist of the page and
+/// `LibraryArtistNameIndex.lookupAll`). The artist of the page and
 /// repeated names are left out.
 List<SimilarArtistEntry> fansAlsoLikeEntries({
   required List<DeezerArtist> related,

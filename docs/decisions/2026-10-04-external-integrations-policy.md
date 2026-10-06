@@ -61,8 +61,13 @@ anything besides my server?" and no way to turn off one feature of a service.
 - Any new external call must name an `IntegrationFeature` and consult
   `IntegrationPolicy` (provider, or `integrationPolicyFromSettings` for code that
   reads fresh settings).
-- Toggles are written only through `AppSettingsDao.setIntegrationEnabled`,
-  `setExternalIntegrationsEnabled` and `updateIntegrationsNoticeDismissed`.
+- Integration settings have targeted writers in `AppSettingsDao`:
+  `setIntegrationEnabled`, `setExternalIntegrationsEnabled`,
+  `updateIntegrationPolicy`, `updateLegacyInstantMixEnabled`,
+  `updateListenBrainzScrobblingState`, `updateLastFmApiKey` and
+  `updateIntegrationsNoticeDismissed`. `saveSettings` still writes the legacy
+  feature columns, while `resetDefaults` resets the policy through these
+  writers.
   Settings › Integrations changes them at any time, and setup's Integrations
   step writes the master and service switches once, on Finish; Playback and
   About no longer hold copies of their switches.

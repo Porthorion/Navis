@@ -41,9 +41,11 @@ typedef ArtistTopTracksKey = ({String artistId, String name});
 // Infrastructure
 // ---------------------------------------------------------------------------
 
-/// Whether any top-songs source is allowed (Deezer, then Last.fm). When false
-/// the Top Tracks section is hidden and "This Is" the artist becomes a shuffle
-/// of the artist's library songs.
+/// Whether any top-songs source is allowed (Deezer, then Last.fm).
+///
+/// "This Is" matches those songs to the server using the shared weekly-playlist
+/// resolver rules. When false, Top Tracks and the "This Is" card are hidden;
+/// the artist page's separate Shuffle action remains available.
 final artistTopSongsAllowedProvider = Provider<bool>((ref) {
   return ref.watch(
     integrationPolicyProvider.select(

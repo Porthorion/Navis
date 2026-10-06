@@ -59,8 +59,12 @@ non-Android assets.
   independently. Old Last.fm rows from earlier versions are dropped on flush.
 - Invalid ListenBrainz tokens disable ListenBrainz scrobbling and mark the
   token invalid until updated.
-- Missing Subsonic API state must not block ListenBrainz queue flushing; Subsonic events remain queued until the Subsonic client is
-  available again.
+- Missing Subsonic API state must not block ListenBrainz queue flushing;
+  Subsonic events remain queued until the Subsonic client is available again.
+- Deezer's keyless API shares one limiter across features: at most 5 starts
+  per second and 4 requests in flight, with at most 2 background starts per
+  second. Foreground requests take priority; quota errors pause all starts
+  for 5 seconds before retrying (up to 3 foreground retries, 1 background).
 - Integration setup catches Last.fm key and ListenBrainz token validation and
   network failures and shows redacted user-facing notices.
 
