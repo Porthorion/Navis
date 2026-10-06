@@ -6,12 +6,13 @@ import 'package:navis/src/utils/search_text.dart';
 /// this form and include the version in their `source`, so rows written by an
 /// older version count as stale and are re-keyed by the existing lazy
 /// refreshes. Bump it whenever [normalizeMetadata] output changes.
-const int metadataKeyVersion = 2;
+const int metadataKeyVersion = 4;
 
 final RegExp _parentheses = RegExp(r'\([^)]*\)');
 final RegExp _bracketedFeaturing = RegExp(r'[(\[]\s*(?:feat|ft)\b[^)\]]*[)\]]');
 final RegExp _featuring = RegExp(r'\b(feat\.?|ft\.?)\b.*$');
 final RegExp _bracketed = RegExp(r'[(\[]([^)\]]*)[)\]]');
+final RegExp _closedBrackets = RegExp(r'\([^()]*\)|\[[^\[\]]*\]');
 final RegExp _dashSuffix = RegExp(r'\s[-–—]\s([^-–—]*)$');
 final RegExp _nonWord = RegExp(r'[^\p{L}\p{N}\s]', unicode: true);
 final RegExp _whitespace = RegExp(r'\s+');
@@ -27,7 +28,11 @@ final RegExp _whitespace = RegExp(r'\s+');
 /// [normalizeMetadataKeepingEdition] to tell them apart.
 String normalizeMetadata(String value) {
   return _words(
-    _fold(value).replaceAll(_parentheses, ' ').replaceAll(_featuring, ' '),
+    _stripFeaturing(
+      _fold(value)
+          .replaceAll(_parentheses, ' ')
+          .replaceAll(_bracketedFeaturing, ' '),
+    ),
   );
 }
 
@@ -71,18 +76,28 @@ final RegExp _nonEditionQualifier = RegExp(
 /// candidates that share a [normalizeMetadata] key, and to deduplicate
 /// releases without merging language versions.
 String normalizeMetadataKeepingEdition(String value) {
-  final folded = _fold(value)
-      .replaceAll(_bracketedFeaturing, ' ')
-      .replaceAll(_featuring, ' ')
-      .replaceAllMapped(
-        _bracketed,
-        (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
-      )
-      .replaceFirstMapped(
-        _dashSuffix,
-        (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
-      );
+  final folded =
+      _stripFeaturing(_fold(value).replaceAll(_bracketedFeaturing, ' '))
+          .replaceAllMapped(
+            _bracketed,
+            (match) => _isNonEdition(match[1]!) ? ' ' : ' ${match[1]} ',
+          )
+          .replaceFirstMapped(
+            _dashSuffix,
+            (match) => _isNonEdition(match[1]!) ? '' : match[0]!,
+          );
   return _words(folded);
+}
+
+// Preserve locations such as "Live at Ft. Worth" inside brackets. Masking
+// retains offsets, so only an outside featuring credit truncates the title.
+String _stripFeaturing(String value) {
+  final outside = value.replaceAllMapped(
+    _closedBrackets,
+    (match) => ' ' * match[0]!.length,
+  );
+  final match = _featuring.firstMatch(outside);
+  return match == null ? value : value.substring(0, match.start);
 }
 
 bool _isNonEdition(String qualifier) =>
@@ -112,3 +127,83 @@ String _foldWidth(String value) {
   }
   return buffer.toString();
 }
+
+/// Leading articles one name may have and the other lack.
+const Set<String> _leadingArticles = {
+  'the',
+  'a',
+  'an',
+  'los',
+  'las',
+  'le',
+  'la',
+  'les',
+  'die',
+  'der',
+};
+
+final RegExp _ampersand = RegExp(r'[&\uFF06]');
+
+/// A name for loose comparison: its leading article, if any, and the rest
+/// without spaces or punctuation by default. "&" reads as "and".
+/// The article stays part of the rest
+/// when nothing but an article would remain, so "The The" is never "The".
+({String? article, String rest}) _looseName(
+  String name, {
+  bool allowSpacingAndPunctuation = true,
+}) {
+  final expanded = name.replaceAll(_ampersand, ' and ');
+  final text = allowSpacingAndPunctuation
+      ? normalizeMetadata(expanded)
+      : _words(_fold(expanded));
+  final separator = allowSpacingAndPunctuation ? '' : ' ';
+  final words = text
+      .replaceAll(_whitespace, ' ')
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .toList();
+  if (words.length > 1 &&
+      _leadingArticles.contains(words.first) &&
+      !(words.length == 2 && _leadingArticles.contains(words[1]))) {
+    return (article: words.first, rest: words.skip(1).join(separator));
+  }
+  return (article: null, rest: words.join(separator));
+}
+
+/// Whether [libraryName] and [deezerName] may name the same artist although
+/// their [normalizeMetadata] forms differ, for matching only (never shown).
+///
+/// They may differ in one leading article present on one side only ("The",
+/// "A", "An", "Los", "Las", "Le", "La", "Les", "Die", "Der"), in "&" against
+/// "and", and in spacing and punctuation: "The Black Eyed Peas" and "Black
+/// Eyed Peas", "Simon & Garfunkel" and "Simon and Garfunkel", "AC/DC" and
+/// "ACDC". Two different articles ("A Band", "The Band") never match. A
+/// loose match is only a candidate; callers must resolve ambiguity before linking.
+/// Without album corroboration, set [allowSpacingAndPunctuation] to false:
+/// punctuation becomes word boundaries, but words cannot be joined or split.
+/// A leading article and "&"/"and" may differ. Bracketed words stay significant:
+/// "The Streets (UK)" matches "Streets UK", but never "Streets".
+bool artistNamesMatchLoosely(
+  String libraryName,
+  String deezerName, {
+  bool allowSpacingAndPunctuation = true,
+}) {
+  final library = _looseName(
+    libraryName,
+    allowSpacingAndPunctuation: allowSpacingAndPunctuation,
+  );
+  final deezer = _looseName(
+    deezerName,
+    allowSpacingAndPunctuation: allowSpacingAndPunctuation,
+  );
+  if (library.rest.isEmpty || library.rest != deezer.rest) return false;
+  return library.article == null ||
+      deezer.article == null ||
+      library.article == deezer.article;
+}
+
+/// Candidate key for loose artist matching, ignoring a leading article,
+/// spacing and punctuation, and treating ampersands as "and".
+///
+/// Equal keys still require [artistNamesMatchLoosely] and a unique candidate.
+String looseArtistKey(String name) => _looseName(name).rest;

@@ -153,6 +153,38 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Local search reuses existing search text while upgraded matching keys refresh in the background, returning results before checking for stale keys and skipping that check during a refresh',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Matching drops square-bracketed featured credits and handles unclosed brackets; Last.fm accepts symbol-only artist names when the raw names agree',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever; downloaded songs refetch missing LRCLIB lyrics through the Wi-Fi-only backfill',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library matching refreshes old keys in the background with a two-second wait limit and skips refresh writes when the index is current',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates within artist or album context, leaves unrelated namesakes to search, and matches single-character Unicode artists consistently',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Last.fm artist checks now distinguish Japanese names and accept accent variants such as Sigur Rós and Sigur Ros',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Matching and search now fold half-width Japanese kana and decomposed voicing marks, and live editions keep locations such as Ft. Worth',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fans Also Like and Go to artist match leading articles, ampersands and punctuation word boundaries; Go to artist leaves duplicate names ambiguous, while Fans Also Like prefers the server entry. Joining words such as Black Star and Blackstar requires album evidence',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'New Settings › Integrations page: see what each online service receives and where, switch any service or feature off, or turn off Online services so Navis only talks to your server',
         type: ChangelogEntryType.newFeature,
       ),

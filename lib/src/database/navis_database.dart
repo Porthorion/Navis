@@ -227,7 +227,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 91;
+  int get schemaVersion => 92;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -522,6 +522,20 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 91 && to >= 91) {
       await from90To91(migrator);
     }
+    if (from < 92 && to >= 92) {
+      await from91To92(migrator);
+    }
+  }
+
+  /// Clears LRCLIB lyrics selected before edition-aware matching.
+  ///
+  /// The schema version is the durable marker: newly fetched lyrics and
+  /// server lyrics survive subsequent opens and upgrades.
+  Future<void> from91To92(Migrator migrator) async {
+    await customStatement(
+      'DELETE FROM external_lyrics_cache WHERE source IN '
+      "('lrclibSynced', 'lrclibPlain', 'lrclib_synced', 'lrclib_plain')",
+    );
   }
 
   /// Adds the external-integration policy: the "Online services" master

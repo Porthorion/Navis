@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 
 TrackMatchCandidate _candidate(
@@ -16,6 +17,76 @@ String? _match(TrackMatchQuery query, List<TrackMatchCandidate> candidates) =>
     pickBestTrackMatch(track: query, candidates: candidates).song?.id;
 
 void main() {
+  test('single-character artist fallback requires equality', () async {
+    final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync([
+      SongsTableData(
+        id: 'x',
+        title: 'Song',
+        artistName: 'X',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'xx',
+        title: 'Other',
+        artistName: 'XX',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'arashi',
+        title: '花',
+        artistName: '嵐',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'other',
+        title: 'Other',
+        artistName: '嵐山',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'supplementary',
+        title: '花',
+        artistName: '𠮷',
+        isProvisional: false,
+        isExternal: false,
+      ),
+      SongsTableData(
+        id: 'other-supplementary',
+        title: 'Other',
+        artistName: '𠮷田',
+        isProvisional: false,
+        isExternal: false,
+      ),
+    ]);
+    expect(
+      snapshot
+          .candidatesFor(const TrackMatchQuery(title: 'Unknown', artist: 'X'))
+          .map((c) => c.song.id),
+      ['x'],
+    );
+    expect(
+      snapshot
+          .candidatesFor(const TrackMatchQuery(title: 'Unknown', artist: '嵐'))
+          .map((c) => c.song.id),
+      ['arashi'],
+    );
+    expect(
+      snapshot
+          .candidatesFor(const TrackMatchQuery(title: 'Unknown', artist: '𠮷'))
+          .map((c) => c.song.id),
+      ['supplementary'],
+    );
+  });
+
+  test('edition title is computed once per candidate', () {
+    final candidate = _candidate('jp', 'Wonder (Japanese Version)');
+    expect(identical(candidate.editionTitle, candidate.editionTitle), isTrue);
+  });
+
   group('non-Latin titles', () {
     test('a Japanese title matches only the same Japanese title', () {
       final candidates = <TrackMatchCandidate>[

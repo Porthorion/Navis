@@ -8,6 +8,9 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 
+export 'package:navis/src/utils/metadata_normalization.dart'
+    show artistNamesMatchLoosely;
+
 /// Finds the Deezer artist for a library artist.
 ///
 /// 1. A library id `ext-deezer-artist-<id>` (an artist the server imported
@@ -309,53 +312,3 @@ class DeezerArtistResolver {
 /// A Deezer artist id (null: none found), and whether every lookup the
 /// decision depends on answered; an inconclusive one is not cached.
 typedef DeezerArtistResolution = ({int? id, bool conclusive});
-
-/// Leading articles one name may have and the other lack.
-const Set<String> _leadingArticles = {
-  'the',
-  'a',
-  'an',
-  'los',
-  'las',
-  'le',
-  'la',
-  'les',
-  'die',
-  'der',
-};
-
-final RegExp _ampersand = RegExp(r'[&\uFF06]');
-
-/// A name for loose comparison: its leading article, if any, and the rest
-/// without spaces. "&" reads as "and". The article stays part of the rest
-/// when nothing but an article would remain, so "The The" is never "The".
-({String? article, String rest}) _looseName(String name) {
-  final words = normalizeMetadata(name.replaceAll(_ampersand, ' and '))
-      .split(' ')
-      .where((word) => word.isNotEmpty)
-      .toList();
-  if (words.length > 1 &&
-      _leadingArticles.contains(words.first) &&
-      !(words.length == 2 && _leadingArticles.contains(words[1]))) {
-    return (article: words.first, rest: words.skip(1).join());
-  }
-  return (article: null, rest: words.join());
-}
-
-/// Whether [libraryName] and [deezerName] may name the same artist although
-/// their [normalizeMetadata] forms differ, for resolution only (never shown).
-///
-/// They may differ in one leading article present on one side only ("The",
-/// "A", "An", "Los", "Las", "Le", "La", "Les", "Die", "Der"), in "&" against
-/// "and", and in spacing and punctuation: "The Black Eyed Peas" and "Black
-/// Eyed Peas", "Simon & Garfunkel" and "Simon and Garfunkel", "AC/DC" and
-/// "ACDC". Two different articles ("A Band", "The Band") never match. A
-/// loose match is only a candidate; the resolver also asks for shared albums.
-bool artistNamesMatchLoosely(String libraryName, String deezerName) {
-  final library = _looseName(libraryName);
-  final deezer = _looseName(deezerName);
-  if (library.rest.isEmpty || library.rest != deezer.rest) return false;
-  return library.article == null ||
-      deezer.article == null ||
-      library.article == deezer.article;
-}

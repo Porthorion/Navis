@@ -831,7 +831,16 @@ lyrics as fallback; otherwise the server only. The switch lives in Settings ›
 Integrations › LRCLIB. An LRCLIB result passes on its `normalizeMetadata`
 title, artist, album and duration score; among passing results one with the
 same edition qualifiers ("(Japanese Version)") wins over another version,
-whose lyrics may be in another language.
+whose lyrics may be in another language. Schema 92 deletes only legacy
+LRCLIB cache rows (camelCase and snake_case sources) once during upgrade;
+server lyrics and all newly fetched edition-aware lyrics survive reopen.
+The schema version is the durable completion marker, so no settings column
+or repeated TTL-based purge is needed. Downloaded audio files are unaffected.
+Downloaded songs whose LRCLIB cache entries were purged are eligible for the
+existing `DownloadService` lyrics backfill on startup; it runs only on Wi-Fi
+and refetches through the lyrics resolver when LRCLIB lookups are enabled.
+Those lyrics may therefore be unavailable offline until a Wi-Fi startup
+backfills them (or an allowed on-demand lookup fetches them).
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
@@ -3407,7 +3416,9 @@ contract.
    isolate and only when missing, before its single upload to a SAF folder.
    Legacy matching looks each distinct file title up in `song_search_text`
    (an indexed prefix read in the `normalizeSearchText` form, so titles in
-   any script match) instead of normalizing the whole library, and FLAC
+   any script match) instead of normalizing the whole library. The caller
+   refreshes first, and title lookup accepts only the current key version and
+   unchanged raw metadata, excluding stale entries. FLAC
    identity reads are bounded to metadata rather than loading complete audio
    files; Android SAF reads identity metadata directly through
    `ContentResolver` without staging audio files. The Android storage channel
@@ -3556,40 +3567,79 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   and `match_album` in the `normalizeMetadata` form (rows without them count as
   stale). The `source` ends with `metadataKeyVersion`, so rows keyed by an older
   normalizer are stale for track matching and the same lazy refresh re-keys
-  them; no migration is needed when the normalizer changes. Search and
-  downloads-folder matching accept a row of any key version whose raw fields
-  match, because `search_text` does not depend on it, so a bump never sends
-  search down the stale path. `getTrackMatchCandidates` selects only songs that
-  could match a list of external tracks (artist top songs, ListenBrainz
-  recommendations) under `LocalTrackMatchSnapshot` rules: equal title keys, or
-  artist keys that are equal, contain or are contained, or share a word. A
-  snapshot built from those makes the same matches as one built from the whole
-  library. The artist rules are tested once per distinct `match_artist` key
-  (indexed, like `match_title`), not once per song, and the matching songs are
-  read through the two key indexes; `debugTrackMatchCandidatesByFullScan` keeps
-  the per-song query as the test reference. Deferred maintenance normalizes in
-  an isolate.
+  them; no migration is needed when the normalizer changes. Key version 3 folds
+  half-width kana and composes dakuten/handakuten in both search text and
+  matching keys. Search reads accept every key version (including pre-versioned
+  sources) while raw metadata is unchanged, avoiding per-keystroke normalization
+  of the whole library on the UI isolate. The background refresh still re-keys
+  old rows, including `\u001f1` sources; old folding behavior remains until it
+  finishes. Search returns ranked song rows before scheduling the stale-row
+  check on the event queue; that check is skipped while a shared refresh runs,
+  and failures are logged. Key version 4 repairs featured credits in square
+  brackets and unclosed-bracket handling. `getTrackMatchCandidates` selects only
+  songs that could match a list of external tracks (artist top songs,
+  ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
+  title keys, or artist keys that are equal, contain or are contained, or share
+  a word. Artist keys shorter than two Unicode characters require equality in
+  both the DAO and snapshot fallback. A snapshot built from those makes the same
+  matches as one built from the whole library. The artist rules are tested once
+  per distinct `match_artist` key (indexed, like `match_title`), not once per
+  song, and the matching songs are read through the two key indexes;
+  `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
+  reference. Candidate selection starts a refresh only when stale rows exist, or
+  joins one already running, and waits at most two seconds. Fresh indexes
+  trigger no refresh writes. Normalization runs in an isolate; a slow refresh
+  keeps running in the background while matching includes safe stale-row
+  candidates, as it does for concurrent changes or failed writes.
 - Matching external metadata (Last.fm, ListenBrainz, LRCLIB, Subsonic
   search) to library songs, albums and artists uses two keys from
   `lib/src/utils/metadata_normalization.dart`. `normalizeMetadata` is the
-  fuzzy key: it folds full-width ASCII and the ideographic space, case, Latin
+  fuzzy key: it folds full-width ASCII, half-width kana and the ideographic
+  space, composes kana voicing marks, and folds case, Latin
   diacritics and Arabic letter variants, drops parenthesized qualifiers and
   featured credits, and keeps letters and digits of every script, so
   Japanese, Korean, Arabic and accented titles get real keys.
   `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
-  " - " qualifiers, so "Wonder" and "Wonder (Japanese Version)" share a
+  " - " qualifiers. A bracket starting with "feat" or "ft" is a featured
+  credit and is dropped; the trailing featuring rule applies only outside
+  closed brackets (unclosed brackets do not mask credits), preserving
+  locations such as "(Live at Ft. Worth)". "Wonder" and
+  "Wonder (Japanese Version)" share a
   fuzzy key but not an edition key. Mastering and packaging qualifiers
   (remasters, bare years, deluxe/anniversary editions, explicit/clean,
   mono/stereo, album/single/original version, bonus track) are not
   editions and are dropped from it. Matchers (`pickBestTrackMatch`, Same
   Vibes mapping, LRCLIB, the exact library lookups behind player metadata
   navigation) prefer the candidate whose edition key equals the expected
-  one. `pickBestTrackMatch` drops another edition only when a passing
+  one. Same Vibes applies its minimum score before edition/availability
+  tie-breaks. Within an artist- or album-filtered match, navigation chooses
+  an exact raw title within a matching edition, then the smallest id, so
+  mastering duplicates stay usable. Unfiltered edition ties return no match
+  and leave navigation to the search fallback.
+  Candidate edition keys are computed once on first access.
+  `pickBestTrackMatch` drops another edition only when a passing
   same-edition candidate has at least as good artist and album scores, and
   never when that would turn a unique match ambiguous. Radio recording
   identity uses the edition key without spaces, computed once per song per
   batch. Changing `normalizeMetadata`
-  output requires bumping `metadataKeyVersion`.
+  output requires bumping `metadataKeyVersion`. Last.fm validates both its
+  resolved artist and per-track credits with this Unicode-aware fuzzy key, so
+  unrelated CJK names are rejected and Latin accents fold consistently. Empty
+  normalized keys fall back to trimmed, case-insensitive raw equality,
+  preserving symbol-only artists such as "!!!".
+- Related-artist links and name-based artist navigation share a cached
+  `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys are
+  tried first; a miss uses `looseArtistKey` to find candidates but links only
+  one exact normalized candidate name. Loose comparison folds punctuation to
+  word boundaries, preserves the word sequence, and permits a leading article or
+  "&"/"and" difference. Joining or splitting words requires album corroboration
+  in the Deezer resolver; "Black Star" cannot link "Blackstar" without that
+  evidence. Bracketed words remain significant in loose links: "The Streets
+  (UK)" may link "Streets UK", but cannot link "Streets". Different leading
+  articles never match. Navigation requires one row on both exact and loose
+  paths; duplicate rows are ambiguous. Related links may select the
+  server/more-albums/id preference among duplicate rows of the single matching
+  name group.
 - The artist page reads its albums through `album_artist_index`, a derived table
   of each album's artist keys (`i:<id>` for the album artist and each credit,
   `n:<normalized name>` for a name-only album artist and each credited name),

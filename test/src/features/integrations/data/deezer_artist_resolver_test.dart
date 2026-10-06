@@ -230,6 +230,22 @@ void main() {
       );
     });
 
+    test('spacing-only names still resolve with album corroboration', () async {
+      deezer
+        ..artists = const [DeezerArtist(id: 115, name: 'Black Star')]
+        ..albumsByArtist = {
+          115: _albums(['Shared Album']),
+        };
+      expect(
+        await resolver.resolve(
+          artistId: 'star',
+          name: 'Blackstar',
+          readLibraryAlbumTitles: libraryAlbums(['Shared Album']),
+        ),
+        115,
+      );
+    });
+
     test('spacing and punctuation do not matter', () async {
       deezer
         ..artists = const [DeezerArtist(id: 115, name: 'AC/DC')]

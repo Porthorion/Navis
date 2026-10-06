@@ -12,6 +12,51 @@ void main() {
     registerFallbackValue(RequestOptions(path: '/'));
   });
 
+  for (final (requested, resolved, accepted) in [
+    ('ワンオクロック', '嵐', false),
+    ('Sigur Ros', 'Sigur Rós', true),
+    (' !!! ', '!!!', true),
+    ('★☆', ' ★☆ ', true),
+    ('!!!', '???', false),
+    ('!!!', 'Queen', false),
+    ('嵐', '嵐', true),
+  ]) {
+    test(
+      'top tracks validates Unicode artist $requested against $resolved',
+      () async {
+        final dio = _MockDio();
+        when(
+          () => dio.get<Map<String, dynamic>>(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          ),
+        ).thenAnswer(
+          (_) async => Response<Map<String, dynamic>>(
+            requestOptions: RequestOptions(path: '/2.0'),
+            statusCode: 200,
+            data: {
+              'toptracks': {
+                '@attr': {'artist': resolved},
+                'track': [
+                  {
+                    'name': '残響リファレンス',
+                    '@attr': {'rank': '1'},
+                    if (requested.trim() != '!!!') 'artist': {'name': resolved},
+                  },
+                ],
+              },
+            },
+          ),
+        );
+        final tracks = await LastFmApiClient(
+          apiKey: 'key',
+          dio: dio,
+        ).getArtistTopTracks(artist: requested);
+        expect(tracks, hasLength(accepted ? 1 : 0));
+      },
+    );
+  }
+
   test('parses track.getSimilar payload into recommendations', () async {
     final dio = _MockDio();
     when(

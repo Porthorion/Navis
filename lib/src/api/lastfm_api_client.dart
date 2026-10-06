@@ -1,3 +1,4 @@
+import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
@@ -333,16 +334,12 @@ class LastFmApiClient {
   /// produce false negatives. Accepts when either string is a substring of
   /// the other to handle "The Beatles" vs "Beatles" style differences.
   static bool _artistNamesMatch(String requested, String resolved) {
-    final a = _normalizeArtistName(requested);
-    final b = _normalizeArtistName(resolved);
-    if (a.isEmpty || b.isEmpty) return true; // can't validate — assume OK
+    final a = normalizeMetadata(requested);
+    final b = normalizeMetadata(resolved);
+    if (a.isEmpty || b.isEmpty) {
+      return requested.trim().toLowerCase() == resolved.trim().toLowerCase();
+    }
     return a == b || a.contains(b) || b.contains(a);
-  }
-
-  /// Lowercases [name] and replaces non-alphanumeric characters with spaces,
-  /// collapsing consecutive spaces, for artist-name comparison purposes.
-  static String _normalizeArtistName(String name) {
-    return name.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), ' ').trim();
   }
 
   List<Map<String, dynamic>> _asMapList(dynamic value) {

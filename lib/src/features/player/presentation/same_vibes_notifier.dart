@@ -1056,6 +1056,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         recommendation: recommendation,
         candidate: candidate,
       );
+      if (score < _kMinimumMappingScore) continue;
       final availabilityRank = _availabilityRank(
         songId: id,
         preferences: preferences,

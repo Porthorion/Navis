@@ -24,6 +24,73 @@ ArtistsTableData _artist(
 
 void main() {
   group('LibraryArtistNameIndex', () {
+    test(
+      'links a unique loose name but keeps articles and ambiguity safe',
+      () async {
+        final index = await LibraryArtistNameIndex.build([
+          _artist('peas', 'The Black Eyed Peas'),
+          _artist('simon', 'Simon & Garfunkel'),
+          _artist('earth', 'Earth, Wind & Fire'),
+          _artist('a', 'A Band'),
+          _artist('the', 'The Band'),
+          _artist('jp', '嵐'),
+        ]);
+        expect(
+          index.lookupAll(['Black Eyed Peas'])['black eyed peas']?.id,
+          'peas',
+        );
+        expect(
+          index.lookupAll(['Simon and Garfunkel'])['simon and garfunkel']?.id,
+          'simon',
+        );
+        expect(index.lookupUnique('Earth Wind and Fire')?.id, 'earth');
+        expect(
+          index.lookupAll(['Earth Wind and Fire'])['earth wind and fire']?.id,
+          'earth',
+        );
+        expect(index.lookupAll(['Band']), isEmpty);
+        expect(index.lookupAll(['Le Band']), isEmpty);
+        expect(index.lookupAll(['嵐'])['嵐']?.id, 'jp');
+        expect(index.lookupAll(['The Band'])['the band']?.id, 'the');
+      },
+    );
+
+    test(
+      'duplicate rows with one loose exact key retain artist preference',
+      () async {
+        final index = await LibraryArtistNameIndex.build([
+          _artist(
+            'remote',
+            'The Black Eyed Peas',
+            isExternal: true,
+            albumCount: 40,
+          ),
+          _artist('server-z', 'The Black Eyed Peas', albumCount: 4),
+          _artist('server-a', 'The Black Eyed Peas', albumCount: 4),
+          _artist('server-few', 'The Black Eyed Peas', albumCount: 1),
+        ]);
+        expect(
+          index.lookupAll(['Black Eyed Peas'])['black eyed peas']?.id,
+          'server-a',
+        );
+        expect(index.lookupUnique('Black Eyed Peas'), isNull);
+        expect(index.lookupUnique('The Black Eyed Peas'), isNull);
+      },
+    );
+
+    test('uncorroborated links preserve word boundaries', () async {
+      final index = await LibraryArtistNameIndex.build([
+        _artist('star', 'Blackstar'),
+        _artist('acdc', 'AC/DC'),
+        _artist('peas', 'The Black-Eyed Peas'),
+      ]);
+      expect(index.lookupUnique('Black Eyed Peas')?.id, 'peas');
+      for (final name in ['Black Star', 'ACDC']) {
+        expect(index.lookupAll([name]), isEmpty, reason: name);
+        expect(index.lookupUnique(name), isNull, reason: name);
+      }
+    });
+
     test('matches normalized names', () async {
       final index = await LibraryArtistNameIndex.build([
         _artist('oor', 'ＯＮＥ　ＯＫ　ＲＯＣＫ'),

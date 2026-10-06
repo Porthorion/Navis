@@ -30,6 +30,7 @@ import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
+import 'package:navis/src/features/library/data/library_artist_name_index.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -172,6 +173,17 @@ class DownloadReconciliationSong {
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with NavisDaoTransactions, _$LibraryDaoMixin {
   new(super.attachedDatabase);
+
+  /// Shared name index for metadata navigation and related-artist links.
+  late final LibraryArtistNameIndexCache artistNameIndex = _artistNameIndex();
+
+  LibraryArtistNameIndexCache _artistNameIndex() {
+    final cache = LibraryArtistNameIndexCache(loadArtists: getAllArtists);
+    // The database owns this stream and closes it with its query executor.
+    tableUpdates(TableUpdateQuery.onTable(artistsTable))
+        .listen((_) => cache.markStale());
+    return cache;
+  }
 
   static const _safeSqlVariableChunkSize = 500;
 
@@ -1039,7 +1051,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       -- otherwise SQLite may scan every song (about 500 times slower).
       CROSS JOIN songs ON songs.id = t.song_id
       WHERE t.search_text >= ? AND t.search_text < ?
-        AND $_songSearchTextCurrentSql
+        AND t.source = ($_songSearchSourceSql)
         AND songs.server_deleted_at IS NULL AND songs.is_provisional = 0
       ''',
       variables: <Variable<Object>>[
@@ -2381,6 +2393,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.map((row) => artistsTable.map(row.data)).toList();
   }
 
+  /// Finds one exact normalized artist, falling back to a unique loose row.
+  ///
+  /// Duplicate rows on either path are ambiguous and return `null`.
   Future<ArtistsTableData?> findOneExactNormalizedArtistByName(
     String name,
   ) async {
@@ -2389,12 +2404,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return null;
     }
 
-    final matches = (await getAllArtists())
-        .where(
-          (artist) => _normalizeMetadataLookup(artist.name) == normalizedName,
-        )
-        .toList(growable: false);
-    return matches.length == 1 ? matches.single : null;
+    return (await artistNameIndex.current()).lookupUnique(name);
   }
 
   Future<int> countArtists() async {
@@ -2556,11 +2566,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           contextMatches,
           albumName,
           (album) => album.name,
+          (album) => album.id,
+          allowTies: true,
         );
       }
     }
 
-    return _singleOrSameEdition(exactAlbums, albumName, (album) => album.name);
+    return _singleOrSameEdition(
+      exactAlbums,
+      albumName,
+      (album) => album.name,
+      (album) => album.id,
+    );
   }
 
   Future<List<AlbumsTableData>> getLikedAlbums() {
@@ -2692,20 +2709,35 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (matches.isEmpty) {
         continue;
       }
-      return _singleOrSameEdition(matches, title, (song) => song.title);
+      return _singleOrSameEdition(
+        matches,
+        title,
+        (song) => song.title,
+        (song) => song.id,
+        allowTies: true,
+      );
     }
 
-    return _singleOrSameEdition(exactSongs, title, (song) => song.title);
+    return _singleOrSameEdition(
+      exactSongs,
+      title,
+      (song) => song.title,
+      (song) => song.id,
+    );
   }
 
   /// The only entry of [matches], which share [name]'s normalized key, or
-  /// else the only one that is also the same edition as [name] ("Wonder
-  /// (Japanese Version)" rather than "Wonder"). Null when still ambiguous.
+  /// else a candidate with the same edition as [name] ("Wonder
+  /// (Japanese Version)" rather than "Wonder"). Within that edition, prefer
+  /// the exact raw name, then the smallest id, only with artist/album context.
+  /// Unfiltered edition ties and missing editions remain ambiguous.
   static T? _singleOrSameEdition<T>(
     List<T> matches,
     String name,
     String Function(T) nameOf,
-  ) {
+    String Function(T) idOf, {
+    bool allowTies = false,
+  }) {
     if (matches.length == 1) return matches.single;
     final edition = normalizeMetadataKeepingEdition(name);
     final sameEdition = matches
@@ -2713,7 +2745,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           (match) => normalizeMetadataKeepingEdition(nameOf(match)) == edition,
         )
         .toList(growable: false);
-    return sameEdition.length == 1 ? sameEdition.single : null;
+    if (sameEdition.isEmpty) return null;
+    if (sameEdition.length == 1) return sameEdition.single;
+    if (!allowTies) return null;
+    sameEdition.sort((a, b) => idOf(a).compareTo(idOf(b)));
+    return sameEdition.firstWhere(
+      (match) => nameOf(match) == name,
+      orElse: () => sameEdition.first,
+    );
   }
 
   /// Return a map of albumId → set of songIds for the given album IDs.
@@ -3536,12 +3575,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
     }
-    if (stale.isNotEmpty) {
-      // One background refresh at a time rewrites every stale row; searches
-      // meanwhile keep normalizing their stale candidates in Dart.
-      unawaited(scheduleSongSearchIndexRefresh());
-    }
-
     matches.sort((a, b) {
       final scoreDiff = a.score.compareTo(b.score);
       if (scoreDiff != 0) return scoreDiff;
@@ -3549,10 +3582,39 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (titleDiff != 0) return titleDiff;
       return a.songId.compareTo(b.songId);
     });
-    return getSongsByIds(matches.take(limit).map((match) => match.songId));
+    final results = await getSongsByIds(
+      matches.take(limit).map((match) => match.songId),
+    );
+    if (_songSearchIndexRefresh == null) {
+      // Defer the full stale-row scan until the caller has the results.
+      // Searches can reuse legacy text while the shared refresh re-keys it.
+      unawaited(
+        Future<void>(() async {
+          try {
+            if (_songSearchIndexRefresh == null &&
+                (stale.isNotEmpty || await _hasStaleSongSearchIndexRows())) {
+              await scheduleSongSearchIndexRefresh();
+            }
+          } on Object catch (error) {
+            AppLogger.debug('Song search index stale check skipped: $error');
+          }
+        }),
+      );
+    }
+    return results;
   }
 
   Future<int>? _songSearchIndexRefresh;
+
+  Future<bool> _hasStaleSongSearchIndexRows() async =>
+      await customSelect(
+        'SELECT 1 FROM songs '
+        'LEFT JOIN song_search_text t ON t.song_id = songs.id '
+        'WHERE t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL '
+        'LIMIT 1',
+        readsFrom: {songsTable, songSearchTextTable},
+      ).getSingleOrNull() !=
+      null;
 
   /// Starts [refreshSongSearchIndex] unless one is already running, and
   /// returns the in-flight refresh.
@@ -3651,13 +3713,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return true;
   }
 
+  Future<void> _awaitSongSearchIndexRefresh() async {
+    var refresh = _songSearchIndexRefresh;
+    if (refresh == null && await _hasStaleSongSearchIndexRows()) {
+      refresh = scheduleSongSearchIndexRefresh();
+    }
+    if (refresh == null) return;
+    // The refresh keeps running; stale rows remain safe match candidates.
+    await refresh.timeout(const Duration(seconds: 2), onTimeout: () => 0);
+  }
+
   /// Songs that could match any of [tracks] (title and artist) under
   /// `LocalTrackMatchSnapshot` rules: every song whose title key equals a
   /// track's, and every song whose artist key could satisfy its artist
   /// fallback (equal, containing or contained, or sharing a word). A snapshot
   /// built from these makes the same matches as one built from the whole
-  /// library, without loading every song. Rows whose keys are stale are
-  /// included and matched in Dart, and trigger an index refresh.
+  /// library, without loading every song. When rows are stale or a refresh
+  /// is running, waits at most two seconds for the shared refresh. Fresh
+  /// indexes require no refresh writes; a slow refresh continues in the
+  /// background while matching falls back to the safe stale candidates.
+  /// Rows changed concurrently, or left stale by a failed index write, remain
+  /// candidates so the derived index cannot hide a possible match.
   ///
   /// The artist fallback depends only on the artist key, so it is tested
   /// once per distinct key (a few thousand) instead of once per song, and the
@@ -3665,6 +3741,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> getTrackMatchCandidates(
     Iterable<({String title, String artist})> tracks,
   ) async {
+    await _awaitSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final matchedArtists = <String>[];
     if (artistKeys.isNotEmpty) {
@@ -3675,7 +3752,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ).map((row) => row.read<String>('a')).get();
       for (final key in keys) {
         if (artistKeys.any(
-              (artist) => key.contains(artist) || artist.contains(key),
+              (artist) =>
+                  key == artist ||
+                  (key.runes.length >= 2 &&
+                      artist.runes.length >= 2 &&
+                      (key.contains(artist) || artist.contains(key))),
             ) ||
             key.split(' ').any(artistTokens.contains)) {
           matchedArtists.add(key);
@@ -3721,6 +3802,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> debugTrackMatchCandidatesByFullScan(
     Iterable<({String title, String artist})> tracks,
   ) async {
+    await _awaitSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final conditions = <String>[
       't.source IS NOT ($_songSearchSourceSql)',
@@ -3736,11 +3818,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     for (final artist in artistKeys) {
       conditions.add(
-        "(t.match_artist <> '' AND (t.match_artist = ? "
-        'OR instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0))',
+        '(t.match_artist = ? OR (length(t.match_artist) >= 2 AND ? >= 2 '
+        'AND (instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0)))',
       );
       variables
         ..add(Variable<String>(artist))
+        ..add(Variable<int>(artist.runes.length))
         ..add(Variable<String>(artist))
         ..add(Variable<String>(artist));
     }
@@ -3781,7 +3864,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       artistKeys: artistKeys,
       artistTokens: <String>{
         for (final artist in artistKeys)
-          ...artist.split(' ').where((token) => token.length > 1),
+          ...artist.split(' ').where((token) => token.runes.length > 1),
       },
     );
   }
@@ -3796,10 +3879,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   static const String _songSearchSourceSql =
       "$_songSearchFieldsSql || char(31) || '$metadataKeyVersion'";
 
-  /// Whether `t.search_text` is current. It depends only on the raw fields,
-  /// so a row of any key version (or from before versions) qualifies and a
-  /// key-version bump never sends search down the stale path. Current rows
-  /// settle on the first, cheap comparison; a missing row is never current.
+  /// Whether `t.search_text` is usable: it depends on the raw fields,
+  /// so any key version (including pre-versioned rows) qualifies. A version
+  /// bump must not re-normalize every song on the UI isolate per keystroke.
+  /// Background refreshes still re-key these rows for search and matching;
+  /// until then, searches retain the older folding behavior.
   static const String _songSearchTextCurrentSql =
       '(ifnull(t.source = ($_songSearchSourceSql), 0) OR '
       'ifnull(substr(t.source || char(31), 1, '

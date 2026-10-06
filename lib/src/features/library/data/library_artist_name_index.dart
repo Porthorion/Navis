@@ -7,13 +7,15 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 /// outside the server (Deezer's related artists) in time proportional to the
 /// names asked for, not to the library.
 class LibraryArtistNameIndex {
-  const new _(this._byName);
+  const new _(this._byName, this._exactCandidates, this._byLooseName);
 
   /// Above this many artists the names are normalized in a background
   /// isolate, which costs a copy but keeps the UI isolate free.
   static const isolateThreshold = 64;
 
   final Map<String, ArtistsTableData> _byName;
+  final Map<String, List<ArtistsTableData>> _exactCandidates;
+  final Map<String, List<ArtistsTableData>> _byLooseName;
 
   /// Indexes [artists]. When several share a name, the one from the server
   /// library wins over a remote-catalogue one, then the one with more albums,
@@ -24,30 +26,69 @@ class LibraryArtistNameIndex {
     final names = <String>[for (final artist in artists) artist.name];
     final keys = names.length > isolateThreshold
         ? await Isolate.run(
-            () => names.map(normalizeMetadata).toList(growable: false),
+            () => names
+                .map((name) => (normalizeMetadata(name), looseArtistKey(name)))
+                .toList(growable: false),
           )
-        : names.map(normalizeMetadata).toList(growable: false);
+        : names
+              .map((name) => (normalizeMetadata(name), looseArtistKey(name)))
+              .toList(growable: false);
     final byName = <String, ArtistsTableData>{};
+    final exactCandidates = <String, List<ArtistsTableData>>{};
+    final byLooseName = <String, List<ArtistsTableData>>{};
     for (var i = 0; i < artists.length; i++) {
-      final key = keys[i];
+      final (key, looseKey) = keys[i];
       if (key.isEmpty) continue;
+      (exactCandidates[key] ??= []).add(artists[i]);
+      if (looseKey.isNotEmpty) (byLooseName[looseKey] ??= []).add(artists[i]);
       final current = byName[key];
       if (current == null || _isPreferred(artists[i], over: current)) {
         byName[key] = artists[i];
       }
     }
-    return LibraryArtistNameIndex._(byName);
+    return LibraryArtistNameIndex._(byName, exactCandidates, byLooseName);
   }
 
-  /// The library artists named like [names], keyed by normalized name.
+  /// Finds library artists named like [names], keyed by normalized name.
+  ///
+  /// Exact matches and single loose name groups use the preferred row,
+  /// including when that name has duplicate rows.
   Map<String, ArtistsTableData> lookupAll(Iterable<String> names) {
     final found = <String, ArtistsTableData>{};
     for (final name in names) {
       final key = normalizeMetadata(name);
-      final artist = _byName[key];
+      final artist = _byName[key] ?? _uniqueLoose(name);
       if (artist != null) found[key] = artist;
     }
     return found;
+  }
+
+  /// Finds a unique exact artist, or on a miss a single loose candidate row.
+  ///
+  /// Loose links fold punctuation to word boundaries and bridge leading
+  /// articles and "&"/"and", while preserving words and bracketed qualifiers.
+  /// Unlike [lookupAll], duplicate rows remain ambiguous on either path.
+  ArtistsTableData? lookupUnique(String name) {
+    final exact = _exactCandidates[normalizeMetadata(name)];
+    if (exact != null) return exact.length == 1 ? exact.single : null;
+    return _uniqueLoose(name, requireUniqueRow: true);
+  }
+
+  ArtistsTableData? _uniqueLoose(String name, {bool requireUniqueRow = false}) {
+    final keys = (_byLooseName[looseArtistKey(name)] ?? const [])
+        .where(
+          (artist) => artistNamesMatchLoosely(
+            artist.name,
+            name,
+            allowSpacingAndPunctuation: false,
+          ),
+        )
+        .map((artist) => normalizeMetadata(artist.name))
+        .toSet();
+    if (keys.length != 1) return null;
+    final key = keys.single;
+    if (requireUniqueRow && _exactCandidates[key]!.length != 1) return null;
+    return _byName[key];
   }
 
   static bool _isPreferred(

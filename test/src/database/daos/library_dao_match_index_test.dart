@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart'
+    show QueryRow, ResultSetImplementation, Selectable, Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 
 import '../../../helpers/test_database.dart';
@@ -40,6 +43,36 @@ SongsTableCompanion _song(
   albumId: Value(albumId),
   albumName: Value(albumName),
 );
+
+class _ControlledRefreshDao extends LibraryDao {
+  new(super.attachedDatabase);
+
+  int staleChecks = 0;
+
+  @override
+  Selectable<QueryRow> customSelect(
+    String query, {
+    List<Variable> variables = const [],
+    Set<ResultSetImplementation<dynamic, dynamic>> readsFrom = const {},
+  }) {
+    if (query.startsWith('SELECT 1 FROM songs ')) staleChecks++;
+    return super.customSelect(
+      query,
+      variables: variables,
+      readsFrom: readsFrom,
+    );
+  }
+
+  int refreshCalls = 0;
+  Completer<void>? refreshGate;
+
+  @override
+  Future<int> refreshSongSearchIndex({int batchSize = 2000}) async {
+    refreshCalls++;
+    await refreshGate?.future;
+    return await super.refreshSongSearchIndex(batchSize: batchSize);
+  }
+}
 
 void main() {
   late NavisDatabase database;
@@ -80,6 +113,210 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  test(
+    'artist navigation reuses a unique loose name and invalidates on writes',
+    () async {
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'peas', name: 'The Black Eyed Peas'),
+      ]);
+      expect(
+        (await database.libraryDao.findOneExactNormalizedArtistByName(
+          'Black Eyed Peas',
+        ))?.id,
+        'peas',
+      );
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'other-peas', name: 'Black-Eyed Peas'),
+      ]);
+      expect(
+        await database.libraryDao.findOneExactNormalizedArtistByName(
+          'BlackEyedPeas',
+        ),
+        isNull,
+      );
+      expect(
+        (await database.libraryDao.findOneExactNormalizedArtistByName(
+          'The Black Eyed Peas',
+        ))?.id,
+        'peas',
+      );
+    },
+  );
+
+  test(
+    'search returns before stale scanning and skips it during refresh',
+    () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      final dao = _ControlledRefreshDao(database);
+      expect((await dao.searchCachedSongs('Guest')).map((s) => s.id), [
+        'guest',
+      ]);
+      expect(dao.staleChecks, 0);
+      await pumpEventQueue();
+      expect(dao.staleChecks, 1);
+
+      dao.staleChecks = 0;
+      dao.refreshGate = Completer<void>();
+      final refresh = dao.scheduleSongSearchIndexRefresh();
+      expect((await dao.searchCachedSongs('Guest')).map((s) => s.id), [
+        'guest',
+      ]);
+      await pumpEventQueue();
+      expect(dao.staleChecks, 0);
+      dao.refreshGate!.complete();
+      await refresh;
+    },
+  );
+
+  test(
+    'download title lookup excludes older key versions until refreshed',
+    () async {
+      await database.libraryDao.refreshSongSearchIndex();
+      await database.customStatement(
+        "UPDATE song_search_text SET source = 'Guest Spot' || char(31) || char(31) || char(31) || '1' WHERE song_id = 'guest'",
+      );
+      expect(
+        await database.libraryDao.getDownloadReconciliationSongsByTitleKey(
+          'guest spot',
+        ),
+        isEmpty,
+      );
+      await database.libraryDao.refreshSongSearchIndex();
+      expect(
+        (await database.libraryDao.getDownloadReconciliationSongsByTitleKey(
+          'guest spot',
+        )).single.song.id,
+        'guest',
+      );
+    },
+  );
+
+  test('artist navigation rejects duplicate loose-name rows', () async {
+    await database.libraryDao.upsertArtists([
+      ArtistsTableCompanion.insert(id: 'peas-a', name: 'The Black Eyed Peas'),
+      ArtistsTableCompanion.insert(id: 'peas-b', name: 'The Black Eyed Peas'),
+    ]);
+    for (final name in ['The Black Eyed Peas', 'Black Eyed Peas']) {
+      expect(
+        await database.libraryDao.findOneExactNormalizedArtistByName(name),
+        isNull,
+      );
+    }
+  });
+
+  test('artist navigation rejects uncorroborated spacing-only links', () async {
+    await database.libraryDao.upsertArtists([
+      ArtistsTableCompanion.insert(id: 'star', name: 'Blackstar'),
+    ]);
+    expect(
+      await database.libraryDao.findOneExactNormalizedArtistByName(
+        'Black Star',
+      ),
+      isNull,
+    );
+  });
+
+  test('indexed artist fallback requires equality for short keys', () async {
+    await database.libraryDao.upsertSongs([
+      _song('x', 'Song', artistName: 'X'),
+      _song('xx', 'Other', artistName: 'XX'),
+      _song('arashi', '花', artistName: '嵐'),
+      _song('other-arashi', 'Other', artistName: '嵐山'),
+      _song('supplementary', '花', artistName: '𠮷'),
+      _song('other-supplementary', 'Other', artistName: '𠮷田'),
+    ]);
+    await database.libraryDao.refreshSongSearchIndex();
+    for (final (artist, id) in [
+      ('X', 'x'),
+      ('嵐', 'arashi'),
+      ('𠮷', 'supplementary'),
+    ]) {
+      final candidates = await database.libraryDao.getTrackMatchCandidates([
+        (title: 'Unknown', artist: artist),
+      ]);
+      expect(candidates.map((song) => song.id), [id]);
+    }
+  });
+
+  for (final refreshAlreadyPending in [false, true]) {
+    test('upgrade refresh finishes before track candidate matching '
+        '(already pending: $refreshAlreadyPending)', () async {
+      await database.libraryDao.upsertSongs([
+        _song('target', '残響リファレンス', artistName: '嵐'),
+        _song('unrelated', 'Unrelated', artistName: 'Other'),
+      ]);
+      await database.libraryDao.refreshSongSearchIndex();
+      await database.customStatement(
+        "UPDATE song_search_text SET source = substr(source, 1, length(source) - 1) || '1', match_title = ''",
+      );
+      var refreshFinished = false;
+      final pending = refreshAlreadyPending
+          ? database.libraryDao.scheduleSongSearchIndexRefresh().then((_) {
+              refreshFinished = true;
+            })
+          : null;
+      final candidates = await database.libraryDao.getTrackMatchCandidates([
+        (title: '残響リファレンス', artist: '嵐'),
+      ]);
+      if (refreshAlreadyPending) expect(refreshFinished, isTrue);
+      final row = await database
+          .customSelect(
+            "SELECT match_title FROM song_search_text WHERE song_id = 'target'",
+          )
+          .getSingle();
+      expect(row.read<String>('match_title'), '残響リファレンス');
+      expect(candidates.map((song) => song.id), ['target']);
+      await pending;
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+    });
+  }
+
+  for (final fullScan in [false, true]) {
+    Future<List<SongsTableData>> match(_ControlledRefreshDao dao) => fullScan
+        ? dao.debugTrackMatchCandidatesByFullScan([
+            (title: 'Target', artist: 'Artist'),
+          ])
+        : dao.getTrackMatchCandidates([(title: 'Target', artist: 'Artist')]);
+
+    test(
+      'fresh matching starts no refresh writes (full scan: $fullScan)',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song('target', 'Target', artistName: 'Artist'),
+        ]);
+        await database.libraryDao.refreshSongSearchIndex();
+        final dao = _ControlledRefreshDao(database);
+        expect((await match(dao)).map((song) => song.id), ['target']);
+        expect(dao.refreshCalls, 0);
+      },
+    );
+
+    for (final alreadyRunning in [false, true]) {
+      test('matching times out its refresh wait and retains stale candidates '
+          '(full scan: $fullScan, running: $alreadyRunning)', () async {
+        await database.libraryDao.upsertSongs([
+          _song('target', 'Target', artistName: 'Artist'),
+        ]);
+        final gate = Completer<void>();
+        final dao = _ControlledRefreshDao(database)..refreshGate = gate;
+        final pending = alreadyRunning
+            ? dao.scheduleSongSearchIndexRefresh()
+            : null;
+        try {
+          expect(
+            (await match(dao).timeout(const Duration(seconds: 3)))
+                .map((song) => song.id),
+            contains('target'),
+          );
+          expect(dao.refreshCalls, 1);
+        } finally {
+          gate.complete();
+          await (pending ?? dao.scheduleSongSearchIndexRefresh());
+        }
+      });
+    }
+  }
 
   Future<void> expectBucketsMatchFullScan(String artistId) async {
     final indexed = await database.libraryDao
@@ -243,7 +480,7 @@ void main() {
 
     test('match exactly like the whole library, stale or fresh', () async {
       final reference = await matches(await database.libraryDao.getAllSongs());
-      // Before the refresh every row is stale and is a candidate.
+      // The first lookup refreshes stale rows before selecting candidates.
       expect(await matches(await candidates()), reference);
       await database.libraryDao.refreshSongSearchIndex();
       final fresh = await candidates();
@@ -407,10 +644,10 @@ void main() {
       );
     });
 
-    test('search text from before the key version stays current', () async {
+    test('legacy search text is reused until the background re-key finishes', () async {
       await database.libraryDao.refreshSongSearchIndex();
-      // A row an older build wrote: the plain source. Its search text is
-      // replaced by a marker that only the stored row can match.
+      // An older build wrote search text using the previous folding rules.
+      // A marker proves search reuses the row while raw metadata is unchanged.
       await database.customStatement(
         'UPDATE song_search_text SET source = (SELECT songs.title || char(31) '
         "|| ifnull(songs.artist_name, '') || char(31) "
@@ -418,15 +655,19 @@ void main() {
         'WHERE songs.id = song_search_text.song_id), '
         "search_text = 'zzmarker|beyonce|' WHERE song_id = 'beyonce'",
       );
-      final found = await database.libraryDao.searchCachedSongs('zzmarker');
+      final legacy = await database.libraryDao.searchCachedSongs('zzmarker');
+      expect(legacy.map((song) => song.id), <String>['beyonce']);
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      final found = await database.libraryDao.searchCachedSongs('halo');
       expect(found.map((song) => song.id), <String>['beyonce']);
-      // The match keys are still re-keyed.
+      expect(await database.libraryDao.searchCachedSongs('zzmarker'), isEmpty);
+      // Matching awaits re-keying and excludes unrelated stale songs.
       final candidates = await database.libraryDao.getTrackMatchCandidates(
         const <({String title, String artist})>[
           (title: 'Nothing', artist: 'Nobody'),
         ],
       );
-      expect(candidates.map((song) => song.id), contains('beyonce'));
+      expect(candidates, isEmpty);
     });
 
     test('a Japanese name-only album is on its artist page, even from an '
@@ -452,6 +693,110 @@ void main() {
       );
       expect(await primary('oor'), contains('jp-name'));
     });
+
+    test(
+      'same-edition contextual lookup prefers a raw title then the smallest id',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song('z-remaster', 'Song (Remastered)', artistName: '嵐'),
+          _song('a-raw', 'Song', artistName: '嵐'),
+          _song('0-first', 'Song (Deluxe Edition)', artistName: '嵐'),
+        ]);
+        await database.customStatement('PRAGMA reverse_unordered_selects = ON');
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song',
+            artistName: '嵐',
+          ))?.id,
+          'a-raw',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song (Remastered)',
+            artistName: '嵐',
+          ))?.id,
+          'z-remaster',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song (2011 Remaster)',
+            artistName: '嵐',
+          ))?.id,
+          '0-first',
+        );
+      },
+    );
+
+    test(
+      'unfiltered namesakes stay ambiguous for missing artist context',
+      () async {
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'abba-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('ABBA'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'blondie-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('Blondie'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          _song('abba-song', 'Greatest Hits', artistName: 'ABBA'),
+          _song('blondie-song', 'Greatest Hits', artistName: 'Blondie'),
+        ]);
+        for (final artist in [null, 'Queen']) {
+          expect(
+            await database.libraryDao.findOneExactNormalizedAlbumByName(
+              'Greatest Hits',
+              artistName: artist,
+            ),
+            isNull,
+          );
+          expect(
+            await database.libraryDao.findOneExactNormalizedSongByTitle(
+              'Greatest Hits',
+              artistName: artist,
+            ),
+            isNull,
+          );
+        }
+      },
+    );
+
+    test(
+      'contextual album ties use id order rather than insertion order',
+      () async {
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'z-hits',
+            name: 'Greatest Hits',
+            artistName: const Value('Queen'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'a-hits',
+            name: 'Greatest Hits (Remastered)',
+            artistName: const Value('Queen'),
+          ),
+        ]);
+        await database.customStatement('PRAGMA reverse_unordered_selects = ON');
+        expect(
+          (await database.libraryDao.findOneExactNormalizedAlbumByName(
+            'Greatest Hits (2011 Remaster)',
+            artistName: 'Queen',
+          ))?.id,
+          'a-hits',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedAlbumByName(
+            'Greatest Hits',
+            artistName: 'Queen',
+          ))?.id,
+          'z-hits',
+        );
+      },
+    );
 
     test('an exact lookup prefers the same language version', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[

@@ -2,6 +2,72 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 
 void main() {
+  test('featuring words inside live locations preserve bracketed editions', () {
+    expect(
+      normalizeMetadataKeepingEdition('Song (Live at Ft. Worth)'),
+      'song live at ft worth',
+    );
+    expect(
+      normalizeMetadataKeepingEdition('Song [Live at Ft. Worth] feat. Guest'),
+      'song live at ft worth',
+    );
+    expect(
+      normalizeMetadata('Song [Live at Ft. Worth] feat. Guest'),
+      'song live at ft worth',
+    );
+  });
+
+  test('folds half-width kana and composes dakuten before removing marks', () {
+    for (final normalize in [
+      normalizeMetadata,
+      normalizeMetadataKeepingEdition,
+    ]) {
+      expect(normalize('ｶﾞｯﾂﾎﾟｰｽﾞ'), normalize('ガッツポーズ'));
+      expect(normalize('カ\u3099ッツホ\u309aース\u3099'), normalize('ガッツポーズ'));
+      expect(normalize('う\u3099'), normalize('ゔ'));
+    }
+  });
+
+  test('drops square-bracketed featuring credits', () {
+    expect(normalizeMetadata('Wonder [ft. X]'), 'wonder');
+    expect(normalizeMetadata('Wonder [feat. X]'), 'wonder');
+    expect(normalizeMetadata('Song (Live at Ft. Worth)'), 'song');
+  });
+
+  test('unclosed brackets do not mask featuring credits', () {
+    for (final normalize in [
+      normalizeMetadata,
+      normalizeMetadataKeepingEdition,
+    ]) {
+      expect(normalize('Song (feat. X'), 'song');
+      expect(normalize('Song [feat. X'), 'song');
+    }
+  });
+
+  test('strict loose names fold boundaries without joining words', () {
+    for (final (a, b, matches) in [
+      ('Earth, Wind & Fire', 'Earth Wind and Fire', true),
+      ('The Black Eyed Peas', 'Black Eyed Peas', true),
+      ('Simon & Garfunkel', 'Simon and Garfunkel', true),
+      ('The Black-Eyed Peas', 'Black Eyed Peas', true),
+      ('Black Star', 'Blackstar', false),
+      ('The Streets (UK)', 'Streets', false),
+      ('The Streets (UK)', 'Streets UK', true),
+    ]) {
+      for (final (left, right) in [(a, b), (b, a)]) {
+        expect(
+          artistNamesMatchLoosely(
+            left,
+            right,
+            allowSpacingAndPunctuation: false,
+          ),
+          matches,
+          reason: '$left / $right',
+        );
+      }
+    }
+  });
+
   group('normalizeMetadata', () {
     test('keeps Japanese text and drops its punctuation', () {
       expect(normalizeMetadata('「残響リファレンス」'), '残響リファレンス');

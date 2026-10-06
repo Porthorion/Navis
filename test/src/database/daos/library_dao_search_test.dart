@@ -117,6 +117,52 @@ void main() {
     expect(await database.libraryDao.refreshSongSearchIndex(), 0);
   });
 
+  for (final suffix in ['', '\u001f1', '\u001f2', '\u001f3']) {
+    test(
+      'search reuses unchanged raw fields from old key suffix $suffix',
+      () async {
+        await database.libraryDao.refreshSongSearchIndex();
+        await database.customStatement(
+          'UPDATE song_search_text SET source = ?, search_text = ? WHERE song_id = ?',
+          [
+            'Bohemian Rhapsody\u001fQueen\u001fA Night at the Opera$suffix',
+            'zzmarker|queen|',
+            'queen-1',
+          ],
+        );
+        // Hold the legacy text stable while observing the search read path.
+        await database.customStatement('''
+        CREATE TEMP TRIGGER block_search_rekey BEFORE UPDATE ON song_search_text
+        BEGIN SELECT RAISE(ABORT, 'hold legacy text'); END;
+      ''');
+        expect(await search('zzmarker'), ['queen-1']);
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+      },
+    );
+  }
+
+  test('search rekeys half-width kana from key-version suffix 1', () async {
+    await database.libraryDao.upsertSongs([
+      _song('kana', 'ｶﾞｯﾂﾎﾟｰｽﾞ', '嵐', '残響リファレンス'),
+    ]);
+    await database.customStatement(
+      'INSERT INTO song_search_text(song_id, source, search_text, match_title, match_artist, match_album) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        'kana',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ\u001f嵐\u001f残響リファレンス\u001f1',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ|嵐|残響リファレンス',
+        'ｶﾞｯﾂﾎﾟｰｽﾞ',
+        '嵐',
+        '残響リファレンス',
+      ],
+    );
+    // Legacy search folding stays usable until the background re-key finishes.
+    await database.libraryDao.scheduleSongSearchIndexRefresh();
+    expect(await search('ガッツポーズ'), ['kana']);
+    expect(normalizeSearchText('カ\u3099ッツホ\u309aース\u3099'), 'ガッツポーズ');
+    await database.libraryDao.scheduleSongSearchIndexRefresh();
+  });
+
   test('normalizeSearchText keeps letters from every script', () {
     expect(
       normalizeSearchText('AC/DC — Back in Black!'),
