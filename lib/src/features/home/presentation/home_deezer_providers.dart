@@ -104,8 +104,9 @@ final homeNewReleasesClockProvider = Provider<DateTime Function()>(
 /// cached 30 days) and first releases (cached 24 hours) through the
 /// limiter, as background requests that yield to the artist page and other
 /// foreground Deezer requests. An artist Deezer does not know, or whose
-/// request fails, is skipped. The provider lives for the session; invalidating it (pull to
-/// refresh) or turning the switch off cancels its requests.
+/// request fails, is skipped. The provider lives for the session;
+/// invalidating it (pull to refresh) or turning the switch off cancels its
+/// requests.
 final homeNewReleasesProvider = FutureProvider<List<HomeNewRelease>>((
   ref,
 ) async {
@@ -297,8 +298,9 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 /// (100, cached 6 hours, a background request) and matches every song with
 /// the top-song matcher on Trending's own store: remembered matches and
 /// `ext-deezer-song-<id>` rows, the library pass, then `search3` on the
-/// server, where a copy on the server wins over a remote one. The rows show at once, still matching,
-/// then with their songs; songs found nowhere stay as unmatched rows. Two
+/// server, where a copy on the server wins over a remote one. The rows show
+/// at once, still matching, then with their songs; songs found nowhere stay
+/// as unmatched rows. Two
 /// songs are searched at once; a pull to refresh searches six, updates the
 /// rows as it goes and searches unmatched songs again. The provider lives
 /// for the session; a refresh or turning the switch off cancels its

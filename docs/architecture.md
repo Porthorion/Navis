@@ -1802,8 +1802,8 @@ there, one that already places it is left alone). `homeNewReleasesProvider`
   cannot identify are skipped) and its first five releases
   (`DeezerCatalog.recentArtistAlbums`, `/artist/{id}/albums?limit=5`, cached 24
   hours apart from the full list), all as background requests: the Deezer
-  limiter starts any waiting artist-page request first, so warming Home never
-  delays the page the user opened. An artist whose request fails is skipped;
+  limiter starts any waiting artist-page request first, so Home's warm-up
+  yields to the page you open. An artist whose request fails is skipped;
   the provider lives for the session, and invalidating it (pull to refresh)
   or switching the feature off cancels the requests. The
   `home.newReleases` span counts artists, resolved, failed, releases and those
