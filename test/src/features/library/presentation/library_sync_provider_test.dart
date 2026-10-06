@@ -1762,6 +1762,126 @@ void main() {
 
         expect(requestedArtistIds, <String>['oor', 'oor']);
       });
+
+      group('a remote artist confirmed without albums', () {
+        setUp(() async {
+          await database.libraryDao.upsertProvisionalArtists([
+            ArtistsTableCompanion.insert(
+              id: 'ext-deezer-artist-1',
+              name: 'Coldrain',
+              albumCount: const Value(0),
+              isExternal: const Value(true),
+            ),
+          ]);
+        });
+
+        test('is remembered, so a reopen needs no request', () async {
+          final container = buildContainer();
+          final controller = container.read(
+            librarySyncControllerProvider.notifier,
+          );
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isFalse,
+          );
+
+          final first = await controller.hydrateOpenedArtist(
+            'ext-deezer-artist-1',
+          );
+          expect(first?.status, LibrarySyncStatus.succeeded);
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isTrue,
+          );
+
+          // Leaving and reopening: no second getArtist, and the page can
+          // still show the artist as empty.
+          expect(
+            await controller.hydrateOpenedArtist('ext-deezer-artist-1'),
+            isNull,
+          );
+          expect(requestedArtistIds, <String>['ext-deezer-artist-1']);
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isTrue,
+          );
+        });
+
+        test('is not remembered from a failed or partial hydration', () async {
+          for (final status in <LibrarySyncStatus>[
+            LibrarySyncStatus.failed,
+            LibrarySyncStatus.partial,
+          ]) {
+            nextResult = () async => LibrarySyncState(
+              status: status,
+              stage: LibrarySyncStage.completed,
+            );
+            final container = buildContainer();
+            final controller = container.read(
+              librarySyncControllerProvider.notifier,
+            );
+            await controller.refreshArtist('ext-deezer-artist-1');
+            expect(
+              controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+              isFalse,
+              reason: '$status',
+            );
+          }
+        });
+
+        test('a refresh that finds albums forgets it', () async {
+          final container = buildContainer();
+          final controller = container.read(
+            librarySyncControllerProvider.notifier,
+          );
+          await controller.refreshArtist('ext-deezer-artist-1');
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isTrue,
+          );
+          await database.libraryDao.upsertProvisionalAlbums([
+            AlbumsTableCompanion.insert(
+              id: 'ext-deezer-album-2',
+              name: 'The Side Effects',
+              artistId: const Value('ext-deezer-artist-1'),
+              isExternal: const Value(true),
+            ),
+          ]);
+          await controller.refreshArtist('ext-deezer-artist-1');
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isFalse,
+          );
+        });
+
+        test('a new server session forgets it', () async {
+          final server = await _saveAuthenticatedServer(database);
+          final container = buildContainer(
+            serverConfig: serverConfigStateProvider.overrideWith(
+              (ref) => ref.watch(_serverConfigSource),
+            ),
+          );
+          container.read(_serverConfigSource.notifier).set(AsyncData(server));
+          container.listen(librarySyncControllerProvider, (_, _) {});
+          final controller = container.read(
+            librarySyncControllerProvider.notifier,
+          );
+
+          await controller.hydrateOpenedArtist('ext-deezer-artist-1');
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isTrue,
+          );
+          container
+              .read(_serverConfigSource.notifier)
+              .set(const AsyncData(null));
+          await settle();
+          expect(
+            controller.artistConfirmedWithoutAlbums('ext-deezer-artist-1'),
+            isFalse,
+          );
+        });
+      });
     });
 
     test(

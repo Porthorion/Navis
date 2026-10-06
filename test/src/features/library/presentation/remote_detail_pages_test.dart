@@ -88,6 +88,10 @@ class _ScriptedSync extends LibrarySyncController {
       script.next('open-album:$albumId');
 
   @override
+  bool artistConfirmedWithoutAlbums(String artistId) =>
+      script.confirmedEmpty.contains(artistId);
+
+  @override
   Future<LibrarySyncState> refreshArtist(String artistId) async =>
       (await script.next('refresh-artist:$artistId'))!;
 
@@ -98,6 +102,9 @@ class _ScriptedSync extends LibrarySyncController {
 
 class _HydrationScript {
   final List<String> calls = <String>[];
+
+  /// Artists the controller remembers as confirmed without albums.
+  final Set<String> confirmedEmpty = <String>{};
   final List<Completer<LibrarySyncState?>> pending =
       <Completer<LibrarySyncState?>>[];
 
@@ -425,6 +432,21 @@ void main() {
       expect(find.text('SearchScreen'), findsOneWidget);
       expect(container.read(searchQueryProvider), 'Coldrain');
       expect(container.read(searchFilterProvider), SearchResultType.artists);
+      await dispose(tester);
+    });
+
+    testWidgets('an artist confirmed empty earlier this session reopens '
+        'empty without a request', (tester) async {
+      await storeRemoteArtist(withAlbum: false);
+      // An earlier open this session confirmed it; this open needs none.
+      script.confirmedEmpty.add(_remoteArtistId);
+      await open(tester, AppRoutes.artist(_remoteArtistId));
+      script.answer(null);
+      await settle(tester);
+
+      expect(failed, findsNothing);
+      expect(find.text('No Albums for This Artist'), findsOneWidget);
+      expect(script.calls, <String>['open-artist:$_remoteArtistId']);
       await dispose(tester);
     });
 

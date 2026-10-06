@@ -287,6 +287,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// server's artist list can count local albums only (Octo-Fiesta), so a
   /// matching count does not prove the page has every release.
   final Set<String> _sessionHydratedArtistIds = <String>{};
+
+  /// Artists a successful hydration this server session found without
+  /// albums, so their page can show them as empty when a later open needs no
+  /// request.
+  final Set<String> _sessionConfirmedEmptyArtistIds = <String>{};
   final Map<String, Future<LibrarySyncState?>> _artistInteractionHydrations =
       <String, Future<LibrarySyncState?>>{};
   int _artistSessionEpoch = 0;
@@ -647,12 +652,42 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return task;
   }
 
-  Future<LibrarySyncState> refreshArtist(String artistId) {
+  Future<LibrarySyncState> refreshArtist(String artistId) async {
     final normalizedId = artistId.trim();
     if (normalizedId.isEmpty) {
-      return Future<LibrarySyncState>.value(state);
+      return state;
     }
-    return requestTarget(LibrarySyncTarget.artist(normalizedId));
+    final epoch = _artistSessionEpoch;
+    final result = await requestTarget(LibrarySyncTarget.artist(normalizedId));
+    await _recordArtistAlbumsConfirmation(normalizedId, result, epoch: epoch);
+    return result;
+  }
+
+  /// Whether a successful hydration this server session found [artistId]
+  /// without albums. A later open that needs no request relies on it; no
+  /// request alone confirms nothing.
+  bool artistConfirmedWithoutAlbums(String artistId) =>
+      _sessionConfirmedEmptyArtistIds.contains(artistId.trim());
+
+  /// Remembers whether a successful hydration of [artistId] left it without
+  /// albums, unless the server session changed meanwhile.
+  Future<void> _recordArtistAlbumsConfirmation(
+    String artistId,
+    LibrarySyncState result, {
+    required int epoch,
+  }) async {
+    if (result.status != LibrarySyncStatus.succeeded) return;
+    final albums = await ref
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .watchAlbumsByArtist(artistId)
+        .first;
+    if (!ref.mounted || epoch != _artistSessionEpoch) return;
+    if (albums.isEmpty) {
+      _sessionConfirmedEmptyArtistIds.add(artistId);
+    } else {
+      _sessionConfirmedEmptyArtistIds.remove(artistId);
+    }
   }
 
   Future<LibrarySyncState?> _requestAlbumHydrationIfNeeded(
@@ -715,6 +750,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         result.status == LibrarySyncStatus.succeeded) {
       _sessionHydratedArtistIds.add(artistId);
     }
+    if (ref.mounted) {
+      await _recordArtistAlbumsConfirmation(artistId, result, epoch: epoch);
+    }
     return result;
   }
 
@@ -723,6 +761,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // Old tasks will reject their epoch; they must not suppress new opens.
     _artistInteractionHydrations.clear();
     _sessionHydratedArtistIds.clear();
+    _sessionConfirmedEmptyArtistIds.clear();
   }
 
   void _onServerConfigChanged(AsyncValue<ServerConfigModel?> next) {

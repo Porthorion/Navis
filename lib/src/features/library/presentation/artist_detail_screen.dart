@@ -118,7 +118,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       final stored = await dao.getArtistById(widget.artistId);
       final albums = await dao.watchAlbumsByArtist(widget.artistId).first;
-      final confirmed = detailHydrationConfirmed(result);
+      // This request, or an earlier successful one this server session,
+      // confirms what the server holds; no request alone confirms nothing.
+      final confirmed =
+          detailHydrationConfirmed(result) ||
+          (result == null &&
+              ref
+                  .read(librarySyncControllerProvider.notifier)
+                  .artistConfirmedWithoutAlbums(widget.artistId));
       if (confirmed) confirmedNoAlbums = albums.isEmpty;
       if (stored != null &&
           (!_isRemote(stored) || albums.isNotEmpty || confirmed)) {

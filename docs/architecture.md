@@ -1635,7 +1635,10 @@ reads "Not Found".
   stored (a remote album songs-hydrated, a remote artist with albums), or a
   remote artist has none and the hydration succeeded
   (`detailHydrationConfirmed`; no request, a partial or a skipped one
-  confirms nothing). Anything else, including a request or library read that
+  confirms nothing). The controller remembers a successful hydration that
+  found an artist without albums for the server session
+  (`artistConfirmedWithoutAlbums`, cleared with the per-session hydration
+  set), so a reopen that needs no request still shows the artist as empty. Anything else, including a request or library read that
   throws, a failed, cancelled or network-deferred request
   (`detailHydrationFailed`), or an artist, album or album-list stream that
   cannot be read, ends in `DetailLoadFailedView`: "Could Not Load This
