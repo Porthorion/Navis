@@ -2471,9 +2471,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailFilterLabel => 'Filters';
 
   @override
-  String get albumDetailLoadErrorTitle => 'Could Not Load Album Details';
-
-  @override
   String get albumDetailRefreshError =>
       'Could not refresh this album. Check your connection and try again.';
 

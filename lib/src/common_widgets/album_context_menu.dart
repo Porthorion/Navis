@@ -88,7 +88,13 @@ Future<void> showAlbumContextMenu(
                     ref
                         .read(librarySyncControllerProvider.notifier)
                         .registerAlbumInteraction(albumId);
-                    NavService.openAlbumDetail(context, ref, albumId);
+                    NavService.openAlbumDetail(
+                      context,
+                      ref,
+                      albumId,
+                      name: album?.album.name,
+                      artistName: album?.album.artistName,
+                    );
                   },
                 ),
                 ListTile(
@@ -260,7 +266,13 @@ Future<void> _showDesktopAlbumContextMenu(
       ref
           .read(librarySyncControllerProvider.notifier)
           .registerAlbumInteraction(albumId);
-      NavService.openAlbumDetail(context, ref, albumId);
+      NavService.openAlbumDetail(
+        context,
+        ref,
+        albumId,
+        name: album?.album.name,
+        artistName: album?.album.artistName,
+      );
       return;
     case _AlbumContextAction.play:
       if (songs.isEmpty) {

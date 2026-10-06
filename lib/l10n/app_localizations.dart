@@ -3863,12 +3863,6 @@ abstract class AppLocalizations {
   /// **'Filters'**
   String get albumDetailFilterLabel;
 
-  /// No description provided for @albumDetailLoadErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Album Details'**
-  String get albumDetailLoadErrorTitle;
-
   /// No description provided for @albumDetailRefreshError.
   ///
   /// In en, this message translates to:

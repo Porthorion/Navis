@@ -51,7 +51,7 @@ Future<void> showArtistContextMenu(
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  _openArtist(context, menuRef, artistId);
+                  _openArtist(context, menuRef, artistId, name: artist?.name);
                 },
               ),
               ListTile(
@@ -169,7 +169,7 @@ Future<void> _showDesktopArtistContextMenu(
 
   switch (action) {
     case _ArtistContextAction.open:
-      _openArtist(context, ref, artistId);
+      _openArtist(context, ref, artistId, name: artist?.name);
       return;
     case _ArtistContextAction.play:
       await startArtistPlayback(container, artistId, ArtistPlaybackAction.play);
@@ -190,11 +190,16 @@ Future<void> _showDesktopArtistContextMenu(
   }
 }
 
-void _openArtist(BuildContext context, WidgetRef ref, String artistId) {
+void _openArtist(
+  BuildContext context,
+  WidgetRef ref,
+  String artistId, {
+  String? name,
+}) {
   ref
       .read(librarySyncControllerProvider.notifier)
       .registerArtistInteraction(artistId);
-  NavService.openArtistDetail(context, ref, artistId);
+  NavService.openArtistDetail(context, ref, artistId, name: name);
 }
 
 Future<void> _toggleArtistStar(

@@ -86,9 +86,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   /// has nothing to show (see [_showsArtist]).
   DetailHydrationPhase _hydration = DetailHydrationPhase.running;
 
-  /// The artist's stored albums when [_hydration] last ended, so a remote
-  /// artist page waits for albums the hydration stored.
-  int _settledAlbumCount = 0;
+  /// A successful hydration found the remote artist without albums: the
+  /// only case where the page shows a remote artist with none.
+  bool _confirmedNoAlbums = false;
   bool _refreshing = false;
 
   @override
@@ -103,35 +103,48 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     );
   }
 
-  /// Waits for [request] and records what it left in the library: failed
-  /// when the server did not answer or the artist is still not stored.
-  Future<DetailHydrationPhase> _hydrate(
-    Future<LibrarySyncState?> request,
-  ) async {
-    DetailHydrationPhase phase;
+  /// Waits for [request] and records what it left in the library: settled
+  /// once the artist is stored with albums, or with none and a successful
+  /// hydration confirming it; failed otherwise, including when the request
+  /// or the library read throws. Returns whether the server did not answer.
+  Future<bool> _hydrate(Future<LibrarySyncState?> request) async {
+    var requestFailed = false;
+    var phase = DetailHydrationPhase.failed;
+    bool? confirmedNoAlbums;
     try {
-      phase = detailHydrationPhaseFor(await request);
+      final result = await request;
+      requestFailed = detailHydrationFailed(result);
+      if (!mounted) return requestFailed;
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      final stored = await dao.getArtistById(widget.artistId);
+      final albums = await dao.watchAlbumsByArtist(widget.artistId).first;
+      final confirmed = detailHydrationConfirmed(result);
+      if (confirmed) confirmedNoAlbums = albums.isEmpty;
+      if (stored != null &&
+          (!_isRemote(stored) || albums.isNotEmpty || confirmed)) {
+        phase = DetailHydrationPhase.settled;
+      }
     } on Object {
-      phase = DetailHydrationPhase.failed;
+      requestFailed = true;
     }
-    if (!mounted) return phase;
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    final stored = await dao.getArtistById(widget.artistId);
-    final albums = await dao.watchAlbumsByArtist(widget.artistId).first;
-    if (stored == null) phase = DetailHydrationPhase.failed;
     if (mounted) {
       setState(() {
         _hydration = phase;
-        _settledAlbumCount = albums.length;
+        _confirmedNoAlbums = confirmedNoAlbums ?? _confirmedNoAlbums;
       });
     }
-    return phase;
+    return requestFailed;
   }
 
   /// Fetches the artist again (Refresh, Retry and pull to refresh). A page
   /// that already shows the artist keeps it and reports a failure.
   Future<void> _refresh() async {
     if (_refreshing) return;
+    // A library stream that failed is read again.
+    final artistProvider = artistByIdProvider(widget.artistId);
+    if (ref.read(artistProvider).hasError) ref.invalidate(artistProvider);
+    final albumsProvider = artistAlbumSectionsProvider(widget.artistId);
+    if (ref.read(albumsProvider).hasError) ref.invalidate(albumsProvider);
     setState(() {
       _refreshing = true;
       _hydration = DetailHydrationPhase.running;
@@ -139,12 +152,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       _headerGeneration++;
     });
     try {
-      final phase = await _hydrate(
+      final requestFailed = await _hydrate(
         ref
             .read(librarySyncControllerProvider.notifier)
             .refreshArtist(widget.artistId),
       );
-      if (!mounted || phase != DetailHydrationPhase.failed) return;
+      if (!mounted || !requestFailed) return;
       final shown = _showsArtist(
         ref.read(artistByIdProvider(widget.artistId)).value,
         ref.read(artistAlbumSectionsProvider(widget.artistId)),
@@ -177,13 +190,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     if (!_isRemote(artist)) return true;
     final listed = sections.value;
     if (listed == null) return false;
-    return !listed.isEmpty ||
-        (_hydration == DetailHydrationPhase.settled && _settledAlbumCount == 0);
+    return !listed.isEmpty || _confirmedNoAlbums;
   }
 
   /// "Loading Remote Artist…" while the artist is fetched, or Retry and a
-  /// search when the server could not provide it.
-  Widget _buildPendingBody(BuildContext context, ArtistsTableData? artist) {
+  /// search when the server could not provide it or the library could not
+  /// be read ([libraryFailed]).
+  Widget _buildPendingBody(
+    BuildContext context,
+    ArtistsTableData? artist, {
+    bool libraryFailed = false,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final isRemote = _isRemote(artist);
     final name = artist?.name ?? _nonBlank(widget.nameHint);
@@ -196,7 +213,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       isExternalSource: isRemote,
       remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
     );
-    if (_hydration == DetailHydrationPhase.failed) {
+    if (libraryFailed || _hydration == DetailHydrationPhase.failed) {
       return DetailLoadFailedView(
         title: l10n.artistDetailLoadFailedTitle,
         artwork: artwork,
@@ -267,7 +284,16 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     final artistBody = artist.when(
       data: (artistData) {
         if (artistData == null || !showsArtist) {
-          return _buildPendingBody(context, artistData);
+          return _buildPendingBody(
+            context,
+            artistData,
+            // Albums that cannot be read leave nothing to wait for once the
+            // request has ended.
+            libraryFailed:
+                albumSections.hasError &&
+                !albumSections.hasValue &&
+                _hydration != DetailHydrationPhase.running,
+          );
         }
 
         final isStarred = _isStarred || artistData.starred != null;
@@ -464,10 +490,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       loading: () => _isRemote(null)
           ? _buildPendingBody(context, null)
           : const _ArtistDetailLoadingState(),
-      error: (error, _) => ErrorState(
-        title: l10n.artistDetailLoadErrorTitle,
-        onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
-      ),
+      error: (error, _) =>
+          _buildPendingBody(context, null, libraryFailed: true),
     );
     return Scaffold(
       appBar: AppBar(
@@ -513,14 +537,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             ),
         ],
       ),
-      body: desktopMode
-          ? DesktopFrame(
-              layoutClass: resolveDesktopLayoutClass(
-                MediaQuery.sizeOf(context).width,
-              ),
-              child: artistBody,
-            )
-          : artistBody,
+      body: KeyedSubtree(
+        key: showsArtist ? detailPageShownKey : null,
+        child: desktopMode
+            ? DesktopFrame(
+                layoutClass: resolveDesktopLayoutClass(
+                  MediaQuery.sizeOf(context).width,
+                ),
+                child: artistBody,
+              )
+            : artistBody,
+      ),
     );
   }
 }

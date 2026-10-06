@@ -1095,7 +1095,6 @@
   "albumDetailShowAllTracksAction": "Show All Tracks",
   "albumDetailFilterLabel": "Filters",
   "@albumDetailFilterLabel": {"description": "Label above the filter chips in the album detail screen"},
-  "albumDetailLoadErrorTitle": "Could Not Load Album Details",
   "albumDetailRefreshError": "Could not refresh this album. Check your connection and try again.",
   "albumDetailLoadingRemote": "Loading Remote Album…",
   "@albumDetailLoadingRemote": {

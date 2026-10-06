@@ -11,21 +11,31 @@ import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Where an artist or album page stands while the library does not hold
 /// enough of its entity to show (a remote `ext-…` entity, or one not synced
-/// yet): the page's hydration is [running], has [settled], or has [failed].
+/// yet): the page's hydration is [running], has [settled] (the entity is
+/// stored), or has [failed].
 enum DetailHydrationPhase { running, settled, failed }
 
-/// The phase a page's hydration [result] leaves it in. The server did not
-/// provide the entity when the request failed, was cancelled or was deferred
-/// by the network policy; any other result, including no request because
-/// none was needed, settles it.
-DetailHydrationPhase detailHydrationPhaseFor(LibrarySyncState? result) {
-  return switch (result?.status) {
-    LibrarySyncStatus.failed ||
-    LibrarySyncStatus.cancelled ||
-    LibrarySyncStatus.deferred => DetailHydrationPhase.failed,
-    _ => DetailHydrationPhase.settled,
-  };
-}
+/// Whether a page's hydration [result] confirms what the server holds: only
+/// a hydration that succeeded. No request (null), a partial or skipped one
+/// confirms nothing, so a remote artist without albums is never shown as
+/// having none on their account.
+bool detailHydrationConfirmed(LibrarySyncState? result) =>
+    result?.status == LibrarySyncStatus.succeeded;
+
+/// Whether a page's hydration [result] reports that the server did not
+/// answer: the request failed, was cancelled or was deferred by the network
+/// policy. A refresh of a page that already shows its entity reports these.
+bool detailHydrationFailed(LibrarySyncState? result) =>
+    switch (result?.status) {
+      LibrarySyncStatus.failed ||
+      LibrarySyncStatus.cancelled ||
+      LibrarySyncStatus.deferred => true,
+      _ => false,
+    };
+
+/// Marks the content of an artist or album page once it shows its entity
+/// (not the loading or failed view), for diagnostics.
+const detailPageShownKey = ValueKey<String>('detail-page-shown');
 
 /// The size of the artwork in [DetailLoadingView] and [DetailLoadFailedView].
 const double kDetailStateArtworkExtent = 96;

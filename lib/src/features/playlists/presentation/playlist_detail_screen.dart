@@ -662,7 +662,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 title: Text(l10n.librarySongMenuOpenArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.openArtistDetail(context, ref, song.artistId!);
+                  NavService.openArtistDetail(
+                    context,
+                    ref,
+                    song.artistId!,
+                    name: song.artistName,
+                  );
                 },
               ),
             if (song.albumId != null && song.albumId!.isNotEmpty)
@@ -671,7 +676,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.openAlbumDetail(context, ref, song.albumId!);
+                  NavService.openAlbumDetail(
+                    context,
+                    ref,
+                    song.albumId!,
+                    name: song.albumName,
+                    artistName: song.artistName,
+                  );
                 },
               ),
             ListTile(
@@ -829,12 +840,23 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         return;
       case _PlaylistSongContextAction.openArtist:
         if (song.artistId != null && song.artistId!.isNotEmpty) {
-          NavService.openArtistDetail(context, ref, song.artistId!);
+          NavService.openArtistDetail(
+            context,
+            ref,
+            song.artistId!,
+            name: song.artistName,
+          );
         }
         return;
       case _PlaylistSongContextAction.openAlbum:
         if (song.albumId != null && song.albumId!.isNotEmpty) {
-          NavService.openAlbumDetail(context, ref, song.albumId!);
+          NavService.openAlbumDetail(
+            context,
+            ref,
+            song.albumId!,
+            name: song.albumName,
+            artistName: song.artistName,
+          );
         }
         return;
       case _PlaylistSongContextAction.addToPlaylist:

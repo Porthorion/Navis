@@ -17,7 +17,6 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
-import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
@@ -106,28 +105,29 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     _scrollController.addListener(_onScroll);
   }
 
-  /// Waits for [request] and records what it left in the library: failed
-  /// when the server did not answer, or the album (or a remote album's
-  /// tracks) is still not stored.
-  Future<DetailHydrationPhase> _hydrate(
-    Future<LibrarySyncState?> request,
-  ) async {
-    DetailHydrationPhase phase;
+  /// Waits for [request] and records what it left in the library: settled
+  /// once the album is stored (a remote album with its tracks), failed
+  /// otherwise, including when the request or the library read throws.
+  /// Returns whether the server did not answer.
+  Future<bool> _hydrate(Future<LibrarySyncState?> request) async {
+    var requestFailed = false;
+    var phase = DetailHydrationPhase.failed;
     try {
-      phase = detailHydrationPhaseFor(await request);
+      final result = await request;
+      requestFailed = detailHydrationFailed(result);
+      if (!mounted) return requestFailed;
+      final stored = await ref
+          .read(navisDatabaseProvider)
+          .libraryDao
+          .getAlbumById(widget.albumId);
+      if (stored != null && (!_isRemote(stored) || stored.songsHydrated)) {
+        phase = DetailHydrationPhase.settled;
+      }
     } on Object {
-      phase = DetailHydrationPhase.failed;
-    }
-    if (!mounted) return phase;
-    final stored = await ref
-        .read(navisDatabaseProvider)
-        .libraryDao
-        .getAlbumById(widget.albumId);
-    if (stored == null || (_isRemote(stored) && !stored.songsHydrated)) {
-      phase = DetailHydrationPhase.failed;
+      requestFailed = true;
     }
     if (mounted) setState(() => _hydration = phase);
-    return phase;
+    return requestFailed;
   }
 
   bool _isRemote(AlbumsTableData? album) => isExternalCatalogSource(
@@ -146,8 +146,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   /// "Loading Remote Album…" while the album is fetched, or Retry and a
-  /// search when the server could not provide it.
-  Widget _buildPendingBody(BuildContext context, AlbumsTableData? album) {
+  /// search when the server could not provide it or the library could not
+  /// be read ([libraryFailed]).
+  Widget _buildPendingBody(
+    BuildContext context,
+    AlbumsTableData? album, {
+    bool libraryFailed = false,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final isRemote = _isRemote(album);
     final name = album?.name ?? _nonBlank(widget.nameHint);
@@ -163,7 +168,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
     );
     final Widget body;
-    if (_hydration == DetailHydrationPhase.failed) {
+    if (libraryFailed || _hydration == DetailHydrationPhase.failed) {
       body = DetailLoadFailedView(
         title: l10n.albumDetailLoadFailedTitle,
         artwork: artwork,
@@ -1441,11 +1446,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             loading: () => _isRemote(null)
                 ? _buildPendingBody(context, null)
                 : const ShimmerListPage(count: 8, leadingSize: 56),
-            error: (error, _) => ErrorState(
-              title: l10n.albumDetailLoadErrorTitle,
-              onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
-            ),
+            error: (error, _) =>
+                _buildPendingBody(context, null, libraryFailed: true),
           ),
+          // Marks the page as showing the album, for diagnostics.
+          if (showsAlbum) const SizedBox.shrink(key: detailPageShownKey),
           Positioned(
             top: 0,
             left: 0,
@@ -1466,12 +1471,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
     await HapticFeedback.lightImpact();
+    // An album stream that failed is read again.
+    final albumStream = albumProvider(widget.albumId);
+    if (ref.read(albumStream).hasError) ref.invalidate(albumStream);
     setState(() {
       _isRefreshingAlbum = true;
       _hydration = DetailHydrationPhase.running;
     });
     try {
-      final phase = await _hydrate(
+      final requestFailed = await _hydrate(
         ref
             .read(librarySyncControllerProvider.notifier)
             .requestTarget(LibrarySyncTarget.album(widget.albumId)),
@@ -1481,7 +1489,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       }
       ref.invalidate(albumInfoProvider(widget.albumId));
       // A page without the album shows the failure itself.
-      if (phase != DetailHydrationPhase.failed ||
+      if (!requestFailed ||
           !_showsAlbum(ref.read(albumProvider(widget.albumId)).value)) {
         return;
       }
@@ -1702,6 +1710,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           this.context,
                           ref,
                           song.artistId!,
+                          name: song.artistName,
                         );
                       },
                     ),
@@ -1856,7 +1865,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         await _showSongRatingDialog(song);
         return;
       case _AlbumSongContextAction.openArtist:
-        NavService.openArtistDetail(context, ref, song.artistId!);
+        NavService.openArtistDetail(
+          context,
+          ref,
+          song.artistId!,
+          name: song.artistName,
+        );
         return;
       case _AlbumSongContextAction.addToPlaylist:
         await showAddToPlaylistSheet(context, ref, <String>[song.id]);
@@ -2104,7 +2118,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       final artist = artists[i];
       widgets.add(
         InkWell(
-          onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+          onTap: () => NavService.openArtistDetail(
+            context,
+            ref,
+            artist.id,
+            name: artist.name,
+          ),
           onLongPress: () =>
               unawaited(showArtistContextMenu(context, ref, artist.id)),
           onSecondaryTapDown: (details) => unawaited(
@@ -2303,6 +2322,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           context,
                           ref,
                           details.artistId!,
+                          name: details.artistName,
                         );
                       },
                     ),
@@ -2568,8 +2588,13 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
                           : rec.title,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    onPressed: () =>
-                        NavService.openAlbumDetail(context, ref, rec.id),
+                    onPressed: () => NavService.openAlbumDetail(
+                      context,
+                      ref,
+                      rec.id,
+                      name: rec.title,
+                      artistName: rec.artist,
+                    ),
                   );
                 }).toList(),
               ),

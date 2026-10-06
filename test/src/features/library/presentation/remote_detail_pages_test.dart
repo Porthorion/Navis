@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -295,23 +296,28 @@ void main() {
   final loading = find.byKey(DetailLoadingView.loadingKey);
   final failed = find.byKey(DetailLoadFailedView.failedKey);
 
-  test('a failed, cancelled or deferred hydration fails the page', () {
+  test('only a successful hydration confirms; failures are named', () {
     for (final status in LibrarySyncStatus.values) {
+      final result = LibrarySyncState(
+        status: status,
+        stage: LibrarySyncStage.completed,
+      );
       expect(
-        detailHydrationPhaseFor(
-          LibrarySyncState(status: status, stage: LibrarySyncStage.completed),
-        ),
-        switch (status) {
-          LibrarySyncStatus.failed ||
-          LibrarySyncStatus.cancelled ||
-          LibrarySyncStatus.deferred => DetailHydrationPhase.failed,
-          _ => DetailHydrationPhase.settled,
-        },
+        detailHydrationConfirmed(result),
+        status == LibrarySyncStatus.succeeded,
+        reason: '$status',
+      );
+      expect(
+        detailHydrationFailed(result),
+        status == LibrarySyncStatus.failed ||
+            status == LibrarySyncStatus.cancelled ||
+            status == LibrarySyncStatus.deferred,
         reason: '$status',
       );
     }
-    // No request was needed.
-    expect(detailHydrationPhaseFor(null), DetailHydrationPhase.settled);
+    // No request confirms nothing and reports no failure.
+    expect(detailHydrationConfirmed(null), isFalse);
+    expect(detailHydrationFailed(null), isFalse);
   });
 
   group('remote artist page', () {
@@ -454,6 +460,89 @@ void main() {
       },
     );
 
+    for (final (label, result) in <(String, LibrarySyncState?)>[
+      ('no request', null),
+      (
+        'a partial one',
+        const LibrarySyncState(
+          status: LibrarySyncStatus.partial,
+          stage: LibrarySyncStage.completed,
+        ),
+      ),
+    ]) {
+      testWidgets(
+        'a remote artist without albums after $label is not shown as empty',
+        (tester) async {
+          await storeRemoteArtist(withAlbum: false);
+          await open(tester, AppRoutes.artist(_remoteArtistId));
+          script.answer(result);
+          await settle(tester);
+
+          expect(failed, findsOneWidget);
+          expect(find.text('No Albums for This Artist'), findsNothing);
+          expect(find.byKey(DetailLoadFailedView.retryKey), findsOneWidget);
+          expect(find.text('Search for Coldrain'), findsOneWidget);
+          await dispose(tester);
+        },
+      );
+    }
+
+    testWidgets('a hydration that throws shows Retry and search', (
+      tester,
+    ) async {
+      await open(tester, AppRoutes.artist(_remoteArtistId, name: 'Coldrain'));
+      script.pending.removeAt(0).completeError(StateError('engine broke'));
+      await settle(tester);
+
+      expect(failed, findsOneWidget);
+      expect(find.text('Search for Coldrain'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets(
+      'albums that cannot be read show Retry and search once the request ends',
+      (tester) async {
+        await storeRemoteArtist(withAlbum: false);
+        await open(
+          tester,
+          AppRoutes.artist(_remoteArtistId),
+          overrides: [
+            artistAlbumSectionsProvider(_remoteArtistId).overrideWith(
+              (ref) => Stream<ArtistAlbumSections>.error(StateError('db')),
+            ),
+          ],
+        );
+        await settle(tester);
+        // The request is still running: nothing to fail yet.
+        expect(loading, findsOneWidget);
+
+        script.answer(_succeeded);
+        await settle(tester);
+        expect(failed, findsOneWidget);
+        expect(find.text('Search for Coldrain'), findsOneWidget);
+        await dispose(tester);
+      },
+    );
+
+    testWidgets('an artist that cannot be read shows Retry and search', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        AppRoutes.artist(_remoteArtistId, name: 'Coldrain'),
+        overrides: [
+          artistByIdProvider(_remoteArtistId).overrideWith(
+            (ref) => Stream<ArtistsTableData?>.error(StateError('db')),
+          ),
+        ],
+      );
+      await settle(tester);
+
+      expect(failed, findsOneWidget);
+      expect(find.text('Search for Coldrain'), findsOneWidget);
+      await dispose(tester);
+    });
+
     testWidgets(
       'a library artist that is not stored loads from the server, then fails',
       (tester) async {
@@ -568,6 +657,55 @@ void main() {
       await settle(tester);
       expect(failed, findsNothing);
       expect(find.text('Mayday'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets('an album that cannot be read shows Retry and search', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        AppRoutes.album(_remoteAlbumId, name: 'The Side Effects'),
+        overrides: [
+          albumProvider(_remoteAlbumId).overrideWith(
+            (ref) => Stream<AlbumWithSongs?>.error(StateError('db')),
+          ),
+        ],
+      );
+      await settle(tester);
+
+      expect(failed, findsOneWidget);
+      expect(find.text('Search for The Side Effects'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets('an album artist not in the library opens with its name', (
+      tester,
+    ) async {
+      await storeRemoteAlbum(withSongs: true);
+      await database.libraryDao.upsertProvisionalAlbums([
+        AlbumsTableCompanion.insert(
+          id: _remoteAlbumId,
+          name: 'The Side Effects',
+          artists: const Value([
+            ArtistRef(id: 'ext-deezer-artist-77', name: 'Collaborator'),
+          ]),
+          isExternal: const Value(true),
+          songsHydrated: const Value(true),
+        ),
+      ]);
+      await open(tester, AppRoutes.album(_remoteAlbumId));
+      script.answer(null);
+      await settle(tester);
+
+      await tester.tap(find.text('Collaborator'));
+      await settle(tester);
+      expect(
+        currentRouter.state.uri.queryParameters[AppRoutes.detailNameParam],
+        'Collaborator',
+      );
+      expect(find.text('Loading Remote Artist…'), findsOneWidget);
+      expect(find.text('Collaborator'), findsWidgets);
       await dispose(tester);
     });
 
