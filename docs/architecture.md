@@ -1479,13 +1479,18 @@ Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
 (`lib/src/api/deezer_api_client.dart`) is built by `deezerApiClientProvider`
 through `externalDioFactoryProvider`, so the guard and the call recorder apply,
 with 8-second timeouts. One `DeezerRequestLimiter` per client keeps every
-Deezer feature together under 5 requests per second and 4 in flight. Deezer
-documents a quota of about 50 requests per 5 seconds, but answered code 4
-while Navis started at most 32 per 5 seconds from one IP, so the limit stays
-well below that. Waiting requests start in order, except that foreground
-ones (the artist page and the other pages the user opens) always go before
-`background` ones (Home's New Releases, its artist resolution and the
-Trending chart); background requests start whenever no foreground one waits.
+Deezer feature together under 5 requests per second and 4 in flight, at most
+2 of the 5 for background requests. Deezer documents a quota of about 50
+requests per 5 seconds, but answered code 4 while Navis started at most 32
+per 5 seconds from one IP, and at 5 per second still for 17 of the 106
+requests of a fresh first launch (Home's warm-up with an artist page opened
+during it). The real budget is lower than documented and may be shared with
+the user's server, which also calls Deezer (a server with a Deezer remote
+source searches it for every `search3`), so Navis cannot know it. Waiting
+requests start in order, except that foreground ones (the artist page and
+the other pages the user opens) always go before `background` ones (Home's
+New Releases, its artist resolution and the Trending chart); background
+requests start whenever no foreground one waits and their own rate allows.
 Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
 "code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds, so every
 Deezer request waits it out rather than piling into the quota, and the

@@ -163,7 +163,11 @@ void main() {
 
     test('a waiting foreground request takes the next start of the window', () {
       fakeAsync((async) {
-        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        // Background may fill the window here, to test the order alone.
+        final limiter = DeezerRequestLimiter(
+          elapsed: () => async.elapsed,
+          maxBackgroundPerWindow: 5,
+        );
         final started = <String>[];
         for (var i = 0; i < 8; i++) {
           unawaited(
@@ -211,6 +215,93 @@ void main() {
         async.elapse(const Duration(seconds: 3));
         expect(finished, 6);
         expect(limiter.inFlight, 0);
+      });
+    });
+  });
+
+  group('background rate', () {
+    test('background starts at most 2 requests per second', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final starts = <Duration>[];
+        for (var i = 0; i < 6; i++) {
+          unawaited(
+            limiter.run(() async {
+              starts.add(async.elapsed);
+            }, background: true),
+          );
+        }
+
+        async.flushMicrotasks();
+        expect(starts, hasLength(2));
+        async.elapse(const Duration(milliseconds: 999));
+        expect(starts, hasLength(2));
+        async.elapse(const Duration(milliseconds: 1));
+        expect(starts, hasLength(4));
+        async.elapse(const Duration(seconds: 1));
+        expect(starts, hasLength(6));
+      });
+    });
+
+    test('foreground still uses the whole window beside background', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final started = <String>[];
+        void queue(String name, {bool background = false}) => unawaited(
+          limiter.run(() async {
+            started.add(name);
+          }, background: background),
+        );
+        for (var i = 0; i < 4; i++) {
+          queue('background $i', background: true);
+        }
+        for (var i = 0; i < 4; i++) {
+          queue('foreground $i');
+        }
+
+        async.flushMicrotasks();
+        // Five in the second: two background, then three foreground.
+        expect(started, [
+          'background 0',
+          'background 1',
+          'foreground 0',
+          'foreground 1',
+          'foreground 2',
+        ]);
+        async.elapse(const Duration(seconds: 1));
+        expect(started.sublist(5), [
+          'foreground 3',
+          'background 2',
+          'background 3',
+        ]);
+      });
+    });
+
+    test('a foreground request does not wait for the background rate', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+        final starts = <String, Duration>{};
+        void queue(String name, {bool background = false}) => unawaited(
+          limiter.run(() async {
+            starts[name] = async.elapsed;
+          }, background: background),
+        );
+
+        queue('foreground 0');
+        async.elapse(const Duration(milliseconds: 500));
+        // Two background starts fill the background rate until 1.5 s.
+        for (var i = 0; i < 3; i++) {
+          queue('background $i', background: true);
+        }
+        async.elapse(const Duration(milliseconds: 100));
+        // Two more fill the whole window, which frees up at 1 s.
+        queue('foreground 1');
+        queue('foreground 2');
+        queue('foreground 3');
+
+        async.elapse(const Duration(seconds: 2));
+        expect(starts['foreground 3'], const Duration(seconds: 1));
+        expect(starts['background 2'], const Duration(milliseconds: 1500));
       });
     });
   });
