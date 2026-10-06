@@ -1526,7 +1526,12 @@ fallback.
   are cached by server account (`integrationAccountScopeProvider`, a hash of
   the server URL and username), library artist id and normalized name, so two
   library namesakes or two accounts never share one. They carry a version; a
-  "not on Deezer" cached before loose matching existed is asked again.
+  "not on Deezer" cached before loose matching existed is asked again. Only a
+  decision whose every lookup answered is cached: when an album lookup fails
+  (a quota error, a timeout; a cancellation still propagates), the comparison
+  stops, nothing is cached, and that call answers without the album evidence
+  (no loose match; the namesake with the most fans), so the next visit asks
+  again instead of hiding the artist's Deezer sections for a week.
 - **Top songs sources** (`ArtistTopTrackSources`,
   `features/library/data/artist_top_track_sources.dart`): Deezer
   (`deezer.topSongs`) first, then Last.fm (`lastfm.topSongs`), then none, up

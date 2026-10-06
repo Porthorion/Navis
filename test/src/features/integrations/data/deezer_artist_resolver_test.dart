@@ -14,6 +14,9 @@ class _FakeDeezer extends DeezerApiClient {
   List<DeezerArtist> artists = const [];
   Map<int, List<DeezerAlbum>> albumsByArtist = const {};
   Exception? searchError;
+
+  /// Thrown by the album lookup of the artist with that id.
+  Map<int, Exception> albumErrors = <int, Exception>{};
   int searchCalls = 0;
 
   /// Holds every search until completed.
@@ -45,6 +48,7 @@ class _FakeDeezer extends DeezerApiClient {
     CancelToken? cancelToken,
   }) async {
     albumCalls.add(artistId);
+    if (albumErrors[artistId] case final error?) throw error;
     return albumsByArtist[artistId] ?? const [];
   }
 }
@@ -530,6 +534,150 @@ void main() {
       ..searchError = null
       ..artists = const [DeezerArtist(id: 412, name: 'Queen')];
     expect(await resolver.resolve(artistId: 'q', name: 'Queen'), 412);
+  });
+
+  group('an inconclusive resolution is not cached', () {
+    const quota = DeezerApiException(code: 4, message: 'Quota limit exceeded');
+
+    test('a failed album lookup for a loose match caches nothing', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumsByArtist = {
+          1020109: _albums(['Elephunk']),
+        }
+        ..albumErrors = {1020109: quota};
+      Future<int?> resolve() => resolver.resolve(
+        artistId: 'bep',
+        name: 'The Black Eyed Peas',
+        readLibraryAlbumTitles: () async => ['Elephunk'],
+      );
+
+      expect(await resolve(), isNull);
+
+      // The next visit asks again, and caches what it finds.
+      deezer.albumErrors = {};
+      expect(await resolve(), 1020109);
+      expect(deezer.searchCalls, 2);
+      expect(await resolve(), 1020109);
+      expect(deezer.searchCalls, 2);
+    });
+
+    test('a failed lookup stops comparing the other candidates', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1, name: 'Black Eyed Peas', fanCount: 100),
+          DeezerArtist(id: 2, name: 'Black Eyed Peas', fanCount: 10),
+        ]
+        ..albumsByArtist = {
+          2: _albums(['Elephunk']),
+        }
+        ..albumErrors = {1: quota};
+
+      expect(
+        await resolver.resolve(
+          artistId: 'bep',
+          name: 'The Black Eyed Peas',
+          readLibraryAlbumTitles: () async => ['Elephunk'],
+        ),
+        isNull,
+      );
+      expect(deezer.albumCalls, [1]);
+    });
+
+    test('a failed namesake lookup answers the most fans uncached', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 10, name: 'Nirvana', fanCount: 5000),
+          DeezerArtist(id: 11, name: 'Nirvana', fanCount: 9000000),
+        ]
+        ..albumsByArtist = {
+          10: _albums(['All of Us']),
+        }
+        ..albumErrors = {11: quota};
+      Future<int?> resolve() => resolver.resolve(
+        artistId: 'n',
+        name: 'Nirvana',
+        readLibraryAlbumTitles: () async => ['All of Us'],
+      );
+
+      expect(await resolve(), 11);
+
+      deezer.albumErrors = {};
+      expect(await resolve(), 10);
+      expect(deezer.searchCalls, 2);
+      expect(await resolve(), 10);
+      expect(deezer.searchCalls, 2);
+    });
+
+    test('a transport failure is inconclusive too', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumErrors = {
+          1020109: DioException.connectionTimeout(
+            timeout: const Duration(seconds: 8),
+            requestOptions: RequestOptions(path: 'artist/1020109/albums'),
+          ),
+        };
+      Future<int?> resolve() => resolver.resolve(
+        artistId: 'bep',
+        name: 'The Black Eyed Peas',
+        readLibraryAlbumTitles: () async => ['Elephunk'],
+      );
+
+      expect(await resolve(), isNull);
+      await resolve();
+      expect(deezer.searchCalls, 2);
+    });
+
+    test('a cancelled album lookup still propagates', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumErrors = {
+          1020109: DioException.requestCancelled(
+            requestOptions: RequestOptions(path: 'artist/1020109/albums'),
+            reason: 'left',
+          ),
+        };
+
+      await expectLater(
+        resolver.resolve(
+          artistId: 'bep',
+          name: 'The Black Eyed Peas',
+          readLibraryAlbumTitles: () async => ['Elephunk'],
+        ),
+        throwsA(isA<DioException>()),
+      );
+    });
+
+    test('a loose match sharing no album, all lookups answered, is cached '
+        'as not on Deezer', () async {
+      deezer
+        ..artists = const [
+          DeezerArtist(id: 1020109, name: 'Black Eyed Peas', fanCount: 6110407),
+        ]
+        ..albumsByArtist = {
+          1020109: _albums(['Something Else']),
+        };
+      Future<int?> resolve() => resolver.resolve(
+        artistId: 'bep',
+        name: 'The Black Eyed Peas',
+        readLibraryAlbumTitles: () async => ['Elephunk'],
+      );
+
+      expect(await resolve(), isNull);
+      now = now.add(const Duration(days: 6));
+      expect(await resolve(), isNull);
+      expect(deezer.searchCalls, 1);
+      now = now.add(const Duration(days: 1));
+      await resolve();
+      expect(deezer.searchCalls, 2);
+    });
   });
 
   test('callers resolving the same name at once share one search', () async {

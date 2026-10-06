@@ -30,8 +30,13 @@ import 'package:navis/src/utils/metadata_normalization.dart';
 ///    no loose match is accepted, so a different artist's photo, songs and
 ///    missing albums are never bound to the page on a name alone.
 ///
-/// Request errors propagate and are not cached. Concurrent calls for the same
-/// library artist and name share one resolution.
+/// A failed search propagates and is not cached. A failed album lookup
+/// (anything but a cancellation, which propagates) makes the resolution
+/// inconclusive: no further albums are fetched, nothing is cached, and the
+/// call answers without the album evidence (no loose match; the namesake
+/// with the most fans), so the next call asks again. Only a decision whose
+/// every lookup answered is cached, "not on Deezer" included. Concurrent
+/// calls for the same library artist and name share one resolution.
 class DeezerArtistResolver {
   new({required this._client, required this._cache, this.accountScope = ''});
 
@@ -126,7 +131,7 @@ class DeezerArtistResolver {
         .where((artist) => normalizeMetadata(artist.name) == nameKey)
         .toList();
     _sortByFans(namesakes);
-    final id = switch (namesakes.length) {
+    final (:id, :conclusive) = switch (namesakes.length) {
       0 => await _pickLooseMatch(
         found
             .where((artist) => artistNamesMatchLoosely(name, artist.name))
@@ -134,14 +139,19 @@ class DeezerArtistResolver {
         readLibraryAlbumTitles,
         cancelToken,
       ),
-      1 => namesakes.single.id,
-      _ when readLibraryAlbumTitles == null => namesakes.first.id,
+      1 => (id: namesakes.single.id, conclusive: true),
+      _ when readLibraryAlbumTitles == null => (
+        id: namesakes.first.id,
+        conclusive: true,
+      ),
       _ => await _pickByAlbumOverlap(
         namesakes,
         readLibraryAlbumTitles,
         cancelToken,
       ),
     };
+    // Asked again next time rather than remembered for days.
+    if (!conclusive) return id;
     await _cache.write(
       DeezerCache.artistIdNamespace,
       mappingKey,
@@ -153,40 +163,46 @@ class DeezerArtistResolver {
     return id;
   }
 
-  Future<int> _pickByAlbumOverlap(
+  /// Of [namesakes] (sorted by fans), the one sharing the most album titles
+  /// with the library artist; the first when an album lookup failed.
+  Future<_Pick> _pickByAlbumOverlap(
     List<DeezerArtist> namesakes,
     Future<Iterable<String>> Function() readLibraryAlbumTitles,
     CancelToken? cancelToken,
   ) async {
     final libraryTitles = await _libraryTitleKeys(readLibraryAlbumTitles);
-    if (libraryTitles.isEmpty) return namesakes.first.id;
-    return (await _mostSharedAlbums(
-          namesakes,
-          libraryTitles,
-          cancelToken,
-        ))?.id ??
-        namesakes.first.id;
+    if (libraryTitles.isEmpty) {
+      return (id: namesakes.first.id, conclusive: true);
+    }
+    final (:best, :conclusive) = await _mostSharedAlbums(
+      namesakes,
+      libraryTitles,
+      cancelToken,
+    );
+    return (id: best?.id ?? namesakes.first.id, conclusive: conclusive);
   }
 
   /// Of [candidates] (names equal only loosely), the one sharing the most
-  /// album titles with the library artist, or null when none shares any or
-  /// the library's titles are unknown.
-  Future<int?> _pickLooseMatch(
+  /// album titles with the library artist, or null when none shares any, the
+  /// library's titles are unknown or an album lookup failed.
+  Future<_Pick> _pickLooseMatch(
     List<DeezerArtist> candidates,
     Future<Iterable<String>> Function()? readLibraryAlbumTitles,
     CancelToken? cancelToken,
   ) async {
-    if (candidates.isEmpty || readLibraryAlbumTitles == null) return null;
+    if (candidates.isEmpty || readLibraryAlbumTitles == null) {
+      return (id: null, conclusive: true);
+    }
     final libraryTitles = await _libraryTitleKeys(readLibraryAlbumTitles);
-    if (libraryTitles.isEmpty) return null;
+    if (libraryTitles.isEmpty) return (id: null, conclusive: true);
     _sortByFans(candidates);
-    final best = await _mostSharedAlbums(
+    final (:best, :conclusive) = await _mostSharedAlbums(
       candidates,
       libraryTitles,
       cancelToken,
       minimumOverlap: 1,
     );
-    return best?.id;
+    return (id: best?.id, conclusive: conclusive);
   }
 
   static Future<Set<String>> _libraryTitleKeys(
@@ -199,7 +215,11 @@ class DeezerArtistResolver {
   /// Of the first [maxAlbumOverlapCandidates] of [artists] (sorted by fans),
   /// the one whose Deezer albums share the most titles with [libraryTitles],
   /// at least [minimumOverlap]; equal overlap keeps the one with more fans.
-  Future<DeezerArtist?> _mostSharedAlbums(
+  ///
+  /// When an album lookup fails the comparison stops there, sparing the
+  /// quota requests whose answers would not be used, and the result is
+  /// `(best: null, conclusive: false)`. A cancellation propagates.
+  Future<({DeezerArtist? best, bool conclusive})> _mostSharedAlbums(
     List<DeezerArtist> artists,
     Set<String> libraryTitles,
     CancelToken? cancelToken, {
@@ -208,27 +228,35 @@ class DeezerArtistResolver {
     DeezerArtist? best;
     var bestOverlap = minimumOverlap - 1;
     for (final artist in artists.take(maxAlbumOverlapCandidates)) {
-      var overlap = 0;
+      final List<DeezerAlbum> albums;
       try {
-        final albums = await _client.getArtistAlbums(
+        albums = await _client.getArtistAlbums(
           artist.id,
           cancelToken: cancelToken,
         );
-        overlap = albums
-            .map((album) => normalizeMetadata(album.title))
-            .where(libraryTitles.contains)
-            .toSet()
-            .length;
-      } on DeezerApiException catch (error) {
-        AppLogger.debug('DeezerArtistResolver: albums of ${artist.id}: $error');
+      } on Exception catch (error) {
+        if ((error is DioException && CancelToken.isCancel(error)) ||
+            (cancelToken?.isCancelled ?? false)) {
+          rethrow;
+        }
+        AppLogger.debug(
+          'DeezerArtistResolver: albums of ${artist.id} failed, not caching '
+          'the resolution: $error',
+        );
+        return (best: null, conclusive: false);
       }
+      final overlap = albums
+          .map((album) => normalizeMetadata(album.title))
+          .where(libraryTitles.contains)
+          .toSet()
+          .length;
       // Strictly greater, so equal overlap keeps the artist with more fans.
       if (overlap > bestOverlap) {
         best = artist;
         bestOverlap = overlap;
       }
     }
-    return best;
+    return (best: best, conclusive: true);
   }
 
   static void _sortByFans(List<DeezerArtist> artists) {
@@ -241,6 +269,9 @@ class DeezerArtistResolver {
     });
   }
 }
+
+/// A resolver decision, and whether every lookup it depends on answered.
+typedef _Pick = ({int? id, bool conclusive});
 
 /// Leading articles one name may have and the other lack.
 const Set<String> _leadingArticles = {
