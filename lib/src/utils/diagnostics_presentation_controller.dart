@@ -1026,6 +1026,9 @@ class DiagnosticsPresentationController {
       await waitForFrame();
       return false;
     }
+    if (screen.step != 3) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
     final root = _boundaryElement();
     Element? findInput() => _findElement(
       root,

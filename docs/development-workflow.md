@@ -1628,7 +1628,8 @@ field is scrolled into the lazily built step list first. The response is
 `{"field", "focused"}`. A field that is not shown (the Last.fm key field exists
 only in builds without a bundled key, and both fields only on step 3) or an
 onboarding screen that is not mounted returns 409. Capture the screenshot after
-the keyboard has animated in.
+the keyboard has animated in. The step is checked before any scrolling, so
+requesting a field from another step returns 409 without moving that step.
 
 Clone-only `POST /v1/presentation/release-card` taps a Deezer release card
 through its own tap handler: `{"surface": "missingAlbums" | "newReleases",

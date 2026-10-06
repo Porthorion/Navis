@@ -193,6 +193,27 @@ void main() {
     );
   });
 
+  testWidgets('unavailable focus does not scroll another step', (tester) async {
+    await pumpOnboarding(tester, size: const Size(360, 400));
+    await controller.setOnboardingStep(1);
+    await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey<String>('onboarding-step-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(scrollable.position.maxScrollExtent, greaterThan(0));
+    final before = scrollable.position.pixels;
+    await expectLater(
+      controller.focusOnboardingField('listenBrainzToken'),
+      throwsA(isA<DiagnosticsPresentationUnavailable>()),
+    );
+    expect(scrollable.position.pixels, before);
+  });
+
   testWidgets('a field on another step is unavailable', (tester) async {
     await pumpOnboarding(tester);
     await expectLater(
