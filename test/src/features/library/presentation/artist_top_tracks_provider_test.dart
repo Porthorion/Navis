@@ -289,13 +289,12 @@ void main() {
       overrides: sourceOverrides(policy: _lastFmOnly, lastFm: lastFm),
     );
     await expectLater(seeds(container), throwsStateError);
-    expect(
-      container
-          .read(integrationCallRecorderProvider)
-          .recentSpans()
-          .where((span) => span.name == kTopSongsSourceFetchSpan),
-      hasLength(1),
-    );
+    final span = container
+        .read(integrationCallRecorderProvider)
+        .recentSpans()
+        .singleWhere((span) => span.name == kTopSongsSourceFetchSpan);
+    expect(span.counts['failed'], 1);
+    expect(span.counts['seeds'], 0);
   }, skip: !sqliteAvailable);
 
   group('sources', () {
@@ -335,6 +334,7 @@ void main() {
             .single
             .counts,
         {
+          'failed': 0,
           'seeds': 12,
           'cacheHit': 0,
           'deezer': 1,
@@ -1056,6 +1056,7 @@ void main() {
           'topSongs.serverMatch',
         ]);
         expect(spans['topSongs.sourceFetch'], {
+          'failed': 0,
           'seeds': 3,
           'cacheHit': 0,
           'deezer': 0,
@@ -1092,6 +1093,12 @@ void main() {
 
       expect(section.single, isEmpty);
       expect(all, isEmpty);
+      final span = container
+          .read(integrationCallRecorderProvider)
+          .recentSpans()
+          .singleWhere((span) => span.name == kTopSongsSourceFetchSpan);
+      expect(span.counts['failed'], 0);
+      expect(span.counts['seeds'], 0);
     }, skip: !sqliteAvailable);
   });
 

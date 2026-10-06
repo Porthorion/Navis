@@ -103,7 +103,8 @@ class IntegrationSpan {
 /// per-service counters.
 ///
 /// It exists to answer "is this slow because of Navis or the API" with data.
-/// [recordCall] takes a [Uri] and keeps only its path, so a query string such
+/// [recordCall] takes a [Uri] and keeps only its path, with identifiers after
+/// `/user/` or `/users/` redacted before recording or logging. A query string such
 /// as Last.fm's `api_key` can never reach the buffer, the log or the
 /// diagnostics output. Headers and bodies are not accepted at all.
 class IntegrationCallRecorder {
@@ -119,6 +120,10 @@ class IntegrationCallRecorder {
 
   /// The path is capped so an unexpectedly long one cannot grow the buffer.
   static const _maxPathLength = 200;
+  static final _userPathPattern = RegExp(
+    '(/users?/)[^/]+',
+    caseSensitive: false,
+  );
 
   final int callCapacity;
   final int spanCapacity;
@@ -141,7 +146,7 @@ class IntegrationCallRecorder {
     int? statusCode,
   }) {
     final redactedPath = uri.path.replaceAllMapped(
-      RegExp('(/users?/)[^/]+', caseSensitive: false),
+      _userPathPattern,
       (match) => '${match[1]}*',
     );
     final path = redactedPath.length > _maxPathLength

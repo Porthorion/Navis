@@ -185,6 +185,7 @@ final artistTopTrackSeedsProvider = FutureProvider.autoDispose
       } finally {
         timer.stop();
         recorder.span(kTopSongsSourceFetchSpan, <String, int>{
+          'failed': load == null ? 1 : 0,
           'seeds': load?.seeds.length ?? 0,
           'cacheHit': (load?.cacheHit ?? false) ? 1 : 0,
           'deezer':

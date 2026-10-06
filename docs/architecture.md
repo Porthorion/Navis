@@ -1447,7 +1447,8 @@ switch means "Navis only talks to your server" when off. See
   identifiers after `/user/` or `/users/` are replaced with `*` before path
   truncation, recording and info logging. The Top Songs pipeline records its
   source fetch, local match and server match as
-  spans, including source fetches that throw (zero result counts).
+  spans. Source fetches that throw record `failed: 1` with zero result counts;
+  completed fetches record `failed: 0`, including empty results.
 - **Settings › Integrations**
   (`features/integrations/presentation/integrations_settings_screen.dart`,
   listed under Connection) is where these switches change after setup; the
