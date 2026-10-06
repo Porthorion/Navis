@@ -380,6 +380,15 @@ void main() {
       expect(api.queries, hasLength(22));
       expect(updates.length, greaterThanOrEqualTo(3));
       expect(updates.last.any((track) => track.isMatching), isFalse);
+
+      // The manual mode was for that refresh only: a rebuild for another
+      // reason (here an invalidation) is automatic again, so the unmatched
+      // songs, checked minutes ago, are not searched.
+      c.invalidate(homeTrendingProvider);
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(api.queries, hasLength(22));
     },
   );
 

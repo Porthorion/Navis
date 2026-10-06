@@ -223,12 +223,27 @@ final trendingTrackResolverProvider = Provider<ArtistTopTrackResolver>((ref) {
 /// `manual` for a pull to refresh or a retry, which searches more songs at
 /// once, shows progress and searches unmatched songs again; otherwise as
 /// Home's own refresh after a library sync.
+///
+/// The state is the latest request. A manual request applies only to the
+/// one run it starts: [takeManual] hands it out once, so a later rebuild
+/// for another reason (a switch toggled, the account) runs automatically.
 class HomeTrendingRefreshNotifier extends Notifier<({int epoch, bool manual})> {
+  /// The manual request already handed out. A plain field, not state: the
+  /// provider consumes it while building.
+  int _consumedManualEpoch = -1;
+
   @override
   ({int epoch, bool manual}) build() => (epoch: 0, manual: false);
 
   void refresh({required bool manual}) =>
       state = (epoch: state.epoch + 1, manual: manual);
+
+  /// Whether the latest request is a manual one no run has used yet.
+  bool takeManual() {
+    if (!state.manual || state.epoch == _consumedManualEpoch) return false;
+    _consumedManualEpoch = state.epoch;
+    return true;
+  }
 }
 
 final homeTrendingRefreshProvider =
@@ -284,8 +299,10 @@ final homeTrendingSyncRefreshBridgeProvider = Provider<void>((ref) {
 final homeTrendingProvider = StreamProvider<List<ResolvedArtistTopTrack>>((
   ref,
 ) async* {
-  ref.watch(homeTrendingSyncRefreshBridgeProvider);
-  final manual = ref.watch(homeTrendingRefreshProvider).manual;
+  ref
+    ..watch(homeTrendingSyncRefreshBridgeProvider)
+    ..watch(homeTrendingRefreshProvider);
+  final manual = ref.read(homeTrendingRefreshProvider.notifier).takeManual();
   final scope = ref.watch(integrationAccountScopeProvider);
   final allowed = ref.watch(
     integrationPolicyProvider.select(
