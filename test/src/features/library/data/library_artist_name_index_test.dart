@@ -24,6 +24,31 @@ ArtistsTableData _artist(
 
 void main() {
   group('LibraryArtistNameIndex', () {
+    test(
+      'links a unique loose name but keeps articles and ambiguity safe',
+      () async {
+        final index = await LibraryArtistNameIndex.build([
+          _artist('peas', 'The Black Eyed Peas'),
+          _artist('simon', 'Simon & Garfunkel'),
+          _artist('a', 'A Band'),
+          _artist('the', 'The Band'),
+          _artist('jp', '嵐'),
+        ]);
+        expect(
+          index.lookupAll(['Black Eyed Peas'])['black eyed peas']?.id,
+          'peas',
+        );
+        expect(
+          index.lookupAll(['Simon and Garfunkel'])['simon and garfunkel']?.id,
+          'simon',
+        );
+        expect(index.lookupAll(['Band']), isEmpty);
+        expect(index.lookupAll(['Le Band']), isEmpty);
+        expect(index.lookupAll(['嵐'])['嵐']?.id, 'jp');
+        expect(index.lookupAll(['The Band'])['the band']?.id, 'the');
+      },
+    );
+
     test('matches normalized names', () async {
       final index = await LibraryArtistNameIndex.build([
         _artist('oor', 'ＯＮＥ　ＯＫ　ＲＯＣＫ'),

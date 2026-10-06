@@ -3504,6 +3504,12 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   identity uses the edition key without spaces, computed once per song per
   batch. Changing `normalizeMetadata`
   output requires bumping `metadataKeyVersion`.
+- Related-artist links and name-based artist navigation share a cached
+  `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
+  are tried first; a miss uses `looseArtistKey` (articles, ampersands and
+  spacing) only when exactly one candidate passes `artistNamesMatchLoosely`.
+  Different leading articles never match. Navigation retains exact-name
+  ambiguity; related links retain their server/more-albums/id preference.
 - The artist page reads its albums through `album_artist_index`, a derived
   table of each album's artist keys (`i:<id>` for the album artist and each
   credit, `n:<normalized name>` for a name-only album artist and each credited

@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/src/api/models/deezer_models.dart';
@@ -46,14 +45,7 @@ final libraryArtistNameIndexProvider = Provider<LibraryArtistNameIndexCache>((
   ref,
 ) {
   final database = ref.watch(navisDatabaseProvider);
-  final cache = LibraryArtistNameIndexCache(
-    loadArtists: database.libraryDao.getAllArtists,
-  );
-  final subscription = database
-      .tableUpdates(TableUpdateQuery.onTable(database.artistsTable))
-      .listen((_) => cache.markStale());
-  ref.onDispose(subscription.cancel);
-  return cache;
+  return database.libraryDao.artistNameIndex;
 });
 
 /// The artist's Deezer photo and fan count (`deezer.artistImages`), or null

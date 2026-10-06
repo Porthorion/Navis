@@ -30,6 +30,7 @@ import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
+import 'package:navis/src/features/library/data/library_artist_name_index.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -172,6 +173,17 @@ class DownloadReconciliationSong {
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
   new(super.attachedDatabase);
+
+  /// Shared name index for metadata navigation and related-artist links.
+  late final LibraryArtistNameIndexCache artistNameIndex = _artistNameIndex();
+
+  LibraryArtistNameIndexCache _artistNameIndex() {
+    final cache = LibraryArtistNameIndexCache(loadArtists: getAllArtists);
+    // The database owns this stream and closes it with its query executor.
+    tableUpdates(TableUpdateQuery.onTable(artistsTable))
+        .listen((_) => cache.markStale());
+    return cache;
+  }
 
   static const _safeSqlVariableChunkSize = 500;
 
@@ -2389,12 +2401,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return null;
     }
 
-    final matches = (await getAllArtists())
-        .where(
-          (artist) => _normalizeMetadataLookup(artist.name) == normalizedName,
-        )
-        .toList(growable: false);
-    return matches.length == 1 ? matches.single : null;
+    return (await artistNameIndex.current()).lookupUnique(name);
   }
 
   Future<int> countArtists() async {

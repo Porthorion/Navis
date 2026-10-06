@@ -112,3 +112,59 @@ String _foldWidth(String value) {
   }
   return buffer.toString();
 }
+
+/// Leading articles one name may have and the other lack.
+const Set<String> _leadingArticles = {
+  'the',
+  'a',
+  'an',
+  'los',
+  'las',
+  'le',
+  'la',
+  'les',
+  'die',
+  'der',
+};
+
+final RegExp _ampersand = RegExp(r'[&\uFF06]');
+
+/// A name for loose comparison: its leading article, if any, and the rest
+/// without spaces. "&" reads as "and". The article stays part of the rest
+/// when nothing but an article would remain, so "The The" is never "The".
+({String? article, String rest}) _looseName(String name) {
+  final words = normalizeMetadata(name.replaceAll(_ampersand, ' and '))
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .toList();
+  if (words.length > 1 &&
+      _leadingArticles.contains(words.first) &&
+      !(words.length == 2 && _leadingArticles.contains(words[1]))) {
+    return (article: words.first, rest: words.skip(1).join());
+  }
+  return (article: null, rest: words.join());
+}
+
+/// Whether [libraryName] and [deezerName] may name the same artist although
+/// their [normalizeMetadata] forms differ, for matching only (never shown).
+///
+/// They may differ in one leading article present on one side only ("The",
+/// "A", "An", "Los", "Las", "Le", "La", "Les", "Die", "Der"), in "&" against
+/// "and", and in spacing and punctuation: "The Black Eyed Peas" and "Black
+/// Eyed Peas", "Simon & Garfunkel" and "Simon and Garfunkel", "AC/DC" and
+/// "ACDC". Two different articles ("A Band", "The Band") never match. A
+/// loose match is only a candidate; callers must resolve ambiguity before linking.
+bool artistNamesMatchLoosely(String libraryName, String deezerName) {
+  final library = _looseName(libraryName);
+  final deezer = _looseName(deezerName);
+  if (library.rest.isEmpty || library.rest != deezer.rest) return false;
+  return library.article == null ||
+      deezer.article == null ||
+      library.article == deezer.article;
+}
+
+/// Candidate key for loose artist matching, ignoring a leading article,
+/// spacing and punctuation, and treating ampersands as "and".
+///
+/// Equal keys still require [artistNamesMatchLoosely] and a unique candidate.
+String looseArtistKey(String name) => _looseName(name).rest;

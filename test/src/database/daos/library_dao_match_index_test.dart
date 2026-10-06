@@ -81,6 +81,36 @@ void main() {
 
   tearDown(() => database.close());
 
+  test(
+    'artist navigation reuses a unique loose name and invalidates on writes',
+    () async {
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'peas', name: 'The Black Eyed Peas'),
+      ]);
+      expect(
+        (await database.libraryDao.findOneExactNormalizedArtistByName(
+          'Black Eyed Peas',
+        ))?.id,
+        'peas',
+      );
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'other-peas', name: 'Black-Eyed Peas'),
+      ]);
+      expect(
+        await database.libraryDao.findOneExactNormalizedArtistByName(
+          'BlackEyedPeas',
+        ),
+        isNull,
+      );
+      expect(
+        (await database.libraryDao.findOneExactNormalizedArtistByName(
+          'The Black Eyed Peas',
+        ))?.id,
+        'peas',
+      );
+    },
+  );
+
   Future<void> expectBucketsMatchFullScan(String artistId) async {
     final indexed = await database.libraryDao
         .watchArtistAlbumBuckets(artistId)
