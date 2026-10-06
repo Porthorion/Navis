@@ -158,6 +158,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           (!_isRemote(stored) || albums.isNotEmpty || confirmed)) {
         phase = DetailHydrationPhase.settled;
       }
+      // The page's artist stream must not miss a row the request stored.
+      final artistStream = artistByIdProvider(widget.artistId);
+      if (stored != null && ref.read(artistStream).value == null) {
+        ref.invalidate(artistStream);
+      }
     } on Object {
       requestFailed = true;
     }

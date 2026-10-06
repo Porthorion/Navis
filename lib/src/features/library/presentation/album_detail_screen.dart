@@ -133,10 +133,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) return requestFailed;
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       final stored = await dao.getAlbumById(widget.albumId);
-      if (stored != null &&
-          (!_isRemote(stored) ||
-              await dao.countSongsByAlbum(widget.albumId) > 0)) {
+      final storedSongs = stored == null
+          ? 0
+          : await dao.countSongsByAlbum(widget.albumId);
+      if (stored != null && (!_isRemote(stored) || storedSongs > 0)) {
         phase = DetailHydrationPhase.settled;
+      }
+      // The page's album stream must not miss rows the request stored.
+      final albumStream = albumProvider(widget.albumId);
+      final shown = mounted ? ref.read(albumStream).value : null;
+      if (mounted &&
+          stored != null &&
+          (shown == null || shown.songs.length < storedSongs)) {
+        ref.invalidate(albumStream);
       }
     } on Object {
       requestFailed = true;

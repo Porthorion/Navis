@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:drift/native.dart';
+
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -86,9 +88,14 @@ void main() {
   late NavisDatabase database;
   late FakeLibrarySyncApi api;
   late ProviderContainer container;
+  late Directory directory;
 
   setUp(() async {
-    database = NavisDatabase(NativeDatabase.memory());
+    // The app's own file database: WAL with a read pool, as on devices.
+    // Streams there re-read on a separate reader connection, which an
+    // in-memory database does not have.
+    directory = Directory.systemTemp.createTempSync('remote_page_runtime_');
+    database = NavisDatabase.atPath('${directory.path}/navis.sqlite');
     final repository = ServerConfigRepository(
       database,
       credentials: FakeSyncCredentialStore(),
@@ -124,6 +131,7 @@ void main() {
   tearDown(() async {
     container.dispose();
     await database.close();
+    directory.deleteSync(recursive: true);
   });
 
   test('a remote artist opened by id alone stores the artist and its albums '
@@ -162,6 +170,8 @@ void main() {
       container.read(artistAlbumSectionsProvider(id)).value?.albums,
       hasLength(25),
     );
+    // The artist page's own artist stream sees the stored row.
+    expect(container.read(artistByIdProvider(id)).value?.name, 'coldrain');
   });
 
   test(
