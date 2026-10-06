@@ -6271,7 +6271,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId = snapshot.currentSongId;
     final cacheActivity = _rollingCacheActivities.values.lastOrNull;
     final partialCacheBytes = _partialCacheBytesForSong(songId);
-    final radio = snapshot.radioStation;
+    final radio = _radioStation;
     return <String, Object?>{
       'songId': songId,
       'radio': radio == null
@@ -6284,7 +6284,10 @@ class NavisAudioHandler extends BaseAudioHandler
               'nowPlayingTitle': radio.nowPlayingTitle,
               'nowPlayingArtist': radio.nowPlayingArtist,
               'nowPlayingArtUrl': radio.nowPlayingArtUrl,
-              'publishedArtUri': mediaItem.value?.artUri?.toString(),
+              'publishedArtUri':
+                  mediaItem.value?.id == 'radio:${radio.stationId}'
+                  ? mediaItem.value?.artUri?.toString()
+                  : null,
             },
       'currentIndex': snapshot.currentIndex,
       'queueLength': snapshot.queueSongIds.length,
@@ -9437,9 +9440,16 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+    bool replaceMetadata = false,
+  }) {
     // The composition root calls this on policy changes, including re-enable.
-    _radioMetadataService.refreshPolicy();
+    // Metadata replacements originate in the service itself; refreshing its
+    // policy here would recursively apply the same fallback.
+    if (!replaceMetadata) _radioMetadataService.refreshPolicy();
 
     final current = _radioStation;
     if (current == null) {
@@ -9447,9 +9457,15 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     // Compute what the new RadioStationMetadata fields would be.
-    final nextTitle = title ?? current.nowPlayingTitle;
-    final nextArtist = artist ?? current.nowPlayingArtist;
-    final candidateArtUrl = artUrl ?? current.nowPlayingArtUrl;
+    final nextTitle = replaceMetadata
+        ? title
+        : title ?? current.nowPlayingTitle;
+    final nextArtist = replaceMetadata
+        ? artist
+        : artist ?? current.nowPlayingArtist;
+    final candidateArtUrl = replaceMetadata
+        ? artUrl
+        : artUrl ?? current.nowPlayingArtUrl;
     final candidateUri = candidateArtUrl == null
         ? null
         : Uri.tryParse(candidateArtUrl);
@@ -9474,8 +9490,8 @@ class NavisAudioHandler extends BaseAudioHandler
       stationName: current.stationName,
       streamUrl: current.streamUrl,
       homePageUrl: current.homePageUrl,
-      nowPlayingTitle: title ?? current.nowPlayingTitle,
-      nowPlayingArtist: artist ?? current.nowPlayingArtist,
+      nowPlayingTitle: nextTitle,
+      nowPlayingArtist: nextArtist,
       nowPlayingArtUrl: nextArtUrl,
     );
 

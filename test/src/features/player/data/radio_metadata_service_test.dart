@@ -92,6 +92,7 @@ void main() {
         title: any(named: 'title'),
         artist: any(named: 'artist'),
         artUrl: any(named: 'artUrl'),
+        replaceMetadata: any(named: 'replaceMetadata'),
       ),
     ).thenReturn(null);
   });
@@ -128,6 +129,7 @@ void main() {
           () => handler.updateRadioMetadata(
             title: 'ICY Song',
             artist: 'ICY Artist',
+            replaceMetadata: true,
           ),
         );
         async.elapse(RadioMetadataService.pollingInterval);
@@ -136,6 +138,7 @@ void main() {
           () => handler.updateRadioMetadata(
             title: 'ICY Song',
             artist: 'ICY Artist',
+            replaceMetadata: true,
           ),
         ).called(1);
         async.elapse(RadioMetadataService.pollingInterval * 6);
@@ -192,6 +195,7 @@ void main() {
           () => handler.updateRadioMetadata(
             title: 'Stream Song',
             artist: 'Stream Artist',
+            replaceMetadata: true,
           ),
         );
         async.elapse(RadioMetadataService.pollingInterval);
@@ -200,6 +204,7 @@ void main() {
           () => handler.updateRadioMetadata(
             title: 'Stream Song',
             artist: 'Stream Artist',
+            replaceMetadata: true,
           ),
         ).called(1);
         expect(service.metadataSource, RadioMetadataSource.icy);
@@ -235,6 +240,19 @@ void main() {
           artUrl: null,
         ),
       );
+      service.dispose();
+    });
+  });
+
+  test('disabling lookups without ICY clears the Azuracast source', () {
+    fakeAsync((async) {
+      final service = build();
+      listen(service);
+      settle(async);
+      expect(service.metadataSource, RadioMetadataSource.azuracast);
+      policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+      service.refreshPolicy();
+      expect(service.metadataSource, RadioMetadataSource.none);
       service.dispose();
     });
   });

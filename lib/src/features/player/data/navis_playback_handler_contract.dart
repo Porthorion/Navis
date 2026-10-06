@@ -155,7 +155,15 @@ abstract class NavisPlaybackHandler {
   Future<void> stopRadio();
 
   /// Update live metadata for the current radio station (from Azuracast / ICY).
-  void updateRadioMetadata({String? title, String? artist, String? artUrl});
+  ///
+  /// With [replaceMetadata], null fields clear previous song metadata instead
+  /// of preserving it. Policy-only refreshes leave this false.
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+    bool replaceMetadata = false,
+  });
 
   /// Register a callback that implements the user's preferred mix mode
   /// (SameVibes / Last.fm or legacy Subsonic Instant Mix) for Android Auto's

@@ -480,12 +480,17 @@ class WindowsNavisPlaybackHandler
   Future<void> stopRadio() => _delegate.stopRadio();
 
   @override
-  void updateRadioMetadata({String? title, String? artist, String? artUrl}) =>
-      _delegate.updateRadioMetadata(
-        title: title,
-        artist: artist,
-        artUrl: artUrl,
-      );
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+    bool replaceMetadata = false,
+  }) => _delegate.updateRadioMetadata(
+    title: title,
+    artist: artist,
+    artUrl: artUrl,
+    replaceMetadata: replaceMetadata,
+  );
 
   @override
   void registerPreferredMixCallback(
@@ -741,12 +746,17 @@ class LinuxNavisPlaybackHandler
   Future<void> stopRadio() => _delegate.stopRadio();
 
   @override
-  void updateRadioMetadata({String? title, String? artist, String? artUrl}) =>
-      _delegate.updateRadioMetadata(
-        title: title,
-        artist: artist,
-        artUrl: artUrl,
-      );
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+    bool replaceMetadata = false,
+  }) => _delegate.updateRadioMetadata(
+    title: title,
+    artist: artist,
+    artUrl: artUrl,
+    replaceMetadata: replaceMetadata,
+  );
 
   @override
   void registerPreferredMixCallback(

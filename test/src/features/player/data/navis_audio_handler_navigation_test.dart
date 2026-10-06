@@ -624,6 +624,77 @@ void main() {
     );
   }
 
+  for (final icyTitle in <String?>[null, 'ICY Song', 'ICY Artist - ICY Song']) {
+    test('disabling radio lookups replaces Azuracast with $icyTitle', () async {
+      var allowed = true;
+      final dio = _MockRadioDio();
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          any(),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(),
+          statusCode: 200,
+          data: {
+            'now_playing': {
+              'song': {
+                'title': 'API Song',
+                'artist': 'API Artist',
+                'art': 'https://art.example.invalid/old.jpg',
+              },
+            },
+          },
+        ),
+      );
+      final directory = Directory.systemTemp.createTempSync('radio-disable-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        0,
+        readRadioMetadataAllowed: () => allowed,
+        readRadioArtworkAllowed: (_) => allowed,
+        createRadioMetadataDio: () => dio,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/listen/fixture/stream',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(handler.mediaItem.value!.title, 'API Song');
+      player.currentIcyMetadata = icyTitle == null
+          ? null
+          : IcyMetadata(
+              info: IcyInfo(title: icyTitle, url: null),
+              headers: null,
+            );
+      allowed = false;
+      handler.updateRadioMetadata();
+      final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
+      expect(
+        handler.mediaItem.value!.title,
+        icyTitle == null ? 'Fixture' : 'ICY Song',
+      );
+      expect(
+        handler.mediaItem.value!.artist,
+        icyTitle != null && icyTitle.contains(' - ') ? 'ICY Artist' : 'Fixture',
+      );
+      expect(radio['metadataSource'], icyTitle == null ? 'none' : 'icy');
+      expect(
+        radio['nowPlayingArtist'],
+        icyTitle != null && icyTitle.contains(' - ') ? 'ICY Artist' : null,
+      );
+      expect(radio['nowPlayingArtUrl'], isNull);
+      expect(radio['publishedArtUri'], isNull);
+    });
+  }
+
   group('radio metadata lifecycle', () {
     Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
       Dio? dio,
@@ -732,6 +803,48 @@ void main() {
         },
       );
     }
+
+    test(
+      'diagnostics drops previous station art while the next source loads',
+      () async {
+        final (handler, player) = await setup();
+        handler.updateRadioMetadata(
+          title: 'Old Song',
+          artUrl: 'https://art.example.invalid/old.jpg',
+        );
+        expect(
+          (handler.collectPlaybackDiagnostics()['radio']!
+              as Map)['publishedArtUri'],
+          'https://art.example.invalid/old.jpg',
+        );
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player.loadGate = gate;
+        player.loadEntered = entered;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final switching = handler.playRadioStream(
+          stationId: 'b',
+          stationName: 'Station B',
+          streamUrl: 'https://stream.example.invalid/b',
+        );
+        await entered.future;
+        final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
+        expect(radio['stationId'], 'b');
+        expect(radio['publishedArtUri'], isNull);
+        gate.complete();
+        await switching;
+        handler.updateRadioMetadata(
+          artUrl: 'https://art.example.invalid/new.jpg',
+        );
+        expect(
+          (handler.collectPlaybackDiagnostics()['radio']!
+              as Map)['publishedArtUri'],
+          'https://art.example.invalid/new.jpg',
+        );
+      },
+    );
 
     test('player rebind preserves the displayed metadata source', () async {
       final rebuilt = <_ControllableAudioPlayer>[];

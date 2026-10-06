@@ -217,7 +217,12 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {}
 
   @override
-  void updateRadioMetadata({String? title, String? artist, String? artUrl}) {}
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+    bool replaceMetadata = false,
+  }) {}
 
   @override
   void registerPreferredMixCallback(

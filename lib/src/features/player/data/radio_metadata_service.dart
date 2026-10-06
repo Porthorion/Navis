@@ -118,10 +118,13 @@ class RadioMetadataService {
   void refreshPolicy() {
     if (_activeStationId == null) return;
     if (!_isAllowed()) {
-      if (_pollingTimer != null) {
-        _generation++;
-        _pollingTimer?.cancel();
-        _pollingTimer = null;
+      final needsFallback =
+          _pollingTimer != null ||
+          _metadataSource == RadioMetadataSource.azuracast;
+      _generation++;
+      _pollingTimer?.cancel();
+      _pollingTimer = null;
+      if (needsFallback) {
         _applyIcyMetadata(_latestIcyMetadata ?? _player.icyMetadata);
       }
       return;
@@ -284,11 +287,12 @@ class RadioMetadataService {
   }
 
   void _applyIcyMetadata(IcyMetadata? metadata) {
-    final info = metadata?.info;
-    if (info == null) return;
-
-    final title = info.title;
-    if (title == null || title.isEmpty) return;
+    final title = metadata?.info?.title?.trim();
+    if (title == null || title.isEmpty) {
+      _metadataSource = RadioMetadataSource.none;
+      _handler.updateRadioMetadata(replaceMetadata: true);
+      return;
+    }
 
     // ICY title is often formatted as "Artist - Title".
     String? parsedArtist;
@@ -302,7 +306,11 @@ class RadioMetadataService {
     }
 
     _metadataSource = RadioMetadataSource.icy;
-    _handler.updateRadioMetadata(title: parsedTitle, artist: parsedArtist);
+    _handler.updateRadioMetadata(
+      title: parsedTitle,
+      artist: parsedArtist,
+      replaceMetadata: true,
+    );
   }
 
   /// Dispose resources. Call when the handler is being disposed.
