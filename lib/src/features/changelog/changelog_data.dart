@@ -199,6 +199,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The fullscreen radio artwork shows the radio icon instead of a blank screen when the station art is turned off or cannot load',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A cover that timed out while loading from your server is tried once more instead of staying blank until you reopen the page',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Home sections added in an update now appear even if you reordered or hid sections before',
         type: ChangelogEntryType.fix,
       ),
