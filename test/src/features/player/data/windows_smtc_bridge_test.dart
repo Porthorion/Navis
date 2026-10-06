@@ -10,8 +10,31 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis_windows_smtc/navis_windows_smtc.dart';
+import 'package:navis_windows_smtc/src/smtc_windows_base.dart'
+    show windowsNativeMetadata;
 
 void main() {
+  test('native boundary converts local URIs and refuses remote thumbnails', () {
+    for (final thumbnail in [
+      'file:///C:/cache/radio%20art.png',
+      r'C:\cache\radio art.png',
+      'https://radio.test/art.jpg',
+      'http://radio.test/art.jpg',
+      null,
+    ]) {
+      final native = windowsNativeMetadata(
+        MusicMetadata(title: 'Station', thumbnail: thumbnail),
+      );
+      expect(native.title, 'Station');
+      expect(
+        native.thumbnail,
+        thumbnail != null && !thumbnail.startsWith('http')
+            ? r'C:\cache\radio art.png'
+            : null,
+      );
+    }
+  });
+
   group('WindowsSmtcBridge', () {
     test('maps SMTC button events to playback handler actions', () async {
       final handler = _FakePlaybackHandler(
@@ -169,10 +192,10 @@ void main() {
             'artCacheFile': r'C:\Users\me\AppData\Local\Temp\navis_art_c.jpg',
           },
         ),
-        r'C:\Users\me\AppData\Local\Temp\navis_art_c.jpg',
+        'file:///C:/Users/me/AppData/Local/Temp/navis_art_c.jpg',
       ),
       (
-        'gives Windows the cached cover path with backslashes',
+        'normalizes mixed separators in the cached Windows file URI',
         const MediaItem(
           id: 'song-1',
           title: 'Track',
@@ -180,16 +203,16 @@ void main() {
             'artCacheFile': r'S:\NavisTest\tmp/navis_art_c.jpg',
           },
         ),
-        r'S:\NavisTest\tmp\navis_art_c.jpg',
+        'file:///S:/NavisTest/tmp/navis_art_c.jpg',
       ),
       (
-        'keeps radio artwork without credentials',
+        'refuses remote artwork without a guarded downloader',
         MediaItem(
           id: 'radio',
           title: 'Station',
           artUri: Uri.parse('https://radio.test/art/now.jpg'),
         ),
-        'https://radio.test/art/now.jpg',
+        null,
       ),
     ]) {
       test(name, () async {
@@ -216,6 +239,254 @@ void main() {
         await bridge.dispose();
       });
     }
+
+    test('does not resend unchanged metadata during repeated syncs', () async {
+      final handler = _FakePlaybackHandler(
+        initialSnapshot: const PlaybackSnapshot.idle(),
+        initialMediaItem: const MediaItem(id: 'radio:one', title: 'Station'),
+      );
+      final client = _FakeWindowsSmtcClient();
+      final bridge = WindowsSmtcBridge(
+        handler: handler,
+        createClient: () async => client,
+        isWindowsRuntime: () => true,
+      );
+      await _flushAsync();
+      for (var i = 0; i < 5; i++) {
+        handler.emitSnapshot(handler.snapshot.copyWith(playing: i.isEven));
+        handler.emitMediaItem(handler.currentMediaItem);
+        await _flushAsync();
+      }
+      expect(client.metadataUpdates, 1);
+      expect(client.timelineUpdates, greaterThan(1));
+      handler.emitMediaItem(handler.currentMediaItem!.copyWith(title: 'New'));
+      await _flushAsync();
+      expect(client.metadataUpdates, 2);
+      handler.emitMediaItem(null);
+      await _flushAsync();
+      expect(client.metadataUpdates, 3);
+      await bridge.dispose();
+    });
+
+    for (final radio in [true, false]) {
+      test(
+        'downloads remote artwork once to a local URI (radio: $radio)',
+        () async {
+          final item = MediaItem(
+            id: radio ? 'radio:one' : 'song-1',
+            title: 'Track',
+            artUri: Uri.parse('https://radio.test/art/now.jpg'),
+          );
+          final handler = _FakePlaybackHandler(
+            initialSnapshot: const PlaybackSnapshot.idle(),
+            initialMediaItem: item,
+          );
+          final download = Completer<String?>();
+          var calls = 0;
+          final client = _FakeWindowsSmtcClient();
+          final bridge = WindowsSmtcBridge(
+            handler: handler,
+            createClient: () async => client,
+            isWindowsRuntime: () => true,
+            readArtworkAllowed: (_) => true,
+            fetchArtwork: (_) {
+              calls++;
+              return download.future;
+            },
+          );
+          await _flushAsync();
+          for (var i = 0; i < 5; i++) {
+            handler.emitSnapshot(handler.snapshot);
+            await _flushAsync();
+          }
+          expect(calls, 1);
+          expect(client.lastState?.metadata?.thumbnail, isNull);
+          download.complete(r'C:\cache\radio image.jpg');
+          await _flushAsync();
+          expect(
+            client.lastState?.metadata?.thumbnail,
+            'file:///C:/cache/radio%20image.jpg',
+          );
+          handler.emitSnapshot(handler.snapshot);
+          await _flushAsync();
+          expect(calls, 1);
+          expect(client.metadataUpdates, 2);
+          expect(
+            client.states
+                .map((state) => state.metadata?.thumbnail)
+                .whereType<String>()
+                .every((uri) => uri.startsWith('file:')),
+            isTrue,
+          );
+          await bridge.dispose();
+        },
+      );
+    }
+
+    test(
+      'policy refusal makes no request and publishes no thumbnail',
+      () async {
+        final handler = _FakePlaybackHandler(
+          initialSnapshot: const PlaybackSnapshot.idle(),
+          initialMediaItem: MediaItem(
+            id: 'radio:one',
+            title: 'Station',
+            artUri: Uri.parse('https://radio.test/art.jpg'),
+          ),
+        );
+        var calls = 0;
+        final client = _FakeWindowsSmtcClient();
+        final bridge = WindowsSmtcBridge(
+          handler: handler,
+          createClient: () async => client,
+          isWindowsRuntime: () => true,
+          readArtworkAllowed: (_) => false,
+          fetchArtwork: (_) async {
+            calls++;
+            return r'C:\cache\radio.jpg';
+          },
+        );
+        await _flushAsync();
+        expect(calls, 0);
+        expect(client.lastState?.metadata?.thumbnail, isNull);
+        await bridge.dispose();
+      },
+    );
+
+    test(
+      'policy changes invalidate in-flight art even if re-enabled',
+      () async {
+        final item = MediaItem(
+          id: 'radio:one',
+          title: 'Station',
+          artUri: Uri.parse('https://radio.test/art.jpg'),
+        );
+        final handler = _FakePlaybackHandler(
+          initialSnapshot: const PlaybackSnapshot.idle(),
+          initialMediaItem: item,
+        );
+        var allowed = true;
+        final downloads = <Completer<String?>>[];
+        final client = _FakeWindowsSmtcClient();
+        final bridge = WindowsSmtcBridge(
+          handler: handler,
+          createClient: () async => client,
+          isWindowsRuntime: () => true,
+          readArtworkAllowed: (_) => allowed,
+          fetchArtwork: (_) {
+            final pending = Completer<String?>();
+            downloads.add(pending);
+            return pending.future;
+          },
+        );
+        await _flushAsync();
+        allowed = false;
+        handler.emitSnapshot(handler.snapshot);
+        await _flushAsync();
+        allowed = true;
+        handler.emitSnapshot(handler.snapshot);
+        await _flushAsync();
+        downloads.first.complete(r'C:\cache\stale.jpg');
+        await _flushAsync();
+        expect(client.lastState?.metadata?.thumbnail, isNull);
+        expect(downloads, hasLength(2));
+        downloads.last.complete(r'C:\cache\fresh.jpg');
+        await _flushAsync();
+        expect(
+          client.lastState?.metadata?.thumbnail,
+          'file:///C:/cache/fresh.jpg',
+        );
+        await bridge.dispose();
+      },
+    );
+
+    for (final result in [null, 'https://radio.test/redirect.jpg']) {
+      test(
+        'failed or non-local download never publishes a URL ($result)',
+        () async {
+          final handler = _FakePlaybackHandler(
+            initialSnapshot: const PlaybackSnapshot.idle(),
+            initialMediaItem: MediaItem(
+              id: 'radio:one',
+              title: 'Station',
+              artUri: Uri.parse('https://radio.test/art.jpg'),
+            ),
+          );
+          var calls = 0;
+          final client = _FakeWindowsSmtcClient();
+          final bridge = WindowsSmtcBridge(
+            handler: handler,
+            createClient: () async => client,
+            isWindowsRuntime: () => true,
+            readArtworkAllowed: (_) => true,
+            fetchArtwork: (_) async {
+              calls++;
+              return result;
+            },
+          );
+          await _flushAsync();
+          handler.emitSnapshot(handler.snapshot);
+          await _flushAsync();
+          expect(calls, 1);
+          expect(client.lastState?.metadata?.thumbnail, isNull);
+          expect(client.metadataUpdates, 1);
+          await bridge.dispose();
+        },
+      );
+    }
+
+    test(
+      'station change ignores stale art and bounds active downloads',
+      () async {
+        final first = MediaItem(
+          id: 'radio:one',
+          title: 'First',
+          artUri: Uri.parse('https://radio.test/first.jpg'),
+        );
+        final second = MediaItem(
+          id: 'radio:two',
+          title: 'Second',
+          artUri: Uri.parse('https://radio.test/second.jpg'),
+        );
+        final handler = _FakePlaybackHandler(
+          initialSnapshot: const PlaybackSnapshot.idle(),
+          initialMediaItem: first,
+        );
+        final downloads = <String, Completer<String?>>{};
+        final client = _FakeWindowsSmtcClient();
+        final bridge = WindowsSmtcBridge(
+          handler: handler,
+          createClient: () async => client,
+          isWindowsRuntime: () => true,
+          readArtworkAllowed: (_) => true,
+          fetchArtwork: (item) {
+            final pending = Completer<String?>();
+            downloads[item.id] = pending;
+            return pending.future;
+          },
+        );
+        await _flushAsync();
+        handler.emitMediaItem(second);
+        await _flushAsync();
+        expect(client.lastState?.metadata?.title, 'Second');
+        expect(downloads.keys, ['radio:one']);
+        downloads[first.id]!.complete(r'C:\cache\first.jpg');
+        await _flushAsync();
+        expect(client.lastState?.metadata?.thumbnail, isNull);
+        expect(downloads.keys, ['radio:one', 'radio:two']);
+        downloads[second.id]!.complete(r'C:\cache\second.jpg');
+        await _flushAsync();
+        expect(
+          client.lastState?.metadata?.thumbnail,
+          'file:///C:/cache/second.jpg',
+        );
+        expect(
+          client.states.map((state) => state.metadata?.thumbnail),
+          isNot(contains('file:///C:/cache/first.jpg')),
+        );
+        await bridge.dispose();
+      },
+    );
 
     test('disables unavailable controls for radio snapshots', () async {
       final handler = _FakePlaybackHandler(
@@ -420,9 +691,59 @@ void main() {
         expect(client.states, hasLength(2));
         expect(client.states.last.enabled, isTrue);
         expect(client.states.last.status, PlaybackStatus.playing);
+        expect(client.metadataUpdates, 1);
         await bridge.dispose();
       },
     );
+
+    test('retries metadata after a failed native apply', () async {
+      final handler = _FakePlaybackHandler(
+        initialSnapshot: const PlaybackSnapshot.idle(),
+        initialMediaItem: const MediaItem(id: 'song-1', title: 'Track'),
+      );
+      final client = _FailOnceWindowsSmtcClient();
+      final bridge = WindowsSmtcBridge(
+        handler: handler,
+        createClient: () async => client,
+        isWindowsRuntime: () => true,
+      );
+      await _flushAsync();
+      expect(client.metadataUpdates, 1);
+      handler.emitSnapshot(handler.snapshot);
+      await _flushAsync();
+      expect(client.metadataUpdates, 2);
+      handler.emitSnapshot(handler.snapshot);
+      await _flushAsync();
+      expect(client.metadataUpdates, 2);
+      await bridge.dispose();
+    });
+
+    test('artwork completing after disposal cannot publish', () async {
+      final handler = _FakePlaybackHandler(
+        initialSnapshot: const PlaybackSnapshot.idle(),
+        initialMediaItem: MediaItem(
+          id: 'radio:one',
+          title: 'Station',
+          artUri: Uri.parse('https://radio.test/art.jpg'),
+        ),
+      );
+      final pending = Completer<String?>();
+      final client = _FakeWindowsSmtcClient();
+      final bridge = WindowsSmtcBridge(
+        handler: handler,
+        createClient: () async => client,
+        isWindowsRuntime: () => true,
+        readArtworkAllowed: (_) => true,
+        fetchArtwork: (_) => pending.future,
+      );
+      await _flushAsync();
+      await bridge.dispose();
+      final writes = client.states.length;
+      pending.complete(r'C:\cache\art.jpg');
+      await _flushAsync();
+      expect(client.states, hasLength(writes));
+      expect(client.states.last.metadata?.thumbnail, isNull);
+    });
 
     test('continues without SMTC when native initialization fails', () async {
       final handler = _FakePlaybackHandler(
@@ -459,6 +780,7 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   WindowsSmtcState? lastState;
   final List<WindowsSmtcState> states = <WindowsSmtcState>[];
   int timelineUpdates = 0;
+  int metadataUpdates = 0;
   bool disposed = false;
 
   @override
@@ -495,6 +817,20 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
     lastState = state;
     states.add(state);
     timelineUpdates += 1;
+    if (state.updateMetadata) metadataUpdates++;
+  }
+}
+
+class _FailOnceWindowsSmtcClient extends _FakeWindowsSmtcClient {
+  bool _failNextWrite = true;
+
+  @override
+  Future<void> applyState(WindowsSmtcState state) async {
+    await super.applyState(state);
+    if (_failNextWrite) {
+      _failNextWrite = false;
+      throw StateError('native apply failed');
+    }
   }
 }
 

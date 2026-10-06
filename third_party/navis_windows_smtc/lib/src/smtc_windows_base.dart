@@ -19,6 +19,7 @@ class WindowsSmtcState {
     required this.shuffleEnabled,
     required this.repeatMode,
     this.metadata,
+    this.updateMetadata = true,
   });
 
   final bool enabled;
@@ -28,6 +29,9 @@ class WindowsSmtcState {
   final bool shuffleEnabled;
   final RepeatMode repeatMode;
   final MusicMetadata? metadata;
+
+  /// False for playback-only updates; null metadata otherwise clears the session.
+  final bool updateMetadata;
 }
 
 /// Navis-owned wrapper for Windows System Media Transport Controls.
@@ -115,11 +119,15 @@ class WindowsSmtcSession {
         internal: _internal,
         repeatMode: state.repeatMode.asString,
       );
+      if (!state.updateMetadata) return;
       final metadata = state.metadata;
       if (metadata == null) {
         await api.smtcClearMetadata(internal: _internal);
       } else {
-        await api.smtcUpdateMetadata(internal: _internal, metadata: metadata);
+        await api.smtcUpdateMetadata(
+          internal: _internal,
+          metadata: windowsNativeMetadata(metadata),
+        );
       }
     });
   }
@@ -140,4 +148,31 @@ class WindowsSmtcSession {
     _internal.dispose();
     RustLib.dispose();
   }
+}
+
+/// Converts local file URIs to the paths required by WinRT StorageFile.
+/// Remote thumbnails are refused even if a caller bypasses Navis's bridge.
+MusicMetadata windowsNativeMetadata(MusicMetadata metadata) {
+  final thumbnail = metadata.thumbnail;
+  final uri = thumbnail == null ? null : Uri.tryParse(thumbnail);
+  String? path;
+  if (uri?.scheme == 'file') {
+    try {
+      path = uri!.toFilePath(windows: true);
+    } on UnsupportedError {
+      // An unusable local URI leaves the session with text only.
+    } on ArgumentError {
+      // Malformed file URI.
+    }
+  } else if (uri != null && uri.scheme != 'http' && uri.scheme != 'https') {
+    // Existing callers can still supply an absolute Windows path.
+    path = thumbnail;
+  }
+  return MusicMetadata(
+    title: metadata.title,
+    artist: metadata.artist,
+    album: metadata.album,
+    albumArtist: metadata.albumArtist,
+    thumbnail: path,
+  );
 }

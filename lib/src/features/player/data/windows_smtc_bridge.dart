@@ -17,6 +17,8 @@ class WindowsSmtcBridge {
   new({
     required NavisPlaybackHandler handler,
     WindowsSmtcClientFactory? createClient,
+    this._fetchArtwork,
+    this._readArtworkAllowed,
     bool Function()? isWindowsRuntime,
     this._timelineInterval = const Duration(seconds: 1),
   }) : _handler = handler,
@@ -32,6 +34,15 @@ class WindowsSmtcBridge {
   final WindowsSmtcClientFactory _createClient;
   final bool Function() _isWindowsRuntime;
   final Duration _timelineInterval;
+  final Future<String?> Function(MediaItem)? _fetchArtwork;
+  final bool Function(MediaItem)? _readArtworkAllowed;
+  (String, String, String?, String?, Uri?, bool)? _artworkIdentity;
+  int _artworkGeneration = 0;
+  int? _attemptedArtworkGeneration;
+  bool _artworkFetchActive = false;
+  String? _resolvedArtworkPath;
+  MusicMetadata? _lastAppliedMetadata;
+  bool _hasAppliedMetadata = false;
 
   WindowsSmtcClient? _smtc;
   PlaybackSnapshot _latestSnapshot;
@@ -234,43 +245,52 @@ class WindowsSmtcBridge {
       _ => PlaybackStatus.paused,
     };
 
-    final state = WindowsSmtcState(
-      enabled: active,
-      config: SMTCConfig(
-        playEnabled: active && capabilities.canPlay,
-        pauseEnabled: active && capabilities.canPause,
-        stopEnabled: active && capabilities.canStop,
-        nextEnabled: active && capabilities.canSkipNext,
-        prevEnabled: active && capabilities.canSkipPrevious,
-        fastForwardEnabled: active && capabilities.canSeek,
-        rewindEnabled: active && capabilities.canSeek,
-      ),
-      status: status,
-      timeline: PlaybackTimeline(
-        startTimeMs: 0,
-        endTimeMs: duration.isNegative ? 0 : duration.inMilliseconds,
-        positionMs: position.inMilliseconds,
-        minSeekTimeMs: 0,
-        maxSeekTimeMs: capabilities.canSeek ? duration.inMilliseconds : null,
-      ),
-      shuffleEnabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
-      repeatMode: switch (snapshot.repeatMode) {
-        AudioServiceRepeatMode.none => RepeatMode.none,
-        AudioServiceRepeatMode.one => RepeatMode.track,
-        AudioServiceRepeatMode.all ||
-        AudioServiceRepeatMode.group => RepeatMode.list,
-      },
-      metadata: item == null
-          ? null
-          : MusicMetadata(
-              title: item.title,
-              artist: item.artist,
-              album: item.album,
-              albumArtist: item.artist,
-              thumbnail: _systemArtwork(item),
-            ),
-    );
-    final write = _stateWrites.then((_) => smtc.applyState(state));
+    final thumbnail = _systemArtwork(item);
+    final metadata = item == null
+        ? null
+        : MusicMetadata(
+            title: item.title,
+            artist: item.artist,
+            album: item.album,
+            albumArtist: item.artist,
+            thumbnail: thumbnail,
+          );
+    final write = _stateWrites.then((_) async {
+      if (_isDisposed) return;
+      final state = WindowsSmtcState(
+        enabled: active,
+        config: SMTCConfig(
+          playEnabled: active && capabilities.canPlay,
+          pauseEnabled: active && capabilities.canPause,
+          stopEnabled: active && capabilities.canStop,
+          nextEnabled: active && capabilities.canSkipNext,
+          prevEnabled: active && capabilities.canSkipPrevious,
+          fastForwardEnabled: active && capabilities.canSeek,
+          rewindEnabled: active && capabilities.canSeek,
+        ),
+        status: status,
+        timeline: PlaybackTimeline(
+          startTimeMs: 0,
+          endTimeMs: duration.isNegative ? 0 : duration.inMilliseconds,
+          positionMs: position.inMilliseconds,
+          minSeekTimeMs: 0,
+          maxSeekTimeMs: capabilities.canSeek ? duration.inMilliseconds : null,
+        ),
+        shuffleEnabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
+        repeatMode: switch (snapshot.repeatMode) {
+          AudioServiceRepeatMode.none => RepeatMode.none,
+          AudioServiceRepeatMode.one => RepeatMode.track,
+          AudioServiceRepeatMode.all ||
+          AudioServiceRepeatMode.group => RepeatMode.list,
+        },
+        metadata: metadata,
+        updateMetadata:
+            !_hasAppliedMetadata || metadata != _lastAppliedMetadata,
+      );
+      await smtc.applyState(state);
+      _lastAppliedMetadata = metadata;
+      _hasAppliedMetadata = true;
+    });
     // Keep the state pipe usable after a failed native call. The failed call
     // itself is still reported below, while the next authoritative snapshot
     // is allowed to repair the Windows session.
@@ -297,19 +317,66 @@ class WindowsSmtcBridge {
     return _artworkPath;
   }
 
-  /// The local cover file once it is cached, otherwise an http(s) artwork
-  /// URL without account credentials (radio). A Subsonic cover URL is never
-  /// handed to Windows.
-  String? _systemArtwork(MediaItem item) {
+  /// SMTC receives local file URIs only. Remote loads share the app's guarded
+  /// artwork cache, while timeline updates continue with text and no thumbnail.
+  String? _systemArtwork(MediaItem? item) {
+    final allowed = item != null && (_readArtworkAllowed?.call(item) ?? false);
+    final identity = item == null
+        ? null
+        : (item.id, item.title, item.artist, item.album, item.artUri, allowed);
+    if (identity != _artworkIdentity) {
+      _artworkIdentity = identity;
+      _artworkGeneration++;
+      _resolvedArtworkPath = null;
+    }
+    if (item == null) return null;
     final cached = systemArtFile(item);
-    if (cached != null) return _windowsArtworkPath(cached);
+    if (cached != null) return _localArtworkUri(cached);
     final uri = item.artUri;
     if (uri == null ||
         !(uri.scheme == 'https' || uri.scheme == 'http') ||
-        uriCarriesCredentials(uri)) {
+        uri.host.isEmpty ||
+        uriCarriesCredentials(uri) ||
+        !allowed) {
+      _resolvedArtworkPath = null;
       return null;
     }
-    return uri.toString();
+    final resolved = _resolvedArtworkPath;
+    if (resolved != null) return _localArtworkUri(resolved);
+    if (!_artworkFetchActive &&
+        _attemptedArtworkGeneration != _artworkGeneration &&
+        _fetchArtwork != null) {
+      _attemptedArtworkGeneration = _artworkGeneration;
+      _artworkFetchActive = true;
+      unawaited(_resolveArtwork(item, _artworkGeneration));
+    }
+    return null;
+  }
+
+  String? _localArtworkUri(String path) {
+    // A downloader must return an absolute local path, never another URL.
+    if (!p.windows.isAbsolute(path)) return null;
+    return Uri.file(_windowsArtworkPath(path), windows: true).toString();
+  }
+
+  Future<void> _resolveArtwork(MediaItem item, int generation) async {
+    try {
+      final path = await _fetchArtwork!(item);
+      if (!_isDisposed &&
+          generation == _artworkGeneration &&
+          (_readArtworkAllowed?.call(item) ?? false)) {
+        _resolvedArtworkPath = path;
+      }
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC artwork load failed: $error\n$stackTrace',
+      );
+    } finally {
+      _artworkFetchActive = false;
+      // A superseded load can finish caching, but cannot publish. Start only
+      // the latest queued artwork after it releases this bridge's single slot.
+      if (!_isDisposed) unawaited(_syncState());
+    }
   }
 
   void _handlePlaybackPosition(Duration position) {

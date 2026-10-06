@@ -114,6 +114,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   bool Function()? readRadioMetadataAllowed,
   bool Function(Uri uri)? readRadioArtworkAllowed,
   Dio Function()? createRadioMetadataDio,
+  Future<String?> Function(MediaItem)? fetchWindowsArtwork,
+  bool Function(MediaItem)? readWindowsArtworkAllowed,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -152,7 +154,11 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   if (_isWindowsRuntime) {
     // Windows: bypass audio_service, bridge to SMTC directly.
     initFuture = Future<NavisPlaybackHandler>.value(
-      WindowsNavisPlaybackHandler(createBaseHandler()),
+      WindowsNavisPlaybackHandler(
+        createBaseHandler(),
+        fetchArtwork: fetchWindowsArtwork,
+        readArtworkAllowed: readWindowsArtworkAllowed,
+      ),
     );
   } else if (_isLinuxRuntime) {
     // Linux: bypass audio_service, bridge to MPRIS D-Bus directly.
@@ -239,8 +245,16 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
 
 class WindowsNavisPlaybackHandler
     implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
-  new(this._delegate) {
-    _smtcBridge = WindowsSmtcBridge(handler: this);
+  new(
+    this._delegate, {
+    Future<String?> Function(MediaItem)? fetchArtwork,
+    bool Function(MediaItem)? readArtworkAllowed,
+  }) {
+    _smtcBridge = WindowsSmtcBridge(
+      handler: this,
+      fetchArtwork: fetchArtwork,
+      readArtworkAllowed: readArtworkAllowed,
+    );
   }
 
   final NavisAudioHandler _delegate;

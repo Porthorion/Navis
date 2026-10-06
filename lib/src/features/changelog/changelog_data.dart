@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Windows no longer freezes while playing internet radio with station artwork',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio diagnostics hide artwork URLs and credentials while keeping artwork comparisons available',
         type: ChangelogEntryType.fix,
       ),

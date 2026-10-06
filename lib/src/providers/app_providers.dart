@@ -55,6 +55,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/guarded_system_artwork_loader.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -1050,6 +1051,13 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
     await sessionHydration;
     await connectivityHydration;
+    final windowsArtwork = GuardedSystemArtworkLoader(
+      readCacheManager: () => ref.read(coverArtCacheManagerProvider),
+      readPolicy: () => ref.mounted
+          ? ref.read(integrationPolicyProvider)
+          : const IntegrationPolicy.denyAll(),
+      readServerHost: () => ref.mounted ? ref.read(serverHostProvider) : null,
+    );
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -1108,6 +1116,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
+      fetchWindowsArtwork: windowsArtwork.fetch,
+      readWindowsArtworkAllowed: windowsArtwork.isAllowed,
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),
