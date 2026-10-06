@@ -3505,7 +3505,9 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   never when that would turn a unique match ambiguous. Radio recording
   identity uses the edition key without spaces, computed once per song per
   batch. Changing `normalizeMetadata`
-  output requires bumping `metadataKeyVersion`.
+  output requires bumping `metadataKeyVersion`. Last.fm validates both its
+  resolved artist and per-track credits with this Unicode-aware fuzzy key,
+  so unrelated CJK names are rejected and Latin accents fold consistently.
 - Related-artist links and name-based artist navigation share a cached
   `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
   are tried first; a miss uses `looseArtistKey` (articles, ampersands and

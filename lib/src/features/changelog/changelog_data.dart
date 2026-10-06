@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Last.fm artist checks now distinguish Japanese names and accept accent variants such as Sigur Rós and Sigur Ros',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Matching and search now fold half-width Japanese kana and decomposed voicing marks, and live editions keep locations such as Ft. Worth',
         type: ChangelogEntryType.fix,
       ),
