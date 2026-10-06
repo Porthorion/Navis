@@ -279,6 +279,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> stop() => _mutate(() async {
+    await _hangIf('stop');
     isPlaying = false;
     state = ProcessingState.idle;
   });
@@ -607,8 +608,7 @@ void main() {
         expect(requests, initiallyAllowed ? 1 : 0);
         allowed = false;
         handler.updateRadioMetadata();
-        // Let the existing poll observe the disabled policy before re-enabling.
-        await Future<void>.delayed(RadioMetadataService.pollingInterval);
+        // The policy refresh stops polling synchronously.
         final before = requests;
         allowed = true;
         handler.updateRadioMetadata();
@@ -623,6 +623,150 @@ void main() {
       },
     );
   }
+
+  group('radio metadata lifecycle', () {
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
+      Dio? dio,
+      List<_ControllableAudioPlayer>? rebuilt,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+    }) async {
+      final directory = Directory.systemTemp.createTempSync('radio-lifecycle-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        0,
+        readRadioMetadataAllowed: () => dio != null,
+        createRadioMetadataDio: dio == null ? null : () => dio,
+        readRadioArtworkAllowed: (_) => true,
+        rebuiltPlayers: rebuilt,
+        timeouts: timeouts,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'Station A',
+        streamUrl: 'https://radio.example.invalid/listen/a/stream',
+      );
+      return (handler, player);
+    }
+
+    for (final failLoad in [false, true]) {
+      test(
+        'station A late poll is dropped ${failLoad ? 'after B load failure' : 'during B load'}',
+        () async {
+          final dio = _MockRadioDio();
+          final pending = Completer<Response<Map<String, dynamic>>>();
+          when(
+            () => dio.get<Map<String, dynamic>>(
+              any(),
+              options: any(named: 'options'),
+            ),
+          ).thenAnswer((_) => pending.future);
+          final (handler, player) = await setup(dio: dio);
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          if (failLoad) {
+            player.failLoadSongId = 'radio:b';
+          } else {
+            player.loadGate = gate;
+            player.loadEntered = entered;
+          }
+          if (!failLoad) {
+            addTearDown(() {
+              if (!gate.isCompleted) gate.complete();
+            });
+          }
+          final switching = handler.playRadioStream(
+            stationId: 'b',
+            stationName: 'Station B',
+            streamUrl: 'https://stream.example.invalid/b',
+          );
+          if (failLoad) {
+            await expectLater(switching, throwsStateError);
+          } else {
+            await entered.future;
+          }
+          // Finish A's in-flight request while B has not started listening.
+          pending.complete(
+            Response<Map<String, dynamic>>(
+              requestOptions: RequestOptions(),
+              statusCode: 200,
+              data: {
+                'now_playing': {
+                  'song': {
+                    'title': 'Old Song',
+                    'artist': 'Old Artist',
+                    'art': 'https://art.example.invalid/old.jpg',
+                  },
+                },
+              },
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+          if (failLoad) {
+            // Wait one interval to prove the failed load stopped A's timer.
+            await Future<void>.delayed(
+              RadioMetadataService.pollingInterval +
+                  const Duration(milliseconds: 50),
+            );
+            handler.updateRadioMetadata();
+            verify(
+              () => dio.get<Map<String, dynamic>>(
+                any(),
+                options: any(named: 'options'),
+              ),
+            ).called(1);
+            expect(handler.snapshot.radioStation, isNull);
+          } else {
+            expect(handler.snapshot.radioStation!.nowPlayingTitle, isNull);
+            expect(handler.snapshot.radioStation!.nowPlayingArtUrl, isNull);
+            expect(handler.mediaItem.value!.title, isNot('Old Song'));
+            final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
+            expect(radio['metadataSource'], 'none');
+            gate.complete();
+            await switching;
+          }
+        },
+      );
+    }
+
+    test('player rebind preserves the displayed metadata source', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player) = await setup(
+        rebuilt: rebuilt,
+        timeouts: const NavisPlaybackTimeouts(
+          reset: Duration(milliseconds: 50),
+        ),
+      );
+      player.currentIcyMetadata = IcyMetadata(
+        info: IcyInfo(title: 'Artist - Song', url: null),
+        headers: null,
+      );
+      await handler.stopRadio();
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'Station A',
+        streamUrl: 'https://stream.example.invalid/a',
+      );
+      player.hang.add('stop');
+      await expectLater(
+        handler.playRadioStream(
+          stationId: 'b',
+          stationName: 'Station B',
+          streamUrl: 'https://stream.example.invalid/b',
+        ),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+      expect(rebuilt, hasLength(1));
+      final radio = handler.collectPlaybackDiagnostics()['radio']! as Map;
+      expect(radio['nowPlayingTitle'], 'Song');
+      expect(radio['metadataSource'], 'icy');
+      player.hang.clear();
+    });
+  });
 
   group('radio artwork publication', () {
     const ownArt = 'https://music.example.org:4533/rest/getCoverArt?id=r1';
@@ -711,6 +855,8 @@ void main() {
         expect(radio['nowPlayingArtUrl'], isNull);
         expect(radio['publishedArtUri'], isNull);
         expect(radio['metadataSource'], 'icy');
+        expect(handler.mediaItem.value!.title, 'ICY Song');
+        expect(handler.mediaItem.value!.artist, 'ICY Artist');
       },
     );
 

@@ -3066,6 +3066,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _rebindRadioMetadataServiceToActivePlayer() {
+    final metadataSource = _radioMetadataService.metadataSource;
     _radioMetadataService.dispose();
     _radioMetadataService = _newRadioMetadataService();
     if (_radioStation != null) {
@@ -3075,6 +3076,7 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       _radioMetadataService.startListening(
         stationId: _radioStation!.stationId,
+        initialMetadataSource: metadataSource,
         azuracastApiUrl: azuraInfo?.$1,
         stationShortName: azuraInfo?.$2,
       );
@@ -9293,6 +9295,9 @@ class NavisAudioHandler extends BaseAudioHandler
           );
         }
 
+        // Invalidate old polls and ICY listeners before publishing the new
+        // station, including while the new source is still loading.
+        _radioMetadataService.stop();
         _radioStation = RadioStationMetadata(
           stationId: stationId,
           stationName: stationName,
@@ -9326,6 +9331,7 @@ class NavisAudioHandler extends BaseAudioHandler
             error,
             stackTrace,
           );
+          _radioMetadataService.stop();
           _radioStation = null;
           _completeQueueLoad(
             generation,
@@ -9478,8 +9484,8 @@ class NavisAudioHandler extends BaseAudioHandler
     // placeholder shows and AudioService has nothing to fetch.
     final updatedItem = MediaItem(
       id: 'radio:${current.stationId}',
-      title: title ?? current.stationName,
-      artist: artist ?? current.stationName,
+      title: nextTitle ?? current.stationName,
+      artist: nextArtist ?? current.stationName,
       artUri: nextArtUrl != null ? candidateUri : null,
       extras: <String, Object?>{
         'isRadio': true,

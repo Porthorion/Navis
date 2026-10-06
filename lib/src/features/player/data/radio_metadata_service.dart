@@ -66,13 +66,17 @@ class RadioMetadataService {
   /// If [azuracastApiUrl] is provided (e.g. `https://radio.example.com`),
   /// the service will poll `/api/nowplaying/{stationShortName}` for metadata.
   /// Otherwise, it falls back to ICY metadata from the stream.
+  /// [initialMetadataSource] preserves the displayed metadata's source when
+  /// rebinding the same station to a replacement player.
   void startListening({
     required String stationId,
+    RadioMetadataSource initialMetadataSource = RadioMetadataSource.none,
     String? azuracastApiUrl,
     String? stationShortName,
   }) {
     stop();
     _activeStationId = stationId;
+    _metadataSource = initialMetadataSource;
 
     // Try Azuracast polling first.
     if (azuracastApiUrl != null &&

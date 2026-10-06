@@ -141,6 +141,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Switching radio stations no longer shows the previous station’s song, and changing artwork permissions keeps the current song on the lock screen',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio now-playing lookups resume when you turn the integration back on while a station is playing',
         type: ChangelogEntryType.fix,
       ),

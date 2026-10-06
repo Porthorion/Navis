@@ -1394,6 +1394,11 @@ switch means "Navis only talks to your server" when off. See
   API for that station and immediately apply the latest ICY title. A station
   with a successful API response keeps polling through transient failures.
   Requests from an earlier station/listening generation cannot publish metadata.
+  Switching stations stops metadata listeners before replacing the station or
+  awaiting its source load; a failed source load also stops them. Policy-driven
+  artwork refreshes retain the current song title and artist in the system media
+  item. Rebinding the same station to a replacement player preserves the source
+  of its displayed metadata until a fresh update arrives.
   Playback diagnostics report the active radio station, stream host only, last
   applied metadata source, displayed metadata/artwork and the actual published
   media-item artwork URI;
