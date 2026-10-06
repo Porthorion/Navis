@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates and single-character artists match consistently',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Last.fm artist checks now distinguish Japanese names and accept accent variants such as Sigur Rós and Sigur Ros',
         type: ChangelogEntryType.fix,
       ),

@@ -1879,6 +1879,30 @@ void main() {
       },
     );
 
+    test(
+      'a below-threshold same-edition tie cannot displace a passing match',
+      () async {
+        expect(
+          await mapRecommendation(
+            title: 'Wonder (Japanese Version)',
+            searchResults: const [
+              Song(
+                id: 'passing',
+                title: 'Wonder',
+                artist: 'ONE FOUR FIVE SIX SEVEN EIGHT NINE',
+              ),
+              Song(
+                id: 'weak',
+                title: 'Wonder (Japanese Version)',
+                artist: 'ONE FOUR FIVE SIX SEVEN EIGHT NINE TEN',
+              ),
+            ],
+          ),
+          ['passing'],
+        );
+      },
+    );
+
     test('a plain recommendation maps to the plain song', () async {
       expect(
         await mapRecommendation(

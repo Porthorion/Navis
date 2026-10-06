@@ -2706,8 +2706,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// The only entry of [matches], which share [name]'s normalized key, or
-  /// else the only one that is also the same edition as [name] ("Wonder
-  /// (Japanese Version)" rather than "Wonder"). Null when still ambiguous.
+  /// else a candidate with the same edition as [name] ("Wonder
+  /// (Japanese Version)" rather than "Wonder"). Within that edition, prefer
+  /// the exact raw name, then the first candidate. Null if no edition matches.
   static T? _singleOrSameEdition<T>(
     List<T> matches,
     String name,
@@ -2720,7 +2721,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           (match) => normalizeMetadataKeepingEdition(nameOf(match)) == edition,
         )
         .toList(growable: false);
-    return sameEdition.length == 1 ? sameEdition.single : null;
+    if (sameEdition.isEmpty) return null;
+    return sameEdition.firstWhere(
+      (match) => nameOf(match) == name,
+      orElse: () => sameEdition.first,
+    );
   }
 
   /// Return a map of albumId → set of songIds for the given album IDs.
@@ -3682,7 +3687,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ).map((row) => row.read<String>('a')).get();
       for (final key in keys) {
         if (artistKeys.any(
-              (artist) => key.contains(artist) || artist.contains(key),
+              (artist) =>
+                  key == artist ||
+                  (key.length >= 2 &&
+                      artist.length >= 2 &&
+                      (key.contains(artist) || artist.contains(key))),
             ) ||
             key.split(' ').any(artistTokens.contains)) {
           matchedArtists.add(key);
@@ -3743,11 +3752,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     for (final artist in artistKeys) {
       conditions.add(
-        "(t.match_artist <> '' AND (t.match_artist = ? "
-        'OR instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0))',
+        "(t.match_artist = ? OR (length(t.match_artist) >= 2 AND ? >= 2 "
+        'AND (instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0)))',
       );
       variables
         ..add(Variable<String>(artist))
+        ..add(Variable<int>(artist.length))
         ..add(Variable<String>(artist))
         ..add(Variable<String>(artist));
     }

@@ -3477,7 +3477,8 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or
-  share a word. A snapshot built from those makes the same matches as one
+  share a word. Artist keys shorter than two characters require equality
+  in both the DAO and snapshot fallback. A snapshot built from those makes the same matches as one
   built from the whole library. The artist rules are tested once per distinct
   `match_artist` key (indexed, like `match_title`), not once per song, and
   the matching songs are read through the two key indexes;
@@ -3500,7 +3501,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   editions and are dropped from it. Matchers (`pickBestTrackMatch`, Same
   Vibes mapping, LRCLIB, the exact library lookups behind player metadata
   navigation) prefer the candidate whose edition key equals the expected
-  one. `pickBestTrackMatch` drops another edition only when a passing
+  one. Same Vibes applies its minimum score before edition/availability
+  tie-breaks. Navigation chooses an exact raw title within a matching
+  edition, then the first candidate, so mastering duplicates stay usable.
+  Candidate edition keys are computed once on first access.
+  `pickBestTrackMatch` drops another edition only when a passing
   same-edition candidate has at least as good artist and album scores, and
   never when that would turn a unique match ambiguous. Radio recording
   identity uses the edition key without spaces, computed once per song per

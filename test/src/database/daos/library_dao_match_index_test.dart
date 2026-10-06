@@ -111,6 +111,22 @@ void main() {
     },
   );
 
+  test('indexed artist fallback requires equality for short keys', () async {
+    await database.libraryDao.upsertSongs([
+      _song('x', 'Song', artistName: 'X'),
+      _song('xx', 'Other', artistName: 'XX'),
+      _song('arashi', '花', artistName: '嵐'),
+      _song('other-arashi', 'Other', artistName: '嵐山'),
+    ]);
+    await database.libraryDao.refreshSongSearchIndex();
+    for (final (artist, id) in [('X', 'x'), ('嵐', 'arashi')]) {
+      final candidates = await database.libraryDao.getTrackMatchCandidates([
+        (title: 'Unknown', artist: artist),
+      ]);
+      expect(candidates.map((song) => song.id), [id]);
+    }
+  });
+
   Future<void> expectBucketsMatchFullScan(String artistId) async {
     final indexed = await database.libraryDao
         .watchArtistAlbumBuckets(artistId)
@@ -483,6 +499,37 @@ void main() {
       );
       expect(await primary('oor'), contains('jp-name'));
     });
+
+    test(
+      'same-edition lookup prefers a raw title then the first candidate',
+      () async {
+        await database.libraryDao.upsertSongs([
+          _song('remaster', 'Song (Remastered)', artistName: '嵐'),
+          _song('raw', 'Song', artistName: '嵐'),
+        ]);
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song',
+            artistName: '嵐',
+          ))?.id,
+          'raw',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song (Remastered)',
+            artistName: '嵐',
+          ))?.id,
+          'remaster',
+        );
+        expect(
+          (await database.libraryDao.findOneExactNormalizedSongByTitle(
+            'Song (2011 Remaster)',
+            artistName: '嵐',
+          ))?.id,
+          'raw',
+        );
+      },
+    );
 
     test('an exact lookup prefers the same language version', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[

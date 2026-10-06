@@ -26,7 +26,7 @@ class TrackMatchQuery {
 }
 
 class TrackMatchCandidate {
-  const new({
+  new({
     required this.song,
     required this.normalizedTitle,
     required this.normalizedArtist,
@@ -97,7 +97,7 @@ class TrackMatchCandidate {
 
   /// The title with its edition qualifiers, in the
   /// `normalizeMetadataKeepingEdition` form.
-  String get editionTitle => normalizeMetadataKeepingEdition(song.title);
+  late final String editionTitle = normalizeMetadataKeepingEdition(song.title);
 }
 
 class TrackMatchResult {
@@ -172,13 +172,14 @@ class LocalTrackMatchSnapshot {
         .split(' ')
         .where((token) => token.length > 1)
         .toSet();
-    if (expectedArtistTokens.isEmpty) return const <TrackMatchCandidate>[];
 
     return all
         .where((candidate) {
           final candidateArtist = candidate.normalizedArtist;
           if (candidateArtist.isEmpty) return false;
           if (candidateArtist == expectedArtist) return true;
+          if (expectedArtist.length < 2 || candidateArtist.length < 2)
+            return false;
           if (candidateArtist.contains(expectedArtist) ||
               expectedArtist.contains(candidateArtist)) {
             return true;
