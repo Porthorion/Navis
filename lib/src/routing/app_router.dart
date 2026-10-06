@@ -293,6 +293,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       context: context,
                       key: state.pageKey,
                       child: ArtistDetailScreen(
+                        key: ValueKey<String>(
+                          'artist:${state.pathParameters['id']!}',
+                        ),
                         artistId: state.pathParameters['id']!,
                         nameHint: state
                             .uri
@@ -306,6 +309,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           context: context,
                           key: state.pageKey,
                           child: ArtistTopTracksPlaylistDetailScreen(
+                            key: ValueKey<String>(
+                              'artist-top-tracks:${state.pathParameters['id']!}',
+                            ),
                             artistId: state.pathParameters['id']!,
                           ),
                         ),
@@ -326,6 +332,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         heroDriven: request.openingHeroTag != null,
                         fadeOnly: request.fadeOnly,
                         child: AlbumDetailScreen(
+                          key: ValueKey<String>(
+                            'album:${state.pathParameters['id']!}',
+                          ),
                           albumId: state.pathParameters['id']!,
                           openingHeroTag: request.openingHeroTag,
                           nameHint: state
@@ -344,6 +353,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       context: context,
                       key: state.pageKey,
                       child: PlaylistDetailScreen(
+                        key: ValueKey<String>(
+                          'playlist:${state.pathParameters['id']!}',
+                        ),
                         playlistId: state.pathParameters['id']!,
                       ),
                     ),
@@ -354,6 +366,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       context: context,
                       key: state.pageKey,
                       child: ListenBrainzWeeklyDetailScreen(
+                        key: ValueKey<String>(
+                          'listenbrainz:${state.pathParameters['sourcePatch']!}',
+                        ),
                         sourcePatch: state.pathParameters['sourcePatch']!,
                       ),
                     ),

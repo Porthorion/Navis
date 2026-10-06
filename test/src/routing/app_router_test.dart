@@ -97,6 +97,23 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 }
 
+/// Records which artists and albums the detail pages ask to be hydrated.
+class _RecordingLibrarySyncController extends _StaticLibrarySyncController {
+  static final List<String> requests = <String>[];
+
+  @override
+  Future<LibrarySyncState?> hydrateOpenedArtist(String artistId) async {
+    requests.add('artist:$artistId');
+    return null;
+  }
+
+  @override
+  Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) async {
+    requests.add('album:$albumId');
+    return null;
+  }
+}
+
 class _StaticRequiredLibraryRebuildController
     extends RequiredLibraryRebuildController {
   new() : super(RequiredLibraryRebuildReason.initialLogin);
@@ -727,6 +744,95 @@ void main() {
     // failing its HTTP call in the test environment) to avoid a pending-timer
     // assertion after widget disposal.
     await tester.pump(const Duration(milliseconds: 500));
+  });
+
+  group('detail pages follow their id', () {
+    // `router.go` between two ids of one detail route reuses the page's
+    // State unless the id keys the page, so the second id would never be
+    // hydrated and would show the first one's content.
+    Future<GoRouter> openApp(WidgetTester tester) async {
+      _RecordingLibrarySyncController.requests.clear();
+      final container = _createContainerWithDatabase(
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            _RecordingLibrarySyncController.new,
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+          artistInfoProvider.overrideWith((ref, artistId) async => null),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: _testApp),
+      );
+      await tester.pumpAndSettle();
+      return container.read(appRouterProvider);
+    }
+
+    Future<void> goTo(WidgetTester tester, GoRouter router, String path) async {
+      router.go(path);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('going from one artist to another hydrates the second', (
+      tester,
+    ) async {
+      final router = await openApp(tester);
+
+      await goTo(tester, router, '/library/artists/ext-deezer-artist-1');
+      await goTo(tester, router, '/library/artists/ext-deezer-artist-2');
+
+      expect(_RecordingLibrarySyncController.requests, <String>[
+        'artist:ext-deezer-artist-1',
+        'artist:ext-deezer-artist-2',
+      ]);
+      // Leaves the page so its hydration timeout does not outlive the test.
+      await goTo(tester, router, '/settings/cache');
+    });
+
+    testWidgets('going from one album to another hydrates the second', (
+      tester,
+    ) async {
+      final router = await openApp(tester);
+
+      await goTo(tester, router, '/library/albums/ext-deezer-album-1');
+      await goTo(tester, router, '/library/albums/ext-deezer-album-2');
+
+      expect(_RecordingLibrarySyncController.requests, <String>[
+        'album:ext-deezer-album-1',
+        'album:ext-deezer-album-2',
+      ]);
+      await goTo(tester, router, '/settings/cache');
+    });
   });
 
   testWidgets('retired Settings paths redirect to their new pages', (
