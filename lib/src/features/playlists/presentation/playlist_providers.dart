@@ -9,6 +9,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 const String listenBrainzWeeklyExplorationVirtualPlaylistId =
     'virtual:listenbrainz:weekly-exploration';
@@ -80,6 +81,10 @@ final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
 /// Library › Playlists: the ListenBrainz weekly playlists, then Trending
 /// Now while `deezer.trending` is allowed (so it can always be found, even
 /// when the You Might Like hero leaves it out), then the server playlists.
+///
+/// While the server playlists load, or if reading them fails, the virtual
+/// playlists (weekly or Trending) are still listed on their own; the loading
+/// or error state shows only when there are none.
 final playlistLibraryItemsProvider =
     Provider<AsyncValue<List<PlaylistLibraryItem>>>((ref) {
       final playlistsAsync = ref.watch(playlistListProvider);
@@ -94,32 +99,30 @@ final playlistLibraryItemsProvider =
       final trending = trendingAllowed
           ? PlaylistLibraryItem.trending(ref.watch(homeTrendingProvider).value)
           : null;
+      final virtualItems = <PlaylistLibraryItem>[
+        for (final playlist
+            in virtualAsync.asData?.value ??
+                const <ListenBrainzDiscoverPlaylist>[])
+          PlaylistLibraryItem.virtual(playlist),
+        ?trending,
+      ];
 
       return playlistsAsync.when(
-        data: (playlists) {
-          final items = <PlaylistLibraryItem>[
-            for (final playlist
-                in virtualAsync.asData?.value ??
-                    const <ListenBrainzDiscoverPlaylist>[])
-              PlaylistLibraryItem.virtual(playlist),
-            ?trending,
-            for (final playlist in playlists)
-              PlaylistLibraryItem.normal(playlist),
-          ];
-          return AsyncData(items);
+        data: (playlists) => AsyncData(<PlaylistLibraryItem>[
+          ...virtualItems,
+          for (final playlist in playlists)
+            PlaylistLibraryItem.normal(playlist),
+        ]),
+        loading: () => virtualItems.isEmpty
+            ? const AsyncLoading()
+            : AsyncData(virtualItems),
+        error: (error, stackTrace) {
+          if (virtualItems.isEmpty) return AsyncError(error, stackTrace);
+          AppLogger.warning(
+            'Playlists unreadable; showing virtual ones: $error',
+          );
+          return AsyncData(virtualItems);
         },
-        loading: () {
-          final virtual = virtualAsync.asData?.value;
-          if (virtual != null) {
-            return AsyncData(<PlaylistLibraryItem>[
-              for (final playlist in virtual)
-                PlaylistLibraryItem.virtual(playlist),
-              ?trending,
-            ]);
-          }
-          return const AsyncLoading();
-        },
-        error: AsyncError.new,
       );
     });
 

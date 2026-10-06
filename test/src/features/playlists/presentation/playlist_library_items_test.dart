@@ -22,11 +22,30 @@ const _chart = <ResolvedArtistTopTrack>[
   ResolvedArtistTopTrack(rank: 2, title: 'Two', artist: 'A'),
 ];
 
+const _weekly = AsyncData<List<ListenBrainzDiscoverPlaylist>>(
+  <ListenBrainzDiscoverPlaylist>[
+    ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[],
+    ),
+  ],
+);
+
 void main() {
   ProviderContainer container({
     IntegrationPolicy policy = const IntegrationPolicy(),
     String? scope = 'account',
     Stream<List<ResolvedArtistTopTrack>>? trending,
+    AsyncValue<List<PlaylistsTableData>> playlists =
+        const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
+          PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
+        ]),
+    bool withWeekly = true,
   }) {
     final c = ProviderContainer(
       overrides: <Override>[
@@ -35,25 +54,9 @@ void main() {
         homeTrendingProvider.overrideWith(
           (ref) => trending ?? Stream.value(_chart),
         ),
-        playlistListProvider.overrideWithValue(
-          const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
-            PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
-          ]),
-        ),
+        playlistListProvider.overrideWithValue(playlists),
         listenBrainzDiscoverStreamProvider.overrideWithValue(
-          const AsyncData<List<ListenBrainzDiscoverPlaylist>>(
-            <ListenBrainzDiscoverPlaylist>[
-              ListenBrainzDiscoverPlaylist(
-                playlist: ListenBrainzPlaylist(
-                  identifier: 'jams',
-                  title: 'Weekly Jams',
-                  sourcePatch: 'weekly-jams',
-                  tracks: <ListenBrainzPlaylistTrack>[],
-                ),
-                recommendations: <ListenBrainzResolvedRecommendation>[],
-              ),
-            ],
-          ),
+          withWeekly ? _weekly : const AsyncLoading(),
         ),
       ],
     );
@@ -121,6 +124,45 @@ void main() {
             .map((item) => item.id),
         <String>[listenBrainzWeeklyJamsVirtualPlaylistId, 'server-playlist'],
       );
+    }
+  });
+
+  test('Trending stays listed while server playlists load or fail, without '
+      'weekly playlists', () async {
+    for (final playlists in <AsyncValue<List<PlaylistsTableData>>>[
+      const AsyncLoading(),
+      AsyncError(StateError('db'), StackTrace.empty),
+    ]) {
+      final result = await items(
+        container(playlists: playlists, withWeekly: false),
+      );
+      expect(result.map((item) => item.id), <String>[
+        trendingVirtualPlaylistId,
+      ]);
+    }
+    final withWeekly = await items(container(playlists: const AsyncLoading()));
+    expect(withWeekly.map((item) => item.id), <String>[
+      listenBrainzWeeklyJamsVirtualPlaylistId,
+      trendingVirtualPlaylistId,
+    ]);
+  });
+
+  test('nothing virtual: loading and errors show as before', () {
+    for (final (playlists, isError)
+        in <(AsyncValue<List<PlaylistsTableData>>, bool)>[
+          (const AsyncLoading(), false),
+          (AsyncError(StateError('db'), StackTrace.empty), true),
+        ]) {
+      final c = container(
+        playlists: playlists,
+        withWeekly: false,
+        policy: const IntegrationPolicy(masterEnabled: false),
+      );
+      final subscription = c.listen(playlistLibraryItemsProvider, (_, _) {});
+      addTearDown(subscription.close);
+      final value = c.read(playlistLibraryItemsProvider);
+      expect(value.hasValue, isFalse);
+      expect(value.hasError, isError);
     }
   });
 }
