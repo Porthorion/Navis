@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 
@@ -16,7 +17,7 @@ class ListenBrainzApiClient {
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
     sendTimeout: const Duration(seconds: 10),
-    headers: const {'User-Agent': 'Navis/1.0'},
+    headers: {'User-Agent': AppConstants.userAgent},
   );
 
   final Dio _dio;

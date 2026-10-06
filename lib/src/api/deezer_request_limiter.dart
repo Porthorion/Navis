@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:dio/dio.dart';
+
 /// Keeps Navis under Deezer's public quota: at most [maxPerWindow] requests
 /// start in any [window], at most [maxBackgroundPerWindow] of them
 /// background ones, and at most [maxInFlight] run at once.
@@ -50,8 +52,10 @@ class DeezerRequestLimiter {
   int _inFlight = 0;
 
   /// Requests waiting for a slot, oldest first.
-  final Queue<Completer<void>> _foreground = Queue<Completer<void>>();
-  final Queue<Completer<void>> _background = Queue<Completer<void>>();
+  final Queue<({Completer<bool> slot, CancelToken? token})> _foreground =
+      Queue<({Completer<bool> slot, CancelToken? token})>();
+  final Queue<({Completer<bool> slot, CancelToken? token})> _background =
+      Queue<({Completer<bool> slot, CancelToken? token})>();
 
   /// No request starts before this point of [_elapsed].
   Duration _pausedUntil = Duration.zero;
@@ -73,15 +77,22 @@ class DeezerRequestLimiter {
 
   /// Runs [request] once a slot is free under the limits and no pause holds
   /// it. A [background] request waits while any foreground one is waiting,
-  /// and for the background rate.
+  /// and for the background rate. Cancelled waiters are dropped without
+  /// spending either start budget and fail with their Dio cancellation.
   Future<T> run<T>(
     Future<T> Function() request, {
     bool background = false,
+    CancelToken? cancelToken,
   }) async {
-    final slot = Completer<void>();
-    (background ? _background : _foreground).addLast(slot);
+    final slot = Completer<bool>();
+    (background ? _background : _foreground).addLast((
+      slot: slot,
+      token: cancelToken,
+    ));
     _dispatch();
-    await slot.future;
+    if (!await slot.future) {
+      throw cancelToken!.cancelError!;
+    }
     try {
       return await request();
     } finally {
@@ -93,6 +104,14 @@ class DeezerRequestLimiter {
   /// Starts waiting requests, foreground first, while the limits allow.
   void _dispatch() {
     while (_foreground.isNotEmpty || _background.isNotEmpty) {
+      for (final queue in [_foreground, _background]) {
+        queue.removeWhere((waiter) {
+          if (!(waiter.token?.isCancelled ?? false)) return false;
+          waiter.slot.complete(false);
+          return true;
+        });
+      }
+      if (_foreground.isEmpty && _background.isEmpty) return;
       // A finishing request dispatches again.
       if (_inFlight >= maxInFlight) return;
       final now = _elapsed();
@@ -106,7 +125,7 @@ class DeezerRequestLimiter {
         _wakeAfter(_starts.first + window - now);
         return;
       }
-      final Completer<void> next;
+      final ({Completer<bool> slot, CancelToken? token}) next;
       if (_foreground.isNotEmpty) {
         next = _foreground.removeFirst();
       } else if (_backgroundStarts.length < maxBackgroundPerWindow) {
@@ -118,7 +137,7 @@ class DeezerRequestLimiter {
       }
       _inFlight++;
       _starts.addLast(now);
-      next.complete();
+      next.slot.complete(true);
     }
   }
 

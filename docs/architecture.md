@@ -1498,6 +1498,12 @@ switch means "Navis only talks to your server" when off. See
   the recorder's counters, calls and spans in every mode. See
   `docs/development-workflow.md`.
 
+Deezer, Last.fm, ListenBrainz, LRCLIB and Subsonic share
+`AppConstants.userAgent`, derived from the newest changelog version. A client
+header regression test checks it against `pubspec.yaml` so release versions
+cannot silently drift. Last.fm key unmasking accepts hexadecimal digits only;
+signed or whitespace-prefixed pairs are rejected.
+
 ### Deezer and artist Top Songs
 
 Deezer's public API (`api.deezer.com`) needs no key. `DeezerApiClient`
@@ -1516,9 +1522,12 @@ requests start in order, except that foreground ones (the artist page and
 the other pages the user opens) always go before `background` ones (Home's
 New Releases, its artist resolution and the Trending chart); background
 requests start whenever no foreground one waits and their own rate allows.
+Cancelled waiters consume neither the total nor the background start budget.
 Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
-"code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds, so every
-Deezer request waits it out rather than piling into the quota, and the
+"code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds initially,
+doubling consecutive quota pauses up to 80 seconds. A successful answer
+(including code 800) resets the backoff. The pause is set before releasing
+the request slot, so every Deezer request waits it out, and the
 request that hit it is retried after the pause: up to 3 times for a
 foreground request, once for a background one; code 800 ("no data") reads as
 an empty result, and any other code throws `DeezerApiException`. Endpoints

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:dio/io.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -45,11 +46,11 @@ class SubsonicApiClient {
                connectTimeout: const Duration(seconds: 15),
                receiveTimeout: const Duration(seconds: 30),
                sendTimeout: const Duration(seconds: 15),
-               headers: const <String, Object>{'User-Agent': _userAgent},
+               headers: <String, Object>{'User-Agent': AppConstants.userAgent},
              ),
            ) {
     _configureTransport();
-    _dio.options.headers['User-Agent'] = _userAgent;
+    _dio.options.headers['User-Agent'] = AppConstants.userAgent;
     _dio.interceptors.add(SubsonicAuthInterceptor(config: authConfig));
     if (enableLogging) {
       _dio.interceptors.add(SubsonicLoggingInterceptor());
@@ -67,8 +68,6 @@ class SubsonicApiClient {
   final bool enableLogging;
   final int? maxConnectionsPerHost;
   final NetworkUsageReporter? _reportNetworkUsage;
-
-  static const _userAgent = 'Navis/1.2.1';
 
   void close({bool force = true}) {
     _dio.close(force: force);

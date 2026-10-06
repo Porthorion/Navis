@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/utils/constants.dart';
 
 class LrclibLyrics {
   const new({
@@ -41,7 +42,7 @@ class LrclibClient {
     baseUrl: 'https://lrclib.net',
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
-    headers: const {'User-Agent': 'Navis/0.5'},
+    headers: {'User-Agent': AppConstants.userAgent},
   );
 
   final Dio _dio;

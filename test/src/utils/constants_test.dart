@@ -128,6 +128,19 @@ void main() {
     });
   });
 
+  test('signed and whitespace hex pairs are rejected', () {
+    for (final malformed in ['+f', ' f']) {
+      expect(
+        AppConstants.unmaskLastFmApiKey(masked: malformed, pad: '40'),
+        isEmpty,
+      );
+      expect(
+        AppConstants.unmaskLastFmApiKey(masked: '40', pad: malformed),
+        isEmpty,
+      );
+    }
+  });
+
   test('no define leaves the bundled key empty', () {
     expect(AppConstants.lastFmApiKey, isEmpty);
   });

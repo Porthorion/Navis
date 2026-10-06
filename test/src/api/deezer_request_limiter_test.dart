@@ -220,20 +220,33 @@ void main() {
           elapsed: () => async.elapsed,
           maxInFlight: 1,
         );
-        var finished = 0;
+        final started = <String>[];
+        void queue(String name, {bool background = false}) => unawaited(
+          limiter.run(() async {
+            started.add(name);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }, background: background),
+        );
         for (var i = 0; i < 6; i++) {
-          unawaited(
-            limiter
-                .run(
-                  () => Future<void>.delayed(const Duration(milliseconds: 10)),
-                  background: true,
-                )
-                .then((_) => finished++),
-          );
+          queue('background $i', background: true);
         }
-
+        async.flushMicrotasks();
+        queue('foreground 0');
+        queue('foreground 1');
+        async.elapse(const Duration(milliseconds: 100));
+        expect(started, ['background 0', 'foreground 0']);
+        queue('foreground 2');
+        async.elapse(const Duration(milliseconds: 200));
+        expect(started, [
+          'background 0',
+          'foreground 0',
+          'foreground 1',
+          'foreground 2',
+        ]);
+        async.elapse(const Duration(milliseconds: 100));
+        expect(started.last, 'background 1');
         async.elapse(const Duration(seconds: 3));
-        expect(finished, 6);
+        expect(started.skip(4), [for (var i = 1; i < 6; i++) 'background $i']);
         expect(limiter.inFlight, 0);
       });
     });

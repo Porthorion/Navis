@@ -1,10 +1,14 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/changelog/changelog_data.dart';
 
 /// Compile-time constants for the Navis Forgejo repository.
 ///
 /// These are intentionally not user-configurable — they are hardcoded to the
 /// project's own Forgejo instance and repo.
 abstract final class AppConstants {
+  /// Shared HTTP identity derived from the current app changelog version.
+  static final String userAgent = 'Navis/${changelogs.first.version}';
+
   /// Base URL of the Forgejo instance hosting the Navis repository.
   static const String forgejoBaseUrl = 'https://git.porthorion.com';
 
@@ -121,7 +125,9 @@ abstract final class AppConstants {
   }
 
   static List<int>? _decodeHex(String hex) {
-    if (hex.length.isOdd) return null;
+    if (hex.length.isOdd || !RegExp(r'^[0-9a-fA-F]*$').hasMatch(hex)) {
+      return null;
+    }
     final bytes = <int>[];
     for (var i = 0; i < hex.length; i += 2) {
       final byte = int.tryParse(hex.substring(i, i + 2), radix: 16);

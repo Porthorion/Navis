@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/utils/constants.dart';
 
 import 'package:navis/src/api/deezer_request_limiter.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
@@ -32,7 +33,8 @@ class DeezerApiException implements Exception {
 /// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
 /// flight); a `background` request (Home's warm-up) waits while any
 /// foreground one is waiting and starts at most 2 per second. Errors arrive in the body of an HTTP 200
-/// response: code 4 (quota) pauses the shared limiter for [quotaRetryDelay],
+/// response: code 4 (quota) pauses the shared limiter starting at
+/// [quotaRetryDelay], doubling consecutive pauses up to 80 seconds,
 /// so every Deezer request waits, and the request that hit it is then
 /// retried, up to [foregroundQuotaRetries] times for a foreground request
 /// and [backgroundQuotaRetries] for a background one, each retry after the
@@ -48,7 +50,7 @@ class DeezerApiClient {
     connectTimeout: const Duration(seconds: 8),
     receiveTimeout: const Duration(seconds: 8),
     sendTimeout: const Duration(seconds: 8),
-    headers: const {'User-Agent': 'Navis/1.0'},
+    headers: {'User-Agent': AppConstants.userAgent},
   );
 
   static const int quotaErrorCode = 4;
@@ -62,6 +64,7 @@ class DeezerApiClient {
 
   final Dio _dio;
   final DeezerRequestLimiter _limiter;
+  int _consecutiveQuotaHits = 0;
 
   /// The error Deezer reported in the decoded response [body], or null when
   /// it reported none. Code 800 ("no data") is returned like any other code.
@@ -226,19 +229,29 @@ class DeezerApiClient {
     bool background = false,
   }) async {
     for (var attempt = 0; ; attempt++) {
-      final response = await _limiter.run(() async {
-        final response = await _dio.get<Object?>(
-          path,
-          queryParameters: query,
-          cancelToken: cancelToken,
-        );
-        // Paused before this request's slot is released, so no waiting
-        // request starts into the quota in between.
-        if (bodyError(response.data)?.isQuotaExceeded ?? false) {
-          _limiter.pauseStarts(quotaRetryDelay);
-        }
-        return response;
-      }, background: background);
+      final response = await _limiter.run(
+        () async {
+          final response = await _dio.get<Object?>(
+            path,
+            queryParameters: query,
+            cancelToken: cancelToken,
+          );
+          // Paused before this request's slot is released, so no waiting
+          // request starts into the quota in between.
+          final error = bodyError(response.data);
+          if (error?.isQuotaExceeded ?? false) {
+            final multiplier = 1 << _consecutiveQuotaHits.clamp(0, 4);
+            _consecutiveQuotaHits++;
+            _limiter.pauseStarts(quotaRetryDelay * multiplier);
+          } else if (response.data is Map &&
+              (error == null || error.code == noDataErrorCode)) {
+            _consecutiveQuotaHits = 0;
+          }
+          return response;
+        },
+        background: background,
+        cancelToken: cancelToken,
+      );
       final body = response.data;
       if (body is! Map) {
         throw const DeezerApiException(

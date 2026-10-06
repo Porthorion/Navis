@@ -13,9 +13,13 @@ class _RecordingLimiter extends DeezerRequestLimiter {
   final List<bool> background = <bool>[];
 
   @override
-  Future<T> run<T>(Future<T> Function() request, {bool background = false}) {
+  Future<T> run<T>(
+    Future<T> Function() request, {
+    bool background = false,
+    CancelToken? cancelToken,
+  }) {
     this.background.add(background);
-    return super.run(request, background: background);
+    return super.run(request, background: background, cancelToken: cancelToken);
   }
 }
 
@@ -107,6 +111,55 @@ void main() {
     );
     final dio = Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter;
     client = DeezerApiClient(dio: dio, limiter: limiter);
+  });
+
+  test('cancelled waiters spend neither foreground nor background budget', () {
+    fakeAsync((async) {
+      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      shared.pauseStarts(const Duration(seconds: 1));
+      final limited = DeezerApiClient(
+        dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+        limiter: shared,
+      );
+      adapter.queue('/search/artist', {'data': <Object>[]});
+      for (final background in [false, true]) {
+        final token = CancelToken();
+        unawaited(
+          limited
+              .searchArtists(
+                'cancelled',
+                cancelToken: token,
+                background: background,
+              )
+              .then<void>(
+                (_) => fail('must cancel'),
+                onError: (Object error) => expect(error, isA<DioException>()),
+              ),
+        );
+        token.cancel();
+      }
+      for (var i = 0; i < 5; i++) {
+        unawaited(limited.searchArtists('live $i', background: i < 2));
+      }
+      async.elapse(const Duration(seconds: 1));
+      expect(adapter.requests, hasLength(5));
+    });
+  });
+
+  test('quota pauses grow and success resets the backoff', () async {
+    adapter
+      ..queue('/search/track', _error(4, 'Exception', 'quota'))
+      ..queue('/search/track', _error(4, 'Exception', 'quota'))
+      ..queue('/search/track', {'data': <Object>[]});
+    await client.searchTracks('first');
+    expect(waits, [const Duration(seconds: 5), const Duration(seconds: 10)]);
+    waits.clear();
+    adapter.bodies.clear();
+    adapter
+      ..queue('/search/track', _error(4, 'Exception', 'quota'))
+      ..queue('/search/track', {'data': <Object>[]});
+    await client.searchTracks('second');
+    expect(waits, [const Duration(seconds: 5)]);
   });
 
   test('base options use 8 second timeouts against api.deezer.com', () {
@@ -373,7 +426,11 @@ void main() {
     expect(tracks.single.title, 'Believer');
     expect(adapter.requests, hasLength(4));
     // Each retry waited for the shared pause.
-    expect(waits, List.filled(3, const Duration(seconds: 5)));
+    expect(waits, [
+      const Duration(seconds: 5),
+      const Duration(seconds: 10),
+      const Duration(seconds: 20),
+    ]);
   });
 
   final throwsQuota = throwsA(

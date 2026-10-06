@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -217,7 +218,7 @@ void main() {
 
       expect(captured.path, '/rest/ping.view');
       expect(captured.queryParameters['f'], 'json');
-      expect(captured.headers['User-Agent'], 'Navis/1.2.1');
+      expect(captured.headers['User-Agent'], AppConstants.userAgent);
       expect(version, '1.16.1');
     });
 
