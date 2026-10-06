@@ -528,7 +528,9 @@ answers HTTP 200 with `{"error": {...}}`, so a quota hit, code 4, shows here
 with `status` 200; Deezer's code 800, "no data", stays `ok`) or `blocked`.
 `errors` counts both `error` and `serviceError` calls. Artist Top Songs records
 `topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
-them, and per step `top`, `searchFill` and `lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches used,
+them, `failed` 1 when the fetch threw, and per step `top`, `searchFill` and
+`lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches
+used,
 `candidates` library rows read, `localHits`) and `topSongs.serverMatch`
 (`unresolved`, `search3Calls`, `matched`, `remote`, and `upgradeChecks` /
 `upgraded`: remembered remote matches searched again for a copy on the

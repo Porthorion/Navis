@@ -103,10 +103,10 @@ class IntegrationSpan {
 /// per-service counters.
 ///
 /// It exists to answer "is this slow because of Navis or the API" with data.
-/// [recordCall] takes a [Uri] and keeps only its path, with identifiers after
-/// `/user/` or `/users/` redacted before recording or logging. A query string such
-/// as Last.fm's `api_key` can never reach the buffer, the log or the
-/// diagnostics output. Headers and bodies are not accepted at all.
+/// [recordCall] takes a [Uri] and keeps only its path, with identifiers
+/// after `/user/` or `/users/` redacted before recording or logging. A query
+/// string such as Last.fm's `api_key` can never reach the buffer, the log or
+/// the diagnostics output. Headers and bodies are not accepted at all.
 class IntegrationCallRecorder {
   new({
     this.callCapacity = defaultCallCapacity,
