@@ -3572,9 +3572,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
     }
-    if (stale.isNotEmpty) {
-      // One background refresh at a time rewrites every stale row; searches
-      // meanwhile keep normalizing their stale candidates in Dart.
+    if (stale.isNotEmpty || await _hasStaleSongSearchIndexRows()) {
+      // Searches reuse legacy text while the background refresh re-keys it.
+      // Only missing rows or changed raw metadata are normalized here.
       unawaited(scheduleSongSearchIndexRefresh());
     }
 
@@ -3589,6 +3589,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<int>? _songSearchIndexRefresh;
+
+  Future<bool> _hasStaleSongSearchIndexRows() async =>
+      await customSelect(
+        'SELECT 1 FROM songs '
+        'LEFT JOIN song_search_text t ON t.song_id = songs.id '
+        'WHERE t.source IS NOT ($_songSearchSourceSql) OR t.match_title IS NULL '
+        'LIMIT 1',
+        readsFrom: {songsTable, songSearchTextTable},
+      ).getSingleOrNull() !=
+      null;
 
   /// Starts [refreshSongSearchIndex] unless one is already running, and
   /// returns the in-flight refresh.
@@ -3841,10 +3851,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   static const String _songSearchSourceSql =
       "$_songSearchFieldsSql || char(31) || '$metadataKeyVersion'";
 
-  // Kana width/voicing folding also changes search text in key version 3,
-  // so pre-versioned and older-version rows must be rebuilt for search too.
+  /// Whether `t.search_text` is usable: it depends on the raw fields,
+  /// so any key version (including pre-versioned rows) qualifies. A version
+  /// bump must not re-normalize every song on the UI isolate per keystroke.
+  /// Background refreshes still re-key these rows for search and matching;
+  /// until then, searches retain the older folding behavior.
   static const String _songSearchTextCurrentSql =
-      'ifnull(t.source = ($_songSearchSourceSql), 0)';
+      '(ifnull(t.source = ($_songSearchSourceSql), 0) OR '
+      'ifnull(substr(t.source || char(31), 1, '
+      'length($_songSearchFieldsSql) + 1) = '
+      '($_songSearchFieldsSql) || char(31), 0))';
 
   static String _songSearchSource(
     String title,

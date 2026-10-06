@@ -3476,8 +3476,13 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   so rows keyed by an older normalizer are stale for track matching and the
   same lazy refresh re-keys them; no migration is needed when the normalizer
   changes. Key version 3 folds half-width kana and composes dakuten/handakuten in
-  both search text and matching keys; search therefore also rebuilds rows
-  from older versions, including sources ending in `\u001f1`. `getTrackMatchCandidates` selects only songs
+  both search text and matching keys. Search reads accept every key version
+  (including pre-versioned sources) while raw metadata is unchanged, avoiding
+  per-keystroke normalization of the whole library on the UI isolate. The
+  background refresh still re-keys old rows, including `\u001f1` sources;
+  old folding behavior remains until it finishes. Key version 4 repairs
+  featured credits in square brackets and unclosed-bracket handling.
+  `getTrackMatchCandidates` selects only songs
   that could match a list of external tracks (artist top songs,
   ListenBrainz recommendations) under `LocalTrackMatchSnapshot` rules: equal
   title keys, or artist keys that are equal, contain or are contained, or

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Local search reuses existing search text while upgraded matching keys refresh in the background, avoiding a full-library pause on each keystroke',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Matching drops square-bracketed featured credits and handles unclosed brackets; Last.fm accepts symbol-only artist names when the raw names agree',
         type: ChangelogEntryType.fix,
       ),

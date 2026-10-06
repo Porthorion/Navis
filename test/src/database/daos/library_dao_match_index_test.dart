@@ -492,10 +492,10 @@ void main() {
       );
     });
 
-    test('search text from before kana folding is rebuilt', () async {
+    test('legacy search text is reused until the background re-key finishes', () async {
       await database.libraryDao.refreshSongSearchIndex();
       // An older build wrote search text using the previous folding rules.
-      // A marker proves search recomputes the stale row from raw metadata.
+      // A marker proves search reuses the row while raw metadata is unchanged.
       await database.customStatement(
         'UPDATE song_search_text SET source = (SELECT songs.title || char(31) '
         "|| ifnull(songs.artist_name, '') || char(31) "
@@ -503,6 +503,9 @@ void main() {
         'WHERE songs.id = song_search_text.song_id), '
         "search_text = 'zzmarker|beyonce|' WHERE song_id = 'beyonce'",
       );
+      final legacy = await database.libraryDao.searchCachedSongs('zzmarker');
+      expect(legacy.map((song) => song.id), <String>['beyonce']);
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
       final found = await database.libraryDao.searchCachedSongs('halo');
       expect(found.map((song) => song.id), <String>['beyonce']);
       expect(await database.libraryDao.searchCachedSongs('zzmarker'), isEmpty);
