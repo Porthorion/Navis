@@ -185,7 +185,11 @@ class NavisDatabase extends _$NavisDatabase {
           // action's pending deliveries before canceling, while still holding
           // the lock and before Drift dispatches this transaction's own tables.
           await Future<void>.microtask(() {});
-          await subscription.cancel();
+          // Drift pipes a synchronous broadcast source into Stream.multi.
+          // cancel() detaches both listeners synchronously, but its future
+          // chains through Dart's root-zone completed future. Awaiting it can
+          // strand the commit in FakeAsync after its microtask drain returns.
+          unawaited(subscription.cancel());
         }
       }, requireNew: requireNew),
       zoneValues: {_transactionZoneKey: true},

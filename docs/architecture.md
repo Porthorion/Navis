@@ -245,9 +245,13 @@ Located in `lib/src/providers/app_providers.dart`:
   Drift's transaction zone. It starts listening inside the transaction action,
   once the writer lock is held, collects premature root announcements with
   their update kinds, then drains their pending asynchronous deliveries and
-  cancels the listener before committing. After a successful commit it replays
-  only those collected updates with `notifyUpdates`. Drift dispatches the
-  outer transaction's own tables after commit; these are not collected or
+  cancels the listener before committing. Cancellation detaches the root
+  broadcast listener synchronously; its completion future is not awaited,
+  because Drift's `Stream.multi` pipe chains cancellation through a root-zone
+  future that can strand subsequent commit work in Flutter's FakeAsync queue.
+  After a successful commit it replays only those collected updates with
+  `notifyUpdates`. Drift dispatches the outer transaction's own tables after
+  commit; these are not collected or
   re-announced. A transaction waiting for the writer lock does not collect
   the preceding transaction's announcements. Nested calls retain Drift's
   savepoints and `requireNew` behavior. Exceptions propagate unchanged without
