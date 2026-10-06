@@ -1,10 +1,81 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_request_limiter.dart';
 
 void main() {
+  for (final background in [false, true]) {
+    test('cancel after dispatch returns the start budget: $background', () {
+      fakeAsync((async) {
+        final limiter = DeezerRequestLimiter(
+          elapsed: () => async.elapsed,
+          maxPerWindow: 1,
+          maxBackgroundPerWindow: 1,
+          maxInFlight: 1,
+        );
+        final token = CancelToken();
+        var cancelled = false;
+        var ranCancelled = false;
+        var ranLive = false;
+        unawaited(
+          limiter
+              .run(
+                () async {
+                  ranCancelled = true;
+                },
+                background: background,
+                cancelToken: token,
+              )
+              .then<void>(
+                (_) => fail('must cancel'),
+                onError: (Object error) {
+                  expect(error, isA<DioException>());
+                  cancelled = true;
+                },
+              ),
+        );
+        token.cancel();
+        unawaited(
+          limiter.run(() async {
+            ranLive = true;
+          }, background: background),
+        );
+        async.flushMicrotasks();
+        expect(cancelled, isTrue);
+        expect(ranCancelled, isFalse);
+        expect(ranLive, isTrue);
+        expect(limiter.inFlight, 0);
+      });
+    });
+  }
+
+  test('cancellation while paused settles without waiting for the pause', () {
+    fakeAsync((async) {
+      final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      limiter.pauseStarts(const Duration(seconds: 80));
+      final token = CancelToken();
+      var cancelled = false;
+      unawaited(
+        limiter
+            .run(() async => fail('must not start'), cancelToken: token)
+            .then<void>(
+              (_) => fail('must cancel'),
+              onError: (Object error) {
+                expect(error, isA<DioException>());
+                cancelled = true;
+              },
+            ),
+      );
+      token.cancel();
+      async.flushMicrotasks();
+      expect(cancelled, isTrue);
+      expect(async.elapsed, Duration.zero);
+      expect(limiter.inFlight, 0);
+    });
+  });
+
   test('starts at most 5 requests per second', () {
     fakeAsync((async) {
       final limiter = DeezerRequestLimiter(elapsed: () => async.elapsed);

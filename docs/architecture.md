@@ -1527,11 +1527,15 @@ requests start in order, except that foreground ones (the artist page and
 the other pages the user opens) always go before `background` ones (Home's
 New Releases, its artist resolution and the Trending chart); background
 requests start whenever no foreground one waits and their own rate allows.
-Cancelled waiters consume neither the total nor the background start budget.
+Cancelled waiters fail promptly, even during a pause, and consume neither
+the total nor the background start budget, including cancellation after a slot
+is granted but before the request callback runs.
 Deezer reports errors as HTTP 200 with `{"error": {"type", "message",
 "code"}}`: code 4 (quota) pauses the shared limiter for 5 seconds initially,
-doubling consecutive quota pauses up to 80 seconds. A successful answer
-(including code 800) resets the backoff. The pause is set before releasing
+doubling consecutive quota pause episodes up to 80 seconds. Concurrent
+answers from requests already in flight share one episode. A successful answer
+(including code 800) resets the backoff only if its request started at or after
+the latest pause ended. The pause is set before releasing
 the request slot, so every Deezer request waits it out, and the
 request that hit it is retried after the pause: up to 3 times for a
 foreground request, once for a background one; code 800 ("no data") reads as

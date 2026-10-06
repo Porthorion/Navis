@@ -52,10 +52,10 @@ class DeezerRequestLimiter {
   int _inFlight = 0;
 
   /// Requests waiting for a slot, oldest first.
-  final Queue<({Completer<bool> slot, CancelToken? token})> _foreground =
-      Queue<({Completer<bool> slot, CancelToken? token})>();
-  final Queue<({Completer<bool> slot, CancelToken? token})> _background =
-      Queue<({Completer<bool> slot, CancelToken? token})>();
+  final Queue<({Completer<Duration?> slot, CancelToken? token})> _foreground =
+      Queue<({Completer<Duration?> slot, CancelToken? token})>();
+  final Queue<({Completer<Duration?> slot, CancelToken? token})> _background =
+      Queue<({Completer<Duration?> slot, CancelToken? token})>();
 
   /// No request starts before this point of [_elapsed].
   Duration _pausedUntil = Duration.zero;
@@ -63,6 +63,9 @@ class DeezerRequestLimiter {
   /// When the earliest pending timed wake-up (for a window or a pause) is
   /// due, on [_elapsed]; null when none is.
   Duration? _wakeAt;
+
+  /// Monotonic time shared with the client for quota episode boundaries.
+  Duration get elapsed => _elapsed();
 
   /// Requests running now.
   int get inFlight => _inFlight;
@@ -84,16 +87,23 @@ class DeezerRequestLimiter {
     bool background = false,
     CancelToken? cancelToken,
   }) async {
-    final slot = Completer<bool>();
+    final slot = Completer<Duration?>();
     (background ? _background : _foreground).addLast((
       slot: slot,
       token: cancelToken,
     ));
+    unawaited(cancelToken?.whenCancel.then((_) => _dispatch()));
     _dispatch();
-    if (!await slot.future) {
+    final startedAt = await slot.future;
+    if (startedAt == null) {
       throw cancelToken!.cancelError!;
     }
     try {
+      if (cancelToken?.isCancelled ?? false) {
+        _starts.remove(startedAt);
+        if (background) _backgroundStarts.remove(startedAt);
+        throw cancelToken!.cancelError!;
+      }
       return await request();
     } finally {
       _inFlight--;
@@ -107,7 +117,7 @@ class DeezerRequestLimiter {
       for (final queue in [_foreground, _background]) {
         queue.removeWhere((waiter) {
           if (!(waiter.token?.isCancelled ?? false)) return false;
-          waiter.slot.complete(false);
+          waiter.slot.complete(null);
           return true;
         });
       }
@@ -125,7 +135,7 @@ class DeezerRequestLimiter {
         _wakeAfter(_starts.first + window - now);
         return;
       }
-      final ({Completer<bool> slot, CancelToken? token}) next;
+      final ({Completer<Duration?> slot, CancelToken? token}) next;
       if (_foreground.isNotEmpty) {
         next = _foreground.removeFirst();
       } else if (_backgroundStarts.length < maxBackgroundPerWindow) {
@@ -137,7 +147,7 @@ class DeezerRequestLimiter {
       }
       _inFlight++;
       _starts.addLast(now);
-      next.slot.complete(true);
+      next.slot.complete(now);
     }
   }
 

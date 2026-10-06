@@ -137,7 +137,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Deezer quota retries back off after repeated limits, and cancelled requests no longer delay other pages',
+        'Deezer quota retries back off once per pause even when several requests hit the limit together, and cancelled requests promptly release their start budget',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

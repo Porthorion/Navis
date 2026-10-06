@@ -28,6 +28,7 @@ class _DeezerAdapter implements HttpClientAdapter {
   final Map<String, List<Object>> bodies = <String, List<Object>>{};
   final List<Uri> requests = <Uri>[];
   void Function(Uri uri)? onFetch;
+  Future<void> Function(Uri uri)? beforeResponse;
 
   void queue(String path, Object body) =>
       (bodies[path] ??= <Object>[]).add(body);
@@ -44,6 +45,7 @@ class _DeezerAdapter implements HttpClientAdapter {
     if (queued == null || queued.isEmpty) {
       throw StateError('No response queued for ${options.uri.path}');
     }
+    await beforeResponse?.call(options.uri);
     final body = queued.length == 1 ? queued.first : queued.removeAt(0);
     return ResponseBody.fromString(
       body is String ? body : jsonEncode(body),
@@ -143,6 +145,68 @@ void main() {
       }
       async.elapse(const Duration(seconds: 1));
       expect(adapter.requests, hasLength(5));
+    });
+  });
+
+  test('concurrent quota responses share one five second episode', () {
+    fakeAsync((async) {
+      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limited = DeezerApiClient(
+        dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+        limiter: shared,
+      );
+      final sentAt = <Duration>[];
+      adapter.onFetch = (_) => sentAt.add(async.elapsed);
+      for (final path in ['/search/track', '/search/artist']) {
+        adapter
+          ..queue(path, _error(4, 'Exception', 'quota'))
+          ..queue(path, {'data': <Object>[]});
+      }
+      var completed = 0;
+      unawaited(limited.searchTracks('one').then((_) => completed++));
+      unawaited(limited.searchArtists('two').then((_) => completed++));
+      async.elapse(Duration.zero);
+      expect(sentAt, [Duration.zero, Duration.zero]);
+      async.elapse(const Duration(seconds: 5));
+      expect(completed, 2);
+      expect(sentAt.skip(2), [
+        const Duration(seconds: 5),
+        const Duration(seconds: 5),
+      ]);
+    });
+  });
+
+  test('success from before a pause does not reset the next episode', () {
+    fakeAsync((async) {
+      final shared = DeezerRequestLimiter(elapsed: () => async.elapsed);
+      final limited = DeezerApiClient(
+        dio: Dio(DeezerApiClient.baseOptions)..httpClientAdapter = adapter,
+        limiter: shared,
+      );
+      final oldSuccess = Completer<void>();
+      final sentAt = <Duration>[];
+      adapter
+        ..beforeResponse = (uri) async {
+          if (uri.path == '/search/artist') await oldSuccess.future;
+        }
+        ..onFetch = (uri) {
+          if (uri.path == '/search/track') sentAt.add(async.elapsed);
+        }
+        ..queue('/search/artist', {'data': <Object>[]})
+        ..queue('/search/track', _error(4, 'Exception', 'quota'))
+        ..queue('/search/track', _error(4, 'Exception', 'quota'))
+        ..queue('/search/track', {'data': <Object>[]});
+      unawaited(limited.searchArtists('old'));
+      unawaited(limited.searchTracks('retry'));
+      async.elapse(Duration.zero);
+      oldSuccess.complete();
+      async.elapse(Duration.zero);
+      async.elapse(const Duration(seconds: 15));
+      expect(sentAt, [
+        Duration.zero,
+        const Duration(seconds: 5),
+        const Duration(seconds: 15),
+      ]);
     });
   });
 

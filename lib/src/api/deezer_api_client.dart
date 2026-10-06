@@ -31,16 +31,18 @@ class DeezerApiException implements Exception {
 /// Production code passes a `dio` from `externalDioFactoryProvider`, built
 /// with [baseOptions], so the integration guard and call recorder apply.
 /// Every request goes through one [DeezerRequestLimiter] (5 per second, 4 in
-/// flight); a `background` request (Home's warm-up) waits while any
-/// foreground one is waiting and starts at most 2 per second. Errors arrive in the body of an HTTP 200
-/// response: code 4 (quota) pauses the shared limiter starting at
-/// [quotaRetryDelay], doubling consecutive pauses up to 80 seconds,
-/// so every Deezer request waits, and the request that hit it is then
-/// retried, up to [foregroundQuotaRetries] times for a foreground request
-/// and [backgroundQuotaRetries] for a background one, each retry after the
-/// pause; code 800 ("no data") reads as an empty result; any other
-/// code throws [DeezerApiException]. Transport failures, including a request
-/// the integration guard refused, throw [DioException].
+/// flight); a `background` request (Home's warm-up) waits while any foreground
+/// one is waiting and starts at most 2 per second. Errors arrive in the body
+/// of an HTTP 200 response: code 4 (quota) pauses the shared limiter starting
+/// at [quotaRetryDelay], doubling consecutive pause episodes up to 80 seconds.
+/// Concurrent quota answers share one episode; only success from a request
+/// started at or after the latest pause ended resets the backoff. Every Deezer
+/// request waits for the pause, including retries: up to
+/// [foregroundQuotaRetries] times for a foreground request and
+/// [backgroundQuotaRetries] for a background one. Code 800 ("no data") reads
+/// as an empty result; any other code throws [DeezerApiException]. Transport
+/// failures, including a request the integration guard refused, throw
+/// [DioException].
 class DeezerApiClient {
   new({required this._dio, DeezerRequestLimiter? limiter})
     : _limiter = limiter ?? DeezerRequestLimiter();
@@ -65,6 +67,7 @@ class DeezerApiClient {
   final Dio _dio;
   final DeezerRequestLimiter _limiter;
   int _consecutiveQuotaHits = 0;
+  Duration _quotaPausedUntil = Duration.zero;
 
   /// The error Deezer reported in the decoded response [body], or null when
   /// it reported none. Code 800 ("no data") is returned like any other code.
@@ -231,6 +234,7 @@ class DeezerApiClient {
     for (var attempt = 0; ; attempt++) {
       final response = await _limiter.run(
         () async {
+          final startedAt = _limiter.elapsed;
           final response = await _dio.get<Object?>(
             path,
             queryParameters: query,
@@ -240,10 +244,16 @@ class DeezerApiClient {
           // request starts into the quota in between.
           final error = bodyError(response.data);
           if (error?.isQuotaExceeded ?? false) {
-            final multiplier = 1 << _consecutiveQuotaHits.clamp(0, 4);
-            _consecutiveQuotaHits++;
-            _limiter.pauseStarts(quotaRetryDelay * multiplier);
-          } else if (response.data is Map &&
+            final now = _limiter.elapsed;
+            if (startedAt >= _quotaPausedUntil || now >= _quotaPausedUntil) {
+              final multiplier = 1 << _consecutiveQuotaHits.clamp(0, 4);
+              _consecutiveQuotaHits++;
+              final pause = quotaRetryDelay * multiplier;
+              _quotaPausedUntil = now + pause;
+              _limiter.pauseStarts(pause);
+            }
+          } else if (startedAt >= _quotaPausedUntil &&
+              response.data is Map &&
               (error == null || error.code == noDataErrorCode)) {
             _consecutiveQuotaHits = 0;
           }
@@ -265,7 +275,8 @@ class DeezerApiClient {
       if (exception.code == noDataErrorCode) return null;
       // The limiter is already paused (above), so every request waits out
       // the quota, each retry included; a request cancelled meanwhile fails
-      // there with Dio's cancellation, without being sent.
+      // promptly with Dio's cancellation and returns any granted start
+      // budget if cancelled before the request callback runs.
       final quotaRetries = background
           ? backgroundQuotaRetries
           : foregroundQuotaRetries;
