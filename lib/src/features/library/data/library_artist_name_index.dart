@@ -69,10 +69,11 @@ class LibraryArtistNameIndex {
   }
 
   ArtistsTableData? _uniqueLoose(String name) {
-    final matches = (_byLooseName[looseArtistKey(name)] ?? const [])
+    final keys = (_byLooseName[looseArtistKey(name)] ?? const [])
         .where((artist) => artistNamesMatchLoosely(artist.name, name))
-        .toList(growable: false);
-    return matches.length == 1 ? matches.single : null;
+        .map((artist) => normalizeMetadata(artist.name))
+        .toSet();
+    return keys.length == 1 ? _byName[keys.single] : null;
   }
 
   static bool _isPreferred(

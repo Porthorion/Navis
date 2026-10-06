@@ -49,6 +49,29 @@ void main() {
       },
     );
 
+    test(
+      'duplicate rows with one loose exact key retain artist preference',
+      () async {
+        final index = await LibraryArtistNameIndex.build([
+          _artist(
+            'remote',
+            'The Black Eyed Peas',
+            isExternal: true,
+            albumCount: 40,
+          ),
+          _artist('server-z', 'The Black Eyed Peas', albumCount: 4),
+          _artist('server-a', 'The Black Eyed Peas', albumCount: 4),
+          _artist('server-few', 'The Black Eyed Peas', albumCount: 1),
+        ]);
+        expect(
+          index.lookupAll(['Black Eyed Peas'])['black eyed peas']?.id,
+          'server-a',
+        );
+        expect(index.lookupUnique('Black Eyed Peas')?.id, 'server-a');
+        expect(index.lookupUnique('The Black Eyed Peas'), isNull);
+      },
+    );
+
     test('matches normalized names', () async {
       final index = await LibraryArtistNameIndex.build([
         _artist('oor', 'ＯＮＥ　ＯＫ　ＲＯＣＫ'),

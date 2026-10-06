@@ -3536,7 +3536,8 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
 - Related-artist links and name-based artist navigation share a cached
   `LibraryArtistNameIndex`, invalidated by artist-table updates. Exact keys
   are tried first; a miss uses `looseArtistKey` (articles, ampersands and
-  spacing) only when exactly one candidate passes `artistNamesMatchLoosely`.
+  spacing) only when matching candidates share one exact normalized name.
+  Duplicate rows of that name retain the server/more-albums/id preference.
   Different leading articles never match. Navigation retains exact-name
   ambiguity; related links retain their server/more-albums/id preference.
 - The artist page reads its albums through `album_artist_index`, a derived
