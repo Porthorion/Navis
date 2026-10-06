@@ -137,7 +137,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever',
+        'Lyrics cached before edition-aware LRCLIB matching are cleared once on upgrade so another language version cannot stay cached forever; downloaded songs refetch missing LRCLIB lyrics through the Wi-Fi-only backfill',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

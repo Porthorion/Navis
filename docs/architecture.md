@@ -810,7 +810,12 @@ whose lyrics may be in another language. Schema 92 deletes only legacy
 LRCLIB cache rows (camelCase and snake_case sources) once during upgrade;
 server lyrics and all newly fetched edition-aware lyrics survive reopen.
 The schema version is the durable completion marker, so no settings column
-or repeated TTL-based purge is needed.
+or repeated TTL-based purge is needed. Downloaded audio files are unaffected.
+Downloaded songs whose LRCLIB cache entries were purged are eligible for the
+existing `DownloadService` lyrics backfill on startup; it runs only on Wi-Fi
+and refetches through the lyrics resolver when LRCLIB lookups are enabled.
+Those lyrics may therefore be unavailable offline until a Wi-Fi startup
+backfills them (or an allowed on-demand lookup fetches them).
 
 Apple runners remain unreleased scaffolds. Their native configuration floors
 are iOS 16 and macOS 12; Linux validation does not certify either runner. This
