@@ -9419,6 +9419,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   void updateRadioMetadata({String? title, String? artist, String? artUrl}) {
+    // The composition root calls this on policy changes, including re-enable.
+    _radioMetadataService.refreshPolicy();
+
     final current = _radioStation;
     if (current == null) {
       return;

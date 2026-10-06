@@ -35,6 +35,8 @@ class RadioMetadataService {
   StreamSubscription<IcyMetadata?>? _icySubscription;
   String? _activeStationId;
   String? _azuracastBaseUrl;
+  String? _stationShortName;
+  bool _candidateRejected = false;
   int _generation = 0;
   int _initialFailureCount = 0;
   bool _hasAzuracastSuccess = false;
@@ -68,15 +70,15 @@ class RadioMetadataService {
     _activeStationId = stationId;
 
     // Try Azuracast polling first.
-    if (_isAllowed() &&
-        azuracastApiUrl != null &&
+    if (azuracastApiUrl != null &&
         azuracastApiUrl.isNotEmpty &&
         stationShortName != null &&
         stationShortName.isNotEmpty) {
       _azuracastBaseUrl = azuracastApiUrl.endsWith('/')
           ? azuracastApiUrl.substring(0, azuracastApiUrl.length - 1)
           : azuracastApiUrl;
-      _startAzuracastPolling(stationShortName);
+      _stationShortName = stationShortName;
+      refreshPolicy();
     }
 
     // Always listen for ICY metadata as a fallback / supplement.
@@ -87,6 +89,8 @@ class RadioMetadataService {
   void stop() {
     _generation++;
     _initialFailureCount = 0;
+    _candidateRejected = false;
+    _stationShortName = null;
     _hasAzuracastSuccess = false;
     _latestIcyMetadata = null;
     _pollingTimer?.cancel();
@@ -98,6 +102,29 @@ class RadioMetadataService {
     _lastMetadataTitle = null;
     _unchangedCycleCount = 0;
     _isReducedPolling = false;
+  }
+
+  /// Apply the current integration policy without forgetting this station.
+  void refreshPolicy() {
+    if (_activeStationId == null) return;
+    if (!_isAllowed()) {
+      if (_pollingTimer != null) {
+        _generation++;
+        _pollingTimer?.cancel();
+        _pollingTimer = null;
+        _applyIcyMetadata(_latestIcyMetadata ?? _player.icyMetadata);
+      }
+      return;
+    }
+    final shortName = _stationShortName;
+    if (_pollingTimer == null &&
+        !_candidateRejected &&
+        _azuracastBaseUrl != null &&
+        shortName != null) {
+      _isReducedPolling = false;
+      _unchangedCycleCount = 0;
+      _startAzuracastPolling(shortName);
+    }
   }
 
   void _startAzuracastPolling(String stationShortName) {
@@ -116,10 +143,7 @@ class RadioMetadataService {
       return;
     }
     if (!_isAllowed()) {
-      // Stop for good: ICY metadata takes over from the stream.
-      _pollingTimer?.cancel();
-      _pollingTimer = null;
-      _azuracastBaseUrl = null;
+      refreshPolicy();
       return;
     }
 
@@ -185,7 +209,7 @@ class RadioMetadataService {
     if (_hasAzuracastSuccess || ++_initialFailureCount < 2) return;
     _pollingTimer?.cancel();
     _pollingTimer = null;
-    _azuracastBaseUrl = null;
+    _candidateRejected = true;
     _generation++;
     // The stream may not emit again until its title changes.
     _applyIcyMetadata(_latestIcyMetadata ?? _player.icyMetadata);

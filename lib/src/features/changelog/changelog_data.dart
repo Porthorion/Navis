@@ -141,6 +141,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Radio now-playing lookups resume when you turn the integration back on while a station is playing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Internet radio falls back to stream titles when a station website does not provide an AzuraCast now-playing API',
         type: ChangelogEntryType.fix,
       ),

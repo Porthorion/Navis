@@ -8,6 +8,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -24,6 +27,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
+
+class _MockRadioDio extends Mock implements Dio;
 
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   @override
@@ -446,6 +451,8 @@ void main() {
     SubsonicApiClient? Function()? readApiClient,
     bool Function()? readCanStream,
     bool Function(Uri)? readRadioArtworkAllowed,
+    bool Function()? readRadioMetadataAllowed,
+    Dio Function()? createRadioMetadataDio,
   }) async {
     final database = createTestDatabase();
     final apiClient = sidecarStreams
@@ -491,7 +498,8 @@ void main() {
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
-      readRadioMetadataAllowed: () => false,
+      readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
+      createRadioMetadataDio: createRadioMetadataDio,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -550,6 +558,62 @@ void main() {
     );
     await handler.waitUntilReady();
     return (handler, player, database);
+  }
+
+  for (final initiallyAllowed in [true, false]) {
+    test(
+      'radio policy refresh resumes polling (initially $initiallyAllowed)',
+      () async {
+        var allowed = initiallyAllowed;
+        var requests = 0;
+        final dio = _MockRadioDio();
+        when(
+          () => dio.get<Map<String, dynamic>>(
+            any(),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer((_) async {
+          requests++;
+          return Response<Map<String, dynamic>>(
+            requestOptions: RequestOptions(),
+            statusCode: 200,
+            data: {
+              'now_playing': {
+                'song': {'title': 'Song', 'artist': 'Artist'},
+              },
+            },
+          );
+        });
+        final directory = Directory.systemTemp.createTempSync('radio-policy-');
+        final (handler, _, database) = await createHandler(
+          directory,
+          0,
+          readRadioMetadataAllowed: () => allowed,
+          createRadioMetadataDio: () => dio,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          directory.deleteSync(recursive: true);
+        });
+        await handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/listen/fixture/stream',
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(requests, initiallyAllowed ? 1 : 0);
+        allowed = false;
+        handler.updateRadioMetadata();
+        // Let the existing poll observe the disabled policy before re-enabling.
+        await Future<void>.delayed(RadioMetadataService.pollingInterval);
+        final before = requests;
+        allowed = true;
+        handler.updateRadioMetadata();
+        await Future<void>.delayed(Duration.zero);
+        expect(requests, before + 1);
+      },
+    );
   }
 
   group('radio artwork publication', () {

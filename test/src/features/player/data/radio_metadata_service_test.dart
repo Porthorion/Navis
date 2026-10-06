@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -21,6 +22,7 @@ class _CountingAdapter implements HttpClientAdapter {
   String? body;
   int statusCode = 200;
   DioExceptionType? failure;
+  Completer<ResponseBody>? pending;
 
   @override
   Future<ResponseBody> fetch(
@@ -29,6 +31,7 @@ class _CountingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requested.add(options.uri);
+    if (pending case final request?) return await request.future;
     if (failure case final type?) {
       throw DioException(requestOptions: options, type: type);
     }
@@ -165,6 +168,63 @@ void main() {
       service.dispose();
     });
   });
+
+  test('policy re-enable does not retry a rejected candidate API', () {
+    adapter.statusCode = 404;
+    fakeAsync((async) {
+      final service = build();
+      listen(service);
+      settle(async);
+      async.elapse(RadioMetadataService.pollingInterval);
+      settle(async);
+      policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+      service.refreshPolicy();
+      policy = const IntegrationPolicy();
+      service.refreshPolicy();
+      async.elapse(RadioMetadataService.pollingInterval * 3);
+      settle(async);
+      expect(adapter.requested, hasLength(2));
+      service.dispose();
+    });
+  });
+
+  test(
+    'late response from before policy disable cannot publish after re-enable',
+    () {
+      fakeAsync((async) {
+        final pending = Completer<ResponseBody>();
+        adapter.pending = pending;
+        final service = build();
+        listen(service);
+        settle(async);
+        policy = const IntegrationPolicy(disabledKeys: {'radio.nowPlaying'});
+        service.refreshPolicy();
+        policy = const IntegrationPolicy();
+        adapter.pending = null;
+        service.refreshPolicy();
+        settle(async);
+        pending.complete(
+          ResponseBody.fromString(
+            '{"now_playing":{"song":{"title":"Stale"}}}',
+            200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          ),
+        );
+        settle(async);
+        verifyNever(
+          () => handler.updateRadioMetadata(
+            title: 'Stale',
+            artist: null,
+            artUrl: null,
+          ),
+        );
+        expect(adapter.requested, hasLength(2));
+        service.dispose();
+      });
+    },
+  );
 
   test('polls Azuracast every interval while allowed', () {
     fakeAsync((async) {

@@ -1384,9 +1384,11 @@ switch means "Navis only talks to your server" when off. See
   weekly stream's automatic revalidation obeys the service switch. The policy is read per request, so clients that already exist obey
   later changes. `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
   `RadioMetadataService` checks before every Azuracast poll and which stops the
-  polling for good when it turns false (ICY metadata, carried by the stream
-  itself, is unaffected). The audio handler lives outside Riverpod, so it also
-  takes a `createRadioMetadataDio` factory. Two failed initial polls (HTTP,
+  polling while it is false (ICY metadata, carried by the stream
+  itself, is unaffected). Policy changes refresh the current station immediately:
+  disabling applies available ICY metadata, and re-enabling restarts polling
+  unless the candidate API already failed its initial probe. The audio handler
+  lives outside Riverpod, so it also takes a `createRadioMetadataDio` factory. Two failed initial polls (HTTP,
   timeout, malformed JSON or missing `now_playing.song`) abandon the candidate
   API for that station and immediately apply the latest ICY title. A station
   with a successful API response keeps polling through transient failures.
