@@ -127,6 +127,39 @@ void main() {
     }
   });
 
+  for (final refreshAlreadyPending in [false, true]) {
+    test('upgrade refresh finishes before track candidate matching '
+        '(already pending: $refreshAlreadyPending)', () async {
+      await database.libraryDao.upsertSongs([
+        _song('target', '残響リファレンス', artistName: '嵐'),
+        _song('unrelated', 'Unrelated', artistName: 'Other'),
+      ]);
+      await database.libraryDao.refreshSongSearchIndex();
+      await database.customStatement(
+        "UPDATE song_search_text SET source = substr(source, 1, length(source) - 1) || '1', match_title = ''",
+      );
+      var refreshFinished = false;
+      final pending = refreshAlreadyPending
+          ? database.libraryDao.scheduleSongSearchIndexRefresh().then((_) {
+              refreshFinished = true;
+            })
+          : null;
+      final candidates = await database.libraryDao.getTrackMatchCandidates([
+        (title: '残響リファレンス', artist: '嵐'),
+      ]);
+      if (refreshAlreadyPending) expect(refreshFinished, isTrue);
+      final row = await database
+          .customSelect(
+            "SELECT match_title FROM song_search_text WHERE song_id = 'target'",
+          )
+          .getSingle();
+      expect(row.read<String>('match_title'), '残響リファレンス');
+      expect(candidates.map((song) => song.id), ['target']);
+      await pending;
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+    });
+  }
+
   Future<void> expectBucketsMatchFullScan(String artistId) async {
     final indexed = await database.libraryDao
         .watchArtistAlbumBuckets(artistId)
@@ -289,7 +322,7 @@ void main() {
 
     test('match exactly like the whole library, stale or fresh', () async {
       final reference = await matches(await database.libraryDao.getAllSongs());
-      // Before the refresh every row is stale and is a candidate.
+      // The first lookup refreshes stale rows before selecting candidates.
       expect(await matches(await candidates()), reference);
       await database.libraryDao.refreshSongSearchIndex();
       final fresh = await candidates();
@@ -467,13 +500,13 @@ void main() {
       final found = await database.libraryDao.searchCachedSongs('halo');
       expect(found.map((song) => song.id), <String>['beyonce']);
       expect(await database.libraryDao.searchCachedSongs('zzmarker'), isEmpty);
-      // The match keys are still re-keyed.
+      // Matching awaits re-keying and excludes unrelated stale songs.
       final candidates = await database.libraryDao.getTrackMatchCandidates(
         const <({String title, String artist})>[
           (title: 'Nothing', artist: 'Nobody'),
         ],
       );
-      expect(candidates.map((song) => song.id), contains('beyonce'));
+      expect(candidates, isEmpty);
     });
 
     test('a Japanese name-only album is on its artist page, even from an '

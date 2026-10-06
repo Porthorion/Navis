@@ -178,8 +178,9 @@ class LocalTrackMatchSnapshot {
           final candidateArtist = candidate.normalizedArtist;
           if (candidateArtist.isEmpty) return false;
           if (candidateArtist == expectedArtist) return true;
-          if (expectedArtist.length < 2 || candidateArtist.length < 2)
+          if (expectedArtist.length < 2 || candidateArtist.length < 2) {
             return false;
+          }
           if (candidateArtist.contains(expectedArtist) ||
               expectedArtist.contains(candidateArtist)) {
             return true;

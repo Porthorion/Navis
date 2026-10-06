@@ -133,6 +133,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The first library match after an upgrade refreshes old keys in the background before selecting candidates, avoiding a full-library UI pause',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes keeps passing matches when an edition tie is too weak; song navigation handles remaster duplicates and single-character artists match consistently',
         type: ChangelogEntryType.fix,
       ),

@@ -3668,8 +3668,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// track's, and every song whose artist key could satisfy its artist
   /// fallback (equal, containing or contained, or sharing a word). A snapshot
   /// built from these makes the same matches as one built from the whole
-  /// library, without loading every song. Rows whose keys are stale are
-  /// included and matched in Dart, and trigger an index refresh.
+  /// library, without loading every song. Awaits the shared index refresh
+  /// first, so an upgrade never sends every stale song to the UI matcher.
+  /// Rows changed concurrently, or left stale by a failed index write, remain
+  /// candidates so the derived index cannot hide a possible match.
   ///
   /// The artist fallback depends only on the artist key, so it is tested
   /// once per distinct key (a few thousand) instead of once per song, and the
@@ -3677,6 +3679,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> getTrackMatchCandidates(
     Iterable<({String title, String artist})> tracks,
   ) async {
+    await scheduleSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final matchedArtists = <String>[];
     if (artistKeys.isNotEmpty) {
@@ -3737,6 +3740,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> debugTrackMatchCandidatesByFullScan(
     Iterable<({String title, String artist})> tracks,
   ) async {
+    await scheduleSongSearchIndexRefresh();
     final (:titleKeys, :artistKeys, :artistTokens) = _trackMatchKeys(tracks);
     final conditions = <String>[
       't.source IS NOT ($_songSearchSourceSql)',
@@ -3752,7 +3756,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     for (final artist in artistKeys) {
       conditions.add(
-        "(t.match_artist = ? OR (length(t.match_artist) >= 2 AND ? >= 2 "
+        '(t.match_artist = ? OR (length(t.match_artist) >= 2 AND ? >= 2 '
         'AND (instr(t.match_artist, ?) > 0 OR instr(?, t.match_artist) > 0)))',
       );
       variables

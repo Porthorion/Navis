@@ -3487,7 +3487,11 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   `match_artist` key (indexed, like `match_title`), not once per song, and
   the matching songs are read through the two key indexes;
   `debugTrackMatchCandidatesByFullScan` keeps the per-song query as the test
-  reference. Deferred maintenance normalizes in an isolate.
+  reference. Candidate selection awaits the shared stale-row refresh before
+  matching, so the first lookup after an upgrade stays bounded instead of
+  normalizing the full library on the UI isolate. Refresh normalization runs
+  in an isolate; concurrent changes or failed writes retain the safe stale-row
+  fallback.
 - Matching external metadata (Last.fm, ListenBrainz, LRCLIB, Subsonic
   search) to library songs, albums and artists uses two keys from
   `lib/src/utils/metadata_normalization.dart`. `normalizeMetadata` is the
@@ -3497,8 +3501,10 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   featured credits, and keeps letters and digits of every script, so
   Japanese, Korean, Arabic and accented titles get real keys.
   `normalizeMetadataKeepingEdition` is the same but keeps bracketed and
-  " - " qualifiers (featuring credits are stripped only outside brackets),
-  so "Wonder" and "Wonder (Japanese Version)" share a
+  " - " qualifiers. A bracket starting with "feat" or "ft" is a featured
+  credit and is dropped; the trailing featuring rule applies only outside
+  brackets, preserving locations such as "(Live at Ft. Worth)". "Wonder" and
+  "Wonder (Japanese Version)" share a
   fuzzy key but not an edition key. Mastering and packaging qualifiers
   (remasters, bare years, deluxe/anniversary editions, explicit/clean,
   mono/stereo, album/single/original version, bonus track) are not
