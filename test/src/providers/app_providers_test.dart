@@ -1731,6 +1731,7 @@ void main() {
         ]);
 
         final emittedCounts = <int>[];
+        final firstWrite = Completer<void>();
         final completer = Completer<void>();
         final subscription = container.listen<AsyncValue<AlbumWithSongs?>>(
           albumProvider('album-1'),
@@ -1740,6 +1741,9 @@ void main() {
                 return;
               }
               emittedCounts.add(value.songs.length);
+              if (value.songs.length == 1 && !firstWrite.isCompleted) {
+                firstWrite.complete();
+              }
               if (value.songs.length == 2 && !completer.isCompleted) {
                 completer.complete();
               }
@@ -1759,6 +1763,9 @@ void main() {
             ),
           ],
         );
+        // Rapid writes may coalesce into one stream emission; wait until the
+        // first write is visible so each write is observed on its own.
+        await firstWrite.future.timeout(const Duration(seconds: 5));
 
         await database.libraryDao.replaceSongsForAlbum(
           'album-1',
