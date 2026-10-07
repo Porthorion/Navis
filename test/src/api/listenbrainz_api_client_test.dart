@@ -6,6 +6,89 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 class _MockDio extends Mock implements Dio;
 
 void main() {
+  for (final (remaining, reset, seconds) in [
+    ('0', '60', 60),
+    ('0', '9999', 300),
+    ('1', '60', 0),
+    ('bad', '60', 0),
+    ('0', 'bad', 0),
+    ('0', '-1', 0),
+  ]) {
+    test(
+      'ListenBrainz dispatch limit remaining=$remaining reset=$reset',
+      () async {
+        var now = DateTime.utc(2026, 10, 7);
+        var requests = 0;
+        final dio = Dio();
+        addTearDown(dio.close);
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests++;
+              handler.resolve(
+                Response<void>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  headers: Headers.fromMap({
+                    'X-RateLimit-Remaining': [remaining],
+                    'X-RateLimit-Reset-In': [reset],
+                  }),
+                ),
+              );
+            },
+          ),
+        );
+        final client = ListenBrainzApiClient(dio: dio, now: () => now);
+        Future<void> send() => client.sendPlayingNow(
+          userToken: 'fixture',
+          artist: 'Fixture',
+          track: 'Track',
+        );
+        await send();
+        expect(client.isRateLimited, seconds > 0);
+        if (seconds > 0) {
+          expect(client.rateLimitedUntil, now.add(Duration(seconds: seconds)));
+          await expectLater(
+            send(),
+            throwsA(isA<ListenBrainzRateLimitedException>()),
+          );
+          expect(requests, 1);
+          now = now.add(Duration(seconds: seconds));
+        }
+        await send();
+        expect(requests, 2);
+      },
+    );
+  }
+
+  test('repeated rate-limit headers are ignored as malformed', () async {
+    final dio = Dio();
+    addTearDown(dio.close);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.resolve(
+            Response<void>(
+              requestOptions: options,
+              statusCode: 200,
+              headers: Headers.fromMap({
+                'X-RateLimit-Remaining': ['0', '1'],
+                'X-RateLimit-Reset-In': ['60'],
+              }),
+            ),
+          );
+        },
+      ),
+    );
+    final client = ListenBrainzApiClient(dio: dio);
+    await client.sendPlayingNow(
+      userToken: 'fixture',
+      artist: 'Fixture',
+      track: 'Track',
+    );
+    expect(client.isRateLimited, isFalse);
+  });
+
   setUpAll(() {
     registerFallbackValue(Options());
     registerFallbackValue(<String, Object?>{});

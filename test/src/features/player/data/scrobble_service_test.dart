@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:drift/native.dart';
+import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -49,7 +49,7 @@ void main() {
     late bool reachable;
 
     setUp(() async {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       apiClient = _FakeSubsonicApiClient();
       now = DateTime.utc(2026, 1, 1, 0, 0, 0);
       scrobbleEnabled = true;
@@ -63,6 +63,74 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'ListenBrainz cooldown defers later events while Subsonic continues',
+      () async {
+        var requests = 0;
+        final dio = Dio();
+        addTearDown(dio.close);
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests++;
+              handler.resolve(
+                Response<void>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  headers: Headers.fromMap(
+                    requests == 1
+                        ? {
+                            'X-RateLimit-Remaining': ['0'],
+                            'X-RateLimit-Reset-In': ['60'],
+                          }
+                        : {},
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+        final client = ListenBrainzApiClient(dio: dio, now: () => now);
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => true,
+          readReachable: () => true,
+          now: () => now,
+          readListenBrainzCredentials: () async =>
+              const ListenBrainzScrobbleCredentials(userToken: 'fixture'),
+          createListenBrainzClient: () => client,
+        );
+        addTearDown(service.dispose);
+        for (final id in ['song-1', 'song-2']) {
+          await service.enqueueSubmission(
+            songId: id,
+            sessionKey: id,
+            track: ScrobbleTrackPayload(
+              songId: id,
+              title: 'Fixture Track',
+              artist: 'Fixture Artist',
+            ),
+          );
+        }
+        await service.flushDue();
+        expect(requests, 1);
+        expect(apiClient.calls, hasLength(2));
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued, hasLength(1));
+        expect(queued.single.provider, 'listenbrainz');
+        expect(queued.single.attempts, 0);
+        now = now.add(const Duration(seconds: 59));
+        await service.flushDue();
+        expect(requests, 1);
+        now = now.add(const Duration(seconds: 1));
+        await service.flushDue();
+        expect(requests, 2);
+        expect(await database.scrobbleDao.countEntries(), 0);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('flushDue delivers due events and removes them', () async {
       final service = DriftScrobbleService(

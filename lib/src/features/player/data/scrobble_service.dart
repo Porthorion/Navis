@@ -126,6 +126,7 @@ class DriftScrobbleService implements ScrobbleService {
 
   Timer? _dispatchTimer;
   Timer? _dispatchRetryTimer;
+  DateTime? _listenBrainzBlockedUntil;
   bool _isDispatching = false;
   bool _started = false;
 
@@ -245,6 +246,8 @@ class DriftScrobbleService implements ScrobbleService {
           if (await _dispatchEvent(event, api)) {
             await _dao.markDelivered(event.id);
           }
+        } on ListenBrainzRateLimitedException catch (error) {
+          _listenBrainzBlockedUntil = error.retryAt;
         } on ListenBrainzInvalidTokenException catch (_) {
           _onListenBrainzInvalidToken?.call();
           await _dao.markDelivered(event.id);
@@ -300,6 +303,10 @@ class DriftScrobbleService implements ScrobbleService {
         return true;
 
       case ScrobbleProvider.listenBrainz:
+        if (_listenBrainzBlockedUntil != null &&
+            _now().isBefore(_listenBrainzBlockedUntil!)) {
+          return false;
+        }
         final credentials = await _readListenBrainzCredentials();
         if (credentials == null) {
           return true;
@@ -309,23 +316,32 @@ class DriftScrobbleService implements ScrobbleService {
           artist: event.artistName,
         );
         final client = _createListenBrainzClient();
-        if (event.submission) {
-          await client.submitSingleListen(
-            userToken: credentials.userToken,
-            artist: track.artist,
-            track: track.title,
-            listenedAt: event.createdAt,
-            album: _clean(event.albumName),
-            duration: event.durationSeconds,
-          );
-        } else {
-          await client.sendPlayingNow(
-            userToken: credentials.userToken,
-            artist: track.artist,
-            track: track.title,
-            album: _clean(event.albumName),
-            duration: event.durationSeconds,
-          );
+        try {
+          if (event.submission) {
+            await client.submitSingleListen(
+              userToken: credentials.userToken,
+              artist: track.artist,
+              track: track.title,
+              listenedAt: event.createdAt,
+              album: _clean(event.albumName),
+              duration: event.durationSeconds,
+            );
+          } else {
+            await client.sendPlayingNow(
+              userToken: credentials.userToken,
+              artist: track.artist,
+              track: track.title,
+              album: _clean(event.albumName),
+              duration: event.durationSeconds,
+            );
+          }
+        } finally {
+          final deadline = client.rateLimitedUntil;
+          if (deadline != null &&
+              (_listenBrainzBlockedUntil == null ||
+                  deadline.isAfter(_listenBrainzBlockedUntil!))) {
+            _listenBrainzBlockedUntil = deadline;
+          }
         }
         return true;
     }

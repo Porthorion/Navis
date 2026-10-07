@@ -7,10 +7,18 @@ class ListenBrainzInvalidTokenException implements Exception {
   const new();
 }
 
+/// Dispatch must wait until ListenBrainz replenishes its request budget.
+class ListenBrainzRateLimitedException implements Exception {
+  const new(this.retryAt);
+  final DateTime retryAt;
+}
+
 class ListenBrainzApiClient {
   /// Production code passes a [dio] from `externalDioFactoryProvider`, built
   /// with [baseOptions], so the integration guard applies.
-  new({Dio? dio}) : _dio = dio ?? Dio(baseOptions);
+  new({Dio? dio, DateTime Function()? now})
+    : _dio = dio ?? Dio(baseOptions),
+      _now = now ?? DateTime.now;
 
   static final baseOptions = BaseOptions(
     baseUrl: 'https://api.listenbrainz.org/1',
@@ -21,6 +29,29 @@ class ListenBrainzApiClient {
   );
 
   final Dio _dio;
+  final DateTime Function() _now;
+  DateTime? _rateLimitedUntil;
+
+  DateTime? get rateLimitedUntil => _rateLimitedUntil;
+  bool get isRateLimited =>
+      _rateLimitedUntil != null && _now().isBefore(_rateLimitedUntil!);
+
+  void _recordRateLimit(Headers? headers) {
+    if (int.tryParse(
+          headers?['x-ratelimit-remaining']?.singleOrNull?.trim() ?? '',
+        ) !=
+        0) {
+      return;
+    }
+    final seconds = int.tryParse(
+      headers?['x-ratelimit-reset-in']?.singleOrNull?.trim() ?? '',
+    );
+    if (seconds == null || seconds < 0) return;
+    final deadline = _now().add(Duration(seconds: seconds.clamp(0, 300)));
+    if (_rateLimitedUntil == null || deadline.isAfter(_rateLimitedUntil!)) {
+      _rateLimitedUntil = deadline;
+    }
+  }
 
   Future<bool> validateToken(String userToken) async {
     return (await validateTokenDetails(userToken)).valid;
@@ -232,6 +263,9 @@ class ListenBrainzApiClient {
     int? duration,
     DateTime? listenedAt,
   }) async {
+    if (isRateLimited) {
+      throw ListenBrainzRateLimitedException(_rateLimitedUntil!);
+    }
     final metadata = <String, dynamic>{
       'artist_name': artist,
       'track_name': track,
@@ -250,12 +284,14 @@ class ListenBrainzApiClient {
       ],
     };
     try {
-      await _dio.post<void>(
+      final response = await _dio.post<void>(
         '/submit-listens',
         data: payload,
         options: _authOptions(userToken),
       );
+      _recordRateLimit(response.headers);
     } on DioException catch (error) {
+      _recordRateLimit(error.response?.headers);
       final status = error.response?.statusCode;
       if (status == 401 || status == 403) {
         throw const ListenBrainzInvalidTokenException();

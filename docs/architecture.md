@@ -1346,11 +1346,6 @@ keeps that action's default. Playback speed up/down/reset (`speedUp`,
 `,` and `0`, because Shift changes the logical key of punctuation on many
 layouts.
 
-ListenBrainz credentials are deleted on every server sign-out, with the
-connection reset even if deletion fails. Teardown logs failures and continues.
-Disconnect in Integrations instead retains the connection when deletion fails
-and shows a retry notice.
-
 ## Database file location
 
 Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
@@ -1362,6 +1357,24 @@ verified before originals are deleted. Failure restores transferred files and
 falls back to documents; a rollback failure preserves the remaining copy and
 fails opening rather than choosing an incomplete database. An existing support
 database wins and leaves legacy files untouched. No schema changes are involved.
+
+## External integration policy
+
+External HTTP clients use a shared ASCII User-Agent containing the current
+Navis version, `https://navis.porthorion.com` and `support@porthorion.com`,
+including radio metadata, AutoEQ, cover-art fetching and update requests.
+
+Navis talks to its own Subsonic server and, optionally, to external services:
+Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
+streams and artwork the server links to. The user decides which, per service
+and per feature. Everything is on by default, and a master "Online services"
+switch means "Navis only talks to your server" when off. See
+[the decision record](decisions/2026-10-04-external-integrations-policy.md).
+
+ListenBrainz credentials are deleted on every server sign-out, with the
+connection reset even if deletion fails. Teardown logs failures and continues.
+Disconnect in Integrations instead retains the connection when deletion fails
+and shows a retry notice.
 
 The provider-held LRCLIB client shares a Retry-After cooldown across exact
 lookups, search and downloads. HTTP 429/503 pauses requests until the supplied
@@ -1377,18 +1390,11 @@ not. Each entry records its request limit, so a larger request refreshes an
 undersized entry and smaller reads return only the requested number of tracks.
 Cache I/O uses the existing asynchronous read and atomic-write path.
 
-## External integration policy
-
-External HTTP clients use a shared ASCII User-Agent containing the current
-Navis version, `https://navis.porthorion.com` and `support@porthorion.com`,
-including radio metadata, AutoEQ, cover-art fetching and update requests.
-
-Navis talks to its own Subsonic server and, optionally, to external services:
-Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
-streams and artwork the server links to. The user decides which, per service
-and per feature. Everything is on by default, and a master "Online services"
-switch means "Navis only talks to your server" when off. See
-[the decision record](decisions/2026-10-04-external-integrations-policy.md).
+ListenBrainz listen submissions observe `X-RateLimit-Remaining: 0` and
+`X-RateLimit-Reset-In`, holding subsequent dispatches for the stated seconds
+(up to five minutes). Malformed headers are ignored. Client and dispatcher
+retain the deadline; deferred events stay queued without retry penalties,
+and Subsonic delivery continues independently.
 
 - **Model** (`features/integrations/domain/integration_feature.dart`):
   `IntegrationService` (key, host, display name, verification requirement),

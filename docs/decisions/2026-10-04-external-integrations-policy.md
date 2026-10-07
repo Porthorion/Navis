@@ -75,38 +75,24 @@ anything besides my server?" and no way to turn off one feature of a service.
 - Clone diagnostics can read and change the policy through
   `GET/POST /v1/presentation/integrations`.
 
-### Compliance follow-up — 2026-10-07
+## Compliance follow-up — 2026-10-07
 
 Radio playback checks the master switch before changing transport or queue state. Stations on the configured server host remain available; host comparisons ignore case.
 
-### Compliance follow-up — 2026-10-07
-
 ListenBrainz disconnect changes the connection only after secure token deletion succeeds and shows a retry notice on failure. Every server sign-out attempts token deletion and resets its connection, logging failures without blocking sign-out.
-
-### Compliance follow-up — 2026-10-07
 
 Credential redaction also covers Last.fm `api_key`, including encoded query parameters, and refuses those URLs as media-session inputs.
 
-### Compliance follow-up — 2026-10-07
-
 Android disables application backup and excludes all root, file, database, preferences and external-storage domains from cloud backup and device transfer. The manifest declares mailto handler visibility for the support link.
-
-### Compliance follow-up — 2026-10-07
 
 Desktop databases now live in application support. Before opening, Navis migrates the legacy documents database with WAL, SHM and journal sidecars. Cross-device moves verify copies before deleting originals; failures restore the file family and open the legacy location. Directory readers preserve diagnostics profile overrides. Android and iOS retain the documents location.
 
-### Compliance follow-up — 2026-10-07
-
 English disclosures name Deezer image servers, artist/album/track queries, and the bundled or custom Last.fm key. Existing feature subtitles cover Same Vibes, Instant Radio and artist Top Songs fallback. AutoEQ displays both raw.githubusercontent.com and api.github.com through a display-only host getter; policy enforcement and update-check destinations are unchanged.
-
-### Compliance follow-up — 2026-10-07
 
 External HTTP requests identify Navis with its version, project URL and support email. Radio metadata and update clients receive the shared header through their existing guarded Dio factory; AutoEQ and cover-art HTTP clients use it too. Update endpoints and behavior are unchanged.
 
-### Compliance follow-up — 2026-10-07
-
 LRCLIB 429 and 503 responses start a shared provider-held cooldown using Retry-After seconds or HTTP-date, defaulting to 60 seconds. Exact lookup and search make no requests during cooldown. Lyrics resolve through cached/server alternatives quietly, and downloaded-song backfill stops the pass after a rate limit. Subsonic uses the same Retry-After parser.
 
-### Compliance follow-up — 2026-10-07
-
 The shared Last.fm client caches successful track.getsimilar JSON responses for 24 hours using IntegrationJsonCache, keyed by case/whitespace-normalized artist and track. Instant Radio and Same Vibes share the cache. Errors are not cached; requests for a larger limit refresh an undersized entry, and smaller reads preserve caller limits. File reads and atomic writes follow the existing asynchronous Deezer cache pattern.
+
+ListenBrainz listen dispatch observes X-RateLimit-Remaining: 0 and a valid non-negative X-RateLimit-Reset-In. It holds further dispatches until that deadline, capped at five minutes. Malformed headers are ignored. The client and scrobble dispatcher preserve the cooldown across requests and leave queued events pending without counting deferred dispatch as failure; Subsonic delivery continues.

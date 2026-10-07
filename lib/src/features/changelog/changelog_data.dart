@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'ListenBrainz scrobbles wait for its advertised rate-limit reset before dispatching more listens',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes and Instant Radio reuse Last.fm similar-track responses for 24 hours',
         type: ChangelogEntryType.fix,
       ),
