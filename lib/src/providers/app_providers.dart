@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart' show BaseOptions;
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
@@ -1193,6 +1194,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       ),
       createRadioMetadataDio: () => ref.read(externalDioFactoryProvider)(
         IntegrationService.radioMetadata,
+        options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
       ),
       startPreferredMix: (seedId) async {
         final settings = await ref
@@ -2932,7 +2934,10 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
   return UpdateService(
-    dio: ref.watch(externalDioFactoryProvider)(IntegrationService.updates),
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.updates,
+      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
+    ),
     networkUsageReporter: meter.record,
   );
 });
@@ -2968,7 +2973,10 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   }
 
   return await UpdateRepository(
-    dio: ref.read(externalDioFactoryProvider)(IntegrationService.updates),
+    dio: ref.read(externalDioFactoryProvider)(
+      IntegrationService.updates,
+      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
+    ),
     installSourceService: ref.read(installSourceServiceProvider),
     updateCheckStore: ref.read(updateCheckStoreProvider),
   ).checkForUpdate(

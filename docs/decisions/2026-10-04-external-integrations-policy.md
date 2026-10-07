@@ -98,3 +98,7 @@ Desktop databases now live in application support. Before opening, Navis migrate
 ### Compliance follow-up — 2026-10-07
 
 English disclosures name Deezer image servers, artist/album/track queries, and the bundled or custom Last.fm key. Existing feature subtitles cover Same Vibes, Instant Radio and artist Top Songs fallback. AutoEQ displays both raw.githubusercontent.com and api.github.com through a display-only host getter; policy enforcement and update-check destinations are unchanged.
+
+### Compliance follow-up — 2026-10-07
+
+External HTTP requests identify Navis with its version, project URL and support email. Radio metadata and update clients receive the shared header through their existing guarded Dio factory; AutoEQ and cover-art HTTP clients use it too. Update endpoints and behavior are unchanged.

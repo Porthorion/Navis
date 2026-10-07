@@ -14,7 +14,11 @@ void main() {
       '^version: ([^+]+)',
       multiLine: true,
     ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1)!;
-    expect(AppConstants.userAgent, 'Navis/$version');
+    expect(
+      AppConstants.userAgent,
+      'Navis/$version '
+      '(+https://navis.porthorion.com; support@porthorion.com)',
+    );
     final sent = <String>[];
     Dio transport(BaseOptions options) {
       final dio = Dio(options);

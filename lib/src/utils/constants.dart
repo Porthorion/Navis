@@ -7,7 +7,9 @@ import 'package:navis/src/features/changelog/changelog_data.dart';
 /// project's own Forgejo instance and repo.
 abstract final class AppConstants {
   /// Shared HTTP identity derived from the current app changelog version.
-  static final String userAgent = 'Navis/${changelogs.first.version}';
+  static final String userAgent =
+      'Navis/${changelogs.first.version} '
+      '(+https://navis.porthorion.com; support@porthorion.com)';
 
   /// Base URL of the Forgejo instance hosting the Navis repository.
   static const String forgejoBaseUrl = 'https://git.porthorion.com';

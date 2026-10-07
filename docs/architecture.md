@@ -1365,6 +1365,10 @@ database wins and leaves legacy files untouched. No schema changes are involved.
 
 ## External integration policy
 
+External HTTP clients use a shared ASCII User-Agent containing the current
+Navis version, `https://navis.porthorion.com` and `support@porthorion.com`,
+including radio metadata, AutoEQ, cover-art fetching and update requests.
+
 Navis talks to its own Subsonic server and, optionally, to external services:
 Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
 streams and artwork the server links to. The user decides which, per service

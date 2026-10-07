@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'package:navis/src/utils/constants.dart';
+
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -147,6 +150,7 @@ class AutoEqCatalogue {
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 30),
     followRedirects: false,
+    headers: {'User-Agent': AppConstants.userAgent},
   );
   final Dio _client;
   Future<File> _cache() async => File(

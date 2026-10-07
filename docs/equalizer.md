@@ -255,7 +255,8 @@ index atomically. Existing saved presets never update automatically.
 Downloading a selection obtains its `ParametricEQ.txt` export. Explicit refresh
 and downloads contact `raw.githubusercontent.com` for content and
 `api.github.com` for revision metadata. Both hosts are disclosed in Integrations
-and Privacy; the bundled catalogue remains available offline.
+and Privacy; the bundled catalogue remains available offline. AutoEQ HTTP
+requests include the shared Navis User-Agent with project and support contacts.
 
 ## Importing presets
 
