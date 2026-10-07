@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Windows Rust dependency notices include licence text for every bundled crate',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'ListenBrainz scrobbles wait for its advertised rate-limit reset before dispatching more listens',
         type: ChangelogEntryType.fix,
       ),

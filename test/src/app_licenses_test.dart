@@ -5,6 +5,39 @@ import 'package:navis/src/app_licenses.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'every Windows Rust crate references bundled full licence text',
+    () async {
+      final notices = await rootBundle.loadString(
+        'assets/licenses/windows-smtc-crates.txt',
+      );
+      expect(notices, isNot(contains('No licence file found')));
+      final inventory = notices.split('Distinct licence texts').first;
+      for (final block
+          in inventory
+              .split('\n\n')
+              .skip(1)
+              .where((block) => block.trim().isNotEmpty)) {
+        final references = RegExp('licence text ([0-9a-f]{64})')
+            .allMatches(block)
+            .toList();
+        expect(references, isNotEmpty, reason: block.split('\n').first);
+        for (final reference in references) {
+          expect(notices, contains('Licence text ${reference.group(1)}'));
+        }
+      }
+      expect(
+        notices,
+        contains('Copyright (c) the flutter_rust_bridge authors'),
+      );
+      expect(
+        notices,
+        contains('Copyright (c) the flutter_rust_bridge_macros authors'),
+      );
+      expect(notices, contains('SPDX Apache-2.0 template: licence text'));
+    },
+  );
+
   setUp(LicenseRegistry.reset);
   tearDown(LicenseRegistry.reset);
 

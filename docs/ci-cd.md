@@ -38,7 +38,10 @@ and that a stream served with an untrusted certificate is refused
 
 Regenerate Windows SMTC licence notices after Rust dependency changes with
 `python3 tool/generate_rust_notices.py` (see `release-windows.md`). The script
-uses the locked Windows graph and locally fetched Cargo registry sources.
+uses the locked Windows graph and locally fetched Cargo registry sources. Licence
+file matching ignores case. A crate without a licence file gets full text for
+every SPDX identifier from tracked `tool/data/spdx/` templates; unsupported
+fallbacks fail generation. Identical texts share a notice reference.
 
 The colour-name table is generated separately with
 `dart run tool/generate_color_names.dart`; `build_runner` does not own it.

@@ -629,7 +629,10 @@ target-selection rules.
   platform's per-glyph fallback.
 - Bundled licence registration: `main.dart` calls `registerBundledLicenses`
   from `app_licenses.dart`. Inter, AutoEq and color-names appear on every
-  platform; mimalloc appears on Linux and Rust crate notices on Windows.
+  platform; mimalloc appears on Linux and Rust crate notices on Windows. The
+  Rust notice generator matches upstream licence files without case sensitivity
+  and supplies tracked SPDX full-text templates for missing files, preserving
+  Cargo authors for MIT attribution. Every crate references full licence text.
   The Windows/Linux libmpv and FFmpeg notice plus LGPL text stay disabled
   until `_bundlesLgplLibmpv` is enabled after the LGPL bundle replacement
   (compliance audit L-3/L-4). About supplies the Porthorion copyright line.

@@ -22,6 +22,9 @@ non-Dart assets and native libraries. Its tests cover platform filtering and
 the disabled LGPL bundle flag without starting the application. Regenerate
 Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
 locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
+The generator matches licence filenames case-insensitively and uses tracked
+`tool/data/spdx/` full-text fallbacks when a crate has no licence file. No text
+is fetched at generation or app runtime; unknown fallback identifiers fail.
 See `release-windows.md` for the packaging procedure.
 
 ## Colour-name data

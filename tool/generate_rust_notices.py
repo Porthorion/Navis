@@ -3,8 +3,51 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
+
+
+def crate_licence_texts(crate, template_directory):
+    """Return labelled full texts, preserving shipped files before SPDX fallback."""
+    identity = f"{crate['name']} {crate['version']}"
+    directory = Path(crate['manifest_path']).parent
+    files = {
+        file for file in directory.iterdir()
+        if file.is_file()
+        and file.name.lower().startswith(('license', 'licence', 'copying', 'unlicense'))
+    }
+    if crate.get('license_file'):
+        declared = directory / crate['license_file']
+        if not declared.is_file():
+            raise FileNotFoundError(f'{identity}: declared licence file missing')
+        files.add(declared)
+    if files:
+        result = []
+        for file in sorted(files):
+            text = file.read_text(encoding='utf-8').strip()
+            if not text:
+                raise ValueError(f'{identity}: empty licence file {file.name}')
+            result.append((file.name, text))
+        return result
+
+    expression = crate.get('license') or ''
+    tokens = re.findall(r'[A-Za-z0-9][A-Za-z0-9.+-]*', expression)
+    identifiers = sorted(set(tokens) - {'AND', 'OR'})
+    if not identifiers:
+        raise ValueError(f'{identity}: no licence files or SPDX identifiers')
+    result = []
+    for identifier in identifiers:
+        if identifier not in {'MIT', 'Apache-2.0', 'Unicode-3.0'}:
+            raise ValueError(f'{identity}: unsupported SPDX fallback {identifier}')
+        text = (template_directory / f'{identifier}.txt').read_text(encoding='utf-8').strip()
+        if identifier == 'MIT':
+            authors = crate.get('authors') or [f"the {crate['name']} authors"]
+            text = text.replace('{copyright_holders}', ', '.join(authors))
+        if not text:
+            raise ValueError(f'{identity}: empty SPDX template {identifier}')
+        result.append((f'SPDX {identifier} template', text))
+    return result
 
 
 def main():
@@ -37,38 +80,24 @@ def main():
     texts = {}
     for crate in crates:
         identity = f"{crate['name']} {crate['version']}"
-        directory = Path(crate['manifest_path']).parent
-        files = set()
-        for pattern in ('LICENSE*', 'COPYING*', 'UNLICENSE'):
-            files.update(file for file in directory.glob(pattern) if file.is_file())
-        if crate['license_file']:
-            declared = directory / crate['license_file']
-            if not declared.is_file():
-                raise FileNotFoundError(f'{identity}: declared licence file missing')
-            files.add(declared)
+        licence_texts = crate_licence_texts(crate, root / 'tool/data/spdx')
         expression = crate['license']
         if not expression:
             # allo-isolate omits the manifest field but ships Apache-2.0 text.
             expression = (
                 'Apache-2.0 (from LICENSE; manifest licence unspecified)'
                 if crate['name'] == 'allo-isolate'
-                and any('Apache License' in file.read_text(encoding='utf-8')
-                        and 'Version 2.0' in file.read_text(encoding='utf-8')
-                        for file in files)
+                and any('Apache License' in text and 'Version 2.0' in text
+                        for _, text in licence_texts)
                 else 'licence expression unspecified in manifest'
             )
         output.append(f'{identity} — {expression}')
-        if not files:
-            output.append('No licence file found in the crate manifest directory.')
-        for file in sorted(files):
-            text = file.read_text(encoding='utf-8').strip()
-            if not text:
-                raise ValueError(f'{identity}: empty licence file {file.name}')
+        for label, text in licence_texts:
             digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
             if digest not in texts:
                 texts[digest] = (text, [])
-            texts[digest][1].append(f'{identity} ({file.name})')
-            output.append(f'  {file.name}: licence text {digest}')
+            texts[digest][1].append(f'{identity} ({label})')
+            output.append(f'  {label}: licence text {digest}')
         output.append('')
 
     output.extend(['Distinct licence texts', '======================', ''])
