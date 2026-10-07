@@ -2530,6 +2530,10 @@
   "onboardingSaveFailed": "Could not save setup. Try again.",
   "onboardingSkipDialogTitle": "Skip Customization?",
   "onboardingSkipDialogMessage": "Your current settings will be kept. You can reopen this from Settings at any time.",
+  "onboardingSkipToIntegrationsDialogMessage": "Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.",
+  "@onboardingSkipToIntegrationsDialogMessage": {
+    "description": "Body of the Skip setup dialog before the last step: skipping still shows the Integrations step so the user sees every online service before Navis uses it."
+  },
   "onboardingKeepCustomizing": "Keep customizing",
   "onboardingSkipSetup": "Skip setup",
   "onboardingTitle": "Make Navis Yours",

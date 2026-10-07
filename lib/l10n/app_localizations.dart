@@ -9077,6 +9077,12 @@ abstract class AppLocalizations {
   /// **'Your current settings will be kept. You can reopen this from Settings at any time.'**
   String get onboardingSkipDialogMessage;
 
+  /// Body of the Skip setup dialog before the last step: skipping still shows the Integrations step so the user sees every online service before Navis uses it.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.'**
+  String get onboardingSkipToIntegrationsDialogMessage;
+
   /// No description provided for @onboardingKeepCustomizing.
   ///
   /// In en, this message translates to:

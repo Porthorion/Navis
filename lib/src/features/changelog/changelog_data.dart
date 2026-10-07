@@ -161,6 +161,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Skipping setup still shows which online services Navis may use, and setup now lists every one of them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio stations outside your server respect the Online services switch and explain how to enable playback',
         type: ChangelogEntryType.fix,
       ),

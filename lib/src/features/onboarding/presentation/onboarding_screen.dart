@@ -53,6 +53,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// Zero-based step where external-service credential fields are shown.
   static const integrationsStep = 3;
   int _step = 0;
+  // Set when Skip leaves an earlier step: the rest of the draft is dropped,
+  // but setup still ends on the Integrations step so no online service is
+  // used before its choices have been shown.
+  bool _skippedToIntegrations = false;
   bool _hydrated = false;
   bool _saving = false;
   bool _lastFmBusy = false;
@@ -155,7 +159,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (mounted && token != null) _listenBrainzToken.text = token;
   }
 
-  Future<void> _finish({required bool discardDraft}) async {
+  Future<void> _finish({
+    required bool discardDraft,
+    bool integrationsOnly = false,
+  }) async {
     final draft = _draft;
     if (draft == null || _saving) return;
     final l10n = AppLocalizations.of(context)!;
@@ -164,7 +171,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _saveError = null;
     });
     try {
-      if (!discardDraft) {
+      if (integrationsOnly) {
+        await _saveIntegrationChoices(draft);
+      } else if (!discardDraft) {
         final customPresets = _draftCustomPresets;
         if (customPresets != null) {
           await ref
@@ -222,13 +231,18 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _skip() async {
+    final onIntegrations = _step == integrationsStep;
     final discard = await showDialog<bool>(
       context: context,
       builder: (context) {
         final l10n = AppLocalizations.of(context)!;
         return AlertDialog(
           title: Text(l10n.onboardingSkipDialogTitle),
-          content: Text(l10n.onboardingSkipDialogMessage),
+          content: Text(
+            onIntegrations
+                ? l10n.onboardingSkipDialogMessage
+                : l10n.onboardingSkipToIntegrationsDialogMessage,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -242,8 +256,14 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         );
       },
     );
-    if (discard == true) {
+    if (discard != true || !mounted) return;
+    if (onIntegrations) {
       await _finish(discardDraft: true);
+    } else {
+      setState(() {
+        _skippedToIntegrations = true;
+        _step = integrationsStep;
+      });
     }
   }
 
@@ -381,7 +401,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (_, _) {
-          if (_step == 0) {
+          if (_step == 0 || _skippedToIntegrations) {
             unawaited(_skip());
           } else {
             setState(() => _step--);
@@ -551,7 +571,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       onPressed: _saving ? null : _skip,
       child: Text(l10n.onboardingSkipSetup),
     );
-    final back = _step > 0
+    final back = _step > 0 && !_skippedToIntegrations
         ? TextButton(
             onPressed: _saving ? null : () => setState(() => _step--),
             child: Text(l10n.onboardingBack),
@@ -561,7 +581,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       onPressed: _saving
           ? null
           : () => _step == _steps - 1
-                ? _finish(discardDraft: false)
+                ? _finish(
+                    discardDraft: false,
+                    integrationsOnly: _skippedToIntegrations,
+                  )
                 : setState(() => _step++),
       child: _saving
           ? const SizedBox(
@@ -1011,16 +1034,15 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  /// The services the Integrations step offers; the rest of the switches
-  /// live in Settings › Integrations. Update checks are left out where Navis
-  /// cannot update itself, as in About.
+  /// Every service Navis can contact besides the user's server, so setup
+  /// shows each one before any of them is used; feature switches live in
+  /// Settings › Integrations. Update checks are left out where Navis cannot
+  /// update itself, as in About.
   List<IntegrationService> get _integrationStepServices => [
-    IntegrationService.deezer,
-    IntegrationService.lastFm,
-    IntegrationService.listenBrainz,
-    IntegrationService.lrclib,
-    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS)
-      IntegrationService.updates,
+    for (final service in IntegrationService.values)
+      if (service != IntegrationService.updates ||
+          (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS))
+        service,
   ];
 
   /// The draft's integration choices. A Last.fm key counts as verified when

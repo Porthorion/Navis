@@ -196,7 +196,7 @@ void main() {
     testWidgets('showing and hiding it does not remount the list rows', (
       tester,
     ) async {
-      await openIntegrationsStep(tester, const Size(412, 1100));
+      await openIntegrationsStep(tester, const Size(412, 1360));
       expect(hint, findsOneWidget);
       final row = find.text('Online services');
       final element = tester.element(row);
@@ -213,7 +213,7 @@ void main() {
     });
 
     testWidgets('is absent when the step fits', (tester) async {
-      await openIntegrationsStep(tester, const Size(412, 1400));
+      await openIntegrationsStep(tester, const Size(412, 1700));
       expect(position(tester).maxScrollExtent, 0);
       expect(hint, findsNothing);
     });

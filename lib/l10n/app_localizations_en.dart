@@ -5665,6 +5665,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your current settings will be kept. You can reopen this from Settings at any time.';
 
   @override
+  String get onboardingSkipToIntegrationsDialogMessage =>
+      'Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.';
+
+  @override
   String get onboardingKeepCustomizing => 'Keep customizing';
 
   @override
