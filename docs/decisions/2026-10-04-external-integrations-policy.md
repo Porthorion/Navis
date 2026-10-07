@@ -82,3 +82,7 @@ Radio playback checks the master switch before changing transport or queue state
 ### Compliance follow-up — 2026-10-07
 
 ListenBrainz disconnect changes the connection only after secure token deletion succeeds and shows a retry notice on failure. Every server sign-out attempts token deletion and resets its connection, logging failures without blocking sign-out.
+
+### Compliance follow-up — 2026-10-07
+
+Credential redaction also covers Last.fm `api_key`, including encoded query parameters, and refuses those URLs as media-session inputs.

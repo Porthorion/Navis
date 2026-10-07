@@ -5,6 +5,23 @@ import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
   group('redactCredentialQueryParameters', () {
+    test('redacts Last.fm api_key in URLs and encoded queries', () {
+      for (final separator in ['?', '&amp;', '%3F', '%253F']) {
+        final input =
+            'https://service.example/${separator}API_KEY=fixture-key&method=track.getsimilar';
+        expect(
+          redactCredentialQueryParameters(input),
+          'https://service.example/${separator}API_KEY=REDACTED&method=track.getsimilar',
+        );
+      }
+      expect(
+        uriCarriesCredentials(
+          Uri.parse('https://service.example/?api_key=fixture-key'),
+        ),
+        isTrue,
+      );
+    });
+
     test('redacts HTML-escaped and double-encoded separators', () {
       expect(
         redactCredentialQueryParameters(
