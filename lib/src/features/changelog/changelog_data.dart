@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Colour style is saved separately from the theme mode and defaults to Neutral',
+        'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
       ),
       ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',

@@ -590,17 +590,42 @@ target-selection rules.
 
 ### Theme and design tokens (`lib/src/theme/`)
 
-Colour style is stored independently of theme mode in `app_settings.color_style`
-(schema 93). Its storage keys are `neutral`, `pastel`, `immersive`, and `night`;
-fresh installations, upgraded rows, and settings resets default to `neutral`.
-`colorStyleProvider` resolves the stored value through `NavisColorStyle.parse`,
-which falls back to Neutral while settings load or for unknown values.
-
 - `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
-  `buildOledTheme` each choose a `ColorScheme` from the user's seed (or the
-  dynamic album colour) and delegate to one shared builder. Typography,
-  component themes and theme extensions are defined only in that builder.
-  OLED differences are expressed there as surface overrides.
+  `buildOledTheme` take the user's seed (or the dynamic album colour) and a
+  colour style, get a `ColorScheme` from `buildStyledColorScheme`, and
+  delegate to one shared builder. Typography, component themes and theme
+  extensions are defined only in that builder. OLED cards, dialogs and sheets
+  take their colours from the scheme's container roles.
+- Colour styles (`navis_color_style.dart`, `navis_style_schemes.dart`,
+  `navis_color_style_data.dart`) are a second axis next to the theme mode:
+  Neutral, Pastel, Immersive and Night each work with Light, Dark, OLED and
+  Auto.
+  - Stored in `app_settings.color_style` (schema 93) as `neutral`, `pastel`,
+    `immersive` or `night`; fresh installs, upgraded rows and resets use
+    `neutral`. `colorStyleProvider` resolves it through
+    `NavisColorStyle.parse`, which falls back to Neutral while settings load
+    or for unknown values.
+  - Neutral reproduces the original schemes exactly (`tonalSpot` light,
+    `fidelity` dark, black OLED overrides). The other styles use hand-built
+    role tables over HCT instead of Material's fixed tone table.
+  - Rules every styled scheme keeps, enforced by
+    `test/src/theme/navis_style_schemes_test.dart`: containers and surfaces
+    never sit at tone 25–50 with chroma above 24 (the brick-red and olive
+    "mud" the `fidelity` scheme produces from saturated covers); dark tones
+    rotate yellow hues away from khaki; OLED backgrounds stay `#000000`;
+    text and control pairs meet contrast minimums.
+  - A seed with almost no chroma (the default white) gets the sea-glass hue
+    (190°) in Pastel and Immersive. Pastel's dark backgrounds put warm
+    accents on a plum base; Night moves accents into the rose-to-amber range.
+  - `NavisColorStyleData` (a ThemeExtension) adapts colours sampled from
+    artwork for the Home cover wash and the Now Playing tint, sets their veil
+    and tint opacity, and supplies the `success` colour. Artwork itself and
+    text drawn over artwork are never restyled.
+  - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
+    tiles are painted from each style's real scheme; the accent grid shows
+    each swatch as the selected style will use it.
+  - Decision record:
+    [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
 - `navis_tokens.dart`:
   - `NavisSpace` and `NavisRadius` are compile-time spacing and radius
     scales.
