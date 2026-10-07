@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Heading for a content section, with an optional "See all" link or other
 /// trailing actions.
@@ -115,7 +116,7 @@ class NavisSourceCaption extends StatelessWidget {
       link: true,
       child: InkWell(
         onTap: tap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NavisRadius.xsAll,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: label,
