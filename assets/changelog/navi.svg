@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 52 448 448">
+  <defs>
+    <g id="wings">
+      <path d="M214 204C192 176 160 152 120 142C84 133 64 104 80 80C98 54 140 64 162 96C184 128 204 166 222 198Z"/>
+      <path d="M206 292C184 298 160 312 144 334C128 358 146 384 170 370C192 356 206 326 214 302Z"/>
+    </g>
+    <path id="spark" d="M0-1C.1-.1.1-.1 1 0C.1.1.1.1 0 1C-.1.1-.1.1-1 0C-.1-.1-.1-.1 0-1Z"/>
+  </defs>
+  <g fill="#000">
+    <use href="#wings"/>
+    <use href="#wings" transform="translate(512 0) scale(-1 1)"/>
+    <circle cx="256" cy="250" r="54"/>
+    <path fill-rule="evenodd" d="M256 174a76 76 0 1 1 0 152a76 76 0 1 1 0-152ZM256 184a66 66 0 1 0 0 132a66 66 0 1 0 0-132Z"/>
+    <use href="#spark" transform="translate(150 424) scale(28)"/>
+    <use href="#spark" transform="translate(98 466) scale(17)"/>
+    <use href="#spark" transform="translate(186 482) scale(11)"/>
+  </g>
+</svg>
