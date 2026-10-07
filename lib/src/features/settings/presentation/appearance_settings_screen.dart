@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:colornames/colornames.dart';
+import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -995,7 +995,7 @@ int? _normalizeColorSchemeSeed(int? colorValue) {
 }
 
 String _customColorLabel(Color color, String customLabel) {
-  return '$customLabel: ${ColorNames.guess(color)}';
+  return '$customLabel: ${nameForColor(color)}';
 }
 
 double _customColorSortKey(Color color) {

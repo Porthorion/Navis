@@ -36,6 +36,10 @@ Azuracast-style ICY radio station plays and stops through its station card,
 and that a stream served with an untrusted certificate is refused
 (`tls-verify`).
 
+The colour-name table is generated separately with
+`dart run tool/generate_color_names.dart`; `build_runner` does not own it.
+Keep its pinned CSV and output together (see `tool/data/color_names/README.md`).
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):

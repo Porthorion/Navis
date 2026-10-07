@@ -15,6 +15,12 @@ What it does:
 - checks the Flutter 3.47.5 minimum and active 3.47.x baseline
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
+## Colour-name data
+
+After updating the pinned MIT colour-name input, run
+`dart run tool/generate_color_names.dart` and commit the generated table.
+Provenance and input regeneration are in `tool/data/color_names/README.md`.
+
 ## Branding Assets
 
 `lib/src/icon/Navis_Logo.svg` is the canonical in-app mark. After changing it,

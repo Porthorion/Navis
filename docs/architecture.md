@@ -620,6 +620,10 @@ target-selection rules.
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
   scheme when dynamic album colour is enabled.
+- Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
+  colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
+  values. The MIT meodai/color-names table is generated from the pinned
+  filtered CSV; see `tool/data/color_names/README.md` for regeneration.
 - Fonts: the bundled Inter variable font (`assets/fonts/`, SIL OFL 1.1,
   licence registered in `main.dart`). Scripts Inter lacks use the platform's
   per-glyph fallback.

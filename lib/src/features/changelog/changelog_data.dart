@@ -129,6 +129,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Custom accent colours use an updated colour-name collection and perceptual matching',
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),
