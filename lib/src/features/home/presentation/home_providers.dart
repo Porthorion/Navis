@@ -2771,18 +2771,6 @@ final homeFrequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   );
 });
 
-final homeStarredSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) {
-    return const <Song>[];
-  }
-
-  final cancelToken = CancelToken();
-  ref.onDispose(cancelToken.cancel);
-
-  return (await api.getStarred2(cancelToken: cancelToken)).songs;
-});
-
 /// ListenBrainz names its weekly playlists in English; show Navis's own
 /// localized names for the ones it recognises.
 String localizedWeeklyPlaylistTitle(

@@ -48,7 +48,6 @@ void main() {
         overrides: [
           playerStateProvider.overrideWithValue(snapshot),
           queueProvider.overrideWith(() => queueSpy),
-          currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
           songByIdProvider.overrideWith(
             (ref, songId) => Stream<SongsTableData?>.error(
               StateError('Local metadata lookup failed.'),

@@ -1065,9 +1065,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
 
@@ -1110,9 +1107,6 @@ void main() {
           pagedAlbumsProvider.overrideWith(
             (ref, request) => Stream.value(const <AlbumsTableData>[]),
           ),
-          songsBySortProvider.overrideWith(
-            (ref, sort) => Stream.value(const <SongsTableData>[]),
-          ),
         ],
       );
 
@@ -1151,9 +1145,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1194,9 +1185,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1251,9 +1239,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
 
@@ -1290,9 +1275,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
           settle: false,
@@ -1414,9 +1396,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
-            ),
           ],
         );
         await _switchToArtistsTab(tester);
@@ -1465,9 +1444,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );
@@ -1523,9 +1499,6 @@ void main() {
             albumCountProvider.overrideWithValue(const AsyncData(0)),
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            songsBySortProvider.overrideWith(
-              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         );

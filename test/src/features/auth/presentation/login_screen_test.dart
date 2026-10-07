@@ -325,7 +325,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
       ),
     );
@@ -497,7 +496,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
       ),
     );

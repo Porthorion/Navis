@@ -409,7 +409,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
         scrobbleDispatchControllerProvider.overrideWith(
           _NoopScrobbleDispatchController.new,
@@ -471,7 +470,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
@@ -681,7 +679,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
@@ -744,7 +741,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
           artistInfoProvider.overrideWith((ref, artistId) async => null),
         ],
       );
@@ -837,7 +833,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
@@ -914,7 +909,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
@@ -983,7 +977,6 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
-          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
           artistInfoProvider.overrideWith((ref, artistId) async => null),
         ],
       );
@@ -1065,7 +1058,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
       ],
     );
 
@@ -1226,7 +1218,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
         scrobbleDispatchControllerProvider.overrideWith(
           _NoopScrobbleDispatchController.new,
@@ -1426,7 +1417,6 @@ void main() {
           const AsyncData(<Album>[]),
         ),
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );

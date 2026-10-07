@@ -205,7 +205,6 @@ List<Override> _authenticatedShellOverrides({
     homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeFrequentAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
-    homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
     listenBrainzDiscoverStreamProvider.overrideWithValue(
       const AsyncData(<ListenBrainzDiscoverPlaylist>[]),
     ),

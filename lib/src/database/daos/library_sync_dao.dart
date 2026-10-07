@@ -1139,26 +1139,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return result;
   }
 
-  Future<void> pruneLocalMutationsBefore(
-    DateTime cutoff, {
-    required String operation,
-    Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) async {
-    for (final entityType in const <String>['artist', 'album', 'song']) {
-      final protectedIds = exclude[entityType] ?? const <String>{};
-      await (delete(librarySyncLocalMutationsTable)..where(
-            (table) =>
-                table.operation.equals(operation) &
-                table.entityType.equals(entityType) &
-                table.createdAt.isSmallerThanValue(cutoff) &
-                (protectedIds.isEmpty
-                    ? const Constant(true)
-                    : table.entityId.isNotIn(protectedIds)),
-          ))
-          .go();
-    }
-  }
-
   Future<LibrarySyncStateTableData> getOrCreateState(int serverId) async {
     await into(librarySyncStateTable).insert(
       LibrarySyncStateTableCompanion.insert(serverId: Value(serverId)),

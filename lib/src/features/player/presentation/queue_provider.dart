@@ -47,10 +47,6 @@ class RecommendationQueueResult {
   int get count => insertedIds.length;
 }
 
-final currentQueueSongIdProvider = Provider<String?>((ref) {
-  return ref.watch(currentSongProvider);
-});
-
 final lyricsPrewarmProvider = Provider<Future<void> Function(String)>((ref) {
   return (songId) => ref.read(lyricsProvider(songId).future).then<void>((_) {});
 });

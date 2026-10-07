@@ -15,7 +15,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
-import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -926,64 +925,6 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
-
-    test('searchResultsProvider uses live search API path', () async {
-      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
-      final client = SubsonicApiClient(
-        baseUrl: 'https://example.com',
-        authConfig: const SubsonicAuthConfig(
-          username: 'alice',
-          password: 'secret',
-          apiVersion: '1.16.1',
-        ),
-        dio: dio,
-        enableLogging: false,
-      );
-
-      dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            if (options.path == '/rest/search3.view') {
-              handler.resolve(
-                Response<dynamic>(
-                  requestOptions: options,
-                  statusCode: 200,
-                  data: <String, dynamic>{
-                    'subsonic-response': <String, dynamic>{
-                      'status': 'ok',
-                      'searchResult3': <String, dynamic>{
-                        'artist': <Map<String, dynamic>>[
-                          <String, dynamic>{'id': 'a1', 'name': 'Artist 1'},
-                        ],
-                      },
-                    },
-                  },
-                ),
-              );
-              return;
-            }
-            handler.reject(
-              DioException(
-                requestOptions: options,
-                type: DioExceptionType.badResponse,
-              ),
-            );
-          },
-        ),
-      );
-
-      final container = ProviderContainer(
-        overrides: [subsonicApiProvider.overrideWithValue(client)],
-      );
-      addTearDown(container.dispose);
-
-      final result = await container.read(
-        searchResultsProvider('hello').future,
-      );
-      expect(result.artists.single.id, 'a1');
-      expect(result.albums, isEmpty);
-      expect(result.songs, isEmpty);
-    });
 
     test('queueProvider delegates to playback-backed handler', () async {
       final repository = _MockSettingsRepository();

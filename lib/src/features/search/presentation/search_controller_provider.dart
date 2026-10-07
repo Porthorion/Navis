@@ -291,24 +291,4 @@ Future<SearchResult3> _searchLocal(
   );
 }
 
-@immutable
-class SearchExpandedParams {
-  const new({required this.query, required this.type, this.offset = 0});
-
-  final String query;
-  final SearchResultType type;
-  final int offset;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SearchExpandedParams &&
-          query == other.query &&
-          type == other.type &&
-          offset == other.offset;
-
-  @override
-  int get hashCode => Object.hash(query, type, offset);
-}
-
 enum SearchResultType { artists, albums, songs }

@@ -36,10 +36,6 @@ void main() {
       expect(playingControls.length, 3);
     });
 
-    test('notification compact indices align to transport controls', () {
-      expect(navisNotificationCompactActionIndices, const <int>[0, 1, 2]);
-    });
-
     group('OS media control capabilities', () {
       test('idle exposes no transport controls', () {
         final capabilities = navisOsControlCapabilitiesForSnapshot(
@@ -388,12 +384,6 @@ void main() {
       expect(navisSanitizeSeekPosition(Duration.zero), Duration.zero);
     });
 
-    test('playback speed normalize helper clamps to supported range', () {
-      expect(navisNormalizePlaybackSpeed(0.25), 0.25);
-      expect(navisNormalizePlaybackSpeed(1.25), 1.25);
-      expect(navisNormalizePlaybackSpeed(2.5), 2.5);
-    });
-
     test('position-only playback changes are not structural changes', () {
       const base = PlaybackSnapshot(
         queueSongIds: <String>['song-1'],
@@ -424,78 +414,6 @@ void main() {
           base.copyWith(playing: false),
         ),
         isFalse,
-      );
-    });
-
-    test('seek recovery helper detects lock-cached seek failures', () {
-      // Snap-to-zero: seek to 48s, land at 250ms.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isTrue,
-      );
-
-      // Snap-to-buffer-boundary: seek to 60s, land at 8s (buffer boundary).
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 60),
-          actualPosition: const Duration(seconds: 8),
-        ),
-        isTrue,
-      );
-
-      // Non-remote source: never recover.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'file',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-
-      // Direct stream undershoot: recover (desktop/media_kit can no-op).
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'directStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isTrue,
-      );
-
-      // Small seek target (≤ 2s): never recover.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 1),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-
-      // Successful seek that landed within 2s of target: no recovery.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 30),
-          actualPosition: const Duration(milliseconds: 29500),
-        ),
-        isFalse,
-      );
-
-      // Backward no-op: staying above the requested target needs recovery.
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 30),
-          actualPosition: const Duration(seconds: 32),
-        ),
-        isTrue,
       );
     });
 
@@ -530,45 +448,6 @@ void main() {
       );
     });
 
-    test(
-      'buffered seek recovery keeps a correctly landed remote seek safe',
-      () {
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.buffering,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: true,
-            isCurrentSong: true,
-          ),
-          isTrue,
-        );
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.ready,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: true,
-            isCurrentSong: true,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldRecoverBufferedSeek(
-            sourceKind: PlaybackSourceKind.directStream.name,
-            processingState: AudioProcessingState.buffering,
-            requestedPosition: const Duration(seconds: 120),
-            actualPosition: const Duration(seconds: 120),
-            isCurrentTransportIntent: false,
-            isCurrentSong: true,
-          ),
-          isFalse,
-        );
-      },
-    );
-
     test('remote playback retries exactly once before skipping', () {
       expect(navisShouldRetryRemotePlayback(alreadyRetried: false), isTrue);
       expect(navisShouldRetryRemotePlayback(alreadyRetried: true), isFalse);
@@ -600,114 +479,6 @@ void main() {
         isTrue,
       );
     });
-
-    test('crossfade handoff seek helper seeks on index mismatch', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 5,
-          jumpDelta: const Duration(milliseconds: 50),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isTrue,
-      );
-    });
-
-    test('crossfade handoff seek helper seeks on large position delta', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 6,
-          jumpDelta: const Duration(seconds: 2),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isTrue,
-      );
-    });
-
-    test('crossfade handoff seek helper skips seek when index and delta are stable', () {
-      expect(
-        navisShouldSeekCrossfadeHandoff(
-          handoffTargetIndex: 6,
-          currentIndex: 6,
-          jumpDelta: const Duration(milliseconds: 200),
-          seekCorrectionThreshold: const Duration(milliseconds: 750),
-        ),
-        isFalse,
-      );
-    });
-
-    test(
-      'android crossfade fallback helper avoids regular CD-quality FLAC',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'flac',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'audio/flac',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper enables for high sample-rate audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'mp3',
-            sampleRate: 96000,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper enables for high-rate lossless audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'flac',
-            sampleRate: 96000,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'android crossfade fallback helper stays off for regular lossy audio',
-      () {
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: true,
-            format: 'mp3',
-            sampleRate: 44100,
-          ),
-          isFalse,
-        );
-        expect(
-          navisShouldUseAndroidSequentialCrossfadeFallback(
-            isAndroidRuntime: false,
-            format: 'flac',
-            sampleRate: 96000,
-          ),
-          isFalse,
-        );
-      },
-    );
 
     test('skip helper enforces queue bounds for next and previous', () {
       expect(

@@ -122,13 +122,6 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<void> clearAllPlaylists() async {
-    await transaction(() async {
-      await delete(playlistSongsTable).go();
-      await delete(playlistsTable).go();
-    });
-  }
-
   /// Delete a single playlist and its song associations.
   Future<void> deletePlaylist(String playlistId) async {
     await transaction(() async {

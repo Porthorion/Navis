@@ -1749,12 +1749,6 @@ final likedAlbumSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
   return dao.watchSongsFromLikedAlbums();
 });
 
-final songsBySortProvider =
-    StreamProvider.family<List<SongsTableData>, SongSortOrder>((ref, sort) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchSongsSorted(sort);
-    });
-
 // Per-song and per-list families are auto-disposed: rows are created while
 // scrolling long lists, and each instance holds a live database watch.
 final songByIdProvider = StreamProvider.autoDispose
@@ -1784,12 +1778,6 @@ final albumRatingProvider = StreamProvider.family<int?, String>((ref, albumId) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAlbumRating(albumId);
 });
-
-final songsByArtistProvider =
-    StreamProvider.family<List<SongsTableData>, String>((ref, artistId) {
-      final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchSongsByArtist(artistId);
-    });
 
 final albumYearSectionsProvider =
     StreamProvider.family<List<AlbumYearSection>, AlbumYearSectionsRequest>((
@@ -1880,20 +1868,6 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   }
   return await api.getInternetRadioStations();
 });
-
-final searchResultsProvider = FutureProvider.autoDispose
-    .family<SearchResult3, String>((ref, query) async {
-      if (query.trim().isEmpty) {
-        return const SearchResult3();
-      }
-
-      final api = ref.watch(subsonicApiProvider);
-      if (api == null) {
-        return const SearchResult3();
-      }
-
-      return await api.search3(query: query);
-    });
 
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
   NavisPlaybackHandler? _currentHandler;

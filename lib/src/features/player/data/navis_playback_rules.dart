@@ -363,9 +363,6 @@ bool navisShouldRetryQueueApplyWithDirectSources({
   return usedLockCaching || isDspFailure;
 }
 
-@visibleForTesting
-const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
-
 @immutable
 class NavisOsControlCapabilities {
   const new({
@@ -540,33 +537,6 @@ Duration navisSanitizeSeekPosition(Duration position) {
 }
 
 @visibleForTesting
-double navisNormalizePlaybackSpeed(double speed) {
-  if (!speed.isFinite || speed <= 0) throw ArgumentError.value(speed, 'speed');
-  return speed;
-}
-
-@visibleForTesting
-bool navisShouldRecoverSeekToDirectStream({
-  required String? sourceKind,
-  required Duration requestedPosition,
-  required Duration actualPosition,
-}) {
-  final isRemoteSource =
-      sourceKind == PlaybackSourceKind.lockCachedStream.name ||
-      sourceKind == PlaybackSourceKind.directStream.name;
-  if (!isRemoteSource) {
-    return false;
-  }
-  if (requestedPosition <= const Duration(seconds: 2)) {
-    return false;
-  }
-  final delta = (requestedPosition - actualPosition).abs();
-  // A backwards seek can fail just as a forwards seek can. Callers probe
-  // within a bounded settlement window, before ordinary playback drifts.
-  return delta >= const Duration(seconds: 2);
-}
-
-@visibleForTesting
 bool navisShouldWatchRemotePlaybackForStall({
   required String? sourceKind,
   required AudioProcessingState processingState,
@@ -578,24 +548,6 @@ bool navisShouldWatchRemotePlaybackForStall({
       processingState == AudioProcessingState.loading ||
       processingState == AudioProcessingState.buffering;
   return isRemoteSource && isWaitingForRemoteData;
-}
-
-@visibleForTesting
-bool navisShouldRecoverBufferedSeek({
-  required String? sourceKind,
-  required AudioProcessingState processingState,
-  required Duration requestedPosition,
-  required Duration actualPosition,
-  required bool isCurrentTransportIntent,
-  required bool isCurrentSong,
-}) {
-  return isCurrentTransportIntent &&
-      isCurrentSong &&
-      navisShouldWatchRemotePlaybackForStall(
-        sourceKind: sourceKind,
-        processingState: processingState,
-      ) &&
-      (requestedPosition - actualPosition).abs() < const Duration(seconds: 2);
 }
 
 @visibleForTesting
@@ -612,49 +564,6 @@ bool navisShouldRestartCompletedQueue({
     return false;
   }
   return currentIndex == null || currentIndex >= queueLength - 1;
-}
-
-@visibleForTesting
-bool navisShouldSeekCrossfadeHandoff({
-  required int? handoffTargetIndex,
-  required int? currentIndex,
-  required Duration jumpDelta,
-  required Duration seekCorrectionThreshold,
-}) {
-  if (handoffTargetIndex != null && currentIndex != handoffTargetIndex) {
-    return true;
-  }
-  return jumpDelta > seekCorrectionThreshold;
-}
-
-@visibleForTesting
-bool navisShouldUseAndroidSequentialCrossfadeFallback({
-  required bool isAndroidRuntime,
-  required String? format,
-  required int? sampleRate,
-}) {
-  if (!isAndroidRuntime) {
-    return false;
-  }
-
-  final normalizedFormat = format?.trim().toLowerCase();
-  final formatSubtype =
-      normalizedFormat != null && normalizedFormat.contains('/')
-      ? normalizedFormat.split('/').last
-      : normalizedFormat;
-  final canonicalFormat = switch (formatSubtype) {
-    'x-flac' => 'flac',
-    'x-wav' || 'wave' => 'wav',
-    _ => formatSubtype,
-  };
-  final isLikelyLossless = switch (canonicalFormat) {
-    'flac' || 'alac' || 'wav' || 'aiff' || 'ape' || 'dsf' || 'dff' => true,
-    _ => false,
-  };
-  final resolvedSampleRate = sampleRate ?? 0;
-  final isHighSampleRate = resolvedSampleRate >= 96000;
-  final isHighRateLossless = isLikelyLossless && resolvedSampleRate >= 88200;
-  return isHighSampleRate || isHighRateLossless;
 }
 
 @visibleForTesting

@@ -85,7 +85,6 @@ Future<_QueueSpyController> _pumpQueueSheet(
           const AsyncData(AppSettingsModel.defaults()),
         ),
         queueProvider.overrideWith(() => queueSpy),
-        currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
         songByIdProvider.overrideWith(
           (ref, songId) => failedSongIds.contains(songId)
               ? Stream<SongsTableData?>.error(
