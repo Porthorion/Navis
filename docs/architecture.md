@@ -1363,6 +1363,12 @@ falls back to documents; a rollback failure preserves the remaining copy and
 fails opening rather than choosing an incomplete database. An existing support
 database wins and leaves legacy files untouched. No schema changes are involved.
 
+The provider-held LRCLIB client shares a Retry-After cooldown across exact
+lookups, search and downloads. HTTP 429/503 pauses requests until the supplied
+seconds or HTTP-date (60 seconds without valid guidance). Lyrics use cached
+or server alternatives without warning spam; backfill stops the current pass
+after a rate limit. Subsonic shares the HTTP Retry-After parser.
+
 ## External integration policy
 
 External HTTP clients use a shared ASCII User-Agent containing the current

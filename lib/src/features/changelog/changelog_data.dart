@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Lyrics lookups respect LRCLIB cooldowns and pause download backfill when the service is rate limited',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Integrations and Privacy explain Last.fm keys, Deezer image servers and both AutoEQ network hosts',
         type: ChangelogEntryType.fix,
       ),

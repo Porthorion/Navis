@@ -3,20 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:navis/src/api/retry_after.dart';
 import 'package:navis/src/utils/app_logger.dart';
-
-DateTime? subsonicRetryAt(String? value) {
-  if (value == null) return null;
-  final seconds = int.tryParse(value.trim());
-  if (seconds != null && seconds >= 0) {
-    return DateTime.now().toUtc().add(Duration(seconds: seconds));
-  }
-  try {
-    return HttpDate.parse(value.trim());
-  } on FormatException {
-    return null;
-  }
-}
 
 /// Retries transient Subsonic request failures with exponential backoff.
 class SubsonicRetryInterceptor extends Interceptor {
@@ -91,21 +79,14 @@ class SubsonicRetryInterceptor extends Interceptor {
   }
 
   Duration _retryDelay(DioException error, int attempt) {
-    final retryAfter = error.response?.headers.value('retry-after')?.trim();
-    if (retryAfter != null) {
-      final seconds = int.tryParse(retryAfter);
-      if (seconds != null && seconds >= 0) {
-        return Duration(seconds: seconds);
-      }
-      try {
-        final date = HttpDate.parse(retryAfter);
-        final remaining = date.difference(DateTime.now().toUtc());
-        if (!remaining.isNegative) {
-          return remaining;
-        }
-      } on FormatException {
-        // Ignore malformed server guidance and use the bounded backoff.
-      }
+    final now = DateTime.now().toUtc();
+    final retryAt = parseRetryAfter(
+      error.response?.headers.value('retry-after'),
+      now: () => now,
+    );
+    if (retryAt != null) {
+      final remaining = retryAt.difference(now);
+      if (!remaining.isNegative) return remaining;
     }
     return _backoff(attempt);
   }

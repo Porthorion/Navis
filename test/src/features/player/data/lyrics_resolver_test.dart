@@ -5,6 +5,16 @@ import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 
 import '../../../../helpers/test_database.dart';
 
+class _RateLimitedLrclibClient extends LrclibClient {
+  @override
+  Future<List<LrclibLyrics>> searchLyrics({
+    required String artist,
+    required String title,
+  }) async {
+    throw const LrclibRateLimitedException();
+  }
+}
+
 class _FakeLrclibClient extends LrclibClient {
   new(this.results);
 
@@ -62,6 +72,34 @@ void main() {
         );
     return resolution.lyrics.value;
   }
+
+  test(
+    'rate limiting keeps cached lyrics available without surfacing an error',
+    () async {
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song',
+        source: 'lrclibPlain',
+        plainLyrics: 'cached words',
+        ttlSeconds: 3600,
+      );
+      final result =
+          await LyricsResolver(
+            libraryDao: database.libraryDao,
+            lrclibClient: _RateLimitedLrclibClient(),
+            apiClient: null,
+          ).resolve(
+            songId: 'song',
+            metadata: (
+              artist: 'Fixture',
+              title: 'Track',
+              album: null,
+              durationSeconds: 200,
+            ),
+            useLrclib: true,
+          );
+      expect(result.lyrics.value, 'cached words');
+    },
+  );
 
   test('LRCLIB lyrics come from the same language version', () async {
     expect(

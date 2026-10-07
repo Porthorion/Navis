@@ -102,3 +102,7 @@ English disclosures name Deezer image servers, artist/album/track queries, and t
 ### Compliance follow-up — 2026-10-07
 
 External HTTP requests identify Navis with its version, project URL and support email. Radio metadata and update clients receive the shared header through their existing guarded Dio factory; AutoEQ and cover-art HTTP clients use it too. Update endpoints and behavior are unchanged.
+
+### Compliance follow-up — 2026-10-07
+
+LRCLIB 429 and 503 responses start a shared provider-held cooldown using Retry-After seconds or HTTP-date, defaulting to 60 seconds. Exact lookup and search make no requests during cooldown. Lyrics resolve through cached/server alternatives quietly, and downloaded-song backfill stops the pass after a rate limit. Subsonic uses the same Retry-After parser.

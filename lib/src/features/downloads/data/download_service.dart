@@ -1598,6 +1598,12 @@ class DownloadService {
         // to synced lyrics.
 
         await _prefetchLyrics(song.id, song, api);
+        if (_lrclibClient.isRateLimited) {
+          AppLogger.info(
+            'DownloadService: Lyrics backfill paused for LRCLIB cooldown.',
+          );
+          return;
+        }
 
         if (_stopped) {
           return;
