@@ -7,6 +7,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -15,6 +16,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
+import '../../../../helpers/fake_url_launcher.dart';
 import '../../../../helpers/test_theme.dart';
 import '../../../../helpers/test_database.dart';
 
@@ -50,12 +52,14 @@ ResolvedArtistTopTrack _track({
   required int rank,
   required String id,
   required String title,
+  ArtistTopTrackSource? source,
 }) {
   return ResolvedArtistTopTrack(
     rank: rank,
     title: title,
     artist: 'Test Artist',
     resolvedSong: _song(id, title),
+    source: source,
   );
 }
 
@@ -105,6 +109,72 @@ Future<_QueueSpyController> _pumpTopTracksSection(
 }
 
 void main() {
+  group('source credit', () {
+    final caption = find.byKey(
+      const ValueKey<String>('artist-top-tracks-source'),
+    );
+
+    testWidgets('names Deezer without a link', (tester) async {
+      final launcher = FakeUrlLauncher.install();
+      await _pumpTopTracksSection(
+        tester,
+        albumQueueEnabled: false,
+        tracks: [
+          _track(
+            rank: 1,
+            id: 'song-1',
+            title: 'First Song',
+            source: ArtistTopTrackSource.deezer,
+          ),
+        ],
+      );
+
+      expect(find.text('From Deezer'), findsOneWidget);
+      await tester.tap(caption);
+      await tester.pumpAndSettle();
+      expect(launcher.launched, isEmpty);
+    });
+
+    testWidgets('links Last.fm songs to the artist on Last.fm', (tester) async {
+      final launcher = FakeUrlLauncher.install();
+      await _pumpTopTracksSection(
+        tester,
+        albumQueueEnabled: false,
+        tracks: [
+          _track(
+            rank: 1,
+            id: 'song-1',
+            title: 'First Song',
+            source: ArtistTopTrackSource.deezer,
+          ),
+          _track(
+            rank: 2,
+            id: 'song-2',
+            title: 'Second Song',
+            source: ArtistTopTrackSource.lastFm,
+          ),
+        ],
+      );
+
+      expect(find.text('From Deezer and Last.fm'), findsOneWidget);
+      await tester.tap(caption);
+      await tester.pumpAndSettle();
+      expect(launcher.launched, <String>[
+        'https://www.last.fm/music/Test%20Artist',
+      ]);
+    });
+
+    testWidgets('is absent when no source is known', (tester) async {
+      await _pumpTopTracksSection(
+        tester,
+        albumQueueEnabled: false,
+        tracks: [_track(rank: 1, id: 'song-1', title: 'First Song')],
+      );
+
+      expect(caption, findsNothing);
+    });
+  });
+
   testWidgets('marks the paused current artist top track', (tester) async {
     await _pumpTopTracksSection(
       tester,

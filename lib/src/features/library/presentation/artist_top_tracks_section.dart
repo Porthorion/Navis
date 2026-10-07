@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -24,6 +25,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/external_links.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Top Tracks section for the artist detail page, from Deezer or Last.fm.
@@ -212,6 +214,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
             .toList(growable: false);
         if (resolved.isEmpty) return const SizedBox.shrink();
         return _TrackList(
+          artistName: widget.artistName,
           tracks: resolved,
           expanded: _expanded,
           playing: _playing,
@@ -232,6 +235,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
 
 class _TrackList extends StatelessWidget {
   const new({
+    required this.artistName,
     required this.tracks,
     required this.expanded,
     required this.playing,
@@ -240,12 +244,38 @@ class _TrackList extends StatelessWidget {
     required this.onTrackTap,
   });
 
+  final String artistName;
   final List<ResolvedArtistTopTrack> tracks;
   final bool expanded;
   final bool playing;
   final AppLocalizations l10n;
   final VoidCallback onToggleExpanded;
   final void Function(ResolvedArtistTopTrack) onTrackTap;
+
+  /// Credits the chart's services; any Last.fm songs link to the artist there.
+  Widget? _sourceCaption(BuildContext context) {
+    final sources = {for (final track in tracks) ?track.source};
+    final lastFm = sources.contains(ArtistTopTrackSource.lastFm);
+    final deezer = sources.contains(ArtistTopTrackSource.deezer);
+    final text = switch ((deezer, lastFm)) {
+      (true, true) => l10n.sourceFromDeezerAndLastFm,
+      (false, true) => l10n.sourceFromLastFm,
+      (true, false) => l10n.sourceFromDeezer,
+      (false, false) => null,
+    };
+    if (text == null) return null;
+    return NavisSourceCaption(
+      text,
+      key: const ValueKey<String>('artist-top-tracks-source'),
+      onTap: lastFm
+          ? () => openExternalLink(
+              context,
+              lastFmArtistUri(artistName),
+              label: 'Last.fm',
+            )
+          : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -265,6 +295,7 @@ class _TrackList extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),
+          ?_sourceCaption(context),
           const SizedBox(height: 4),
           AnimatedSize(
             duration: const Duration(milliseconds: 250),

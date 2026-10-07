@@ -1382,6 +1382,7 @@ class _RelatedArtistsSectionState
       _RelatedArtistsSource.deezer => SimilarArtistsSection(
         key: const ValueKey<String>('artist-fans-also-like'),
         title: l10n.artistDetailFansAlsoLikeSection,
+        caption: l10n.sourceFromDeezer,
         artists: deezerEntries,
       ),
       _RelatedArtistsSource.server => SimilarArtistsSection(
@@ -1444,6 +1445,7 @@ class _MissingAlbumsSection extends ConsumerWidget {
             ),
             child: NavisSectionHeader(
               title: l10n.artistDetailMissingAlbumsSection,
+              caption: l10n.sourceFromDeezer,
             ),
           ),
           LayoutBuilder(

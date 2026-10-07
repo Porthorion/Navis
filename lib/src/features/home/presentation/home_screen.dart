@@ -1485,6 +1485,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           _HomeSection<List<HomeNewRelease>>(
             key: const ValueKey<String>('home-new-releases'),
             title: l10n.homeNewReleasesTitle,
+            caption: l10n.sourceFromDeezer,
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
@@ -1941,9 +1942,13 @@ class _HomeSection<T> extends StatelessWidget {
     this.keepPreviousDataWhileLoading = false,
     this.onRetry,
     this.onSeeAll,
+    this.caption,
   });
 
   final String title;
+
+  /// Credit for the online service the section comes from, if any.
+  final String? caption;
   final AsyncValue<T> data;
   final Widget Function(BuildContext context, T value) builder;
   final bool Function(T value) isEmpty;
@@ -1967,6 +1972,7 @@ class _HomeSection<T> extends StatelessWidget {
         onSeeAll != null && data.asData != null && !isEmpty(data.asData!.value);
     final titleWidget = NavisSectionHeader(
       title: title,
+      caption: caption,
       compact: template == _HomeSectionTemplate.compactList,
       onSeeAll: showSeeAll ? onSeeAll : null,
     );

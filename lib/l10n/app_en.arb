@@ -1032,7 +1032,7 @@
   "artistDetailSimilarSection": "Similar Artists",
   "artistDetailFansAlsoLikeSection": "Fans Also Like",
   "artistDetailMissingAlbumsSection": "Missing Albums",
-  "artistDetailFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
+  "artistDetailFanCount": "{count, plural, =1{1 fan on Deezer} other{{count} fans on Deezer}}",
   "@artistDetailFanCount": {
     "description": "Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.",
     "placeholders": {
@@ -1041,6 +1041,18 @@
         "format": "compact"
       }
     }
+  },
+  "sourceFromDeezer": "From Deezer",
+  "@sourceFromDeezer": {
+    "description": "Small credit under a section title whose content comes from Deezer, such as similar artists or new releases. Deezer is a product name."
+  },
+  "sourceFromLastFm": "From Last.fm",
+  "@sourceFromLastFm": {
+    "description": "Small credit under a section title whose content comes from Last.fm; tapping it opens the artist on Last.fm. Last.fm is a product name."
+  },
+  "sourceFromDeezerAndLastFm": "From Deezer and Last.fm",
+  "@sourceFromDeezerAndLastFm": {
+    "description": "Small credit under the artist page's top songs when the list combines Deezer and Last.fm; tapping it opens the artist on Last.fm."
   },
   "deezerReleaseTypeAlbum": "Album",
   "deezerReleaseTypeEp": "EP",
@@ -1236,7 +1248,7 @@
   "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
   "nowPlayingSameVibesLabel": "Same Vibes",
   "nowPlayingSameVibesDescription": "Last.fm similar-song queueing",
-  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}",
+  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}",
   "@nowPlayingSameVibesStarted": {
     "placeholders": {
       "count": {

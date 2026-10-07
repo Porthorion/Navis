@@ -165,6 +165,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Artist pages and New Releases say when their details come from Deezer or Last.fm, and Last.fm songs link to the artist on Last.fm',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'About links to the Navis website, privacy policy, terms of use and support, and Privacy links to the full policy',
         type: ChangelogEntryType.fix,
       ),

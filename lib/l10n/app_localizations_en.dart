@@ -2369,11 +2369,20 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$countString fans',
-      one: '1 fan',
+      other: '$countString fans on Deezer',
+      one: '1 fan on Deezer',
     );
     return '$_temp0';
   }
+
+  @override
+  String get sourceFromDeezer => 'From Deezer';
+
+  @override
+  String get sourceFromLastFm => 'From Last.fm';
+
+  @override
+  String get sourceFromDeezerAndLastFm => 'From Deezer and Last.fm';
 
   @override
   String get deezerReleaseTypeAlbum => 'Album';
@@ -2797,8 +2806,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Same Vibes started — $count similar tracks queued.',
-      one: 'Same Vibes started — 1 similar track queued.',
+      other: 'Same Vibes started — $count similar tracks from Last.fm queued.',
+      one: 'Same Vibes started — 1 similar track from Last.fm queued.',
       zero: 'No similar tracks found.',
     );
     return '$_temp0';

@@ -3680,8 +3680,26 @@ abstract class AppLocalizations {
   /// Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 fan} other{{count} fans}}'**
+  /// **'{count, plural, =1{1 fan on Deezer} other{{count} fans on Deezer}}'**
   String artistDetailFanCount(int count);
+
+  /// Small credit under a section title whose content comes from Deezer, such as similar artists or new releases. Deezer is a product name.
+  ///
+  /// In en, this message translates to:
+  /// **'From Deezer'**
+  String get sourceFromDeezer;
+
+  /// Small credit under a section title whose content comes from Last.fm; tapping it opens the artist on Last.fm. Last.fm is a product name.
+  ///
+  /// In en, this message translates to:
+  /// **'From Last.fm'**
+  String get sourceFromLastFm;
+
+  /// Small credit under the artist page's top songs when the list combines Deezer and Last.fm; tapping it opens the artist on Last.fm.
+  ///
+  /// In en, this message translates to:
+  /// **'From Deezer and Last.fm'**
+  String get sourceFromDeezerAndLastFm;
 
   /// No description provided for @deezerReleaseTypeAlbum.
   ///
@@ -4406,7 +4424,7 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingSameVibesStarted.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}'**
+  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}'**
   String nowPlayingSameVibesStarted(int count);
 
   /// No description provided for @nowPlayingSameVibesUnsupported.
