@@ -81,6 +81,7 @@ class FlutterExternalScrobbleCredentialStore
       AppLogger.warning(
         'External credential clear failed: ${error.runtimeType}',
       );
+      rethrow;
     }
   }
 }

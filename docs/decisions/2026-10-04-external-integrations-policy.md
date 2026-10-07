@@ -78,3 +78,7 @@ anything besides my server?" and no way to turn off one feature of a service.
 ### Compliance follow-up — 2026-10-07
 
 Radio playback checks the master switch before changing transport or queue state. Stations on the configured server host remain available; host comparisons ignore case.
+
+### Compliance follow-up — 2026-10-07
+
+ListenBrainz disconnect changes the connection only after secure token deletion succeeds and shows a retry notice on failure. Every server sign-out attempts token deletion and resets its connection, logging failures without blocking sign-out.

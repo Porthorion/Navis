@@ -2622,5 +2622,9 @@
   "radioPlaybackBlockedOnlineServicesOff": "Online services are off. Turn them on in Integrations to play stations outside your server.",
   "@radioPlaybackBlockedOnlineServicesOff": {
     "description": "Explains why an external radio station cannot play with the master online services switch off."
+  },
+  "integrationsListenBrainzDisconnectFailed": "Couldn't remove the ListenBrainz token. Try again.",
+  "@integrationsListenBrainzDisconnectFailed": {
+    "description": "Error when secure storage cannot delete the ListenBrainz credential; connection remains unchanged."
   }
 }

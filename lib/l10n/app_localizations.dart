@@ -9436,6 +9436,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Online services are off. Turn them on in Integrations to play stations outside your server.'**
   String get radioPlaybackBlockedOnlineServicesOff;
+
+  /// Error when secure storage cannot delete the ListenBrainz credential; connection remains unchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t remove the ListenBrainz token. Try again.'**
+  String get integrationsListenBrainzDisconnectFailed;
 }
 
 class _AppLocalizationsDelegate

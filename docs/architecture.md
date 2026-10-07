@@ -1346,6 +1346,11 @@ keeps that action's default. Playback speed up/down/reset (`speedUp`,
 `,` and `0`, because Shift changes the logical key of punctuation on many
 layouts.
 
+ListenBrainz credentials are deleted on every server sign-out, with the
+connection reset even if deletion fails. Teardown logs failures and continues.
+Disconnect in Integrations instead retains the connection when deletion fails
+and shows a retry notice.
+
 ## External integration policy
 
 Navis talks to its own Subsonic server and, optionally, to external services:

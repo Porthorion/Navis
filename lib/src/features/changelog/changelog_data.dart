@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'ListenBrainz disconnect reports token deletion failures, and signing out clears its token and connection',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio stations outside your server respect the Online services switch and explain how to enable playback',
         type: ChangelogEntryType.fix,
       ),

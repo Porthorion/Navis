@@ -5877,4 +5877,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get radioPlaybackBlockedOnlineServicesOff =>
       'Online services are off. Turn them on in Integrations to play stations outside your server.';
+
+  @override
+  String get integrationsListenBrainzDisconnectFailed =>
+      'Couldn\'t remove the ListenBrainz token. Try again.';
 }
