@@ -75,6 +75,13 @@ Debian dependency; both packaging paths keep PulseAudio and ALSA loader
 dependencies. The separate `tool/libmpv/` recipe publishes binaries and source
 archives; see the Windows/Linux release guides for pin updates.
 
+Release notes are generated from `changelog_data.dart`. Write pending entries
+as short descriptions of what users notice, merge overlapping changes and
+keep their entry types consistent. Historical service announcements can carry
+later-removal notes so they do not imply current support. Validate the data,
+screen/provider and release-notes CLI with the focused files in
+`test/src/features/changelog/`.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):

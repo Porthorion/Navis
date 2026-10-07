@@ -129,59 +129,53 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Windows and Linux playback now use bundled LGPL audio libraries with full equalizer support',
+        'Linux playback and the equalizer now work without installing a separate audio library',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Windows Rust dependency notices include licence text for every bundled crate',
+        'ListenBrainz scrobbles resume after the service asks Navis to wait',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'ListenBrainz scrobbles wait for its advertised rate-limit reset before dispatching more listens',
+        'Same Vibes and Instant Radio remember recommendations for a day, reducing repeated online requests',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Same Vibes and Instant Radio reuse Last.fm similar-track responses for 24 hours',
+        'Lyrics searches and downloads wait before retrying when the lyrics service is busy',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Lyrics lookups respect LRCLIB cooldowns and pause download backfill when the service is rate limited',
+        'Setup, Integrations and Privacy explain which online services Navis uses, including when you skip setup',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Integrations and Privacy explain Last.fm keys, Deezer image servers and both AutoEQ network hosts',
+        "Desktop library data moves out of Documents into Navis's app data folder without losing your library or settings",
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Desktop databases move from Documents into application support, preserving existing libraries and SQLite sidecars',
+        'Android keeps Navis data out of system backups and device transfers',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android excludes Navis data from system backup and device transfer and can discover email apps for support',
+        'Contact Support can now open your email app on Android',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'ListenBrainz disconnect reports token deletion failures, and signing out clears its token and connection',
+        'Signing out also disconnects ListenBrainz, and disconnecting warns if your saved sign-in could not be cleared',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Skipping setup still shows which online services Navis may use, and setup now lists every one of them',
+        'Stations outside your server now need Online services turned on, and explain how to enable it',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Radio stations outside your server respect the Online services switch and explain how to enable playback',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'About and desktop packages now credit Porthorion, and About lists bundled colour data, AutoEq and platform-specific third-party licences',
+        'About includes complete third-party licence notices, and desktop packages credit Porthorion',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases retain their GPL licence',
       ),
-      ChangelogEntry(
-        'Custom accent colours use an updated colour-name collection and perceptual matching',
-      ),
+      ChangelogEntry('Custom accent colours have more accurate names'),
       ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
@@ -2257,7 +2251,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Listen Together upgrades to Voyage voyage-sync.v4alpha1 for tighter multi-device sync — connection.ready handshake, explicit command frames, member.status telemetry, and playback phase tracking',
+        'Listen Together upgrades to Voyage voyage-sync.v4alpha1 for tighter multi-device sync — connection.ready handshake, explicit command frames, member status updates, and playback phase tracking',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2349,7 +2343,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries',
+        'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries (Last.fm scrobbling was later removed.)',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
