@@ -148,6 +148,26 @@ class SyncSettingsScreen extends ConsumerWidget {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
+                        // Between runs the hydration backlog is reported here
+                        // rather than in Library, where it would never clear.
+                        if (!isRunning &&
+                            (syncState.pendingHydrationCount ?? 0) >
+                                0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            syncState.onlyIncompleteAlbumDetails
+                                ? l10n.syncSettingsIncompleteAlbumDetails(
+                                    syncState.pendingHydrationCount!,
+                                  )
+                                : l10n.syncSettingsPendingAlbumDetails(
+                                    syncState.pendingHydrationCount!,
+                                  ),
+                            key: const ValueKey<String>(
+                              'sync-settings-pending-album-details',
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                         if (desktopMode)
                           _DesktopSyncStatusMetrics(
                             plan: syncState.planKind == null

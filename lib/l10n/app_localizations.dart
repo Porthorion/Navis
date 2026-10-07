@@ -1230,17 +1230,17 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 resumable task pending} other{{count} resumable tasks pending}}'**
   String syncSettingsPendingWork(int count);
 
-  /// No description provided for @librarySyncBacklogBanner.
+  /// Sync settings status line shown between syncs while some albums still lack their track lists.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Library synced, 1 album is still loading details} other{Library synced, {count} albums are still loading details}}'**
-  String librarySyncBacklogBanner(int count);
+  /// **'{count, plural, =1{1 album\'s track list hasn\'t been fetched yet. It loads when you open it or during the next check.} other{{count} albums\' track lists haven\'t been fetched yet. They load when you open them or during upcoming checks.}}'**
+  String syncSettingsPendingAlbumDetails(int count);
 
-  /// No description provided for @librarySyncBacklogOfflineBanner.
+  /// Sync settings status line shown between syncs when every album still lacking its track list was rejected because the server returned incomplete album details.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 album will finish loading details when the server is back} other{{count} albums will finish loading details when the server is back}}'**
-  String librarySyncBacklogOfflineBanner(int count);
+  /// **'{count, plural, =1{1 album\'s track list couldn\'t be loaded because the server\'s details for it are incomplete, such as a song count that doesn\'t match its songs. A server rescan usually fixes this.} other{{count} albums\' track lists couldn\'t be loaded because the server\'s details for them are incomplete, such as a song count that doesn\'t match their songs. A server rescan usually fixes this.}}'**
+  String syncSettingsIncompleteAlbumDetails(int count);
 
   /// No description provided for @syncSettingsCandidate.
   ///

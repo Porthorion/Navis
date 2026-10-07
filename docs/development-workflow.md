@@ -1508,7 +1508,8 @@ redacted ledger events, durable requests, and attempt endpoint counts. A
 preceding repair's displayed status is not attributed to a later bounded
 action. After collecting its performance report, clone mode saves the idle
 sync status and captures an app-owned Library screenshot for visual inspection
-of the hydration backlog notice. Capturing after the report keeps the Library
+of the idle Library (between runs it shows no hydration backlog notice; Sync
+settings reports the backlog). Capturing after the report keeps the Library
 tab's mounted queries out of the benchmark workload.
 Clone mode can simulate metered/cellular policy through diagnostics overrides
 and asserts hard-probe, interactive hydration, explicit repair-consent deferral

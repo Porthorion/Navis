@@ -136,7 +136,8 @@ const List<ChangelogVersion> changelogs = [
         'The offline banner has a Retry button to check the server right away instead of waiting for the next automatic check',
       ),
       ChangelogEntry(
-        'While the server is unreachable, Library says the albums still loading details will finish when the server is back',
+        'Library no longer shows a permanent notice about albums still loading details; Sync settings now shows how many albums are still waiting for their track lists, and says when incomplete server data is the cause',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'External artwork requests and blocked loads now appear in integration diagnostics without exposing URL credentials',

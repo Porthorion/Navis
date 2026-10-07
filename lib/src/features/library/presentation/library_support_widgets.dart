@@ -48,18 +48,9 @@ class _TypeFilterBadge extends StatelessWidget {
 }
 
 class _SyncStatusBanner extends StatefulWidget {
-  const new({
-    required this.syncState,
-    required this.onRetry,
-    this.onCancel,
-    this.isOffline = false,
-  });
+  const new({required this.syncState, required this.onRetry, this.onCancel});
 
   final LibrarySyncState syncState;
-
-  /// The server is unreachable, so the hydration backlog is waiting for it
-  /// rather than loading.
-  final bool isOffline;
   final Future<void> Function() onRetry;
   final VoidCallback? onCancel;
 
@@ -70,7 +61,6 @@ class _SyncStatusBanner extends StatefulWidget {
   static const Key cancelKey = ValueKey<String>('library-sync-status-cancel');
   static const Key retryKey = ValueKey<String>('library-sync-status-retry');
   static const Key dismissKey = ValueKey<String>('library-sync-status-dismiss');
-  static const Key backlogKey = ValueKey<String>('library-sync-status-backlog');
 
   @override
   State<_SyncStatusBanner> createState() => _SyncStatusBannerState();
@@ -248,49 +238,9 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
       );
     }
 
-    // A finished sync does not mean every album has details yet. Surface the
-    // durable hydration backlog between runs instead of reporting plain
-    // completion while metadata is still missing.
-    final hydrationBacklog = syncState.pendingHydrationCount ?? 0;
-    if (!syncState.isRunning && hydrationBacklog > 0) {
-      final theme = Theme.of(context);
-      final colors = theme.colorScheme;
-      final label = widget.isOffline
-          ? l10n.librarySyncBacklogOfflineBanner(hydrationBacklog)
-          : l10n.librarySyncBacklogBanner(hydrationBacklog);
-      return Semantics(
-        container: true,
-        label: label,
-        child: Material(
-          key: _SyncStatusBanner.backlogKey,
-          color: colors.surfaceContainerHigh,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  widget.isOffline
-                      ? Icons.cloud_off_outlined
-                      : Icons.hourglass_bottom_rounded,
-                  size: 16,
-                  color: colors.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
+    // Between runs the hydration backlog is reported in Sync settings, not
+    // here: it drains slowly and can include albums the server cannot serve,
+    // so a Library notice would never go away.
     return const SizedBox.shrink();
   }
 

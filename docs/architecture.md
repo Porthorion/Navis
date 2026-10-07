@@ -3083,8 +3083,14 @@ states without starting audio or modifying a queue.
    incomplete albums remain on the authoritative `getAlbum` fallback.
    Hydration progress advances only after an album has been written and marked
    hydrated; albums merely observed in a bulk search page are not presented as
-   complete. Catalog discovery remains indeterminate because its page total is
-   an estimate and does not share a stable denominator with song hydration.
+   complete. Library shows hydration progress only while a run is active.
+   Between runs the remaining backlog (`pendingHydrationCount`) appears as a
+   status line in Sync settings, worded as a server-data problem when
+   `onlyIncompleteAlbumDetails` says every pending album returned incomplete
+   details; a Library notice would never clear, because runs are budgeted and
+   such albums stay pending. Catalog discovery remains indeterminate because
+   its page total is an estimate and does not share a stable denominator with
+   song hydration.
    Incompatible providers fall back to
    bounded `getArtists → getArtist → getAlbum` work using the same candidate
    boundary.

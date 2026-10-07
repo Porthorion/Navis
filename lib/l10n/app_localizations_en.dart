@@ -736,24 +736,33 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String librarySyncBacklogBanner(int count) {
+  String syncSettingsPendingAlbumDetails(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Library synced, $count albums are still loading details',
-      one: 'Library synced, 1 album is still loading details',
+      other:
+          '$countString albums\' track lists haven\'t been fetched yet. They load when you open them or during upcoming checks.',
+      one: '1 album\'s track list hasn\'t been fetched yet. It loads when you open it or during the next check.',
     );
     return '$_temp0';
   }
 
   @override
-  String librarySyncBacklogOfflineBanner(int count) {
+  String syncSettingsIncompleteAlbumDetails(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other:
-          '$count albums will finish loading details when the server is back',
-      one: '1 album will finish loading details when the server is back',
+          '$countString albums\' track lists couldn\'t be loaded because the server\'s details for them are incomplete, such as a song count that doesn\'t match their songs. A server rescan usually fixes this.',
+      one: '1 album\'s track list couldn\'t be loaded because the server\'s details for it are incomplete, such as a song count that doesn\'t match its songs. A server rescan usually fixes this.',
     );
     return '$_temp0';
   }

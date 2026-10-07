@@ -910,4 +910,130 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
+
+  group('pending album details', () {
+    const key = ValueKey<String>('sync-settings-pending-album-details');
+
+    Future<void> pumpWithState(
+      WidgetTester tester,
+      LibrarySyncState state,
+    ) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...withTestDatabase(database),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(stateValue: state),
+            ),
+            syncNetworkPolicyProvider.overrideWith(
+              (_) => const SyncNetworkPolicy(
+                networkType: NetworkType.wifi,
+                isMetered: false,
+                allowsBackgroundSync: true,
+                allowsHardProbe: true,
+                allowsInteractiveHydration: true,
+              ),
+            ),
+            backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SyncSettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 1));
+      });
+    }
+
+    testWidgets('reports the idle hydration backlog', (tester) async {
+      await pumpWithState(
+        tester,
+        LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          lastSyncedAt: DateTime(2026, 10, 7, 8),
+          pendingHydrationCount: 3,
+        ),
+      );
+
+      expect(find.byKey(key), findsOneWidget);
+      expect(
+        find.text(
+          "3 albums' track lists haven't been fetched yet. They load when "
+          'you open them or during upcoming checks.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('blames incomplete server details when they remain', (
+      tester,
+    ) async {
+      await pumpWithState(
+        tester,
+        LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          lastSyncedAt: DateTime(2026, 10, 7, 8),
+          pendingHydrationCount: 1,
+          onlyIncompleteAlbumDetails: true,
+        ),
+      );
+
+      expect(find.byKey(key), findsOneWidget);
+      expect(
+        find.textContaining('A server rescan usually fixes this.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining("1 album's track list couldn't be loaded"),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('stays hidden without a backlog', (tester) async {
+      await pumpWithState(
+        tester,
+        LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          lastSyncedAt: DateTime(2026, 10, 7, 8),
+          pendingHydrationCount: 0,
+        ),
+      );
+
+      expect(find.byKey(key), findsNothing);
+    });
+
+    testWidgets('stays hidden while a sync runs', (tester) async {
+      await pumpWithState(
+        tester,
+        const LibrarySyncState(
+          status: LibrarySyncStatus.running,
+          stage: LibrarySyncStage.fetchingSongs,
+          pendingHydrationCount: 3,
+        ),
+      );
+
+      expect(find.byKey(key), findsNothing);
+    });
+  });
 }

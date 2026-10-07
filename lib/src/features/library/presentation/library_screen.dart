@@ -32,8 +32,6 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
-import 'package:navis/src/features/auth/domain/server_reachability.dart';
-import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
@@ -640,13 +638,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             Consumer(
               builder: (context, ref, _) => _SyncStatusBanner(
                 syncState: ref.watch(librarySyncControllerProvider),
-                isOffline:
-                    ref.watch(
-                      serverReachabilityControllerProvider.select(
-                        (state) => state.status,
-                      ),
-                    ) ==
-                    ServerReachabilityStatus.offline,
                 onRetry: _refreshLibrary,
                 onCancel: () {
                   ref.read(librarySyncControllerProvider.notifier).cancelSync();
