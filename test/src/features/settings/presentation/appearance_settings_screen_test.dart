@@ -251,21 +251,54 @@ void main() {
       colorSeed: Colors.orange.toARGB32(),
     );
 
+    // Scroll only as far as the custom-colour chip so the continuously
+    // animating shape previews further down stay unbuilt.
+    await tester.ensureVisible(find.byIcon(Icons.add));
+    await tester.pump();
     await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle();
+    // Shape previews animate continuously once scrolled near; wait only for
+    // finite transitions.
+    await tester.pump(const Duration(milliseconds: 500));
     final l10n = lookupAppLocalizations(const Locale('en'));
     await tester.enterText(
       find.widgetWithText(TextField, l10n.appearanceColorPickerHexLabel),
       'FFFFFF',
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text(l10n.appearanceColorPickerSave));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     final database = container.read(navisDatabaseProvider);
     final settings = await database.appSettingsDao.getSettings();
     expect(settings?.colorSchemeSeed, isNull);
     expect(settings?.customColorPresets, isNull);
+  });
+
+  testWidgets('color style tiles fit a phone and save the chosen style', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(360, 800));
+    final container = await pumpAppearance(tester);
+
+    final tiles = <Finder>[
+      for (final key in <String>['neutral', 'pastel', 'immersive', 'night'])
+        find.byKey(ValueKey<String>('colorStyleTile-$key')),
+    ];
+    for (final tile in tiles) {
+      expect(tile, findsOneWidget);
+    }
+    // Four tiles share one row at phone width.
+    final firstTop = tester.getTopLeft(tiles.first).dy;
+    for (final tile in tiles.skip(1)) {
+      expect(tester.getTopLeft(tile).dy, firstTop);
+    }
+    expect(tester.getTopRight(tiles.last).dx, lessThanOrEqualTo(360));
+
+    await tester.tap(tiles[1]);
+    await tester.pump();
+    final database = container.read(navisDatabaseProvider);
+    final settings = await tester.runAsync(database.appSettingsDao.getSettings);
+    expect(settings?.colorStyle, 'pastel');
   });
 
   testWidgets('dynamic album color explains selected color fallback', (
@@ -274,6 +307,11 @@ void main() {
     await pumpAppearance(tester, dynamicAlbumColorEnabled: true);
 
     final l10n = lookupAppLocalizations(const Locale('en'));
+    await tester.scrollUntilVisible(
+      find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
 
     expect(
       find.text(l10n.appearanceDynamicAlbumColorEnabledSub),

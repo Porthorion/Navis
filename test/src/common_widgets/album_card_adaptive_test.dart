@@ -81,7 +81,6 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 250));
 
-      final isLight = theme.brightness == Brightness.light;
       final title = tester.widget<Text>(find.text(_album.name));
       final artist = tester.widget<Text>(find.text(_album.artistName!));
       final fade = tester.widget<DecoratedBox>(
@@ -90,14 +89,10 @@ void main() {
       final decoration = fade.decoration as BoxDecoration;
       final gradient = decoration.gradient! as LinearGradient;
 
-      expect(
-        title.style!.color,
-        isLight ? theme.colorScheme.onSurface : Colors.white,
-      );
-      expect(
-        artist.style!.color,
-        isLight ? theme.colorScheme.onSurfaceVariant : const Color(0xCCFFFFFF),
-      );
+      // The text sits on the page-background fade, so it uses the scheme's
+      // text roles in every theme.
+      expect(title.style!.color, theme.colorScheme.onSurface);
+      expect(artist.style!.color, theme.colorScheme.onSurfaceVariant);
       expect(gradient.colors.last, theme.scaffoldBackgroundColor);
     }
     expect(tester.takeException(), isNull);

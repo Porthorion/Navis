@@ -101,6 +101,30 @@ double mudGuardHue(double hue, double tone) {
   return hue + (58 - hue) * weight;
 }
 
+/// Background hue for Pastel on dark schemes.
+///
+/// Warm hues (reds through yellows) turn brown at dark tones, so Pastel
+/// places warm accents on a dusky plum base instead, the way dark pastel
+/// palettes pair warm pastels with a cool backdrop. Cool hues keep their own
+/// hue; greens blend between the two.
+double pastelDuskHue(double hue) {
+  const plum = 340.0;
+  final h = _sanitize(hue);
+  final double weight;
+  if (h >= 320 || h <= 110) {
+    weight = 1;
+  } else if (h < 150) {
+    weight = (150 - h) / 40;
+  } else {
+    weight = 0;
+  }
+  var delta = (plum - h) % 360;
+  if (delta > 180) {
+    delta -= 360;
+  }
+  return _sanitize(h + delta * weight);
+}
+
 /// Pull [hue] toward amber for the Night style and keep it within the warm
 /// range (15°–95°), so blues and greens become rose, amber or gold.
 double nightHue(double hue) {
@@ -152,6 +176,7 @@ class _Recipe {
     required this.tertiary,
     required this.tertiaryChroma,
     required this.neutral,
+    this.darkNeutral,
     required this.darkSurfaceChroma,
     required this.lightSurfaceChroma,
     required this.containerChromaDark,
@@ -173,6 +198,9 @@ class _Recipe {
 
   /// Hue of backgrounds and text.
   final _Hue neutral;
+
+  /// Hue of backgrounds on dark schemes, when it differs from [neutral].
+  final _Hue? darkNeutral;
   final double darkSurfaceChroma;
   final double lightSurfaceChroma;
 
@@ -196,7 +224,7 @@ class _Recipe {
   }
 
   ColorScheme _dark({required bool oled}) {
-    final n = neutral;
+    final n = darkNeutral ?? neutral;
     final s = darkSurfaceChroma;
     final c = containerChromaDark;
     const error = _Hue(_errorHue);
@@ -335,11 +363,14 @@ _Recipe _pastelRecipe(Hct source, bool achromatic) {
     tertiary: _Hue(hue + 48),
     tertiaryChroma: chroma * 0.85,
     neutral: _Hue(hue),
-    darkSurfaceChroma: 8,
+    darkNeutral: _Hue(pastelDuskHue(hue)),
+    darkSurfaceChroma: 10,
     lightSurfaceChroma: 8,
     containerChromaDark: 14,
     containerChromaLight: 28,
-    lightAccentChroma: math.min<double>(chroma, 36),
+    // Light accents double as text, so they stay at ink tone; enough chroma
+    // keeps warm hues coral or rose instead of brown.
+    lightAccentChroma: math.max<double>(chroma, 48),
     lightSurfaceTone: 96,
     textHue: _Hue(hue),
     textChroma: 4,

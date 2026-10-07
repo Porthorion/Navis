@@ -113,6 +113,29 @@ void main() {
       Theme.of(tester.element(find.byType(Scaffold))).brightness,
       Brightness.light,
     );
+    final neutralSurface = Theme.of(tester.element(find.byType(Scaffold)))
+        .colorScheme
+        .surface;
+    final pastelTile = find.byKey(
+      const ValueKey<String>('colorStyleTile-pastel'),
+    );
+    await tester.ensureVisible(pastelTile);
+    await tester.tap(pastelTile);
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.byType(Scaffold))).colorScheme.surface,
+      isNot(neutralSurface),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('colorStyleTile-neutral')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.bySemanticsLabel('Deep Orange'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.bySemanticsLabel('Deep Orange'));
     await tester.pumpAndSettle();
     expect(

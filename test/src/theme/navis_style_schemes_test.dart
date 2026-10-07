@@ -173,13 +173,14 @@ void main() {
       ]) {
         final hct = _hct(role);
         if (hct.chroma > 3) {
-          expect(hct.hue, lessThan(80), reason: '${style.name} $hct');
+          final khaki = hct.hue > 75 && hct.hue < 125;
+          expect(khaki, isFalse, reason: '${style.name} $hct');
         }
       }
     }
   });
 
-  test('pastel tints its backgrounds and softens the accent', () {
+  test('pastel tints its backgrounds and softens dark accent fills', () {
     for (final mode in <_Mode>[_Mode.light, _Mode.dark]) {
       final scheme = _scheme(
         const Color(0xFFF44336),
@@ -187,7 +188,20 @@ void main() {
         NavisColorStyle.pastel,
       );
       expect(_hct(scheme.surface).chroma, greaterThanOrEqualTo(4));
-      expect(_hct(scheme.primary).chroma, lessThanOrEqualTo(44.5));
+      if (mode == _Mode.dark) {
+        expect(_hct(scheme.primary).chroma, lessThanOrEqualTo(44.5));
+      }
+    }
+  });
+
+  test('pastel dark sets warm accents on a plum dusk', () {
+    for (final seed in <Color>[
+      const Color(0xFFE2581E),
+      const Color(0xFFFFEB3B),
+    ]) {
+      final surface = _scheme(seed, _Mode.dark, NavisColorStyle.pastel).surface;
+      final hue = _hct(surface).hue;
+      expect(hue > 300 || hue < 10, isTrue, reason: 'hue $hue for $seed');
     }
   });
 
