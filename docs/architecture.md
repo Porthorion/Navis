@@ -2889,7 +2889,13 @@ queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable
 batches. Completed-state Play restarts the queue only after the final prepared
 item; it cannot restart a queue that is still filling. `loadingSongId`
-acknowledges a selection before network startup ends.
+acknowledges a selection before network startup ends. just_audio keeps
+`playing` true after the last song ends, so the handler records the
+transition into `completed` (when it is not continuing into unloaded songs)
+and publishes playback as paused until Play, a seek or any other processing
+state. The UI, headset button and system controls then show Play, and one
+press restarts the queue. Only the transition counts, because the desktop
+backend can keep reporting `completed` while a restarted song plays.
 
 The tracked desktop `just_audio_media_kit` adapter retires an old load waiter
 when a new source replaces it. Its queue insertion moves the actual appended

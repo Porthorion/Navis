@@ -574,6 +574,58 @@ void main() {
       expect(navisShouldRetryRemotePlayback(alreadyRetried: true), isFalse);
     });
 
+    test('a finished queue shows as paused', () {
+      // just_audio keeps `playing` true after the last song ends.
+      expect(
+        navisVisiblePlaying(playerPlaying: true, queueFinished: true),
+        isFalse,
+      );
+      expect(
+        navisVisiblePlaying(playerPlaying: true, queueFinished: false),
+        isTrue,
+      );
+      expect(
+        navisVisiblePlaying(playerPlaying: false, queueFinished: false),
+        isFalse,
+      );
+    });
+
+    test('only the transition into completed finishes the queue', () {
+      expect(
+        navisQueueJustFinished(
+          previous: ProcessingState.ready,
+          current: ProcessingState.completed,
+          continuingPastCompletion: false,
+        ),
+        isTrue,
+      );
+      // The Linux backend keeps reporting completed while a restart plays.
+      expect(
+        navisQueueJustFinished(
+          previous: ProcessingState.completed,
+          current: ProcessingState.completed,
+          continuingPastCompletion: false,
+        ),
+        isFalse,
+      );
+      expect(
+        navisQueueJustFinished(
+          previous: ProcessingState.ready,
+          current: ProcessingState.completed,
+          continuingPastCompletion: true,
+        ),
+        isFalse,
+      );
+      expect(
+        navisQueueJustFinished(
+          previous: ProcessingState.buffering,
+          current: ProcessingState.ready,
+          continuingPastCompletion: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('completed queue restart waits for pending queue fill', () {
       expect(
         navisShouldRestartCompletedQueue(
