@@ -2709,7 +2709,6 @@ void main() {
         dynamicAlbumColorEnabled: false,
         updateCheckEnabled: true,
         updateChannel: 'stable',
-        audioMuseEnabled: false,
         syncIntervalMinutes: 60,
         backgroundSyncUnmeteredOnly: false,
         useLrclib: true,

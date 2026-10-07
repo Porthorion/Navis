@@ -32,7 +32,6 @@ void main() {
       l10n.albumDetailMeta('Artist', 2024, 14),
       'Artist • 2024 • 14 tracks',
     );
-    expect(l10n.audioMuseMixGenerated(1), 'AI Mix created — 1 track queued.');
     expect(l10n.smartQueueStarted(25), '25 tracks queued via Smart Queue.');
     expect(l10n.eqFilterCount(1), '1 filter');
     expect(l10n.eqFilterCount(10), '10 filters');

@@ -25,9 +25,6 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
-import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
-import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -2840,75 +2837,6 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
     forceCheck: forceCheck,
   );
 });
-
-// ---------------------------------------------------------------------------
-// Smart Queue — AudioMuse plugin detection
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// AudioMuse AI providers (direct API — disabled)
-// ---------------------------------------------------------------------------
-
-/// Whether AudioMuse AI integration is enabled and configured in settings.
-///
-/// **Disabled** — the AudioMuse Navidrome plugin already provides
-/// AI-powered similar songs and artists transparently through the
-/// standard Subsonic API (`getSimilarSongs2`, `getArtistInfo2`).
-/// Direct client-to-AudioMuse communication is unnecessary and blocked
-/// by the Authentik reverse-proxy. Re-enable once a viable internal
-/// route is available.
-final audioMuseAvailableProvider = Provider<bool>((ref) {
-  // Original gate (kept for future re-enablement):
-  // final settings =
-  //     ref.watch(appSettingsProvider).asData?.value ??
-  //     const AppSettingsModel.defaults();
-  // return settings.audioMuseEnabled &&
-  //     (settings.audioMuseServerUrl?.trim().isNotEmpty ?? false);
-  return false;
-});
-
-/// The current AudioMuse configuration extracted from app settings.
-final audioMuseConfigProvider = Provider<AudioMuseConfig>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return AudioMuseConfig(
-    serverUrl: settings.audioMuseServerUrl ?? '',
-    apiKey: settings.audioMuseApiKey,
-    enabled: settings.audioMuseEnabled,
-  );
-});
-
-/// AudioMuse repository — `null` when AudioMuse is not configured.
-///
-/// Consumers should check [audioMuseAvailableProvider] before using this.
-final audioMuseRepositoryProvider = Provider<AudioMuseRepository?>((ref) {
-  final config = ref.watch(audioMuseConfigProvider);
-  if (!config.isConfigured) return null;
-  final client = AudioMuseApiClient(
-    baseUrl: config.serverUrl,
-    apiKey: config.apiKey,
-  );
-  return AudioMuseRepository(client);
-});
-
-/// AI-powered similar artists for a given artist ID.
-/// Returns an empty list when AudioMuse is unavailable.
-final audioMuseSimilarArtistsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>((ref, artistId) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return await repo.getSimilarArtists(artistId);
-    });
-
-/// AI-powered similar albums for a given album ID.
-/// Returns an empty list when AudioMuse is unavailable.
-final audioMuseSimilarAlbumsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>((ref, albumId) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return await repo.getSimilarAlbums(albumId);
-    });
 
 List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {
   if (albums.isEmpty) {

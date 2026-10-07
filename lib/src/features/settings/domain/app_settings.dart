@@ -71,9 +71,6 @@ class AppSettingsModel {
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
-    required this.audioMuseServerUrl,
-    required this.audioMuseApiKey,
-    required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
     this.backgroundSyncUnmeteredOnly = true,
     required this.useLrclib,
@@ -150,9 +147,6 @@ class AppSettingsModel {
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
-      audioMuseServerUrl = null,
-      audioMuseApiKey = null,
-      audioMuseEnabled = false,
       syncIntervalMinutes = 60,
       backgroundSyncUnmeteredOnly = true,
       useLrclib = true,
@@ -229,9 +223,6 @@ class AppSettingsModel {
   final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
-  final String? audioMuseServerUrl;
-  final String? audioMuseApiKey;
-  final bool audioMuseEnabled;
   final int syncIntervalMinutes;
 
   /// When true, automatic/background library sync waits for an unmetered
@@ -390,9 +381,6 @@ class AppSettingsModel {
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
-    String? audioMuseServerUrl,
-    String? audioMuseApiKey,
-    bool? audioMuseEnabled,
     int? syncIntervalMinutes,
     bool? backgroundSyncUnmeteredOnly,
     bool? useLrclib,
@@ -446,8 +434,6 @@ class AppSettingsModel {
     bool clearColorSchemeSeed = false,
     bool clearAppLocale = false,
     bool clearCustomDownloadFolderPath = false,
-    bool clearAudioMuseServerUrl = false,
-    bool clearAudioMuseApiKey = false,
     bool clearAlbumGridDensity = false,
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
@@ -501,13 +487,6 @@ class AppSettingsModel {
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
-      audioMuseServerUrl: clearAudioMuseServerUrl
-          ? null
-          : audioMuseServerUrl ?? this.audioMuseServerUrl,
-      audioMuseApiKey: clearAudioMuseApiKey
-          ? null
-          : audioMuseApiKey ?? this.audioMuseApiKey,
-      audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
       backgroundSyncUnmeteredOnly:
           backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,

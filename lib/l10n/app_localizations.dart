@@ -142,12 +142,6 @@ abstract class AppLocalizations {
   /// **'Press back again to exit'**
   String get navigationBackToExitPrompt;
 
-  /// No description provided for @loginTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign In'**
-  String get loginTitle;
-
   /// No description provided for @loginSubtitle.
   ///
   /// In en, this message translates to:
@@ -184,18 +178,6 @@ abstract class AppLocalizations {
   /// **'Hide password'**
   String get loginHidePassword;
 
-  /// No description provided for @loginTestConnection.
-  ///
-  /// In en, this message translates to:
-  /// **'Test connection'**
-  String get loginTestConnection;
-
-  /// No description provided for @loginTestingConnection.
-  ///
-  /// In en, this message translates to:
-  /// **'Testing connection...'**
-  String get loginTestingConnection;
-
   /// No description provided for @loginConnect.
   ///
   /// In en, this message translates to:
@@ -225,12 +207,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a valid server URL.'**
   String get loginValidationServerUrlInvalid;
-
-  /// No description provided for @loginValidationServerUrlHttpsOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'Use HTTPS for server URL.'**
-  String get loginValidationServerUrlHttpsOnly;
 
   /// No description provided for @loginInsecureHttpWarning.
   ///
@@ -292,18 +268,6 @@ abstract class AppLocalizations {
   /// **'Replace Local Data'**
   String get loginReplaceServerAction;
 
-  /// No description provided for @initialSyncTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Initial Server Sync'**
-  String get initialSyncTitle;
-
-  /// No description provided for @initialSyncDoNotClose.
-  ///
-  /// In en, this message translates to:
-  /// **'Navis is building this server\'s local library. Do not close the app during setup.'**
-  String get initialSyncDoNotClose;
-
   /// No description provided for @initialSyncWaitingForNetwork.
   ///
   /// In en, this message translates to:
@@ -333,12 +297,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancelling and signing out...'**
   String get initialSyncCancelling;
-
-  /// No description provided for @initialSyncCancelAndLogout.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel and sign out'**
-  String get initialSyncCancelAndLogout;
 
   /// No description provided for @requiredSyncInitialTitle.
   ///
@@ -603,12 +561,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playback'**
   String get settingsGroupPlayback;
-
-  /// No description provided for @settingsGroupAutomation.
-  ///
-  /// In en, this message translates to:
-  /// **'Automation'**
-  String get settingsGroupAutomation;
 
   /// No description provided for @settingsGroupLibrarySynchronization.
   ///
@@ -1005,12 +957,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current Sync Status'**
   String get syncSettingsStatusLabel;
-
-  /// No description provided for @syncSettingsLastSyncedLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Server Last Synced'**
-  String get syncSettingsLastSyncedLabel;
 
   /// No description provided for @syncSettingsNeverSynced.
   ///
@@ -1494,18 +1440,6 @@ abstract class AppLocalizations {
   /// **'Rebuild on Mobile Data'**
   String get cacheSettingsResetLibraryCacheMeteredConfirmAction;
 
-  /// No description provided for @cacheSettingsResetLibraryCacheSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Library cache reset and full metadata resync completed.'**
-  String get cacheSettingsResetLibraryCacheSuccess;
-
-  /// No description provided for @cacheSettingsResetLibraryCacheFailure.
-  ///
-  /// In en, this message translates to:
-  /// **'Cache was reset, but full metadata resync failed.'**
-  String get cacheSettingsResetLibraryCacheFailure;
-
   /// No description provided for @playbackSettingsLoadError.
   ///
   /// In en, this message translates to:
@@ -1584,42 +1518,6 @@ abstract class AppLocalizations {
   /// **'Preload tracks to reduce gaps between songs.'**
   String get playbackSettingsGaplessSubtitle;
 
-  /// No description provided for @playbackSettingsShowRadioPageTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Radio Page'**
-  String get playbackSettingsShowRadioPageTitle;
-
-  /// No description provided for @playbackSettingsShowRadioPageSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Display the Radio tab in bottom navigation.'**
-  String get playbackSettingsShowRadioPageSubtitle;
-
-  /// No description provided for @playbackSettingsAndroidDspSectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Android Audio Effects'**
-  String get playbackSettingsAndroidDspSectionTitle;
-
-  /// No description provided for @playbackSettingsLoudnessTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable Loudness Enhancer'**
-  String get playbackSettingsLoudnessTitle;
-
-  /// No description provided for @playbackSettingsLoudnessSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply target gain in dB on Android playback.'**
-  String get playbackSettingsLoudnessSubtitle;
-
-  /// No description provided for @playbackSettingsSaveAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Save'**
-  String get playbackSettingsSaveAction;
-
   /// No description provided for @playbackSettingsResetAction.
   ///
   /// In en, this message translates to:
@@ -1644,12 +1542,6 @@ abstract class AppLocalizations {
   /// **'Server default'**
   String get playbackSettingsFormatOriginal;
 
-  /// No description provided for @playbackSettingsSaveSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Playback settings saved.'**
-  String get playbackSettingsSaveSuccess;
-
   /// No description provided for @playbackSettingsSaveFailure.
   ///
   /// In en, this message translates to:
@@ -1667,12 +1559,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not reset playback settings. Try again.'**
   String get playbackSettingsResetFailure;
-
-  /// No description provided for @playbackSettingsCrossfadeSectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Cross-fade'**
-  String get playbackSettingsCrossfadeSectionTitle;
 
   /// No description provided for @playbackSettingsCrossfadeEnableTitle.
   ///
@@ -1721,12 +1607,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only cross-fade between tracks from different albums.'**
   String get playbackSettingsCrossfadeTypeSmartDescription;
-
-  /// No description provided for @playbackSettingsCrossfadeGaplessWarning.
-  ///
-  /// In en, this message translates to:
-  /// **'Crossfade and gapless playback are both enabled. These features conflict — crossfade may not work correctly. Consider disabling one.'**
-  String get playbackSettingsCrossfadeGaplessWarning;
 
   /// No description provided for @playbackSettingsReplayGainSectionTitle.
   ///
@@ -1812,12 +1692,6 @@ abstract class AppLocalizations {
   /// **'Playback Speed'**
   String get playbackSettingsPlaybackSpeedLabel;
 
-  /// No description provided for @playbackSettingsCloseAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Close'**
-  String get playbackSettingsCloseAction;
-
   /// No description provided for @playbackSettingsFullscreenLyricsTitle.
   ///
   /// In en, this message translates to:
@@ -1859,12 +1733,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tapping a track on the Liked page queues all your liked songs and starts at that track.'**
   String get playbackSettingsLikedQueueSubtitle;
-
-  /// No description provided for @homeTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Home'**
-  String get homeTitle;
 
   /// No description provided for @homeLoadErrorTitle.
   ///
@@ -2010,24 +1878,6 @@ abstract class AppLocalizations {
   /// **'Unclear match'**
   String get weeklyPlaylistAmbiguousMatchShort;
 
-  /// No description provided for @homeContinueListeningTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue Listening'**
-  String get homeContinueListeningTitle;
-
-  /// No description provided for @homeContinueListeningResume.
-  ///
-  /// In en, this message translates to:
-  /// **'Resume'**
-  String get homeContinueListeningResume;
-
-  /// No description provided for @homeContinueListeningOpenNowPlaying.
-  ///
-  /// In en, this message translates to:
-  /// **'Open player'**
-  String get homeContinueListeningOpenNowPlaying;
-
   /// No description provided for @homeShowcaseReasonLikedDiscovery.
   ///
   /// In en, this message translates to:
@@ -2124,24 +1974,6 @@ abstract class AppLocalizations {
   /// **'Like albums to pin your favorites here.'**
   String get homeRecentlyLikedAlbumsEmptySubtitle;
 
-  /// No description provided for @homeRecentlyPlayedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Recently Played'**
-  String get homeRecentlyPlayedTitle;
-
-  /// No description provided for @homeRecentlyPlayedEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Recent Plays Yet'**
-  String get homeRecentlyPlayedEmptyTitle;
-
-  /// No description provided for @homeRecentlyPlayedEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Start playback to populate this section.'**
-  String get homeRecentlyPlayedEmptySubtitle;
-
   /// No description provided for @homeRecentlyAddedTitle.
   ///
   /// In en, this message translates to:
@@ -2220,12 +2052,6 @@ abstract class AppLocalizations {
   /// **'Like tracks on your server to see them here.'**
   String get homeStarredEmptySubtitle;
 
-  /// No description provided for @homeSeeAll.
-  ///
-  /// In en, this message translates to:
-  /// **'See all'**
-  String get homeSeeAll;
-
   /// No description provided for @homeMostPlayedTracksTitle.
   ///
   /// In en, this message translates to:
@@ -2279,18 +2105,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start listening to populate this section.'**
   String get homeRecentlyPlayedAlbumsEmptySubtitle;
-
-  /// No description provided for @homeQuickActionsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Quick Actions'**
-  String get homeQuickActionsTitle;
-
-  /// No description provided for @homeQuickActionShuffleLiked.
-  ///
-  /// In en, this message translates to:
-  /// **'Shuffle liked'**
-  String get homeQuickActionShuffleLiked;
 
   /// No description provided for @radioTitle.
   ///
@@ -2442,29 +2256,11 @@ abstract class AppLocalizations {
   /// **'Legacy password'**
   String get serverSettingsAuthModeLegacy;
 
-  /// No description provided for @serverSettingsCapabilitiesLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Capabilities'**
-  String get serverSettingsCapabilitiesLabel;
-
-  /// No description provided for @serverSettingsCapabilitiesEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'None detected'**
-  String get serverSettingsCapabilitiesEmpty;
-
   /// No description provided for @serverSettingsCapabilitiesCount.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 extension} other{{count} extensions}}'**
   String serverSettingsCapabilitiesCount(int count);
-
-  /// No description provided for @serverSettingsUnknownValue.
-  ///
-  /// In en, this message translates to:
-  /// **'Unknown'**
-  String get serverSettingsUnknownValue;
 
   /// No description provided for @serverSettingsTestConnection.
   ///
@@ -2478,42 +2274,6 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get serverSettingsSave;
 
-  /// No description provided for @serverSettingsSaving.
-  ///
-  /// In en, this message translates to:
-  /// **'Saving...'**
-  String get serverSettingsSaving;
-
-  /// No description provided for @serverSettingsSaveSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Server settings saved.'**
-  String get serverSettingsSaveSuccess;
-
-  /// No description provided for @serverSettingsForceFullSync.
-  ///
-  /// In en, this message translates to:
-  /// **'Repair Library'**
-  String get serverSettingsForceFullSync;
-
-  /// No description provided for @serverSettingsForceFullSyncRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'Repair in progress...'**
-  String get serverSettingsForceFullSyncRunning;
-
-  /// No description provided for @serverSettingsForceFullSyncSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Library repair completed.'**
-  String get serverSettingsForceFullSyncSuccess;
-
-  /// No description provided for @serverSettingsForceFullSyncFailure.
-  ///
-  /// In en, this message translates to:
-  /// **'Library repair failed: {message}'**
-  String serverSettingsForceFullSyncFailure(Object message);
-
   /// No description provided for @serverSettingsSignOut.
   ///
   /// In en, this message translates to:
@@ -2526,23 +2286,11 @@ abstract class AppLocalizations {
   /// **'Sign out (keep local data)'**
   String get serverSettingsSignOutKeepData;
 
-  /// No description provided for @serverSettingsSignOutKeepDataSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove credentials but keep downloaded and cached metadata.'**
-  String get serverSettingsSignOutKeepDataSubtitle;
-
   /// No description provided for @serverSettingsSignOutWipeData.
   ///
   /// In en, this message translates to:
   /// **'Sign out and clear local data'**
   String get serverSettingsSignOutWipeData;
-
-  /// No description provided for @serverSettingsSignOutWipeDataSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove credentials and wipe local library, cache, and history metadata.'**
-  String get serverSettingsSignOutWipeDataSubtitle;
 
   /// No description provided for @serverSettingsSignOutSuccess.
   ///
@@ -3186,12 +2934,6 @@ abstract class AppLocalizations {
   /// **'Liked'**
   String get libraryTabLiked;
 
-  /// No description provided for @libraryTabSongs.
-  ///
-  /// In en, this message translates to:
-  /// **'Songs'**
-  String get libraryTabSongs;
-
   /// No description provided for @librarySyncRunning.
   ///
   /// In en, this message translates to:
@@ -3209,12 +2951,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Syncing library metadata ({processed}/{total})'**
   String librarySyncRunningWithProgress(int processed, int total);
-
-  /// No description provided for @librarySyncLastSynced.
-  ///
-  /// In en, this message translates to:
-  /// **'Last synced: {timestamp}'**
-  String librarySyncLastSynced(Object timestamp);
 
   /// No description provided for @librarySyncStagePreparing.
   ///
@@ -3310,12 +3046,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Run a sync to populate your library.'**
   String get libraryArtistsEmptySubtitle;
-
-  /// No description provided for @libraryArtistsIndexAll.
-  ///
-  /// In en, this message translates to:
-  /// **'All'**
-  String get libraryArtistsIndexAll;
 
   /// No description provided for @libraryArtistsErrorTitle.
   ///
@@ -3443,30 +3173,6 @@ abstract class AppLocalizations {
   /// **'Loaded {loaded} of {total, plural, =1{1 album} other{{total} albums}}'**
   String libraryAlbumsPagingProgress(int loaded, int total);
 
-  /// No description provided for @librarySongsEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Songs Found'**
-  String get librarySongsEmptyTitle;
-
-  /// No description provided for @librarySongsEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a sync to populate your library.'**
-  String get librarySongsEmptySubtitle;
-
-  /// No description provided for @librarySongsErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Songs'**
-  String get librarySongsErrorTitle;
-
-  /// No description provided for @librarySongsSortLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Sort Songs By'**
-  String get librarySongsSortLabel;
-
   /// No description provided for @librarySortRecentlyAdded.
   ///
   /// In en, this message translates to:
@@ -3485,12 +3191,6 @@ abstract class AppLocalizations {
   /// **'By Year'**
   String get librarySortByYear;
 
-  /// No description provided for @librarySortOldest.
-  ///
-  /// In en, this message translates to:
-  /// **'Oldest'**
-  String get librarySortOldest;
-
   /// No description provided for @librarySortName.
   ///
   /// In en, this message translates to:
@@ -3503,35 +3203,11 @@ abstract class AppLocalizations {
   /// **'Artist'**
   String get librarySortArtist;
 
-  /// No description provided for @librarySortArtistAlbum.
-  ///
-  /// In en, this message translates to:
-  /// **'Artist / Album'**
-  String get librarySortArtistAlbum;
-
-  /// No description provided for @librarySortTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Title'**
-  String get librarySortTitle;
-
-  /// No description provided for @librarySortDuration.
-  ///
-  /// In en, this message translates to:
-  /// **'Duration'**
-  String get librarySortDuration;
-
   /// No description provided for @libraryArtistMenuOpen.
   ///
   /// In en, this message translates to:
   /// **'Open artist'**
   String get libraryArtistMenuOpen;
-
-  /// No description provided for @libraryArtistAddedToQueue.
-  ///
-  /// In en, this message translates to:
-  /// **'Artist added to queue'**
-  String get libraryArtistAddedToQueue;
 
   /// No description provided for @libraryAlbumMenuOpen.
   ///
@@ -3568,12 +3244,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open artist'**
   String get librarySongMenuOpenArtist;
-
-  /// No description provided for @librarySongPlayNowQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'\"{title}\" queued to play now.'**
-  String librarySongPlayNowQueued(Object title);
 
   /// No description provided for @librarySongAddedToQueue.
   ///
@@ -3640,12 +3310,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Featured In'**
   String get artistDetailFeaturedSection;
-
-  /// No description provided for @artistDetailUnknownYear.
-  ///
-  /// In en, this message translates to:
-  /// **'Unknown year'**
-  String get artistDetailUnknownYear;
 
   /// No description provided for @artistDetailBioSection.
   ///
@@ -3923,24 +3587,6 @@ abstract class AppLocalizations {
   /// **'Download Album'**
   String get albumDetailDownloadAction;
 
-  /// No description provided for @albumDetailDownloadActionQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'Album queued for download.'**
-  String get albumDetailDownloadActionQueued;
-
-  /// No description provided for @albumDetailPlayActionQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'Album queued for playback.'**
-  String get albumDetailPlayActionQueued;
-
-  /// No description provided for @albumDetailShuffleActionQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'Album shuffled into queue.'**
-  String get albumDetailShuffleActionQueued;
-
   /// No description provided for @albumDetailStarFailure.
   ///
   /// In en, this message translates to:
@@ -3976,12 +3622,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disc {number}'**
   String albumDetailDiscHeader(int number);
-
-  /// No description provided for @cacheBadgeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cached'**
-  String get cacheBadgeLabel;
 
   /// No description provided for @miniPlayerUnknownTrack.
   ///
@@ -4313,12 +3953,6 @@ abstract class AppLocalizations {
   /// **'Repeat one'**
   String get nowPlayingRepeatOne;
 
-  /// No description provided for @nowPlayingStar.
-  ///
-  /// In en, this message translates to:
-  /// **'Like'**
-  String get nowPlayingStar;
-
   /// No description provided for @nowPlayingLyrics.
   ///
   /// In en, this message translates to:
@@ -4348,18 +3982,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant Mix'**
   String get nowPlayingInstantMixLabel;
-
-  /// No description provided for @nowPlayingInstantMixStop.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop Instant Mix'**
-  String get nowPlayingInstantMixStop;
-
-  /// No description provided for @nowPlayingInstantMixActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Instant Mix — tap to stop'**
-  String get nowPlayingInstantMixActive;
 
   /// No description provided for @nowPlayingInstantMixDescription.
   ///
@@ -4420,18 +4042,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Same Vibes stopped.'**
   String get nowPlayingSameVibesStopped;
-
-  /// No description provided for @nowPlayingMixTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Queue Modes'**
-  String get nowPlayingMixTitle;
-
-  /// No description provided for @nowPlayingMixSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose how similar tracks should be added next.'**
-  String get nowPlayingMixSubtitle;
 
   /// No description provided for @nowPlayingMore.
   ///
@@ -4679,12 +4289,6 @@ abstract class AppLocalizations {
   /// **'Clear search'**
   String get searchClearQuery;
 
-  /// No description provided for @searchNoResults.
-  ///
-  /// In en, this message translates to:
-  /// **'No Results Found'**
-  String get searchNoResults;
-
   /// No description provided for @searchNoResultsForQuery.
   ///
   /// In en, this message translates to:
@@ -4762,12 +4366,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Searching local library (offline)'**
   String get searchLocalOfflineBanner;
-
-  /// No description provided for @playlistsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlists'**
-  String get playlistsTitle;
 
   /// No description provided for @playlistsEmpty.
   ///
@@ -4847,59 +4445,17 @@ abstract class AppLocalizations {
   /// **'This will permanently delete \"{name}\".'**
   String playlistsDeleteConfirmMessage(String name);
 
-  /// No description provided for @playlistsDeleteSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist deleted'**
-  String get playlistsDeleteSuccess;
-
-  /// No description provided for @playlistsDeleteFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to delete playlist'**
-  String get playlistsDeleteFailed;
-
   /// No description provided for @playlistsRenameTitle.
   ///
   /// In en, this message translates to:
   /// **'Rename Playlist'**
   String get playlistsRenameTitle;
 
-  /// No description provided for @playlistsRenameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'New Name'**
-  String get playlistsRenameLabel;
-
-  /// No description provided for @playlistsRenameSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist renamed'**
-  String get playlistsRenameSuccess;
-
-  /// No description provided for @playlistsRenameFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to rename playlist'**
-  String get playlistsRenameFailed;
-
   /// No description provided for @playlistDetailTitle.
   ///
   /// In en, this message translates to:
   /// **'Playlist'**
   String get playlistDetailTitle;
-
-  /// No description provided for @playlistDetailPlayAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Play'**
-  String get playlistDetailPlayAction;
-
-  /// No description provided for @playlistDetailShuffleAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Shuffle'**
-  String get playlistDetailShuffleAction;
 
   /// No description provided for @playlistDetailMeta.
   ///
@@ -4966,12 +4522,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Added to \"{name}\"'**
   String addToPlaylistSuccess(String name);
-
-  /// No description provided for @addToPlaylistFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to add to playlist'**
-  String get addToPlaylistFailed;
 
   /// No description provided for @addToPlaylistNewPlaylist.
   ///
@@ -5045,12 +4595,6 @@ abstract class AppLocalizations {
   /// **'Clear all cached streaming audio? This cannot be undone.'**
   String get cacheSettingsClearRollingConfirm;
 
-  /// No description provided for @cacheSettingsPermanentSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloaded Tracks'**
-  String get cacheSettingsPermanentSection;
-
   /// No description provided for @cacheSettingsPermanentTrackCount.
   ///
   /// In en, this message translates to:
@@ -5098,12 +4642,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{gb} GB'**
   String cacheSettingsBudgetGb(String gb);
-
-  /// No description provided for @cacheSettingsUnlimited.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlimited'**
-  String get cacheSettingsUnlimited;
 
   /// No description provided for @downloadQualityTitle.
   ///
@@ -5206,12 +4744,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{value} · 1 on mobile data'**
   String downloadsSettingsConcurrentCellular(String value);
-
-  /// No description provided for @downloadsSettingsStorageSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Storage'**
-  String get downloadsSettingsStorageSection;
 
   /// No description provided for @downloadsPauseAll.
   ///
@@ -5321,18 +4853,6 @@ abstract class AppLocalizations {
   /// **'Could not open the downloaded folder.'**
   String get downloadsOpenFolderError;
 
-  /// No description provided for @downloadsRedownloadOriginal.
-  ///
-  /// In en, this message translates to:
-  /// **'Re-download in original quality'**
-  String get downloadsRedownloadOriginal;
-
-  /// No description provided for @downloadsRedownloadOriginalSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Replace with an untranscoded copy from server'**
-  String get downloadsRedownloadOriginalSub;
-
   /// No description provided for @downloadsRedownloadQueued.
   ///
   /// In en, this message translates to:
@@ -5356,12 +4876,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel Download'**
   String get downloadsCancelAction;
-
-  /// No description provided for @downloadsClearCompleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear completed'**
-  String get downloadsClearCompleted;
 
   /// No description provided for @downloadsRetryFailed.
   ///
@@ -5891,18 +5405,6 @@ abstract class AppLocalizations {
   /// **'Special Thanks'**
   String get changelogSpecialThanks;
 
-  /// No description provided for @changelogDiscoveryTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'What’s New'**
-  String get changelogDiscoveryTitle;
-
-  /// No description provided for @changelogDiscoveryVersion.
-  ///
-  /// In en, this message translates to:
-  /// **'Version {version}'**
-  String changelogDiscoveryVersion(String version);
-
   /// No description provided for @changelogDiscoveryDismiss.
   ///
   /// In en, this message translates to:
@@ -6046,12 +5548,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'How Navis handles your data and which online services it uses.'**
   String get privacySub;
-
-  /// No description provided for @aboutCodename.
-  ///
-  /// In en, this message translates to:
-  /// **'Cape Horn'**
-  String get aboutCodename;
 
   /// No description provided for @aboutDataUsageTitle.
   ///
@@ -6383,47 +5879,11 @@ abstract class AppLocalizations {
   /// **'Updates'**
   String get updatesSettingsSectionLabel;
 
-  /// No description provided for @updateChannelTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Update Channel'**
-  String get updateChannelTitle;
-
-  /// No description provided for @updateChannelStable.
-  ///
-  /// In en, this message translates to:
-  /// **'Stable'**
-  String get updateChannelStable;
-
-  /// No description provided for @updateChannelBeta.
-  ///
-  /// In en, this message translates to:
-  /// **'Beta'**
-  String get updateChannelBeta;
-
-  /// No description provided for @updateChannelBetaDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Includes pre-release builds'**
-  String get updateChannelBetaDescription;
-
-  /// No description provided for @updateChannelDialogTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Select Update Channel'**
-  String get updateChannelDialogTitle;
-
   /// No description provided for @appearancePagesSectionLabel.
   ///
   /// In en, this message translates to:
   /// **'Page Visibility'**
   String get appearancePagesSectionLabel;
-
-  /// No description provided for @appearanceShowRadioPageTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Radio Tab'**
-  String get appearanceShowRadioPageTitle;
 
   /// No description provided for @appearanceShowRadioPageSubtitle.
   ///
@@ -6431,23 +5891,11 @@ abstract class AppLocalizations {
   /// **'Show the Radio tab in the Library screen.'**
   String get appearanceShowRadioPageSubtitle;
 
-  /// No description provided for @appearanceShowPlaylistsPageTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Playlists Tab'**
-  String get appearanceShowPlaylistsPageTitle;
-
   /// No description provided for @appearanceShowPlaylistsPageSubtitle.
   ///
   /// In en, this message translates to:
   /// **'Show the Playlists tab in the Library screen.'**
   String get appearanceShowPlaylistsPageSubtitle;
-
-  /// No description provided for @appearanceShowArtistsPageTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Artists Tab'**
-  String get appearanceShowArtistsPageTitle;
 
   /// No description provided for @appearanceShowArtistsPageSubtitle.
   ///
@@ -6455,53 +5903,17 @@ abstract class AppLocalizations {
   /// **'Show the Artists tab in the Library screen.'**
   String get appearanceShowArtistsPageSubtitle;
 
-  /// No description provided for @appearanceShowLikedPageTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Liked Tab'**
-  String get appearanceShowLikedPageTitle;
-
   /// No description provided for @appearanceShowLikedPageSubtitle.
   ///
   /// In en, this message translates to:
   /// **'Show the Liked tab in the Library screen.'**
   String get appearanceShowLikedPageSubtitle;
 
-  /// No description provided for @appearanceGridDensityLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Grid Density'**
-  String get appearanceGridDensityLabel;
-
-  /// No description provided for @appearanceGridDensitySub.
-  ///
-  /// In en, this message translates to:
-  /// **'Number of columns in album and artist grids.'**
-  String get appearanceGridDensitySub;
-
   /// No description provided for @appearanceGridDensityAuto.
   ///
   /// In en, this message translates to:
   /// **'Auto'**
   String get appearanceGridDensityAuto;
-
-  /// No description provided for @appearanceGridDensityCompact.
-  ///
-  /// In en, this message translates to:
-  /// **'Compact'**
-  String get appearanceGridDensityCompact;
-
-  /// No description provided for @appearanceGridDensityCozy.
-  ///
-  /// In en, this message translates to:
-  /// **'Cozy'**
-  String get appearanceGridDensityCozy;
-
-  /// No description provided for @appearanceGridDensitySpaciousLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Spacious'**
-  String get appearanceGridDensitySpaciousLabel;
 
   /// No description provided for @appearanceCoverArtShapeLabel.
   ///
@@ -6568,12 +5980,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Home Sections'**
   String get appearanceHomeSectionsLabel;
-
-  /// No description provided for @appearanceHomeSectionsSub.
-  ///
-  /// In en, this message translates to:
-  /// **'Drag to reorder, toggle to show or hide.'**
-  String get appearanceHomeSectionsSub;
 
   /// No description provided for @appearanceHomeDensityLabel.
   ///
@@ -6652,12 +6058,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Collapse Sidebar When Inactive'**
   String get desktopNavbarUnlockTooltip;
-
-  /// No description provided for @homeSectionContinueListening.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue Listening'**
-  String get homeSectionContinueListening;
 
   /// No description provided for @homeSectionRecentlyLikedAlbums.
   ///
@@ -6761,102 +6161,6 @@ abstract class AppLocalizations {
   /// **'How would you like to handle your local library data?'**
   String get serverSettingsSignOutConfirmMessage;
 
-  /// No description provided for @serverSettingsConnectionInfoTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection Info'**
-  String get serverSettingsConnectionInfoTitle;
-
-  /// No description provided for @audioMuseSimilarArtists.
-  ///
-  /// In en, this message translates to:
-  /// **'AI Similar Artists'**
-  String get audioMuseSimilarArtists;
-
-  /// No description provided for @audioMuseSimilarAlbums.
-  ///
-  /// In en, this message translates to:
-  /// **'You might also like'**
-  String get audioMuseSimilarAlbums;
-
-  /// No description provided for @audioMuseSmartQueue.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queue'**
-  String get audioMuseSmartQueue;
-
-  /// No description provided for @audioMuseSmartQueueActive.
-  ///
-  /// In en, this message translates to:
-  /// **'AI auto-queue is active'**
-  String get audioMuseSmartQueueActive;
-
-  /// No description provided for @audioMuseSmartQueueStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'AI auto-queue stopped'**
-  String get audioMuseSmartQueueStopped;
-
-  /// No description provided for @audioMuseSmartQueueQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} AI-recommended tracks queued.'**
-  String audioMuseSmartQueueQueued(int count);
-
-  /// No description provided for @audioMuseGenerateMix.
-  ///
-  /// In en, this message translates to:
-  /// **'Create AI Mix'**
-  String get audioMuseGenerateMix;
-
-  /// No description provided for @audioMuseGenerateMixSeed.
-  ///
-  /// In en, this message translates to:
-  /// **'Generate a mix based on this {seedType}'**
-  String audioMuseGenerateMixSeed(String seedType);
-
-  /// No description provided for @audioMuseMixGenerated.
-  ///
-  /// In en, this message translates to:
-  /// **'AI Mix created — {count, plural, =1{1 track} other{{count} tracks}} queued.'**
-  String audioMuseMixGenerated(int count);
-
-  /// No description provided for @audioMuseMixFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not generate AI mix. Try again later.'**
-  String get audioMuseMixFailed;
-
-  /// No description provided for @audioMuseNotConfigured.
-  ///
-  /// In en, this message translates to:
-  /// **'AudioMuse is not configured. Set it up in Settings.'**
-  String get audioMuseNotConfigured;
-
-  /// No description provided for @smartQueueTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queues'**
-  String get smartQueueTitle;
-
-  /// No description provided for @smartQueueSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AI-powered queuing based on sonic analysis'**
-  String get smartQueueSubtitle;
-
-  /// No description provided for @smartQueueButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queue'**
-  String get smartQueueButton;
-
-  /// No description provided for @smartQueueActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Smart Queue active'**
-  String get smartQueueActive;
-
   /// No description provided for @smartQueueStopped.
   ///
   /// In en, this message translates to:
@@ -6881,54 +6185,6 @@ abstract class AppLocalizations {
   /// **'Smart Queue encountered an error. Please try again.'**
   String get smartQueueError;
 
-  /// No description provided for @smartQueueSteadyVibes.
-  ///
-  /// In en, this message translates to:
-  /// **'Steady Vibes'**
-  String get smartQueueSteadyVibes;
-
-  /// No description provided for @smartQueueSteadyVibesDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Consistent mood — stays close to the original feel'**
-  String get smartQueueSteadyVibesDesc;
-
-  /// No description provided for @smartQueueDiscoveryMix.
-  ///
-  /// In en, this message translates to:
-  /// **'Discovery Mix'**
-  String get smartQueueDiscoveryMix;
-
-  /// No description provided for @smartQueueDiscoveryMixDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Explore new artists with maximum variety'**
-  String get smartQueueDiscoveryMixDesc;
-
-  /// No description provided for @smartQueueDeepDive.
-  ///
-  /// In en, this message translates to:
-  /// **'Deep Dive'**
-  String get smartQueueDeepDive;
-
-  /// No description provided for @smartQueueDeepDiveDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Stay immersed in the same artist and style'**
-  String get smartQueueDeepDiveDesc;
-
-  /// No description provided for @smartQueueEnergyFlow.
-  ///
-  /// In en, this message translates to:
-  /// **'Energy Flow'**
-  String get smartQueueEnergyFlow;
-
-  /// No description provided for @smartQueueEnergyFlowDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Let the mood gradually evolve track by track'**
-  String get smartQueueEnergyFlowDesc;
-
   /// No description provided for @songStatusQueued.
   ///
   /// In en, this message translates to:
@@ -6940,12 +6196,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Downloading…'**
   String get songStatusDownloading;
-
-  /// No description provided for @songStatusDownloaded.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloaded'**
-  String get songStatusDownloaded;
 
   /// No description provided for @songStatusCachedTooltip.
   ///
@@ -6988,12 +6238,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download album'**
   String get libraryAlbumMenuDownload;
-
-  /// No description provided for @libraryAlbumPlayQueued.
-  ///
-  /// In en, this message translates to:
-  /// **'Album queued to play'**
-  String get libraryAlbumPlayQueued;
 
   /// No description provided for @libraryAlbumAddedToQueue.
   ///
@@ -7396,42 +6640,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.'**
   String get desktopViewUnavailableOnDisplay;
-
-  /// No description provided for @cacheSystemUpgradeTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Update Library Cache'**
-  String get cacheSystemUpgradeTitle;
-
-  /// No description provided for @cacheSystemUpgradeBody.
-  ///
-  /// In en, this message translates to:
-  /// **'This installation uses an older library cache system. Navis needs to clear its recoverable library cache and rebuild your library once to use the newer cache system. Your downloaded music will be kept.'**
-  String get cacheSystemUpgradeBody;
-
-  /// No description provided for @cacheSystemUpgradeAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear Library Cache'**
-  String get cacheSystemUpgradeAction;
-
-  /// No description provided for @cacheSystemUpgradeDismiss.
-  ///
-  /// In en, this message translates to:
-  /// **'Not now'**
-  String get cacheSystemUpgradeDismiss;
-
-  /// No description provided for @cacheSystemUpgradeResetting.
-  ///
-  /// In en, this message translates to:
-  /// **'Updating library cache…'**
-  String get cacheSystemUpgradeResetting;
-
-  /// No description provided for @cacheSystemUpgradeFailure.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not update the library cache. Please try again.'**
-  String get cacheSystemUpgradeFailure;
 
   /// No description provided for @unavailableReviewTitle.
   ///
@@ -8111,12 +7319,6 @@ abstract class AppLocalizations {
   /// **'Save as New'**
   String get eqSaveAs;
 
-  /// No description provided for @eqUpdate.
-  ///
-  /// In en, this message translates to:
-  /// **'Update preset'**
-  String get eqUpdate;
-
   /// No description provided for @eqRename.
   ///
   /// In en, this message translates to:
@@ -8207,12 +7409,6 @@ abstract class AppLocalizations {
   /// **'Reset to flat'**
   String get eqReset;
 
-  /// No description provided for @eqResetBand.
-  ///
-  /// In en, this message translates to:
-  /// **'Reset band'**
-  String get eqResetBand;
-
   /// No description provided for @eqPreamp.
   ///
   /// In en, this message translates to:
@@ -8242,12 +7438,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Configured frequency response'**
   String get eqResponse;
-
-  /// No description provided for @eqResponseDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'The curve includes preamp and headroom. It is not a measured headphone response.'**
-  String get eqResponseDescription;
 
   /// No description provided for @eqApplied.
   ///
@@ -8284,18 +7474,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dismiss'**
   String get eqDismiss;
-
-  /// No description provided for @eqAddFilter.
-  ///
-  /// In en, this message translates to:
-  /// **'Add filter'**
-  String get eqAddFilter;
-
-  /// No description provided for @eqEditFilter.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit filter'**
-  String get eqEditFilter;
 
   /// No description provided for @eqFrequency.
   ///
@@ -8356,42 +7534,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Notch'**
   String get eqNotch;
-
-  /// No description provided for @eqRemoveFilter.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove filter'**
-  String get eqRemoveFilter;
-
-  /// No description provided for @eqFilterEnabled.
-  ///
-  /// In en, this message translates to:
-  /// **'Filter enabled'**
-  String get eqFilterEnabled;
-
-  /// No description provided for @eqNoFilters.
-  ///
-  /// In en, this message translates to:
-  /// **'No filters. Add one to shape the curve.'**
-  String get eqNoFilters;
-
-  /// No description provided for @eqModeChangeTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Start a New Flat Curve?'**
-  String get eqModeChangeTitle;
-
-  /// No description provided for @eqModeChangeDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.'**
-  String get eqModeChangeDescription;
-
-  /// No description provided for @eqContinue.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue'**
-  String get eqContinue;
 
   /// No description provided for @eqImportText.
   ///
@@ -8633,12 +7775,6 @@ abstract class AppLocalizations {
   /// **'Could not export the preset.'**
   String get eqExportError;
 
-  /// No description provided for @eqPresetDeleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Preset deleted. The current sound is preserved as Custom.'**
-  String get eqPresetDeleted;
-
   /// No description provided for @eqNameInvalid.
   ///
   /// In en, this message translates to:
@@ -8650,24 +7786,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a finite number in the supported range.'**
   String get eqNumberInvalid;
-
-  /// No description provided for @eqApplyFailure.
-  ///
-  /// In en, this message translates to:
-  /// **'EQ could not be applied. Your saved settings are retained.'**
-  String get eqApplyFailure;
-
-  /// No description provided for @eqHeadroom.
-  ///
-  /// In en, this message translates to:
-  /// **'Additional headroom: {value} dB'**
-  String eqHeadroom(String value);
-
-  /// No description provided for @eqSampleRate.
-  ///
-  /// In en, this message translates to:
-  /// **'Audio: {value} Hz'**
-  String eqSampleRate(String value);
 
   /// No description provided for @eqFilterCount.
   ///
@@ -8729,29 +7847,11 @@ abstract class AppLocalizations {
   /// **'This preset has drafts. Save them as a new preset or discard them before deleting.'**
   String get eqDeleteDraftDescription;
 
-  /// No description provided for @eqApply.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply'**
-  String get eqApply;
-
-  /// No description provided for @eqEditBand.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit band'**
-  String get eqEditBand;
-
   /// No description provided for @eqEditAdvanced.
   ///
   /// In en, this message translates to:
   /// **'Edit in Advanced'**
   String get eqEditAdvanced;
-
-  /// No description provided for @eqFixedBand.
-  ///
-  /// In en, this message translates to:
-  /// **'Fixed frequency and Q'**
-  String get eqFixedBand;
 
   /// No description provided for @eqBand.
   ///

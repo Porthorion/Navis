@@ -7,8 +7,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
-import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
-import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
@@ -27,8 +25,6 @@ class _SnapshotController extends Notifier<PlaybackSnapshot> {
 }
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
-
-class _MockAudioMuseRepository extends Mock implements AudioMuseRepository;
 
 class _FakeQueueController extends QueueController {
   new({this.insertedCount, this.error, this.onRetain});
@@ -130,7 +126,6 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWith((_) => null),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
         ),
@@ -179,7 +174,6 @@ void main() {
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(_FakeQueueController.new),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
         ),
@@ -239,7 +233,6 @@ void main() {
           ),
         ),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         lastFmApiKeyProvider.overrideWithValue('test-key'),
         appSettingsProvider.overrideWithValue(
           AsyncData(
@@ -306,7 +299,6 @@ void main() {
           () => _FakeQueueController(insertedCount: 1),
         ),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         lastFmApiKeyProvider.overrideWithValue('test-key'),
         appSettingsProvider.overrideWithValue(
           AsyncData(
@@ -372,7 +364,6 @@ void main() {
             () => _FakeQueueController(insertedCount: 0),
           ),
           subsonicApiProvider.overrideWithValue(api),
-          audioMuseRepositoryProvider.overrideWith((_) => null),
           lastFmApiKeyProvider.overrideWithValue('test-key'),
           appSettingsProvider.overrideWithValue(
             AsyncData(
@@ -453,7 +444,6 @@ void main() {
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(_FakeQueueController.new),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         lastFmApiKeyProvider.overrideWithValue('test-key'),
         appSettingsProvider.overrideWithValue(
           AsyncData(
@@ -497,72 +487,54 @@ void main() {
     ).called(1);
   });
 
-  test(
-    'server mix uses server API rather than a direct AudioMuse client',
-    () async {
-      final snapshotState =
-          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-            _SnapshotController.new,
-          );
-      final audioMuse = _MockAudioMuseRepository();
-      when(
-        () =>
-            audioMuse.getRecommendations(seedSongId: any(named: 'seedSongId')),
-      ).thenAnswer(
-        (_) async => const <AudioMuseRecommendation>[
-          AudioMuseRecommendation(id: 'ai-1', title: 'AI 1'),
-          AudioMuseRecommendation(id: 'ai-2', title: 'AI 2'),
-        ],
-      );
-      final api = _MockSubsonicApiClient();
-      when(
-        () => api.getSimilarSongs2(
-          any(),
-          count: any(named: 'count'),
-          cancelToken: any(named: 'cancelToken'),
-        ),
-      ).thenAnswer((_) async => songs(2, prefix: 'server'));
+  test('server mix is built from the server similar-songs API', () async {
+    final snapshotState =
+        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+          _SnapshotController.new,
+        );
+    final api = _MockSubsonicApiClient();
+    when(
+      () => api.getSimilarSongs2(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => songs(2, prefix: 'server'));
 
-      final container = ProviderContainer(
-        overrides: [
-          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
-          subsonicApiProvider.overrideWithValue(api),
-          audioMuseRepositoryProvider.overrideWithValue(audioMuse),
-          lastFmApiKeyProvider.overrideWithValue('test-key'),
-          appSettingsProvider.overrideWithValue(
-            AsyncData(
-              AppSettingsModel.defaults().copyWith(
-                legacyInstantMixEnabled: false,
-              ),
+    final container = ProviderContainer(
+      overrides: [
+        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+        queueProvider.overrideWith(_FakeQueueController.new),
+        subsonicApiProvider.overrideWithValue(api),
+        lastFmApiKeyProvider.overrideWithValue('test-key'),
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              legacyInstantMixEnabled: false,
             ),
           ),
-        ],
-      );
-      addTearDown(container.dispose);
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      container
-          .read(snapshotState.notifier)
-          .emitSnapshot(
-            snapshot(
-              queueSongIds: const <String>['seed', 'queued'],
-              currentSongId: 'seed',
-              currentIndex: 0,
-            ),
-          );
+    container
+        .read(snapshotState.notifier)
+        .emitSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed', 'queued'],
+            currentSongId: 'seed',
+            currentIndex: 0,
+          ),
+        );
 
-      await container.read(instantMixProvider.notifier).activate('seed');
+    await container.read(instantMixProvider.notifier).activate('seed');
 
-      final queue =
-          container.read(queueProvider.notifier) as _FakeQueueController;
-      expect(queue.mixTrackBatches.single.length, 2);
-      expect(queue.mixTrackBatches.single.first.id, 'server-0');
-      verifyNever(
-        () =>
-            audioMuse.getRecommendations(seedSongId: any(named: 'seedSongId')),
-      );
-    },
-  );
+    final queue =
+        container.read(queueProvider.notifier) as _FakeQueueController;
+    expect(queue.mixTrackBatches.single.length, 2);
+    expect(queue.mixTrackBatches.single.first.id, 'server-0');
+  });
 
   test('auto-refill path updates seed when remaining tracks <= 3', () async {
     final snapshotState =
@@ -584,7 +556,6 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
         ),
@@ -651,7 +622,6 @@ void main() {
         queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWithValue(api),
-        audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
         ),
@@ -730,7 +700,6 @@ void main() {
             () => _FakeQueueController(insertedCount: insertedCount),
           ),
           subsonicApiProvider.overrideWithValue(api),
-          audioMuseRepositoryProvider.overrideWith((_) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -884,7 +853,6 @@ void main() {
           playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
           queueProvider.overrideWith(_FakeQueueController.new),
           subsonicApiProvider.overrideWithValue(api),
-          audioMuseRepositoryProvider.overrideWith((_) => null),
         ],
       );
       addTearDown(container.dispose);

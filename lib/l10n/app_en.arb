@@ -7,21 +7,17 @@
   "navPlaylists": "Playlists",
   "navSettings": "Settings",
   "navigationBackToExitPrompt": "Press back again to exit",
-  "loginTitle": "Sign In",
   "loginSubtitle": "Connect to your Subsonic or Navidrome server.",
   "loginServerUrlLabel": "Server URL",
   "loginUsernameLabel": "Username",
   "loginPasswordLabel": "Password",
   "loginShowPassword": "Show password",
   "loginHidePassword": "Hide password",
-  "loginTestConnection": "Test connection",
-  "loginTestingConnection": "Testing connection...",
   "loginConnect": "Connect",
   "loginConnecting": "Connecting...",
   "loginConnectSuccess": "Connected successfully.",
   "loginValidationServerUrlRequired": "Server URL is required.",
   "loginValidationServerUrlInvalid": "Enter a valid server URL.",
-  "loginValidationServerUrlHttpsOnly": "Use HTTPS for server URL.",
   "loginInsecureHttpWarning": "HTTP does not encrypt traffic. Use HTTPS when possible.",
   "loginValidationUsernameRequired": "Username is required.",
   "loginValidationPasswordRequired": "Password is required.",
@@ -37,14 +33,11 @@
   "loginReplaceServerTitle": "Replace Local Server Data?",
   "loginReplaceServerMessage": "This device keeps one local server catalog. Continuing will remove the retained library, downloads, caches, history, playlists, and Match Flows from the previous server account.",
   "loginReplaceServerAction": "Replace Local Data",
-  "initialSyncTitle": "Initial Server Sync",
-  "initialSyncDoNotClose": "Navis is building this server's local library. Do not close the app during setup.",
   "initialSyncWaitingForNetwork": "Connect to a network, then retry to continue setup.",
   "initialSyncMobileDataRequired": "Initial setup requires a full library download. Confirm to use this metered connection.",
   "initialSyncUseMobileData": "Sync using mobile data",
   "initialSyncFailed": "Your library could not be set up.",
   "initialSyncCancelling": "Cancelling and signing out...",
-  "initialSyncCancelAndLogout": "Cancel and sign out",
   "requiredSyncInitialTitle": "Building Your Library",
   "requiredSyncRebuildTitle": "Rebuilding Your Library",
   "requiredSyncRepairTitle": "Repairing Your Library",
@@ -89,7 +82,6 @@
   "settingsGroupStorage": "Storage",
   "settingsGroupDeviceStorageCache": "Device storage & cache",
   "settingsGroupPlayback": "Playback",
-  "settingsGroupAutomation": "Automation",
   "settingsGroupLibrarySynchronization": "Library synchronization",
   "settingsGroupOther": "Other",
   "settingsRunQuickCustomizationTitle": "Run Quick Customization",
@@ -156,7 +148,6 @@
   "privacySummary": "Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.",
   "syncSettingsTitle": "Sync Settings",
   "syncSettingsStatusLabel": "Current Sync Status",
-  "syncSettingsLastSyncedLabel": "Server Last Synced",
   "syncSettingsNeverSynced": "Never synced",
   "syncSettingsStatusIdle": "Idle",
   "syncSettingsStatusSucceeded": "Last sync succeeded",
@@ -422,8 +413,6 @@
   "cacheSettingsResetLibraryCacheMeteredConfirmTitle": "Rebuild Library on Mobile Data?",
   "cacheSettingsResetLibraryCacheMeteredConfirmBody": "Rebuilding your library can download a large amount of metadata over your current connection.",
   "cacheSettingsResetLibraryCacheMeteredConfirmAction": "Rebuild on Mobile Data",
-  "cacheSettingsResetLibraryCacheSuccess": "Library cache reset and full metadata resync completed.",
-  "cacheSettingsResetLibraryCacheFailure": "Cache was reset, but full metadata resync failed.",
   "playbackSettingsLoadError": "Could Not Load Playback Settings",
   "playbackSettingsWifiSectionTitle": "Wi-Fi Streaming",
   "playbackSettingsWifiQualityLabel": "Max Bitrate",
@@ -437,12 +426,6 @@
   "playbackSettingsScrobbleSubtitle": "Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.",
   "playbackSettingsGaplessTitle": "Enable Gapless Playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
-  "playbackSettingsShowRadioPageTitle": "Show Radio Page",
-  "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
-  "playbackSettingsAndroidDspSectionTitle": "Android Audio Effects",
-  "playbackSettingsLoudnessTitle": "Enable Loudness Enhancer",
-  "playbackSettingsLoudnessSubtitle": "Apply target gain in dB on Android playback.",
-  "playbackSettingsSaveAction": "Save",
   "playbackSettingsResetAction": "Reset Defaults",
   "playbackSettingsQualityOriginal": "Original quality",
   "playbackSettingsQualityKbps": "{kbps} kbps",
@@ -454,11 +437,9 @@
     }
   },
   "playbackSettingsFormatOriginal": "Server default",
-  "playbackSettingsSaveSuccess": "Playback settings saved.",
   "playbackSettingsSaveFailure": "Could not save playback settings. Try again.",
   "playbackSettingsResetSuccess": "Playback settings reset to defaults.",
   "playbackSettingsResetFailure": "Could not reset playback settings. Try again.",
-  "playbackSettingsCrossfadeSectionTitle": "Cross-fade",
   "playbackSettingsCrossfadeEnableTitle": "Enable Cross-Fade",
   "playbackSettingsCrossfadeEnableSubtitle": "Smoothly blend the end of one track into the start of the next.",
   "playbackSettingsCrossfadeDurationLabel": "Duration: {seconds}s",
@@ -474,7 +455,6 @@
   "playbackSettingsCrossfadeTypeNormalDescription": "Cross-fade between every track.",
   "playbackSettingsCrossfadeTypeSmart": "Smart",
   "playbackSettingsCrossfadeTypeSmartDescription": "Only cross-fade between tracks from different albums.",
-  "playbackSettingsCrossfadeGaplessWarning": "Crossfade and gapless playback are both enabled. These features conflict — crossfade may not work correctly. Consider disabling one.",
   "playbackSettingsReplayGainSectionTitle": "Volume Normalization (ReplayGain)",
   "playbackVolumeSemanticLabel": "Playback volume",
   "playbackMuteTooltip": "Mute playback",
@@ -489,7 +469,6 @@
   "playbackSettingsReplayGainPreampLabel": "Pre-amp (dB)",
   "playbackSettingsReplayGainPreampSubtitle": "Additional gain adjustment. Range: −6 to +6 dB.",
   "playbackSettingsPlaybackSpeedLabel": "Playback Speed",
-  "playbackSettingsCloseAction": "Close",
   "playbackSettingsFullscreenLyricsTitle": "Fullscreen Mode Lyrics",
   "playbackSettingsFullscreenLyricsSubtitle": "Open lyrics in fullscreen directly from Now Playing.",
   "playbackSettingsAlbumQueueTitle": "Album Queue",
@@ -497,7 +476,6 @@
   "playbackSettingsExperimentalTitle": "Experimental",
   "playbackSettingsLikedQueueTitle": "Liked Queue",
   "playbackSettingsLikedQueueSubtitle": "Tapping a track on the Liked page queues all your liked songs and starts at that track.",
-  "homeTitle": "Home",
   "homeLoadErrorTitle": "Could Not Load Section",
   "weeklyPlaylistTitle": "ListenBrainz Weekly",
   "weeklyPlaylistJamsTitle": "Weekly Jams",
@@ -550,9 +528,6 @@
   "weeklyPlaylistTrackUnavailable": "Not available on your server",
   "weeklyPlaylistTrackUnavailableShort": "Not on server",
   "weeklyPlaylistAmbiguousMatchShort": "Unclear match",
-  "homeContinueListeningTitle": "Continue Listening",
-  "homeContinueListeningResume": "Resume",
-  "homeContinueListeningOpenNowPlaying": "Open player",
   "homeShowcaseReasonLikedDiscovery": "Similar to your likes",
   "homeShowcaseReasonServer": "From your server",
   "homeShowcaseReasonLibrary": "From your library",
@@ -593,9 +568,6 @@
   "homeRecentlyLikedAlbumsTitle": "Recently Liked Albums",
   "homeRecentlyLikedAlbumsEmptyTitle": "No Liked Albums Yet",
   "homeRecentlyLikedAlbumsEmptySubtitle": "Like albums to pin your favorites here.",
-  "homeRecentlyPlayedTitle": "Recently Played",
-  "homeRecentlyPlayedEmptyTitle": "No Recent Plays Yet",
-  "homeRecentlyPlayedEmptySubtitle": "Start playback to populate this section.",
   "homeRecentlyAddedTitle": "Recently Added",
   "homeRecentlyAddedEmptyTitle": "No Recently Added Albums",
   "homeRecentlyAddedEmptySubtitle": "Pull to refresh to fetch newly added albums.",
@@ -609,7 +581,6 @@
   "homeStarredTitle": "Liked Tracks",
   "homeStarredEmptyTitle": "No Liked Tracks",
   "homeStarredEmptySubtitle": "Like tracks on your server to see them here.",
-  "homeSeeAll": "See all",
   "homeMostPlayedTracksTitle": "Most Played Tracks",
   "homeMostPlayedTracksEmptyTitle": "No Play Data Yet",
   "homeMostPlayedTracksEmptySubtitle": "Play more music to populate this section.",
@@ -619,8 +590,6 @@
   "homeRecentlyPlayedAlbumsTitle": "Recently Played Albums",
   "homeRecentlyPlayedAlbumsEmptyTitle": "No Recently Played Albums",
   "homeRecentlyPlayedAlbumsEmptySubtitle": "Start listening to populate this section.",
-  "homeQuickActionsTitle": "Quick Actions",
-  "homeQuickActionShuffleLiked": "Shuffle liked",
   "radioTitle": "Radio",
   "radioEmptyTitle": "No Radio Stations Found",
   "radioEmptySubtitle": "Add internet radio stations on your server to see them here.",
@@ -653,8 +622,6 @@
   "serverSettingsAuthModeLabel": "Auth Mode",
   "serverSettingsAuthModeToken": "Token",
   "serverSettingsAuthModeLegacy": "Legacy password",
-  "serverSettingsCapabilitiesLabel": "Capabilities",
-  "serverSettingsCapabilitiesEmpty": "None detected",
   "serverSettingsCapabilitiesCount": "{count, plural, =1{1 extension} other{{count} extensions}}",
   "@serverSettingsCapabilitiesCount": {
     "placeholders": {
@@ -664,25 +631,11 @@
       }
     }
   },
-  "serverSettingsUnknownValue": "Unknown",
   "serverSettingsTestConnection": "Test connection",
   "serverSettingsSave": "Save",
-  "serverSettingsSaving": "Saving...",
-  "serverSettingsSaveSuccess": "Server settings saved.",
-  "serverSettingsForceFullSync": "Repair Library",
-  "serverSettingsForceFullSyncRunning": "Repair in progress...",
-  "serverSettingsForceFullSyncSuccess": "Library repair completed.",
-  "serverSettingsForceFullSyncFailure": "Library repair failed: {message}",
-  "@serverSettingsForceFullSyncFailure": {
-    "placeholders": {
-      "message": {}
-    }
-  },
   "serverSettingsSignOut": "Sign out",
   "serverSettingsSignOutKeepData": "Sign out (keep local data)",
-  "serverSettingsSignOutKeepDataSubtitle": "Remove credentials but keep downloaded and cached metadata.",
   "serverSettingsSignOutWipeData": "Sign out and clear local data",
-  "serverSettingsSignOutWipeDataSubtitle": "Remove credentials and wipe local library, cache, and history metadata.",
   "serverSettingsSignOutSuccess": "Signed out. Local data was preserved.",
   "serverSettingsSignOutWipeSuccess": "Signed out and local data cleared.",
   "serverSettingsSignOutError": "Could not complete sign out. Try again.",
@@ -847,7 +800,6 @@
   "librarySwitchToArtistList": "Switch to artist list view",
   "libraryTabAlbums": "Albums",
   "libraryTabLiked": "Liked",
-  "libraryTabSongs": "Songs",
   "librarySyncRunning": "Syncing library metadata...",
   "librarySyncRunningStage": "Syncing: {stage}",
   "@librarySyncRunningStage": {
@@ -864,12 +816,6 @@
       "total": {
         "type": "int"
       }
-    }
-  },
-  "librarySyncLastSynced": "Last synced: {timestamp}",
-  "@librarySyncLastSynced": {
-    "placeholders": {
-      "timestamp": {}
     }
   },
   "librarySyncStagePreparing": "Preparing",
@@ -922,7 +868,6 @@
   },
   "libraryArtistsEmptyTitle": "No Artists Found",
   "libraryArtistsEmptySubtitle": "Run a sync to populate your library.",
-  "libraryArtistsIndexAll": "All",
   "libraryArtistsErrorTitle": "Could Not Load Artists",
   "libraryLikedArtistsSectionTitle": "Liked Artists",
   "libraryLikedAlbumsSectionTitle": "Liked Albums",
@@ -956,33 +901,18 @@
       }
     }
   },
-  "librarySongsEmptyTitle": "No Songs Found",
-  "librarySongsEmptySubtitle": "Run a sync to populate your library.",
-  "librarySongsErrorTitle": "Could Not Load Songs",
-  "librarySongsSortLabel": "Sort Songs By",
   "librarySortRecentlyAdded": "Recently Added",
   "librarySortNewest": "Newest (Year)",
   "librarySortByYear": "By Year",
-  "librarySortOldest": "Oldest",
   "librarySortName": "Name",
   "librarySortArtist": "Artist",
-  "librarySortArtistAlbum": "Artist / Album",
-  "librarySortTitle": "Title",
-  "librarySortDuration": "Duration",
   "libraryArtistMenuOpen": "Open artist",
-  "libraryArtistAddedToQueue": "Artist added to queue",
   "libraryAlbumMenuOpen": "Open album",
   "librarySongMenuPlayNow": "Play now",
   "librarySongMenuAddToQueue": "Add to Queue",
   "librarySongMenuPlayNext": "Play next",
   "librarySongMenuOpenAlbum": "Open album",
   "librarySongMenuOpenArtist": "Open artist",
-  "librarySongPlayNowQueued": "\"{title}\" queued to play now.",
-  "@librarySongPlayNowQueued": {
-    "placeholders": {
-      "title": {}
-    }
-  },
   "librarySongAddedToQueue": "\"{title}\" added to queue.",
   "@librarySongAddedToQueue": {
     "placeholders": {
@@ -1019,7 +949,6 @@
   "artistDetailAlbumsEmptySubtitle": "Sync your library to load artist albums.",
   "artistDetailAlbumsSection": "Albums",
   "artistDetailFeaturedSection": "Featured In",
-  "artistDetailUnknownYear": "Unknown year",
   "artistDetailBioSection": "Biography",
   "artistDetailSimilarSection": "Similar Artists",
   "artistDetailFansAlsoLikeSection": "Fans Also Like",
@@ -1124,9 +1053,6 @@
   "albumDetailShuffleAction": "Shuffle",
   "albumDetailStarAction": "Like",
   "albumDetailDownloadAction": "Download Album",
-  "albumDetailDownloadActionQueued": "Album queued for download.",
-  "albumDetailPlayActionQueued": "Album queued for playback.",
-  "albumDetailShuffleActionQueued": "Album shuffled into queue.",
   "albumDetailStarFailure": "Could not update like status.",
   "albumDetailAboutSection": "About This Album",
   "albumDetailMenuShowAlbumArt": "Show album art",
@@ -1140,7 +1066,6 @@
       }
     }
   },
-  "cacheBadgeLabel": "Cached",
   "miniPlayerUnknownTrack": "Unknown track",
   "miniPlayerUnknownArtist": "Unknown artist",
   "miniPlayerPlay": "Play",
@@ -1203,7 +1128,6 @@
   "nowPlayingRepeatOff": "Repeat off",
   "nowPlayingRepeatAll": "Repeat all",
   "nowPlayingRepeatOne": "Repeat one",
-  "nowPlayingStar": "Like",
   "nowPlayingLyrics": "Lyrics",
   "nowPlayingQueue": "Queue",
   "nowPlayingQueuePosition": "Playing {current} of {total}",
@@ -1215,8 +1139,6 @@
   },
   "nowPlayingInstantMix": "Start Instant Mix",
   "nowPlayingInstantMixLabel": "Instant Mix",
-  "nowPlayingInstantMixStop": "Stop Instant Mix",
-  "nowPlayingInstantMixActive": "Instant Mix — tap to stop",
   "nowPlayingInstantMixDescription": "Classic similar-song queueing",
   "nowPlayingInstantMixStarted": "{count, plural, =0{No similar tracks found.} =1{Instant Mix started — 1 similar track queued.} other{Instant Mix started — {count} similar tracks queued.}}",
   "@nowPlayingInstantMixStarted": {
@@ -1239,8 +1161,6 @@
   "nowPlayingSameVibesUnsupported": "Your server doesn\u0027t support similar-track lookups.",
   "nowPlayingSameVibesError": "Couldn\u0027t start Same Vibes.",
   "nowPlayingSameVibesStopped": "Same Vibes stopped.",
-  "nowPlayingMixTitle": "Queue Modes",
-  "nowPlayingMixSubtitle": "Choose how similar tracks should be added next.",
   "nowPlayingMore": "More options",
   "nowPlayingGoToAlbum": "Go to album",
   "nowPlayingGoToArtist": "Go to artist",
@@ -1291,7 +1211,6 @@
   "searchRecentTitle": "Recent Searches",
   "searchClearRecent": "Clear",
   "searchClearQuery": "Clear search",
-  "searchNoResults": "No Results Found",
   "searchNoResultsForQuery": "No results for \"{query}\"",
   "@searchNoResultsForQuery": {
     "placeholders": {
@@ -1321,7 +1240,6 @@
   "searchFilterAll": "All",
   "searchLocalOfflineBanner": "Searching local library (offline)",
 
-  "playlistsTitle": "Playlists",
   "playlistsEmpty": "No Playlists Yet",
   "playlistsEmptySubtitle": "Create a playlist to get started.",
   "playlistsLoadError": "Failed to load playlists",
@@ -1366,16 +1284,8 @@
       }
     }
   },
-  "playlistsDeleteSuccess": "Playlist deleted",
-  "playlistsDeleteFailed": "Failed to delete playlist",
   "playlistsRenameTitle": "Rename Playlist",
-  "playlistsRenameLabel": "New Name",
-  "playlistsRenameSuccess": "Playlist renamed",
-  "playlistsRenameFailed": "Failed to rename playlist",
-
   "playlistDetailTitle": "Playlist",
-  "playlistDetailPlayAction": "Play",
-  "playlistDetailShuffleAction": "Shuffle",
   "playlistDetailMeta": "{owner} · {count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@playlistDetailMeta": {
     "placeholders": {
@@ -1405,7 +1315,6 @@
       }
     }
   },
-  "addToPlaylistFailed": "Failed to add to playlist",
   "addToPlaylistNewPlaylist": "New playlist",
   "librarySongMenuAddToPlaylist": "Add to playlist",
 
@@ -1435,7 +1344,6 @@
   },
   "cacheSettingsClearRolling": "Clear streaming cache",
   "cacheSettingsClearRollingConfirm": "Clear all cached streaming audio? This cannot be undone.",
-  "cacheSettingsPermanentSection": "Downloaded Tracks",
   "cacheSettingsPermanentTrackCount": "{count, plural, =0{No downloaded tracks} =1{1 downloaded track} other{{count} downloaded tracks}}",
   "@cacheSettingsPermanentTrackCount": {
     "placeholders": {
@@ -1454,8 +1362,6 @@
       "gb": { "type": "String" }
     }
   },
-  "cacheSettingsUnlimited": "Unlimited",
-
   "downloadQualityTitle": "Download Quality",
   "downloadQualityOriginal": "Original quality",
   "downloadQualityOriginalSub": "Lossless / as stored on server",
@@ -1500,7 +1406,6 @@
       "value": { "type": "String" }
     }
   },
-  "downloadsSettingsStorageSection": "Storage",
   "downloadsPauseAll": "Pause",
   "downloadsResumeAll": "Resume",
   "downloadsPausedBanner": "Downloads are paused. Resume to continue the queue.",
@@ -1529,8 +1434,6 @@
   "downloadsRemoveAction": "Remove Download",
   "downloadsOpenFolderAction": "Open Downloaded Folder",
   "downloadsOpenFolderError": "Could not open the downloaded folder.",
-  "downloadsRedownloadOriginal": "Re-download in original quality",
-  "downloadsRedownloadOriginalSub": "Replace with an untranscoded copy from server",
   "downloadsRedownloadQueued": "Queued for re-download",
   "downloadsChangeQuality": "Change Download Quality",
   "downloadsChangeQualityCurrent": "Current: {quality}",
@@ -1542,7 +1445,6 @@
     }
   },
   "downloadsCancelAction": "Cancel Download",
-  "downloadsClearCompleted": "Clear completed",
   "downloadsRetryFailed": "Retry failed",
   "downloadsStatusFailed": "Failed",
   "downloadsRetryAllFailed": "Retry all failed",
@@ -1683,13 +1585,6 @@
   "aboutChangelog": "Changelog",
   "aboutChangelogSub": "See every version's changes and bug fixes.",
   "changelogSpecialThanks": "Special Thanks",
-  "changelogDiscoveryTitle": "What’s New",
-  "changelogDiscoveryVersion": "Version {version}",
-  "@changelogDiscoveryVersion": {
-    "placeholders": {
-      "version": { "type": "String" }
-    }
-  },
   "changelogDiscoveryDismiss": "Dismiss update notes",
   "changelogDiscoverySemanticLabel": "What’s new in version {version}",
   "@changelogDiscoverySemanticLabel": {
@@ -1762,7 +1657,6 @@
   "aboutLicensesSub": "View third-party software licenses.",
   "privacyTitle": "Privacy",
   "privacySub": "How Navis handles your data and which online services it uses.",
-  "aboutCodename": "Cape Horn",
   "aboutDataUsageTitle": "Data Usage",
   "aboutDataUsageSubtitle": "Local network usage estimates by feature and network type.",
   "aboutDataUsageToday": "Today",
@@ -1846,28 +1740,13 @@
   "updatePlayStoreFallbackNotice": "Could not open Google Play. Opening the release page instead.",
 
   "updatesSettingsSectionLabel": "Updates",
-  "updateChannelTitle": "Update Channel",
-  "updateChannelStable": "Stable",
-  "updateChannelBeta": "Beta",
-  "updateChannelBetaDescription": "Includes pre-release builds",
-  "updateChannelDialogTitle": "Select Update Channel",
-
   "appearancePagesSectionLabel": "Page Visibility",
-  "appearanceShowRadioPageTitle": "Show Radio Tab",
   "appearanceShowRadioPageSubtitle": "Show the Radio tab in the Library screen.",
-  "appearanceShowPlaylistsPageTitle": "Show Playlists Tab",
   "appearanceShowPlaylistsPageSubtitle": "Show the Playlists tab in the Library screen.",
-  "appearanceShowArtistsPageTitle": "Show Artists Tab",
   "appearanceShowArtistsPageSubtitle": "Show the Artists tab in the Library screen.",
-  "appearanceShowLikedPageTitle": "Show Liked Tab",
   "appearanceShowLikedPageSubtitle": "Show the Liked tab in the Library screen.",
 
-  "appearanceGridDensityLabel": "Grid Density",
-  "appearanceGridDensitySub": "Number of columns in album and artist grids.",
   "appearanceGridDensityAuto": "Auto",
-  "appearanceGridDensityCompact": "Compact",
-  "appearanceGridDensityCozy": "Cozy",
-  "appearanceGridDensitySpaciousLabel": "Spacious",
   "appearanceCoverArtShapeLabel": "Cover Art Shape",
   "appearanceCoverArtShapeSubLabel": "Library & Carousel Art",
   "appearanceNpArtShapeLabel": "Now Playing Art",
@@ -1880,7 +1759,6 @@
   "appearanceArtistViewModeList": "List",
 
   "appearanceHomeSectionsLabel": "Home Sections",
-  "appearanceHomeSectionsSub": "Drag to reorder, toggle to show or hide.",
   "appearanceHomeDensityLabel": "Home Density",
   "appearanceHomeDensitySub": "Choose spacing style for Home cards and lists.",
   "appearanceHomeDensityComfortable": "Comfortable",
@@ -1895,7 +1773,6 @@
   "desktopNavbarAutohideSub": "When inactive, the sidebar collapses to icons. Hover it to expand.",
   "desktopNavbarLockTooltip": "Keep Sidebar Expanded",
   "desktopNavbarUnlockTooltip": "Collapse Sidebar When Inactive",
-  "homeSectionContinueListening": "Continue Listening",
   "homeSectionRecentlyLikedAlbums": "Recently Liked Albums",
   "homeSectionLikedTracks": "Liked Tracks",
   "homeSectionRecentlyAdded": "Recently Added",
@@ -1934,41 +1811,6 @@
 
   "serverSettingsSignOutConfirmTitle": "Sign Out",
   "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
-  "serverSettingsConnectionInfoTitle": "Connection Info",
-
-  "audioMuseSimilarArtists": "AI Similar Artists",
-  "audioMuseSimilarAlbums": "You might also like",
-  "audioMuseSmartQueue": "Smart Queue",
-  "audioMuseSmartQueueActive": "AI auto-queue is active",
-  "audioMuseSmartQueueStopped": "AI auto-queue stopped",
-  "audioMuseSmartQueueQueued": "{count} AI-recommended tracks queued.",
-  "@audioMuseSmartQueueQueued": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "audioMuseGenerateMix": "Create AI Mix",
-  "audioMuseGenerateMixSeed": "Generate a mix based on this {seedType}",
-  "@audioMuseGenerateMixSeed": {
-    "placeholders": {
-      "seedType": { "type": "String" }
-    }
-  },
-  "audioMuseMixGenerated": "AI Mix created — {count, plural, =1{1 track} other{{count} tracks}} queued.",
-  "@audioMuseMixGenerated": {
-    "placeholders": {
-      "count": {
-        "type": "int",
-        "format": "decimalPattern"
-      }
-    }
-  },
-  "audioMuseMixFailed": "Could not generate AI mix. Try again later.",
-  "audioMuseNotConfigured": "AudioMuse is not configured. Set it up in Settings.",
-  "smartQueueTitle": "Smart Queues",
-  "smartQueueSubtitle": "AI-powered queuing based on sonic analysis",
-  "smartQueueButton": "Smart Queue",
-  "smartQueueActive": "Smart Queue active",
   "smartQueueStopped": "Smart Queue stopped",
   "smartQueueStarted": "{count, plural, =1{1 track} other{{count} tracks}} queued via Smart Queue.",
   "@smartQueueStarted": {
@@ -1981,18 +1823,8 @@
   },
   "smartQueueUnsupported": "Smart Queues require the AudioMuse plugin on your server.",
   "smartQueueError": "Smart Queue encountered an error. Please try again.",
-  "smartQueueSteadyVibes": "Steady Vibes",
-  "smartQueueSteadyVibesDesc": "Consistent mood — stays close to the original feel",
-  "smartQueueDiscoveryMix": "Discovery Mix",
-  "smartQueueDiscoveryMixDesc": "Explore new artists with maximum variety",
-  "smartQueueDeepDive": "Deep Dive",
-  "smartQueueDeepDiveDesc": "Stay immersed in the same artist and style",
-  "smartQueueEnergyFlow": "Energy Flow",
-  "smartQueueEnergyFlowDesc": "Let the mood gradually evolve track by track",
-
   "songStatusQueued": "Queued for download",
   "songStatusDownloading": "Downloading…",
-  "songStatusDownloaded": "Downloaded",
   "songStatusCachedTooltip": "Temporarily cached — will be removed when cache fills up or when the track is downloaded",
   "downloadsRemoveConfirmTitle": "Remove Download?",
   "downloadsRemoveConfirmContent": "The downloaded file will be permanently deleted.",
@@ -2000,7 +1832,6 @@
   "libraryAlbumMenuPlay": "Play album",
   "libraryAlbumMenuAddToQueue": "Add to Queue",
   "libraryAlbumMenuDownload": "Download album",
-  "libraryAlbumPlayQueued": "Album queued to play",
   "libraryAlbumAddedToQueue": "Album added to queue",
   "actionLike": "Like",
   "actionLiked": "Liked",
@@ -2090,12 +1921,6 @@
   "desktopRestoreSize": "Restore Desktop Size",
   "desktopKeepMiniPlayer": "Keep Mini Player",
   "desktopViewUnavailableOnDisplay": "This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.",
-  "cacheSystemUpgradeTitle": "Update Library Cache",
-  "cacheSystemUpgradeBody": "This installation uses an older library cache system. Navis needs to clear its recoverable library cache and rebuild your library once to use the newer cache system. Your downloaded music will be kept.",
-  "cacheSystemUpgradeAction": "Clear Library Cache",
-  "cacheSystemUpgradeDismiss": "Not now",
-  "cacheSystemUpgradeResetting": "Updating library cache…",
-  "cacheSystemUpgradeFailure": "Could not update the library cache. Please try again.",
   "unavailableReviewTitle": "Unavailable Items",
   "unavailableReviewEmpty": "No unavailable items are waiting for review.",
   "unavailableReviewLoadError": "Could not load the review list.",
@@ -2287,7 +2112,6 @@
   "eqPresets": "Presets",
   "eqBuiltIn": "Built in",
   "eqSaveAs": "Save as New",
-  "eqUpdate": "Update preset",
   "eqRename": "Rename",
   "eqDuplicate": "Duplicate",
   "eqDelete": "Delete",
@@ -2303,21 +2127,17 @@
   "eqUndo": "Undo",
   "eqRedo": "Redo",
   "eqReset": "Reset to flat",
-  "eqResetBand": "Reset band",
   "eqPreamp": "Preamp",
   "eqAutoHeadroom": "Automatic headroom",
   "eqAutoHeadroomDescription": "Reduce gain when the combined curve would exceed 0 dB. The authored preamp stays unchanged.",
   "eqClippingRisk": "Positive gain may clip. Lower preamp or enable automatic headroom.",
   "eqResponse": "Configured frequency response",
-  "eqResponseDescription": "The curve includes preamp and headroom. It is not a measured headphone response.",
   "eqApplied": "Applied",
   "eqBypassed": "Bypassed",
   "eqPending": "Waiting for audio",
   "eqApplying": "Applying…",
   "eqLegacyReset": "The experimental equalizer and loudness booster have been replaced. Equalizer starts disabled with a flat curve; please create or import your new profiles.",
   "eqDismiss": "Dismiss",
-  "eqAddFilter": "Add filter",
-  "eqEditFilter": "Edit filter",
   "eqFrequency": "Frequency",
   "eqGain": "Gain",
   "eqQ": "Q",
@@ -2328,12 +2148,6 @@
   "eqLowPass": "Low pass",
   "eqHighPass": "High pass",
   "eqNotch": "Notch",
-  "eqRemoveFilter": "Remove filter",
-  "eqFilterEnabled": "Filter enabled",
-  "eqNoFilters": "No filters. Add one to shape the curve.",
-  "eqModeChangeTitle": "Start a New Flat Curve?",
-  "eqModeChangeDescription": "Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.",
-  "eqContinue": "Continue",
   "eqImportText": "AutoEQ ParametricEQ / FixedBandEQ text, or Navis preset JSON",
   "eqFixedImport": "This is a FixedBandEQ profile",
   "eqImportPreview": "Preview preset",
@@ -2395,22 +2209,8 @@
   },
   "eqImportError": "Could not read the preset file.",
   "eqExportError": "Could not export the preset.",
-  "eqPresetDeleted": "Preset deleted. The current sound is preserved as Custom.",
   "eqNameInvalid": "Enter a name of 1–120 characters.",
   "eqNumberInvalid": "Enter a finite number in the supported range.",
-  "eqApplyFailure": "EQ could not be applied. Your saved settings are retained.",
-  "eqHeadroom": "Additional headroom: {value} dB",
-  "@eqHeadroom": {
-    "placeholders": {
-      "value": {"type": "String"}
-    }
-  },
-  "eqSampleRate": "Audio: {value} Hz",
-  "@eqSampleRate": {
-    "placeholders": {
-      "value": {"type": "String"}
-    }
-  },
   "eqFilterCount": "{count, plural, =1{1 filter} other{{count} filters}}",
   "@eqFilterCount": {
     "placeholders": {
@@ -2440,10 +2240,7 @@
   "eqDiscardDescription": "Discard all mode drafts for this preset and restore its saved settings?",
   "eqDiscardDelete": "Discard and Delete",
   "eqDeleteDraftDescription": "This preset has drafts. Save them as a new preset or discard them before deleting.",
-  "eqApply": "Apply",
-  "eqEditBand": "Edit band",
   "eqEditAdvanced": "Edit in Advanced",
-  "eqFixedBand": "Fixed frequency and Q",
   "eqBand": "Band {number}",
   "@eqBand": {
     "placeholders": {
