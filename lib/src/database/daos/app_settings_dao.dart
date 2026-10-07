@@ -353,6 +353,17 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
     // The full-row save leaves the policy columns alone; reset them here.
     await updateIntegrationPolicy(master: true, disabledJson: '[]');
+    // The retired AudioMuse client no longer reads these columns, but a key
+    // saved by an older version must still be cleared by a reset.
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      const AppSettingsTableCompanion(
+        audioMuseServerUrl: Value(null),
+        audioMuseApiKey: Value(null),
+        audioMuseEnabled: Value(false),
+      ),
+    );
   }
 
   Stream<int> watchOnboardingVersion() {

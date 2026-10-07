@@ -145,5 +145,31 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'resetDefaults clears credentials saved by the retired AudioMuse client',
+      () async {
+        await database.appSettingsDao.getSettings();
+        await database.customStatement('''
+UPDATE app_settings
+SET audio_muse_server_url = 'https://audiomuse.example.com',
+    audio_muse_api_key = 'legacy-key',
+    audio_muse_enabled = 1
+WHERE id = 1;
+''');
+
+        await repository.resetDefaults();
+
+        final row = await database.customSelect('''
+SELECT audio_muse_server_url, audio_muse_api_key, audio_muse_enabled
+FROM app_settings
+WHERE id = 1;
+''').getSingle();
+        expect(row.readNullable<String>('audio_muse_server_url'), isNull);
+        expect(row.readNullable<String>('audio_muse_api_key'), isNull);
+        expect(row.read<int>('audio_muse_enabled'), 0);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }
