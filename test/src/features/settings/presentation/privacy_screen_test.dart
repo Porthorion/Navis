@@ -105,6 +105,10 @@ void main() {
       'LRCLIB',
       'git.porthorion.com',
       'GitHub',
+      'raw.githubusercontent.com',
+      'api.github.com',
+      "Deezer's image servers",
+      'API key included with Navis or your own',
       'Settings › Integrations',
     ]) {
       expect(find.textContaining(name), findsWidgets, reason: name);

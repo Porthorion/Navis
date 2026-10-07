@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Integrations and Privacy explain Last.fm keys, Deezer image servers and both AutoEQ network hosts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop databases move from Documents into application support, preserving existing libraries and SQLite sidecars',
         type: ChangelogEntryType.fix,
       ),

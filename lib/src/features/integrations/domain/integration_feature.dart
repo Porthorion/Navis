@@ -82,6 +82,10 @@ enum IntegrationService {
   /// artwork URLs the user's server links to).
   final String? host;
 
+  /// Network destinations shown in disclosure copy, separate from host identity.
+  String? get displayHost =>
+      this == autoEq ? 'raw.githubusercontent.com and api.github.com' : host;
+
   final IntegrationVerification verification;
 
   static IntegrationService? tryParse(String key) {

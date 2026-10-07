@@ -2679,7 +2679,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyOnlineServicesBody.
   ///
   /// In en, this message translates to:
-  /// **'Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
+  /// **'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
   String get privacyOnlineServicesBody;
 
   /// No description provided for @privacyOpenIntegrations.
@@ -2763,13 +2763,13 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsDeezerSends.
   ///
   /// In en, this message translates to:
-  /// **'Sends artist and track names to {host}.'**
+  /// **'Sends artist, album and track names to {host} and loads images from Deezer\'s image servers.'**
   String integrationsDeezerSends(String host);
 
   /// No description provided for @integrationsLastFmSends.
   ///
   /// In en, this message translates to:
-  /// **'Sends track and artist names to {host}.'**
+  /// **'Sends track and artist names to {host}, using the API key included with Navis or your own.'**
   String integrationsLastFmSends(String host);
 
   /// No description provided for @integrationsListenBrainzSends.
@@ -2790,11 +2790,11 @@ abstract class AppLocalizations {
   /// **'Sends an app version check to {host}.'**
   String integrationsUpdatesSends(String host);
 
-  /// No description provided for @integrationsAutoEqSends.
+  /// AutoEQ network hosts disclosed to the user.
   ///
   /// In en, this message translates to:
-  /// **'Downloads headphone profiles from GitHub, only when you ask.'**
-  String get integrationsAutoEqSends;
+  /// **'Downloads headphone profiles from {host}, only when you ask.'**
+  String integrationsAutoEqSends(String host);
 
   /// No description provided for @integrationsRadioSends.
   ///

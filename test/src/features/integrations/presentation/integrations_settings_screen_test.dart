@@ -234,13 +234,13 @@ void main() {
     for (final line in <String>[
       'Online services',
       'Off: Navis only talks to your server.',
-      'Sends artist and track names to api.deezer.com.',
-      'Sends track and artist names to ws.audioscrobbler.com.',
+      "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
+      'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Key included with this build',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
       'Sends an app version check to git.porthorion.com.',
-      'Downloads headphone profiles from GitHub, only when you ask.',
+      'Downloads headphone profiles from raw.githubusercontent.com and api.github.com, only when you ask.',
       "Reads now-playing info from the station's server.",
       'Loads images your server links from other sites, such as artist photos.',
     ]) {
