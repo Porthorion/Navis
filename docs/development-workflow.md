@@ -706,8 +706,14 @@ the tree remains otherwise usable.
   retry, cache-reset, and sign-out recovery controller after delayed playback
   bootstrap. It accepts only its bounded action names and never exposes
   session secrets.
-- Clone-only `POST /v1/presentation/library-filter` applies a bounded
-  type-to-filter query through the mounted production Library screen.
+- Clone-only `POST /v1/presentation/library-filter` applies a type-to-filter
+  query through the mounted production Library screen. `{"query": ""}` or
+  `{"query": null}` clears it and returns HTTP 200 with `query: ""` and the
+  current `section`; whitespace-only strings also clear it. Non-empty strings
+  are trimmed and limited to 64 characters; longer strings and non-string,
+  non-null values return HTTP 400. Keyboard and diagnostics filters both clear
+  when the Library section changes, including tab, sidebar and route-driven
+  changes. Repeating a diagnostics query after clearing applies it again.
   `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'` on `/library` captures
   the real Albums filtered-empty state before and after restart. Together with
   the deterministic `radioPresentationFixture` override,

@@ -117,11 +117,19 @@ final libraryTypeFilterActiveProvider =
 /// subscribes and is never written by ordinary product flows.
 class LibraryTypeFilterDiagnosticsController extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() {
+    ref.listen(librarySectionProvider, (previous, next) {
+      if (previous != next && state != null) state = '';
+    });
+    return null;
+  }
 
-  // Keep the existing method and callback call contract for callers.
-  // ignore: use_setters_to_change_properties
-  void setQuery(String query) => state = query;
+  // Each assignment is a command: the UI may have cleared its local query
+  // since the previous command with the same value.
+  @override
+  bool updateShouldNotify(String? previous, String? next) => true;
+
+  void setQuery(String? query) => state = query ?? '';
 }
 
 final libraryTypeFilterDiagnosticsProvider =

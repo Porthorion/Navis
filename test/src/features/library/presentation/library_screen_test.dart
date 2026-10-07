@@ -1774,6 +1774,30 @@ void main() {
         expect(find.text('No results for "guest"'), findsOneWidget);
         expect(find.text('Filtering: "guest"'), findsOneWidget);
         expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+        await tester.tap(find.text('Radio'));
+        await tester.pumpAndSettle();
+        expect(find.text('Navis Test Radio'), findsOneWidget);
+        expect(find.text('Filtering: "guest"'), findsNothing);
+
+        // Keyboard filters follow the same section lifecycle.
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyX, character: 'x');
+        await tester.pumpAndSettle();
+        expect(find.text('No Stations Match \u201cx\u201d'), findsOneWidget);
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        expect(find.text('Filtering: "x"'), findsNothing);
+        for (final clear in <String?>['', null]) {
+          container
+              .read(libraryTypeFilterDiagnosticsProvider.notifier)
+              .setQuery('guest');
+          await tester.pumpAndSettle();
+          expect(find.text('Filtering: "guest"'), findsOneWidget);
+          container
+              .read(libraryTypeFilterDiagnosticsProvider.notifier)
+              .setQuery(clear);
+          await tester.pumpAndSettle();
+          expect(find.text('Filtering: "guest"'), findsNothing);
+        }
       },
     );
 

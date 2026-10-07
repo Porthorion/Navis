@@ -1010,7 +1010,10 @@ well as the root) and the player overlay stack before moving.
   `librarySectionProvider` from the router's change notification (never during
   build), so returning to the tab, history, deep links and diagnostics select
   the section named. A Library location without a section keeps the current
-  one.
+  one. Changing sections clears the screen's local type-to-filter query for
+  keyboard input and clone-diagnostics commands alike. The diagnostics filter
+  controller resets its command on section changes and treats repeated queries
+  as new commands, so a query can be reapplied after the UI clears it.
 - **Page back buttons** use `NavService.back(context, fallback:)`: pop when the
   page has history, otherwise go to the fallback. `returnToLibrary` pops an
   unavailable detail page before switching to Library so it does not linger

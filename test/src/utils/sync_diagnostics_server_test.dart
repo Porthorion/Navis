@@ -1988,7 +1988,7 @@ void main() {
       '/v1/presentation/library-filter',
       method: 'POST',
       token: fixture.token,
-      body: const <String, Object?>{'query': ''},
+      body: <String, Object?>{'query': 'x' * 65},
     );
     expect(invalidLibraryFilter.statusCode, HttpStatus.badRequest);
 
@@ -2006,6 +2006,43 @@ void main() {
       fixture.container.read(libraryTypeFilterDiagnosticsProvider),
       'no-match',
     );
+
+    for (final query in <Object?>[42, true, <String>[]]) {
+      final invalid = await _request(
+        fixture.port,
+        '/v1/presentation/library-filter',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'query': query},
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+      expect(
+        fixture.container.read(libraryTypeFilterDiagnosticsProvider),
+        'no-match',
+      );
+    }
+    final maxLength = await _request(
+      fixture.port,
+      '/v1/presentation/library-filter',
+      method: 'POST',
+      token: fixture.token,
+      body: <String, Object?>{'query': 'x' * 64},
+    );
+    expect(maxLength.statusCode, HttpStatus.ok);
+    expect(maxLength.body['query'], hasLength(64));
+
+    for (final query in <Object?>['', null, '   ']) {
+      final cleared = await _request(
+        fixture.port,
+        '/v1/presentation/library-filter',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'query': query},
+      );
+      expect(cleared.statusCode, HttpStatus.ok);
+      expect(cleared.body['query'], '');
+      expect(fixture.container.read(libraryTypeFilterDiagnosticsProvider), '');
+    }
 
     final invalidNotice = await _request(
       fixture.port,

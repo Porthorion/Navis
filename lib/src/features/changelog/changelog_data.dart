@@ -133,6 +133,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Library filters clear when changing sections, and diagnostics can clear or reapply them without restarting',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows no longer freezes while playing internet radio with station artwork',
         type: ChangelogEntryType.fix,
       ),

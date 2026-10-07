@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/presentation/playback_quick_actions.da
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 
 import '../../helpers/fake_eq_controller.dart';
@@ -27,6 +28,39 @@ import 'package:path/path.dart' as p;
 class _SettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
+  test('Library filter controller normalizes null to a clear command', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final controller = container.read(
+      libraryTypeFilterDiagnosticsProvider.notifier,
+    );
+    controller.setQuery('typed');
+    controller.setQuery(null);
+    expect(container.read(libraryTypeFilterDiagnosticsProvider), '');
+  });
+
+  test('Library filter commands reset on section changes and can repeat', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final commands = <String?>[];
+    final subscription = container.listen(
+      libraryTypeFilterDiagnosticsProvider,
+      (_, next) => commands.add(next),
+    );
+    addTearDown(subscription.close);
+    final controller = container.read(
+      libraryTypeFilterDiagnosticsProvider.notifier,
+    );
+    controller.setQuery('typed');
+    container
+        .read(librarySectionProvider.notifier)
+        .setSection(LibrarySection.artists);
+    expect(container.read(libraryTypeFilterDiagnosticsProvider), '');
+    controller.setQuery('typed');
+    controller.setQuery('typed');
+    expect(commands, ['typed', '', 'typed', 'typed']);
+  });
+
   testWidgets('player quick controls are observed and opened by the button', (
     tester,
   ) async {
