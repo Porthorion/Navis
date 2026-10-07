@@ -94,6 +94,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/licenses/
     - assets/autoeq/
     - assets/changelog/
     - lib/src/icon/Navis_App_Icon.png

@@ -152,6 +152,23 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('licence page receives the Porthorion copyright', (
+      tester,
+    ) async {
+      LicenseRegistry.reset();
+      addTearDown(LicenseRegistry.reset);
+      await pumpAbout(tester, updateInfo: null);
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final licenses = find.widgetWithText(ListTile, l10n.aboutLicenses);
+      await tester.ensureVisible(licenses);
+      await tester.tap(licenses);
+      await tester.pumpAndSettle();
+
+      final page = tester.widget<LicensePage>(find.byType(LicensePage));
+      expect(page.applicationLegalese, '© 2026 Porthorion');
+      expect(find.text('© 2026 Porthorion'), findsOneWidget);
+    });
+
     testWidgets('shows update section on Android', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {

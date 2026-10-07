@@ -100,6 +100,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
               showLicensePage(
                 context: context,
                 applicationName: 'Navis',
+                applicationLegalese: '© 2026 Porthorion',
                 applicationVersion: version,
                 applicationIcon: const Padding(
                   padding: EdgeInsets.all(8),

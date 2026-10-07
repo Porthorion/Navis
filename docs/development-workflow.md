@@ -15,6 +15,15 @@ What it does:
 - checks the Flutter 3.47.5 minimum and active 3.47.x baseline
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
+## Bundled licence notices
+
+`registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
+non-Dart assets and native libraries. Its tests cover platform filtering and
+the disabled LGPL bundle flag without starting the application. Regenerate
+Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
+locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
+See `release-windows.md` for the packaging procedure.
+
 ## Colour-name data
 
 After updating the pinned MIT colour-name input, run

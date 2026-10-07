@@ -1,0 +1,9 @@
+Navis for Windows and Linux uses the libmpv (mpv) and FFmpeg libraries,
+licensed under the GNU Lesser General Public License version 2.1 or later.
+
+These libraries are dynamically linked as separate shared libraries
+(libmpv-2.dll / libmpv.so) that can be replaced.
+
+The corresponding source code and build configuration are available from
+Porthorion at https://navis.porthorion.com or by writing to
+support@porthorion.com.

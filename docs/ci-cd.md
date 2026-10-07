@@ -36,6 +36,10 @@ Azuracast-style ICY radio station plays and stops through its station card,
 and that a stream served with an untrusted certificate is refused
 (`tls-verify`).
 
+Regenerate Windows SMTC licence notices after Rust dependency changes with
+`python3 tool/generate_rust_notices.py` (see `release-windows.md`). The script
+uses the locked Windows graph and locally fetched Cargo registry sources.
+
 The colour-name table is generated separately with
 `dart run tool/generate_color_names.dart`; `build_runner` does not own it.
 Keep its pinned CSV and output together (see `tool/data/color_names/README.md`).

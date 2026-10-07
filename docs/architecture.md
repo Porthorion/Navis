@@ -625,8 +625,14 @@ target-selection rules.
   values. The MIT meodai/color-names table is generated from the pinned
   filtered CSV; see `tool/data/color_names/README.md` for regeneration.
 - Fonts: the bundled Inter variable font (`assets/fonts/`, SIL OFL 1.1,
-  licence registered in `main.dart`). Scripts Inter lacks use the platform's
-  per-glyph fallback.
+  licence registered in `app_licenses.dart`). Scripts Inter lacks use the
+  platform's per-glyph fallback.
+- Bundled licence registration: `main.dart` calls `registerBundledLicenses`
+  from `app_licenses.dart`. Inter, AutoEq and color-names appear on every
+  platform; mimalloc appears on Linux and Rust crate notices on Windows.
+  The Windows/Linux libmpv and FFmpeg notice plus LGPL text stay disabled
+  until `_bundlesLgplLibmpv` is enabled after the LGPL bundle replacement
+  (compliance audit L-3/L-4). About supplies the Porthorion copyright line.
 - Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
   font sizes and colours per file outside `lib/src/theme/`.
 - Decision record:

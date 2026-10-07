@@ -57,6 +57,24 @@ To update the pin:
 
 ---
 
+## Rust crate licence notices
+
+Before packaging after a Rust dependency update, fetch the locked dependencies
+(including the Windows target), then regenerate the in-app notice from the
+repository root:
+
+```bash
+python3 tool/generate_rust_notices.py
+```
+
+The script runs `cargo metadata --format-version 1 --filter-platform
+x86_64-pc-windows-msvc --locked --offline` in the SMTC Rust directory. It
+includes every resolved registry crate, reads its bundled licence files, and
+prints each distinct text once with its users. Commit
+`assets/licenses/windows-smtc-crates.txt` with dependency changes. A missing
+licence file is explicitly reported in the notice inventory and must be
+reviewed before distribution. The app registers this notice on Windows only.
+
 ## Platform Constraint
 
 Windows builds require a Windows host. On macOS or Linux, delegate to a remote Windows

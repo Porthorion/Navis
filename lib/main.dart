@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/app_licenses.dart';
 import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
@@ -37,13 +38,6 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 Future<void> navisBackgroundSyncEntrypoint() =>
     android_background_sync.navisBackgroundSyncEntrypoint();
 
-/// Bundled fonts are not Dart packages, so their licences must be registered
-/// explicitly to appear on the licence page.
-Stream<LicenseEntry> _bundledFontLicenses() async* {
-  final text = await rootBundle.loadString('assets/fonts/OFL.txt');
-  yield LicenseEntryWithLineBreaks(const <String>['Inter font'], text);
-}
-
 // mpv's error lines, among other dependency output, quote full stream URLs
 // whose token and salt are replayable credentials.
 Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
@@ -53,7 +47,7 @@ Future<void> _runNavis() async {
   // Errors nothing handled would otherwise be printed by the engine itself,
   // outside the redacting zone.
   PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
-  LicenseRegistry.addLicense(_bundledFontLicenses);
+  registerBundledLicenses();
   // Before anything resolves a directory: a desktop clone runs as the same OS
   // user as the real app, so its platform directories would be the real
   // profile's. (An Android sidecar is its own package with its own storage.)
