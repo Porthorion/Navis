@@ -86,3 +86,7 @@ ListenBrainz disconnect changes the connection only after secure token deletion 
 ### Compliance follow-up — 2026-10-07
 
 Credential redaction also covers Last.fm `api_key`, including encoded query parameters, and refuses those URLs as media-session inputs.
+
+### Compliance follow-up — 2026-10-07
+
+Android disables application backup and excludes all root, file, database, preferences and external-storage domains from cloud backup and device transfer. The manifest declares mailto handler visibility for the support link.

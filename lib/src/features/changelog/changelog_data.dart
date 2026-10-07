@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Android excludes Navis data from system backup and device transfer and can discover email apps for support',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'ListenBrainz disconnect reports token deletion failures, and signing out clears its token and connection',
         type: ChangelogEntryType.fix,
       ),
