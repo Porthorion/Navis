@@ -633,9 +633,9 @@ target-selection rules.
   Rust notice generator matches upstream licence files without case sensitivity
   and supplies tracked SPDX full-text templates for missing files, preserving
   Cargo authors for MIT attribution. Every crate references full licence text.
-  The Windows/Linux libmpv and FFmpeg notice plus LGPL text stay disabled
-  until `_bundlesLgplLibmpv` is enabled after the LGPL bundle replacement
-  (compliance audit L-3/L-4). About supplies the Porthorion copyright line.
+  Windows and Linux register the bundled libmpv/FFmpeg source offer and full
+  LGPL-2.1 text. Both release bundles use LGPL builds. About supplies the
+  Porthorion copyright line.
 - Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
   font sizes and colours per file outside `lib/src/theme/`.
 - Decision record:
@@ -2367,7 +2367,12 @@ hydrates EQ before audio creation; general settings saves omit its fields.
 The handler applies typed configurations to both decks and reports desired
 versus applied status. Android uses the vendored just_audio Media3 PCM processor;
 Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
-(Windows on the pinned full libmpv, see [release-windows.md](release-windows.md#bundled-libmpv)).
+(both on pinned LGPL libmpv; see [release-windows.md](release-windows.md#bundled-libmpv)
+and [release-linux.md](release-linux.md#bundled-lgpl-libmpv)).
+Linux startup uses `bootstrap/bundled_libmpv.dart` to select
+`lib/libmpv.so.2` beside the resolved executable when present, otherwise it
+leaves media_kit system lookup in place. CMake bundles the verified x86_64 pin
+by default; `NAVIS_BUNDLE_LIBMPV=OFF` supports system-mpv development builds.
 `navisEqualizerSupported()` decides availability for both the controller and the
 handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in

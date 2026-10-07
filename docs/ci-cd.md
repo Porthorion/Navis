@@ -60,7 +60,13 @@ executable, without builds, launches or credentials.
 Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
 remote builds no longer seed the obsolete media_kit archive. Run
 `cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
-checks (downloads are simulated). See `release-windows.md` for pin updates.
+checks (downloads are simulated). Also run with
+`-DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt"` for the Linux downloader and
+`cmake -P tool/libmpv_bundle_test.cmake` for extraction, install and opt-out.
+Linux release packaging uses the bundled LGPL libmpv rather than a system-mpv
+Debian dependency; both packaging paths keep PulseAudio and ALSA loader
+dependencies. The separate `tool/libmpv/` recipe publishes binaries and source
+archives; see the Windows/Linux release guides for pin updates.
 
 ## Quality Gate (`tool/check.sh`)
 

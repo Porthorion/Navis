@@ -47,7 +47,7 @@ built on newer distros may fail with `GLIBC_X.XX not found` on users' older syst
 sudo apt-get update
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
-  libgtk-3-dev libmpv-dev \
+  libgtk-3-dev \
   dpkg-dev jq curl git
 ```
 
@@ -108,13 +108,43 @@ sudo dpkg -i navis-v0.x.y-linux-amd64.deb
 After installation, `navis` is available as a system command and appears in the
 application menu.
 
-### Runtime dependency: `libmpv`
+### Bundled LGPL libmpv
 
-Playback and the equalizer use the system libmpv, which media_kit loads as
-`libmpv.so`, `libmpv.so.2` or `libmpv.so.1`. The Debian control file declares
-`Depends: libgtk-3-0, libmpv2 | libmpv1`, so `apt` installs it with the
-package: Debian 12 and Ubuntu 23.04+ ship `libmpv2`, Ubuntu 22.04 ships
-`libmpv1`.
+Linux x86_64 packages ship LGPL-2.1+ libmpv/FFmpeg as `lib/libmpv.so.2`.
+Startup selects that file relative to `Platform.resolvedExecutable`; if absent,
+development runs use system libmpv. `NAVIS_BUNDLE_LIBMPV` defaults ON in
+`linux/CMakeLists.txt`; developers can set `-DNAVIS_BUNDLE_LIBMPV=OFF` in their
+CMake configuration/cache to use system mpv. Other architectures must opt out
+until a matching LGPL artefact is published; never package the x86_64 binary
+for them. Custom packages without the bundle need their own system-mpv dependency.
+
+The current archive is `libmpv-linux-x86_64-lgpl-20261007.tar.gz`, SHA-256
+`759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e`.
+CMake tries the matching navis-third-party release, then
+`https://downloads.porthorion.com/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
+Every attempt is verified, failures are deleted, and the archive is cached in
+the CMake build directory. A verified cached archive supports offline builds;
+extraction is once per pin, retried if incomplete. The library is installed
+into the standard bundle `lib/` directory alongside Flutter's libraries.
+
+To update, use [the build recipe](../tool/libmpv/README.md), check the embedded
+mpv `-Dgpl=false` and absence of FFmpeg `--enable-gpl`/`--enable-nonfree`,
+and review `BUILDINFO.txt`'s ELF dependencies. Package the library, headers and
+recipe under `libmpv-linux-x86_64-lgpl/`, then publish the dated tarball in
+navis-third-party with `SOURCES.md` and the corresponding source archives.
+Copy the identical tarball to the R2 fallback path. Update the filename,
+ordered URLs and SHA-256 in CMake and the in-app source-location notice.
+
+The Debian package no longer depends on system `libmpv2 | libmpv1`. Its minimal
+runtime dependencies are `libgtk-3-0, libpulse0, libasound2`: the recipe enables
+both PulseAudio and ALSA, so both shared libraries must load even when only one
+output is used. An alternative (`libpulse0 | libasound2`) would be insufficient.
+GnuTLS is already supplied by GTK's dependency on CUPS on the Ubuntu 22.04
+baseline ([GTK dependencies](https://packages.ubuntu.com/jammy/libgtk-3-0),
+[CUPS dependencies](https://packages.ubuntu.com/jammy/libcups2)), so no redundant
+`libgnutls30` dependency is added. GTK also supplies the font libraries; inspect
+ELF dependencies again for every new pin. Portable bundles still require these
+system desktop libraries.
 
 ### Auto-updater behavior
 
@@ -270,12 +300,10 @@ does. Use `sudo dpkg -i` or `sudo apt install ./file.deb`.
 
 ### Users report audio not working after installing the `.deb`
 
-Packages built before 1.4.0 did not list `libmpv` in `Depends`. Install it
-manually, or install the current package with `apt` so it is pulled in:
-
-```bash
-sudo apt install libmpv2    # Debian 12, Ubuntu 23.04+ (libmpv1 on 22.04)
-```
+Current packages include `lib/libmpv.so.2`; keep the complete bundle intact.
+Inspect missing system dependencies with `ldd /opt/navis/lib/libmpv.so.2` and
+install the package with `apt`. Older releases and opt-out development builds
+still need system mpv (`libmpv2` on Debian 12/Ubuntu 23.04+, `libmpv1` on 22.04).
 
 ### Auto-updater: `pkexec` not found
 

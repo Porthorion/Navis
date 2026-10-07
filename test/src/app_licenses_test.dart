@@ -71,8 +71,11 @@ void main() {
           packages.contains('Rust crates (Windows media controls)'),
           platform == TargetPlatform.windows,
         );
-        expect(packages, isNot(contains('libmpv')));
-        expect(packages, isNot(contains('FFmpeg')));
+        final bundlesLibmpv =
+            platform == TargetPlatform.linux ||
+            platform == TargetPlatform.windows;
+        expect(packages.contains('libmpv'), bundlesLibmpv);
+        expect(packages.contains('FFmpeg'), bundlesLibmpv);
         for (final license in licenses) {
           expect(license.text.trim(), isNotEmpty);
         }
@@ -84,10 +87,7 @@ void main() {
     test(
       'enabled LGPL notice includes the source offer and full licence on $platform',
       () async {
-        final licenses = await entries(
-          platform: platform,
-          bundlesLgplLibmpv: true,
-        );
+        final licenses = await entries(platform: platform);
         final license = licenses.singleWhere(
           (entry) => entry.packages.contains('libmpv'),
         );
@@ -101,6 +101,22 @@ void main() {
         expect(license.text, '$notice\n\n$lgpl');
         expect(license.text, contains('support@porthorion.com'));
         expect(license.text, contains('can be replaced'));
+        expect(license.text, contains('libmpv-windows-x86_64-lgpl-20261006'));
+        expect(license.text, contains('libmpv-linux-x86_64-lgpl-20261007'));
+      },
+    );
+
+    test(
+      'system-libmpv builds can disable the bundle notice on $platform',
+      () async {
+        final licenses = await entries(
+          platform: platform,
+          bundlesLgplLibmpv: false,
+        );
+        expect(
+          licenses.expand((entry) => entry.packages),
+          isNot(contains('libmpv')),
+        );
       },
     );
 

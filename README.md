@@ -9,8 +9,8 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 | Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
 | iOS | Unreleased scaffold | Configured for iOS 16; requires macOS/Xcode build and runtime validation |
 | macOS | Unreleased scaffold | Configured for macOS 12; build/runtime validation and native media controls remain pending |
-| Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
-| Windows | Supported | Native desktop build with adaptive shell, shortcuts, and SMTC integration |
+| Linux | Supported | Native desktop build with adaptive shell, shortcuts, MPRIS integration, and bundled LGPL libmpv (x86_64) |
+| Windows | Supported | Native desktop build with adaptive shell, shortcuts, SMTC integration, and bundled LGPL libmpv |
 
 Released target baselines:
 - Android 7.0 (API 24)

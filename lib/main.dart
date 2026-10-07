@@ -9,6 +9,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/app_licenses.dart';
 import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
+import 'package:navis/src/bootstrap/bundled_libmpv.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
@@ -234,7 +235,7 @@ void _initializeDesktopAudioBackend() {
   try {
     JustAudioMediaKit.title = 'Navis';
     // libmpv up to 0.41 opens https streams without checking the server
-    // certificate. The Linux system mpv and the pinned Windows build use the
+    // certificate. The Linux and Windows LGPL bundles use the
     // system certificate store; macOS's bundled mpv 0.36 (Mbed TLS) is not
     // verified to find it yet, so it stays as before until that build is
     // replaced.
@@ -253,6 +254,7 @@ void _initializeDesktopAudioBackend() {
       linux: true,
       windows: true,
       macOS: true,
+      libmpv: bundledLibmpvPath(),
     );
     AppLogger.info('Desktop media_kit backend initialized.');
   } on Object catch (error, stackTrace) {

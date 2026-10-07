@@ -75,6 +75,69 @@ set_target_properties(${BINARY_NAME}
 include(flutter/generated_plugins.cmake)
 
 
+# A relocatable LGPL audio backend; development can opt out to use system mpv.
+option(NAVIS_BUNDLE_LIBMPV "Bundle the pinned LGPL libmpv" ON)
+
+function(download_and_verify urls sha256 locationForArchive)
+  if(EXISTS "${locationForArchive}")
+    file(SHA256 "${locationForArchive}" ARCHIVE_SHA256)
+    if("${sha256}" STREQUAL "${ARCHIVE_SHA256}")
+      return()
+    endif()
+    file(REMOVE "${locationForArchive}")
+    message(STATUS "Cached archive SHA-256 mismatch. File deleted.")
+  endif()
+
+  foreach(url IN LISTS urls)
+    message(STATUS "Downloading archive from ${url}...")
+    file(DOWNLOAD "${url}" "${locationForArchive}"
+      TLS_VERIFY ON STATUS DOWNLOAD_STATUS TIMEOUT 120)
+    list(GET DOWNLOAD_STATUS 0 DOWNLOAD_CODE)
+    if(DOWNLOAD_CODE EQUAL 0 AND EXISTS "${locationForArchive}")
+      file(SHA256 "${locationForArchive}" ARCHIVE_SHA256)
+      if("${sha256}" STREQUAL "${ARCHIVE_SHA256}")
+        message(STATUS "Archive SHA-256 verification successful.")
+        return()
+      endif()
+      message(STATUS "Downloaded archive SHA-256 mismatch.")
+    else()
+      message(STATUS "Archive download failed (${DOWNLOAD_CODE}).")
+    endif()
+    file(REMOVE "${locationForArchive}")
+  endforeach()
+  message(FATAL_ERROR "No URL supplied a valid libmpv archive; please retry the build.")
+endfunction()
+
+if(NAVIS_BUNDLE_LIBMPV)
+  if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    message(FATAL_ERROR "Bundled libmpv is x86_64; use -DNAVIS_BUNDLE_LIBMPV=OFF for other architectures.")
+  endif()
+  set(LIBMPV "libmpv-linux-x86_64-lgpl-20261007.tar.gz")
+  set(LIBMPV_SHA256 "759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e")
+  set(LIBMPV_URLS
+    "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-linux-x86_64-lgpl-20261007/${LIBMPV}"
+    "https://downloads.porthorion.com/third-party/${LIBMPV}"
+  )
+  set(LIBMPV_ARCHIVE "${CMAKE_BINARY_DIR}/${LIBMPV}")
+  # A new archive pin always gets its own extraction, even in an old build tree.
+  string(REPLACE ".tar.gz" "" LIBMPV_NAME "${LIBMPV}")
+  set(LIBMPV_SRC "${CMAKE_BINARY_DIR}/${LIBMPV_NAME}")
+  download_and_verify("${LIBMPV_URLS}" "${LIBMPV_SHA256}" "${LIBMPV_ARCHIVE}")
+  if(NOT EXISTS "${LIBMPV_SRC}/.extracted" OR
+     NOT EXISTS "${LIBMPV_SRC}/libmpv-linux-x86_64-lgpl/libmpv.so.2")
+    file(REMOVE_RECURSE "${LIBMPV_SRC}")
+    file(MAKE_DIRECTORY "${LIBMPV_SRC}")
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E tar xzf "${LIBMPV_ARCHIVE}"
+      WORKING_DIRECTORY "${LIBMPV_SRC}" RESULT_VARIABLE LIBMPV_EXTRACT_RESULT)
+    if(NOT LIBMPV_EXTRACT_RESULT EQUAL 0 OR
+       NOT EXISTS "${LIBMPV_SRC}/libmpv-linux-x86_64-lgpl/libmpv.so.2")
+      file(REMOVE_RECURSE "${LIBMPV_SRC}")
+      message(FATAL_ERROR "Failed to extract the pinned libmpv archive.")
+    endif()
+    file(WRITE "${LIBMPV_SRC}/.extracted" "${LIBMPV_SHA256}")
+  endif()
+endif()
+
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
 # directory.
@@ -99,6 +162,11 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
+
+if(NAVIS_BUNDLE_LIBMPV)
+  install(FILES "${LIBMPV_SRC}/libmpv-linux-x86_64-lgpl/libmpv.so.2"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+endif()
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
   install(FILES "${bundled_library}"

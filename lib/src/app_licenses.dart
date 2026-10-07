@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-// Enable once the bundled libmpv is an LGPL build (COMPLIANCE-AUDIT.md L-3/L-4)
-const bool _bundlesLgplLibmpv = false;
+// Windows and Linux bundles both ship dynamically linked LGPL libmpv/FFmpeg.
+const bool _bundlesLgplLibmpv = true;
 
 /// Registers bundled assets and native libraries absent from Dart notices.
 ///

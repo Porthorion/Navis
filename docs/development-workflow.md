@@ -19,8 +19,8 @@ What it does:
 
 `registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
 non-Dart assets and native libraries. Its tests cover platform filtering and
-the disabled LGPL bundle flag without starting the application. Regenerate
-Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
+the enabled Windows/Linux LGPL notices and optional system-library flag
+without starting the application. Regenerate Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
 locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
 The generator matches licence filenames case-insensitively and uses tracked
 `tool/data/spdx/` full-text fallbacks when a crate has no licence file. No text
@@ -30,7 +30,13 @@ See `release-windows.md` for the packaging procedure.
 Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
 remote builds no longer seed the obsolete media_kit archive. Run
 `cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
-checks (downloads are simulated). See `release-windows.md` for pin updates.
+checks (downloads are simulated). Linux uses the same verified cache/fallback
+approach; check it with
+`cmake -DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt" -P tool/libmpv_download_test.cmake`.
+Run `cmake -P tool/libmpv_bundle_test.cmake` for offline extraction/installation
+and opt-out checks. See the Windows/Linux release guides for pin updates.
+The Linux LGPL recipe under `tool/libmpv/` builds separately; normal app builds
+consume the published archive and do not invoke Docker.
 
 ## Colour-name data
 

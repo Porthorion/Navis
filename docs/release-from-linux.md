@@ -34,7 +34,7 @@ flutter doctor -v
 sudo apt-get update
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
-  libgtk-3-dev libmpv-dev \
+  libgtk-3-dev \
   dpkg-dev jq curl git
 ```
 
@@ -212,8 +212,11 @@ export CC=clang
 
 ### `flutter build linux` fails in CI / Docker
 
-Flutter Linux builds need `libmpv-dev` and a GTK display environment. For headless
-environments, set up Xvfb or use a Gtk-capable Docker image.
+Linux x86_64 releases bundle pinned LGPL libmpv (see
+[release-linux.md](release-linux.md#bundled-lgpl-libmpv)); a verified cached
+archive permits offline builds. Flutter Linux builds need GTK development
+libraries and a GTK display environment. For headless environments, set up
+Xvfb or use a Gtk-capable Docker image.
 
 ### Windows remote build times out
 

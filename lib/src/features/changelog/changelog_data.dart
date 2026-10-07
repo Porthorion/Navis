@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Windows playback now uses an LGPL audio library with full equalizer support',
+        'Windows and Linux playback now use bundled LGPL audio libraries with full equalizer support',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
