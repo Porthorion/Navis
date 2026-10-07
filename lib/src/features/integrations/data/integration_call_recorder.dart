@@ -111,6 +111,7 @@ class IntegrationCallRecorder {
   new({
     this.callCapacity = defaultCallCapacity,
     this.spanCapacity = defaultSpanCapacity,
+    this.refusalCapacity = defaultCallCapacity,
     DateTime Function()? now,
     this._logCalls = true,
   }) : _now = now ?? DateTime.now;
@@ -127,8 +128,22 @@ class IntegrationCallRecorder {
 
   final int callCapacity;
   final int spanCapacity;
+  final int refusalCapacity;
   final DateTime Function() _now;
   final bool _logCalls;
+
+  IntegrationPolicy? _policy;
+  final _recentRefusals = <(IntegrationService, String, String)>{};
+
+  /// Starts a refusal epoch when the integration policy changes.
+  ///
+  /// Call history and counters remain intact; only recently refused
+  /// destinations reset.
+  void beginPolicyEpoch(IntegrationPolicy policy) {
+    if (_policy == policy) return;
+    _policy = policy;
+    _recentRefusals.clear();
+  }
 
   final Queue<IntegrationCallRecord> _calls = Queue<IntegrationCallRecord>();
   final Queue<IntegrationSpan> _spans = Queue<IntegrationSpan>();
@@ -152,6 +167,17 @@ class IntegrationCallRecorder {
     final path = redactedPath.length > _maxPathLength
         ? redactedPath.substring(0, _maxPathLength)
         : redactedPath;
+    if (outcome == IntegrationCallOutcome.blocked) {
+      // Deduplicate with redacted identities only. Refresh on a hit so routine
+      // repeats cannot push an actively refused destination out of the LRU.
+      final key = (service, uri.host.toLowerCase(), path);
+      final repeated = _recentRefusals.remove(key);
+      _recentRefusals.add(key);
+      while (_recentRefusals.length > refusalCapacity) {
+        _recentRefusals.remove(_recentRefusals.first);
+      }
+      if (repeated) return;
+    }
     final record = IntegrationCallRecord(
       service: service,
       method: method.toUpperCase(),

@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/player/data/playback_art_cache.dart';
 
 /// Points path_provider's temporary directory at a fresh folder.
 Future<Directory> _tempCacheDir() async {
@@ -71,6 +71,32 @@ void main() {
           reason: 'memory cache hits do not record requests',
         );
       }
+    });
+  }
+
+  for (final entry in <String, List<int>>{
+    'avif': [0, 0, 0, 16, ...'ftypavif'.codeUnits, 0, 0, 0, 0],
+    'heic': [0, 0, 0, 16, ...'ftypheic'.codeUnits, 0, 0, 0, 0],
+    'tiff': [0x49, 0x49, 0x2a, 0],
+  }.entries) {
+    test('playback caches ${entry.key} server covers unchanged', () async {
+      await _tempCacheDir();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response
+          ..headers.contentType = ContentType('image', entry.key)
+          ..add(entry.value);
+        await request.response.close();
+      });
+      final cache = PlaybackArtCache();
+      addTearDown(cache.dispose);
+      final path = await cache.getOrFetch(
+        'format-${entry.key}',
+        Uri.parse('http://127.0.0.1:${server.port}/cover'),
+      );
+      expect(path, isNotNull);
+      expect(await File(path!).readAsBytes(), entry.value);
     });
   }
 

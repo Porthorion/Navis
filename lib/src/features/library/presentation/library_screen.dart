@@ -128,8 +128,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final ProviderSubscription<int> _libraryScrollSubscription;
   late final ProviderSubscription<bool> _downloadedOnlySubscription;
   late final ProviderSubscription<String?> _typeFilterDiagnosticsSubscription;
-  late final ProviderSubscription<LibrarySection>
-  _typeFilterSectionSubscription;
   late final ProviderSubscription<LibraryScrollDiagnosticsRequest?>
   _scrollDiagnosticsSubscription;
   int _lastLibraryScrollRequest = 0;
@@ -180,14 +178,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           _yearListItems = const <_YearListItem>[];
           _cachedYearSectionsSource = null;
         });
-      },
-    );
-    _typeFilterSectionSubscription = ref.listenManual<LibrarySection>(
-      librarySectionProvider,
-      (previous, next) {
-        if (mounted && previous != next && _typeFilterQuery.isNotEmpty) {
-          _clearTypeFilter();
-        }
       },
     );
     _typeFilterDiagnosticsSubscription = ref.listenManual<String?>(
@@ -241,7 +231,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _libraryScrollSubscription.close();
     _downloadedOnlySubscription.close();
     _typeFilterDiagnosticsSubscription.close();
-    _typeFilterSectionSubscription.close();
     _scrollDiagnosticsSubscription.close();
     _tabController?.removeListener(_handleTabControllerTick);
     _tabController?.dispose();

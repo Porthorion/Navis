@@ -18,7 +18,7 @@ import 'package:navis/src/providers/app_providers.dart';
 /// Radio art needs `radio.nowPlaying` and the server-linked artwork service.
 /// A [feature] is sent with the request, so the loader checks that feature's
 /// switch again right before the download is dispatched.
-class ExternalArtworkImage extends ConsumerWidget {
+class ExternalArtworkImage extends ConsumerStatefulWidget {
   const new({
     required this.url,
     required this.fallbackBuilder,
@@ -44,10 +44,51 @@ class ExternalArtworkImage extends ConsumerWidget {
   final IntegrationFeature? feature;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final uri = Uri.tryParse(url.trim());
+  ConsumerState<ExternalArtworkImage> createState() =>
+      _ExternalArtworkImageState();
+}
+
+class _ExternalArtworkImageState extends ConsumerState<ExternalArtworkImage> {
+  @override
+  void initState() {
+    super.initState();
+    // Register the epoch listener before the image listener, so a policy
+    // change clears deduplication before this image reports its refusal.
+    ref.read(artworkCallRecorderProvider);
+    ref.listenManual(integrationPolicyProvider, (_, _) => _recordRefusal());
+    ref.listenManual(serverHostProvider, (_, _) => _recordRefusal());
+    _recordRefusal();
+  }
+
+  @override
+  void didUpdateWidget(ExternalArtworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url || oldWidget.feature != widget.feature) {
+      _recordRefusal();
+    }
+  }
+
+  void _recordRefusal() {
+    final uri = Uri.tryParse(widget.url.trim());
+    if (uri == null || !uri.hasScheme) return;
+    ref
+        .read(artworkCallRecorderProvider)
+        .checkAllowed(
+          uri,
+          allowed: integrationAllowsArtworkUri(
+            ref.read(integrationPolicyProvider),
+            uri,
+            serverHost: ref.read(serverHostProvider),
+            feature: widget.feature,
+          ),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(widget.url.trim());
     if (uri == null || !uri.hasScheme) {
-      return fallbackBuilder(context);
+      return widget.fallbackBuilder(context);
     }
     final serverHost = ref.watch(serverHostProvider);
     final allowed = ref.watch(
@@ -56,32 +97,30 @@ class ExternalArtworkImage extends ConsumerWidget {
           policy,
           uri,
           serverHost: serverHost,
-          feature: feature,
+          feature: widget.feature,
         ),
       ),
     );
-    if (!ref
-        .read(artworkCallRecorderProvider)
-        .checkAllowed(uri, allowed: allowed)) {
-      return fallbackBuilder(context);
+    if (!allowed) {
+      return widget.fallbackBuilder(context);
     }
     return CachedNetworkImage(
-      imageUrl: url.trim(),
+      imageUrl: widget.url.trim(),
       cacheManager: ref.watch(coverArtCacheManagerProvider),
       // Names the feature so a download queued for it is refused at dispatch
       // once the feature is switched off.
-      httpHeaders: feature == null
+      httpHeaders: widget.feature == null
           ? null
-          : coverArtFeatureHeaders(feature!.key),
+          : coverArtFeatureHeaders(widget.feature!.key),
       // Tagged loads never share a download with untagged loads of the URL.
-      cacheKey: feature == null
+      cacheKey: widget.feature == null
           ? null
-          : coverArtFeatureCacheKey(feature!.key, url.trim()),
-      width: width,
-      height: height,
-      fit: fit,
-      alignment: alignment,
-      errorWidget: (context, _, _) => fallbackBuilder(context),
+          : coverArtFeatureCacheKey(widget.feature!.key, widget.url.trim()),
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      alignment: widget.alignment,
+      errorWidget: (context, _, _) => widget.fallbackBuilder(context),
     );
   }
 }

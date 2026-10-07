@@ -370,16 +370,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 .where((url) {
                   final uri = Uri.tryParse(url);
                   return uri != null &&
-                      ref
-                          .read(artworkCallRecorderProvider)
-                          .checkAllowed(
-                            uri,
-                            allowed: integrationAllowsArtworkUri(
-                              policy,
-                              uri,
-                              serverHost: serverHost,
-                            ),
-                          );
+                      integrationAllowsArtworkUri(
+                        policy,
+                        uri,
+                        serverHost: serverHost,
+                      );
                 })
                 .toList(growable: false);
         final fanCount = deezerArtist?.fanCount ?? 0;

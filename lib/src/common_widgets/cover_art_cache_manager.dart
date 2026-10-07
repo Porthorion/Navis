@@ -5,9 +5,9 @@ import 'dart:typed_data';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
-import 'package:navis/src/utils/app_logger.dart';
-import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
@@ -83,8 +83,8 @@ String coverArtFeatureCacheKey(String featureKey, String url) =>
     'feature:$featureKey:$url';
 
 /// True when the payload head carries a known image signature (JPEG, PNG,
-/// GIF, WebP, BMP, ICO). Content types are untrusted: some servers answer
-/// missing artwork with HTTP 200 and a non-image body.
+/// GIF, WebP, BMP, ICO, TIFF, AVIF and HEIC/HEIF). Content types are untrusted:
+/// some servers answer missing artwork with HTTP 200 and a non-image body.
 bool _looksLikeImagePayload(List<int> head) {
   if (head.length >= 2 && head[0] == 0xFF && head[1] == 0xD8) {
     return true; // JPEG (SOI)
@@ -129,6 +129,45 @@ bool _looksLikeImagePayload(List<int> head) {
       head[2] == 0x01 &&
       head[3] == 0x00) {
     return true; // ICO
+  }
+  if (head.length >= 4 &&
+      ((head[0] == 0x49 &&
+              head[1] == 0x49 &&
+              head[2] == 0x2A &&
+              head[3] == 0) ||
+          (head[0] == 0x4D &&
+              head[1] == 0x4D &&
+              head[2] == 0 &&
+              head[3] == 0x2A))) {
+    return true; // TIFF, little or big endian
+  }
+  if (head.length >= 16 && String.fromCharCodes(head.sublist(4, 8)) == 'ftyp') {
+    final boxSize =
+        (head[0] << 24) | (head[1] << 16) | (head[2] << 8) | head[3];
+    if (boxSize < 16) return false;
+    const imageBrands = {
+      'avif',
+      'avis',
+      'heic',
+      'heix',
+      'hevc',
+      'mif1',
+      'msf1',
+    };
+    // The major brand starts at 8; compatible brands follow the minor version.
+    // Stay inside the ftyp box so bytes in another box cannot admit a video.
+    for (
+      var offset = 8;
+      offset + 4 <= boxSize && offset + 4 <= head.length;
+      offset += 4
+    ) {
+      if (offset == 12) continue;
+      if (imageBrands.contains(
+        String.fromCharCodes(head.sublist(offset, offset + 4)),
+      )) {
+        return true;
+      }
+    }
   }
   return false;
 }

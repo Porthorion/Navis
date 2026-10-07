@@ -31,6 +31,97 @@ void main() {
     );
   }
 
+  test(
+    'distinct refusals use redacted host and path without evicting real calls',
+    () {
+      final recorder = newRecorder();
+      for (final service in [
+        IntegrationService.deezer,
+        IntegrationService.lastFm,
+        IntegrationService.listenBrainz,
+      ]) {
+        record(recorder, service: service);
+      }
+      for (var i = 0; i < 250; i++) {
+        record(
+          recorder,
+          service: IntegrationService.serverLinkedArtwork,
+          url: 'https://images.example.com/users/private-$i/cover?token=$i',
+          outcome: IntegrationCallOutcome.blocked,
+        );
+      }
+      expect(recorder.recentCalls(), hasLength(4));
+      expect(
+        recorder.countersFor(IntegrationService.serverLinkedArtwork).blocked,
+        1,
+      );
+      for (final service in [
+        IntegrationService.deezer,
+        IntegrationService.lastFm,
+        IntegrationService.listenBrainz,
+      ]) {
+        expect(
+          recorder.recentCalls().any((call) => call.service == service),
+          isTrue,
+        );
+      }
+      record(
+        recorder,
+        service: IntegrationService.serverLinkedArtwork,
+        url: 'https://other.example.com/users/private/cover',
+        outcome: IntegrationCallOutcome.blocked,
+      );
+      record(
+        recorder,
+        service: IntegrationService.deezer,
+        url: 'https://images.example.com/users/private/cover',
+        outcome: IntegrationCallOutcome.blocked,
+      );
+      expect(recorder.recentCalls(), hasLength(6));
+    },
+  );
+
+  test(
+    'policy epochs retain real history and reset only distinct refusals',
+    () {
+      final recorder = newRecorder();
+      const policy = IntegrationPolicy(masterEnabled: false);
+      recorder.beginPolicyEpoch(policy);
+      record(recorder);
+      record(recorder, outcome: IntegrationCallOutcome.blocked);
+      recorder.beginPolicyEpoch(const IntegrationPolicy(masterEnabled: false));
+      record(recorder, outcome: IntegrationCallOutcome.blocked);
+      expect(recorder.recentCalls(), hasLength(2));
+      recorder.beginPolicyEpoch(
+        const IntegrationPolicy(disabledKeys: {'lastfm'}),
+      );
+      record(recorder, outcome: IntegrationCallOutcome.blocked);
+      expect(recorder.recentCalls(), hasLength(3));
+      expect(recorder.countersFor(IntegrationService.lastFm).blocked, 2);
+      expect(recorder.countersFor(IntegrationService.lastFm).requests, 1);
+    },
+  );
+
+  test('refusal LRU is bounded and repeated destinations stay recent', () {
+    final recorder = IntegrationCallRecorder(
+      refusalCapacity: 2,
+      logCalls: false,
+    );
+    void refuse(String path) => record(
+      recorder,
+      url: 'https://images.example.com/$path',
+      outcome: IntegrationCallOutcome.blocked,
+    );
+    refuse('a');
+    refuse('b');
+    refuse('a'); // Keeps a recent, so c evicts b.
+    refuse('c');
+    refuse('a');
+    expect(recorder.countersFor(IntegrationService.lastFm).blocked, 3);
+    refuse('b');
+    expect(recorder.countersFor(IntegrationService.lastFm).blocked, 4);
+  });
+
   test('records service, method, path, status, duration and outcome', () {
     final recorder = newRecorder();
     record(recorder, url: 'https://lrclib.net/api/get', ms: 42);

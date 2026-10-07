@@ -242,17 +242,12 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
   // may load, and a refused one falls back to no image.
   final artUri = Uri.tryParse(trimmedArtUrl);
   if (artUri == null ||
-      !ref
-          .read(artworkCallRecorderProvider)
-          .checkAllowed(
-            artUri,
-            allowed: integrationAllowsArtworkUri(
-              ref.read(integrationPolicyProvider),
-              artUri,
-              serverHost: ref.read(serverHostProvider),
-              feature: IntegrationFeature.radioNowPlaying,
-            ),
-          )) {
+      !integrationAllowsArtworkUri(
+        ref.read(integrationPolicyProvider),
+        artUri,
+        serverHost: ref.read(serverHostProvider),
+        feature: IntegrationFeature.radioNowPlaying,
+      )) {
     return null;
   }
   return CachedNetworkImageProvider(

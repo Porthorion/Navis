@@ -19,8 +19,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';

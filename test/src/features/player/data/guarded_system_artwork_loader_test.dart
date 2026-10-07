@@ -6,9 +6,9 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/features/integrations/domain/integration_feature.dart';
-import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/guarded_system_artwork_loader.dart';
 
 class _CacheManager extends Mock implements BaseCacheManager;
@@ -78,13 +78,12 @@ void main() {
     });
   }
 
-  test('SMTC permission check records refusal without fetching', () {
+  test('50 SMTC permission checks stay pure without fetching', () {
     policy = const IntegrationPolicy(masterEnabled: false);
-    expect(loader.checkAllowed(radio), isFalse);
-    expect(
-      recorder.recentCalls().single.outcome,
-      IntegrationCallOutcome.blocked,
-    );
+    for (var i = 0; i < 50; i++) {
+      expect(loader.checkAllowed(radio), isFalse);
+    }
+    expect(recorder.recentCalls(), isEmpty);
     verifyZeroInteractions(cache);
   });
 

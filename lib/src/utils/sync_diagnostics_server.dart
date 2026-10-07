@@ -939,7 +939,9 @@ class SyncDiagnosticsServer {
         final body = await _readJson(request);
         final rawQuery = body['query'];
         final query = rawQuery is String ? rawQuery.trim() : '';
-        if ((rawQuery != null && rawQuery is! String) || query.length > 64) {
+        if (!body.containsKey('query') ||
+            (rawQuery != null && rawQuery is! String) ||
+            query.length > 64) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
             'error': 'query must be a string up to 64 characters or null',
           });

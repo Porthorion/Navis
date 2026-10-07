@@ -1010,10 +1010,10 @@ well as the root) and the player overlay stack before moving.
   `librarySectionProvider` from the router's change notification (never during
   build), so returning to the tab, history, deep links and diagnostics select
   the section named. A Library location without a section keeps the current
-  one. Changing sections clears the screen's local type-to-filter query for
-  keyboard input and clone-diagnostics commands alike. The diagnostics filter
-  controller resets its command on section changes and treats repeated queries
-  as new commands, so a query can be reapplied after the UI clears it.
+  one. The screen's local type-to-filter query persists across section changes
+  for keyboard input and clone-diagnostics commands alike. Diagnostics can
+  explicitly clear the query with an empty or null `query`; repeated queries
+  are new commands, so a query can be reapplied after the UI clears it.
 - **Page back buttons** use `NavService.back(context, fallback:)`: pop when the
   page has history, otherwise go to the fallback. `returnToLibrary` pops an
   unavailable detail page before switching to Library so it does not linger
@@ -1490,9 +1490,9 @@ switch means "Navis only talks to your server" when off. See
   external 404 never asks the server to refresh a cover id. The two URL-style
   consumers (`now_playing_screen.dart`'s radio art provider and
   `dynamic_accent_provider.dart`) apply the same check. Artist header URL
-  selection and these early image gates report refusals to
-  `ArtworkCallRecorder`;
-  allowed requests are counted only by the HTTP transport.
+  selection and prewarm checks are pure. External image lifecycle and fetch
+  boundaries report refusals to `ArtworkCallRecorder`; allowed requests are
+  counted only by the HTTP transport.
 - **Observability.** `IntegrationCallRecorder`
   (`integrationCallRecorderProvider`) is an in-memory ring buffer (200 calls,
   100 spans) fed by the guard interceptor, the shared `ArtworkCallRecorder`
@@ -1501,8 +1501,14 @@ switch means "Navis only talks to your server" when off. See
   service, regardless of which service/feature permits the image. The
   `CoverArtHttpFileService` records status and elapsed time through response
   body consumption, with transport, HTTP and invalid-image failures as `error`.
-  Early widget/provider/system-loader policy gates and dispatch-time refusals
-  record `blocked` through the same boundary. Own-server hosts and cache hits
+  Signature validation accepts JPEG, PNG, GIF, WebP, BMP, ICO, TIFF and
+  AVIF/HEIC/HEIF image brands so system art retains those server formats.
+  Image lifecycle and fetch-time refusals record `blocked` through the same
+  boundary; build methods and repeated system permission checks are pure.
+  Refusals are deduplicated by service, host and redacted path in a bounded
+  200-destination LRU, cleared when the integration policy changes. Repeated
+  refusals refresh their LRU position without changing counters or call history;
+  an evicted destination can record again. Own-server hosts and cache hits
   add no requests. The main cover-art cache, AudioService's dedicated art cache,
   Windows SMTC's guarded loader and `PlaybackArtCache` all use this transport;
   `PlaybackArtCache` retains its durable/offline files and atomic writes. The

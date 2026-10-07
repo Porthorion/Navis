@@ -2,17 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:file/file.dart' as files;
 import 'package:file/local.dart';
-import 'package:mocktail/mocktail.dart';
-
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/database/navis_database.dart';
-
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
@@ -48,11 +46,13 @@ void main() {
     var requests = 0;
     var status = HttpStatus.ok;
     var imageBody = true;
+    List<int>? payload;
 
     setUp(() async {
       requests = 0;
       status = HttpStatus.ok;
       imageBody = true;
+      payload = null;
       recorder = IntegrationCallRecorder(logCalls: false);
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((request) async {
@@ -61,7 +61,10 @@ void main() {
         request.response
           ..statusCode = status
           ..headers.contentType = ContentType('image', 'jpeg')
-          ..add(imageBody ? <int>[0xff, 0xd8, 0xff, 1] : <int>[1, 2, 3]);
+          ..add(
+            payload ??
+                (imageBody ? <int>[0xff, 0xd8, 0xff, 1] : <int>[1, 2, 3]),
+          );
         await request.response.close();
       });
       addTearDown(() => server.close(force: true));
@@ -133,6 +136,64 @@ void main() {
             .countersFor(IntegrationFeature.artworkServerLinked.service)
             .blocked,
         1,
+      );
+    });
+
+    for (final brand in [
+      'avif',
+      'avis',
+      'heic',
+      'heix',
+      'hevc',
+      'mif1',
+      'msf1',
+    ]) {
+      for (final compatible in [false, true]) {
+        test('accepts ISO-BMFF $brand (compatible=$compatible)', () async {
+          payload = [
+            0,
+            0,
+            0,
+            if (compatible) 24 else 16,
+            ...'ftyp'.codeUnits,
+            ...(compatible ? 'isom' : brand).codeUnits,
+            0,
+            0,
+            0,
+            0,
+            if (compatible) ...'isom$brand'.codeUnits,
+          ];
+          final response = await build().get(url());
+          expect(
+            await response.content.expand((chunk) => chunk).toList(),
+            payload,
+          );
+          expect(
+            recorder.recentCalls().single.outcome,
+            IntegrationCallOutcome.ok,
+          );
+        });
+      }
+    }
+    for (final signature in [
+      <int>[0x49, 0x49, 0x2a, 0],
+      <int>[0x4d, 0x4d, 0, 0x2a],
+    ]) {
+      test('accepts TIFF signature $signature', () async {
+        payload = signature;
+        final response = await build().get(url());
+        expect(
+          await response.content.expand((chunk) => chunk).toList(),
+          payload,
+        );
+      });
+    }
+    test('rejects non-image ISO-BMFF brands', () async {
+      payload = [0, 0, 0, 16, ...'ftypisom'.codeUnits, 0, 0, 0, 0];
+      final response = await build().get(url());
+      await expectLater(
+        response.content.drain<void>(),
+        throwsA(isA<CoverArtInvalidResponseException>()),
       );
     });
 

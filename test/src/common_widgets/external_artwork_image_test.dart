@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
-import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Fails every load, which is enough to show which path the widget took.
@@ -80,6 +80,88 @@ void main() {
       recorder.countersFor(IntegrationService.serverLinkedArtwork).requests,
       0,
     );
+  });
+
+  testWidgets(
+    '50 refused rebuilds record once and policy changes start a new epoch',
+    (tester) async {
+      final recorder = IntegrationCallRecorder(logCalls: false);
+      final container = ProviderContainer(
+        overrides: [
+          integrationCallRecorderProvider.overrideWithValue(recorder),
+          serverHostProvider.overrideWithValue(null),
+          coverArtCacheManagerProvider.overrideWithValue(
+            _UntouchableCacheManager(),
+          ),
+          integrationPolicyProvider.overrideWith(
+            (ref) => ref.watch(_policyState),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(_policyState.notifier)
+          .replace(const IntegrationPolicy.denyAll());
+      Widget harness() => UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ExternalArtworkImage(
+            url: 'https://images.example.com/a.jpg',
+            fallbackBuilder: (_) => const SizedBox(key: _fallbackKey),
+          ),
+        ),
+      );
+      for (var i = 0; i < 50; i++) {
+        await tester.pumpWidget(harness());
+      }
+      expect(recorder.recentCalls(), hasLength(1));
+      expect(
+        recorder.countersFor(IntegrationService.serverLinkedArtwork).blocked,
+        1,
+      );
+      container
+          .read(_policyState.notifier)
+          .replace(
+            const IntegrationPolicy(
+              masterEnabled: false,
+              disabledKeys: {'artwork'},
+            ),
+          );
+      await tester.pump();
+      expect(recorder.recentCalls(), hasLength(2));
+      expect(
+        recorder.countersFor(IntegrationService.serverLinkedArtwork).blocked,
+        2,
+      );
+    },
+  );
+
+  test('the shared recorder retains history when the policy changes', () {
+    final container = ProviderContainer(
+      overrides: [
+        integrationPolicyProvider.overrideWith(
+          (ref) => ref.watch(_policyState),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final recorder = container.read(integrationCallRecorderProvider);
+    void refuse() => recorder.recordCall(
+      service: IntegrationService.serverLinkedArtwork,
+      method: 'GET',
+      uri: Uri.parse('https://images.example.com/a.jpg'),
+      duration: Duration.zero,
+      outcome: IntegrationCallOutcome.blocked,
+    );
+    refuse();
+    refuse();
+    expect(recorder.recentCalls(), hasLength(1));
+    container
+        .read(_policyState.notifier)
+        .replace(const IntegrationPolicy.denyAll());
+    expect(container.read(integrationCallRecorderProvider), same(recorder));
+    refuse();
+    expect(recorder.recentCalls(), hasLength(2));
   });
 
   testWidgets('loads an allowed URL through the cover art cache manager', (

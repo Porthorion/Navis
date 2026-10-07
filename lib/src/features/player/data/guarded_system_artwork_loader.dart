@@ -1,8 +1,8 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 /// Shares policy and cached files with the app's external artwork surfaces.
@@ -33,17 +33,17 @@ class GuardedSystemArtworkLoader {
               integrationAllowsArtworkHost(policy, uri, serverHost: serverHost);
   }
 
-  /// Checks a requested OS image and records an early policy refusal.
-  bool checkAllowed(MediaItem item) {
-    final uri = item.artUri;
-    if (uri == null) return false;
-    final allowed = isAllowed(item);
-    return artworkRecorder?.checkAllowed(uri, allowed: allowed) ?? allowed;
-  }
+  /// Checks permission without recording repeated system metadata checks.
+  bool checkAllowed(MediaItem item) => isAllowed(item);
 
   Future<String?> fetch(MediaItem item) async {
     // Check even for a cache hit: refused art must not reach the OS session.
-    if (!checkAllowed(item)) return null;
+    final uri = item.artUri;
+    if (uri == null) return null;
+    final allowed = isAllowed(item);
+    if (!(artworkRecorder?.checkAllowed(uri, allowed: allowed) ?? allowed)) {
+      return null;
+    }
     final url = item.artUri!.toString();
     final feature = _isRadio(item) ? IntegrationFeature.radioNowPlaying : null;
     final file = await _readCacheManager().getSingleFile(

@@ -1699,7 +1699,7 @@ void main() {
     });
 
     _testWidgetsWithCleanup(
-      'diagnostic Library filter reaches Radio and Show all stations restores it',
+      'Library filters persist across sections and explicit clears restore results',
       (tester) async {
         final container = ProviderContainer(
           overrides: withTestDatabase(
@@ -1776,16 +1776,31 @@ void main() {
         expect(find.byIcon(Icons.close_rounded), findsOneWidget);
         await tester.tap(find.text('Radio'));
         await tester.pumpAndSettle();
-        expect(find.text('Navis Test Radio'), findsOneWidget);
-        expect(find.text('Filtering: "guest"'), findsNothing);
+        expect(
+          find.text('No Stations Match \u201cguest\u201d'),
+          findsOneWidget,
+        );
+        expect(find.text('Filtering: "guest"'), findsOneWidget);
+        container
+            .read(libraryTypeFilterDiagnosticsProvider.notifier)
+            .setQuery('');
+        await tester.pumpAndSettle();
 
-        // Keyboard filters follow the same section lifecycle.
+        // Typed filters persist just like diagnostics commands.
         await tester.sendKeyEvent(LogicalKeyboardKey.keyX, character: 'x');
         await tester.pumpAndSettle();
         expect(find.text('No Stations Match \u201cx\u201d'), findsOneWidget);
         await tester.tap(find.text('Artists'));
         await tester.pumpAndSettle();
-        expect(find.text('Filtering: "x"'), findsNothing);
+        expect(find.text('Filtering: "x"'), findsOneWidget);
+        await tester.tap(find.text('Radio'));
+        await tester.pumpAndSettle();
+        expect(find.text('No Stations Match \u201cx\u201d'), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Navis Test Radio'), findsOneWidget);
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
         for (final clear in <String?>['', null]) {
           container
               .read(libraryTypeFilterDiagnosticsProvider.notifier)

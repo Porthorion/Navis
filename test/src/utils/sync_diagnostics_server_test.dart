@@ -2021,6 +2021,19 @@ void main() {
         'no-match',
       );
     }
+    final missingQuery = await _request(
+      fixture.port,
+      '/v1/presentation/library-filter',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{},
+    );
+    expect(missingQuery.statusCode, HttpStatus.badRequest);
+    expect(
+      fixture.container.read(libraryTypeFilterDiagnosticsProvider),
+      'no-match',
+    );
+
     final maxLength = await _request(
       fixture.port,
       '/v1/presentation/library-filter',

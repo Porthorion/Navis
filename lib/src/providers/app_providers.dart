@@ -1,7 +1,3 @@
-import 'package:navis/src/features/equalizer/data/eq_repository.dart';
-import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
-import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -12,8 +8,8 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
@@ -21,14 +17,13 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
-import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
@@ -36,58 +31,62 @@ import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
-import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/equalizer/data/eq_repository.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/home/presentation/home_deezer_providers.dart';
-import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
-import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/deezer_artist_resolver.dart';
 import 'package:navis/src/features/integrations/data/deezer_cache.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
-import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
+import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/library_browse_models.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/data/guarded_system_artwork_loader.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
-import 'package:navis/src/features/player/data/guarded_system_artwork_loader.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
-import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
-import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
-import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
-import 'package:navis/src/features/library/presentation/library_browse_models.dart';
-import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
-import 'package:navis/src/features/settings/data/settings_repository.dart';
-import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/features/settings/data/install_source_service.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
-import 'package:navis/src/routing/content_layout.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/common_widgets/cover_art_recovery.dart';
+import 'package:navis/src/routing/content_layout.dart';
+import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 const String _syncDiagnosticsRoot = String.fromEnvironment(
@@ -203,8 +202,12 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
 });
 
 final artworkCallRecorderProvider = Provider<ArtworkCallRecorder>((ref) {
+  final recorder = ref.watch(integrationCallRecorderProvider);
+  ref.listen(integrationPolicyProvider, (_, policy) {
+    recorder.beginPolicyEpoch(policy);
+  }, fireImmediately: true);
   return ArtworkCallRecorder(
-    recorder: ref.watch(integrationCallRecorderProvider),
+    recorder: recorder,
     isServerUri: (uri) =>
         integrationFeatureForArtworkUri(
           uri,
@@ -214,22 +217,27 @@ final artworkCallRecorderProvider = Provider<ArtworkCallRecorder>((ref) {
   );
 });
 
-CoverArtHttpFileService _createPlaybackArtworkFileService(Ref ref) {
+/// Creates the playback artwork transport with disposal-safe policy callbacks.
+@visibleForTesting
+CoverArtHttpFileService createPlaybackArtworkFileService(Ref ref) {
   final service = CoverArtHttpFileService(
     connectionTimeout: const Duration(seconds: 10),
     responseTimeout: const Duration(seconds: 15),
     bodyReadTimeout: const Duration(seconds: 30),
-    allowUri: (uri) => integrationAllowsArtworkHost(
-      ref.read(integrationPolicyProvider),
-      uri,
-      serverHost: ref.read(serverHostProvider),
-    ),
-    isServerUri: (uri) =>
-        integrationFeatureForArtworkUri(
+    allowUri: (uri) =>
+        ref.mounted &&
+        integrationAllowsArtworkHost(
+          ref.read(integrationPolicyProvider),
           uri,
           serverHost: ref.read(serverHostProvider),
-        ) ==
-        null,
+        ),
+    isServerUri: (uri) =>
+        ref.mounted &&
+        integrationFeatureForArtworkUri(
+              uri,
+              serverHost: ref.read(serverHostProvider),
+            ) ==
+            null,
     recorder: ref.read(integrationCallRecorderProvider),
     reportNetworkUsage: _networkUsageReporter(
       ref.read(networkUsageMeterProvider),
@@ -855,9 +863,15 @@ final integrationPolicyProvider = Provider<IntegrationPolicy>((ref) {
 
 /// Calls to external services and timed pipeline spans, for the
 /// `/v1/diagnostics/integrations` endpoint and the debug log.
-final integrationCallRecorderProvider = Provider<IntegrationCallRecorder>(
-  (_) => IntegrationCallRecorder(),
-);
+final integrationCallRecorderProvider = Provider<IntegrationCallRecorder>((
+  ref,
+) {
+  final recorder = IntegrationCallRecorder();
+  ref.listen(integrationPolicyProvider, (_, policy) {
+    recorder.beginPolicyEpoch(policy);
+  }, fireImmediately: true);
+  return recorder;
+});
 
 /// Builds the guarded [Dio] for an external service. Every client of a
 /// service other than the user's own server takes its [Dio] from here.
@@ -1162,9 +1176,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
             serverHost: ref.read(serverHostProvider),
           ) ==
           null,
-      playbackArtworkFileService: _createPlaybackArtworkFileService(ref),
+      playbackArtworkFileService: createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,
-      readWindowsArtworkAllowed: windowsArtwork.checkAllowed,
+      readWindowsArtworkAllowed: windowsArtwork.isAllowed,
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),

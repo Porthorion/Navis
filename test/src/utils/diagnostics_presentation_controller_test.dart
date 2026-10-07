@@ -1,13 +1,16 @@
 import 'dart:io';
 
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
@@ -15,15 +18,11 @@ import 'package:navis/src/features/player/presentation/playback_quick_actions.da
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
-
-import '../../helpers/fake_eq_controller.dart';
-
-import 'package:navis/src/common_widgets/navis_tooltip.dart';
-import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:path/path.dart' as p;
+
+import '../../helpers/fake_eq_controller.dart';
 
 class _SettingsRepository extends Mock implements SettingsRepository;
 
@@ -39,27 +38,30 @@ void main() {
     expect(container.read(libraryTypeFilterDiagnosticsProvider), '');
   });
 
-  test('Library filter commands reset on section changes and can repeat', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final commands = <String?>[];
-    final subscription = container.listen(
-      libraryTypeFilterDiagnosticsProvider,
-      (_, next) => commands.add(next),
-    );
-    addTearDown(subscription.close);
-    final controller = container.read(
-      libraryTypeFilterDiagnosticsProvider.notifier,
-    );
-    controller.setQuery('typed');
-    container
-        .read(librarySectionProvider.notifier)
-        .setSection(LibrarySection.artists);
-    expect(container.read(libraryTypeFilterDiagnosticsProvider), '');
-    controller.setQuery('typed');
-    controller.setQuery('typed');
-    expect(commands, ['typed', '', 'typed', 'typed']);
-  });
+  test(
+    'Library filter commands persist across section changes and can repeat',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final commands = <String?>[];
+      final subscription = container.listen(
+        libraryTypeFilterDiagnosticsProvider,
+        (_, next) => commands.add(next),
+      );
+      addTearDown(subscription.close);
+      final controller = container.read(
+        libraryTypeFilterDiagnosticsProvider.notifier,
+      );
+      controller.setQuery('typed');
+      container
+          .read(librarySectionProvider.notifier)
+          .setSection(LibrarySection.artists);
+      expect(container.read(libraryTypeFilterDiagnosticsProvider), 'typed');
+      controller.setQuery('typed');
+      controller.setQuery('typed');
+      expect(commands, ['typed', 'typed', 'typed']);
+    },
+  );
 
   testWidgets('player quick controls are observed and opened by the button', (
     tester,

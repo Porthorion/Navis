@@ -562,10 +562,12 @@ images), Now Playing art and dynamic accents, Windows SMTC, AudioService's OS
 art cache and `PlaybackArtCache`. Each external redirect hop is a separate
 call; successful image durations include body consumption. HTTP/transport or
 invalid-image failures are `error`, with the HTTP status when available. A
-policy refusal at an early image gate, after a queue wait or on a redirect is
-`blocked` and adds no `requests`. Blocked counters measure refused attempts or
-gate decisions, not unique URLs; rebuilding a refused image can add another
-blocked decision. Own-server images and cache hits add no requests. Artwork
+policy refusal at an image lifecycle or fetch boundary, after a queue wait or
+on a redirect is `blocked` and adds no `requests`. Blocked counters count
+distinct refusals by service, host and redacted path within the policy epoch,
+using a bounded 200-destination LRU. Rebuilds and repeated system permission
+checks add no records; a policy change or eviction from that LRU permits a
+new refusal record. Own-server images and cache hits add no requests. Artwork
 uses the same path-only redaction (including `/user/` and `/users/` identifiers):
 no userinfo, query, fragment, headers or body is retained.
 
@@ -711,9 +713,10 @@ the tree remains otherwise usable.
   `{"query": null}` clears it and returns HTTP 200 with `query: ""` and the
   current `section`; whitespace-only strings also clear it. Non-empty strings
   are trimmed and limited to 64 characters; longer strings and non-string,
-  non-null values return HTTP 400. Keyboard and diagnostics filters both clear
-  when the Library section changes, including tab, sidebar and route-driven
-  changes. Repeating a diagnostics query after clearing applies it again.
+  non-null values and bodies without the `query` key return HTTP 400. Keyboard
+  and diagnostics filters persist when the Library section changes, including
+  tab, sidebar and route-driven changes. Repeating a diagnostics query after
+  explicitly clearing applies it again.
   `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'` on `/library` captures
   the real Albums filtered-empty state before and after restart. Together with
   the deterministic `radioPresentationFixture` override,
