@@ -129,6 +129,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases retain their GPL licence',
+      ),
+      ChangelogEntry(
         'Custom accent colours use an updated colour-name collection and perceptual matching',
       ),
       ChangelogEntry(

@@ -22,7 +22,8 @@ build is a minimal 2023-09-24 libmpv from an archived repository, without the
 FFmpeg `volume` and `biquad` filters the equalizer needs and without FFmpeg
 fixes since. Navis pins a full build from
 [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake)
-instead. It is GPL, like Navis.
+instead. Closed-source distribution requires an LGPL libmpv/FFmpeg build;
+replacement of the current GPL pin is tracked in `COMPLIANCE-AUDIT.md` L-3.
 
 The full build costs size: at 1.4.0 the release bundle is 168.1 MB installed
 (`libmpv-2.dll` 120.9 MB, against 15.5 MB for media_kit's build) and the
