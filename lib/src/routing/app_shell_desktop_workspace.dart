@@ -9,8 +9,6 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.expandRequestNotifier,
     required this.selectedIndex,
     required this.destinations,
-    required this.showOfflineBanner,
-    required this.offlineBannerText,
     required this.showPlayer,
     required this.showQueueOverlay,
     required this.hasPlayerOverlay,
@@ -48,8 +46,6 @@ class _DesktopWorkspace extends StatefulWidget {
   final ValueNotifier<int> expandRequestNotifier;
   final int selectedIndex;
   final List<_ShellDestination> destinations;
-  final bool showOfflineBanner;
-  final String offlineBannerText;
   final bool showPlayer;
   final bool showQueueOverlay;
   final bool hasPlayerOverlay;
@@ -249,8 +245,6 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                           top: false,
                           right: false,
                           child: ShellOfflineBannerFrame(
-                            visible: widget.showOfflineBanner,
-                            message: widget.offlineBannerText,
                             child: LayoutBuilder(
                               builder: (context, constraints) {
                                 final width = constraints.maxWidth;

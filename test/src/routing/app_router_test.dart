@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/app.dart';
@@ -50,6 +51,8 @@ class _StaticReachabilityController extends ServerReachabilityController {
   Future<void> retryNow() async {
     retryCalls++;
   }
+
+  void set(ServerReachabilityState next) => state = next;
 }
 
 class _TestServerConfigNotifier extends ServerConfigNotifier {
@@ -796,6 +799,89 @@ void main() {
       expect(reachability.retryCalls, 1);
     });
   }
+
+  testWidgets('app notices never sit over the offline banner as it goes', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 2
+      ..physicalSize = const Size(400, 800) * 2
+      ..padding = const FakeViewPadding(top: 48)
+      ..viewPadding = const FakeViewPadding(top: 48);
+    addTearDown(tester.view.reset);
+    final reachability = _StaticReachabilityController(
+      const ServerReachabilityState(status: ServerReachabilityStatus.offline),
+    );
+    final container = _createContainerWithDatabase(
+      overrides: [
+        desktopPresentationRuntimeProvider.overrideWithValue(false),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(() => reachability),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    container
+        .read(appNoticeDiagnosticsProvider.notifier)
+        .show(message: 'Notice under the banner', level: AppNoticeLevel.info);
+    await tester.pumpAndSettle();
+    final banner = find.byKey(ShellOfflineBanner.bannerKey);
+    final notice = find.text('Notice under the banner');
+    expect(notice, findsOneWidget);
+    expect(
+      tester.getTopLeft(notice).dy,
+      greaterThan(tester.getBottomLeft(banner).dy),
+    );
+
+    reachability.set(
+      const ServerReachabilityState(status: ServerReachabilityStatus.online),
+    );
+    await tester.pump();
+    var collapsingFrames = 0;
+    for (var frame = 0; frame < 12; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (banner.evaluate().isEmpty) {
+        break;
+      }
+      collapsingFrames++;
+      expect(
+        tester.getTopLeft(notice).dy,
+        greaterThan(tester.getBottomLeft(banner).dy),
+        reason: 'frame $frame of the collapse',
+      );
+    }
+    expect(collapsingFrames, greaterThan(3));
+    await tester.pumpAndSettle();
+    expect(banner, findsNothing);
+    // Back in its usual place below the status bar.
+    expect(tester.getTopLeft(notice).dy, greaterThan(24 + 12));
+    expect(tester.getTopLeft(notice).dy, lessThan(24 + 12 + 24));
+  });
 
   testWidgets('supports route params for detail pages', (tester) async {
     final container = _createContainerWithDatabase(

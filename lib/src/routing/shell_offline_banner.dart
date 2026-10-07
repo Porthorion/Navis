@@ -5,17 +5,13 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
-/// Puts the offline banner above [child] and hands it the top inset.
+/// Drives the shell's offline banner for everything below it.
 ///
-/// The shell runs edge to edge, so the banner sits under the status bar and
-/// pads its own content below it. While the banner is on screen, [child]
-/// sees no top padding, so pages keep using `SafeArea` and primary `AppBar`s
-/// without adding the status bar height a second time.
-///
-/// Only the content part of the banner animates. The status bar strip
-/// appears and disappears together with the padding it replaces, so pages
-/// never jump by the status bar height.
-class ShellOfflineBannerFrame extends StatefulWidget {
+/// One animation reveals and hides the banner, and the shell also positions
+/// its app notices from it (through [ShellOfflineBannerExtentBuilder]), so a
+/// notice follows the banner frame by frame instead of jumping over it while
+/// it collapses. The last message is kept while the banner animates away.
+class ShellOfflineBannerScope extends StatefulWidget {
   const new({
     super.key,
     required this.visible,
@@ -27,24 +23,28 @@ class ShellOfflineBannerFrame extends StatefulWidget {
   final String message;
   final Widget child;
 
+  static _ShellOfflineBannerInherited _of(BuildContext context) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_ShellOfflineBannerInherited>();
+    assert(scope != null, 'No ShellOfflineBannerScope above this widget.');
+    return scope!;
+  }
+
   @override
-  State<ShellOfflineBannerFrame> createState() =>
-      _ShellOfflineBannerFrameState();
+  State<ShellOfflineBannerScope> createState() =>
+      _ShellOfflineBannerScopeState();
 }
 
-class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame>
+class _ShellOfflineBannerScopeState extends State<ShellOfflineBannerScope>
     with SingleTickerProviderStateMixin {
   late final AnimationController _reveal = AnimationController(
     vsync: this,
     value: widget.visible ? 1 : 0,
-  )..addStatusListener(_onRevealStatus);
+  );
   late final CurvedAnimation _curvedReveal = CurvedAnimation(
     parent: _reveal,
     curve: Curves.easeOutCubic,
   );
-  // The banner stays present while it animates away.
-  late bool _present = widget.visible;
-  // The last message shown, kept while the banner animates away.
   late String _message = widget.message;
 
   @override
@@ -57,11 +57,10 @@ class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame>
   }
 
   @override
-  void didUpdateWidget(covariant ShellOfflineBannerFrame oldWidget) {
+  void didUpdateWidget(covariant ShellOfflineBannerScope oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.visible) {
       _message = widget.message;
-      _present = true;
     }
     if (widget.visible != oldWidget.visible) {
       if (widget.visible) {
@@ -69,13 +68,6 @@ class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame>
       } else {
         _reveal.reverse();
       }
-    }
-  }
-
-  void _onRevealStatus(AnimationStatus status) {
-    final present = !status.isDismissed;
-    if (present != _present && mounted) {
-      setState(() => _present = present);
     }
   }
 
@@ -88,10 +80,122 @@ class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame>
 
   @override
   Widget build(BuildContext context) {
+    return _ShellOfflineBannerInherited(
+      reveal: _curvedReveal,
+      message: _message,
+      child: widget.child,
+    );
+  }
+}
+
+class _ShellOfflineBannerInherited extends InheritedWidget {
+  const new({
+    required this.reveal,
+    required this.message,
+    required super.child,
+  });
+
+  final Animation<double> reveal;
+  final String message;
+
+  @override
+  bool updateShouldNotify(_ShellOfflineBannerInherited oldWidget) =>
+      reveal != oldWidget.reveal || message != oldWidget.message;
+}
+
+/// Rebuilds with the banner's current content height, from 0 when hidden to
+/// [ShellOfflineBanner.contentHeight] when shown, following its animation.
+///
+/// The extent assumes a one-line banner; a message wrapped by a very large
+/// text scale makes the banner taller than this.
+class ShellOfflineBannerExtentBuilder extends StatelessWidget {
+  const new({super.key, required this.builder});
+
+  final Widget Function(BuildContext context, double extent) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final reveal = ShellOfflineBannerScope._of(context).reveal;
+    return AnimatedBuilder(
+      animation: reveal,
+      builder: (context, _) =>
+          builder(context, ShellOfflineBanner.contentHeight * reveal.value),
+    );
+  }
+}
+
+/// Puts the offline banner above [child] and hands it the top inset.
+///
+/// The shell runs edge to edge, so the banner sits under the status bar and
+/// pads its own content below it. While the banner is on screen, [child]
+/// sees no top padding, so pages keep using `SafeArea` and primary `AppBar`s
+/// without adding the status bar height a second time.
+///
+/// Only the content part of the banner animates. The status bar strip
+/// appears and disappears together with the padding it replaces, so pages
+/// never jump by the status bar height. Needs a [ShellOfflineBannerScope]
+/// above it.
+class ShellOfflineBannerFrame extends StatefulWidget {
+  const new({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ShellOfflineBannerFrame> createState() =>
+      _ShellOfflineBannerFrameState();
+}
+
+class _ShellOfflineBannerFrameState extends State<ShellOfflineBannerFrame> {
+  Animation<double>? _reveal;
+  // The banner stays present while it animates away.
+  bool _present = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reveal = ShellOfflineBannerScope._of(context).reveal;
+    if (!identical(reveal, _reveal)) {
+      _reveal
+        ?..removeStatusListener(_onRevealStatus)
+        ..removeListener(_onReveal);
+      _reveal = reveal
+        ..addStatusListener(_onRevealStatus)
+        ..addListener(_onReveal);
+      _present = _isPresent(reveal);
+    }
+  }
+
+  // Presence follows the value, not the dismissed status: a zero-length
+  // (reduced motion) animation sets the value before its status, and a
+  // controller created at its upper bound never reports the jump to
+  // dismissed. A starting animation is present before its value moves.
+  static bool _isPresent(Animation<double> reveal) =>
+      reveal.value > 0 || reveal.isAnimating;
+
+  void _onRevealStatus(AnimationStatus _) => _onReveal();
+
+  void _onReveal() {
+    final present = _isPresent(_reveal!);
+    if (present != _present && mounted) {
+      setState(() => _present = present);
+    }
+  }
+
+  @override
+  void dispose() {
+    _reveal
+      ?..removeStatusListener(_onRevealStatus)
+      ..removeListener(_onReveal);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = ShellOfflineBannerScope._of(context);
     return Column(
       children: <Widget>[
         if (_present)
-          ShellOfflineBanner(message: _message, reveal: _curvedReveal),
+          ShellOfflineBanner(message: scope.message, reveal: scope.reveal),
         Expanded(
           // Always wrapped in the same widget type, so toggling the banner
           // never rebuilds the pages below it.

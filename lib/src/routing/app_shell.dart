@@ -919,9 +919,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     final offlineBannerText = reachability.showRetryBanner
         ? l10n.serverOfflineBanner
         : l10n.serverOfflineQuietBanner;
-    final appNoticeTopOffset = showOfflineBanner
-        ? 12.0 + ShellOfflineBanner.contentHeight
-        : 12.0;
     // Queue-only changes (songs merged or released while an artist loads)
     // must not rebuild the whole shell; nothing here renders the queue.
     final playback = ref
@@ -1510,361 +1507,319 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // elsewhere (e.g. Search) still has keyboard insets in flight.
                   resizeToAvoidBottomInset:
                       !useCompactWideLandscape && !(showPlayer && isExpanded),
-                  body: Stack(
-                    children: <Widget>[
-                      if (useDesktopShell &&
-                          (!isMiniPlayerMode || _lastDesktopViewSize != null))
-                        // Kept mounted, hidden, in Mini Player once Desktop
-                        // View has been shown, so every tab keeps its pages;
-                        // it must stay the first child.
-                        _HiddenWorkspaceLayer(
-                          key: const ValueKey<String>('desktopWorkspaceLayer'),
-                          hidden: desktopRuntime && isMiniPlayerMode,
-                          desktopViewSize: _lastDesktopViewSize ?? mediaSize,
-                          child: _DesktopWorkspace(
-                            desktopLayoutClass: desktopLayoutClass,
-                            sidebarWidth: desktopSidebarWidth,
-                            navbarStyle: navbarStyle,
-                            navbarAutohide: navbarAutohide,
-                            expandRequestNotifier: _navExpandRequestNotifier,
-                            selectedIndex: selectedIndex,
-                            destinations: railDestinations,
-                            showOfflineBanner: showOfflineBanner,
-                            offlineBannerText: offlineBannerText,
-                            showPlayer: showPlayer,
-                            showQueueOverlay: showQueueOverlay,
-                            hasPlayerOverlay: hasPlayerOverlay,
-                            navigationShell: navigationShell,
-                            playback: playback,
-                            songTitle: songTitle,
-                            songArtist: songArtist,
-                            artistId: artistId,
-                            albumId: albumId,
-                            coverArtId: coverArtId,
-                            coverArtUrl: coverArtUrl,
-                            isExternalSource: isExternalSource,
-                            onDestinationSelected: onDestinationSelected,
-                            showLibrarySubNavigation: showLibrarySubNavigation,
-                            librarySectionsFit: _librarySectionsFitSidebar,
-                            selectedLibrarySection: highlightedLibrarySection,
-                            visibleLibrarySections: visibleLibrarySections,
-                            onLibrarySectionSelected: onLibrarySectionSelected,
-                            allowScrollableRail: allowScrollableRail,
-                            onOpenPlayer: _toggleDesktopLyricsOverlay,
-                            onToggleQueue: () {
-                              if (showQueueOverlay) {
-                                _hideQueueWithAnimation();
-                              } else {
-                                _showQueueOverlay(
-                                  queueOnly: useDesktopShell,
-                                  invokerFocusNode:
-                                      _desktopQueueToggleFocusNode,
-                                );
-                              }
-                            },
-                            onDismissQueue: _handleQueueOverlayDismissed,
-                            queueToggleFocusNode: _desktopQueueToggleFocusNode,
-                            queueOverlayKey: _queueOverlayKey,
-                            showLyricsOverlay: showDesktopLyricsOverlay,
-                            onToggleLyrics: _toggleDesktopLyricsOverlay,
-                            onSystemBack: _handleShellBack,
-                            onToggleAutohide: () async {
-                              final db = ref.read(navisDatabaseProvider);
-                              await db.appSettingsDao
-                                  .updateDesktopNavbarAutohide(!navbarAutohide);
-                            },
+                  body: ShellOfflineBannerScope(
+                    visible: showOfflineBanner,
+                    message: offlineBannerText,
+                    child: Stack(
+                      children: <Widget>[
+                        if (useDesktopShell &&
+                            (!isMiniPlayerMode || _lastDesktopViewSize != null))
+                          // Kept mounted, hidden, in Mini Player once Desktop
+                          // View has been shown, so every tab keeps its pages;
+                          // it must stay the first child.
+                          _HiddenWorkspaceLayer(
+                            key: const ValueKey<String>(
+                              'desktopWorkspaceLayer',
+                            ),
+                            hidden: desktopRuntime && isMiniPlayerMode,
+                            desktopViewSize: _lastDesktopViewSize ?? mediaSize,
+                            child: _DesktopWorkspace(
+                              desktopLayoutClass: desktopLayoutClass,
+                              sidebarWidth: desktopSidebarWidth,
+                              navbarStyle: navbarStyle,
+                              navbarAutohide: navbarAutohide,
+                              expandRequestNotifier: _navExpandRequestNotifier,
+                              selectedIndex: selectedIndex,
+                              destinations: railDestinations,
+                              showPlayer: showPlayer,
+                              showQueueOverlay: showQueueOverlay,
+                              hasPlayerOverlay: hasPlayerOverlay,
+                              navigationShell: navigationShell,
+                              playback: playback,
+                              songTitle: songTitle,
+                              songArtist: songArtist,
+                              artistId: artistId,
+                              albumId: albumId,
+                              coverArtId: coverArtId,
+                              coverArtUrl: coverArtUrl,
+                              isExternalSource: isExternalSource,
+                              onDestinationSelected: onDestinationSelected,
+                              showLibrarySubNavigation:
+                                  showLibrarySubNavigation,
+                              librarySectionsFit: _librarySectionsFitSidebar,
+                              selectedLibrarySection: highlightedLibrarySection,
+                              visibleLibrarySections: visibleLibrarySections,
+                              onLibrarySectionSelected:
+                                  onLibrarySectionSelected,
+                              allowScrollableRail: allowScrollableRail,
+                              onOpenPlayer: _toggleDesktopLyricsOverlay,
+                              onToggleQueue: () {
+                                if (showQueueOverlay) {
+                                  _hideQueueWithAnimation();
+                                } else {
+                                  _showQueueOverlay(
+                                    queueOnly: useDesktopShell,
+                                    invokerFocusNode:
+                                        _desktopQueueToggleFocusNode,
+                                  );
+                                }
+                              },
+                              onDismissQueue: _handleQueueOverlayDismissed,
+                              queueToggleFocusNode:
+                                  _desktopQueueToggleFocusNode,
+                              queueOverlayKey: _queueOverlayKey,
+                              showLyricsOverlay: showDesktopLyricsOverlay,
+                              onToggleLyrics: _toggleDesktopLyricsOverlay,
+                              onSystemBack: _handleShellBack,
+                              onToggleAutohide: () async {
+                                final db = ref.read(navisDatabaseProvider);
+                                await db.appSettingsDao
+                                    .updateDesktopNavbarAutohide(
+                                      !navbarAutohide,
+                                    );
+                              },
+                            ),
                           ),
-                        ),
-                      if (desktopRuntime && isMiniPlayerMode)
-                        if (miniPlayerBelowMinimum)
-                          const _DesktopMiniPlayerUndersizedSurface()
-                        else
-                          _DesktopMiniPlayerSurface(
-                            playback: playback,
-                            songTitle: songTitle,
-                            songArtist: songArtist,
-                            coverArtId: coverArtId,
-                            coverArtUrl: nowPlayingArtUrl,
-                            isExternalSource: isExternalSource,
-                            onBackInterceptorChanged: (handler) {
-                              _nowPlayingBackInterceptor = handler;
-                            },
-                            onCompactWideOverlayActiveChanged:
-                                _handleCompactWideOverlayActiveChanged,
-                            onCompactWideQueueRequestChanged:
-                                _handleCompactWideQueueRequestChanged,
-                          )
-                      else if (useDesktopShell)
-                        const SizedBox.shrink()
-                      else if (useRailNavigation)
-                        Padding(
-                          padding: useCompactWideLandscape
-                              ? EdgeInsets.only(
-                                  left: mediaPadding.left,
-                                  right: mediaPadding.right,
-                                )
-                              : EdgeInsets.zero,
-                          child: Row(
-                            children: <Widget>[
-                              Material(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerLow,
-                                child: SafeArea(
-                                  left: !useCompactWideLandscape,
-                                  right: !useCompactWideLandscape,
-                                  minimum: EdgeInsets.only(
-                                    bottom: railBottomInset,
-                                  ),
-                                  child: SizedBox(
-                                    width: sideRailWidth,
-                                    child: Padding(
-                                      padding: useCompactWideLandscape
-                                          ? const EdgeInsets.fromLTRB(
-                                              0,
-                                              8,
-                                              0,
-                                              8,
-                                            )
-                                          : const EdgeInsets.fromLTRB(
-                                              18,
-                                              14,
-                                              18,
-                                              14,
-                                            ),
-                                      child: useCompactWideLandscape
-                                          ? _CompactIconRail(
-                                              destinations: railDestinations,
-                                              selectedIndex: selectedIndex,
-                                              onDestinationSelected:
-                                                  onDestinationSelected,
-                                            )
-                                          : _RailSidebar(
-                                              selectedIndex: selectedIndex,
-                                              onDestinationSelected:
-                                                  onDestinationSelected,
-                                              destinations: railDestinations,
-                                              showLibrarySubNavigation:
-                                                  showLibrarySubNavigation,
-                                              librarySectionsFit:
-                                                  _librarySectionsFitSidebar,
-                                              selectedLibrarySection:
-                                                  highlightedLibrarySection,
-                                              visibleLibrarySections:
-                                                  visibleLibrarySections,
-                                              onLibrarySectionSelected:
-                                                  onLibrarySectionSelected,
-                                              allowScrollableRail:
-                                                  allowScrollableRail,
-                                              showPlayer: showPlayer,
-                                              playback: playback,
-                                              songTitle: songTitle,
-                                              songArtist: songArtist,
-                                              artistId: artistId,
-                                              albumId: albumId,
-                                              coverArtId: coverArtId,
-                                              coverArtUrl: coverArtUrl,
-                                              isExternalSource:
-                                                  isExternalSource,
-                                              isRadio: playback.isRadioMode,
-                                              radioArtUrl: playback
-                                                  .radioStation
-                                                  ?.nowPlayingArtUrl,
-                                              onOpenPlayer: () {
-                                                NavService.dismissKeyboard(
-                                                  context,
-                                                );
-                                                ref
-                                                    .read(
-                                                      playerOverlayStackProvider
-                                                          .notifier,
-                                                    )
-                                                    .expand();
-                                              },
-                                            ),
+                        if (desktopRuntime && isMiniPlayerMode)
+                          if (miniPlayerBelowMinimum)
+                            const _DesktopMiniPlayerUndersizedSurface()
+                          else
+                            _DesktopMiniPlayerSurface(
+                              playback: playback,
+                              songTitle: songTitle,
+                              songArtist: songArtist,
+                              coverArtId: coverArtId,
+                              coverArtUrl: nowPlayingArtUrl,
+                              isExternalSource: isExternalSource,
+                              onBackInterceptorChanged: (handler) {
+                                _nowPlayingBackInterceptor = handler;
+                              },
+                              onCompactWideOverlayActiveChanged:
+                                  _handleCompactWideOverlayActiveChanged,
+                              onCompactWideQueueRequestChanged:
+                                  _handleCompactWideQueueRequestChanged,
+                            )
+                        else if (useDesktopShell)
+                          const SizedBox.shrink()
+                        else if (useRailNavigation)
+                          Padding(
+                            padding: useCompactWideLandscape
+                                ? EdgeInsets.only(
+                                    left: mediaPadding.left,
+                                    right: mediaPadding.right,
+                                  )
+                                : EdgeInsets.zero,
+                            child: Row(
+                              children: <Widget>[
+                                Material(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
+                                  child: SafeArea(
+                                    left: !useCompactWideLandscape,
+                                    right: !useCompactWideLandscape,
+                                    minimum: EdgeInsets.only(
+                                      bottom: railBottomInset,
+                                    ),
+                                    child: SizedBox(
+                                      width: sideRailWidth,
+                                      child: Padding(
+                                        padding: useCompactWideLandscape
+                                            ? const EdgeInsets.fromLTRB(
+                                                0,
+                                                8,
+                                                0,
+                                                8,
+                                              )
+                                            : const EdgeInsets.fromLTRB(
+                                                18,
+                                                14,
+                                                18,
+                                                14,
+                                              ),
+                                        child: useCompactWideLandscape
+                                            ? _CompactIconRail(
+                                                destinations: railDestinations,
+                                                selectedIndex: selectedIndex,
+                                                onDestinationSelected:
+                                                    onDestinationSelected,
+                                              )
+                                            : _RailSidebar(
+                                                selectedIndex: selectedIndex,
+                                                onDestinationSelected:
+                                                    onDestinationSelected,
+                                                destinations: railDestinations,
+                                                showLibrarySubNavigation:
+                                                    showLibrarySubNavigation,
+                                                librarySectionsFit:
+                                                    _librarySectionsFitSidebar,
+                                                selectedLibrarySection:
+                                                    highlightedLibrarySection,
+                                                visibleLibrarySections:
+                                                    visibleLibrarySections,
+                                                onLibrarySectionSelected:
+                                                    onLibrarySectionSelected,
+                                                allowScrollableRail:
+                                                    allowScrollableRail,
+                                                showPlayer: showPlayer,
+                                                playback: playback,
+                                                songTitle: songTitle,
+                                                songArtist: songArtist,
+                                                artistId: artistId,
+                                                albumId: albumId,
+                                                coverArtId: coverArtId,
+                                                coverArtUrl: coverArtUrl,
+                                                isExternalSource:
+                                                    isExternalSource,
+                                                isRadio: playback.isRadioMode,
+                                                radioArtUrl: playback
+                                                    .radioStation
+                                                    ?.nowPlayingArtUrl,
+                                                onOpenPlayer: () {
+                                                  NavService.dismissKeyboard(
+                                                    context,
+                                                  );
+                                                  ref
+                                                      .read(
+                                                        playerOverlayStackProvider
+                                                            .notifier,
+                                                      )
+                                                      .expand();
+                                                },
+                                              ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: SafeArea(
-                                  left: false,
-                                  top: false,
-                                  right: false,
-                                  bottom:
-                                      !(useCompactWideLandscape && showPlayer),
-                                  // viewPadding (not padding) covers AAOS
-                                  // car bars that report as gesture-nav
-                                  // insets (padding.bottom = 0). On Android
-                                  // Auto (phone projection), the bottom bar
-                                  // is not reported at all; effectiveCarBottomInset
-                                  // falls back to viewPadding.top as a proxy
-                                  // since both car bars are typically equal height.
-                                  // In compact-wide playback, the mini
-                                  // player itself owns the bottom edge, so
-                                  // do not reserve a second gap below it.
-                                  minimum: EdgeInsets.only(
+                                Expanded(
+                                  child: SafeArea(
+                                    left: false,
+                                    top: false,
+                                    right: false,
                                     bottom:
-                                        useCompactWideLandscape && showPlayer
-                                        ? 0
-                                        : railBottomInset,
-                                  ),
-                                  child: ShellOfflineBannerFrame(
-                                    visible: showOfflineBanner,
-                                    message: offlineBannerText,
-                                    child: NotificationListener<NavigationNotification>(
-                                      // Absorb branch-level NavigationNotification so
-                                      // canHandlePop:false from the branch navigator
-                                      // never reaches the Router and sets
-                                      // setFrameworkHandlesBack(false) on Android 14+.
-                                      onNotification: (_) => true,
-                                      child: NavigatorPopHandler<Object?>(
-                                        enabled: true,
-                                        onPopWithResult: (result) {
-                                          _handleShellBack();
-                                        },
-                                        child:
-                                            useCompactWideLandscape &&
-                                                showPlayer
-                                            ? Stack(
-                                                children: <Widget>[
-                                                  // Inset the content area from the
-                                                  // bottom so the mini player strip
-                                                  // never covers page content.
-                                                  AnimatedPositioned(
-                                                    duration: const Duration(
-                                                      milliseconds: 280,
-                                                    ),
-                                                    curve: Curves.easeOut,
-                                                    top: 0,
-                                                    left: 0,
-                                                    right: 0,
-                                                    bottom: isExpanded
-                                                        ? 0
-                                                        : compactBottomMiniPlayerHeight,
-                                                    child: navigationShell,
-                                                  ),
-                                                  Positioned.fill(
-                                                    child: ExpandablePlayerSheet(
-                                                      isExpanded: isExpanded,
-                                                      onExpand: () {
-                                                        NavService.dismissKeyboard(
-                                                          context,
-                                                        );
-                                                        ref
-                                                            .read(
-                                                              playerOverlayStackProvider
-                                                                  .notifier,
-                                                            )
-                                                            .expand();
-                                                      },
-                                                      onCollapse: () => ref
-                                                          .read(
-                                                            playerOverlayStackProvider
-                                                                .notifier,
-                                                          )
-                                                          .collapse(),
-                                                      dragEnabled:
-                                                          !_compactWideInternalOverlayActive,
-                                                      onSwipeUp: () =>
-                                                          _compactWideQueueRequestHandler
-                                                              ?.call(),
-                                                      miniPlayer: SizedBox(
-                                                        height:
-                                                            compactBottomMiniPlayerHeight,
-                                                        child: _MiniPlayerStrip(
-                                                          playback: playback,
-                                                          flattenWideStyle:
-                                                              true,
-                                                          compactWideLandscapeMode:
-                                                              true,
-                                                          enableVerticalExpandGesture:
-                                                              false,
-                                                          songTitle: songTitle,
-                                                          songArtist:
-                                                              songArtist,
-                                                          coverArtId:
-                                                              coverArtId,
-                                                          coverArtUrl:
-                                                              coverArtUrl,
-                                                          isExternalSource:
-                                                              isExternalSource,
-                                                          isRadio: playback
-                                                              .isRadioMode,
-                                                          radioArtUrl: playback
-                                                              .radioStation
-                                                              ?.nowPlayingArtUrl,
-                                                          onTap: () {
-                                                            NavService.dismissKeyboard(
-                                                              context,
-                                                            );
-                                                            ref
-                                                                .read(
-                                                                  playerOverlayStackProvider
-                                                                      .notifier,
-                                                                )
-                                                                .expand();
-                                                          },
-                                                        ),
+                                        !(useCompactWideLandscape &&
+                                            showPlayer),
+                                    // viewPadding (not padding) covers AAOS
+                                    // car bars that report as gesture-nav
+                                    // insets (padding.bottom = 0). On Android
+                                    // Auto (phone projection), the bottom bar
+                                    // is not reported at all; effectiveCarBottomInset
+                                    // falls back to viewPadding.top as a proxy
+                                    // since both car bars are typically equal height.
+                                    // In compact-wide playback, the mini
+                                    // player itself owns the bottom edge, so
+                                    // do not reserve a second gap below it.
+                                    minimum: EdgeInsets.only(
+                                      bottom:
+                                          useCompactWideLandscape && showPlayer
+                                          ? 0
+                                          : railBottomInset,
+                                    ),
+                                    child: ShellOfflineBannerFrame(
+                                      child: NotificationListener<NavigationNotification>(
+                                        // Absorb branch-level NavigationNotification so
+                                        // canHandlePop:false from the branch navigator
+                                        // never reaches the Router and sets
+                                        // setFrameworkHandlesBack(false) on Android 14+.
+                                        onNotification: (_) => true,
+                                        child: NavigatorPopHandler<Object?>(
+                                          enabled: true,
+                                          onPopWithResult: (result) {
+                                            _handleShellBack();
+                                          },
+                                          child:
+                                              useCompactWideLandscape &&
+                                                  showPlayer
+                                              ? Stack(
+                                                  children: <Widget>[
+                                                    // Inset the content area from the
+                                                    // bottom so the mini player strip
+                                                    // never covers page content.
+                                                    AnimatedPositioned(
+                                                      duration: const Duration(
+                                                        milliseconds: 280,
                                                       ),
-                                                      fullPlayer: NowPlayingScreen(
-                                                        wideEmbeddedMode: true,
-                                                        compactWideLandscapeMode:
-                                                            useCompactWideLandscape,
-                                                        onShowQueue: () =>
-                                                            _compactWideQueueRequestHandler
-                                                                ?.call(),
+                                                      curve: Curves.easeOut,
+                                                      top: 0,
+                                                      left: 0,
+                                                      right: 0,
+                                                      bottom: isExpanded
+                                                          ? 0
+                                                          : compactBottomMiniPlayerHeight,
+                                                      child: navigationShell,
+                                                    ),
+                                                    Positioned.fill(
+                                                      child: ExpandablePlayerSheet(
+                                                        isExpanded: isExpanded,
+                                                        onExpand: () {
+                                                          NavService.dismissKeyboard(
+                                                            context,
+                                                          );
+                                                          ref
+                                                              .read(
+                                                                playerOverlayStackProvider
+                                                                    .notifier,
+                                                              )
+                                                              .expand();
+                                                        },
                                                         onCollapse: () => ref
                                                             .read(
                                                               playerOverlayStackProvider
                                                                   .notifier,
                                                             )
                                                             .collapse(),
-                                                        onBackInterceptorChanged:
-                                                            (handler) {
-                                                              _nowPlayingBackInterceptor =
-                                                                  handler;
+                                                        dragEnabled:
+                                                            !_compactWideInternalOverlayActive,
+                                                        onSwipeUp: () =>
+                                                            _compactWideQueueRequestHandler
+                                                                ?.call(),
+                                                        miniPlayer: SizedBox(
+                                                          height:
+                                                              compactBottomMiniPlayerHeight,
+                                                          child: _MiniPlayerStrip(
+                                                            playback: playback,
+                                                            flattenWideStyle:
+                                                                true,
+                                                            compactWideLandscapeMode:
+                                                                true,
+                                                            enableVerticalExpandGesture:
+                                                                false,
+                                                            songTitle:
+                                                                songTitle,
+                                                            songArtist:
+                                                                songArtist,
+                                                            coverArtId:
+                                                                coverArtId,
+                                                            coverArtUrl:
+                                                                coverArtUrl,
+                                                            isExternalSource:
+                                                                isExternalSource,
+                                                            isRadio: playback
+                                                                .isRadioMode,
+                                                            radioArtUrl: playback
+                                                                .radioStation
+                                                                ?.nowPlayingArtUrl,
+                                                            onTap: () {
+                                                              NavService.dismissKeyboard(
+                                                                context,
+                                                              );
+                                                              ref
+                                                                  .read(
+                                                                    playerOverlayStackProvider
+                                                                        .notifier,
+                                                                  )
+                                                                  .expand();
                                                             },
-                                                        onCompactWideOverlayActiveChanged:
-                                                            _handleCompactWideOverlayActiveChanged,
-                                                        onCompactWideQueueRequestChanged:
-                                                            _handleCompactWideQueueRequestChanged,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              )
-                                            : showPlayer
-                                            ? Stack(
-                                                children: <Widget>[
-                                                  Positioned.fill(
-                                                    child: navigationShell,
-                                                  ),
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: !isExpanded,
-                                                      child: AnimatedSlide(
-                                                        duration:
-                                                            const Duration(
-                                                              milliseconds: 280,
-                                                            ),
-                                                        curve: Curves.easeOut,
-                                                        offset: isExpanded
-                                                            ? Offset.zero
-                                                            : const Offset(
-                                                                0,
-                                                                1,
-                                                              ),
-                                                        child: NowPlayingScreen(
+                                                          ),
+                                                        ),
+                                                        fullPlayer: NowPlayingScreen(
                                                           wideEmbeddedMode:
                                                               true,
                                                           compactWideLandscapeMode:
                                                               useCompactWideLandscape,
                                                           onShowQueue: () =>
-                                                              NavService.showQueue(
-                                                                context,
-                                                                ref,
-                                                              ),
+                                                              _compactWideQueueRequestHandler
+                                                                  ?.call(),
                                                           onCollapse: () => ref
                                                               .read(
                                                                 playerOverlayStackProvider
@@ -1876,182 +1831,243 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                 _nowPlayingBackInterceptor =
                                                                     handler;
                                                               },
+                                                          onCompactWideOverlayActiveChanged:
+                                                              _handleCompactWideOverlayActiveChanged,
+                                                          onCompactWideQueueRequestChanged:
+                                                              _handleCompactWideQueueRequestChanged,
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                  if (showQueueOverlay)
+                                                  ],
+                                                )
+                                              : showPlayer
+                                              ? Stack(
+                                                  children: <Widget>[
                                                     Positioned.fill(
-                                                      child: _QueueOverlay(
-                                                        key: _queueOverlayKey,
-                                                        fullscreen: true,
-                                                        onDismiss:
-                                                            _handleQueueOverlayDismissed,
+                                                      child: navigationShell,
+                                                    ),
+                                                    Positioned.fill(
+                                                      child: IgnorePointer(
+                                                        ignoring: !isExpanded,
+                                                        child: AnimatedSlide(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    280,
+                                                              ),
+                                                          curve: Curves.easeOut,
+                                                          offset: isExpanded
+                                                              ? Offset.zero
+                                                              : const Offset(
+                                                                  0,
+                                                                  1,
+                                                                ),
+                                                          child: NowPlayingScreen(
+                                                            wideEmbeddedMode:
+                                                                true,
+                                                            compactWideLandscapeMode:
+                                                                useCompactWideLandscape,
+                                                            onShowQueue: () =>
+                                                                NavService.showQueue(
+                                                                  context,
+                                                                  ref,
+                                                                ),
+                                                            onCollapse: () => ref
+                                                                .read(
+                                                                  playerOverlayStackProvider
+                                                                      .notifier,
+                                                                )
+                                                                .collapse(),
+                                                            onBackInterceptorChanged:
+                                                                (handler) {
+                                                                  _nowPlayingBackInterceptor =
+                                                                      handler;
+                                                                },
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
-                                                ],
-                                              )
-                                            : navigationShell,
+                                                    if (showQueueOverlay)
+                                                      Positioned.fill(
+                                                        child: _QueueOverlay(
+                                                          key: _queueOverlayKey,
+                                                          fullscreen: true,
+                                                          onDismiss:
+                                                              _handleQueueOverlayDismissed,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                )
+                                              : navigationShell,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
+                              ],
+                            ),
+                          )
+                        else
+                          Column(
+                            children: <Widget>[
+                              Expanded(
+                                child: ShellOfflineBannerFrame(
+                                  child:
+                                      NotificationListener<
+                                        NavigationNotification
+                                      >(
+                                        // Absorb branch-level NavigationNotification so
+                                        // canHandlePop:false from the branch navigator
+                                        // never reaches the Router and sets
+                                        // setFrameworkHandlesBack(false) on Android 14+.
+                                        onNotification: (_) => true,
+                                        child: NavigatorPopHandler<Object?>(
+                                          enabled: true,
+                                          onPopWithResult: (result) {
+                                            _handleShellBack();
+                                          },
+                                          child: navigationShell,
+                                        ),
+                                      ),
+                                ),
+                              ),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 260),
+                                curve: Curves.easeOutCubic,
+                                height: showPlayer && !isExpanded
+                                    ? ExpandablePlayerSheet.miniPlayerHeight
+                                    : 0.0,
                               ),
                             ],
                           ),
-                        )
-                      else
-                        Column(
-                          children: <Widget>[
-                            Expanded(
-                              child: ShellOfflineBannerFrame(
-                                visible: showOfflineBanner,
-                                message: offlineBannerText,
-                                child:
-                                    NotificationListener<
-                                      NavigationNotification
-                                    >(
-                                      // Absorb branch-level NavigationNotification so
-                                      // canHandlePop:false from the branch navigator
-                                      // never reaches the Router and sets
-                                      // setFrameworkHandlesBack(false) on Android 14+.
-                                      onNotification: (_) => true,
-                                      child: NavigatorPopHandler<Object?>(
-                                        enabled: true,
-                                        onPopWithResult: (result) {
-                                          _handleShellBack();
-                                        },
-                                        child: navigationShell,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 260),
-                              curve: Curves.easeOutCubic,
-                              height: showPlayer && !isExpanded
-                                  ? ExpandablePlayerSheet.miniPlayerHeight
-                                  : 0.0,
-                            ),
-                          ],
-                        ),
-                      if (!useDesktopShell && !useRailNavigation)
-                        _SlideUpPlayerTransition(
-                          showPlayer: showPlayer,
-                          child: FocusTraversalOrder(
-                            order: const NumericFocusOrder(20),
-                            child: ExpandablePlayerSheet(
-                              isExpanded: isExpanded,
-                              onProgressChanged: (value) {
-                                final clamped = value.clamp(0.0, 1.0);
-                                if ((_playerSheetProgress.value - clamped)
-                                        .abs() >
-                                    0.001) {
-                                  _playerSheetProgress.value = clamped;
-                                }
-                              },
-                              onExpand: () {
-                                // Dismiss the keyboard (e.g. search bar) before expanding
-                                // so the Now Playing screen isn't squished.
-                                NavService.dismissKeyboard(context);
-                                ref
-                                    .read(playerOverlayStackProvider.notifier)
-                                    .expand();
-                              },
-                              onCollapse: () => ref
-                                  .read(playerOverlayStackProvider.notifier)
-                                  .collapse(),
-                              onSwipeUp: () =>
-                                  NavService.showQueue(context, ref),
-                              miniPlayer: useRailNavigation
-                                  ? const SizedBox.shrink()
-                                  : _MiniPlayerStrip(
-                                      playback: playback,
-                                      flattenWideStyle: useWideMiniPlayerStyle,
-                                      enableVerticalExpandGesture: false,
-                                      songTitle: songTitle,
-                                      songArtist: songArtist,
-                                      coverArtId: coverArtId,
-                                      coverArtUrl: coverArtUrl,
-                                      isExternalSource: isExternalSource,
-                                      isRadio: playback.isRadioMode,
-                                      radioArtUrl: playback
-                                          .radioStation
-                                          ?.nowPlayingArtUrl,
-                                      onTap: () {
-                                        // Dismiss keyboard before expanding.
-                                        NavService.dismissKeyboard(context);
-                                        ref
-                                            .read(
-                                              playerOverlayStackProvider
-                                                  .notifier,
-                                            )
-                                            .expand();
-                                      },
-                                    ),
-                              fullPlayer: ProviderScope(
-                                overrides: [
-                                  playerStateProvider.overrideWithValue(
-                                    playback,
-                                  ),
-                                ],
-                                child: NowPlayingScreen(
-                                  onShowQueue: () =>
-                                      NavService.showQueue(context, ref),
-                                  onCollapse: () => ref
+                        if (!useDesktopShell && !useRailNavigation)
+                          _SlideUpPlayerTransition(
+                            showPlayer: showPlayer,
+                            child: FocusTraversalOrder(
+                              order: const NumericFocusOrder(20),
+                              child: ExpandablePlayerSheet(
+                                isExpanded: isExpanded,
+                                onProgressChanged: (value) {
+                                  final clamped = value.clamp(0.0, 1.0);
+                                  if ((_playerSheetProgress.value - clamped)
+                                          .abs() >
+                                      0.001) {
+                                    _playerSheetProgress.value = clamped;
+                                  }
+                                },
+                                onExpand: () {
+                                  // Dismiss the keyboard (e.g. search bar) before expanding
+                                  // so the Now Playing screen isn't squished.
+                                  NavService.dismissKeyboard(context);
+                                  ref
                                       .read(playerOverlayStackProvider.notifier)
-                                      .collapse(),
-                                  onBackInterceptorChanged: (handler) {
-                                    _nowPlayingBackInterceptor = handler;
-                                  },
+                                      .expand();
+                                },
+                                onCollapse: () => ref
+                                    .read(playerOverlayStackProvider.notifier)
+                                    .collapse(),
+                                onSwipeUp: () =>
+                                    NavService.showQueue(context, ref),
+                                miniPlayer: useRailNavigation
+                                    ? const SizedBox.shrink()
+                                    : _MiniPlayerStrip(
+                                        playback: playback,
+                                        flattenWideStyle:
+                                            useWideMiniPlayerStyle,
+                                        enableVerticalExpandGesture: false,
+                                        songTitle: songTitle,
+                                        songArtist: songArtist,
+                                        coverArtId: coverArtId,
+                                        coverArtUrl: coverArtUrl,
+                                        isExternalSource: isExternalSource,
+                                        isRadio: playback.isRadioMode,
+                                        radioArtUrl: playback
+                                            .radioStation
+                                            ?.nowPlayingArtUrl,
+                                        onTap: () {
+                                          // Dismiss keyboard before expanding.
+                                          NavService.dismissKeyboard(context);
+                                          ref
+                                              .read(
+                                                playerOverlayStackProvider
+                                                    .notifier,
+                                              )
+                                              .expand();
+                                        },
+                                      ),
+                                fullPlayer: ProviderScope(
+                                  overrides: [
+                                    playerStateProvider.overrideWithValue(
+                                      playback,
+                                    ),
+                                  ],
+                                  child: NowPlayingScreen(
+                                    onShowQueue: () =>
+                                        NavService.showQueue(context, ref),
+                                    onCollapse: () => ref
+                                        .read(
+                                          playerOverlayStackProvider.notifier,
+                                        )
+                                        .collapse(),
+                                    onBackInterceptorChanged: (handler) {
+                                      _nowPlayingBackInterceptor = handler;
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      if (showPlayer &&
-                          !useDesktopShell &&
-                          showQueueOverlay &&
-                          !useRailNavigation)
-                        Positioned.fill(
-                          left: 0,
-                          child: FocusTraversalOrder(
-                            order: const NumericFocusOrder(10),
-                            child: _QueueOverlay(
-                              key: _queueOverlayKey,
-                              onDismiss: _handleQueueOverlayDismissed,
+                        if (showPlayer &&
+                            !useDesktopShell &&
+                            showQueueOverlay &&
+                            !useRailNavigation)
+                          Positioned.fill(
+                            left: 0,
+                            child: FocusTraversalOrder(
+                              order: const NumericFocusOrder(10),
+                              child: _QueueOverlay(
+                                key: _queueOverlayKey,
+                                onDismiss: _handleQueueOverlayDismissed,
+                              ),
                             ),
                           ),
-                        ),
-                      if (_showQuickSearchOverlay &&
-                          adaptiveInputPolicy.enableDesktopCommandShortcuts)
-                        Positioned.fill(
-                          child: _DesktopQuickSearchOverlay(
-                            controller: _quickSearchController,
-                            focusNode: _quickSearchFocusNode,
-                            onDismiss: _closeQuickSearchOverlay,
-                            onSubmitted: submitQuickSearch,
+                        if (_showQuickSearchOverlay &&
+                            adaptiveInputPolicy.enableDesktopCommandShortcuts)
+                          Positioned.fill(
+                            child: _DesktopQuickSearchOverlay(
+                              controller: _quickSearchController,
+                              focusNode: _quickSearchFocusNode,
+                              onDismiss: _closeQuickSearchOverlay,
+                              onSubmitted: submitQuickSearch,
+                            ),
+                          ),
+                        if (desktopWindowModeInvalid)
+                          Positioned.fill(
+                            child: _DesktopWindowTransitionGate(
+                              mode: isMiniPlayerMode
+                                  ? DesktopWindowMode.miniPlayer
+                                  : DesktopWindowMode.desktop,
+                              request: desktopWindowTransition,
+                            ),
+                          ),
+                        // Notices follow the offline banner's animation, so
+                        // they never sit over it while it opens or collapses.
+                        ShellOfflineBannerExtentBuilder(
+                          builder: (context, bannerExtent) => AppNoticeHost(
+                            controller: _appNoticeController,
+                            topOffset: 12 + bannerExtent,
+                            // Desktop pages put their titles and actions at the
+                            // top; rest notices above the player bar instead.
+                            bottomOffset: useDesktopShell && !isMiniPlayerMode
+                                ? DesktopPlaybackProgress.playerHeight(
+                                        context,
+                                      ) +
+                                      12
+                                : null,
                           ),
                         ),
-                      if (desktopWindowModeInvalid)
-                        Positioned.fill(
-                          child: _DesktopWindowTransitionGate(
-                            mode: isMiniPlayerMode
-                                ? DesktopWindowMode.miniPlayer
-                                : DesktopWindowMode.desktop,
-                            request: desktopWindowTransition,
-                          ),
-                        ),
-                      AppNoticeHost(
-                        controller: _appNoticeController,
-                        topOffset: appNoticeTopOffset,
-                        // Desktop pages put their titles and actions at the
-                        // top; rest notices above the player bar instead.
-                        bottomOffset: useDesktopShell && !isMiniPlayerMode
-                            ? DesktopPlaybackProgress.playerHeight(context) + 12
-                            : null,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   bottomNavigationBar: useDesktopShell || useRailNavigation
                       ? null

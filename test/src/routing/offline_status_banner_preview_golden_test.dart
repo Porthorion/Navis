@@ -19,10 +19,10 @@ void main() {
               viewPadding: EdgeInsets.only(top: 24),
             ),
             child: Scaffold(
-              body: ShellOfflineBannerFrame(
+              body: ShellOfflineBannerScope(
                 visible: true,
                 message: message,
-                child: const SizedBox.expand(),
+                child: const ShellOfflineBannerFrame(child: SizedBox.expand()),
               ),
             ),
           ),
