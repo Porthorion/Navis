@@ -19,6 +19,16 @@ Last updated: 2026-10-02
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Colour styles (Neutral, Pastel, Immersive, Night) — 2026-10-08 (a
+  second appearance axis next to Light/Dark/OLED/Auto, stored in
+  `app_settings.color_style` (schema 93) and chosen with live preview tiles in
+  Appearance and onboarding. Styled schemes keep containers out of the muddy
+  mid-tone band, keep OLED black, and restyle the Home cover wash and Now
+  Playing tint without touching artwork; album card titles now use scheme
+  text roles. Evidence: `test/src/theme/navis_style_schemes_test.dart`
+  (4 styles × 3 modes × 11 seeds), persistence and migration tests, Linux
+  profile clone and Android sidecar screenshots of Home, album, Now Playing
+  and Appearance in every style and mode, and `./tool/check.sh`.)
 - [x] Permanent download import / 1.2.7 — 2026-08-21 (custom download roots
   now preserve unmanaged files, preview and confirm imports, and use a
   root-level `.navis-downloads.sqlite` identity store; uniquely matched legacy
