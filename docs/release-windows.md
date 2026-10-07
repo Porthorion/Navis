@@ -60,6 +60,10 @@ archive; only the current CMake pin/cache is used.
 
 ---
 
+Windows executable metadata and the Inno installer identify Porthorion as the
+publisher. The installer links support and publisher information to
+`https://navis.porthorion.com` and includes the 2026 Porthorion copyright.
+
 ## Rust crate licence notices
 
 Before packaging after a Rust dependency update, fetch the locked dependencies

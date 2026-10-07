@@ -55,7 +55,7 @@ $escapedSetupIconPath = $setupIconPath.Replace('\', '\\')
 $issBody = @"
 #define MyAppName "$appName"
 #define MyAppVersion "$semver"
-#define MyAppPublisher "Khalifa"
+#define MyAppPublisher "Porthorion"
 #define MyAppExeName "navis.exe"
 #define MySourceDir "$escapedReleaseDir"
 #define MyOutputDir "$escapedOutputDir"
@@ -66,6 +66,9 @@ AppId=$appId
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL=https://navis.porthorion.com
+AppSupportURL=https://navis.porthorion.com
+AppCopyright=Copyright (C) 2026 Porthorion
 DefaultDirName=$defaultDir
 DisableProgramGroupPage=yes
 OutputDir={#MyOutputDir}

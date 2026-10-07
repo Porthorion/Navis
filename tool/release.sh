@@ -624,7 +624,7 @@ if [[ "${BUILD_LINUX}" == "true" ]]; then
       if [[ "${UPDATE_CHANNEL}" == "dev" ]]; then
         DEB_APP_NAME="Navis Dev"
       fi
-      DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-Navis Team <noreply@example.com>}"
+      DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-Porthorion <support@porthorion.com>}"
 
       rm -rf "${DEB_STAGE_DIR}"
       mkdir -p "${DEB_STAGE_DIR}/DEBIAN"
@@ -674,7 +674,7 @@ Priority: optional
 Architecture: ${DEB_ARCH}
 Maintainer: ${DEB_MAINTAINER}
 Depends: libgtk-3-0, libpulse0, libasound2
-Homepage: https://git.porthorion.com/khalifa/Navis
+Homepage: https://navis.porthorion.com
 Description: Navis music player
  Subsonic/OpenSubsonic music player built with Flutter.
 CONTROL

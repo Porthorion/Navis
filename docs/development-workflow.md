@@ -44,6 +44,11 @@ After updating the pinned MIT colour-name input, run
 `dart run tool/generate_color_names.dart` and commit the generated table.
 Provenance and input regeneration are in `tool/data/color_names/README.md`.
 
+Desktop publisher metadata is Porthorion: Windows resource/Inno fields and
+macOS copyright configuration. Local and remote Debian packaging share the
+Porthorion maintainer default and Navis homepage; keep `tool/release.env.example`
+in sync when changing that default.
+
 ## Branding Assets
 
 `lib/src/icon/Navis_Logo.svg` is the canonical in-app mark. After changing it,

@@ -83,6 +83,10 @@ FORGEJO_TOKEN="<personal-access-token-with-write:release>"
 | `/usr/share/applications/navis.desktop` | Desktop entry (application menu) |
 | `/usr/share/icons/hicolor/512x512/apps/navis.png` | App icon |
 
+Debian packages default to `Porthorion <support@porthorion.com>` as maintainer
+and `https://navis.porthorion.com` as homepage. `NAVIS_DEB_MAINTAINER` remains
+available for custom maintainer metadata in local and remote packaging.
+
 ### Building
 
 ```bash

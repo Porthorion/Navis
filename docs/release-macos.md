@@ -1,5 +1,8 @@
 # Releasing Navis for macOS
 
+Application metadata uses the 2026 Porthorion copyright from
+`macos/Runner/Configs/AppInfo.xcconfig`.
+
 Navis for macOS is distributed as a `.app` bundle inside a `.zip` archive. Users download
 the zip, extract it, and drag the app to `/Applications`. The built-in auto-updater handles
 all subsequent updates.

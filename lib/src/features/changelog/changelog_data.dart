@@ -173,7 +173,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'About now credits Porthorion and lists bundled colour data, AutoEq and platform-specific third-party licences',
+        'About and desktop packages now credit Porthorion, and About lists bundled colour data, AutoEq and platform-specific third-party licences',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

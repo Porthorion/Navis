@@ -589,7 +589,7 @@ Optional variables:
 
 | Variable | Description |
 |---|---|
-| `NAVIS_DEB_MAINTAINER` | Maintainer string for Linux Debian package metadata |
+| `NAVIS_DEB_MAINTAINER` | Linux Debian maintainer override (default `Porthorion <support@porthorion.com>`) |
 | `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
 | `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
 | `NAVIS_LINUX_SSH` | Default SSH target for remote Linux builder |
