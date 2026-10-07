@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Fails every load, which is enough to show which path the widget took.
@@ -28,10 +29,13 @@ Widget _harness({
   required String url,
   required CacheManager manager,
   IntegrationFeature? feature,
+  IntegrationCallRecorder? recorder,
   String? serverHost = 'music.example.org',
 }) {
   return ProviderScope(
     overrides: [
+      if (recorder != null)
+        integrationCallRecorderProvider.overrideWithValue(recorder),
       integrationPolicyProvider.overrideWithValue(policy),
       serverHostProvider.overrideWithValue(serverHost),
       coverArtCacheManagerProvider.overrideWithValue(manager),
@@ -55,6 +59,29 @@ Widget _harness({
 }
 
 void main() {
+  testWidgets('a widget policy refusal records blocked artwork', (
+    tester,
+  ) async {
+    final recorder = IntegrationCallRecorder(logCalls: false);
+    await tester.pumpWidget(
+      _harness(
+        policy: const IntegrationPolicy.denyAll(),
+        url: 'https://fixture-user:fixture-password@images.example.com/users/private/a.jpg?token=fixture-secret',
+        manager: _UntouchableCacheManager(),
+        recorder: recorder,
+      ),
+    );
+    expect(
+      recorder.recentCalls().single.outcome,
+      IntegrationCallOutcome.blocked,
+    );
+    expect(recorder.recentCalls().single.path, '/users/*/a.jpg');
+    expect(
+      recorder.countersFor(IntegrationService.serverLinkedArtwork).requests,
+      0,
+    );
+  });
+
   testWidgets('loads an allowed URL through the cover art cache manager', (
     tester,
   ) async {

@@ -13,6 +13,9 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/database/navis_database.dart';
 
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+
 import '../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements CacheManager;
@@ -39,6 +42,151 @@ class _FailingCacheRepository extends JsonCacheInfoRepository {
 }
 
 void main() {
+  group('external artwork recording', () {
+    late HttpServer server;
+    late IntegrationCallRecorder recorder;
+    var requests = 0;
+    var status = HttpStatus.ok;
+    var imageBody = true;
+
+    setUp(() async {
+      requests = 0;
+      status = HttpStatus.ok;
+      imageBody = true;
+      recorder = IntegrationCallRecorder(logCalls: false);
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        requests++;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        request.response
+          ..statusCode = status
+          ..headers.contentType = ContentType('image', 'jpeg')
+          ..add(imageBody ? <int>[0xff, 0xd8, 0xff, 1] : <int>[1, 2, 3]);
+        await request.response.close();
+      });
+      addTearDown(() => server.close(force: true));
+    });
+
+    CoverArtHttpFileService build({bool allowed = true, bool own = false}) {
+      final service = CoverArtHttpFileService(
+        recorder: recorder,
+        allowUri: (_) => allowed,
+        isServerUri: (_) => own,
+      );
+      addTearDown(service.close);
+      return service;
+    }
+
+    String url() =>
+        'http://fixture-user:fixture-password@127.0.0.1:'
+        '${server.port}/users/private/cover.jpg?token=fixture-secret#fragment';
+
+    test(
+      'allowed external art records status duration and redacted path',
+      () async {
+        final response = await build().get(url());
+        await response.content.drain<void>();
+        final call = recorder.recentCalls().single;
+        expect(call.service, IntegrationFeature.artworkServerLinked.service);
+        expect(call.method, 'GET');
+        expect(call.outcome, IntegrationCallOutcome.ok);
+        expect(call.statusCode, HttpStatus.ok);
+        expect(call.durationMs, greaterThanOrEqualTo(10));
+        expect(call.path, '/users/*/cover.jpg');
+        final json = recorder.toJson().toString();
+        for (final secret in [
+          'fixture-user',
+          'fixture-password',
+          'fixture-secret',
+          'private',
+          'fragment',
+        ]) {
+          expect(json, isNot(contains(secret)));
+        }
+        expect(
+          recorder
+              .countersFor(IntegrationFeature.artworkServerLinked.service)
+              .requests,
+          1,
+        );
+      },
+    );
+
+    test('refused external art records blocked without dispatch', () async {
+      await expectLater(
+        build(allowed: false).get(url()),
+        throwsA(isA<CoverArtBlockedException>()),
+      );
+      expect(requests, 0);
+      expect(
+        recorder.recentCalls().single.outcome,
+        IntegrationCallOutcome.blocked,
+      );
+      expect(
+        recorder
+            .countersFor(IntegrationFeature.artworkServerLinked.service)
+            .requests,
+        0,
+      );
+      expect(
+        recorder
+            .countersFor(IntegrationFeature.artworkServerLinked.service)
+            .blocked,
+        1,
+      );
+    });
+
+    test('invalid image bytes record a failed HTTP success', () async {
+      imageBody = false;
+      final response = await build().get(url());
+      await expectLater(
+        response.content.drain<void>(),
+        throwsA(isA<CoverArtInvalidResponseException>()),
+      );
+      final call = recorder.recentCalls().single;
+      expect(call.statusCode, HttpStatus.ok);
+      expect(call.outcome, IntegrationCallOutcome.error);
+    });
+
+    test('connection failures record an error without a status', () async {
+      final unused = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = unused.port;
+      await unused.close(force: true);
+      await expectLater(
+        build().get('http://127.0.0.1:$port/cover.jpg?token=fixture-secret'),
+        throwsA(isA<SocketException>()),
+      );
+      final call = recorder.recentCalls().single;
+      expect(call.statusCode, isNull);
+      expect(call.outcome, IntegrationCallOutcome.error);
+      expect(call.path, '/cover.jpg');
+    });
+
+    test('own-server art is excluded', () async {
+      final response = await build(own: true).get(url());
+      await response.content.drain<void>();
+      expect(requests, 1);
+      expect(recorder.recentCalls(), isEmpty);
+    });
+
+    test('external HTTP failures are recorded once', () async {
+      status = HttpStatus.notFound;
+      await expectLater(
+        build().get(url()),
+        throwsA(isA<CoverArtFetchException>()),
+      );
+      final call = recorder.recentCalls().single;
+      expect(call.outcome, IntegrationCallOutcome.error);
+      expect(call.statusCode, HttpStatus.notFound);
+      expect(
+        recorder
+            .countersFor(IntegrationFeature.artworkServerLinked.service)
+            .errors,
+        1,
+      );
+    });
+  });
+
   group('cover-art cache persistence', () {
     late Directory directory;
     late String metadataPath;
@@ -318,7 +466,10 @@ void main() {
 
     test('times out stalled response bodies', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final recorder = IntegrationCallRecorder(logCalls: false);
       final service = CoverArtHttpFileService(
+        recorder: recorder,
+        isServerUri: (_) => false,
         connectionTimeout: const Duration(milliseconds: 50),
         responseTimeout: const Duration(milliseconds: 50),
         bodyReadTimeout: const Duration(milliseconds: 50),
@@ -349,6 +500,11 @@ void main() {
         throwsA(isA<TimeoutException>()),
       );
 
+      expect(
+        recorder.recentCalls().single.outcome,
+        IntegrationCallOutcome.error,
+      );
+      expect(recorder.recentCalls().single.statusCode, HttpStatus.ok);
       final nextResponse = await service.get(
         _coverArtUrl(server, id: 'cover-ok'),
       );

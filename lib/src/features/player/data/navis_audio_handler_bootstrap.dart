@@ -74,18 +74,21 @@ const String systemArtworkCacheKey = 'navis_system_artwork_cache';
 /// screen, Bluetooth). AudioService fetches whatever `artUri` it is handed, so
 /// every fetch goes through [allowUri]: it is rechecked after a download slot
 /// is granted, on every redirect hop and immediately before dispatch.
+/// [isServerUri] excludes own-server art from [recorder]. Missing-cover
+/// recovery has no callback here, so an external id never requests repair.
 @visibleForTesting
 CoverArtHttpFileService createSystemArtworkFileService({
   required bool Function(Uri uri) allowUri,
   NetworkUsageReporter? reportNetworkUsage,
   CoverArtLoadCoordinator? loadCoordinator,
+  IntegrationCallRecorder? recorder,
+  bool Function(Uri)? isServerUri,
 }) => CoverArtHttpFileService(
   loadCoordinator: loadCoordinator,
+  recorder: recorder,
+  isServerUri: isServerUri,
   reportNetworkUsage: reportNetworkUsage,
   allowUri: allowUri,
-  // A cover id from an external URL means nothing to the user's server, so no
-  // missing-cover recovery is ever requested from here.
-  isServerUri: (_) => false,
 );
 
 Future<NavisPlaybackHandler> initNavisAudioHandler({
@@ -116,6 +119,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   Dio Function()? createRadioMetadataDio,
   Future<String?> Function(MediaItem)? fetchWindowsArtwork,
   bool Function(MediaItem)? readWindowsArtworkAllowed,
+  IntegrationCallRecorder? artworkRecorder,
+  bool Function(Uri)? isServerArtworkUri,
+  CoverArtHttpFileService? playbackArtworkFileService,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -140,6 +146,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       initialVolume: initialVolume,
       reportNetworkUsage: reportNetworkUsage,
       readPermanentArtwork: readPermanentArtwork,
+      artworkFileService: playbackArtworkFileService,
       reportRollingCacheActivity: reportRollingCacheActivity,
       startPersonalRadio: startPersonalRadio,
       startPreferredMix: startPreferredMix,
@@ -186,6 +193,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                     allowUri: (uri) =>
                         readRadioArtworkAllowed?.call(uri) ?? false,
                     reportNetworkUsage: reportNetworkUsage,
+                    recorder: artworkRecorder,
+                    isServerUri: isServerArtworkUri,
                   ),
                 ),
                 builder: () {

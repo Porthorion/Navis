@@ -6,6 +6,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
@@ -449,6 +451,7 @@ class CoverArtHttpFileService implements FileService {
     this._allowUri,
     this._allowFeatureUri,
     this._isServerUri,
+    this.recorder,
     this._connectionTimeout = const Duration(seconds: 15),
     this._responseTimeout = const Duration(seconds: 20),
     this._bodyReadTimeout = const Duration(seconds: 20),
@@ -477,8 +480,16 @@ class CoverArtHttpFileService implements FileService {
 
   /// Whether [Uri] points at the user's own server. Missing-cover recovery
   /// asks that server to refresh a cover id, so it only runs for its URLs; an
-  /// external 404 must not trigger it. Null treats every URL as the server's.
+  /// external 404 must not trigger it. Null keeps legacy recovery for every
+  /// URL; when recording, an unclassified HTTP URL is treated as external.
   final bool Function(Uri uri)? _isServerUri;
+
+  /// Shared integration recorder for external HTTP artwork attempts.
+  final IntegrationCallRecorder? recorder;
+  late final _artworkRecorder = ArtworkCallRecorder(
+    recorder: recorder,
+    isServerUri: (uri) => _isServerUri?.call(uri) ?? false,
+  );
 
   final Duration _connectionTimeout;
   final Duration _responseTimeout;
@@ -514,7 +525,7 @@ class CoverArtHttpFileService implements FileService {
         (featureKey == null ||
             (_allowFeatureUri?.call(uri, featureKey) ?? true));
     void checkAllowed() {
-      if (!allowed()) {
+      if (!_artworkRecorder.checkAllowed(uri, allowed: allowed())) {
         throw CoverArtBlockedException(uri.host);
       }
     }
@@ -524,6 +535,20 @@ class CoverArtHttpFileService implements FileService {
     final loadKey = _loadKey(uri);
     final lease = await _loadCoordinator.acquire(loadKey);
     AppLogger.debug('Cover art request start: $diagnosticUri');
+    var started = Stopwatch();
+    var recorded = true;
+    int? statusCode;
+    void finish(IntegrationCallOutcome outcome) {
+      if (recorded) return;
+      recorded = true;
+      _artworkRecorder.record(
+        uri,
+        outcome: outcome,
+        duration: started.elapsed,
+        statusCode: statusCode,
+      );
+    }
+
     try {
       // Redirects are followed here, not by HttpClient, so every hop is
       // checked against the policy. The check also runs after each wait
@@ -532,23 +557,29 @@ class CoverArtHttpFileService implements FileService {
       HttpClientResponse response;
       for (var hop = 0; ; hop++) {
         checkAllowed();
+        started = Stopwatch()..start();
+        recorded = false;
+        statusCode = null;
         final request = await _client.getUrl(uri).timeout(_connectionTimeout);
         request.followRedirects = false;
         // Caller headers never travel to a different origin.
         if (uri.origin == originalUri.origin) {
           requestHeaders?.forEach(request.headers.set);
         }
-        if (!allowed()) {
+        if (!_artworkRecorder.checkAllowed(uri, allowed: allowed())) {
+          recorded = true;
           request.abort();
           throw CoverArtBlockedException(uri.host);
         }
         response = await request.close().timeout(_responseTimeout);
+        statusCode = response.statusCode;
         if (!response.isRedirect) break;
         final location = response.headers.value(HttpHeaders.locationHeader);
         await response.drain<void>().timeout(_bodyReadTimeout);
         if (location == null || hop >= _coverArtMaxRedirects) {
           throw const HttpException('Cover art redirect refused');
         }
+        finish(IntegrationCallOutcome.ok);
         uri = uri.resolve(location);
         diagnosticUri = _diagnosticUri(uri);
       }
@@ -632,6 +663,11 @@ class CoverArtHttpFileService implements FileService {
         onMissingCover: missingCoverHook,
         onTimeout: _resetClientAfterTimeout,
         onDone: lease.release,
+        onFinished: ({required success}) => finish(
+          success && response.statusCode < 400
+              ? IntegrationCallOutcome.ok
+              : IntegrationCallOutcome.error,
+        ),
         onBytesRead: (bytes) {
           _reportNetworkUsage?.call(
             category: NetworkUsageCategory.coverArt,
@@ -640,6 +676,7 @@ class CoverArtHttpFileService implements FileService {
         },
       );
     } on TimeoutException catch (error) {
+      finish(IntegrationCallOutcome.error);
       AppLogger.warning(
         'Cover art request timed out for $diagnosticUri: $error',
       );
@@ -654,6 +691,7 @@ class CoverArtHttpFileService implements FileService {
       lease.release();
       rethrow;
     } on Object catch (error, stackTrace) {
+      finish(IntegrationCallOutcome.error);
       AppLogger.warning(
         'Cover art request failed for $diagnosticUri: $error\n$stackTrace',
       );
@@ -702,13 +740,8 @@ class CoverArtHttpFileService implements FileService {
     _client = _createClient();
   }
 
-  static Uri _diagnosticUri(Uri uri) {
-    final id = uri.queryParameters['id'];
-    final size = uri.queryParameters['size'];
-    return uri.replace(
-      queryParameters: <String, String>{'id': ?id, 'size': ?size},
-    );
-  }
+  static Uri _diagnosticUri(Uri uri) =>
+      uri.replace(userInfo: '', query: '', fragment: '');
 
   static String _loadKey(Uri uri) {
     final id = uri.queryParameters['id']?.trim();
@@ -727,11 +760,13 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     required this._diagnosticUri,
     required this._onTimeout,
     required this._onDone,
+    required this._onFinished,
     required this._onBytesRead,
     this.coverArtId,
     this.onMissingCover,
   }) {
     if (!_expectsConsumedBody) {
+      _onFinished(success: _response.statusCode < 400);
       _releaseOnce();
       unawaited(_discardBody());
     }
@@ -742,6 +777,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
   final Uri _diagnosticUri;
   final void Function() _onTimeout;
   final void Function() _onDone;
+  final void Function({required bool success}) _onFinished;
   final void Function(int bytes) _onBytesRead;
 
   /// Cover-art identity of the request, used to route missing-cover
@@ -763,6 +799,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     var inspectedHead = false;
     var headIsImage = false;
     var headIsErrorDocument = false;
+    var bodyCompleted = false;
     try {
       await for (final chunk in _response.timeout(
         _bodyReadTimeout,
@@ -793,16 +830,23 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
         }
         yield chunk;
       }
+      bodyCompleted = true;
+    } on Object {
+      _onFinished(success: false);
+      rethrow;
     } finally {
+      _onFinished(success: bodyCompleted && headIsImage);
       if (bytesRead > 0) {
         _onBytesRead(bytesRead);
       }
       _releaseOnce();
     }
     if (!inspectedHead) {
+      _onFinished(success: false);
       throw const CoverArtInvalidResponseException('empty body');
     }
     if (!headIsImage) {
+      _onFinished(success: false);
       if (headIsErrorDocument) {
         final id = coverArtId;
         if (id != null && id.isNotEmpty) {
@@ -819,6 +863,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
       }
       throw CoverArtInvalidResponseException('non-image payload bytes');
     }
+    _onFinished(success: true);
   }
 
   bool get _expectsConsumedBody {

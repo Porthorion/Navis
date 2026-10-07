@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'External artwork requests and blocked loads now appear in integration diagnostics without exposing URL credentials',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows no longer freezes while playing internet radio with station artwork',
         type: ChangelogEntryType.fix,
       ),

@@ -46,7 +46,11 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
         ),
       ),
     );
-    return allowed ? 'url:$url' : null;
+    return ref
+            .read(artworkCallRecorderProvider)
+            .checkAllowed(uri, allowed: allowed)
+        ? 'url:$url'
+        : null;
   }
 
   final currentSongId = playback.currentSongId?.trim() ?? '';

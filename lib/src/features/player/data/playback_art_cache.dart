@@ -1,9 +1,9 @@
 /// Local cover art cache for the system media controls (Android media
 /// session and Android Auto, Linux MPRIS, Windows SMTC).
 ///
-/// Downloads the cover art URL via dart:io HttpClient and returns the
-/// local file path so `NavisAudioHandler._updateArtCacheFile` can inject it
-/// into `MediaItem.extras` under the key `"artCacheFile"`.
+/// Downloads cover art through the shared guarded artwork transport and
+/// returns the local file path so `NavisAudioHandler._updateArtCacheFile`
+/// can inject it into `MediaItem.extras` under the key `"artCacheFile"`.
 ///
 /// Java's `AudioService.setMetadata` reads `extras["artCacheFile"]` and
 /// decodes the bitmap via `BitmapFactory.decodeFile`, populating
@@ -20,16 +20,25 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
   new({
-    this._reportNetworkUsage,
+    NetworkUsageReporter? reportNetworkUsage,
     this._readPermanentArtwork,
     this.bodyIdleTimeout = const Duration(seconds: 30),
-  });
+    CoverArtHttpFileService? fileService,
+  }) : _fileService =
+           fileService ??
+           CoverArtHttpFileService(
+             connectionTimeout: _connectionTimeout,
+             responseTimeout: _responseTimeout,
+             bodyReadTimeout: bodyIdleTimeout,
+             reportNetworkUsage: reportNetworkUsage,
+           );
 
   /// The file-name key of [coverArtId]'s cached file
   /// (`<temporary dir>/navis_art_<key>.jpg`). Android's
@@ -45,8 +54,6 @@ class PlaybackArtCache {
   /// otherwise keep this cover pending for the rest of the session.
   final Duration bodyIdleTimeout;
 
-  final NetworkUsageReporter? _reportNetworkUsage;
-
   /// The durable cover of a downloaded song, used before any network fetch
   /// so downloaded music shows its cover offline (Bluetooth/AVRCP, Android
   /// Auto, MPRIS, SMTC).
@@ -54,7 +61,7 @@ class PlaybackArtCache {
 
   /// Shared client, so consecutive track changes reuse a keep-alive
   /// connection instead of paying a TCP and TLS handshake each time.
-  HttpClient? _client;
+  final CoverArtHttpFileService _fileService;
 
   /// In-memory map: coverArtId → absolute file path of the cached file.
   ///
@@ -142,79 +149,45 @@ class PlaybackArtCache {
         }
       }
 
-      // Download using dart:io HttpClient so we use the same platform HTTP
-      // stack as the rest of the app (SSL certificates, proxy settings, etc.).
-      final client = _client ??= HttpClient()
-        ..connectionTimeout = _connectionTimeout;
-      try {
-        final request = await client.getUrl(artUri).timeout(_connectionTimeout);
-        final response = await request.close().timeout(_responseTimeout);
-
-        if (response.statusCode != 200) {
-          AppLogger.warning(
-            'PlaybackArtCache: HTTP ${response.statusCode} for $coverArtId',
-          );
-          // Drain so the keep-alive connection can serve the next request.
-          await response.drain<void>().timeout(_responseTimeout);
-          return null;
-        }
-
-        // Reject non-image responses (e.g. HTML/XML Subsonic error pages that
-        // arrive with a 200 status but are not decodable by BitmapFactory).
-        final contentType = response.headers.contentType?.mimeType ?? '';
-        if (!contentType.startsWith('image/')) {
-          AppLogger.warning(
-            'PlaybackArtCache: unexpected Content-Type "$contentType" '
-            'for $coverArtId – skipping',
-          );
-          await response.drain<void>().timeout(_responseTimeout);
-          return null;
-        }
-
-        // Write beside the final name and rename once complete: Android's
-        // NavisArtworkProvider serves the final name to other apps, and a
-        // later launch reuses any non-empty file there as the cover.
-        final partial = File('${file.path}.part');
-        final int written;
-        try {
-          final sink = partial.openWrite();
-          try {
-            // The stream's own timeout fails the pipe, which releases the
-            // sink before it is closed here.
-            await response.timeout(bodyIdleTimeout).pipe(sink);
-          } finally {
-            await sink.close().catchError((Object _) {});
-          }
-          written = await partial.length();
-          if (written > 0) await partial.rename(file.path);
-        } finally {
-          // Keep metadata access asynchronous so storage latency cannot stall UI.
-          // ignore: avoid_slow_async_io
-          if (await partial.exists()) await partial.delete();
-        }
-
-        if (written == 0) {
-          AppLogger.warning(
-            'PlaybackArtCache: zero bytes written for $coverArtId',
-          );
-          return null;
-        }
-
-        _reportNetworkUsage?.call(
-          category: NetworkUsageCategory.coverArt,
-          bytes: written,
-        );
-        _mem[coverArtId] = file.path;
-        AppLogger.debug(
-          'PlaybackArtCache: art for $coverArtId → ${file.path} ($written bytes)',
-        );
-        return file.path;
-      } on Object {
-        // A failed or timed-out exchange may leave the connection unusable.
-        _client = null;
-        client.close(force: true);
-        rethrow;
+      final response = await _fileService.get(artUri.toString());
+      if (response.statusCode != HttpStatus.ok) {
+        await response.content.drain<void>();
+        return null;
       }
+
+      // Write beside the final name and rename once complete: Android's
+      // NavisArtworkProvider serves the final name to other apps, and a
+      // later launch reuses any non-empty file there as the cover.
+      final partial = File('${file.path}.part');
+      final int written;
+      try {
+        final sink = partial.openWrite();
+        try {
+          // The shared transport owns the body timeout and failure recording.
+          await response.content.pipe(sink);
+        } finally {
+          await sink.close().catchError((Object _) {});
+        }
+        written = await partial.length();
+        if (written > 0) await partial.rename(file.path);
+      } finally {
+        // Keep metadata access asynchronous so storage latency cannot stall UI.
+        // ignore: avoid_slow_async_io
+        if (await partial.exists()) await partial.delete();
+      }
+
+      if (written == 0) {
+        AppLogger.warning(
+          'PlaybackArtCache: zero bytes written for $coverArtId',
+        );
+        return null;
+      }
+
+      _mem[coverArtId] = file.path;
+      AppLogger.debug(
+        'PlaybackArtCache: art for $coverArtId → ${file.path} ($written bytes)',
+      );
+      return file.path;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'PlaybackArtCache: failed to fetch art for $coverArtId: '
@@ -227,7 +200,6 @@ class PlaybackArtCache {
   }
 
   void dispose() {
-    _client?.close();
-    _client = null;
+    _fileService.close();
   }
 }

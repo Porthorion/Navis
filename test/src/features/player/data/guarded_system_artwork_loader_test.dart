@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/player/data/guarded_system_artwork_loader.dart';
 
 class _CacheManager extends Mock implements BaseCacheManager;
@@ -23,11 +25,17 @@ void main() {
   late _CacheManager cache;
   late IntegrationPolicy policy;
   late GuardedSystemArtworkLoader loader;
+  late IntegrationCallRecorder recorder;
 
   setUp(() {
     cache = _CacheManager();
     policy = const IntegrationPolicy();
+    recorder = IntegrationCallRecorder(logCalls: false);
     loader = GuardedSystemArtworkLoader(
+      artworkRecorder: ArtworkCallRecorder(
+        recorder: recorder,
+        isServerUri: (uri) => uri.host == 'music.test',
+      ),
       readCacheManager: () => cache,
       readPolicy: () => policy,
       readServerHost: () => 'music.test',
@@ -59,8 +67,26 @@ void main() {
       expect(loader.isAllowed(radio), isFalse);
       expect(await loader.fetch(radio), isNull);
       verifyZeroInteractions(cache);
+      expect(
+        recorder.recentCalls().single.outcome,
+        IntegrationCallOutcome.blocked,
+      );
+      expect(
+        recorder.countersFor(IntegrationService.serverLinkedArtwork).requests,
+        0,
+      );
     });
   }
+
+  test('SMTC permission check records refusal without fetching', () {
+    policy = const IntegrationPolicy(masterEnabled: false);
+    expect(loader.checkAllowed(radio), isFalse);
+    expect(
+      recorder.recentCalls().single.outcome,
+      IntegrationCallOutcome.blocked,
+    );
+    verifyZeroInteractions(cache);
+  });
 
   test('policy revocation during a load refuses the completed file', () async {
     final pending = Completer<File>();

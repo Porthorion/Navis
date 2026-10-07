@@ -49,6 +49,7 @@ import 'package:navis/src/features/integrations/data/deezer_cache.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/external_dio.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
@@ -201,6 +202,42 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
   );
 });
 
+final artworkCallRecorderProvider = Provider<ArtworkCallRecorder>((ref) {
+  return ArtworkCallRecorder(
+    recorder: ref.watch(integrationCallRecorderProvider),
+    isServerUri: (uri) =>
+        integrationFeatureForArtworkUri(
+          uri,
+          serverHost: ref.read(serverHostProvider),
+        ) ==
+        null,
+  );
+});
+
+CoverArtHttpFileService _createPlaybackArtworkFileService(Ref ref) {
+  final service = CoverArtHttpFileService(
+    connectionTimeout: const Duration(seconds: 10),
+    responseTimeout: const Duration(seconds: 15),
+    bodyReadTimeout: const Duration(seconds: 30),
+    allowUri: (uri) => integrationAllowsArtworkHost(
+      ref.read(integrationPolicyProvider),
+      uri,
+      serverHost: ref.read(serverHostProvider),
+    ),
+    isServerUri: (uri) =>
+        integrationFeatureForArtworkUri(
+          uri,
+          serverHost: ref.read(serverHostProvider),
+        ) ==
+        null,
+    recorder: ref.read(integrationCallRecorderProvider),
+    reportNetworkUsage: _networkUsageReporter(
+      ref.read(networkUsageMeterProvider),
+    ),
+  );
+  return service;
+}
+
 final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   // ref.read, not ref.watch — prevents reactive rebuilds caused by the
   // settings stream emitting at startup (AsyncLoading → AsyncData), which
@@ -209,6 +246,7 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
   final service = CoverArtHttpFileService(
+    recorder: ref.read(integrationCallRecorderProvider),
     loadCoordinator: coordinator,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
     // Read per request: the user's choices apply to a manager that already
@@ -1052,6 +1090,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     await sessionHydration;
     await connectivityHydration;
     final windowsArtwork = GuardedSystemArtworkLoader(
+      artworkRecorder: ref.read(artworkCallRecorderProvider),
       readCacheManager: () => ref.read(coverArtCacheManagerProvider),
       readPolicy: () => ref.mounted
           ? ref.read(integrationPolicyProvider)
@@ -1116,8 +1155,16 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
                   .read(personalRadioProvider.notifier)
                   .start(autoPlay: autoPlay))
               .succeeded,
+      artworkRecorder: ref.read(integrationCallRecorderProvider),
+      isServerArtworkUri: (uri) =>
+          integrationFeatureForArtworkUri(
+            uri,
+            serverHost: ref.read(serverHostProvider),
+          ) ==
+          null,
+      playbackArtworkFileService: _createPlaybackArtworkFileService(ref),
       fetchWindowsArtwork: windowsArtwork.fetch,
-      readWindowsArtworkAllowed: windowsArtwork.isAllowed,
+      readWindowsArtworkAllowed: windowsArtwork.checkAllowed,
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),

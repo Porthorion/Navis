@@ -32,6 +32,7 @@ import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
@@ -91,6 +92,7 @@ class NavisAudioHandler extends BaseAudioHandler
     double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
     Future<File?> Function(String coverArtId)? readPermanentArtwork,
+    CoverArtHttpFileService? artworkFileService,
     this._reportRollingCacheActivity,
     this._startPersonalRadio,
     Future<void> Function(String)? startPreferredMix,
@@ -120,6 +122,7 @@ class NavisAudioHandler extends BaseAudioHandler
            ? PlaybackArtCache(
                reportNetworkUsage: reportNetworkUsage,
                readPermanentArtwork: readPermanentArtwork,
+               fileService: artworkFileService,
              )
            : null {
     final runtime = _readRuntimeSettings();

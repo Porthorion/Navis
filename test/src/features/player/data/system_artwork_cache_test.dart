@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 
@@ -16,8 +17,10 @@ void main() {
   var ownRequests = 0;
   var externalRequests = 0;
   var redirects = false;
+  late IntegrationCallRecorder recorder;
 
   setUp(() async {
+    recorder = IntegrationCallRecorder(logCalls: false);
     ownRequests = 0;
     externalRequests = 0;
     redirects = false;
@@ -56,6 +59,8 @@ void main() {
     CoverArtLoadCoordinator? coordinator,
   }) {
     final service = createSystemArtworkFileService(
+      recorder: recorder,
+      isServerUri: (uri) => uri.host == '127.0.0.1',
       allowUri: (uri) => allow(policy(), uri),
       loadCoordinator: coordinator,
     );
@@ -75,6 +80,10 @@ void main() {
     );
     expect(ownRequests, 1);
     expect(externalRequests, 0);
+    expect(
+      recorder.recentCalls().single.outcome,
+      IntegrationCallOutcome.blocked,
+    );
   });
 
   test('a redirect to a host the policy allows is followed', () async {
@@ -85,6 +94,8 @@ void main() {
       throwsA(isNot(isA<CoverArtBlockedException>())),
     );
     expect(externalRequests, 1);
+    expect(recorder.recentCalls().single.outcome, IntegrationCallOutcome.error);
+    expect(recorder.recentCalls().single.statusCode, HttpStatus.notFound);
   });
 
   test('a refused external URL is never requested', () async {
@@ -103,6 +114,7 @@ void main() {
       throwsA(isNot(isA<CoverArtBlockedException>())),
     );
     expect(ownRequests, 1);
+    expect(recorder.recentCalls(), isEmpty);
   });
 
   test('a queued download is refused once the policy revokes it', () async {

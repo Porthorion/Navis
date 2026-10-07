@@ -555,7 +555,21 @@ handled. `outcome` is `ok`, `error` (the request failed or had an error
 status), `serviceError` (a success status whose body reports an error: Deezer
 answers HTTP 200 with `{"error": {...}}`, so a quota hit, code 4, shows here
 with `status` 200; Deezer's code 800, "no data", stays `ok`) or `blocked`.
-`errors` counts both `error` and `serviceError` calls. Artist Top Songs records
+`errors` counts both `error` and `serviceError` calls. The `artwork` service
+includes every external image fetch through the shared artwork HTTP file
+service: external artwork widgets (artist, Deezer, ListenBrainz and station
+images), Now Playing art and dynamic accents, Windows SMTC, AudioService's OS
+art cache and `PlaybackArtCache`. Each external redirect hop is a separate
+call; successful image durations include body consumption. HTTP/transport or
+invalid-image failures are `error`, with the HTTP status when available. A
+policy refusal at an early image gate, after a queue wait or on a redirect is
+`blocked` and adds no `requests`. Blocked counters measure refused attempts or
+gate decisions, not unique URLs; rebuilding a refused image can add another
+blocked decision. Own-server images and cache hits add no requests. Artwork
+uses the same path-only redaction (including `/user/` and `/users/` identifiers):
+no userinfo, query, fragment, headers or body is retained.
+
+Artist Top Songs records
 `topSongs.sourceFetch` (`seeds`, `cacheHit`, `deezer` 1 when Deezer supplied
 them, `failed` 1 when the fetch threw, and per step `top`, `searchFill` and
 `lastFm` songs), `topSongs.localMatch` (`seeds`, `cached` remembered matches

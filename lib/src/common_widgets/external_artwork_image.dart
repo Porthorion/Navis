@@ -60,7 +60,9 @@ class ExternalArtworkImage extends ConsumerWidget {
         ),
       ),
     );
-    if (!allowed) {
+    if (!ref
+        .read(artworkCallRecorderProvider)
+        .checkAllowed(uri, allowed: allowed)) {
       return fallbackBuilder(context);
     }
     return CachedNetworkImage(

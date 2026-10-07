@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 
 /// Points path_provider's temporary directory at a fresh folder.
 Future<Directory> _tempCacheDir() async {
@@ -25,6 +28,52 @@ void main() {
   // test talks to a real loopback server.
   setUpAll(() => HttpOverrides.global = null);
 
+  for (final allowed in [true, false]) {
+    test('playback art uses the shared recorder (allowed=$allowed)', () async {
+      await _tempCacheDir();
+      final recorder = IntegrationCallRecorder(logCalls: false);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var requests = 0;
+      server.listen((request) {
+        requests++;
+        request.response
+          ..headers.contentType = ContentType('image', 'jpeg')
+          ..add(<int>[0xff, 0xd8, 0xff, 1]);
+        unawaited(request.response.close());
+      });
+      final cache = PlaybackArtCache(
+        fileService: CoverArtHttpFileService(
+          recorder: recorder,
+          isServerUri: (_) => false,
+          allowUri: (_) => allowed,
+        ),
+      );
+      addTearDown(cache.dispose);
+      final uri = Uri.parse(
+        'http://127.0.0.1:${server.port}/cover.jpg?token=fixture-secret',
+      );
+      final path = await cache.getOrFetch('external', uri);
+      expect(path, allowed ? isNotNull : isNull);
+      expect(requests, allowed ? 1 : 0);
+      final call = recorder.recentCalls().single;
+      expect(call.service, IntegrationService.serverLinkedArtwork);
+      expect(call.path, '/cover.jpg');
+      expect(
+        call.outcome,
+        allowed ? IntegrationCallOutcome.ok : IntegrationCallOutcome.blocked,
+      );
+      if (allowed) {
+        expect(await cache.getOrFetch('external', uri), path);
+        expect(
+          recorder.recentCalls(),
+          hasLength(1),
+          reason: 'memory cache hits do not record requests',
+        );
+      }
+    });
+  }
+
   test('a cover file appears only once it is complete', () async {
     final temp = await _tempCacheDir();
     final firstChunkSent = Completer<void>();
@@ -35,7 +84,7 @@ void main() {
       request.response
         ..headers.contentType = ContentType('image', 'jpeg')
         ..contentLength = 6
-        ..add(<int>[1, 2, 3]);
+        ..add(<int>[0xff, 0xd8, 0xff]);
       await request.response.flush();
       firstChunkSent.complete();
       await release.future;
@@ -137,7 +186,7 @@ void main() {
       clientPorts.add(request.connectionInfo!.remotePort);
       request.response
         ..headers.contentType = ContentType('image', 'png')
-        ..add(<int>[137, 80, 78, 71, 1, 2, 3])
+        ..add(<int>[137, 80, 78, 71, 13, 10, 26, 10])
         ..close();
     });
     addTearDown(() async {
@@ -154,7 +203,7 @@ void main() {
 
     expect(first, isNotNull);
     expect(second, isNotNull);
-    expect(await File(second!).length(), 7);
+    expect(await File(second!).length(), 8);
     expect(clientPorts, hasLength(1));
   });
 

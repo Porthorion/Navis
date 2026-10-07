@@ -1486,13 +1486,26 @@ switch means "Navis only talks to your server" when off. See
   It calls `onMissingCover` only for the server's own host (`isServerUri`), so an
   external 404 never asks the server to refresh a cover id. The two URL-style
   consumers (`now_playing_screen.dart`'s radio art provider and
-  `dynamic_accent_provider.dart`) apply the same check.
+  `dynamic_accent_provider.dart`) apply the same check. Artist header URL
+  selection and these early image gates report refusals to
+  `ArtworkCallRecorder`;
+  allowed requests are counted only by the HTTP transport.
 - **Observability.** `IntegrationCallRecorder`
   (`integrationCallRecorderProvider`) is an in-memory ring buffer (200 calls,
-  100 spans) fed by the guard interceptor and by `recorder.span(name, counts,
-  duration)`. It stores service, method, path (no host, query or headers),
-  status, duration and `ok`/`error`/`blocked`, plus per-service counters. User
-  identifiers after `/user/` or `/users/` are replaced with `*` before path
+  100 spans) fed by the guard interceptor, the shared `ArtworkCallRecorder`
+  image boundary, and `recorder.span(name, counts, duration)`. All external
+  image HTTP hops (including redirects) are recorded under the `artwork`
+  service, regardless of which service/feature permits the image. The
+  `CoverArtHttpFileService` records status and elapsed time through response
+  body consumption, with transport, HTTP and invalid-image failures as `error`.
+  Early widget/provider/system-loader policy gates and dispatch-time refusals
+  record `blocked` through the same boundary. Own-server hosts and cache hits
+  add no requests. The main cover-art cache, AudioService's dedicated art cache,
+  Windows SMTC's guarded loader and `PlaybackArtCache` all use this transport;
+  `PlaybackArtCache` retains its durable/offline files and atomic writes. The
+  integration recorder stores service, method, path (no host, query or headers),
+  status, duration and `ok`/`error`/`serviceError`/`blocked`, plus per-service
+  counters. User identifiers after `/user/` or `/users/` are replaced with `*` before path
   truncation, recording and info logging. The Top Songs pipeline records its
   source fetch, local match and server match as
   spans. Source fetches that throw record `failed: 1` with zero result counts;
