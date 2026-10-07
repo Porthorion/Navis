@@ -3719,7 +3719,7 @@ abstract class AppLocalizations {
   /// **'Loading Artist Details'**
   String get artistDetailLoadingLabel;
 
-  /// Shown while an artist from the server's remote catalogue (such as Deezer through Octo-Fiesta) is fetched before its page can show.
+  /// Shown while an artist from the server's remote catalogue (such as a Deezer-backed server) is fetched before its page can show.
   ///
   /// In en, this message translates to:
   /// **'Loading Remote Artist…'**
@@ -3881,7 +3881,7 @@ abstract class AppLocalizations {
   /// **'Could not refresh this album. Check your connection and try again.'**
   String get albumDetailRefreshError;
 
-  /// Shown while an album from the server's remote catalogue (such as Deezer through Octo-Fiesta) and its tracks are fetched before its page can show.
+  /// Shown while an album from the server's remote catalogue (such as a Deezer-backed server) and its tracks are fetched before its page can show.
   ///
   /// In en, this message translates to:
   /// **'Loading Remote Album…'**

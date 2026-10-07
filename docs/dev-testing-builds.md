@@ -22,6 +22,11 @@ Or build a dev APK:
 ./tool/dev_app.sh apk
 ```
 
+`apk` and `dhu` allow debug signing of local dev release-mode APKs when
+`android/key.properties` is absent, using `NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1`.
+Set that variable to `0` to require real keys. Published Android releases via
+`tool/release.sh` always require the properties file and signer verification.
+
 Defaults used by `tool/dev_app.sh`:
 
 - `NAVIS_APP_ID_SUFFIX=.dev`

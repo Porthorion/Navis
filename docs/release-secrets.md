@@ -76,6 +76,10 @@ Required local files:
 - referenced keystore path from `storeFile=...`
 
 Keep keystore + passwords in password manager and only provision on trusted release hosts.
+`tool/release.sh` refuses Android publication without `android/key.properties`.
+Gradle also rejects release builds without it; the
+`NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1` escape hatch is for local development only
+and does not bypass publication checks. Debug/profile signing is unaffected.
 
 For Google Play continuity, the initial Play App Signing setup must use the
 existing release signing key as the app signing key. If a separate upload key is

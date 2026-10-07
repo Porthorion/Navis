@@ -85,6 +85,17 @@ the manifest contract test, and Android Auto manifest verification. Its
 adaptive background remains transparent; the foreground owns the complete
 circular badge.
 
+## Android signing for local builds
+
+Debug and profile builds retain debug signing when `android/key.properties`
+is absent. Release tasks require that file, including aggregate Gradle builds
+that select a release variant. For a deliberate local release-mode test only,
+set `NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1`. `tool/dev_app.sh apk` and `dhu`
+set this opt-in for their dev APK builds; set it to `0` to enforce real keys.
+`tool/release.sh` always requires the properties file and verifies the signer.
+Keep signing files, `.env` files and service-account JSON outside version
+control; `.gitignore` covers their common names and extensions.
+
 ## Multi-OS Host Preflight
 
 Android's pinned AGP 9.3.1 / Gradle 9.5.0 toolchain uses built-in Kotlin.

@@ -141,6 +141,13 @@ fi
 
 # ─── Env file ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Publication always requires the release key, even if local dev builds opt in
+# to debug signing. Fail before loading secrets or running the quality gates.
+if [[ "${BUILD_ANDROID}" == "true" && ! -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
+  echo "Error: android/key.properties is required for Android releases." >&2
+  exit 1
+fi
+
 if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/release.env"
@@ -518,6 +525,9 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
       echo "  Actual:   ${ACTUAL_CERT_SHA256}"
       exit 1
     fi
+  else
+    echo "Error: android/key.properties is required to validate the release signer." >&2
+    exit 1
   fi
 
   echo "==> Validating APK release strings..."

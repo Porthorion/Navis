@@ -44,6 +44,16 @@ The colour-name table is generated separately with
 `dart run tool/generate_color_names.dart`; `build_runner` does not own it.
 Keep its pinned CSV and output together (see `tool/data/color_names/README.md`).
 
+Android Gradle release tasks require `android/key.properties` unless
+`NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1` explicitly permits local debug signing.
+Named release tasks fail during configuration; aggregate tasks selecting release
+variants fail before task execution. Debug/profile tasks keep their fallback.
+`tool/dev_app.sh apk` and `dhu` opt in for local dev APKs (an explicit `0`
+retains the strict check). `tool/check.sh` builds no release APKs.
+`test/tool/android_release_signing_test.dart` exercises the publication
+preflight and local dev opt-in in temporary fixtures with a fake Flutter
+executable, without builds, launches or credentials.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):
@@ -496,7 +506,10 @@ make release VERSION=v0.2.0
    script reports it and continues. It also fails when it cannot read origin's
    tags. `tool/release_tag_guard_test.sh` covers these cases in
    `tool/check.sh`.
-2. Runs `./tool/check.sh` unless `--skip-checks` is passed.
+2. Requires `android/key.properties` when Android is selected, before loading
+   secrets or running gates. Publication never accepts the local debug-signing
+   opt-in, and signer validation fails if the properties file disappears.
+   Runs `./tool/check.sh` unless `--skip-checks` is passed.
 3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
    Android release builds clean stale Flutter/Gradle APK outputs before
    building and remove any same-name root release asset before copying the new

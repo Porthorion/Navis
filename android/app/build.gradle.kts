@@ -15,6 +15,20 @@ if (keyPropertiesFile.exists()) {
     keyProperties.load(keyPropertiesFile.inputStream())
 }
 
+val allowDebugSignedRelease = System.getenv("NAVIS_ALLOW_DEBUG_SIGNED_RELEASE") == "1"
+val releaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.substringAfterLast(':').contains("release", ignoreCase = true)
+}
+
+fun requireReleaseSigning() {
+    if (!keyPropertiesFile.exists() && !allowDebugSignedRelease) {
+        throw GradleException(
+            "android/key.properties is required for release builds. " +
+                "Set NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1 only for local development.",
+        )
+    }
+}
+
 val sidecarAppIdSuffix =
     System.getenv("NAVIS_APP_ID_SUFFIX")
         ?.trim()
@@ -117,6 +131,7 @@ android {
                 signingConfigs.getByName("debug")
         }
         release {
+            if (releaseTaskRequested) requireReleaseSigning()
             if (sidecarAppIdSuffix.isNotEmpty()) {
                 applicationIdSuffix = sidecarAppIdSuffix
                 versionNameSuffix = "-sidecar"
@@ -125,7 +140,7 @@ android {
             signingConfig = if (keyPropertiesFile.exists())
                 signingConfigs.getByName("release")
             else
-                signingConfigs.getByName("debug") // fallback for local dev builds
+                signingConfigs.getByName("debug") // explicit local-development opt-in
             // R8 shrinking reduces APK size by ~30–40%.
             isMinifyEnabled = true
             isShrinkResources = true
@@ -134,6 +149,14 @@ android {
                 "proguard-rules.pro",
             )
         }
+    }
+}
+
+// Aggregate tasks such as assemble/build can select release variants without
+// naming them on the command line. Validate before any selected task executes.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project == project && it.name.contains("release", ignoreCase = true) }) {
+        requireReleaseSigning()
     }
 }
 

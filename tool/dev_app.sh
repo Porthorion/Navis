@@ -245,7 +245,9 @@ case "${MODE}" in
     install_linux_desktop_icon
     ;;
   apk)
-    flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    # Local dev APKs may use the debug key; publication still requires real keys.
+    NAVIS_ALLOW_DEBUG_SIGNED_RELEASE="${NAVIS_ALLOW_DEBUG_SIGNED_RELEASE:-1}" \
+      flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   apk-debug)
     flutter build apk --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
@@ -343,7 +345,9 @@ case "${MODE}" in
 
     # ── 1. Build release APK ────────────────────────────────────────────────
     echo "==> Building release APK…"
-    flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
+    # DHU testing uses a local dev APK and may use the debug signing key.
+    NAVIS_ALLOW_DEBUG_SIGNED_RELEASE="${NAVIS_ALLOW_DEBUG_SIGNED_RELEASE:-1}" \
+      flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
     APK_PATH="build/app/outputs/flutter-apk/app-sideload-release.apk"
     if [[ ! -f "${APK_PATH}" ]]; then
