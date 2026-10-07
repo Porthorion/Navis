@@ -9430,6 +9430,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Go to the next page after going back; the mouse Forward button does the same'**
   String get desktopShortcutsNavigateForwardDescription;
+
+  /// Explains why an external radio station cannot play with the master online services switch off.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services are off. Turn them on in Integrations to play stations outside your server.'**
+  String get radioPlaybackBlockedOnlineServicesOff;
 }
 
 class _AppLocalizationsDelegate

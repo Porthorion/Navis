@@ -1182,6 +1182,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),
+      readRadioPlaybackAllowed: (stream) =>
+          ref.read(integrationPolicyProvider).masterEnabled ||
+          stream.host.toLowerCase() ==
+              ref.read(serverHostProvider)?.toLowerCase(),
       readRadioArtworkAllowed: (uri) => integrationAllowsRadioArtworkUri(
         ref.read(integrationPolicyProvider),
         uri,

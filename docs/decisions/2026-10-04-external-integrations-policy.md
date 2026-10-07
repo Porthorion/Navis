@@ -74,3 +74,7 @@ anything besides my server?" and no way to turn off one feature of a service.
 - `updateProvider` honours a manual "Check now" while automatic checks are off.
 - Clone diagnostics can read and change the policy through
   `GET/POST /v1/presentation/integrations`.
+
+### Compliance follow-up — 2026-10-07
+
+Radio playback checks the master switch before changing transport or queue state. Stations on the configured server host remain available; host comparisons ignore case.

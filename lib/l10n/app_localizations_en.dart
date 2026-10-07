@@ -5873,4 +5873,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get desktopShortcutsNavigateForwardDescription =>
       'Go to the next page after going back; the mouse Forward button does the same';
+
+  @override
+  String get radioPlaybackBlockedOnlineServicesOff =>
+      'Online services are off. Turn them on in Integrations to play stations outside your server.';
 }

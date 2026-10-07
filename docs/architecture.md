@@ -1446,7 +1446,11 @@ switch means "Navis only talks to your server" when off. See
   caller passes `userInitiated: true` (Integrations and onboarding), so the
   weekly stream's automatic revalidation obeys the service switch. The policy is
   read per request, so clients that already exist obey later changes.
-  `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
+  `NavisAudioHandler` receives `readRadioPlaybackAllowed`, checked before any
+  transport or queue changes: the master switch permits external streams, and
+  the configured server host remains allowed when it is off. Host matching is
+  case-insensitive. A missing callback preserves standalone handler compatibility.
+  It also receives `readRadioMetadataAllowed`, which
   `RadioMetadataService` checks before every Azuracast poll and which stops the
   polling while it is false (ICY metadata, carried by the stream
   itself, is unaffected). Policy changes refresh the current station immediately:

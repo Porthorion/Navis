@@ -115,6 +115,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   Future<void> Function(String)? startPreferredMix,
   Future<void> Function(String)? togglePreferredMix,
   bool Function()? readRadioMetadataAllowed,
+  bool Function(Uri stream)? readRadioPlaybackAllowed,
   bool Function(Uri uri)? readRadioArtworkAllowed,
   Dio Function()? createRadioMetadataDio,
   Future<String?> Function(MediaItem)? fetchWindowsArtwork,
@@ -152,6 +153,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       startPreferredMix: startPreferredMix,
       togglePreferredMix: togglePreferredMix,
       readRadioMetadataAllowed: readRadioMetadataAllowed,
+      readRadioPlaybackAllowed: readRadioPlaybackAllowed,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
       createRadioMetadataDio: createRadioMetadataDio,
     );

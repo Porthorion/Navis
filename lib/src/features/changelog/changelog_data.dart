@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Radio stations outside your server respect the Online services switch and explain how to enable playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'About now credits Porthorion and lists bundled colour data, AutoEq and platform-specific third-party licences',
         type: ChangelogEntryType.fix,
       ),

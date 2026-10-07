@@ -455,6 +455,7 @@ void main() {
     bool cacheSongs = true,
     SubsonicApiClient? Function()? readApiClient,
     bool Function()? readCanStream,
+    bool Function(Uri stream)? readRadioPlaybackAllowed,
     bool Function(Uri)? readRadioArtworkAllowed,
     bool Function()? readRadioMetadataAllowed,
     Dio Function()? createRadioMetadataDio,
@@ -505,6 +506,7 @@ void main() {
     final handler = NavisAudioHandler(
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,
+      readRadioPlaybackAllowed: readRadioPlaybackAllowed,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -563,6 +565,44 @@ void main() {
     );
     await handler.waitUntilReady();
     return (handler, player, database);
+  }
+
+  for (final (master, host, allowed) in [
+    (false, 'foreign.example', false),
+    (true, 'foreign.example', true),
+    (false, 'SERVER.example', true),
+  ]) {
+    test('radio playback policy master=$master host=$host', () async {
+      final directory = await Directory.systemTemp.createTemp('radio-policy-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        0,
+        readRadioPlaybackAllowed: (stream) =>
+            master || stream.host.toLowerCase() == 'server.example',
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final stops = player.stopCalls;
+      final result = handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://$host/live',
+      );
+      if (allowed) {
+        await result;
+        expect(handler.snapshot.radioStation?.stationId, 'fixture');
+      } else {
+        await expectLater(
+          result,
+          throwsA(isA<RadioPlaybackBlockedException>()),
+        );
+        expect(player.stopCalls, stops);
+        expect(handler.snapshot.radioStation, isNull);
+      }
+    });
   }
 
   for (final initiallyAllowed in [true, false]) {
