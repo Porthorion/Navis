@@ -161,26 +161,13 @@ void main() {
         configNotifier: _TestServerConfigNotifier(initialConfig),
         connectionService: _FakeServerConnectionService(),
         signOutService: _FakeSignOutService(),
-        initialSettings: const AppSettingsModel.defaults().copyWith(
-          groupListeningEnabled: true,
-          voyageServerUrl: 'https://voyage.example.com',
-          voyageDisplayName: 'Living Room',
-          voyageDeviceLabel: 'Desktop',
-          customVoyageServers: [
-            CustomVoyageServer(
-              label: 'Custom Voyage',
-              url: 'https://custom-voyage.example.com',
-            ),
-          ],
-        ),
+        initialSettings: const AppSettingsModel.defaults(),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Listen Together'), findsNothing);
     expect(find.textContaining('Voyage'), findsNothing);
-    expect(find.text('Custom Voyage'), findsNothing);
-    expect(find.text('https://custom-voyage.example.com'), findsNothing);
   });
 
   testWidgets('test connection action shows success', (tester) async {

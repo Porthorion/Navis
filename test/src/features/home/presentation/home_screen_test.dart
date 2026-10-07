@@ -1028,23 +1028,11 @@ void main() {
     await _pumpHomeWithAppSettings(
       tester,
       database: database,
-      appSettings: const AppSettingsModel.defaults().copyWith(
-        groupListeningEnabled: true,
-        voyageServerUrl: 'https://voyage.example.com',
-        voyageDisplayName: 'Living Room',
-        voyageDeviceLabel: 'Desktop',
-        customVoyageServers: [
-          CustomVoyageServer(
-            label: 'Custom Voyage',
-            url: 'https://custom-voyage.example.com',
-          ),
-        ],
-      ),
+      appSettings: const AppSettingsModel.defaults(),
     );
 
     expect(find.text('Listen Together'), findsNothing);
     expect(find.textContaining('Voyage'), findsNothing);
-    expect(find.text('Custom Voyage'), findsNothing);
   });
 
   testWidgets('major release notes stay in context on Home', (tester) async {

@@ -1209,8 +1209,7 @@ void main() {
     expect(settings.likedQueueEnabled, isTrue);
     expect(settings.desktopPlaybackVolume, 1);
     expect(settings.desktopLastAudibleVolume, 1);
-    final groupListening = await database.appSettingsDao
-        .getGroupListeningSettings();
+    final groupListening = await _readRetiredGroupListening(database);
     final columns = await database
         .customSelect("PRAGMA table_info('app_settings');")
         .get();
@@ -1641,8 +1640,7 @@ CREATE TABLE scrobble_queue (
           .get();
       final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
       expect(indexNames, contains('idx_match_flow_unique_master'));
-      final groupListening = await migrated.appSettingsDao
-          .getGroupListeningSettings();
+      final groupListening = await _readRetiredGroupListening(migrated);
       expect(groupListening.groupListeningEnabled, isFalse);
       expect(groupListening.voyageServerUrl, isNull);
       expect(groupListening.voyageDisplayName, isNull);
@@ -1694,8 +1692,7 @@ SET group_listening_enabled = 1,
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
 
-      final groupListening = await migrated.appSettingsDao
-          .getGroupListeningSettings();
+      final groupListening = await _readRetiredGroupListening(migrated);
       expect(groupListening.groupListeningEnabled, isFalse);
       expect(groupListening.voyageServerUrl, isNull);
       expect(groupListening.voyageDisplayName, isNull);
@@ -2719,4 +2716,37 @@ SET group_listening_enabled = 1,
     expect(saved.map((entry) => entry.song.id), ['b', 'a']);
     expect(saved.map((entry) => entry.originalOrder), [1, 0]);
   }, skip: !sqliteAvailable);
+}
+
+/// Reads the retired Listen Together columns straight from SQLite; the app no
+/// longer exposes them, but upgrades must keep resetting them.
+Future<
+  ({
+    bool groupListeningEnabled,
+    String? voyageServerUrl,
+    String? voyageDisplayName,
+    String? voyageDeviceLabel,
+    bool voyageAutoFollowHost,
+  })
+>
+_readRetiredGroupListening(NavisDatabase database) async {
+  final row = await database.customSelect('''
+    SELECT
+      group_listening_enabled,
+      voyage_server_url,
+      voyage_display_name,
+      voyage_device_label,
+      voyage_auto_follow_host
+    FROM app_settings
+    WHERE id = 1
+    LIMIT 1;
+    ''').getSingleOrNull();
+  final data = row?.data ?? const <String, Object?>{};
+  return (
+    groupListeningEnabled: (data['group_listening_enabled'] as int? ?? 0) != 0,
+    voyageServerUrl: data['voyage_server_url'] as String?,
+    voyageDisplayName: data['voyage_display_name'] as String?,
+    voyageDeviceLabel: data['voyage_device_label'] as String?,
+    voyageAutoFollowHost: (data['voyage_auto_follow_host'] as int? ?? 1) != 0,
+  );
 }

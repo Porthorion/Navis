@@ -2000,11 +2000,6 @@ final queueSongsDroppedProvider = Provider<Stream<QueueSongsDropped>>((ref) {
   return handler?.droppedSongsStream ?? const Stream<QueueSongsDropped>.empty();
 });
 
-/// The song ID of the currently playing track, or null.
-final currentSongProvider = Provider<String?>((ref) {
-  return ref.watch(playerStateProvider.select((s) => s.currentSongId));
-});
-
 /// The station ID currently playing, or null when not in radio mode.
 final currentRadioStationIdProvider = Provider<String?>((ref) {
   final snapshot = ref.watch(playerStateProvider);

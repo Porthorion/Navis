@@ -8,14 +8,6 @@ import 'package:navis/src/database/tables/app_settings_table.dart';
 
 part 'app_settings_dao.g.dart';
 
-typedef GroupListeningSettingsRecord = ({
-  bool groupListeningEnabled,
-  String? voyageServerUrl,
-  String? voyageDisplayName,
-  String? voyageDeviceLabel,
-  bool voyageAutoFollowHost,
-});
-
 const bool _cloneDiagnostics =
     bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
     String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') == 'clone';
@@ -88,7 +80,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const String defaultCellularFormat = 'opus';
   static const int defaultSyncIntervalMinutes = 60;
   static const double defaultDesktopPlaybackVolume = 1;
-  static const bool defaultVoyageAutoFollowHost = true;
 
   Stream<AppSettingsTableData?> watchSettings() {
     final query = select(appSettingsTable)
@@ -111,33 +102,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     cloneDiagnostics: _cloneDiagnostics,
     diagnosticsRoot: _diagnosticsRoot,
   );
-
-  Future<GroupListeningSettingsRecord> getGroupListeningSettings() async {
-    final row = await customSelect(
-      '''
-      SELECT
-        group_listening_enabled,
-        voyage_server_url,
-        voyage_display_name,
-        voyage_device_label,
-        voyage_auto_follow_host
-      FROM app_settings
-      WHERE id = ?
-      LIMIT 1;
-      ''',
-      variables: <Variable<Object>>[Variable<int>(primarySettingsId)],
-      readsFrom: {appSettingsTable},
-    ).getSingleOrNull();
-    final data = row?.data ?? const <String, Object?>{};
-    return (
-      groupListeningEnabled:
-          (data['group_listening_enabled'] as int? ?? 0) != 0,
-      voyageServerUrl: data['voyage_server_url'] as String?,
-      voyageDisplayName: data['voyage_display_name'] as String?,
-      voyageDeviceLabel: data['voyage_device_label'] as String?,
-      voyageAutoFollowHost: (data['voyage_auto_follow_host'] as int? ?? 1) != 0,
-    );
-  }
 
   /// Full-row save of the device settings. The integration-owned columns
   /// (`updateCheckEnabled`, `useLrclib`, `legacyInstantMixEnabled`, the
@@ -207,7 +171,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? listenBrainzScrobblingEnabled,
     bool? listenBrainzTokenValid,
     String? listenBrainzUserName,
-    String? customVoyageServers,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -290,49 +253,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         listenBrainzUserName: listenBrainzUserName == null
             ? const Value.absent()
             : Value(listenBrainzUserName),
-        customVoyageServers: Value(customVoyageServers),
         updatedAt: DateTime.now(),
       ),
-    );
-  }
-
-  Future<void> saveGroupListeningSettings({
-    required bool groupListeningEnabled,
-    String? voyageServerUrl,
-    String? voyageDisplayName,
-    String? voyageDeviceLabel,
-    bool voyageAutoFollowHost = defaultVoyageAutoFollowHost,
-  }) async {
-    final updatedAt = DateTime.now();
-    await customUpdate(
-      '''
-      INSERT INTO app_settings (
-        id,
-        updated_at,
-        group_listening_enabled,
-        voyage_server_url,
-        voyage_display_name,
-        voyage_device_label,
-        voyage_auto_follow_host
-      ) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)
-      ON CONFLICT(id) DO UPDATE SET
-        updated_at = excluded.updated_at,
-        group_listening_enabled = excluded.group_listening_enabled,
-        voyage_server_url = excluded.voyage_server_url,
-        voyage_display_name = excluded.voyage_display_name,
-        voyage_device_label = excluded.voyage_device_label,
-        voyage_auto_follow_host = excluded.voyage_auto_follow_host;
-      ''',
-      variables: <Variable<Object>>[
-        Variable<int>(primarySettingsId),
-        Variable<DateTime>(updatedAt),
-        Variable<int>(groupListeningEnabled ? 1 : 0),
-        Variable<String>(voyageServerUrl ?? ''),
-        Variable<String>(voyageDisplayName ?? ''),
-        Variable<String>(voyageDeviceLabel ?? ''),
-        Variable<int>(voyageAutoFollowHost ? 1 : 0),
-      ],
-      updates: {appSettingsTable},
     );
   }
 
@@ -428,17 +350,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       likedQueueEnabled: true,
       lastFmScrobblingEnabled: false,
       lastFmSessionConnected: false,
-      customVoyageServers: null,
     );
     // The full-row save leaves the policy columns alone; reset them here.
     await updateIntegrationPolicy(master: true, disabledJson: '[]');
-    await saveGroupListeningSettings(
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: defaultVoyageAutoFollowHost,
-    );
   }
 
   Stream<int> watchOnboardingVersion() {

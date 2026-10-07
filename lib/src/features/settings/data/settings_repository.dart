@@ -83,18 +83,10 @@ class SettingsRepository {
       albumQueueEnabled: settings.albumQueueEnabled,
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
-      customVoyageServers: null,
     );
     // Integration-owned columns (the policy columns, the legacy feature
     // columns, the Last.fm key and the ListenBrainz connection) are not part
     // of the full-row save; see AppSettingsDao.saveSettings.
-    await _dao.saveGroupListeningSettings(
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
-    );
   }
 
   /// Writes only the custom Last.fm API key; null clears it. The full-row
@@ -252,12 +244,6 @@ class SettingsRepository {
       externalIntegrationsEnabled: row.externalIntegrationsEnabled,
       disabledIntegrations: row.disabledIntegrations,
       integrationsNoticeDismissed: row.integrationsNoticeDismissed,
-      customVoyageServers: const <CustomVoyageServer>[],
-      groupListeningEnabled: false,
-      voyageServerUrl: null,
-      voyageDisplayName: null,
-      voyageDeviceLabel: null,
-      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
 
