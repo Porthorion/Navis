@@ -80,6 +80,7 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -2698,6 +2699,14 @@ final themeModeProvider = Provider<String>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.themeMode;
+});
+
+/// Current colour style (Neutral, Pastel, Immersive or Night).
+final colorStyleProvider = Provider<NavisColorStyle>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return NavisColorStyle.parse(settings.colorStyle);
 });
 
 /// Current color scheme seed color value (null = default white).

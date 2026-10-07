@@ -166,6 +166,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool customDownloadFolderEnabled,
     String? customDownloadFolderPath,
     required String themeMode,
+    required String colorStyle,
     int? colorSchemeSeed,
     String? appLocale,
     required bool crossfadeEnabled,
@@ -234,6 +235,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
         customDownloadFolderPath: Value(customDownloadFolderPath),
         themeMode: Value(themeMode),
+        colorStyle: Value(colorStyle),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
@@ -399,6 +401,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       customDownloadFolderEnabled: false,
       customDownloadFolderPath: null,
       themeMode: 'dark',
+      colorStyle: 'neutral',
       colorSchemeSeed: null,
       appLocale: null,
       crossfadeEnabled: false,
@@ -757,6 +760,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         themeMode: Value(mode),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for colour style.
+  Future<void> updateColorStyle(String style) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        colorStyle: Value(style),
         updatedAt: Value(DateTime.now()),
       ),
     );

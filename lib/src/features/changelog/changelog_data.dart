@@ -129,6 +129,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Colour style is saved separately from the theme mode and defaults to Neutral',
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

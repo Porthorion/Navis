@@ -672,6 +672,7 @@ void main() {
                   customDownloadFolderEnabled: false,
                   customDownloadFolderPath: null,
                   themeMode: 'dark',
+                  colorStyle: 'neutral',
                   colorSchemeSeed: null,
                   appLocale: null,
                   crossfadeEnabled: false,

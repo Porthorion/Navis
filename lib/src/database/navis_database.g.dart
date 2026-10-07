@@ -951,6 +951,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('dark'),
   );
+  static const VerificationMeta _colorStyleMeta = const VerificationMeta(
+    'colorStyle',
+  );
+  @override
+  late final GeneratedColumn<String> colorStyle = GeneratedColumn<String>(
+    'color_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('neutral'),
+  );
   static const VerificationMeta _colorSchemeSeedMeta = const VerificationMeta(
     'colorSchemeSeed',
   );
@@ -1722,6 +1734,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     maxConcurrentDownloads,
     downloadsPaused,
     themeMode,
+    colorStyle,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -2031,6 +2044,12 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _themeModeMeta,
         themeMode.isAcceptableOrUnknown(data['theme_mode']!, _themeModeMeta),
+      );
+    }
+    if (data.containsKey('color_style')) {
+      context.handle(
+        _colorStyleMeta,
+        colorStyle.isAcceptableOrUnknown(data['color_style']!, _colorStyleMeta),
       );
     }
     if (data.containsKey('color_scheme_seed')) {
@@ -2669,6 +2688,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}theme_mode'],
       )!,
+      colorStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_style'],
+      )!,
       colorSchemeSeed: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}color_scheme_seed'],
@@ -2975,6 +2998,10 @@ class AppSettingsTableData extends DataClass
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
 
+  /// Colour style: 'neutral', 'pastel', 'immersive' or 'night'.
+  /// Orthogonal to [themeMode].
+  final String colorStyle;
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   final int? colorSchemeSeed;
 
@@ -3187,6 +3214,7 @@ class AppSettingsTableData extends DataClass
     required this.maxConcurrentDownloads,
     required this.downloadsPaused,
     required this.themeMode,
+    required this.colorStyle,
     this.colorSchemeSeed,
     this.customColorPresets,
     this.appLocale,
@@ -3295,6 +3323,7 @@ class AppSettingsTableData extends DataClass
     map['max_concurrent_downloads'] = Variable<int>(maxConcurrentDownloads);
     map['downloads_paused'] = Variable<bool>(downloadsPaused);
     map['theme_mode'] = Variable<String>(themeMode);
+    map['color_style'] = Variable<String>(colorStyle);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
     }
@@ -3444,6 +3473,7 @@ class AppSettingsTableData extends DataClass
       maxConcurrentDownloads: Value(maxConcurrentDownloads),
       downloadsPaused: Value(downloadsPaused),
       themeMode: Value(themeMode),
+      colorStyle: Value(colorStyle),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
           : Value(colorSchemeSeed),
@@ -3585,6 +3615,7 @@ class AppSettingsTableData extends DataClass
       ),
       downloadsPaused: serializer.fromJson<bool>(json['downloadsPaused']),
       themeMode: serializer.fromJson<String>(json['themeMode']),
+      colorStyle: serializer.fromJson<String>(json['colorStyle']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       customColorPresets: serializer.fromJson<String?>(
         json['customColorPresets'],
@@ -3749,6 +3780,7 @@ class AppSettingsTableData extends DataClass
       'maxConcurrentDownloads': serializer.toJson<int>(maxConcurrentDownloads),
       'downloadsPaused': serializer.toJson<bool>(downloadsPaused),
       'themeMode': serializer.toJson<String>(themeMode),
+      'colorStyle': serializer.toJson<String>(colorStyle),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
       'appLocale': serializer.toJson<String?>(appLocale),
@@ -3869,6 +3901,7 @@ class AppSettingsTableData extends DataClass
     int? maxConcurrentDownloads,
     bool? downloadsPaused,
     String? themeMode,
+    String? colorStyle,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
     Value<String?> appLocale = const Value.absent(),
@@ -3969,6 +4002,7 @@ class AppSettingsTableData extends DataClass
         maxConcurrentDownloads ?? this.maxConcurrentDownloads,
     downloadsPaused: downloadsPaused ?? this.downloadsPaused,
     themeMode: themeMode ?? this.themeMode,
+    colorStyle: colorStyle ?? this.colorStyle,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
         : this.colorSchemeSeed,
@@ -4151,6 +4185,9 @@ class AppSettingsTableData extends DataClass
           ? data.downloadsPaused.value
           : this.downloadsPaused,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
+      colorStyle: data.colorStyle.present
+          ? data.colorStyle.value
+          : this.colorStyle,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
           : this.colorSchemeSeed,
@@ -4356,6 +4393,7 @@ class AppSettingsTableData extends DataClass
           ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
+          ..write('colorStyle: $colorStyle, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -4454,6 +4492,7 @@ class AppSettingsTableData extends DataClass
     maxConcurrentDownloads,
     downloadsPaused,
     themeMode,
+    colorStyle,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -4547,6 +4586,7 @@ class AppSettingsTableData extends DataClass
           other.maxConcurrentDownloads == this.maxConcurrentDownloads &&
           other.downloadsPaused == this.downloadsPaused &&
           other.themeMode == this.themeMode &&
+          other.colorStyle == this.colorStyle &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
           other.appLocale == this.appLocale &&
@@ -4642,6 +4682,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> maxConcurrentDownloads;
   final Value<bool> downloadsPaused;
   final Value<String> themeMode;
+  final Value<String> colorStyle;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
   final Value<String?> appLocale;
@@ -4729,6 +4770,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.maxConcurrentDownloads = const Value.absent(),
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
+    this.colorStyle = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4817,6 +4859,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.maxConcurrentDownloads = const Value.absent(),
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
+    this.colorStyle = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4905,6 +4948,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? maxConcurrentDownloads,
     Expression<bool>? downloadsPaused,
     Expression<String>? themeMode,
+    Expression<String>? colorStyle,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
     Expression<String>? appLocale,
@@ -5005,6 +5049,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'max_concurrent_downloads': maxConcurrentDownloads,
       if (downloadsPaused != null) 'downloads_paused': downloadsPaused,
       if (themeMode != null) 'theme_mode': themeMode,
+      if (colorStyle != null) 'color_style': colorStyle,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
         'custom_color_presets': customColorPresets,
@@ -5127,6 +5172,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? maxConcurrentDownloads,
     Value<bool>? downloadsPaused,
     Value<String>? themeMode,
+    Value<String>? colorStyle,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
     Value<String?>? appLocale,
@@ -5222,6 +5268,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           maxConcurrentDownloads ?? this.maxConcurrentDownloads,
       downloadsPaused: downloadsPaused ?? this.downloadsPaused,
       themeMode: themeMode ?? this.themeMode,
+      colorStyle: colorStyle ?? this.colorStyle,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
       appLocale: appLocale ?? this.appLocale,
@@ -5404,6 +5451,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (themeMode.present) {
       map['theme_mode'] = Variable<String>(themeMode.value);
+    }
+    if (colorStyle.present) {
+      map['color_style'] = Variable<String>(colorStyle.value);
     }
     if (colorSchemeSeed.present) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed.value);
@@ -5663,6 +5713,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('maxConcurrentDownloads: $maxConcurrentDownloads, ')
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
+          ..write('colorStyle: $colorStyle, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -35281,6 +35332,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> maxConcurrentDownloads,
       Value<bool> downloadsPaused,
       Value<String> themeMode,
+      Value<String> colorStyle,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -35370,6 +35422,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> maxConcurrentDownloads,
       Value<bool> downloadsPaused,
       Value<String> themeMode,
+      Value<String> colorStyle,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -35577,6 +35630,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get themeMode => $composableBuilder(
     column: $table.themeMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36021,6 +36079,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => ColumnOrderings(column),
@@ -36459,6 +36522,11 @@ class $$AppSettingsTableTableAnnotationComposer
   GeneratedColumn<String> get themeMode =>
       $composableBuilder(column: $table.themeMode, builder: (column) => column);
 
+  GeneratedColumn<String> get colorStyle => $composableBuilder(
+    column: $table.colorStyle,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => column,
@@ -36811,6 +36879,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int> maxConcurrentDownloads = const Value.absent(),
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
+                Value<String> colorStyle = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -36902,6 +36971,7 @@ class $$AppSettingsTableTableTableManager
                 maxConcurrentDownloads: maxConcurrentDownloads,
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
+                colorStyle: colorStyle,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
@@ -36992,6 +37062,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int> maxConcurrentDownloads = const Value.absent(),
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
+                Value<String> colorStyle = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -37083,6 +37154,7 @@ class $$AppSettingsTableTableTableManager
                 maxConcurrentDownloads: maxConcurrentDownloads,
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
+                colorStyle: colorStyle,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,

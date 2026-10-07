@@ -211,6 +211,23 @@ WHERE id = ?;
       expect(reset.cachedPlaybackFirst, isFalse);
     }, skip: !sqliteAvailable);
 
+    test('round trips colour style independently of theme mode', () async {
+      final defaults = await repository.getSettings();
+      expect(defaults.colorStyle, 'neutral');
+      await repository.saveSettings(
+        defaults.copyWith(themeMode: 'oled', colorStyle: 'pastel'),
+      );
+
+      final saved = await repository.getSettings();
+      expect(saved.colorStyle, 'pastel');
+      expect(saved.themeMode, 'oled');
+      await repository.saveSettings(saved.copyWith(themeMode: 'light'));
+      expect((await repository.getSettings()).colorStyle, 'pastel');
+
+      await repository.resetDefaults();
+      expect((await repository.getSettings()).colorStyle, 'neutral');
+    }, skip: !sqliteAvailable);
+
     test(
       'persists and normalizes desktop playback volume atomically',
       () async {

@@ -62,6 +62,7 @@ class AppSettingsModel {
     required this.customDownloadFolderEnabled,
     required this.customDownloadFolderPath,
     required this.themeMode,
+    this.colorStyle = 'neutral',
     required this.colorSchemeSeed,
     required this.appLocale,
     required this.crossfadeEnabled,
@@ -141,6 +142,7 @@ class AppSettingsModel {
       customDownloadFolderEnabled = false,
       customDownloadFolderPath = null,
       themeMode = 'dark',
+      colorStyle = 'neutral',
       colorSchemeSeed = null,
       appLocale = null,
       crossfadeEnabled = false,
@@ -220,6 +222,7 @@ class AppSettingsModel {
   final bool customDownloadFolderEnabled;
   final String? customDownloadFolderPath;
   final String themeMode;
+  final String colorStyle;
   final int? colorSchemeSeed;
   final String? appLocale;
   final bool crossfadeEnabled;
@@ -381,6 +384,7 @@ class AppSettingsModel {
     bool? customDownloadFolderEnabled,
     String? customDownloadFolderPath,
     String? themeMode,
+    String? colorStyle,
     int? colorSchemeSeed,
     String? appLocale,
     bool? crossfadeEnabled,
@@ -488,6 +492,7 @@ class AppSettingsModel {
           ? null
           : customDownloadFolderPath ?? this.customDownloadFolderPath,
       themeMode: themeMode ?? this.themeMode,
+      colorStyle: colorStyle ?? this.colorStyle,
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,

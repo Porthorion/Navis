@@ -231,7 +231,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 92;
+  int get schemaVersion => 93;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -528,6 +528,16 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 92 && to >= 92) {
       await from91To92(migrator);
+    }
+    if (from < 93 && to >= 93) {
+      await from92To93(migrator);
+    }
+  }
+
+  /// Adds the colour style independently of the theme mode.
+  Future<void> from92To93(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'color_style')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.colorStyle);
     }
   }
 
@@ -2320,6 +2330,7 @@ FROM scrobble_queue;
         customDownloadFolderPath: const Value(null),
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
+        colorStyle: const Value('neutral'),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
         albumQueueEnabled: const Value(true),

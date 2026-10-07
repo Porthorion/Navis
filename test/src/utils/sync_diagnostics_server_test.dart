@@ -1137,7 +1137,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 92);
+    expect(authorized.body['schemaVersion'], 93);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -2702,6 +2702,7 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         themeMode: 'dark',
+        colorStyle: 'neutral',
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',

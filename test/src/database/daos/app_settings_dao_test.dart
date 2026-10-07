@@ -18,6 +18,23 @@ void main() {
       await database.close();
     });
 
+    test(
+      'colour style defaults to neutral and updates independently',
+      () async {
+        final initial = (await database.appSettingsDao.getSettings())!;
+        expect(initial.colorStyle, 'neutral');
+
+        await database.appSettingsDao.updateThemeMode('oled');
+        await database.appSettingsDao.updateColorStyle('pastel');
+
+        final saved = (await database.appSettingsDao.getSettings())!;
+        expect(saved.colorStyle, 'pastel');
+        expect(saved.themeMode, 'oled');
+        expect(saved.updatedAt.isBefore(initial.updatedAt), isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('saveSettings writes and overwrites single-row settings', () async {
       await database.appSettingsDao.saveSettings(
         wifiMaxBitRate: 320,
@@ -39,6 +56,7 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'dark',
+        colorStyle: 'neutral',
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -98,6 +116,7 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'dark',
+        colorStyle: 'neutral',
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -159,6 +178,7 @@ void main() {
         customDownloadFolderEnabled: false,
         customDownloadFolderPath: null,
         themeMode: 'oled',
+        colorStyle: 'night',
         colorSchemeSeed: 4283215696,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -209,6 +229,7 @@ void main() {
       expect(settings.customDownloadFolderEnabled, isFalse);
       expect(settings.customDownloadFolderPath, isNull);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
+      expect(settings.colorStyle, 'neutral');
       expect(settings.homeDensity, 'comfortable');
       final groupListening = await database.appSettingsDao
           .getGroupListeningSettings();
@@ -328,6 +349,7 @@ void main() {
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
         themeMode: 'dark',
+        colorStyle: 'neutral',
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',

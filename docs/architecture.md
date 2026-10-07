@@ -590,6 +590,12 @@ target-selection rules.
 
 ### Theme and design tokens (`lib/src/theme/`)
 
+Colour style is stored independently of theme mode in `app_settings.color_style`
+(schema 93). Its storage keys are `neutral`, `pastel`, `immersive`, and `night`;
+fresh installations, upgraded rows, and settings resets default to `neutral`.
+`colorStyleProvider` resolves the stored value through `NavisColorStyle.parse`,
+which falls back to Neutral while settings load or for unknown values.
+
 - `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
   `buildOledTheme` each choose a `ColorScheme` from the user's seed (or the
   dynamic album colour) and delegate to one shared builder. Typography,
