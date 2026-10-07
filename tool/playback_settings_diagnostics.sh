@@ -9,7 +9,7 @@ set -euo pipefail
 # production switch, and repeats the assertions after a clean restart.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
+SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/playback-settings-diagnostics/$STAMP"
 CLONE_DB="$OUTPUT_ROOT/navis-playback-settings.sqlite"

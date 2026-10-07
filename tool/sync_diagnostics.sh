@@ -11,8 +11,8 @@ case "$MODE" in
 esac
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
-NORMAL_PRIMARY_DB="$HOME/Documents/navis.sqlite.sqlite"
+SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
+NORMAL_PRIMARY_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" default-primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/sync-diagnostics/$STAMP-$MODE"
 HANDSHAKE="$OUTPUT_ROOT/handshake.json"

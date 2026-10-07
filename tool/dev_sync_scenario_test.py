@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Focused checks for disposable sync scenario preparation."""
 
+import os
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tool.dev_sync_scenario import (
     PROJECT_ROOT,
@@ -59,6 +61,15 @@ class DevSyncScenarioTest(unittest.TestCase):
             db.execute("INSERT INTO songs VALUES ('song')")
             db.execute("INSERT INTO cached_tracks VALUES ('song', '/user/file')")
             db.execute("INSERT INTO star_sync_queue VALUES (1)")
+
+    def test_scenario_source_uses_override_and_explicit_flag_wins(self):
+        with patch.dict(os.environ, {"NAVIS_DIAGNOSTICS_PRIMARY_DB": str(self.source)}):
+            options, _ = _scenario_args(["-d", "linux", "--first-setup"])
+            self.assertEqual(options.scenario_source, self.source)
+            explicit = self.root / "explicit.sqlite"
+            options, _ = _scenario_args(["-d", "linux", "--first-setup",
+                                         "--scenario-source", str(explicit)])
+            self.assertEqual(options.scenario_source, explicit)
 
     def test_first_setup_resets_only_clone(self):
         target = self.root / "first.sqlite"

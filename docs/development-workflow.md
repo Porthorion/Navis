@@ -1533,6 +1533,17 @@ This is a local workaround and does not replace Android runtime validation.
 
 ### Linux Sync Diagnostics
 
+Linux diagnostics and interactive scenario presets share the path resolver in
+`tool/diagnostics_profile.py`. The default source is
+`~/.local/share/com.navis.app.navis/navis.sqlite.sqlite`. It falls back to
+`~/Documents/navis.sqlite.sqlite` only if that legacy file exists and the new
+file does not. `NAVIS_DIAGNOSTICS_PRIMARY_DB` overrides clone sources;
+`--scenario-source` takes precedence for scenario presets. Primary
+certification still requires the normal resolved path, regardless of an override.
+Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
+for fixture-only preparation/path checks, including the shell launchers, without
+starting Navis.
+
 After `./tool/check.sh` passes, exercise catalog promotion against a consistent
 clone of the configured library and the real server:
 

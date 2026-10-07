@@ -19,6 +19,13 @@ app/API runtime loop, and this repository gate. Clone launchers seed
 app-support state such as the What's New marker under `<root>/support/`, where
 desktop clone builds keep it (see `docs/development-workflow.md`).
 
+Diagnostics database defaults are shared through `tool/diagnostics_profile.py`:
+Linux application support first, the Documents file only as an existing legacy
+fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
+Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
+for path selection, shell-launcher defaults and scenario preparation without
+launching the app. Primary certification keeps its normal-path restriction.
+
 Artist queue changes additionally verify early playback and background queue
 growth without a modal using `python3 tool/artist_playback_diagnostics.py`.
 This bounded Linux fixture gate verifies a three-release artist starting with

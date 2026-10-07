@@ -9,7 +9,7 @@ if [[ "$MODE" != "clone" && "$MODE" != "partial" &&
 fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
+SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/auth-lifecycle-diagnostics/$STAMP-$MODE"
 HANDSHAKE="$OUTPUT_ROOT/handshake.json"
