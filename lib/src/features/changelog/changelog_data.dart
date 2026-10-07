@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Windows playback now uses an LGPL audio library with full equalizer support',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Windows Rust dependency notices include licence text for every bundled crate',
         type: ChangelogEntryType.fix,
       ),

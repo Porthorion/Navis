@@ -27,6 +27,11 @@ The generator matches licence filenames case-insensitively and uses tracked
 is fetched at generation or app runtime; unknown fallback identifiers fail.
 See `release-windows.md` for the packaging procedure.
 
+Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
+remote builds no longer seed the obsolete media_kit archive. Run
+`cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
+checks (downloads are simulated). See `release-windows.md` for pin updates.
+
 ## Colour-name data
 
 After updating the pinned MIT colour-name input, run

@@ -13,32 +13,34 @@ set(PROJECT_NAME "media_kit_libs_windows_audio")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
 # ------------------------------------------------------------------------------
-function(download_and_verify url sha256 locationForArchive)
-  # Check if the archive exists.
+function(download_and_verify urls sha256 locationForArchive)
   if(EXISTS "${locationForArchive}")
     file(SHA256 "${locationForArchive}" ARCHIVE_SHA256)
-    # If the hash doesn't match, delete the archive to download again.
-    if(NOT sha256 STREQUAL ARCHIVE_SHA256)
-      file(REMOVE "${locationForArchive}")
-      message(STATUS "SHA-256 mismatch. File deleted.")
+    if("${sha256}" STREQUAL "${ARCHIVE_SHA256}")
+      return()
     endif()
+    file(REMOVE "${locationForArchive}")
+    message(STATUS "Cached archive SHA-256 mismatch. File deleted.")
   endif()
 
-  # Download the archive if it doesn't exist.
-  if(NOT EXISTS "${locationForArchive}")
+  foreach(url IN LISTS urls)
     message(STATUS "Downloading archive from ${url}...")
-    file(DOWNLOAD "${url}" "${locationForArchive}" TLS_VERIFY ON)
-    message(STATUS "Downloaded archive to ${locationForArchive}.")
-
-    # Verify SHA-256 of the newly downloaded file.
-    file(SHA256 "${locationForArchive}" ARCHIVE_SHA256)
-    if(sha256 STREQUAL ARCHIVE_SHA256)
-      message(STATUS "${locationForArchive} Verification successful.")
+    file(DOWNLOAD "${url}" "${locationForArchive}"
+      TLS_VERIFY ON STATUS DOWNLOAD_STATUS TIMEOUT 120)
+    list(GET DOWNLOAD_STATUS 0 DOWNLOAD_CODE)
+    if(DOWNLOAD_CODE EQUAL 0 AND EXISTS "${locationForArchive}")
+      file(SHA256 "${locationForArchive}" ARCHIVE_SHA256)
+      if("${sha256}" STREQUAL "${ARCHIVE_SHA256}")
+        message(STATUS "Archive SHA-256 verification successful.")
+        return()
+      endif()
+      message(STATUS "Downloaded archive SHA-256 mismatch.")
     else()
-      file(REMOVE "${locationForArchive}")
-      message(FATAL_ERROR "${locationForArchive} Integrity check failed (SHA-256 ${ARCHIVE_SHA256}), please try to re-build project again.")
+      message(STATUS "Archive download failed (${DOWNLOAD_CODE}).")
     endif()
-  endif()
+    file(REMOVE "${locationForArchive}")
+  endforeach()
+  message(FATAL_ERROR "No URL supplied a valid libmpv archive; please retry the build.")
 endfunction()
 
 function(check_directory_exists_and_not_empty dir result_var)
@@ -59,21 +61,22 @@ function(check_directory_exists_and_not_empty dir result_var)
   endif()
 endfunction()
 
-# Navis: a pinned, unmodified full libmpv build from shinchiro/mpv-winbuild-cmake
-# (release 20261001: mpv v0.41.0-1092-g3186d369f, FFmpeg with libavformat
-# 63.7.100). media_kit's own minimal build (2023-09-24, from an archived repo)
-# lacks the libavfilter "volume" and "biquad" filters the equalizer needs and
-# no longer receives FFmpeg fixes. The archive is mirrored in a release of the
-# separate khalifa/navis-third-party repository (upstream prunes old releases,
-# and releases in the Navis repository would show up in the app's update
-# check); SOURCES.md there records its provenance. To update, see
-# docs/release-windows.md.
-#   Upstream: https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261001
-set(LIBMPV "mpv-dev-x86_64-20261001-git-3186d369f9.7z")
+# Navis: zhongfly/mpv-winbuild's LGPL variant, licensed LGPL-2.1+:
+# mpv v0.41.0-1104-geb0ee1031 built with -Dgpl=false and FFmpeg
+# N-127222-g151814650 without --enable-gpl. Includes libavfilter volume/biquad
+# for the equalizer. Mirrored in navis-third-party to keep old pins buildable
+# when upstream prunes daily releases, without polluting Navis update checks.
+# SOURCES.md and corresponding source tarballs accompany the mirrored binary.
+# To update, see docs/release-windows.md.
+set(LIBMPV "mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z")
 
-# Download URL & SHA-256 of the libmpv archive.
-set(LIBMPV_URL "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-windows-x86_64-20261001/${LIBMPV}")
-set(LIBMPV_SHA256 "de0aa24a39e27b07d9f663616f8d09c91586c7328d8c33fbfbc8e3888c35d89c")
+# Ordered mirrors followed by upstream; every attempt must match this digest.
+set(LIBMPV_URLS
+  "https://git.porthorion.com/khalifa/navis-third-party/releases/download/libmpv-windows-x86_64-lgpl-20261006/${LIBMPV}"
+  "https://downloads.porthorion.com/third-party/${LIBMPV}"
+  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-06-eb0ee10315/${LIBMPV}"
+)
+set(LIBMPV_SHA256 "0a86c8ee1cd7112d0ab7ae86716ffe468d3fd19e4b0a18a7b2a5f7498f00cf52")
 
 # Download location of the libmpv archive.
 set(LIBMPV_ARCHIVE "${CMAKE_BINARY_DIR}/${LIBMPV}")
@@ -83,9 +86,9 @@ get_filename_component(LIBMPV_NAME "${LIBMPV}" NAME_WE)
 set(LIBMPV_SRC "${CMAKE_BINARY_DIR}/${LIBMPV_NAME}")
 
 download_and_verify(
-  ${LIBMPV_URL}
-  ${LIBMPV_SHA256}
-  ${LIBMPV_ARCHIVE}
+  "${LIBMPV_URLS}"
+  "${LIBMPV_SHA256}"
+  "${LIBMPV_ARCHIVE}"
 )
 
 check_directory_exists_and_not_empty(${LIBMPV_SRC} LIBMPV_SRC_VALID)

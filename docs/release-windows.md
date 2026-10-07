@@ -20,40 +20,43 @@ Windows playback runs on libmpv, which Navis bundles as `libmpv-2.dll`. The
 `third_party/media_kit_libs_windows_audio/` (see its `NAVIS.md`): upstream's
 build is a minimal 2023-09-24 libmpv from an archived repository, without the
 FFmpeg `volume` and `biquad` filters the equalizer needs and without FFmpeg
-fixes since. Navis pins a full build from
-[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake)
-instead. Closed-source distribution requires an LGPL libmpv/FFmpeg build;
-replacement of the current GPL pin is tracked in `COMPLIANCE-AUDIT.md` L-3.
+fixes since. Navis pins the LGPL-2.1+ variant from
+[zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild):
+`mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z`, mpv
+v0.41.0-1104-geb0ee1031 (`-Dgpl=false`) and FFmpeg N-127222-g151814650
+(without `--enable-gpl`), with the `volume` and `biquad` filters present.
 
-The full build costs size: at 1.4.0 the release bundle is 168.1 MB installed
-(`libmpv-2.dll` 120.9 MB, against 15.5 MB for media_kit's build) and the
-portable zip is 66.2 MB. It also verifies TLS certificates (mpv's newer
-default), using the Windows certificate store, so streaming accepts exactly
-the servers Navis's API client accepts.
-
-The build downloads the pinned archive from a release of the separate
-[`khalifa/navis-third-party`](https://git.porthorion.com/khalifa/navis-third-party)
-repository, verifies its SHA-256, and extracts it into a folder named after
-the archive. Upstream prunes old daily releases, so the mirror keeps old Navis
-versions buildable. The mirror must not be a release of the Navis repository:
-the app's update check reads that repository's releases.
+CMake tries the navis-third-party Forgejo mirror, then
+`https://downloads.porthorion.com/third-party/`, then the pinned upstream
+release. Each attempt is SHA-256 verified; failed or mismatched downloads are
+deleted before trying the next URL. A verified build-directory cache works
+offline. Extraction is per archive pin. The mirror keeps old Navis versions
+buildable when upstream prunes daily releases and stays separate from the
+Navis releases read by the app's update check.
 
 To update the pin:
 
-1. Download the newest `mpv-dev-x86_64-<date>-git-<rev>.7z` from the upstream
-   releases. Use the plain x86_64 build, not `-v3` (that one needs AVX2).
-2. Check that its SHA-256 matches the digest GitHub shows for the asset, and
-   that it contains `libmpv-2.dll` and `include/mpv/*.h`.
-3. Create a release named after it in `khalifa/navis-third-party` (tag
-   `libmpv-windows-x86_64-<date>`) and attach the archive with a `SOURCES.md`
-   giving its upstream URL, release, SHA-256, mpv and FFmpeg versions and
-   license. Upload through the API: the web form rejects `.7z` files. Keep the
-   older releases for older Navis versions.
-4. Set `LIBMPV`, `LIBMPV_URL` and `LIBMPV_SHA256` in
-   `third_party/media_kit_libs_windows_audio/windows/CMakeLists.txt`.
-5. Build a profile bundle and check that the EQ page is available and that
-   EQ, speed and pitch, gapless playback and seeking work. Look for `af`
-   errors in the mpv log.
+1. Download an LGPL `mpv-dev-lgpl-x86_64-<date>-git-<rev>.7z` archive from
+   upstream; use plain x86_64, not `-v3` (requires AVX2).
+2. Verify the published SHA-256, `libmpv-2.dll` and `include/mpv/*.h`.
+   `strings libmpv-2.dll | grep -c -- --enable-gpl` must report `0` (grep
+   exits 1 for zero matches). Inspect the embedded meson configuration for
+   `-Dgpl=false`; confirm the FFmpeg configuration also lacks `--enable-nonfree`
+   and that `volume` and `biquad` are available.
+3. Create a `libmpv-windows-x86_64-lgpl-<date>` release in
+   [navis-third-party](https://git.porthorion.com/khalifa/navis-third-party).
+   Attach the binary, `SOURCES.md` (upstream URL, SHA-256, versions, licence
+   and build configuration), and the corresponding mpv/FFmpeg source tarballs.
+   Use the API for `.7z` uploads. Preserve older releases.
+4. Copy the identical archive to R2 at
+   `https://downloads.porthorion.com/third-party/<archive-name>` and verify
+   its SHA-256 there. Update `LIBMPV`, ordered `LIBMPV_URLS` and
+   `LIBMPV_SHA256` in the vendored CMake file.
+5. Build a profile bundle and verify EQ, speed/pitch, gapless playback,
+   seeking and TLS certificate validation; inspect mpv logs for `af` errors.
+
+The remote Windows builder no longer pre-seeds the obsolete 2023 media_kit
+archive; only the current CMake pin/cache is used.
 
 ---
 
