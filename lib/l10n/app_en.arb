@@ -154,6 +154,10 @@
   "privacyDiagnosticsTitle": "Diagnostics",
   "privacyDiagnosticsBody": "Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.",
   "privacySummary": "Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.",
+  "privacyReadFullPolicy": "Read the full privacy policy",
+  "@privacyReadFullPolicy": {
+    "description": "Link at the end of the in-app Privacy page that opens the full policy on the Navis website."
+  },
   "syncSettingsTitle": "Sync Settings",
   "syncSettingsStatusLabel": "Current Sync Status",
   "syncSettingsLastSyncedLabel": "Server Last Synced",
@@ -1686,6 +1690,34 @@
   "aboutVersion": "Version",
   "aboutChangelog": "Changelog",
   "aboutChangelogSub": "See every version's changes and bug fixes.",
+  "aboutWebsite": "Website",
+  "@aboutWebsite": {
+    "description": "About tile that opens the Navis website in the browser."
+  },
+  "aboutPrivacyPolicy": "Privacy policy",
+  "@aboutPrivacyPolicy": {
+    "description": "About tile that opens the full Navis app privacy policy on the website."
+  },
+  "aboutPrivacyPolicySub": "The full policy on the Navis website.",
+  "aboutTerms": "Terms of use",
+  "@aboutTerms": {
+    "description": "About tile that opens the Navis End User Licence Agreement on the website."
+  },
+  "aboutTermsSub": "The licence agreement for using Navis.",
+  "aboutContact": "Contact support",
+  "@aboutContact": {
+    "description": "About tile that starts an email to Navis support."
+  },
+  "aboutLinkOpenFailed": "Couldn't open {target}.",
+  "@aboutLinkOpenFailed": {
+    "description": "Notice shown when the system can't open a link or start an email from About or Privacy.",
+    "placeholders": {
+      "target": {
+        "type": "String",
+        "example": "navis.porthorion.com"
+      }
+    }
+  },
   "changelogSpecialThanks": "Special Thanks",
   "changelogDiscoveryTitle": "What’s New",
   "changelogDiscoveryVersion": "Version {version}",

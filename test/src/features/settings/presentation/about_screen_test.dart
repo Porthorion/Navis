@@ -16,6 +16,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/fake_url_launcher.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
 
@@ -167,6 +168,33 @@ void main() {
       final page = tester.widget<LicensePage>(find.byType(LicensePage));
       expect(page.applicationLegalese, '© 2026 Porthorion');
       expect(find.text('© 2026 Porthorion'), findsOneWidget);
+    });
+
+    testWidgets('links to the website, policy, terms and support', (
+      tester,
+    ) async {
+      final launcher = FakeUrlLauncher.install();
+      await pumpAbout(tester, updateInfo: null);
+
+      for (final title in <String>[
+        'Website',
+        'Privacy policy',
+        'Terms of use',
+        'Contact support',
+      ]) {
+        final tile = find.widgetWithText(ListTile, title);
+        await tester.scrollUntilVisible(tile, 200);
+        await tester.pumpAndSettle();
+        await tester.tap(tile);
+        await tester.pumpAndSettle();
+      }
+
+      expect(launcher.launched, <String>[
+        'https://navis.porthorion.com',
+        'https://navis.porthorion.com/privacy/app',
+        'https://navis.porthorion.com/eula',
+        'mailto:support@porthorion.com',
+      ]);
     });
 
     testWidgets('shows update section on Android', (tester) async {

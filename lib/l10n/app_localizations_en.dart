@@ -502,6 +502,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.';
 
   @override
+  String get privacyReadFullPolicy => 'Read the full privacy policy';
+
+  @override
   String get syncSettingsTitle => 'Sync Settings';
 
   @override
@@ -3727,6 +3730,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutChangelogSub => 'See every version\'s changes and bug fixes.';
+
+  @override
+  String get aboutWebsite => 'Website';
+
+  @override
+  String get aboutPrivacyPolicy => 'Privacy policy';
+
+  @override
+  String get aboutPrivacyPolicySub => 'The full policy on the Navis website.';
+
+  @override
+  String get aboutTerms => 'Terms of use';
+
+  @override
+  String get aboutTermsSub => 'The licence agreement for using Navis.';
+
+  @override
+  String get aboutContact => 'Contact support';
+
+  @override
+  String aboutLinkOpenFailed(String target) {
+    return 'Couldn\'t open $target.';
+  }
 
   @override
   String get changelogSpecialThanks => 'Special Thanks';

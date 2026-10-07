@@ -7,6 +7,7 @@ import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/fake_url_launcher.dart';
 import '../../../../helpers/test_theme.dart';
 
 void main() {
@@ -28,6 +29,32 @@ void main() {
       ),
     );
   }
+
+  testWidgets('links to the full privacy policy', (tester) async {
+    final launcher = FakeUrlLauncher.install();
+    setAdaptiveTestViewport(tester, const Size(412, 900));
+    await pumpPrivacy(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(412, 900),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final link = find.byKey(const ValueKey<String>('privacy-full-policy'));
+    await tester.scrollUntilVisible(link, 200);
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('Read the full privacy policy'), findsOneWidget);
+    await tester.tap(link);
+    await tester.pumpAndSettle();
+
+    expect(launcher.launched, <String>[
+      'https://navis.porthorion.com/privacy/app',
+    ]);
+  });
 
   testWidgets('desktop privacy uses the responsive two-column layout', (
     tester,

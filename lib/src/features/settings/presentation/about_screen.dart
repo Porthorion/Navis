@@ -14,6 +14,8 @@ import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/external_links.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -158,7 +160,11 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                       flex: 4,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[information, updates],
+                        children: <Widget>[
+                          information,
+                          updates,
+                          const _AboutLegal(),
+                        ],
                       ),
                     ),
                   ],
@@ -170,6 +176,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                 const SizedBox(height: 12),
                 information,
                 updates,
+                const _AboutLegal(),
               ],
             ],
           );
@@ -496,6 +503,68 @@ class _AboutInformation extends ConsumerWidget {
     );
   }
 }
+
+/// Links to Porthorion's website, the app privacy policy, the licence
+/// agreement and support, at the end of About.
+class _AboutLegal extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      children: <Widget>[
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.public),
+          title: Text(l10n.aboutWebsite),
+          subtitle: Text(_hostOf(AppConstants.websiteUrl)),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            Uri.parse(AppConstants.websiteUrl),
+            label: _hostOf(AppConstants.websiteUrl),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.policy_outlined),
+          title: Text(l10n.aboutPrivacyPolicy),
+          subtitle: Text(l10n.aboutPrivacyPolicySub),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            Uri.parse(AppConstants.privacyPolicyUrl),
+            label: l10n.aboutPrivacyPolicy,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel_outlined),
+          title: Text(l10n.aboutTerms),
+          subtitle: Text(l10n.aboutTermsSub),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            Uri.parse(AppConstants.eulaUrl),
+            label: l10n.aboutTerms,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.mail_outline),
+          title: Text(l10n.aboutContact),
+          subtitle: const Text(AppConstants.supportEmail),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => openExternalLink(
+            context,
+            supportEmailUri,
+            label: AppConstants.supportEmail,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _hostOf(String url) => Uri.parse(url).host;
 
 class _AboutUpdates extends StatelessWidget {
   const new({

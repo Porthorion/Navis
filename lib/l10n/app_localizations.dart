@@ -994,6 +994,12 @@ abstract class AppLocalizations {
   /// **'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.'**
   String get privacySummary;
 
+  /// Link at the end of the in-app Privacy page that opens the full policy on the Navis website.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the full privacy policy'**
+  String get privacyReadFullPolicy;
+
   /// No description provided for @syncSettingsTitle.
   ///
   /// In en, this message translates to:
@@ -5884,6 +5890,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'See every version\'s changes and bug fixes.'**
   String get aboutChangelogSub;
+
+  /// About tile that opens the Navis website in the browser.
+  ///
+  /// In en, this message translates to:
+  /// **'Website'**
+  String get aboutWebsite;
+
+  /// About tile that opens the full Navis app privacy policy on the website.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get aboutPrivacyPolicy;
+
+  /// No description provided for @aboutPrivacyPolicySub.
+  ///
+  /// In en, this message translates to:
+  /// **'The full policy on the Navis website.'**
+  String get aboutPrivacyPolicySub;
+
+  /// About tile that opens the Navis End User Licence Agreement on the website.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of use'**
+  String get aboutTerms;
+
+  /// No description provided for @aboutTermsSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The licence agreement for using Navis.'**
+  String get aboutTermsSub;
+
+  /// About tile that starts an email to Navis support.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact support'**
+  String get aboutContact;
+
+  /// Notice shown when the system can't open a link or start an email from About or Privacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open {target}.'**
+  String aboutLinkOpenFailed(String target);
 
   /// No description provided for @changelogSpecialThanks.
   ///

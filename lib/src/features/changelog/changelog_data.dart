@@ -165,6 +165,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'About links to the Navis website, privacy policy, terms of use and support, and Privacy links to the full policy',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Skipping setup still shows which online services Navis may use, and setup now lists every one of them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Stations outside your server now need Online services turned on, and explain how to enable it',
         type: ChangelogEntryType.fix,
       ),

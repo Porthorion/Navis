@@ -4,6 +4,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/external_links.dart';
 
 class PrivacyScreen extends ConsumerWidget {
   const new({super.key});
@@ -81,6 +83,20 @@ class PrivacyScreen extends ConsumerWidget {
                 l10n.privacySummary,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const ValueKey<String>('privacy-full-policy'),
+                  onPressed: () => openExternalLink(
+                    context,
+                    Uri.parse(AppConstants.privacyPolicyUrl),
+                    label: l10n.aboutPrivacyPolicy,
+                  ),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(l10n.privacyReadFullPolicy),
                 ),
               ),
             ],
