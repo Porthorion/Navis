@@ -269,15 +269,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        "Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server's remote catalogue",
+        'Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server\'s remote catalogue',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        "New Releases on Home, right under You Might Like, shows the last month's releases from the artists you play most, or from your library's main artists while you have played little; tap one to open it like any album, from your library or your server's remote catalogue",
+        'New Releases on Home, right under You Might Like, shows the last month\'s releases from the artists you play most, or from your library\'s main artists while you have played little; tap one to open it like any album, from your library or your server\'s remote catalogue',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        "Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer's chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button",
+        'Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer\'s chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
