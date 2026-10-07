@@ -367,7 +367,13 @@ keep-data logout clears secure credentials and marks the row signed out without
 discarding its committed catalog, sync generation, provider tuning, timestamps,
 or Navis capability metadata. Reauthenticating the same identity updates that
 row in place. A different identity must traverse the explicit destructive
-replacement boundary before its credentials can be stored.
+replacement boundary before its credentials can be stored. Only keep-data
+logout, wipe logout and `clear()` delete the stored password. Reading the
+active server while no row is authenticated returns nothing and leaves the
+password alone, because sign-in stores the password before it marks the row
+authenticated. An earlier read path deleted it in that gap, so a sign-in after
+a keep-data logout lost its password and the next credential read (for
+example an artist page's targeted sync) signed the user out again.
 
 Routing derives a compact `SessionRoutePhase`. A newly authenticated profile
 without a usable catalog stays on the full-screen `/initial-sync` rebuild route.

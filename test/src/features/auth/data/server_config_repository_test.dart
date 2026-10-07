@@ -29,18 +29,25 @@ class _FakeCredentialStore implements SecureCredentialStore {
   }
 }
 
-class _ThrowingCredentialStore implements SecureCredentialStore {
-  new({this.throwOnRead = false, this.throwOnClear = false});
-
-  final bool throwOnRead;
-  final bool throwOnClear;
+/// Runs [onSaved] right after the password is stored, like another reader of
+/// the active server landing between save()'s two writes.
+class _ReadDuringSaveCredentialStore extends _FakeCredentialStore {
+  Future<void> Function()? onSaved;
 
   @override
-  Future<void> clearPassword() async {
-    if (throwOnClear) {
-      throw StateError('clear failed');
-    }
+  Future<void> savePassword(String password) async {
+    await super.savePassword(password);
+    await onSaved?.call();
   }
+}
+
+class _ThrowingCredentialStore implements SecureCredentialStore {
+  new({this.throwOnRead = false});
+
+  final bool throwOnRead;
+
+  @override
+  Future<void> clearPassword() async {}
 
   @override
   Future<String?> readPassword() async {
@@ -181,6 +188,63 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'reading while signed out keeps a password saved for the next sign-in',
+      () async {
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            name: Value('example.com'),
+            url: 'https://example.com',
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+        await database.serverDao.markSignedOut();
+        // save() stores the password before it marks the row authenticated.
+        credentials.password = 'new-secret';
+
+        final config = await repository.getActiveServer();
+
+        expect(config, isNull);
+        expect(credentials.password, 'new-secret');
+        expect(credentials.clearCalls, 0);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'sign-in after a keep-data sign-out survives a concurrent read',
+      () async {
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            name: Value('example.com'),
+            url: 'https://example.com',
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+        await database.serverDao.markSignedOut();
+        final racing = _ReadDuringSaveCredentialStore();
+        repository = ServerConfigRepository(database, credentials: racing);
+        racing.onSaved = repository.getActiveServer;
+
+        await repository.save(
+          const ServerConfigModel(
+            name: 'example.com',
+            url: 'https://example.com',
+            username: 'alice',
+            password: 'new-secret',
+            apiVersion: '1.16.1',
+          ),
+        );
+        final config = await repository.getActiveServer();
+
+        expect(config?.password, 'new-secret');
+        expect(racing.password, 'new-secret');
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('clear removes both drift row and secure password', () async {
       await database.serverDao.saveServer(
         ServerConfigTableCompanion.insert(
@@ -200,14 +264,14 @@ void main() {
       expect(credentials.clearCalls, 1);
     }, skip: !sqliteAvailable);
 
-    test('getActiveServer tolerates secure credential clear failure', () async {
-      repository = ServerConfigRepository(
-        database,
-        credentials: _ThrowingCredentialStore(throwOnClear: true),
-      );
+    test('getActiveServer without a server row leaves credentials', () async {
+      credentials.password = 'secret';
 
       final config = await repository.getActiveServer();
+
       expect(config, isNull);
+      expect(credentials.password, 'secret');
+      expect(credentials.clearCalls, 0);
     }, skip: !sqliteAvailable);
 
     test(

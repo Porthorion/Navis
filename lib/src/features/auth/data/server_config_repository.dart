@@ -177,10 +177,10 @@ class ServerConfigRepository {
   }
 
   Future<ServerConfigModel?> _mapRowToModel(ServerConfigTableData? row) async {
-    if (row == null) {
-      await _clearPasswordIfPossible();
-      return null;
-    }
+    // No signed-in server is not a reason to delete the password: sign-in
+    // saves it before marking the row authenticated, so a read landing in
+    // between would erase the new password. Sign-out and clear() delete it.
+    if (row == null) return null;
 
     final password = await _readPasswordIfPossible();
     if (password == null || password.isEmpty) {
@@ -266,16 +266,6 @@ class ServerConfigRepository {
       });
     } on FormatException {
       return probed;
-    }
-  }
-
-  Future<void> _clearPasswordIfPossible() async {
-    try {
-      await _credentials.clearPassword();
-    } on Object catch (error) {
-      AppLogger.warning(
-        'Secure credential clear failed: ${error.runtimeType}.',
-      );
     }
   }
 
