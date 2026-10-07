@@ -283,6 +283,12 @@
       "count": {"type": "int"}
     }
   },
+  "librarySyncBacklogOfflineBanner": "{count, plural, =1{1 album will finish loading details when the server is back} other{{count} albums will finish loading details when the server is back}}",
+  "@librarySyncBacklogOfflineBanner": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "syncSettingsCandidate": "Prepared library update: {status}",
   "@syncSettingsCandidate": {
     "placeholders": {

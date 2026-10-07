@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
@@ -1259,6 +1261,49 @@ void main() {
           find.text('Library synced, 3 albums are still loading details'),
           findsOneWidget,
         );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'idle backlog says it waits for the server while offline',
+      (tester) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            serverReachabilityControllerProvider.overrideWith(
+              _OfflineReachabilityController.new,
+            ),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                LibrarySyncState(
+                  status: LibrarySyncStatus.idle,
+                  stage: LibrarySyncStage.idle,
+                  lastSyncedAt: DateTime(2026, 9, 21, 8),
+                  pendingHydrationCount: 3,
+                ),
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(
+          find.text(
+            '3 albums will finish loading details when the server is back',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.hourglass_bottom_rounded), findsNothing);
       },
     );
 
@@ -2617,4 +2662,10 @@ void main() {
       },
     );
   });
+}
+
+class _OfflineReachabilityController extends ServerReachabilityController {
+  @override
+  ServerReachabilityState build() =>
+      const ServerReachabilityState(status: ServerReachabilityStatus.offline);
 }

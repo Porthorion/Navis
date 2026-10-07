@@ -298,7 +298,9 @@ Located in `lib/src/providers/app_providers.dart`:
 - `serverConfigRepositoryProvider` - Config repository
 
 **server_reachability_provider.dart**:
-- `serverReachabilityControllerProvider` - Server reachability state
+- `serverReachabilityControllerProvider` - Server reachability state;
+  `retryNow()` backs the shell offline banner's Retry (see "Offline banner
+  and the top inset")
 
 #### Retired Listen Together Feature (`lib/src/features/group_listening/`)
 
@@ -1126,6 +1128,23 @@ compact rail, icon-only or auto-hiding desktop sidebars, or a rail too short
 for them), the Library page shows its own section bar;
 `LibrarySectionNavigationScope` carries the sidebar's decision, which the
 sidebar reports after layout.
+
+### Offline banner and the top inset
+
+While the session's server is unreachable, every shell mode shows
+`ShellOfflineBanner` (`lib/src/routing/shell_offline_banner.dart`) above the
+tab pages. `ShellOfflineBannerFrame` owns the top inset while the banner is
+visible:
+- On Android, which runs edge to edge, the banner fills the status bar strip with its own surface colour and pads its content below it.
+- The frame strips the top padding from the `MediaQuery` it hands to the pages.
+
+Pages keep using `SafeArea` and primary `AppBar`s as usual, and do not add the status bar height a second time. Only the content part of the banner animates. The status bar strip comes and goes together with the padding it replaces, so pages never jump by the status bar height. The `MediaQuery` wrapper is always present, so toggling the banner never rebuilds the pages.
+
+The banner's Retry action calls `ServerReachabilityController.retryNow()`. That method:
+- checks the server at once, or joins a check that is already running;
+- leaves the status at `offline` until the check finishes, so the banner stays up while the check runs.
+
+App notices sit below the banner using `ShellOfflineBanner.contentHeight`.
 
 ### AdaptiveContext
 

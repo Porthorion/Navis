@@ -129,6 +129,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'The offline banner on phones and tablets no longer covers the status bar or leaves an empty gap above the page',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The offline banner has a Retry button to check the server right away instead of waiting for the next automatic check',
+      ),
+      ChangelogEntry(
+        'While the server is unreachable, Library says the albums still loading details will finish when the server is back',
+      ),
+      ChangelogEntry(
         'External artwork requests and blocked loads now appear in integration diagnostics without exposing URL credentials',
         type: ChangelogEntryType.fix,
       ),

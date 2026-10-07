@@ -35,6 +35,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
   Timer? _retryTimer;
   bool _isChecking = false;
   bool _pendingCheck = false;
+  Future<void>? _inFlightCheck;
   String? _sessionFingerprint;
   bool _hasAuthenticatedSession = false;
 
@@ -126,6 +127,15 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
     unawaited(_checkReachability());
   }
 
+  /// Checks the server now, for example from the offline banner's Retry.
+  ///
+  /// Joins a check that is already running instead of starting another
+  /// ping. The status stays as it is until the check finishes, so the
+  /// offline banner stays up while it runs.
+  Future<void> retryNow() {
+    return _inFlightCheck ?? _checkReachability();
+  }
+
   Future<void> _checkReachability() async {
     if (!_hasAuthenticatedSession) {
       return;
@@ -151,6 +161,8 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
     }
 
     _isChecking = true;
+    final check = Completer<void>();
+    _inFlightCheck = check.future;
     try {
       await ping();
       if (!_hasAuthenticatedSession) {
@@ -183,6 +195,8 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       _scheduleRetryTimer();
     } finally {
       _isChecking = false;
+      _inFlightCheck = null;
+      check.complete();
       if (_pendingCheck) {
         _pendingCheck = false;
         unawaited(_checkReachability());

@@ -28,8 +28,10 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/shell_offline_banner.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -39,9 +41,15 @@ class _StaticReachabilityController extends ServerReachabilityController {
   new(this._state);
 
   final ServerReachabilityState _state;
+  int retryCalls = 0;
 
   @override
   ServerReachabilityState build() => _state;
+
+  @override
+  Future<void> retryNow() async {
+    retryCalls++;
+  }
 }
 
 class _TestServerConfigNotifier extends ServerConfigNotifier {
@@ -685,6 +693,109 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final (name, size, desktopRuntime, topInset)
+      in <(String, Size, bool, double)>[
+        ('phone', Size(400, 800), false, 24),
+        ('tablet rail', Size(1100, 800), false, 24),
+        ('desktop', Size(1100, 800), true, 0),
+      ]) {
+    testWidgets('offline banner owns the status bar inset on a $name', (
+      tester,
+    ) async {
+      tester.view
+        ..devicePixelRatio = 2
+        ..physicalSize = size * 2
+        ..padding = FakeViewPadding(top: topInset * 2)
+        ..viewPadding = FakeViewPadding(top: topInset * 2);
+      addTearDown(tester.view.reset);
+      final reachability = _StaticReachabilityController(
+        const ServerReachabilityState(status: ServerReachabilityStatus.offline),
+      );
+      final container = _createContainerWithDatabase(
+        overrides: [
+          desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          serverReachabilityControllerProvider.overrideWith(() => reachability),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+          artistInfoProvider.overrideWith((ref, artistId) async => null),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: _testApp),
+      );
+      await tester.pumpAndSettle();
+      container.read(appRouterProvider).go(AppRoutes.library);
+      await tester.pumpAndSettle();
+
+      final banner = find.byKey(ShellOfflineBanner.bannerKey);
+      expect(banner, findsOneWidget);
+      // The banner fills the status bar strip; its content sits below it.
+      expect(tester.getTopLeft(banner).dy, 0);
+      expect(
+        tester.getSize(banner).height,
+        topInset + ShellOfflineBanner.contentHeight,
+      );
+      expect(
+        tester
+            .getTopLeft(find.text('Server unreachable. Retrying every 30s.'))
+            .dy,
+        greaterThanOrEqualTo(topInset),
+      );
+      // The page starts right under the banner and does not add the status
+      // bar height a second time.
+      final page = find
+          .descendant(
+            of: find.byType(StatefulNavigationShell),
+            matching: find.byType(Scaffold),
+          )
+          .first;
+      expect(
+        tester.getTopLeft(page).dy,
+        // The desktop workspace keeps its own content margin.
+        desktopRuntime
+            ? greaterThanOrEqualTo(tester.getBottomLeft(banner).dy)
+            : tester.getBottomLeft(banner).dy,
+      );
+      expect(MediaQuery.paddingOf(tester.element(page)).top, 0);
+      if (name == 'phone') {
+        // Only the 12px portrait toolbar sits above the Library tabs.
+        expect(
+          tester.getTopLeft(find.byType(TabBar)).dy,
+          tester.getBottomLeft(banner).dy + 12,
+        );
+      }
+
+      await tester.tap(find.byKey(ShellOfflineBanner.retryKey));
+      await tester.pumpAndSettle();
+      expect(reachability.retryCalls, 1);
+    });
+  }
 
   testWidgets('supports route params for detail pages', (tester) async {
     final container = _createContainerWithDatabase(

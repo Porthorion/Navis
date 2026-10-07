@@ -75,6 +75,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_history_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/shell_offline_banner.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/utils/artist_utils.dart';
@@ -918,7 +919,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final offlineBannerText = reachability.showRetryBanner
         ? l10n.serverOfflineBanner
         : l10n.serverOfflineQuietBanner;
-    final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
+    final appNoticeTopOffset = showOfflineBanner
+        ? 12.0 + ShellOfflineBanner.contentHeight
+        : 12.0;
     // Queue-only changes (songs merged or released while an artist loads)
     // must not rebuild the whole shell; nothing here renders the queue.
     final playback = ref
@@ -1706,80 +1709,92 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         ? 0
                                         : railBottomInset,
                                   ),
-                                  child: Column(
-                                    children: <Widget>[
-                                      if (showOfflineBanner)
-                                        Material(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerHigh,
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            child: Row(
-                                              children: <Widget>[
-                                                Icon(
-                                                  Icons.cloud_off_outlined,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    offlineBannerText,
-                                                    style: TextStyle(
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .onSurfaceVariant,
+                                  child: ShellOfflineBannerFrame(
+                                    visible: showOfflineBanner,
+                                    message: offlineBannerText,
+                                    child: NotificationListener<NavigationNotification>(
+                                      // Absorb branch-level NavigationNotification so
+                                      // canHandlePop:false from the branch navigator
+                                      // never reaches the Router and sets
+                                      // setFrameworkHandlesBack(false) on Android 14+.
+                                      onNotification: (_) => true,
+                                      child: NavigatorPopHandler<Object?>(
+                                        enabled: true,
+                                        onPopWithResult: (result) {
+                                          _handleShellBack();
+                                        },
+                                        child:
+                                            useCompactWideLandscape &&
+                                                showPlayer
+                                            ? Stack(
+                                                children: <Widget>[
+                                                  // Inset the content area from the
+                                                  // bottom so the mini player strip
+                                                  // never covers page content.
+                                                  AnimatedPositioned(
+                                                    duration: const Duration(
+                                                      milliseconds: 280,
                                                     ),
+                                                    curve: Curves.easeOut,
+                                                    top: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    bottom: isExpanded
+                                                        ? 0
+                                                        : compactBottomMiniPlayerHeight,
+                                                    child: navigationShell,
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      Expanded(
-                                        child: NotificationListener<NavigationNotification>(
-                                          // Absorb branch-level NavigationNotification so
-                                          // canHandlePop:false from the branch navigator
-                                          // never reaches the Router and sets
-                                          // setFrameworkHandlesBack(false) on Android 14+.
-                                          onNotification: (_) => true,
-                                          child: NavigatorPopHandler<Object?>(
-                                            enabled: true,
-                                            onPopWithResult: (result) {
-                                              _handleShellBack();
-                                            },
-                                            child:
-                                                useCompactWideLandscape &&
-                                                    showPlayer
-                                                ? Stack(
-                                                    children: <Widget>[
-                                                      // Inset the content area from the
-                                                      // bottom so the mini player strip
-                                                      // never covers page content.
-                                                      AnimatedPositioned(
-                                                        duration:
-                                                            const Duration(
-                                                              milliseconds: 280,
-                                                            ),
-                                                        curve: Curves.easeOut,
-                                                        top: 0,
-                                                        left: 0,
-                                                        right: 0,
-                                                        bottom: isExpanded
-                                                            ? 0
-                                                            : compactBottomMiniPlayerHeight,
-                                                        child: navigationShell,
-                                                      ),
-                                                      Positioned.fill(
-                                                        child: ExpandablePlayerSheet(
-                                                          isExpanded:
-                                                              isExpanded,
-                                                          onExpand: () {
+                                                  Positioned.fill(
+                                                    child: ExpandablePlayerSheet(
+                                                      isExpanded: isExpanded,
+                                                      onExpand: () {
+                                                        NavService.dismissKeyboard(
+                                                          context,
+                                                        );
+                                                        ref
+                                                            .read(
+                                                              playerOverlayStackProvider
+                                                                  .notifier,
+                                                            )
+                                                            .expand();
+                                                      },
+                                                      onCollapse: () => ref
+                                                          .read(
+                                                            playerOverlayStackProvider
+                                                                .notifier,
+                                                          )
+                                                          .collapse(),
+                                                      dragEnabled:
+                                                          !_compactWideInternalOverlayActive,
+                                                      onSwipeUp: () =>
+                                                          _compactWideQueueRequestHandler
+                                                              ?.call(),
+                                                      miniPlayer: SizedBox(
+                                                        height:
+                                                            compactBottomMiniPlayerHeight,
+                                                        child: _MiniPlayerStrip(
+                                                          playback: playback,
+                                                          flattenWideStyle:
+                                                              true,
+                                                          compactWideLandscapeMode:
+                                                              true,
+                                                          enableVerticalExpandGesture:
+                                                              false,
+                                                          songTitle: songTitle,
+                                                          songArtist:
+                                                              songArtist,
+                                                          coverArtId:
+                                                              coverArtId,
+                                                          coverArtUrl:
+                                                              coverArtUrl,
+                                                          isExternalSource:
+                                                              isExternalSource,
+                                                          isRadio: playback
+                                                              .isRadioMode,
+                                                          radioArtUrl: playback
+                                                              .radioStation
+                                                              ?.nowPlayingArtUrl,
+                                                          onTap: () {
                                                             NavService.dismissKeyboard(
                                                               context,
                                                             );
@@ -1790,150 +1805,95 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                 )
                                                                 .expand();
                                                           },
+                                                        ),
+                                                      ),
+                                                      fullPlayer: NowPlayingScreen(
+                                                        wideEmbeddedMode: true,
+                                                        compactWideLandscapeMode:
+                                                            useCompactWideLandscape,
+                                                        onShowQueue: () =>
+                                                            _compactWideQueueRequestHandler
+                                                                ?.call(),
+                                                        onCollapse: () => ref
+                                                            .read(
+                                                              playerOverlayStackProvider
+                                                                  .notifier,
+                                                            )
+                                                            .collapse(),
+                                                        onBackInterceptorChanged:
+                                                            (handler) {
+                                                              _nowPlayingBackInterceptor =
+                                                                  handler;
+                                                            },
+                                                        onCompactWideOverlayActiveChanged:
+                                                            _handleCompactWideOverlayActiveChanged,
+                                                        onCompactWideQueueRequestChanged:
+                                                            _handleCompactWideQueueRequestChanged,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : showPlayer
+                                            ? Stack(
+                                                children: <Widget>[
+                                                  Positioned.fill(
+                                                    child: navigationShell,
+                                                  ),
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: !isExpanded,
+                                                      child: AnimatedSlide(
+                                                        duration:
+                                                            const Duration(
+                                                              milliseconds: 280,
+                                                            ),
+                                                        curve: Curves.easeOut,
+                                                        offset: isExpanded
+                                                            ? Offset.zero
+                                                            : const Offset(
+                                                                0,
+                                                                1,
+                                                              ),
+                                                        child: NowPlayingScreen(
+                                                          wideEmbeddedMode:
+                                                              true,
+                                                          compactWideLandscapeMode:
+                                                              useCompactWideLandscape,
+                                                          onShowQueue: () =>
+                                                              NavService.showQueue(
+                                                                context,
+                                                                ref,
+                                                              ),
                                                           onCollapse: () => ref
                                                               .read(
                                                                 playerOverlayStackProvider
                                                                     .notifier,
                                                               )
                                                               .collapse(),
-                                                          dragEnabled:
-                                                              !_compactWideInternalOverlayActive,
-                                                          onSwipeUp: () =>
-                                                              _compactWideQueueRequestHandler
-                                                                  ?.call(),
-                                                          miniPlayer: SizedBox(
-                                                            height:
-                                                                compactBottomMiniPlayerHeight,
-                                                            child: _MiniPlayerStrip(
-                                                              playback:
-                                                                  playback,
-                                                              flattenWideStyle:
-                                                                  true,
-                                                              compactWideLandscapeMode:
-                                                                  true,
-                                                              enableVerticalExpandGesture:
-                                                                  false,
-                                                              songTitle:
-                                                                  songTitle,
-                                                              songArtist:
-                                                                  songArtist,
-                                                              coverArtId:
-                                                                  coverArtId,
-                                                              coverArtUrl:
-                                                                  coverArtUrl,
-                                                              isExternalSource:
-                                                                  isExternalSource,
-                                                              isRadio: playback
-                                                                  .isRadioMode,
-                                                              radioArtUrl: playback
-                                                                  .radioStation
-                                                                  ?.nowPlayingArtUrl,
-                                                              onTap: () {
-                                                                NavService.dismissKeyboard(
-                                                                  context,
-                                                                );
-                                                                ref
-                                                                    .read(
-                                                                      playerOverlayStackProvider
-                                                                          .notifier,
-                                                                    )
-                                                                    .expand();
+                                                          onBackInterceptorChanged:
+                                                              (handler) {
+                                                                _nowPlayingBackInterceptor =
+                                                                    handler;
                                                               },
-                                                            ),
-                                                          ),
-                                                          fullPlayer: NowPlayingScreen(
-                                                            wideEmbeddedMode:
-                                                                true,
-                                                            compactWideLandscapeMode:
-                                                                useCompactWideLandscape,
-                                                            onShowQueue: () =>
-                                                                _compactWideQueueRequestHandler
-                                                                    ?.call(),
-                                                            onCollapse: () => ref
-                                                                .read(
-                                                                  playerOverlayStackProvider
-                                                                      .notifier,
-                                                                )
-                                                                .collapse(),
-                                                            onBackInterceptorChanged:
-                                                                (handler) {
-                                                                  _nowPlayingBackInterceptor =
-                                                                      handler;
-                                                                },
-                                                            onCompactWideOverlayActiveChanged:
-                                                                _handleCompactWideOverlayActiveChanged,
-                                                            onCompactWideQueueRequestChanged:
-                                                                _handleCompactWideQueueRequestChanged,
-                                                          ),
                                                         ),
                                                       ),
-                                                    ],
-                                                  )
-                                                : showPlayer
-                                                ? Stack(
-                                                    children: <Widget>[
-                                                      Positioned.fill(
-                                                        child: navigationShell,
+                                                    ),
+                                                  ),
+                                                  if (showQueueOverlay)
+                                                    Positioned.fill(
+                                                      child: _QueueOverlay(
+                                                        key: _queueOverlayKey,
+                                                        fullscreen: true,
+                                                        onDismiss:
+                                                            _handleQueueOverlayDismissed,
                                                       ),
-                                                      Positioned.fill(
-                                                        child: IgnorePointer(
-                                                          ignoring: !isExpanded,
-                                                          child: AnimatedSlide(
-                                                            duration:
-                                                                const Duration(
-                                                                  milliseconds:
-                                                                      280,
-                                                                ),
-                                                            curve:
-                                                                Curves.easeOut,
-                                                            offset: isExpanded
-                                                                ? Offset.zero
-                                                                : const Offset(
-                                                                    0,
-                                                                    1,
-                                                                  ),
-                                                            child: NowPlayingScreen(
-                                                              wideEmbeddedMode:
-                                                                  true,
-                                                              compactWideLandscapeMode:
-                                                                  useCompactWideLandscape,
-                                                              onShowQueue: () =>
-                                                                  NavService.showQueue(
-                                                                    context,
-                                                                    ref,
-                                                                  ),
-                                                              onCollapse: () => ref
-                                                                  .read(
-                                                                    playerOverlayStackProvider
-                                                                        .notifier,
-                                                                  )
-                                                                  .collapse(),
-                                                              onBackInterceptorChanged:
-                                                                  (handler) {
-                                                                    _nowPlayingBackInterceptor =
-                                                                        handler;
-                                                                  },
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      if (showQueueOverlay)
-                                                        Positioned.fill(
-                                                          child: _QueueOverlay(
-                                                            key:
-                                                                _queueOverlayKey,
-                                                            fullscreen: true,
-                                                            onDismiss:
-                                                                _handleQueueOverlayDismissed,
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  )
-                                                : navigationShell,
-                                          ),
-                                        ),
+                                                    ),
+                                                ],
+                                              )
+                                            : navigationShell,
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1943,53 +1903,27 @@ class _AppShellState extends ConsumerState<AppShell> {
                       else
                         Column(
                           children: <Widget>[
-                            if (showOfflineBanner)
-                              Material(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHigh,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  child: Row(
-                                    children: <Widget>[
-                                      Icon(
-                                        Icons.cloud_off_outlined,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          offlineBannerText,
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
                             Expanded(
-                              child: NotificationListener<NavigationNotification>(
-                                // Absorb branch-level NavigationNotification so
-                                // canHandlePop:false from the branch navigator
-                                // never reaches the Router and sets
-                                // setFrameworkHandlesBack(false) on Android 14+.
-                                onNotification: (_) => true,
-                                child: NavigatorPopHandler<Object?>(
-                                  enabled: true,
-                                  onPopWithResult: (result) {
-                                    _handleShellBack();
-                                  },
-                                  child: navigationShell,
-                                ),
+                              child: ShellOfflineBannerFrame(
+                                visible: showOfflineBanner,
+                                message: offlineBannerText,
+                                child:
+                                    NotificationListener<
+                                      NavigationNotification
+                                    >(
+                                      // Absorb branch-level NavigationNotification so
+                                      // canHandlePop:false from the branch navigator
+                                      // never reaches the Router and sets
+                                      // setFrameworkHandlesBack(false) on Android 14+.
+                                      onNotification: (_) => true,
+                                      child: NavigatorPopHandler<Object?>(
+                                        enabled: true,
+                                        onPopWithResult: (result) {
+                                          _handleShellBack();
+                                        },
+                                        child: navigationShell,
+                                      ),
+                                    ),
                               ),
                             ),
                             AnimatedContainer(

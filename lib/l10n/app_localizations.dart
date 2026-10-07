@@ -1236,6 +1236,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{Library synced, 1 album is still loading details} other{Library synced, {count} albums are still loading details}}'**
   String librarySyncBacklogBanner(int count);
 
+  /// No description provided for @librarySyncBacklogOfflineBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 album will finish loading details when the server is back} other{{count} albums will finish loading details when the server is back}}'**
+  String librarySyncBacklogOfflineBanner(int count);
+
   /// No description provided for @syncSettingsCandidate.
   ///
   /// In en, this message translates to:

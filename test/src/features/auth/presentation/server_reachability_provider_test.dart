@@ -121,6 +121,67 @@ void main() {
     await connectivityController.close();
   });
 
+  test('retryNow recovers without waiting for the retry timer and joins a '
+      'running check', () async {
+    final authStateProvider =
+        NotifierProvider<_AuthStateController, AsyncValue<ServerConfigModel?>>(
+          () => _AuthStateController(const AsyncData(authenticatedConfig)),
+        );
+    final connectivityController = StreamController<List<ConnectivityResult>>();
+    var serverUp = false;
+    var pingCalls = 0;
+    Completer<void>? pingGate;
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigStateProvider.overrideWith((ref) {
+          return ref.watch(authStateProvider);
+        }),
+        connectivityProvider.overrideWith((ref) {
+          return connectivityController.stream;
+        }),
+        reachabilityRetryIntervalProvider.overrideWithValue(
+          const Duration(minutes: 5),
+        ),
+        pingServerProvider.overrideWithValue(() async {
+          pingCalls++;
+          await pingGate?.future;
+          if (!serverUp) {
+            throw const SubsonicConnectionException('down');
+          }
+          return '1.16.1';
+        }),
+      ],
+    );
+    final subscription = container.listen(
+      serverReachabilityControllerProvider,
+      (_, _) {},
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(subscription.read().status, ServerReachabilityStatus.offline);
+    expect(pingCalls, 1);
+
+    serverUp = true;
+    pingGate = Completer<void>();
+    final controller = container.read(
+      serverReachabilityControllerProvider.notifier,
+    );
+    final first = controller.retryNow();
+    final second = controller.retryNow();
+    await Future<void>.delayed(Duration.zero);
+    // The banner stays up while the retry runs.
+    expect(subscription.read().status, ServerReachabilityStatus.offline);
+
+    pingGate.complete();
+    await Future.wait(<Future<void>>[first, second]);
+
+    expect(subscription.read().status, ServerReachabilityStatus.online);
+    expect(pingCalls, 2);
+    subscription.close();
+    container.dispose();
+    await connectivityController.close();
+  });
+
   test('transitions offline and retries every configured interval', () async {
     final authStateProvider =
         NotifierProvider<_AuthStateController, AsyncValue<ServerConfigModel?>>(

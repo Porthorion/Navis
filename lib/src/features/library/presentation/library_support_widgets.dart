@@ -48,9 +48,18 @@ class _TypeFilterBadge extends StatelessWidget {
 }
 
 class _SyncStatusBanner extends StatefulWidget {
-  const new({required this.syncState, required this.onRetry, this.onCancel});
+  const new({
+    required this.syncState,
+    required this.onRetry,
+    this.onCancel,
+    this.isOffline = false,
+  });
 
   final LibrarySyncState syncState;
+
+  /// The server is unreachable, so the hydration backlog is waiting for it
+  /// rather than loading.
+  final bool isOffline;
   final Future<void> Function() onRetry;
   final VoidCallback? onCancel;
 
@@ -246,9 +255,12 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
     if (!syncState.isRunning && hydrationBacklog > 0) {
       final theme = Theme.of(context);
       final colors = theme.colorScheme;
+      final label = widget.isOffline
+          ? l10n.librarySyncBacklogOfflineBanner(hydrationBacklog)
+          : l10n.librarySyncBacklogBanner(hydrationBacklog);
       return Semantics(
         container: true,
-        label: l10n.librarySyncBacklogBanner(hydrationBacklog),
+        label: label,
         child: Material(
           key: _SyncStatusBanner.backlogKey,
           color: colors.surfaceContainerHigh,
@@ -257,14 +269,16 @@ class _SyncStatusBannerState extends State<_SyncStatusBanner> {
             child: Row(
               children: <Widget>[
                 Icon(
-                  Icons.hourglass_bottom_rounded,
+                  widget.isOffline
+                      ? Icons.cloud_off_outlined
+                      : Icons.hourglass_bottom_rounded,
                   size: 16,
                   color: colors.onSurfaceVariant,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    l10n.librarySyncBacklogBanner(hydrationBacklog),
+                    label,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

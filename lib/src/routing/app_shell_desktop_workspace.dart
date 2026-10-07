@@ -248,123 +248,89 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                           left: false,
                           top: false,
                           right: false,
-                          child: Column(
-                            children: <Widget>[
-                              if (widget.showOfflineBanner)
-                                Material(
-                                  color: colors.surfaceContainerHigh,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    child: Row(
-                                      children: <Widget>[
-                                        Icon(
-                                          Icons.cloud_off_outlined,
-                                          color: colors.onSurfaceVariant,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            widget.offlineBannerText,
-                                            style: TextStyle(
-                                              color: colors.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              Expanded(
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final width = constraints.maxWidth;
-                                    final horizontalInset = switch (widget
-                                        .desktopLayoutClass) {
+                          child: ShellOfflineBannerFrame(
+                            visible: widget.showOfflineBanner,
+                            message: widget.offlineBannerText,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final width = constraints.maxWidth;
+                                final horizontalInset =
+                                    switch (widget.desktopLayoutClass) {
                                       DesktopLayoutClass.compactDesktop => 12.0,
                                       DesktopLayoutClass.standardDesktop =>
                                         (width * 0.018).clamp(14.0, 30.0),
                                       DesktopLayoutClass.ultraWideDesktop =>
                                         (width * 0.022).clamp(18.0, 44.0),
                                     };
-                                    const verticalInset = 20.0;
+                                const verticalInset = 20.0;
 
-                                    return NavigatorPopHandler<Object?>(
-                                      enabled: true,
-                                      onPopWithResult: (result) {
-                                        if (widget.hasPlayerOverlay) {
-                                          widget.onSystemBack?.call();
-                                          return;
-                                        }
-                                        final router = GoRouter.of(context);
-                                        if (!router.canPop()) {
-                                          return;
-                                        }
-                                        NavService.clearExitPrompt();
-                                        router.pop(result);
-                                      },
-                                      child: Stack(
-                                        children: <Widget>[
-                                          Positioned.fill(
-                                            child: Padding(
-                                              padding: EdgeInsets.fromLTRB(
-                                                horizontalInset,
-                                                verticalInset,
-                                                horizontalInset,
-                                                verticalInset,
-                                              ),
-                                              child: Stack(
-                                                children: <Widget>[
-                                                  Positioned.fill(
-                                                    child:
-                                                        DesktopNavigationPresentationScope(
-                                                          iconsOnly:
-                                                              sidebarIconsOnly,
-                                                          child: widget
-                                                              .navigationShell,
-                                                        ),
-                                                  ),
-                                                  if (widget.showLyricsOverlay)
-                                                    Positioned.fill(
-                                                      child:
-                                                          _DesktopLyricsOverlay(
-                                                            onClose: widget
-                                                                .onToggleLyrics,
-                                                            songTitle: widget
-                                                                .songTitle,
-                                                            songArtist: widget
-                                                                .songArtist,
-                                                          ),
+                                return NavigatorPopHandler<Object?>(
+                                  enabled: true,
+                                  onPopWithResult: (result) {
+                                    if (widget.hasPlayerOverlay) {
+                                      widget.onSystemBack?.call();
+                                      return;
+                                    }
+                                    final router = GoRouter.of(context);
+                                    if (!router.canPop()) {
+                                      return;
+                                    }
+                                    NavService.clearExitPrompt();
+                                    router.pop(result);
+                                  },
+                                  child: Stack(
+                                    children: <Widget>[
+                                      Positioned.fill(
+                                        child: Padding(
+                                          padding: EdgeInsets.fromLTRB(
+                                            horizontalInset,
+                                            verticalInset,
+                                            horizontalInset,
+                                            verticalInset,
+                                          ),
+                                          child: Stack(
+                                            children: <Widget>[
+                                              Positioned.fill(
+                                                child:
+                                                    DesktopNavigationPresentationScope(
+                                                      iconsOnly:
+                                                          sidebarIconsOnly,
+                                                      child: widget
+                                                          .navigationShell,
                                                     ),
-                                                ],
                                               ),
+                                              if (widget.showLyricsOverlay)
+                                                Positioned.fill(
+                                                  child: _DesktopLyricsOverlay(
+                                                    onClose:
+                                                        widget.onToggleLyrics,
+                                                    songTitle: widget.songTitle,
+                                                    songArtist:
+                                                        widget.songArtist,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      if (widget.showPlayer &&
+                                          widget.showQueueOverlay)
+                                        Positioned.fill(
+                                          child: FocusTraversalOrder(
+                                            order: const NumericFocusOrder(5),
+                                            child: _QueueOverlay(
+                                              key: widget.queueOverlayKey,
+                                              fullscreen: false,
+                                              floatingWindow: true,
+                                              onDismiss: widget.onDismissQueue,
                                             ),
                                           ),
-                                          if (widget.showPlayer &&
-                                              widget.showQueueOverlay)
-                                            Positioned.fill(
-                                              child: FocusTraversalOrder(
-                                                order: const NumericFocusOrder(
-                                                  5,
-                                                ),
-                                                child: _QueueOverlay(
-                                                  key: widget.queueOverlayKey,
-                                                  fullscreen: false,
-                                                  floatingWindow: true,
-                                                  onDismiss:
-                                                      widget.onDismissQueue,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
