@@ -9,6 +9,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -139,7 +140,6 @@ final librarySyncForegroundProvider =
       LibrarySyncForegroundController.new,
     );
 
-@visibleForTesting
 final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
   return currentLibrarySyncModelVersion;
 });
@@ -348,6 +348,21 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       serverReachabilityControllerProvider,
       (_, next) => _onReachabilityChanged(next),
     );
+    ref.listen<AsyncValue<bool>>(initialSyncRequiredProvider, (previous, next) {
+      if (previous?.value == true && next.asData?.value == false) {
+        final epoch = _startupSyncEpoch;
+        unawaited(() async {
+          await _resetAutomaticCheckSchedule(
+            ref.read(syncIntervalMinutesProvider),
+          );
+          if (ref.mounted &&
+              !_startupSyncSuppressed &&
+              epoch == _startupSyncEpoch) {
+            _scheduleStartupSync();
+          }
+        }());
+      }
+    });
     ref.listen<int>(syncIntervalMinutesProvider, (previous, next) {
       // App settings hydrate asynchronously. That first value is not a user
       // changing their preference and must not erase a server's persisted
@@ -1006,21 +1021,17 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
 
-    final serverId = config.id;
-    if (serverId != null && config.lastSynced == null) {
-      await ref
-          .read(navisDatabaseProvider)
-          .librarySyncDao
-          .getOrCreateState(serverId);
-      if (!ref.mounted ||
-          _startupSyncSuppressed ||
-          epoch != _startupSyncEpoch) {
-        return;
-      }
-      // First-time catalog collection runs from the normal application shell.
-      // The planner still selects the full candidate snapshot when no
-      // generation is committed; routing must not be the sync owner.
+    final setupPending = await isInitialCatalogSetupPending(
+      ref.read(navisDatabaseProvider),
+      config,
+    );
+    if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
+      return;
     }
+    // Full-screen first setup owns the first catalog. An automatic run would
+    // publish first and turn setup's request into discovery that cannot publish.
+    // Leave the startup fingerprint unfinished so readiness can resume it.
+    if (setupPending) return;
 
     final reachability = ref.read(serverReachabilityControllerProvider);
     if (reachability.status == ServerReachabilityStatus.offline) {
@@ -1109,6 +1120,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // existing bootstrap semantics rather than suppressing initial sync.
     if (serverId == null) {
       return await _runSync(force: false, tolerateUnavailableEngine: true);
+    }
+    if (await isInitialCatalogSetupPending(
+          ref.read(navisDatabaseProvider),
+          config!,
+        ) ||
+        !ref.mounted ||
+        _startupSyncSuppressed) {
+      return state;
     }
     final interval = ref.read(syncIntervalDurationProvider);
     if (interval == null || !ref.mounted) {
@@ -1226,6 +1245,21 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         caller: caller,
       ),
     );
+  }
+
+  /// Waits for active catalog work and any successor queued while waiting.
+  /// Failed earlier runs do not prevent setup from starting its own catalog.
+  Future<void> waitForActiveCatalogSync() async {
+    while (true) {
+      final active = _activeCatalogSync;
+      if (active == null) return;
+      try {
+        await active;
+      } on Object {
+        // Setup must select its own request from the resulting persisted state.
+      }
+      if (identical(_activeCatalogSync, active)) return;
+    }
   }
 
   /// Coalesces equivalent catalog work while preserving stronger user intent.
@@ -1622,6 +1656,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (interval == null || !_isForeground) {
       return; // Manual-only mode or a backgrounded app — no timer.
     }
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    if (config != null &&
+        await isInitialCatalogSetupPending(
+          ref.read(navisDatabaseProvider),
+          config,
+        )) {
+      return;
+    }
+    if (!ref.mounted ||
+        _startupSyncSuppressed ||
+        epoch != _automaticScheduleEpoch) {
+      return;
+    }
     final nextCheckAt = await _ensureAutomaticCheckSchedule(interval);
     if (!ref.mounted || !_isForeground || epoch != _automaticScheduleEpoch) {
       return;
@@ -1654,6 +1701,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _schedulePeriodicSync(minutes);
       return;
     }
+    if (await isInitialCatalogSetupPending(
+          ref.read(navisDatabaseProvider),
+          config!,
+        ) ||
+        !ref.mounted ||
+        _startupSyncSuppressed) {
+      return;
+    }
     final next = interval == null ? null : DateTime.now().toUtc().add(interval);
     await ref
         .read(navisDatabaseProvider)
@@ -1662,7 +1717,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           serverId: serverId,
           nextAutomaticCheckAt: next,
         );
-    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
+    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config)) {
       state = state.copyWith(
         nextAutomaticCheckAt: next,
         clearNextAutomaticCheckAt: next == null,

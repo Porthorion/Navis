@@ -215,6 +215,7 @@
   "syncSettingsAndroidBackgroundLastAttempt": "Last Android attempt",
   "syncSettingsAndroidBackgroundNoAttempt": "No Android attempt recorded yet.",
   "syncSettingsAndroidBackgroundWaitingUnmetered": "Waiting for an unmetered network.",
+  "syncSettingsAndroidBackgroundDeferredSetup": "waiting for first setup",
   "syncSettingsAndroidBackgroundOutcome": "Outcome: {outcome}",
   "@syncSettingsAndroidBackgroundOutcome": {
     "placeholders": {

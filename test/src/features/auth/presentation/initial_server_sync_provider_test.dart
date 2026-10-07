@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -28,10 +28,14 @@ class _StaticReachabilityController extends ServerReachabilityController {
 }
 
 class _RecordingLibrarySyncController extends LibrarySyncController {
-  new(this.result, {this.gate});
+  new(this.result, {this.gate, this.activeCatalog});
 
   final LibrarySyncState result;
   final Completer<void>? gate;
+  final Future<void>? activeCatalog;
+
+  @override
+  Future<void> waitForActiveCatalogSync() async => await activeCatalog;
   int calls = 0;
   int fullScanCalls = 0;
   bool? lastAllowMeteredOverride;
@@ -85,6 +89,8 @@ class _Value<T> extends Notifier<T> {
   @override
   T build() => initial;
 
+  // Simulates a session transition rather than a production property setter.
+  // ignore: use_setters_to_change_properties
   void set(T value) => state = value;
 }
 
@@ -188,6 +194,73 @@ Future<void> _drainMicrotasks() async {
 }
 
 void main() {
+  test(
+    'readiness stamps only validated success and skips a null model version',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = (await database.serverDao.getActiveServer())!;
+      await database.appSettingsDao.setLastFullSyncAppBuild('old-model');
+      const completed = LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+        ),
+        isFalse,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          currentGeneration: const Value(1),
+          lastCatalogSyncedAt: Value(DateTime.now()),
+        ),
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('offline setup waits without starting catalog sync', () async {
     final database = createTestDatabase();
     addTearDown(database.close);
@@ -358,6 +431,7 @@ void main() {
         InitialServerSyncStatus.failed,
       );
       expect(container.read(initialSyncCompletionWarningProvider), isFalse);
+      expect(await database.appSettingsDao.getLastFullSyncAppBuild(), isNull);
     },
     skip: !sqliteAvailable,
   );
@@ -475,6 +549,7 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    container.listen(initialSyncRequiredProvider, (_, _) {});
     expect(await container.read(initialSyncRequiredProvider.future), isTrue);
     await database.librarySyncDao.writeState(
       LibrarySyncStateTableCompanion(
@@ -487,7 +562,7 @@ void main() {
   });
 
   test(
-    'setup over a committed catalog runs the full scan and can finish partial',
+    'setup waits for catalog publication before choosing a full scan',
     () async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -498,13 +573,8 @@ void main() {
           apiVersion: '1.16.1',
         ),
       );
-      final server = await database.serverDao.getActiveServer();
-      await database.librarySyncDao.writeState(
-        LibrarySyncStateTableCompanion(
-          serverId: Value(server!.id),
-          currentGeneration: const Value(2),
-        ),
-      );
+      final server = (await database.serverDao.getActiveServer())!;
+      final activeCatalog = Completer<void>();
       await database.libraryDao.upsertAlbums([
         AlbumsTableCompanion.insert(
           id: 'incomplete',
@@ -521,6 +591,7 @@ void main() {
           onlyIncompleteAlbumDetails: true,
           catalogPublishedThisRun: true,
         ),
+        activeCatalog: activeCatalog.future,
       );
       final container = ProviderContainer(
         overrides: [
@@ -552,7 +623,16 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      container.read(initialServerSyncControllerProvider);
+      container.listen(initialServerSyncControllerProvider, (_, _) {});
+      await _drainMicrotasks();
+      expect(sync.calls, 0);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          currentGeneration: const Value(2),
+        ),
+      );
+      activeCatalog.complete();
       await _drainMicrotasks();
 
       expect(sync.fullScanCalls, 1);
@@ -561,6 +641,10 @@ void main() {
         InitialServerSyncStatus.complete,
       );
       expect(container.read(initialSyncCompletionWarningProvider), isTrue);
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
     },
     skip: !sqliteAvailable,
   );

@@ -633,6 +633,7 @@ void main() {
         sync: sync,
       );
       addTearDown(container.dispose);
+      container.listen(initialSyncRequiredProvider, (_, _) {});
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       const reason = RequiredLibraryRebuildReason.initialLogin;
       _mount(container, reason);
@@ -651,6 +652,10 @@ void main() {
         server.id,
       );
       expect(persisted.initialCatalogUsableAt, isNotNull);
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
     },
     skip: !sqliteAvailable,
   );

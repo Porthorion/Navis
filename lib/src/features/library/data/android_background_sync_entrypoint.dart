@@ -6,6 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -53,6 +56,23 @@ Future<void> navisBackgroundSyncEntrypoint() async {
   });
   await _backgroundSyncChannel.invokeMethod<void>('ready');
   await lifetime.future;
+}
+
+/// Records a worker deferral before network bootstrap while setup owns sync.
+Future<bool> deferAndroidBackgroundSyncForSetup({
+  required NavisDatabase database,
+  required ServerConfigModel config,
+  required DateTime startedAt,
+}) async {
+  if (!await isInitialCatalogSetupPending(database, config)) return false;
+  final completedAt = DateTime.now();
+  await database.librarySyncDao.writeAndroidBackgroundStatus(
+    serverId: config.id!,
+    workerCompletedAt: completedAt,
+    workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
+    workerResult: 'deferredSetup',
+  );
+  return true;
 }
 
 class _HeadlessBackgroundSyncRunner {
@@ -120,6 +140,14 @@ class _HeadlessBackgroundSyncRunner {
         workerStartedAt: startedAt,
         workerStopReason: 'none',
       );
+
+      if (await deferAndroidBackgroundSyncForSetup(
+        database: database,
+        config: config,
+        startedAt: startedAt,
+      )) {
+        return _result('deferredSetup');
+      }
 
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,

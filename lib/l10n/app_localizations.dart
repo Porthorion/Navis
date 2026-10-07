@@ -1186,6 +1186,12 @@ abstract class AppLocalizations {
   /// **'Waiting for an unmetered network.'**
   String get syncSettingsAndroidBackgroundWaitingUnmetered;
 
+  /// No description provided for @syncSettingsAndroidBackgroundDeferredSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'waiting for first setup'**
+  String get syncSettingsAndroidBackgroundDeferredSetup;
+
   /// No description provided for @syncSettingsAndroidBackgroundOutcome.
   ///
   /// In en, this message translates to:

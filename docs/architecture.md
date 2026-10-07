@@ -382,8 +382,15 @@ or Home across restarts without claiming full freshness. All full-screen rebuild
 reasons share this partial exception. Other failed, deferred, or partial runs
 keep retry and sign-out actions; offline and metered conditions retain their
 retry/consent behavior. Pending albums continue through eligible incremental
-checks. First setup without a committed catalog requests the planner's
-first-catalog snapshot. When a committed generation (or `last_synced`) already
+checks. First setup owns catalog sync until readiness: startup, automatic
+checks, and Android workers defer without arming or persisting a new automatic
+deadline. Android reports this as `deferredSetup`. Setup waits for any active
+catalog run and queued successor before reading the committed generation and
+choosing its first-catalog request or full scan. Successful readiness records
+also stamp the required sync model, then restart the automatic schedule at
+now plus the configured interval and resume the startup pass, avoiding a
+redundant sync-model repair. First setup without a committed catalog requests
+the planner's first-catalog snapshot. When a committed generation (or `last_synced`) already
 exists without readiness evidence, for example after an interrupted setup and
 a keep-data sign-out and sign-in, setup and every retry run the explicit full
 scan (`forceFullSync`) that cache upgrade uses: an incremental discovery pass

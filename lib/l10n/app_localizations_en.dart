@@ -632,6 +632,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Waiting for an unmetered network.';
 
   @override
+  String get syncSettingsAndroidBackgroundDeferredSetup =>
+      'waiting for first setup';
+
+  @override
   String syncSettingsAndroidBackgroundOutcome(Object outcome) {
     return 'Outcome: $outcome';
   }

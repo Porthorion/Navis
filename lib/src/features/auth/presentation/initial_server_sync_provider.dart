@@ -54,6 +54,7 @@ final initialSyncCompletionWarningProvider =
 
 /// Runs the catalog pass for first setup.
 ///
+/// Waits for active catalog work before checking the committed generation.
 /// Without a committed catalog the planner already schedules its first-catalog
 /// snapshot. Once a catalog exists (for example after an interrupted setup
 /// followed by a keep-data sign-out and sign-in) the same request plans
@@ -66,6 +67,8 @@ Future<LibrarySyncState> runInitialCatalogSync(
   Ref ref, {
   required bool allowMeteredBroadOverride,
 }) async {
+  final sync = ref.read(librarySyncControllerProvider.notifier);
+  await sync.waitForActiveCatalogSync();
   final config = ref.read(serverConfigStateProvider).asData?.value;
   final serverId = config?.id;
   final hasCommittedCatalog =
@@ -77,10 +80,9 @@ Future<LibrarySyncState> runInitialCatalogSync(
                       .getOrCreateState(serverId))
                   .currentGeneration >
               0);
-  final sync = ref.read(librarySyncControllerProvider.notifier);
-  return hasCommittedCatalog
+  return await (hasCommittedCatalog
       ? sync.forceFullSync(allowMeteredBroadOverride: allowMeteredBroadOverride)
-      : sync.syncNow(allowMeteredBroadOverride: allowMeteredBroadOverride);
+      : sync.syncNow(allowMeteredBroadOverride: allowMeteredBroadOverride));
 }
 
 class InitialServerSyncController extends Notifier<InitialServerSyncState> {
@@ -219,6 +221,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
           database: ref.read(navisDatabaseProvider),
           serverId: serverId,
           result: result,
+          syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
         );
     if (!_isCurrent(runEpoch) ||
         state.status == InitialServerSyncStatus.cancelling) {

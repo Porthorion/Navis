@@ -8,6 +8,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -28,6 +29,7 @@ final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
 Future<ServerConfigModel> _saveAuthenticatedServer(
   NavisDatabase database, {
   DateTime? lastSynced,
+  bool setupPending = false,
 }) async {
   await database.serverDao.saveServer(
     ServerConfigTableCompanion.insert(
@@ -35,7 +37,12 @@ Future<ServerConfigModel> _saveAuthenticatedServer(
       username: 'alice',
       apiVersion: '1.16.1',
       isAuthenticated: const Value(true),
-      lastSynced: Value(lastSynced),
+      lastSynced: Value(
+        lastSynced ??
+            (setupPending
+                ? null
+                : DateTime.now().subtract(const Duration(days: 1))),
+      ),
     ),
   );
   final server = await database.serverDao.getActiveServer();
@@ -190,6 +197,206 @@ void main() {
 
   group('librarySyncControllerProvider', () {
     test(
+      'setup defers startup and automatic schedules until readiness',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(
+          database,
+          setupPending: true,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState.idle(),
+          ({forceFull = false, onProgress}) async =>
+              const LibrarySyncState.idle(),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        container.listen(initialSyncRequiredProvider, (_, _) {});
+        expect(
+          await container.read(initialSyncRequiredProvider.future),
+          isTrue,
+        );
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        await controller.syncIfStale();
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(engine.nowCalls, 0);
+        expect(engine.staleCalls, 0);
+        expect(
+          (await database.librarySyncDao.getOrCreateState(config.id!))
+              .nextAutomaticCheckAt,
+          isNull,
+        );
+
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(config.id!),
+            currentGeneration: const Value(1),
+            lastCatalogSyncedAt: Value(DateTime.now()),
+          ),
+        );
+        expect(
+          await recordInitialCatalogReadiness(
+            database: database,
+            serverId: config.id!,
+            result: const LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+            ),
+            syncModelVersion: currentLibrarySyncModelVersion,
+          ),
+          isTrue,
+        );
+        final resumedAt = DateTime.now();
+        container.invalidate(initialSyncRequiredProvider);
+        expect(
+          await container.read(initialSyncRequiredProvider.future),
+          isFalse,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        final deadline = (await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        )).nextAutomaticCheckAt!;
+        expect(
+          deadline.difference(resumedAt.add(const Duration(hours: 1))).abs(),
+          lessThan(const Duration(seconds: 2)),
+        );
+        expect(engine.forceFullCalls, isEmpty);
+        expect(engine.staleCalls, 0);
+      },
+    );
+
+    test(
+      'waitForActiveCatalogSync drains automatic work and queued successors',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final automaticResult = Completer<LibrarySyncState>();
+        final manualResult = Completer<LibrarySyncState>();
+        final enteredAutomatic = Completer<void>();
+        final enteredManual = Completer<void>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) {
+            enteredAutomatic.complete();
+            return automaticResult.future;
+          },
+          ({forceFull = false, onProgress}) {
+            enteredManual.complete();
+            return manualResult.future;
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.offline,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            syncIntervalMinutesProvider.overrideWithValue(60),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        // Idle waits complete without starting a request.
+        await controller.waitForActiveCatalogSync();
+        final automatic = controller.syncIfStale();
+        await enteredAutomatic.future;
+        var finished = false;
+        final waiting = controller.waitForActiveCatalogSync().then(
+          (_) => finished = true,
+        );
+        final manual = controller.syncNow();
+        automaticResult.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await enteredManual.future;
+        await Future<void>.delayed(Duration.zero);
+        expect(finished, isFalse);
+        manualResult.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await Future.wait([automatic, manual]);
+        await waiting;
+        expect(finished, isTrue);
+        await controller.waitForActiveCatalogSync();
+      },
+    );
+
+    test(
+      'waitForActiveCatalogSync tolerates errors from the active catalog',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final failure = Completer<LibrarySyncState>();
+        final entered = Completer<void>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState.idle(),
+          ({forceFull = false, onProgress}) {
+            entered.complete();
+            return failure.future;
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        final active = controller.syncNow();
+        final expectedError = expectLater(active, throwsStateError);
+        await entered.future;
+        final waiting = controller.waitForActiveCatalogSync();
+        failure.completeError(StateError('Catalog failed'));
+        await expectedError;
+        await waiting;
+        await controller.waitForActiveCatalogSync();
+      },
+    );
+
+    test(
       'startup waits for its API-backed engine without publishing failure',
       () async {
         final database = createTestDatabase();
@@ -290,12 +497,13 @@ void main() {
         overrides: [
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
+            AsyncData(
               ServerConfigModel(
                 url: 'https://example.com',
                 username: 'alice',
                 password: 'secret',
                 apiVersion: '1.16.1',
+                lastSynced: DateTime.now().subtract(const Duration(days: 1)),
               ),
             ),
           ),

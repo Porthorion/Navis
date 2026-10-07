@@ -1,10 +1,73 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 
+import '../../../../helpers/test_database.dart';
+
 void main() {
+  test(
+    'worker defers setup even after an unready catalog was published',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = (await database.serverDao.getActiveServer())!;
+      final config = ServerConfigModel(
+        id: server.id,
+        url: server.url,
+        username: server.username,
+        password: 'fixture',
+        apiVersion: server.apiVersion,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          currentGeneration: const Value(1),
+        ),
+      );
+      expect(
+        await deferAndroidBackgroundSyncForSetup(
+          database: database,
+          config: config,
+          startedAt: DateTime.now(),
+        ),
+        isTrue,
+      );
+      final deferred = await database.librarySyncDao.getOrCreateState(
+        server.id,
+      );
+      expect(deferred.androidWorkerResult, 'deferredSetup');
+      expect(deferred.androidWorkerCompletedAt, isNotNull);
+      expect(deferred.nextAutomaticCheckAt, isNull);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          initialCatalogUsableAt: Value(DateTime.now()),
+        ),
+      );
+      expect(
+        await deferAndroidBackgroundSyncForSetup(
+          database: database,
+          config: config,
+          startedAt: DateTime.now(),
+        ),
+        isFalse,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test(
     'background policy tracker refreshes metering during a worker pass',
     () async {

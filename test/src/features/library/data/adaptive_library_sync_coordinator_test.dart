@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
@@ -136,6 +137,26 @@ class _ProbeLibrarySyncEngine
   Future<LibrarySyncState> syncStarredContent({
     LibrarySyncProgressCallback? onProgress,
   }) async => _idle();
+}
+
+class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    if (!entered.isCompleted) {
+      entered.complete();
+      await release.future;
+    }
+    return await super.forceFullSync(
+      priorityAlbumIds: priorityAlbumIds,
+      onProgress: onProgress,
+    );
+  }
 }
 
 class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
@@ -287,6 +308,51 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  test('replanning after an active run completes reuses the queued durable request', () async {
+    final blocking = _BlockingCatalogEngine();
+    final serial = AdaptiveLibrarySyncCoordinator(
+      executor: blocking,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+    final active = serial.requestSync(const LibrarySyncRequest.repair());
+    await blocking.entered.future;
+    final queued = serial.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
+    // Wait until the second request has a durable queued row behind the executor.
+    LibrarySyncRunRequestTableData? queuedRow;
+    for (var i = 0; i < 100; i++) {
+      final rows = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      final waiting = rows.where((row) => row.status == 0);
+      if (waiting.isNotEmpty) {
+        queuedRow = waiting.first;
+        break;
+      }
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(queuedRow, isNotNull);
+    blocking.release.complete();
+    await active;
+    final result = await queued;
+    expect(result.runRequestId, queuedRow!.id);
+    final rows = await database
+        .select(database.librarySyncRunRequestTable)
+        .get();
+    expect(rows.where((row) => row.status == 0 || row.status == 1), isEmpty);
+    final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+    expect(
+      history.where((run) => run.requestId == queuedRow!.id),
+      hasLength(1),
+    );
+  }, skip: !sqliteAvailable);
 
   test(
     'a promoted catalog task completes before remaining album hydration',

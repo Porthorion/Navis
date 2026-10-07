@@ -317,6 +317,7 @@ class RequiredLibraryRebuildController
         database: database,
         serverId: serverId,
         result: result,
+        syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
       );
     }
     if (persisted.currentGeneration <= 0 ||

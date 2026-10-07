@@ -631,6 +631,12 @@ void main() {
     );
     expect(find.text('Waiting for an unmetered network.'), findsOneWidget);
     expect(find.text('Outcome: deferred policy'), findsOneWidget);
+    await database.librarySyncDao.writeAndroidBackgroundStatus(
+      serverId: serverId,
+      workerResult: 'deferredSetup',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Outcome: waiting for first setup'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

@@ -437,9 +437,13 @@ class SyncSettingsScreen extends ConsumerWidget {
                             const SizedBox(height: 4),
                             Text(
                               l10n.syncSettingsAndroidBackgroundOutcome(
-                                _humanize(
-                                  androidBackgroundState!.androidWorkerResult!,
-                                ),
+                                androidBackgroundState!.androidWorkerResult ==
+                                        'deferredSetup'
+                                    ? l10n.syncSettingsAndroidBackgroundDeferredSetup
+                                    : _humanize(
+                                        androidBackgroundState
+                                            .androidWorkerResult!,
+                                      ),
                               ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
