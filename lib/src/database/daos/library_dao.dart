@@ -791,15 +791,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.getSingleOrNull();
   }
 
-  Future<Set<String>> getAlbumIdsByCatalogGeneration(int generation) async {
-    final rows =
-        await (selectOnly(albumsTable)
-              ..addColumns([albumsTable.id])
-              ..where(albumsTable.catalogGeneration.equals(generation)))
-            .get();
-    return rows.map((row) => row.read(albumsTable.id)!).toSet();
-  }
-
   /// Download progress for every album that has a permanently downloaded or
   /// queued track. Albums without download activity are omitted. Counts use
   /// the same track set as an album's detail list.
@@ -977,31 +968,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<SongsTableData>> watchAllSongs() {
     return watchSongsSorted(SongSortOrder.newest);
-  }
-
-  /// Returns just the fields required to identify legacy download files.
-  /// This is intentionally a one-shot query: a reconciliation scan needs a
-  /// stable snapshot, not a long-lived watcher and sort subscription.
-  Future<List<DownloadReconciliationSong>>
-  getDownloadReconciliationSongs() async {
-    final rows = await customSelect(
-      '''
-      SELECT id, title, artist_name, suffix
-      FROM songs
-      WHERE server_deleted_at IS NULL AND is_provisional = 0
-      ''',
-      readsFrom: {songsTable},
-    ).get();
-    return rows
-        .map(
-          (row) => DownloadReconciliationSong(
-            id: row.read<String>('id'),
-            title: row.read<String>('title'),
-            artistName: row.read<String?>('artist_name'),
-            suffix: row.read<String?>('suffix'),
-          ),
-        )
-        .toList(growable: false);
   }
 
   /// Album and artist ids of permanently downloaded songs, for the
@@ -2005,20 +1971,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<int?> getSongRating(String songId) async {
-    final row = await (select(
-      songsTable,
-    )..where((t) => t.id.equals(songId))).getSingleOrNull();
-    return row?.userRating;
-  }
-
-  Future<int?> getAlbumRating(String albumId) async {
-    final row = await (select(
-      albumsTable,
-    )..where((t) => t.id.equals(albumId))).getSingleOrNull();
-    return row?.userRating;
-  }
-
   Stream<int?> watchSongRating(String songId) {
     final query = select(songsTable)..where((t) => t.id.equals(songId));
     return query.watchSingleOrNull().map((row) => row?.userRating);
@@ -2059,12 +2011,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.albumId.equals(albumId))).getSingleOrNull();
   }
 
-  Stream<AlbumInfoCacheTableData?> watchAlbumInfoCache(String albumId) {
-    final query = select(albumInfoCacheTable)
-      ..where((t) => t.albumId.equals(albumId));
-    return query.watchSingleOrNull();
-  }
-
   Future<ExternalLyricsCacheTableData?> getExternalLyricsCache(String songId) {
     return (select(
       externalLyricsCacheTable,
@@ -2090,23 +2036,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ttlSeconds: Value(ttlSeconds),
         failureCount: Value(failureCount),
         lastFailedAt: Value(lastFailedAt),
-      ),
-    );
-  }
-
-  Future<void> recordExternalLyricsFailure(String songId) async {
-    final existing = await getExternalLyricsCache(songId);
-    final nextFailures = (existing?.failureCount ?? 0) + 1;
-    await into(externalLyricsCacheTable).insertOnConflictUpdate(
-      ExternalLyricsCacheTableCompanion.insert(
-        songId: songId,
-        source: existing?.source ?? 'none',
-        syncedLyrics: Value(existing?.syncedLyrics),
-        plainLyrics: Value(existing?.plainLyrics),
-        fetchedAt: DateTime.now(),
-        ttlSeconds: Value(existing?.ttlSeconds ?? 86400),
-        failureCount: Value(nextFailures),
-        lastFailedAt: Value(DateTime.now()),
       ),
     );
   }
@@ -2762,26 +2691,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Return a map of albumId → set of songIds for the given album IDs.
-  Future<Map<String, Set<String>>> getSongIdsByAlbumIds(
-    Iterable<String> albumIds,
-  ) async {
-    final ids = albumIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
-    if (ids.isEmpty) return const {};
-    final query = select(songsTable)..where((t) => t.albumId.isIn(ids));
-    final rows = await query.get();
-    final result = <String, Set<String>>{};
-    for (final row in rows) {
-      final albumId = row.albumId;
-      if (albumId == null) continue;
-      (result[albumId] ??= <String>{}).add(row.id);
-    }
-    return result;
-  }
-
   Future<List<SongsTableData>> getSongsByIds(
     Iterable<String> songIds, {
     bool includeLocalOnly = true,
@@ -2877,21 +2786,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           albumsTable,
         )..where((table) => table.id.isIn(chunk))).go();
       }
-    });
-  }
-
-  Future<void> removeArtistTree(String artistId) async {
-    await transaction(() async {
-      final songs = await (select(
-        songsTable,
-      )..where((table) => table.artistId.equals(artistId))).get();
-      await _handleRemovedServerSongs(songs);
-      await (delete(
-        albumsTable,
-      )..where((table) => table.artistId.equals(artistId))).go();
-      await (delete(
-        artistsTable,
-      )..where((table) => table.id.equals(artistId))).go();
     });
   }
 

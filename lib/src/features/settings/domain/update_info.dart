@@ -32,8 +32,4 @@ class UpdateInfo {
   /// The filename of the asset at [downloadUrl], e.g.
   /// `navis-v1.2.0-linux-amd64.deb`.
   final String? assetFileName;
-
-  /// Convenience getter — Android callers that previously used [apkDownloadUrl]
-  /// can continue to do so without changes.
-  String? get apkDownloadUrl => downloadUrl;
 }

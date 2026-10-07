@@ -118,14 +118,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     _repairSessionMeteredGrant = false;
   }
 
-  String? get repairSessionId {
-    final serverId = _repairSessionServerId;
-    if (serverId == null) {
-      return null;
-    }
-    return _repairSessionId;
-  }
-
   /// Applies the in-session mobile-data grant to [request] and reports whether
   /// the repair is admitted to start or join work at all.
   ///

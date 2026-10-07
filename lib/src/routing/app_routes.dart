@@ -45,10 +45,6 @@ enum SettingsPage {
   final String segment;
 
   String get location => '${AppRoutes.settings}/$segment';
-
-  /// Pages that only exist in the desktop runtime.
-  bool get desktopOnly =>
-      this == SettingsPage.desktopWindow || this == SettingsPage.shortcuts;
 }
 
 abstract final class AppRoutes {

@@ -740,40 +740,6 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     ).map((row) => songsTable.map(row.data)).get();
   }
 
-  Future<int> countStaleSongs({
-    required int serverId,
-    required int generation,
-  }) async {
-    final row = await customSelect(
-      '''
-      SELECT COUNT(*) AS amount
-      FROM songs s
-      LEFT JOIN library_sync_candidate_songs c
-        ON c.server_id = ?1
-       AND c.generation = ?2
-       AND c.id = s.id
-      WHERE c.id IS NULL
-        AND s.is_provisional = 0
-        AND s.server_deleted_at IS NULL
-        AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
-        AND NOT EXISTS (
-          SELECT 1
-          FROM library_sync_candidate_albums pending
-          WHERE pending.server_id = ?1
-            AND pending.generation = ?2
-            AND pending.id = s.album_id
-            AND pending.songs_hydrated = 0
-        )
-      ''',
-      variables: <Variable<Object>>[
-        Variable<int>(serverId),
-        Variable<int>(generation),
-      ],
-      readsFrom: {songsTable, librarySyncCandidateSongsTable},
-    ).getSingle();
-    return row.read<int>('amount');
-  }
-
   Future<void> classifyArtists({
     required int serverId,
     required int generation,

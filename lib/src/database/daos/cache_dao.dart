@@ -128,17 +128,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> updateCacheType(String songId, CacheType cacheType) {
-    return (update(
-      cachedTracksTable,
-    )..where((table) => table.songId.equals(songId))).write(
-      CachedTracksTableCompanion(
-        cacheType: Value(cacheType),
-        lastAccessedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
   Future<void> removeCachedTrack(String songId) {
     return (delete(
       cachedTracksTable,
@@ -193,19 +182,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
-  /// Return a map of songId → CacheType for all cached tracks.
-  ///
-  /// Used for efficient batch dedup checks during album/playlist enqueue.
-  Future<Map<String, CacheType>> getCacheTypesForSongIds(
-    Iterable<String> songIds,
-  ) async {
-    final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
-    if (ids.isEmpty) return {};
-    final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
-    final rows = await query.get();
-    return {for (final r in rows) r.songId: r.cacheType};
-  }
-
   /// Return full cache rows keyed by songId.
   ///
   /// Used by download enqueue paths that need format/bitrate compatibility
@@ -218,10 +194,6 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
     final rows = await query.get();
     return {for (final r in rows) r.songId: r};
-  }
-
-  Future<void> clearCachedTracks() {
-    return delete(cachedTracksTable).go();
   }
 
   Future<List<ListenBrainzWeeklyCacheTableData>>

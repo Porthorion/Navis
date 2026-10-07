@@ -307,7 +307,6 @@ class DesktopWindowController extends ChangeNotifier
   bool _lastPersistenceCompleted = false;
 
   bool get desktopRuntime => _desktopRuntime;
-  bool get isInitialized => _isInitialized;
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;

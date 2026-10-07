@@ -230,12 +230,4 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   Future<int> clearAll() {
     return delete(starSyncQueueTable).go();
   }
-
-  /// Watch the queue count for UI indicators.
-  Stream<int> watchPendingCount() {
-    final countExpr = starSyncQueueTable.id.count();
-    return (selectOnly(starSyncQueueTable)..addColumns([countExpr]))
-        .map((row) => row.read(countExpr)!)
-        .watchSingle();
-  }
 }

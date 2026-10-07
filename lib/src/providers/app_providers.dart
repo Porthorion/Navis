@@ -1698,7 +1698,6 @@ final albumProvider = StreamProvider.autoDispose.family<AlbumWithSongs?, String>
 });
 
 typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});
-typedef LikedAlbumPageRequest = ({AlbumSortOrder sort, int limit});
 typedef AlbumListRequest = ({AlbumSortOrder sort, bool likedOnly});
 typedef AlbumYearSectionsRequest = ({bool likedOnly, bool downloadedOnly});
 
@@ -2138,10 +2137,6 @@ class PlaybackVolumeController extends Notifier<double> {
     await handler?.setVolume(state);
     await _persistCurrentVolume(throwOnFailure: throwOnPersistenceFailure);
     return state;
-  }
-
-  Future<void> flushPersistence({bool throwOnFailure = false}) {
-    return _persistCurrentVolume(throwOnFailure: throwOnFailure);
   }
 
   void _schedulePersistence() {
@@ -2875,32 +2870,6 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
 // ---------------------------------------------------------------------------
 // Smart Queue — AudioMuse plugin detection
 // ---------------------------------------------------------------------------
-
-/// Capabilities are refreshed for the authenticated client session. Saved
-/// capability JSON remains a fallback for offline use and older installs.
-final currentServerCapabilitiesProvider = FutureProvider<ServerCapabilities>((
-  ref,
-) async {
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) return const ServerCapabilities();
-  try {
-    return await api.getOpenSubsonicExtensions();
-  } on Object {
-    final saved = ref
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.capabilitiesJson;
-    if (saved == null || saved.isEmpty) return const ServerCapabilities();
-    try {
-      return ServerCapabilities.fromJson(
-        jsonDecode(saved) as Map<String, dynamic>,
-      );
-    } on Object {
-      return const ServerCapabilities();
-    }
-  }
-});
 
 // ---------------------------------------------------------------------------
 // AudioMuse AI providers (direct API — disabled)

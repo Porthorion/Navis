@@ -394,11 +394,6 @@ class QueueController extends Notifier<List<String>> {
     return await playNext(song.id);
   }
 
-  /// Persists [Song] rows locally so [NavisAudioHandler] can resolve them.
-  Future<void> persistSongsForPlayback(List<Song> songs) async {
-    await _ensureSongsInDatabase(songs);
-  }
-
   Future<void> retainCurrentAsQueue(String id) async {
     final normalizedId = id.trim();
     if (normalizedId.isEmpty) {

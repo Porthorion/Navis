@@ -621,31 +621,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the Wi-Fi-only downloads setting.
-  Stream<bool> watchWifiOnlyDownloads() {
-    return watchSettings().map((s) => s?.wifiOnlyDownloads ?? true);
-  }
-
-  /// Stream the show liked page setting.
-  Stream<bool> watchShowLikedPage() {
-    return watchSettings().map((s) => s?.showLikedPage ?? true);
-  }
-
-  /// Stream the auto-download liked on Wi-Fi setting.
-  Stream<bool> watchAutoDownloadStarredOnWifi() {
-    return watchSettings().map((s) => s?.autoDownloadStarredOnWifi ?? false);
-  }
-
-  /// Stream the custom permanent-download-folder toggle.
-  Stream<bool> watchCustomDownloadFolderEnabled() {
-    return watchSettings().map((s) => s?.customDownloadFolderEnabled ?? false);
-  }
-
-  /// Stream the custom permanent-download-folder path.
-  Stream<String?> watchCustomDownloadFolderPath() {
-    return watchSettings().map((s) => s?.customDownloadFolderPath);
-  }
-
   // ---------------------------------------------------------------------------
   // Download preference helpers (targeted only; full-draft saves never write
   // these columns)
@@ -786,21 +761,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the current theme mode.
-  Stream<String> watchThemeMode() {
-    return watchSettings().map((s) => s?.themeMode ?? 'dark');
-  }
-
-  /// Stream the current color scheme seed.
-  Stream<int?> watchColorSchemeSeed() {
-    return watchSettings().map((s) => s?.colorSchemeSeed);
-  }
-
-  /// Stream the current locale override code.
-  Stream<String?> watchAppLocale() {
-    return watchSettings().map((s) => s?.appLocale);
-  }
-
   // ---------------------------------------------------------------------------
   // Custom color presets helpers
   // ---------------------------------------------------------------------------
@@ -871,11 +831,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the art-tinted Now Playing setting.
-  Stream<bool> watchArtTintedNowPlaying() {
-    return watchSettings().map((s) => s?.artTintedNowPlaying ?? true);
-  }
-
   /// Targeted update for dynamic album-color theming.
   Future<void> updateDynamicAlbumColorEnabled({required bool enabled}) {
     return (update(
@@ -886,11 +841,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: Value(DateTime.now()),
       ),
     );
-  }
-
-  /// Stream the dynamic album-color setting.
-  Stream<bool> watchDynamicAlbumColorEnabled() {
-    return watchSettings().map((s) => s?.dynamicAlbumColorEnabled ?? false);
   }
 
   // ---------------------------------------------------------------------------
@@ -909,19 +859,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Stream the sync interval in minutes (0 = manual only).
-  Stream<int> watchSyncIntervalMinutes() {
-    return watchSettings().map(
-      (s) => s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes,
-    );
-  }
-
-  /// Read current sync interval in minutes (one-shot).
-  Future<int> getSyncIntervalMinutes() async {
-    final s = await getSettings();
-    return s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes;
-  }
-
   /// Targeted update for background sync unmetered-only preference.
   Future<void> updateBackgroundSyncUnmeteredOnly({required bool enabled}) {
     return (update(
@@ -932,11 +869,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         updatedAt: Value(DateTime.now()),
       ),
     );
-  }
-
-  /// Stream whether background sync waits for unmetered networks.
-  Stream<bool> watchBackgroundSyncUnmeteredOnly() {
-    return watchSettings().map((s) => s?.backgroundSyncUnmeteredOnly ?? true);
   }
 
   // ---------------------------------------------------------------------------
@@ -964,18 +896,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         homeRecommendationsAutoAdvance: Value(enabled),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
-  /// Targeted update for legacy album grid density (null = auto).
-  Future<void> updateAlbumGridDensity(int? density) {
-    return (update(
-      appSettingsTable,
-    )..where((t) => t.id.equals(primarySettingsId))).write(
-      AppSettingsTableCompanion(
-        albumGridDensity: Value(density),
         updatedAt: Value(DateTime.now()),
       ),
     );

@@ -14,19 +14,6 @@ class AudioMuseRepository {
 
   final AudioMuseApiClient _client;
 
-  /// Checks whether the AudioMuse server is healthy and reachable.
-  Future<AudioMuseHealth> testConnection() async {
-    try {
-      return await _client.health();
-    } on DioException catch (e) {
-      AppLogger.warning('AudioMuse connection test failed: ${e.message}');
-      return const AudioMuseHealth(healthy: false);
-    } on Object catch (e) {
-      AppLogger.warning('AudioMuse connection test failed: $e');
-      return const AudioMuseHealth(healthy: false);
-    }
-  }
-
   /// Returns AI-powered similar artists, or an empty list on error.
   Future<List<AudioMuseRecommendation>> getSimilarArtists(
     String artistId, {

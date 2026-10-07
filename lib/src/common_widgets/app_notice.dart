@@ -151,22 +151,6 @@ class AppNoticeMessenger {
     }
     controller.dismiss();
   }
-
-  void showSnackBar(SnackBar snackBar) {
-    final controller = AppNoticeScope.maybeOf(context);
-    final message = _extractMessage(snackBar.content);
-    if (controller == null || message == null || message.trim().isEmpty) {
-      return;
-    }
-    controller.show(message: message, duration: snackBar.duration);
-  }
-
-  String? _extractMessage(Widget content) {
-    if (content case final Text text) {
-      return text.data ?? text.textSpan?.toPlainText();
-    }
-    return null;
-  }
 }
 
 class AppNoticeHost extends StatelessWidget {

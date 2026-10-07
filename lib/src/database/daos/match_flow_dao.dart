@@ -27,8 +27,6 @@ class MatchFlowWithSongs {
 
   final MatchFlowsTableData flow;
   final List<MatchFlowSongEntry> songs;
-
-  String? get masterSongId => songs.isEmpty ? null : songs.first.link.songId;
 }
 
 class MatchFlowExpansionResult {

@@ -141,25 +141,6 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  /// Remove playlists whose IDs are NOT in [keepIds].
-  ///
-  /// Used during server sync to prune locally cached playlists that have been
-  /// deleted on the server.
-  Future<void> deletePlaylistsNotIn(List<String> keepIds) async {
-    if (keepIds.isEmpty) {
-      await clearAllPlaylists();
-      return;
-    }
-    await transaction(() async {
-      await (delete(
-        playlistSongsTable,
-      )..where((table) => table.playlistId.isNotIn(keepIds))).go();
-      await (delete(
-        playlistsTable,
-      )..where((table) => table.id.isNotIn(keepIds))).go();
-    });
-  }
-
   /// Watch a single playlist by ID.
   Stream<PlaylistsTableData?> watchPlaylistById(String playlistId) {
     final query = select(playlistsTable)

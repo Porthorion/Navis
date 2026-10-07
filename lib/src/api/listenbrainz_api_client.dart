@@ -129,13 +129,6 @@ class ListenBrainzApiClient {
     );
   }
 
-  Future<Map<String, dynamic>> getPlaylistStatus() async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/status/get-dump-info',
-    );
-    return response.data ?? const <String, dynamic>{};
-  }
-
   Future<void> sendPlayingNow({
     required String userToken,
     required String artist,

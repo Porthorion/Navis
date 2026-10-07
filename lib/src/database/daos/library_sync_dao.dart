@@ -1027,22 +1027,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     )..where((table) => table.serverId.equals(serverId))).go();
   }
 
-  Future<void> discardPendingSessionWork(int serverId) async {
-    await transaction(() async {
-      await clearWorkForServer(serverId);
-      await (update(
-        librarySyncStateTable,
-      )..where((table) => table.serverId.equals(serverId))).write(
-        const LibrarySyncStateTableCompanion(
-          candidateGeneration: Value(null),
-          candidateStatus: Value(null),
-          candidateStartedAt: Value(null),
-          candidateCarriedForwardCount: Value(0),
-        ),
-      );
-    });
-  }
-
   Future<void> discardAllPendingSessionWork() async {
     await transaction(() async {
       await delete(librarySyncWorkTable).go();
@@ -1154,11 +1138,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     }
     return result;
   }
-
-  Future<void> pruneLocalStarMutationsBefore(
-    DateTime cutoff, {
-    Map<String, Set<String>> exclude = const <String, Set<String>>{},
-  }) => pruneLocalMutationsBefore(cutoff, operation: 'star', exclude: exclude);
 
   Future<void> pruneLocalMutationsBefore(
     DateTime cutoff, {
