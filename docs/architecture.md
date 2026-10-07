@@ -1351,6 +1351,18 @@ connection reset even if deletion fails. Teardown logs failures and continues.
 Disconnect in Integrations instead retains the connection when deletion fails
 and shows a retry notice.
 
+## Database file location
+
+Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
+directory; Android and iOS use application documents. `database_location.dart`
+resolves both through path_provider, preserving clone diagnostics overrides.
+Before opening on desktop, a missing support database is migrated from documents
+along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
+verified before originals are deleted. Failure restores transferred files and
+falls back to documents; a rollback failure preserves the remaining copy and
+fails opening rather than choosing an incomplete database. An existing support
+database wins and leaves legacy files untouched. No schema changes are involved.
+
 ## External integration policy
 
 Navis talks to its own Subsonic server and, optionally, to external services:

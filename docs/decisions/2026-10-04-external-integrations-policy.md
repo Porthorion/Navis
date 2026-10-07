@@ -90,3 +90,7 @@ Credential redaction also covers Last.fm `api_key`, including encoded query para
 ### Compliance follow-up — 2026-10-07
 
 Android disables application backup and excludes all root, file, database, preferences and external-storage domains from cloud backup and device transfer. The manifest declares mailto handler visibility for the support link.
+
+### Compliance follow-up — 2026-10-07
+
+Desktop databases now live in application support. Before opening, Navis migrates the legacy documents database with WAL, SHM and journal sidecars. Cross-device moves verify copies before deleting originals; failures restore the file family and open the legacy location. Directory readers preserve diagnostics profile overrides. Android and iOS retain the documents location.

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Desktop databases move from Documents into application support, preserving existing libraries and SQLite sidecars',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android excludes Navis data from system backup and device transfer and can discover email apps for support',
         type: ChangelogEntryType.fix,
       ),
