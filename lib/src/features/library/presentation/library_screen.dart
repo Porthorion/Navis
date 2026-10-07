@@ -2542,11 +2542,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _yearItemScrollController.jumpTo(index: sectionIndex);
   }
 
-  // Kept for future star action in album context menu.
-  // ignore: unused_element
-  Future<void> _toggleAlbumStar(AlbumsTableData album) =>
-      _saveStarred(album.id, 'album', album.starred == null);
-
   Future<void> _toggleArtistStar(ArtistsTableData artist) =>
       _saveStarred(artist.id, 'artist', artist.starred == null);
 

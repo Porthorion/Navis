@@ -76,40 +76,6 @@ class ListenBrainzApiClient {
     );
   }
 
-  Future<List<ListenBrainzPlaylist>> getUserPlaylists({
-    required String userName,
-    String? userToken,
-    int count = 100,
-    int offset = 0,
-  }) async {
-    final encodedUserName = Uri.encodeComponent(userName);
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/user/$encodedUserName/playlists',
-      queryParameters: <String, Object?>{'count': count, 'offset': offset},
-      options: userToken == null || userToken.trim().isEmpty
-          ? null
-          : _authOptions(userToken),
-    );
-    return parseListenBrainzPlaylistList(
-      response.data ?? const <String, dynamic>{},
-    );
-  }
-
-  Future<List<ListenBrainzPlaylist>> getCreatedForPlaylists({
-    required String userName,
-    int count = 100,
-    int offset = 0,
-  }) async {
-    final encodedUserName = Uri.encodeComponent(userName);
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/user/$encodedUserName/playlists/createdfor',
-      queryParameters: <String, Object?>{'count': count, 'offset': offset},
-    );
-    return parseListenBrainzPlaylistList(
-      response.data ?? const <String, dynamic>{},
-    );
-  }
-
   Future<ListenBrainzPlaylist> getPlaylist(
     String playlistMbid, {
     bool fetchMetadata = true,

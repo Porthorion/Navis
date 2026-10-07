@@ -2999,13 +2999,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .go();
   }
 
-  Future<List<String>> removeServerSongsForPromotion(
-    Iterable<SongsTableData> songs,
-  ) async {
-    final result = await retainOrRemoveServerSongs(songs);
-    return result.deferredCacheFiles;
-  }
-
   /// Removes songs that disappeared from a validated server snapshot.
   ///
   /// Songs with a valid permanent download keep their local row (the classic

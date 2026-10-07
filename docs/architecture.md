@@ -117,12 +117,9 @@ Located in `lib/src/providers/app_providers.dart`:
 
 **queue_provider.dart**:
 - `queueProvider` - Current play queue controller
-- `currentQueueSongIdProvider` - Currently playing song ID
-- `playNextProvider` - Add song to play next
 - `reorderQueueProvider` - Reorder queue items
 
-**player_providers.dart** (re-exports):
-- Re-exports queue providers for convenience
+**providers/app_providers.dart** (player state):
 - `lyricsProvider` - Lyrics for a song
 - `playerStateProvider` - Playback state
 
@@ -283,12 +280,11 @@ Located in `lib/src/providers/app_providers.dart`:
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
 
-**library_providers.dart**:
-- Artist, album, song, and album-list providers shared by Library presentation
-  screens.
+**Library providers**:
+- Artist, album, and song providers shared by Library presentation screens
+  live in `lib/src/providers/app_providers.dart`.
 - Route-local state and scroll/section coordination remain in the dedicated
-  presentation providers beside their owning screens; do not recreate this
-  former planned-file boundary in `app_providers.dart`.
+  presentation providers beside their owning screens.
 
 #### Auth Feature (`lib/src/features/auth/presentation/`)
 
@@ -302,7 +298,7 @@ Located in `lib/src/providers/app_providers.dart`:
   `retryNow()` backs the shell offline banner's Retry (see "Offline banner
   and the top inset")
 
-#### Retired Listen Together Feature (`lib/src/features/group_listening/`)
+#### Retired Listen Together Feature
 
 Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
@@ -746,7 +742,6 @@ Reusable UI components used across features:
 
 - **Actions**
   - `star_button.dart` - Star/unstar action
-  - `cache_badge.dart` - Cache status indicator
   - `context_menu.dart` - Bottom sheet context menu
 
 ### Hero Animation Pattern
@@ -1838,8 +1833,7 @@ reads "Not Found".
   add `?name=` and `&artist=` (`AppRoutes.detailNameParam` /
   `detailArtistParam`). Every link to an artist or album that may not be
   stored passes them: search results, song menus (library, album, playlist,
-  search), album artist links, the artist and album menus, AudioMuse album
-  chips, Fans Also Like, Missing Albums and New Releases. Library lists and
+  search), album artist links, the artist and album menus, Fans Also Like, Missing Albums and New Releases. Library lists and
   Now Playing links open stored entities only.
 - A page showing its entity carries `detailPageShownKey`, which the
   diagnostics release-card control reads.
