@@ -465,7 +465,15 @@ go to `build/stream-open-diagnostics/<timestamp>/report.json`, with exit status
 1 on any failed check. Last, it starts a second station whose stream is
 served over HTTPS with a throw-away self-signed certificate and requires that
 the TLS server sees the connection, that no request completes (libmpv refuses
-the certificate) and that the station never plays. The radio stream needs
+the certificate) and that the station never plays. It then turns Online
+services off (`POST /v1/presentation/integrations {"master": false}`) and
+starts a third station whose stream host is `localhost` rather than the
+server's `127.0.0.1`: the fixture must see no request from it, radio mode must
+stay off, and the `radio-blocked-online-services-off` screenshot should show
+the notice explaining why. The station on the server's own host must still
+play with Online services off. On Linux it also reads the app's
+`/proc/<pid>/maps` and requires that the only libmpv loaded is the bundle's
+LGPL `lib/libmpv.so.2`. The radio stream needs
 `ffmpeg` with an MP3 encoder and the certificate needs `openssl`.
 
 While an internet radio station is active, authenticated

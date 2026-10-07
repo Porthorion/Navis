@@ -17,7 +17,14 @@ then:
 4. starts a second station whose stream is served over HTTPS with a
    throw-away self-signed certificate. libmpv must refuse the certificate
    (`tls-verify`): the TLS server sees the connection attempt, no request
-   completes, and the station never plays.
+   completes, and the station never plays;
+5. turns Online services off and starts a third station whose stream host
+   (`localhost`) differs from the server's (`127.0.0.1`). The app must refuse
+   it without connecting and show why, while the station on the server's own
+   host still plays.
+
+On Linux it also requires that the libmpv loaded by the app is the LGPL copy
+in the bundle's `lib/` folder, not a system library.
 
 Results are written to build/stream-open-diagnostics/<timestamp>/report.json;
 the exit status is 1 when any check fails. Requires ffmpeg (with an MP3
@@ -63,6 +70,7 @@ SONGS = [MISSING, PLAYABLE]
 STATION = 'fixture'
 PLAIN_RADIO = 'Plain Radio'
 SECURE_RADIO = 'Secure Radio'
+OUTSIDE_RADIO = 'Outside Radio'
 NOW_PLAYING = {'title': 'Fixture Broadcast', 'artist': 'Fixture Radio'}
 ICY_METAINT = 8192
 LAST_MODIFIED = 1790000000000
@@ -118,7 +126,10 @@ class Handler(fixture.Handler):
                     'streamUrl': f'{self.base}/listen/{STATION}/radio.mp3',
                     'homePageUrl': f'{self.base}/public/{STATION}'}, {
                     'id': 'stream-radio-secure', 'name': SECURE_RADIO,
-                    'streamUrl': f'{self.secure_base}/listen/{STATION}/radio.mp3'}]}))
+                    'streamUrl': f'{self.secure_base}/listen/{STATION}/radio.mp3'}, {
+                    'id': 'stream-radio-outside', 'name': OUTSIDE_RADIO,
+                    'streamUrl': self.base.replace('127.0.0.1', 'localhost')
+                    + f'/listen/{STATION}/radio.mp3'}]}))
         if endpoint == 'getArtists':
             return self._json(fixture._root(artists={'lastModified': LAST_MODIFIED, 'index': index}))
         if endpoint == 'getIndexes':
@@ -142,7 +153,8 @@ class Handler(fixture.Handler):
     def _radio(self):
         """An endless Icecast-style MP3 stream, paced near real time."""
         metadata = self.headers.get('Icy-MetaData') == '1'
-        radio_streams.append({'icyMetadataRequested': metadata})
+        radio_streams.append({'icyMetadataRequested': metadata,
+                              'host': self.headers.get('Host', '').split(':')[0]})
         self.send_response(200)
         self.send_header('Content-Type', 'audio/mpeg')
         self.send_header('icy-name', 'Fixture Radio')
@@ -420,6 +432,41 @@ def main():
         if api('/v1/session/status')['activity']['radio']:
             api('/v1/presentation/library-action',
                 {'action': 'toggleFirstRadioStation'})
+
+        # 5. With Online services off only the server's own host may play.
+        api('/v1/presentation/integrations', {'master': False})
+        outside_before = sum(s['host'] == 'localhost' for s in radio_streams)
+        show_only(OUTSIDE_RADIO)
+        wait_until(start_station, 60, 'the outside radio station card')
+        time.sleep(4)
+        blocked_shot = api('/v1/presentation/screenshot',
+                           {'label': 'radio-blocked-online-services-off'})
+        details['onlineServicesOff'] = {
+            'outsideStreams': sum(s['host'] == 'localhost' for s in radio_streams)
+            - outside_before,
+            'screenshot': blocked_shot.get('artifact'),
+        }
+        checks['outsideStationNotContacted'] = (
+            details['onlineServicesOff']['outsideStreams'] == 0)
+        checks['outsideStationNotPlaying'] = not api(
+            '/v1/session/status')['activity']['radio']
+        show_only(PLAIN_RADIO)
+        wait_until(start_station, 60, 'the server-hosted station card')
+        wait_until(lambda: api('/v1/session/status')['activity']['radio'], 60,
+                   'radio mode with Online services off')
+        checks['serverStationPlaysWithOnlineServicesOff'] = advancing(
+            60, 'the server-hosted station')
+        api('/v1/presentation/library-action', {'action': 'toggleFirstRadioStation'})
+        api('/v1/presentation/integrations', {'master': True})
+
+        app_pid = client.get('pid')
+        if app_pid is not None and pathlib.Path('/proc').is_dir():
+            maps = pathlib.Path(f'/proc/{app_pid}/maps').read_text()
+            loaded = sorted({line.split()[-1] for line in maps.splitlines()
+                             if 'libmpv' in line})
+            details['libmpv'] = loaded
+            checks['bundledLibmpvLoaded'] = bool(loaded) and all(
+                path.endswith('/bundle/lib/libmpv.so.2') for path in loaded)
         checks['noYtdlInvocationAtEnd'] = not invocations()
     except Exception as error:  # noqa: BLE001 - reported below
         failure = f'{type(error).__name__}: {error}'
