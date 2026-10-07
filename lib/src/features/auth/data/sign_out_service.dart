@@ -11,7 +11,6 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
-import 'package:navis/src/features/player/presentation/sleep_timer_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -76,7 +75,6 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
           .abortForSessionTeardown();
     },
     resetTransientUi: () async {
-      ref.read(sleepTimerProvider.notifier).cancel();
       ref.read(instantMixProvider.notifier).deactivate();
       ref.read(sameVibesProvider.notifier).deactivate();
       ref.read(smartQueueProvider.notifier).deactivate();
