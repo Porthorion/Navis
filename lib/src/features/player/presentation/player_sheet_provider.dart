@@ -69,14 +69,6 @@ final playerOverlayStackProvider =
       PlayerOverlayController.new,
     );
 
-final playerOverlayTopProvider = Provider<PlayerOverlayRoute?>((ref) {
-  final stack = ref.watch(playerOverlayStackProvider);
-  if (stack.isEmpty) {
-    return null;
-  }
-  return stack.last;
-});
-
 final playerSheetExpandedProvider = Provider<bool>((ref) {
   return ref.watch(
     playerOverlayStackProvider.select(

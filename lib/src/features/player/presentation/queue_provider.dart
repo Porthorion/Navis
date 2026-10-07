@@ -758,10 +758,6 @@ final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,
 );
 
-final playNextProvider = Provider<Future<void> Function(String)>((ref) {
-  return (songId) => ref.read(queueProvider.notifier).playNext(songId);
-});
-
 final reorderQueueProvider = Provider<Future<void> Function(int, int)>((ref) {
   return (oldIndex, newIndex) =>
       ref.read(queueProvider.notifier).reorder(oldIndex, newIndex);

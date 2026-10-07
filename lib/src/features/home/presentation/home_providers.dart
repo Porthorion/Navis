@@ -343,11 +343,6 @@ void debugResetListenBrainzDiscoverSessionCacheForTests() {
   _listenBrainzMatchCacheIdentityEpoch = null;
 }
 
-@visibleForTesting
-Future<void> awaitListenBrainzStartupIdle(Ref ref, Duration delay) {
-  return _awaitListenBrainzStartupIdle(ref, delay);
-}
-
 Future<void> _awaitListenBrainzStartupIdle(Ref ref, Duration delay) async {
   if (delay <= Duration.zero) {
     await Future<void>.delayed(Duration.zero);

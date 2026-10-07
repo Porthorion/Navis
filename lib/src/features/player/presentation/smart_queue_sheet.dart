@@ -147,12 +147,3 @@ void showMixModeSheet(BuildContext context, {required String seedSongId}) {
     togglePreferredMixModeFromContainer(container, seedSongId: seedSongId),
   );
 }
-
-/// Backwards-compatible wrapper for older call sites.
-void showSmartQueueSheet(
-  BuildContext context,
-  WidgetRef ref, {
-  required String seedSongId,
-}) {
-  unawaited(togglePreferredMixMode(ref, seedSongId: seedSongId));
-}

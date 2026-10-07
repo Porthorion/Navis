@@ -1,7 +1,5 @@
 import 'package:navis/src/database/navis_database.dart';
 
-enum AlbumViewMode { standard, byYear }
-
 class AlbumYearSection {
   const new({
     required this.title,

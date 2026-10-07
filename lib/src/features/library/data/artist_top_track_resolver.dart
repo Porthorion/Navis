@@ -24,8 +24,6 @@ const int _kSearchSongCount = 10;
 
 // Span names on `IntegrationCallRecorder`, for the diagnostics endpoint.
 const String kTopSongsSpanPrefix = 'topSongs';
-const String kTopSongsLocalMatchSpan = '$kTopSongsSpanPrefix.localMatch';
-const String kTopSongsServerMatchSpan = '$kTopSongsSpanPrefix.serverMatch';
 
 /// Matches a ranked list of songs (an artist's top songs, Home's Trending
 /// Now) to library songs, the way the ListenBrainz weekly playlists match
