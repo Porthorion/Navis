@@ -1,4 +1,6 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Spacing scale shared by every layout.
 ///
@@ -60,8 +62,13 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
   });
 
   /// Tokens for [scheme]. OLED keeps warnings off pure black by raising the
-  /// container one step, matching its other container overrides.
-  factory forScheme(ColorScheme scheme, {bool oled = false}) {
+  /// container one step, matching its other container overrides. [style]
+  /// supplies the colour style's success colour.
+  factory forScheme(
+    ColorScheme scheme, {
+    bool oled = false,
+    NavisColorStyleData? style,
+  }) {
     final warningBase = oled
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;
@@ -81,9 +88,13 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       ),
       onQuietWarningContainer: scheme.onSurface,
       quietWarningAccent: scheme.error,
-      success: scheme.brightness == Brightness.dark
-          ? const Color(0xFF81C995)
-          : const Color(0xFF2E7D32),
+      success:
+          (style ??
+                  NavisColorStyleData(
+                    style: NavisColorStyle.neutral,
+                    dark: scheme.brightness == Brightness.dark,
+                  ))
+              .success,
     );
   }
 

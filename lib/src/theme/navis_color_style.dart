@@ -15,7 +15,7 @@ enum NavisColorStyle {
   /// Warm, low-blue colours for evening listening.
   night('night');
 
-  const NavisColorStyle(this.storageKey);
+  new(this.storageKey);
 
   /// Value persisted in `app_settings.color_style`.
   final String storageKey;

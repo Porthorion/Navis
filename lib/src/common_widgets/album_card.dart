@@ -152,11 +152,10 @@ class AlbumCardLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isLightTheme = theme.brightness == Brightness.light;
-    final titleColor = isLightTheme ? colorScheme.onSurface : Colors.white;
-    final subtitleColor = isLightTheme
-        ? colorScheme.onSurfaceVariant
-        : const Color(0xCCFFFFFF);
+    // The title sits on a fade of the page background, not on the artwork,
+    // so it uses the scheme's text colours in every theme and colour style.
+    final titleColor = colorScheme.onSurface;
+    final subtitleColor = colorScheme.onSurfaceVariant;
     return Positioned(
       left: 0,
       right: 0,

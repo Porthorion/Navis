@@ -1,7 +1,6 @@
 {
   "lib/src/common_widgets/album_card.dart": {
-    "fontSize": 1,
-    "colorLiteral": 1
+    "fontSize": 1
   },
   "lib/src/common_widgets/album_download_badge.dart": {
     "colorLiteral": 1

@@ -3594,6 +3594,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceThemeSystem => 'Auto';
 
   @override
+  String get appearanceColorStyleLabel => 'Color Style';
+
+  @override
+  String get appearanceColorStyleNeutral => 'Neutral';
+
+  @override
+  String get appearanceColorStylePastel => 'Pastel';
+
+  @override
+  String get appearanceColorStyleImmersive => 'Immersive';
+
+  @override
+  String get appearanceColorStyleNight => 'Night';
+
+  @override
+  String get appearanceColorStyleNeutralSub =>
+      'Neutral backgrounds. Color comes from your accent and album art.';
+
+  @override
+  String get appearanceColorStylePastelSub =>
+      'Soft pastel accents on gently tinted backgrounds.';
+
+  @override
+  String get appearanceColorStyleImmersiveSub =>
+      'Your accent color fills the backgrounds in deep, rich tones.';
+
+  @override
+  String get appearanceColorStyleNightSub =>
+      'Warm colors with less blue light, for evening listening.';
+
+  @override
   String get appearanceLanguageLabel => 'Language';
 
   @override

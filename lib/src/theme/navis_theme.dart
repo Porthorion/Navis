@@ -1,4 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Default seed used when no explicit color has been saved.
@@ -104,53 +107,46 @@ ThemeMode resolveThemeMode(String mode) {
 }
 
 /// Build the light [ThemeData] from a seed color.
-ThemeData buildLightTheme(Color seedColor) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+ThemeData buildLightTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.light,
-    // Tonal spot retains the selected accent while keeping text, headings,
-    // and interactive roles sufficiently dark against light surfaces.
-    dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+    style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor);
+  return _buildNavisTheme(colorScheme, seedColor, style: style);
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
-ThemeData buildDarkTheme(Color seedColor) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+ThemeData buildDarkTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.dark,
-    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor);
+  return _buildNavisTheme(colorScheme, seedColor, style: style);
 }
-
-// OLED surface constants – extracted for consistency.
-const Color _oledContainer = Color(0xFF0A0A0A);
-const Color _oledContainerHighest = Color(0xFF121212);
 
 /// Build an OLED (pure black) [ThemeData] from a seed color.
 ///
 /// Uses true `#000000` backgrounds and surfaces for maximum battery savings
-/// on AMOLED screens.
-ThemeData buildOledTheme(Color seedColor) {
-  final baseScheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
+/// on AMOLED screens, in every colour style.
+ThemeData buildOledTheme(
+  Color seedColor, {
+  NavisColorStyle style = NavisColorStyle.neutral,
+}) {
+  final colorScheme = buildStyledColorScheme(
+    seed: seedColor,
     brightness: Brightness.dark,
-    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    oled: true,
+    style: style,
   );
-  final colorScheme = baseScheme.copyWith(
-    surface: Colors.black,
-    onSurface: Colors.white,
-    surfaceContainerLowest: Colors.black,
-    surfaceContainerLow: _oledContainer,
-    surfaceContainer: _oledContainer,
-    surfaceContainerHigh: _oledContainer,
-    surfaceContainerHighest: _oledContainerHighest,
-    // Ensure "on" colors for container variants stay readable
-    onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
-  );
-  return _buildNavisTheme(colorScheme, seedColor, oled: true);
+  return _buildNavisTheme(colorScheme, seedColor, oled: true, style: style);
 }
 
 /// Bundled UI typeface (see `assets/fonts/`).
@@ -204,7 +200,17 @@ ThemeData _buildNavisTheme(
   ColorScheme colorScheme,
   Color seedColor, {
   bool oled = false,
+  NavisColorStyle style = NavisColorStyle.neutral,
 }) {
+  final styleData = NavisColorStyleData(
+    style: style,
+    dark: colorScheme.brightness == Brightness.dark,
+  );
+  // Light Pastel fills its main buttons with the pastel container colour and
+  // keeps the deeper primary for text, which needs the contrast.
+  final pastelLight =
+      style == NavisColorStyle.pastel &&
+      colorScheme.brightness == Brightness.light;
   // Outlines on secondary controls use the softer variant role so they
   // separate controls without competing with filled primary actions.
   final softOutline = BorderSide(color: colorScheme.outlineVariant);
@@ -239,7 +245,7 @@ ThemeData _buildNavisTheme(
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: oled ? _oledContainer : colorScheme.surfaceContainerLow,
+      color: colorScheme.surfaceContainerLow,
       shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
     ),
     popupMenuTheme: const PopupMenuThemeData(
@@ -251,9 +257,17 @@ ThemeData _buildNavisTheme(
       border: OutlineInputBorder(borderRadius: NavisRadius.mdAll),
     ),
     scaffoldBackgroundColor: oled ? Colors.black : null,
-    cardColor: oled ? _oledContainer : null,
+    cardColor: oled ? colorScheme.surfaceContainerLow : null,
     dialogTheme: oled
-        ? const DialogThemeData(backgroundColor: _oledContainer)
+        ? DialogThemeData(backgroundColor: colorScheme.surfaceContainer)
+        : null,
+    filledButtonTheme: pastelLight
+        ? FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primaryContainer,
+              foregroundColor: colorScheme.onPrimaryContainer,
+            ),
+          )
         : null,
     appBarTheme: oled
         ? const AppBarTheme(
@@ -271,11 +285,19 @@ ThemeData _buildNavisTheme(
           )
         : null,
     bottomSheetTheme: oled
-        ? const BottomSheetThemeData(backgroundColor: _oledContainer)
+        ? BottomSheetThemeData(backgroundColor: colorScheme.surfaceContainer)
         : null,
     extensions: <ThemeExtension<dynamic>>[
-      NavisTokens.forScheme(colorScheme, oled: oled),
-      NavisAccentColors.fromScheme(source: seedColor, colorScheme: colorScheme),
+      NavisTokens.forScheme(colorScheme, oled: oled, style: styleData),
+      NavisAccentColors.fromScheme(
+        // Styled schemes reshape the seed, so the brand mark follows the
+        // styled accent rather than the raw seed.
+        source: style == NavisColorStyle.neutral
+            ? seedColor
+            : colorScheme.primary,
+        colorScheme: colorScheme,
+      ),
+      styleData,
     ],
   );
 }

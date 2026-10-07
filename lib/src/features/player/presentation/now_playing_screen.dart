@@ -59,6 +59,7 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 part 'now_playing_seek_bar.dart';
 part 'now_playing_metadata_panel.dart';
@@ -529,6 +530,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
+    final colorStyle = NavisColorStyleData.of(context);
     final extractedTintColor = cachedTintColor ?? _artTintColor;
     if (artTinted &&
         playback.hasActivePlayback &&
@@ -580,7 +582,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: <Color>[
-                    tintColor.withValues(alpha: 0.4),
+                    colorStyle
+                        .adaptArtColor(tintColor)
+                        .withValues(alpha: colorStyle.nowPlayingTintAlpha),
                     surfaceColor,
                   ],
                   stops: const <double>[0, 0.7],

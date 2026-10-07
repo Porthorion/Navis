@@ -344,13 +344,18 @@ class _ShowcaseColourWash extends ConsumerWidget {
     final background = theme.scaffoldBackgroundColor;
     final motion = MotionPolicy.of(context);
     final coverId = coverArtId?.trim();
-    // Light surfaces need a gentler tint to keep text contrast.
-    final light = theme.brightness == Brightness.light;
-    final veil = subtle ? (light ? 0.9 : 0.78) : (light ? 0.84 : 0.66);
+    // The colour style sets the veil (light surfaces need a gentler tint to
+    // keep text contrast) and reshapes the sampled cover colours.
+    final style = NavisColorStyleData.of(context);
+    final veil = style.artWashVeil(subtle: subtle);
     final field = coverId == null || coverId.isEmpty
         ? null
         : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
-    final target = field ?? CoverColourField.uniform(background);
+    final target = field == null
+        ? CoverColourField.uniform(background)
+        : CoverColourField(
+            field.colors.map(style.adaptArtColor).toList(growable: false),
+          );
     return IgnorePointer(
       key: washKey,
       child: ExcludeSemantics(

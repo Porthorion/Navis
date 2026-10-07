@@ -71,6 +71,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 

@@ -14,6 +14,9 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -26,6 +29,15 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final currentMode = ref.watch(themeModeProvider);
     final currentSeed = ref.watch(colorSchemeSeedProvider);
+    final currentStyle = ref.watch(colorStyleProvider);
+    final previewSeed = resolveColorSchemeSeedColor(
+      ref.watch(effectiveColorSchemeSeedProvider),
+    );
+    final previewBrightness = switch (currentMode) {
+      'light' => Brightness.light,
+      'system' => MediaQuery.platformBrightnessOf(context),
+      _ => Brightness.dark,
+    };
     final dynamicAlbumColorEnabled = ref.watch(
       dynamicAlbumColorEnabledProvider,
     );
@@ -109,6 +121,27 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   await db.appSettingsDao.updateThemeMode(mode);
                 },
               ),
+
+              // ── Color Style ─────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text(
+                  l10n.appearanceColorStyleLabel,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              ColorStyleSelector(
+                currentStyle: currentStyle,
+                seed: previewSeed,
+                brightness: previewBrightness,
+                oled: currentMode == 'oled',
+                onChanged: (style) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateColorStyle(style.storageKey);
+                },
+              ),
               const Divider(height: 32),
 
               // ── Color Scheme ────────────────────────────────────────
@@ -133,6 +166,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               ),
               ColorSchemeGrid(
                 currentSeed: currentSeed,
+                style: currentStyle,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 customPresets: customPresets,
                 onSelected: (seed) async {
@@ -833,9 +867,14 @@ class ColorSchemeGrid extends StatelessWidget {
     required this.onCustomColorPicked,
     required this.onSavePreset,
     required this.onDeletePreset,
+    this.style = NavisColorStyle.neutral,
   });
 
   final int? currentSeed;
+
+  /// Colour style the swatches preview: each one shows the accent the style
+  /// will make from it, so under Pastel the grid becomes a set of pastels.
+  final NavisColorStyle style;
   final bool dynamicAlbumColorEnabled;
   final List<int> customPresets;
   final ValueChanged<int?> onSelected;
@@ -872,7 +911,7 @@ class ColorSchemeGrid extends StatelessWidget {
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: defaultColorSchemeSeedColor,
+                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
                 onTap: () => onSelected(null),
@@ -881,7 +920,7 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: swatch.color,
+                  color: styledSwatchColor(swatch.color, style),
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,
                   onTap: () => onSelected(swatch.colorValue),

@@ -18,6 +18,7 @@ import 'package:navis/src/routing/desktop_presentation_host.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
@@ -69,7 +70,15 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       ref.listen(navigationHistoryProvider, (_, _) {});
     }
     final themeModeName = ref.watch(themeModeProvider);
+    final colorStyle = ref.watch(colorStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
+    // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
+    // accents on every track change, so they ease over a longer transition.
+    final themeAnimationDuration =
+        colorStyle != NavisColorStyle.neutral &&
+            ref.watch(dynamicAlbumColorEnabledProvider)
+        ? const Duration(milliseconds: 500)
+        : kThemeAnimationDuration;
     final localeCode = ref.watch(appLocaleProvider);
     final seedColor = resolveColorSchemeSeedColor(colorSeed);
     final resolvedThemeMode = resolveThemeMode(themeModeName);
@@ -85,12 +94,17 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
-      theme: buildLightTheme(seedColor)
-          .copyWith(splashFactory: widget.splashFactory),
+      theme: buildLightTheme(
+        seedColor,
+        style: colorStyle,
+      ).copyWith(splashFactory: widget.splashFactory),
       darkTheme:
-          (isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor))
+          (isOled
+                  ? buildOledTheme(seedColor, style: colorStyle)
+                  : buildDarkTheme(seedColor, style: colorStyle))
               .copyWith(splashFactory: widget.splashFactory),
       themeMode: resolvedThemeMode,
+      themeAnimationDuration: themeAnimationDuration,
       builder: (context, child) {
         var content = _wrapWithDesktopInputBoundary(
           child ?? const SizedBox.shrink(),

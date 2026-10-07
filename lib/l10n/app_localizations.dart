@@ -5669,6 +5669,60 @@ abstract class AppLocalizations {
   /// **'Auto'**
   String get appearanceThemeSystem;
 
+  /// No description provided for @appearanceColorStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Color Style'**
+  String get appearanceColorStyleLabel;
+
+  /// No description provided for @appearanceColorStyleNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral'**
+  String get appearanceColorStyleNeutral;
+
+  /// No description provided for @appearanceColorStylePastel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pastel'**
+  String get appearanceColorStylePastel;
+
+  /// No description provided for @appearanceColorStyleImmersive.
+  ///
+  /// In en, this message translates to:
+  /// **'Immersive'**
+  String get appearanceColorStyleImmersive;
+
+  /// No description provided for @appearanceColorStyleNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Night'**
+  String get appearanceColorStyleNight;
+
+  /// No description provided for @appearanceColorStyleNeutralSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral backgrounds. Color comes from your accent and album art.'**
+  String get appearanceColorStyleNeutralSub;
+
+  /// No description provided for @appearanceColorStylePastelSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft pastel accents on gently tinted backgrounds.'**
+  String get appearanceColorStylePastelSub;
+
+  /// No description provided for @appearanceColorStyleImmersiveSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Your accent color fills the backgrounds in deep, rich tones.'**
+  String get appearanceColorStyleImmersiveSub;
+
+  /// No description provided for @appearanceColorStyleNightSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Warm colors with less blue light, for evening listening.'**
+  String get appearanceColorStyleNightSub;
+
   /// No description provided for @appearanceLanguageLabel.
   ///
   /// In en, this message translates to:

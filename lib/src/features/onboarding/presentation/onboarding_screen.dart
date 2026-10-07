@@ -25,6 +25,8 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 
 /// A deliberately shell-free, one-time customization experience.
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -600,10 +602,11 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         (resolvedMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
     final seed = resolveColorSchemeSeedColor(draft.colorSchemeSeed);
-    if (!dark) return buildLightTheme(seed);
+    final style = NavisColorStyle.parse(draft.colorStyle);
+    if (!dark) return buildLightTheme(seed, style: style);
     return draft.themeMode == 'oled'
-        ? buildOledTheme(seed)
-        : buildDarkTheme(seed);
+        ? buildOledTheme(seed, style: style)
+        : buildDarkTheme(seed, style: style);
   }
 
   /// The current step, built under the preview theme: the [Builder]'s
@@ -635,6 +638,20 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(themeMode: value)),
         ),
+        const SizedBox(height: 16),
+        Text(
+          l10n.appearanceColorStyleLabel,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        ColorStyleSelector(
+          currentStyle: NavisColorStyle.parse(draft.colorStyle),
+          seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+          brightness: Theme.of(context).brightness,
+          oled: draft.themeMode == 'oled',
+          onChanged: (style) => setState(
+            () => _draft = draft.copyWith(colorStyle: style.storageKey),
+          ),
+        ),
         const SizedBox(height: 24),
         Text(
           l10n.onboardingAccentColor,
@@ -642,6 +659,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
         ColorSchemeGrid(
           currentSeed: draft.colorSchemeSeed,
+          style: NavisColorStyle.parse(draft.colorStyle),
           dynamicAlbumColorEnabled: false,
           customPresets: customPresets,
           onSelected: (seed) => setState(
