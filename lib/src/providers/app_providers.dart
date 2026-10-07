@@ -689,6 +689,7 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   }
   return LastFmApiClient(
     apiKey: apiKey,
+    cache: ref.watch(integrationJsonCacheProvider),
     dio: ref.watch(externalDioFactoryProvider)(
       IntegrationService.lastFm,
       options: LastFmApiClient.baseOptions,
@@ -799,6 +800,7 @@ final lastFmApiClientFactoryProvider =
       final createDio = ref.watch(externalDioFactoryProvider);
       return (apiKey) => LastFmApiClient(
         apiKey: apiKey,
+        cache: ref.read(integrationJsonCacheProvider),
         dio: createDio(
           IntegrationService.lastFm,
           options: LastFmApiClient.baseOptions,

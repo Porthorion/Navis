@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -7,6 +10,133 @@ class _MockDio extends Mock implements Dio;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('similar-track cache normalizes keys, honors limits and expires at 24 hours', () async {
+    final root = await Directory.systemTemp.createTemp('lastfm-cache-');
+    addTearDown(() async {
+      await root.delete(recursive: true);
+    });
+    var now = DateTime.utc(2026, 10, 7);
+    final cache = IntegrationJsonCache(
+      readRootDirectory: () async => root,
+      now: () => now,
+    );
+    var requests = 0;
+    final dio = Dio();
+    addTearDown(dio.close);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests++;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'similartracks': {
+                  'track': [
+                    {
+                      'name': 'First',
+                      'artist': {'name': 'Fixture'},
+                    },
+                    {
+                      'name': 'Second',
+                      'artist': {'name': 'Fixture'},
+                    },
+                  ],
+                },
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final client = LastFmApiClient(apiKey: 'fixture', dio: dio, cache: cache);
+    expect(
+      await client.getSimilarTracks(
+        artist: 'Fixture  Artist',
+        track: ' Track ',
+        limit: 2,
+      ),
+      hasLength(2),
+    );
+    // A new client shares the disk entry; no process-local cache is required.
+    final next = LastFmApiClient(apiKey: 'fixture', dio: dio, cache: cache);
+    expect(
+      await next.getSimilarTracks(
+        artist: 'fixture artist',
+        track: 'track',
+        limit: 1,
+      ),
+      hasLength(1),
+    );
+    expect(requests, 1);
+    now = now.add(const Duration(hours: 24));
+    await next.getSimilarTracks(
+      artist: 'fixture artist',
+      track: 'track',
+      limit: 2,
+    );
+    expect(requests, 2);
+    await next.getSimilarTracks(
+      artist: 'fixture artist',
+      track: 'other',
+      limit: 2,
+    );
+    expect(requests, 3);
+    await next.getSimilarTracks(
+      artist: 'fixture artist',
+      track: 'track',
+      limit: 3,
+    );
+    expect(requests, 4);
+  });
+
+  test('Last.fm API errors do not poison the similar-track cache', () async {
+    final root = await Directory.systemTemp.createTemp('lastfm-cache-error-');
+    addTearDown(() async {
+      await root.delete(recursive: true);
+    });
+    final cache = IntegrationJsonCache(readRootDirectory: () async => root);
+    var requests = 0;
+    final dio = Dio();
+    addTearDown(dio.close);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests++;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: requests == 1
+                  ? {'error': 29, 'message': 'fixture limit'}
+                  : {
+                      'similartracks': {'track': <dynamic>[]},
+                    },
+            ),
+          );
+        },
+      ),
+    );
+    final client = LastFmApiClient(apiKey: 'fixture', dio: dio, cache: cache);
+    expect(
+      (await client.getSimilarTracksResult(
+        artist: 'Fixture',
+        track: 'Track',
+      )).outcome,
+      LastFmFetchOutcome.apiError,
+    );
+    expect(
+      (await client.getSimilarTracksResult(
+        artist: 'Fixture',
+        track: 'Track',
+      )).outcome,
+      LastFmFetchOutcome.noResults,
+    );
+    await client.getSimilarTracksResult(artist: 'Fixture', track: 'Track');
+    expect(requests, 2);
+  });
 
   setUpAll(() {
     registerFallbackValue(RequestOptions(path: '/'));

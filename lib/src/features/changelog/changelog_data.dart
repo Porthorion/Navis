@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Same Vibes and Instant Radio reuse Last.fm similar-track responses for 24 hours',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Lyrics lookups respect LRCLIB cooldowns and pause download backfill when the service is rate limited',
         type: ChangelogEntryType.fix,
       ),

@@ -106,3 +106,7 @@ External HTTP requests identify Navis with its version, project URL and support 
 ### Compliance follow-up — 2026-10-07
 
 LRCLIB 429 and 503 responses start a shared provider-held cooldown using Retry-After seconds or HTTP-date, defaulting to 60 seconds. Exact lookup and search make no requests during cooldown. Lyrics resolve through cached/server alternatives quietly, and downloaded-song backfill stops the pass after a rate limit. Subsonic uses the same Retry-After parser.
+
+### Compliance follow-up — 2026-10-07
+
+The shared Last.fm client caches successful track.getsimilar JSON responses for 24 hours using IntegrationJsonCache, keyed by case/whitespace-normalized artist and track. Instant Radio and Same Vibes share the cache. Errors are not cached; requests for a larger limit refresh an undersized entry, and smaller reads preserve caller limits. File reads and atomic writes follow the existing asynchronous Deezer cache pattern.

@@ -1369,6 +1369,14 @@ seconds or HTTP-date (60 seconds without valid guidance). Lyrics use cached
 or server alternatives without warning spam; backfill stops the current pass
 after a rate limit. Subsonic shares the HTTP Retry-After parser.
 
+Last.fm `track.getsimilar` responses are cached for 24 hours in
+`IntegrationJsonCache` under `lastfm.similar-tracks`, keyed by normalized artist
+and track (case and whitespace). The client is the shared layer for Same Vibes
+and Instant Radio. Successful empty responses are cached; request errors are
+not. Each entry records its request limit, so a larger request refreshes an
+undersized entry and smaller reads return only the requested number of tracks.
+Cache I/O uses the existing asynchronous read and atomic-write path.
+
 ## External integration policy
 
 External HTTP clients use a shared ASCII User-Agent containing the current
