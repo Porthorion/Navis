@@ -148,6 +148,11 @@ void main() {
             };
             for (final fill in fills.entries) {
               final hct = _hct(fill.value);
+              // Neutral only de-muds warm hues; cool hues stay as Material
+              // builds them.
+              if (style == NavisColorStyle.neutral && !isWarmHue(hct.hue)) {
+                continue;
+              }
               if (hct.tone >= 25 && hct.tone <= 50) {
                 expect(
                   hct.chroma,

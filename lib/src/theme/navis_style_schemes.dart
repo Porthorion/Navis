@@ -96,15 +96,29 @@ ColorScheme _neutralScheme(
   );
 }
 
-/// Replace [color] with a low-chroma version of the same hue when it sits in
-/// the muddy band (tone 25-50, chroma above 24); other colours are returned
-/// unchanged.
+/// Replace [color] with a low-chroma version of the same hue when it is a
+/// warm hue in the muddy band (tone 25-50, chroma above 24); other colours
+/// are returned unchanged.
+///
+/// Only warm hues (reds through olive) turn brick-red, brown or khaki at
+/// these tones. Blues, greens and purples read as rich jewel tones there, so
+/// Neutral keeps them as Material builds them.
 Color _deMud(Color color) {
   final source = Hct.fromInt(color.toARGB32());
   if (source.tone < 25 || source.tone > 50 || source.chroma <= 24) {
     return color;
   }
+  if (!isWarmHue(source.hue)) {
+    return color;
+  }
   return hct(mudGuardHue(source.hue, source.tone), 20, source.tone);
+}
+
+/// Whether [hue] (HCT degrees) is a warm hue that turns muddy at mid-dark
+/// tones: reds, oranges, yellows and olive (345°-120°).
+bool isWarmHue(double hue) {
+  final h = _sanitize(hue);
+  return h >= 345 || h <= 120;
 }
 
 /// Rotate yellow and yellow-green hues toward warm umber at dark tones.
