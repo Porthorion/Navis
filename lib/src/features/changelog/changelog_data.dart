@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Upgrading a pre-1.0 test installation starts with a fresh database and setup',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Song identity repairs keep an existing download-queue entry instead of creating a duplicate',
         type: ChangelogEntryType.fix,
       ),

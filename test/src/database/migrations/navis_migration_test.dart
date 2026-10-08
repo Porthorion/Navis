@@ -1431,7 +1431,15 @@ CREATE TABLE scrobble_queue (
     final dbPath = p.join(tempDir.path, 'navis.sqlite');
 
     final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
-    await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+    await seedDatabase.appSettingsDao.getSettings();
+    await seedDatabase.customStatement(
+      "UPDATE app_settings SET theme_mode = 'light'",
+    );
+    await seedDatabase
+        .into(seedDatabase.songsTable)
+        .insert(
+          SongsTableCompanion.insert(id: 'kept-song', title: 'Kept song'),
+        );
     await seedDatabase.close();
 
     final raw = sqlite3.open(dbPath);
@@ -1466,189 +1474,63 @@ CREATE TABLE scrobble_queue (
         .toSet();
     expect(settingColumns, contains('custom_download_folder_enabled'));
     expect(settingColumns, contains('custom_download_folder_path'));
+    expect((await migrated.appSettingsDao.getSettings())?.themeMode, 'light');
+    expect(
+      (await migrated.select(migrated.songsTable).get()).single.id,
+      'kept-song',
+    );
   }, skip: !sqliteAvailable);
 
-  test(
-    'backfillAlbumHydrationState marks albums with songs as hydrated',
-    () async {
-      final database = NavisDatabase(NativeDatabase.memory());
-      addTearDown(database.close);
-
-      await database
-          .into(database.albumsTable)
-          .insert(
-            AlbumsTableCompanion.insert(
-              id: 'album-with-song',
-              name: 'Album With Song',
-              songsHydrated: const Value(false),
-            ),
-          );
-      await database
-          .into(database.albumsTable)
-          .insert(
-            AlbumsTableCompanion.insert(
-              id: 'album-without-song',
-              name: 'Album Without Song',
-              songsHydrated: const Value(false),
-            ),
-          );
-      await database
-          .into(database.songsTable)
-          .insert(
-            SongsTableCompanion.insert(
-              id: 'song-1',
-              title: 'Song 1',
-              albumId: const Value('album-with-song'),
-            ),
-          );
-
-      await database.backfillAlbumHydrationState();
-
-      final rows = await database.select(database.albumsTable).get();
-      final byId = {for (final row in rows) row.id: row};
-      expect(byId['album-with-song']?.songsHydrated, isTrue);
-      expect(byId['album-without-song']?.songsHydrated, isFalse);
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test(
-    'migrates representative v2 schema to latest and backfills critical fields',
-    () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'navis_migration_test_',
+  test('pre-1.0 schema 35 resets every user object and row', () async {
+    final tempDir = await Directory.systemTemp.createTemp('navis_reset_v35_');
+    final file = File(p.join(tempDir.path, 'navis.sqlite'));
+    final raw = sqlite3.open(file.path);
+    try {
+      raw.execute('PRAGMA foreign_keys = ON');
+      raw.execute('CREATE TABLE songs (id TEXT PRIMARY KEY, title TEXT)');
+      raw.execute("INSERT INTO songs VALUES ('old-song', 'Old song')");
+      raw.execute(
+        'CREATE TABLE app_settings (id INTEGER PRIMARY KEY, theme_mode TEXT)',
       );
-      final dbPath = p.join(tempDir.path, 'navis.sqlite');
-
-      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
-      await seedDatabase
-          .into(seedDatabase.albumsTable)
-          .insert(
-            AlbumsTableCompanion.insert(
-              id: 'album-with-song',
-              name: 'Album With Song',
-              songsHydrated: const Value(true),
-            ),
-          );
-      await seedDatabase
-          .into(seedDatabase.albumsTable)
-          .insert(
-            AlbumsTableCompanion.insert(
-              id: 'album-without-song',
-              name: 'Album Without Song',
-              songsHydrated: const Value(true),
-            ),
-          );
-      await seedDatabase
-          .into(seedDatabase.songsTable)
-          .insert(
-            SongsTableCompanion.insert(
-              id: 'song-legacy',
-              title: 'Legacy Song',
-              albumId: const Value('album-with-song'),
-            ),
-          );
-      await seedDatabase.close();
-
-      final raw = sqlite3.open(dbPath);
-      try {
-        raw.execute('DROP INDEX IF EXISTS idx_albums_songs_hydrated;');
-        raw.execute('DROP INDEX IF EXISTS idx_songs_created_at;');
-        raw.execute('ALTER TABLE albums DROP COLUMN songs_hydrated;');
-        raw.execute('ALTER TABLE songs DROP COLUMN created_at;');
-        raw.execute('DROP TABLE IF EXISTS app_settings;');
-        raw.execute('DROP TABLE IF EXISTS scrobble_queue;');
-        raw.execute('DROP TABLE IF EXISTS star_sync_queue;');
-        raw.execute('PRAGMA user_version = 2;');
-      } finally {
-        raw.close();
-      }
-
-      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
-      addTearDown(() async {
-        await migrated.close();
-        await tempDir.delete(recursive: true);
-      });
-
-      final versionRow = await migrated
-          .customSelect('PRAGMA user_version;')
-          .getSingle();
-      expect(versionRow.read<int>('user_version'), 92);
-
-      final albums = await migrated.select(migrated.albumsTable).get();
-      final albumsById = {for (final album in albums) album.id: album};
-      expect(albumsById['album-with-song']?.songsHydrated, isTrue);
-      expect(albumsById['album-without-song']?.songsHydrated, isFalse);
-
-      final albumsInfo = await migrated
-          .customSelect("PRAGMA table_info('albums');")
-          .get();
-      final albumColumns = albumsInfo
-          .map((row) => row.read<String>('name'))
-          .toSet();
-      expect(albumColumns, contains('synced_at'));
-
-      final songsInfo = await migrated
-          .customSelect("PRAGMA table_info('songs');")
-          .get();
-      final songColumns = songsInfo
-          .map((row) => row.read<String>('name'))
-          .toSet();
-      expect(
-        songColumns,
-        containsAll(<String>['created_at', 'server_deleted_at']),
+      raw.execute("INSERT INTO app_settings VALUES (1, 'light')");
+      raw.execute(
+        'CREATE TABLE "legacy table" (song_id TEXT REFERENCES songs(id))',
       );
-
-      final settings = await migrated.appSettingsDao.getSettings();
-      expect(settings, isNotNull);
-      expect(settings!.gaplessEnabled, isTrue);
-      expect(settings.cachedPlaybackFirst, isFalse);
-      expect(settings.skipSilenceEnabled, isFalse);
-      expect(settings.showAlbumsPage, isTrue);
-      expect(settings.showRadioPage, isTrue);
-      expect(settings.showPlaylistsPage, isTrue);
-      expect(settings.showArtistsPage, isTrue);
-      expect(settings.showLikedPage, isTrue);
-
-      expect(
-        settings.rollingCacheBudgetMb,
-        AppSettingsDao.defaultRollingCacheBudgetMb,
+      raw.execute("INSERT INTO \"legacy table\" VALUES ('old-song')");
+      raw.execute('CREATE INDEX legacy_index ON songs(title)');
+      raw.execute('CREATE VIEW legacy_view AS SELECT * FROM songs');
+      raw.execute(
+        'CREATE TRIGGER legacy_trigger AFTER INSERT ON songs BEGIN DELETE FROM "legacy table"; END',
       );
-      expect(settings.autoDownloadStarredOnWifi, isFalse);
-      expect(settings.customDownloadFolderEnabled, isFalse);
-      expect(settings.customDownloadFolderPath, isNull);
-      expect(settings.albumGridDensity, isNull);
-      expect(settings.coverArtShape, 'square');
-      expect(settings.nowPlayingArtShape, 'rounded');
-      expect(settings.artistCardShape, 'circle');
-      expect(settings.artistViewMode, 'grid');
-      expect(settings.homeDensity, 'comfortable');
-      expect(settings.homeSectionOrder, isNull);
-      expect(settings.homeSectionsHidden, isNull);
-      expect(settings.useLrclib, isTrue);
-      expect(settings.matchFlowEnabled, isFalse);
-      final tables = await migrated
-          .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
-          .get();
-      final tableNames = tables.map((row) => row.read<String>('name')).toSet();
-      expect(
-        tableNames,
-        containsAll(<String>['match_flows', 'match_flow_songs']),
-      );
-      final indexes = await migrated
-          .customSelect("SELECT name FROM sqlite_master WHERE type = 'index';")
-          .get();
-      final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
-      expect(indexNames, contains('idx_match_flow_unique_master'));
-      final groupListening = await _readRetiredGroupListening(migrated);
-      expect(groupListening.groupListeningEnabled, isFalse);
-      expect(groupListening.voyageServerUrl, isNull);
-      expect(groupListening.voyageDisplayName, isNull);
-      expect(groupListening.voyageDeviceLabel, isNull);
-      expect(groupListening.voyageAutoFollowHost, isTrue);
-    },
-    skip: !sqliteAvailable,
-  );
+      raw.execute('PRAGMA user_version = 35');
+    } finally {
+      raw.close();
+    }
+    final database = createTestDatabase(file: file);
+    addTearDown(() async {
+      await database.close();
+      await tempDir.delete(recursive: true);
+    });
+    final version = await database
+        .customSelect('PRAGMA user_version')
+        .getSingle();
+    expect(version.read<int>('user_version'), database.schemaVersion);
+    expect(await database.select(database.songsTable).get(), isEmpty);
+    expect(await database.select(database.serverConfigTable).get(), isEmpty);
+    final objects = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE name LIKE 'legacy%'",
+        )
+        .get();
+    expect(objects, isEmpty);
+    final settings = await database.appSettingsDao.getSettings();
+    expect(settings?.themeMode, 'dark');
+    expect(settings?.cellularMaxBitRate, AppSettingsDao.defaultCellularBitRate);
+    final foreignKeys = await database
+        .customSelect('PRAGMA foreign_keys')
+        .getSingle();
+    expect(foreignKeys.read<int>('foreign_keys'), 1);
+  }, skip: !sqliteAvailable);
 
   test(
     'migrates v52 schema to v53 clearing retired Listen Together settings',

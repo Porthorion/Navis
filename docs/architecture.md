@@ -164,6 +164,10 @@ Located in `lib/src/providers/app_providers.dart`:
   cancelling an active check invalidates a stronger repair waiting behind it.
   That waiting command cannot start after cancellation; a later explicit command
   is admitted as new intent. Only still-queued durable work is marked cancelled.
+- Schema 43 (Navis 1.0.0) is the supported upgrade floor. Older test-era
+  databases drop all user tables, indexes, views, and triggers with foreign
+  keys disabled, then run the same creation and defaults as a fresh install.
+  Schema 43 and later preserve data through an ordered migration-step table.
 - Schema v71 adds a typed, redacted sync lifecycle beside the retained
   compatibility work mirror: `library_sync_run_request`,
   `library_sync_run_attempt`, `library_sync_run_outcome`,
