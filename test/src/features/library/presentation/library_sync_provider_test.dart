@@ -186,60 +186,23 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
     LibrarySyncProgressCallback? onProgress,
   }) {
     final handler = requestHandler;
-    if (handler != null) {
+    if (handler != null &&
+        request.target.kind != LibrarySyncTargetKind.catalog) {
       return handler(request, onProgress: onProgress);
     }
-    return super.requestSync(
-      request,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
-  }
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    staleCalls++;
-    return _handlerIfStale(onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    forceFullCalls.add(false);
-    return _handlerNow(forceFull: false, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    continuationCalls++;
-    return _handlerNow(forceFull: false, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    forceFullCalls.add(true);
-    return _handlerNow(forceFull: true, onProgress: onProgress);
-  }
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    nowCalls++;
-    return _handlerNow(forceFull: false, onProgress: onProgress);
+    switch (request.intent) {
+      case LibrarySyncIntent.automatic:
+        staleCalls++;
+        return _handlerIfStale(onProgress: onProgress);
+      case LibrarySyncIntent.checkForUpdates:
+        nowCalls++;
+        forceFullCalls.add(false);
+        return _handlerNow(forceFull: false, onProgress: onProgress);
+      case LibrarySyncIntent.repair:
+        nowCalls++;
+        forceFullCalls.add(true);
+        return _handlerNow(forceFull: true, onProgress: onProgress);
+    }
   }
 }
 

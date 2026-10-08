@@ -3035,23 +3035,28 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
-1. Callers submit a `SyncRunRequest`; the durable contract version is stamped
-   at insertion. The current
-   `LibrarySyncRequest` remains a one-release compatibility adapter at the
-   outer boundary. The request distinguishes automatic catalog checks, manual
-   catalog checks, Repair Library, target hydration, and auxiliary refreshes.
+1. Callers submit a `LibrarySyncRequest` through the coordinator-facing
+   `LibrarySyncEngine.requestSync` interface. The coordinator constructs the
+   typed `SyncRunRequest` for execution and diagnostics history; the durable
+   contract version is stamped at insertion. The request distinguishes
+   automatic catalog checks, manual catalog checks, Repair Library, target
+   hydration, and auxiliary refreshes.
    `LibrarySyncPlanner` selects the smallest safe plan: probe, targeted
    hydration, delta reconciliation, catalog snapshot, compatibility audit, or
    full repair. The scheduler admits one immutable `SyncExecutionPlan` per
    run, including its endpoint allowlist and data/concurrency budget.
-2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the typed
-   request/attempt/outcome lifecycle and the chosen plan, mirrors durable work,
-   and restores interrupted attempts. Its `SyncPlanExecutor` receives the
-   selected immutable plan directly through `executeSyncPlan`, rather than
-   reconstructing the operation from display text or checkpoints. Recovery and
-   execution share lease acquisition, write fencing, and release; execution alone
-   adds the periodic heartbeat. Endpoint
-   aliases live on `SyncEndpoint`, and plan-kind records resolve run budgets.
+2. `AdaptiveLibrarySyncCoordinator` serializes runs. The `library_sync_work`
+   table is the durable queue for deduplication, cooldowns, checkpoints, and
+   resume; the typed request/attempt/outcome tables retain the chosen plan and
+   diagnostics history. The coordinator restores interrupted attempts. Its
+   `SyncPlanExecutor` receives the selected immutable plan directly through
+   `executeSyncPlan`. `DriftLibrarySyncEngine` implements only that executor
+   contract: catalog execution requires a plan, whose kind and request intent
+   determine repair, discovery, audit, or hydration continuation. Freshness
+   gating belongs to the coordinator, and catalog runs never absorb auxiliary
+   refreshes. Recovery and execution share lease acquisition, write fencing,
+   and release; execution alone adds the periodic heartbeat. Endpoint aliases
+   live on `SyncEndpoint`, and plan-kind records resolve run budgets.
    Planning derives conditional-index support directly from the active server
    capabilities JSON, without a state-table provider-profile mirror. A backend
    fingerprint change discards the old Navis sync capabilities, durable work,
@@ -3134,9 +3139,12 @@ states without starting audio or modifying a queue.
    response's actual count rather than treating a short page as completion,
    since compatible servers can silently cap the requested result size.
    When a completed bulk index omits a stable tail because of that cap, a later
-   repair can carry forward locally verified songs only when the candidate's
-   core album metadata and expected song count exactly match. New, changed, or
-   incomplete albums remain on the authoritative `getAlbum` fallback.
+   catalog snapshot can carry forward locally verified songs only when its plan
+   permits the bulk-song endpoint and the candidate's core album metadata and
+   expected song count exactly match. Explicit Repair Library always hydrates
+   the remaining albums authoritatively instead of carrying their songs forward.
+   New, changed, or incomplete albums remain on the authoritative `getAlbum`
+   fallback.
    Hydration progress advances only after an album has been written and marked
    hydrated; albums merely observed in a bulk search page are not presented as
    complete. Library shows hydration progress only while a run is active.
@@ -3300,11 +3308,9 @@ states without starting audio or modifying a queue.
     and backoff control freshness independently; a failed auxiliary target
     neither repeats a committed catalog nor suppresses the other target. The
     auxiliary freshness clock is the single
-    `library_sync_state.lastAuxiliarySyncedAt` column: the typed coordinator
-    advances it from completed starred/playlist-header work rows, the legacy
-    combined-run path advances it through a monotonic
-    `markAuxiliarySyncedAt` writer, and the retired per-server
-    capabilities-JSON timestamp is no longer read or written. The
+    `library_sync_state.lastAuxiliarySyncedAt` column: the coordinator
+    advances it from completed starred/playlist-header work rows. The retired
+    per-server capabilities-JSON timestamp is no longer read or written. The
     catalog circuit breaker does not suppress these independent endpoints.
     Genres are not synchronized: there is no genre target, endpoint or stored
     genre data (see "Genres are not a Navis concept").

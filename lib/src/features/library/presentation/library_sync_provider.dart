@@ -528,8 +528,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       engine.cancelSync();
       // Cancellation always clears the in-session mobile-data grant.
       engine.endRepairSession();
-    } else if (engine is DriftLibrarySyncEngine) {
-      engine.cancelSync();
     }
   }
 
@@ -544,8 +542,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       await startupTask;
     }
     if (engine is AdaptiveLibrarySyncCoordinator) {
-      await engine.cancelAndWait();
-    } else if (engine is DriftLibrarySyncEngine) {
       await engine.cancelAndWait();
     }
     // The automatic check owns a final schedule write after its engine returns.
@@ -1565,40 +1561,24 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncRequestCaller caller,
     required void Function(LibrarySyncState progress) updateProgress,
   }) {
-    if (engine is AdaptiveLibrarySyncCoordinator) {
-      final request = forceFull
-          ? caller == LibrarySyncRequestCaller.cacheReset
-                ? LibrarySyncRequest.cacheReset(
-                    allowMeteredBroadOverride: allowMeteredBroadOverride,
-                  )
-                : LibrarySyncRequest.repair(
-                    allowMeteredBroadOverride: allowMeteredBroadOverride,
-                  )
-          : force
-          ? LibrarySyncRequest.checkForUpdates(
-              allowMeteredBroadOverride: allowMeteredBroadOverride,
-            )
-          : const LibrarySyncRequest.automatic();
-      return engine.requestSync(
-        request,
-        priorityAlbumIds: _priorityAlbumIds,
-        onProgress: updateProgress,
-      );
-    }
-    return force
-        ? forceFull
-              ? engine.forceFullSync(
-                  priorityAlbumIds: _priorityAlbumIds,
-                  onProgress: updateProgress,
+    final request = forceFull
+        ? caller == LibrarySyncRequestCaller.cacheReset
+              ? LibrarySyncRequest.cacheReset(
+                  allowMeteredBroadOverride: allowMeteredBroadOverride,
                 )
-              : engine.syncNow(
-                  priorityAlbumIds: _priorityAlbumIds,
-                  onProgress: updateProgress,
+              : LibrarySyncRequest.repair(
+                  allowMeteredBroadOverride: allowMeteredBroadOverride,
                 )
-        : engine.syncIfStale(
-            priorityAlbumIds: _priorityAlbumIds,
-            onProgress: updateProgress,
-          );
+        : force
+        ? LibrarySyncRequest.checkForUpdates(
+            allowMeteredBroadOverride: allowMeteredBroadOverride,
+          )
+        : const LibrarySyncRequest.automatic();
+    return engine.requestSync(
+      request,
+      priorityAlbumIds: _priorityAlbumIds,
+      onProgress: updateProgress,
+    );
   }
 
   void _onAppBackgrounded() {

@@ -180,8 +180,12 @@ void main() {
         );
 
         final result = manual
-            ? await coordinator.syncNow()
-            : await coordinator.syncIfStale();
+            ? await coordinator.requestSync(
+                const LibrarySyncRequest.checkForUpdates(),
+              )
+            : await coordinator.requestSync(
+                const LibrarySyncRequest.automatic(),
+              );
 
         expect(result.status, expected);
         expect(api.calls, playing && !manual ? isEmpty : isNotEmpty);

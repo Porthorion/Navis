@@ -3760,35 +3760,6 @@ class _TargetProgressSyncEngine extends LibrarySyncEngine {
       ),
     );
   }
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) => _completion.future;
 }
 
 class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
@@ -3800,11 +3771,12 @@ class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
   );
 
   @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> requestSync(
+    LibrarySyncRequest request, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
-    bool allowMeteredBroadOverride = false,
   }) async {
+    if (request.intent != LibrarySyncIntent.repair) return _succeeded;
     forceFullCalls += 1;
     onProgress?.call(
       const LibrarySyncState(
@@ -3814,30 +3786,6 @@ class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
     );
     return _succeeded;
   }
-
-  @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _succeeded;
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-    bool allowMeteredBroadOverride = false,
-  }) async => _succeeded;
 }
 
 class _SourceAuditApiClient extends SubsonicApiClient {

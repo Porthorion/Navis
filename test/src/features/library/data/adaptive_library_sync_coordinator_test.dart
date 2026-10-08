@@ -378,7 +378,9 @@ void main() {
             lastAuditAt: Value(DateTime.utc(2026, 8, 2)),
           ),
         );
-        final result = await coordinator.syncIfStale();
+        final result = await coordinator.requestSync(
+          const LibrarySyncRequest.automatic(),
+        );
         expect(result.planKind, expected);
         expect(
           (await database.librarySyncDao.getOrCreateState(1))
@@ -433,7 +435,9 @@ void main() {
               capabilities: const Value(otherCapabilities),
             ),
           );
-      final result = await coordinator.syncIfStale();
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
       expect(result.planKind, LibrarySyncPlanKind.probe);
       final root = jsonDecode(
         (await repository.getActiveServer())!.capabilitiesJson!,
@@ -778,7 +782,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await manualCoordinator.syncNow();
+      final result = await manualCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(probeEngine.probeCalls, 0);
       expect(probeEngine.syncNowCalls, 1);
@@ -820,7 +826,9 @@ void main() {
       workClass: 'interactive',
     );
 
-    final result = await manualCoordinator.syncNow();
+    final result = await manualCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
 
     expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
     expect(probeEngine.syncNowCalls, 1);
@@ -912,7 +920,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await offlineCoordinator.syncNow();
+      final result = await offlineCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.status, LibrarySyncStatus.deferred);
       expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -937,7 +947,9 @@ void main() {
         readIsForeground: () => true,
         now: () => DateTime.utc(2026, 8, 4),
       );
-      final resumed = await onlineCoordinator.syncIfStale();
+      final resumed = await onlineCoordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(resumed.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -983,7 +995,7 @@ void main() {
           now: () => DateTime.utc(2026, 8, 4),
         );
 
-        await guarded.syncIfStale();
+        await guarded.requestSync(const LibrarySyncRequest.automatic());
 
         expect(probeEngine.syncNowCalls, resumes ? 1 : 0);
         expect(
@@ -1023,15 +1035,17 @@ void main() {
       now: () => DateTime.utc(2026, 8, 4),
     );
 
-    final discoveryResult = await meteredCoordinator.syncNow();
+    final discoveryResult = await meteredCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
 
     expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
     expect(discoveryResult.planReason, 'manualMeteredLimitedDiscovery');
     expect(probeEngine.probeCalls, 0);
     expect(probeEngine.syncNowCalls, 1);
 
-    final broadResult = await meteredCoordinator.syncNow(
-      allowMeteredBroadOverride: true,
+    final broadResult = await meteredCoordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(allowMeteredBroadOverride: true),
     );
 
     expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -1070,7 +1084,9 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final result = await coordinator.syncNow();
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
       expect(result.planReason, 'manualMeteredLimitedDiscovery');
@@ -1106,7 +1122,9 @@ void main() {
         priority: 50,
       );
 
-      final result = await activePlaybackCoordinator.syncNow();
+      final result = await activePlaybackCoordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       expect(result.planReason, 'resumeDeltaReconcile');
@@ -1141,7 +1159,9 @@ void main() {
         priority: 80,
       );
 
-      final result = await automaticCoordinator.syncIfStale();
+      final result = await automaticCoordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
 
       expect(result.status, isNot(LibrarySyncStatus.failed));
       expect(probeEngine.forceFullSyncCalls, 0);
@@ -1178,7 +1198,9 @@ void main() {
       readHasActivePlayback: () => false,
       now: () => DateTime.utc(2026, 8, 4),
     );
-    final result = await guarded.syncNow();
+    final result = await guarded.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+    );
     expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
     expect(probeEngine.forceFullSyncCalls, 0);
     expect(
