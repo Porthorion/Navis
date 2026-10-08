@@ -40,7 +40,12 @@ enum LibrarySyncTargetKind {
   album,
   playlist,
   playlistHeaders,
-  starred,
+  starred;
+
+  bool get requiresEntityId => switch (this) {
+    artist || album || playlist => true,
+    _ => false,
+  };
 }
 
 class LibrarySyncTarget {

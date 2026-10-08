@@ -437,7 +437,6 @@ const _otherFullCatalogMaxAlbumConcurrency = 12;
 const _fastPathMaxPages = 200;
 const _bulkSearchMaxPages = 200;
 const _bulkSearchProbeQueries = <String>[''];
-const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
 const _libraryScanDeferralStreakCapabilityKey = 'libraryScanDeferralStreak';
@@ -2344,7 +2343,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       return true;
     }
     return DateTime.now().difference(lastAuxiliarySync) >=
-        _defaultAuxiliarySyncStaleAfter;
+        librarySyncAuxiliaryInterval;
   }
 
   Future<void> _markAuxiliarySynced(
@@ -4776,7 +4775,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final contentDue =
           playlist.changed == null &&
           work?.status == 'completed' &&
-          observedAt.difference(work!.updatedAt) >= const Duration(hours: 12);
+          observedAt.difference(work!.updatedAt) >=
+              librarySyncAuxiliaryInterval;
       final current = existing[playlist.id];
       final cachedSongCount = cachedSongCounts[playlist.id] ?? 0;
       final expectedSongCount = playlist.songCount;

@@ -3042,7 +3042,10 @@ states without starting audio or modifying a queue.
    and restores interrupted attempts. It still uses a compatibility executor
    adapter internally; execution receives the selected
    immutable plan rather than reconstructing the operation from display text
-   or checkpoints. The coordinator deduplicates durable work, measures
+   or checkpoints. Recovery and execution share lease acquisition, write
+   fencing, and release; execution alone adds the periodic heartbeat. Endpoint
+   aliases live on `SyncEndpoint`, and plan-kind records resolve run budgets.
+   The coordinator deduplicates durable work, measures
    requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
    domains remain independent. The coordinator removes that namespace before

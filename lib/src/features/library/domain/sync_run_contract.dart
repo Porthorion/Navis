@@ -6,6 +6,9 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 /// records the streak, and the coordinator, which enqueues the follow-up.
 const int discoveryDebtEscalationStreak = 2;
 
+/// Freshness interval shared by the typed and combined auxiliary paths.
+const librarySyncAuxiliaryInterval = Duration(hours: 12);
+
 /// The source of a durable sync request. These values intentionally describe
 /// a user or scheduler action rather than an implementation detail.
 enum SyncRunOrigin {
@@ -52,15 +55,18 @@ enum SyncExecutionPlanKind {
 }
 
 enum SyncEndpoint {
-  indexes,
-  newestAlbums,
-  catalogAlbums,
-  artists,
-  artist,
-  album,
-  playlists,
-  starred,
-  bulkSongs,
+  indexes({'getIndexes'}),
+  newestAlbums({'getNewestAlbumList2'}),
+  catalogAlbums({'getAlbumList2', 'getAlbumListPage'}),
+  artists({'getArtists'}),
+  artist({'getArtist'}),
+  album({'getAlbum'}),
+  playlists({'getPlaylists', 'getPlaylist'}),
+  starred({'getStarredContent'}),
+  bulkSongs({'searchSongsPage'});
+
+  new(this.requestNames);
+  final Set<String> requestNames;
 }
 
 /// Safe, durable outcome categories. These are deliberately not derived from

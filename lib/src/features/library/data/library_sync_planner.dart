@@ -54,10 +54,7 @@ class LibrarySyncPlanner {
       final isAuxiliaryTarget =
           target.kind == LibrarySyncTargetKind.starred ||
           target.kind == LibrarySyncTargetKind.playlistHeaders;
-      final isInteractiveEntity =
-          target.kind == LibrarySyncTargetKind.artist ||
-          target.kind == LibrarySyncTargetKind.album ||
-          target.kind == LibrarySyncTargetKind.playlist;
+      final isInteractiveEntity = target.kind.requiresEntityId;
       if (request.intent == LibrarySyncIntent.automatic &&
           isAuxiliaryTarget &&
           !context.auxiliaryDue) {
