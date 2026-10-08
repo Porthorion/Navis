@@ -1737,7 +1737,7 @@ class SyncDiagnosticsServer {
           cause: 'repair',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
-              .forceFullSync(allowMeteredBroadOverride: allowOverride),
+              .repairLibrary(allowMeteredBroadOverride: allowOverride),
         );
         return;
       }

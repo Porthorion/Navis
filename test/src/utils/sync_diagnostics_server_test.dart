@@ -1280,6 +1280,30 @@ void main() {
     expect(reset.statusCode, HttpStatus.forbidden);
   });
 
+  test(
+    'repair diagnostics uses the repair session and forwards mobile consent',
+    () async {
+      final controller = _RepairRouteController();
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          librarySyncControllerProvider.overrideWith(() => controller),
+        ],
+      );
+      addTearDown(fixture.close);
+      final start = await _request(
+        fixture.port,
+        '/v1/sync/repair',
+        method: 'POST',
+        token: fixture.token,
+        body: const {'allowMeteredBroadOverride': true},
+      );
+      expect(start.statusCode, HttpStatus.accepted);
+      expect(controller.repairGrants, [true]);
+      expect(controller.forceFullCalls, 0);
+    },
+  );
+
   test('target sync diagnostics exercises controller-scoped status', () async {
     final engine = _TargetProgressSyncEngine();
     final fixture = await _startFixture(
@@ -3814,4 +3838,34 @@ class _Response {
 
   final int statusCode;
   final Map<String, dynamic> body;
+}
+
+class _RepairRouteController extends LibrarySyncController {
+  final List<bool> repairGrants = [];
+  int forceFullCalls = 0;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> repairLibrary({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    repairGrants.add(allowMeteredBroadOverride);
+    return const LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    forceFullCalls++;
+    return const LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+  }
 }

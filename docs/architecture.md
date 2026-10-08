@@ -3405,7 +3405,9 @@ contract.
   and Remove from Liked are unchanged. Sync evidence never overwrites a user
   disposition.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
-  Settings. The coordinator owns an in-memory repair session whose
+  Settings and the authenticated diagnostics `/v1/sync/repair` route both
+  enter through `LibrarySyncController.repairLibrary`. The coordinator owns
+  an in-memory repair session whose
   mobile-data grant is applied at admission — before planning or durable work
   is joined — and survives retries and reconnects within the run. The grant is
   never persisted: completion, cancellation, sign-out, account change, and app
