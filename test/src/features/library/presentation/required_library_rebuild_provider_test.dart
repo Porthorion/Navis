@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -26,10 +27,15 @@ import '../../../../helpers/reachability_fakes.dart';
 import '../../../../helpers/async_helpers.dart';
 
 class _ControlledSync extends LibrarySyncController {
-  new(this.result, {this.beforeResult});
+  new(this.result, {this.beforeResult, this.activeCatalog});
 
   LibrarySyncState result;
   final Future<void> Function()? beforeResult;
+  final Future<void>? activeCatalog;
+  final List<bool> meteredGrants = <bool>[];
+
+  @override
+  Future<void> waitForActiveCatalogSync() async => await activeCatalog;
   final List<String> methods = <String>[];
   int get calls => methods.length;
 
@@ -38,25 +44,29 @@ class _ControlledSync extends LibrarySyncController {
 
   @override
   Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) =>
-      _run('syncNow');
+      _run('syncNow', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> forceFullSync({
     bool allowMeteredBroadOverride = false,
-  }) => _run('forceFullSync');
+  }) => _run('forceFullSync', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> resetCachesAndRebuildLibrary({
     bool allowMeteredBroadOverride = false,
-  }) => _run('resetCachesAndRebuildLibrary');
+  }) => _run('resetCachesAndRebuildLibrary', allowMeteredBroadOverride);
 
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
-  }) => _run('repairLibrary');
+  }) => _run('repairLibrary', allowMeteredBroadOverride);
 
-  Future<LibrarySyncState> _run(String method) async {
+  Future<LibrarySyncState> _run(
+    String method,
+    bool allowMeteredBroadOverride,
+  ) async {
     methods.add(method);
+    meteredGrants.add(allowMeteredBroadOverride);
     await beforeResult?.call();
     return resultFor(method);
   }
@@ -101,10 +111,12 @@ class _CountingCacheReset extends LibraryCacheResetService {
 class _GatedSignOut implements SignOutService {
   final Completer<void> gate = Completer<void>();
   int calls = 0;
+  bool? lastWipeLocalData;
 
   @override
   Future<void> signOut({required bool wipeLocalData}) {
     calls++;
+    lastWipeLocalData = wipeLocalData;
     return gate.future;
   }
 }
@@ -184,16 +196,21 @@ ProviderContainer _setupContainer({
   required NavisDatabase database,
   required ServerConfigModel server,
   required _ControlledSync sync,
+  SyncNetworkPolicy policy = _wifi,
   List<Override> extra = const <Override>[],
   LibraryCacheResetService? cacheReset,
   Override? session,
+  Override? reachability,
 }) => ProviderContainer(
   overrides: [
     ...extra,
     navisDatabaseProvider.overrideWithValue(database),
     session ?? serverConfigStateProvider.overrideWithValue(AsyncData(server)),
-    serverReachabilityControllerProvider.overrideWith(OnlineReachability.new),
-    syncNetworkPolicyProvider.overrideWithValue(_wifi),
+    reachability ??
+        serverReachabilityControllerProvider.overrideWith(
+          OnlineReachability.new,
+        ),
+    syncNetworkPolicyProvider.overrideWithValue(policy),
     librarySyncControllerProvider.overrideWith(() => sync),
     libraryCacheResetServiceProvider.overrideWithValue(
       cacheReset ??
@@ -227,6 +244,194 @@ ProviderSubscription<RequiredLibraryRebuildState> _mount(
 );
 
 void main() {
+  test('offline setup waits without starting catalog sync', () async {
+    final (database, server) = await _committedCatalog();
+    final sync = _ControlledSync(const LibrarySyncState.idle());
+    final container = _setupContainer(
+      database: database,
+      server: server,
+      sync: sync,
+      reachability: serverReachabilityControllerProvider.overrideWith(
+        () => StaticReachabilityController(
+          const ServerReachabilityState(
+            status: ServerReachabilityStatus.offline,
+          ),
+        ),
+      ),
+    );
+    addTearDown(container.dispose);
+    const reason = RequiredLibraryRebuildReason.initialLogin;
+    _mount(container, reason);
+    await drainMicrotasks();
+    expect(sync.calls, 0);
+    expect(
+      container.read(requiredLibraryRebuildControllerProvider(reason)).status,
+      RequiredLibraryRebuildStatus.waitingForNetwork,
+    );
+  }, skip: !sqliteAvailable);
+
+  test(
+    'metered setup requires consent and forwards ephemeral override',
+    () async {
+      final (database, server) = await _committedCatalog();
+      final sync = _ControlledSync(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.collectingCandidate,
+          errorMessage: 'Safe failure',
+        ),
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+        policy: const SyncNetworkPolicy(
+          networkType: NetworkType.cellular,
+          isMetered: true,
+          allowsBackgroundSync: false,
+          allowsHardProbe: true,
+          allowsInteractiveHydration: true,
+        ),
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      expect(sync.calls, 0);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.waitingForMobileConsent,
+      );
+      await container.read(provider.notifier).startUsingMobileData();
+      expect(sync.calls, 1);
+      expect(sync.meteredGrants, [true]);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'setup waits for already-running catalog work before selecting its scan',
+    () async {
+      final (database, server) = await _committedCatalog();
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id!),
+          currentGeneration: const Value(0),
+        ),
+      );
+      final gate = Completer<void>();
+      final sync = _ControlledSync(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+        ),
+        activeCatalog: gate.future,
+      );
+      final container = _setupContainer(
+        database: database,
+        server: server,
+        sync: sync,
+      );
+      addTearDown(container.dispose);
+      const reason = RequiredLibraryRebuildReason.initialLogin;
+      final provider = requiredLibraryRebuildControllerProvider(reason);
+      _mount(container, reason);
+      await drainMicrotasks();
+      expect(sync.calls, 0);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.syncing,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id!),
+          currentGeneration: const Value(2),
+          lastCatalogSyncedAt: Value(DateTime.now()),
+        ),
+      );
+      gate.complete();
+      await container.read(provider.notifier).start();
+      expect(sync.methods, ['forceFullSync']);
+      expect(
+        container.read(provider).status,
+        RequiredLibraryRebuildStatus.complete,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'readiness stamps only validated success and skips a null model version',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = (await database.serverDao.getActiveServer())!;
+      await database.appSettingsDao.setLastFullSyncAppBuild('old-model');
+      const completed = LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
+        ),
+        isFalse,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      expect(await database.cacheSystemStateDao.getVersion(), isNull);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server.id),
+          currentGeneration: const Value(1),
+          lastCatalogSyncedAt: Value(DateTime.now()),
+        ),
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        'old-model',
+      );
+      expect(
+        await recordInitialCatalogReadiness(
+          database: database,
+          serverId: server.id,
+          result: completed,
+          syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
+        ),
+        isTrue,
+      );
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
+      expect(await database.cacheSystemStateDao.getVersion(), 1004);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('only isolated album response gaps qualify for automatic exit', () {
     const usable = LibrarySyncState(
       status: LibrarySyncStatus.partial,
@@ -803,6 +1008,7 @@ void main() {
     await cancelling;
     await drainMicrotasks(turns: 8);
     expect(signOut.calls, 1);
+    expect(signOut.lastWipeLocalData, isFalse);
     expect(container.exists(provider), isFalse);
 
     _mount(container, reason);
@@ -939,6 +1145,7 @@ void main() {
       await container.read(provider.notifier).cancelAndSignOut();
 
       expect(signOut.calls, 1);
+      expect(signOut.lastWipeLocalData, isFalse);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.failed,

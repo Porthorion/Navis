@@ -20,6 +20,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -31,6 +32,8 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -1516,6 +1519,104 @@ void main() {
       expect(jsonEncode(response.body), isNot(contains('Private title')));
     },
   );
+
+  test(
+    'session status observes setup without creating a rebuild controller',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          sessionRoutePhaseProvider.overrideWithValue(
+            SessionRoutePhase.initialSyncRequired,
+          ),
+        ],
+      );
+      addTearDown(fixture.close);
+      final provider = requiredLibraryRebuildControllerProvider(
+        RequiredLibraryRebuildReason.initialLogin,
+      );
+      expect(fixture.container.exists(provider), isFalse);
+      final response = await _request(
+        fixture.port,
+        '/v1/session/status',
+        token: fixture.token,
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['initialSync'], 'idle');
+      expect(fixture.container.exists(provider), isFalse);
+      for (final action in ['retry', 'mobile', 'cancel']) {
+        final inactive = await _request(
+          fixture.port,
+          '/v1/session/initial-sync/$action',
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(inactive.statusCode, HttpStatus.conflict);
+        expect(fixture.container.exists(provider), isFalse);
+      }
+    },
+  );
+
+  test(
+    'initial sync actions and status use the mounted rebuild controller',
+    () async {
+      final provider = requiredLibraryRebuildControllerProvider(
+        RequiredLibraryRebuildReason.initialLogin,
+      );
+      final controller = _DiagnosticsRebuildController();
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        overrides: [
+          provider.overrideWith(() => controller),
+          sessionRoutePhaseProvider.overrideWithValue(
+            SessionRoutePhase.initialSyncRequired,
+          ),
+        ],
+      );
+      addTearDown(fixture.close);
+      final visit = fixture.container.listen(provider, (_, _) {});
+      addTearDown(visit.close);
+      for (final (action, status) in [
+        ('retry', 'syncing'),
+        ('mobile', 'complete'),
+        ('cancel', 'cancelling'),
+      ]) {
+        final response = await _request(
+          fixture.port,
+          '/v1/session/initial-sync/$action',
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['initialSync'], status);
+      }
+      expect(controller.actions, ['retry', 'mobile', 'cancelAndSignOut']);
+    },
+  );
+
+  test('initial sync actions remain clone-only', () async {
+    final provider = requiredLibraryRebuildControllerProvider(
+      RequiredLibraryRebuildReason.initialLogin,
+    );
+    final controller = _DiagnosticsRebuildController();
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      overrides: [provider.overrideWith(() => controller)],
+    );
+    addTearDown(fixture.close);
+    final visit = fixture.container.listen(provider, (_, _) {});
+    addTearDown(visit.close);
+    for (final action in ['retry', 'mobile', 'cancel']) {
+      final response = await _request(
+        fixture.port,
+        '/v1/session/initial-sync/$action',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(response.statusCode, HttpStatus.forbidden);
+    }
+    expect(controller.actions, isEmpty);
+  });
 
   test('session status exposes only lifecycle activity fields', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
@@ -3597,6 +3698,39 @@ class _MockPresentationController extends Mock
 
 class _MockDiagnosticsNavigationDriver extends Mock
     implements DiagnosticsNavigationDriver;
+
+class _DiagnosticsRebuildController extends RequiredLibraryRebuildController {
+  new() : super(RequiredLibraryRebuildReason.initialLogin);
+
+  final List<String> actions = [];
+
+  @override
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState();
+
+  @override
+  Future<void> retry() async {
+    actions.add('retry');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.syncing,
+    );
+  }
+
+  @override
+  Future<void> startUsingMobileData() async {
+    actions.add('mobile');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.complete,
+    );
+  }
+
+  @override
+  Future<void> cancelAndSignOut() async {
+    actions.add('cancelAndSignOut');
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.cancelling,
+    );
+  }
+}
 
 class _TargetProgressSyncEngine extends LibrarySyncEngine {
   final Completer<LibrarySyncState> _completion = Completer<LibrarySyncState>();

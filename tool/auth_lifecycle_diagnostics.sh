@@ -263,16 +263,15 @@ assert not any(value["activity"].values()), value
 PY
 }
 
-# Polls the route-owned setup without starting the legacy diagnostics
-# controller, so the full-screen rebuild controller is the only setup driver.
-wait_for_passive_phase() {
+# Polls the route phase without starting a setup controller.
+wait_for_phase() {
   local expected_phase="$1"
   local output_file="$2"
   local timeout_seconds="${3:-180}"
   local deadline=$((SECONDS + timeout_seconds))
   while (( SECONDS < deadline )); do
     local status
-    status="$(api GET '/v1/session/status?passive=1')"
+    status="$(api GET '/v1/session/status')"
     if python3 - "$expected_phase" "$status" <<'PY'
 import json, sys
 raise SystemExit(0 if json.loads(sys.argv[2]).get("phase") == sys.argv[1] else 1)
@@ -283,7 +282,7 @@ PY
     fi
     sleep 1
   done
-  echo "Timed out waiting for passive session phase=$expected_phase. See $APP_LOG" >&2
+  echo "Timed out waiting for session phase=$expected_phase. See $APP_LOG" >&2
   exit 70
 }
 
@@ -408,18 +407,18 @@ if [[ "$MODE" == "existing-catalog" ]]; then
   # sign-out, so signing back in must open Home without the setup route.
   launch_app "$EXISTING_DB" existing-completed
   api GET /v1/health > "$OUTPUT_ROOT/existing-health.json"
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-ready-before-reset.json"
+  wait_for_phase ready "$OUTPUT_ROOT/existing-ready-before-reset.json"
   api POST /v1/diagnostics/overrides \
     '{"networkType":"offline","nativeMetered":false}' >/dev/null
-  api POST '/v1/session/reset-initial-state?passive=1' > "$OUTPUT_ROOT/existing-reset.json"
+  api POST '/v1/session/reset-initial-state' > "$OUTPUT_ROOT/existing-reset.json"
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":false}' >/dev/null
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-first-setup-ready.json" 600
-  api POST '/v1/session/sign-out?passive=1' '{"wipeLocalData":false}' \
+  wait_for_phase ready "$OUTPUT_ROOT/existing-first-setup-ready.json" 600
+  api POST '/v1/session/sign-out' '{"wipeLocalData":false}' \
     > "$OUTPUT_ROOT/existing-keep-data-signout.json"
   assert_signed_out "$OUTPUT_ROOT/existing-keep-data-signout.json"
   connect_fixture > "$OUTPUT_ROOT/existing-keep-data-connect.json"
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-keep-data-ready.json" 60
+  wait_for_phase ready "$OUTPUT_ROOT/existing-keep-data-ready.json" 60
   api GET /v1/presentation/status \
     > "$OUTPUT_ROOT/existing-keep-data-presentation.json"
   python3 - "$EXISTING_DB" \
@@ -440,12 +439,12 @@ PY
   # The ledger is scoped to the signed-in server, so record the baseline
   # before signing out.
   baseline_request_id="$(latest_request_id)"
-  api POST '/v1/session/sign-out?passive=1' '{"wipeLocalData":true}' \
+  api POST '/v1/session/sign-out' '{"wipeLocalData":true}' \
     > "$OUTPUT_ROOT/existing-wipe-signout.json"
   assert_signed_out "$OUTPUT_ROOT/existing-wipe-signout.json"
   connect_fixture > "$OUTPUT_ROOT/existing-wipe-connect.json"
   wait_for_resumed_setup existing-wipe-resign "$baseline_request_id" 180
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-wipe-ready.json" 60
+  wait_for_phase ready "$OUTPUT_ROOT/existing-wipe-ready.json" 60
   api GET /v1/sync/ledger > "$OUTPUT_ROOT/existing-wipe-ledger.json"
   python3 - "$OUTPUT_ROOT/existing-wipe-ledger.json" "$baseline_request_id" <<'PY'
 import json, sys
@@ -465,13 +464,13 @@ PY
   # retry must publish a full catalog so the partial-readiness predicate can
   # release the route.
   launch_app "$EXISTING_DB" existing-interrupted
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-interrupted-start.json"
+  wait_for_phase ready "$OUTPUT_ROOT/existing-interrupted-start.json"
   api POST /v1/diagnostics/overrides \
     '{"networkType":"offline","nativeMetered":false}' >/dev/null
   : > "$PARTIAL_ALBUM_FLAG"
   : > "$ALBUM_ERROR_FLAG"
-  api POST '/v1/session/reset-initial-state?passive=1' > /dev/null
-  wait_for_passive_phase initialSyncRequired \
+  api POST '/v1/session/reset-initial-state' > /dev/null
+  wait_for_phase initialSyncRequired \
     "$OUTPUT_ROOT/existing-interrupted-required.json"
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":false}' >/dev/null
@@ -497,7 +496,7 @@ PY
   api POST /v1/presentation/library-rebuild \
     '{"reason":"initial-login","action":"cancelAndSignOut"}' \
     > "$OUTPUT_ROOT/existing-interrupted-cancel.json"
-  api GET '/v1/session/status?passive=1' \
+  api GET '/v1/session/status' \
     > "$OUTPUT_ROOT/existing-interrupted-signout.json"
   assert_signed_out "$OUTPUT_ROOT/existing-interrupted-signout.json"
   connect_fixture > "$OUTPUT_ROOT/existing-interrupted-connect.json"
@@ -527,13 +526,13 @@ pending = db.execute("SELECT count(*) FROM albums WHERE songs_hydrated = 0 AND i
 assert state[0] > 0 and state[1] is not None, state
 assert pending == 1, pending
 PY
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-interrupted-ready.json" 60
+  wait_for_phase ready "$OUTPUT_ROOT/existing-interrupted-ready.json" 60
   capture_screenshot existing-interrupted-home \
     "$OUTPUT_ROOT/existing-interrupted-home-screenshot.json" \
     > "$OUTPUT_ROOT/existing-interrupted-home-screenshot-path.txt"
   stop_app
   launch_app "$EXISTING_DB" existing-restart
-  wait_for_passive_phase ready "$OUTPUT_ROOT/existing-clean-restart.json"
+  wait_for_phase ready "$OUTPUT_ROOT/existing-clean-restart.json"
   stop_app
   if rg -n 'Unhandled Exception|Tried to modify a provider while|NavisDatabase multiple times' \
     "$OUTPUT_ROOT"/*-navis.log; then
@@ -861,30 +860,13 @@ wait_for_session initialSyncRequired waitingForNetwork \
   "$OUTPUT_ROOT/cancel-waiting.json" 180
 api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false}' >/dev/null
-wait_for_session initialSyncRequired running \
+wait_for_session initialSyncRequired syncing \
   "$OUTPUT_ROOT/cancel-running.json" 180
 curl --fail-with-body --silent --show-error \
   -X POST -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/v1/session/initial-sync/cancel" \
   > "$OUTPUT_ROOT/cancel-result.json" &
 CANCEL_REQUEST_PID=$!
-cancel_deadline=$((SECONDS + 30))
-while (( SECONDS < cancel_deadline )); do
-  cancel_status="$(api GET /v1/session/status)"
-  if python3 - "$cancel_status" <<'PY'
-import json, sys
-value = json.loads(sys.argv[1])
-raise SystemExit(0 if value.get("initialSync") == "cancelling" else 1)
-PY
-  then
-    printf '%s\n' "$cancel_status" > "$OUTPUT_ROOT/cancel-cancelling.json"
-    capture_screenshot setup-cancelling \
-      "$OUTPUT_ROOT/setup-cancelling-screenshot.json" \
-      > "$OUTPUT_ROOT/setup-cancelling-screenshot-path.txt"
-    break
-  fi
-  sleep 0.02
-done
 wait "$CANCEL_REQUEST_PID"
 assert_signed_out "$OUTPUT_ROOT/cancel-result.json"
 capture_screenshot setup-cancelled-login \
@@ -902,7 +884,7 @@ launch_app "$CANCEL_DB" cancel-restart
 wait_for_session unauthenticated '' "$OUTPUT_ROOT/cancel-clean-restart.json" 180
 stop_app
 
-# Cancelling the diagnostics setup and signing in again in the same process
+# Cancelling setup and signing in again in the same process
 # must set the new session up instead of keeping the cancelled setup state.
 launch_app "$RESIGN_DB" resign
 wait_for_session ready '' "$OUTPUT_ROOT/resign-ready-before-reset.json" 180

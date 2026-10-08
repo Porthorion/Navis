@@ -550,27 +550,25 @@ its credential from a mode-600 diagnostics file, and exercises offline
 recovery, safe promotion, screenshots, restart, real playback-to-sign-out
 teardown, and setup cancellation. Clone-mode credential writes and clears stay
 in memory, so these destructive actions can never clear or replace device
-secure storage. With `passive=1`, `GET /v1/session/status`,
-`POST /v1/session/sign-out` and `POST /v1/session/reset-initial-state`
-report the session without instantiating the legacy diagnostics setup
-controller. That controller starts its own setup run whenever the session
-needs one, which would mask the route-owned controller. Clone-only
-`GET`/`POST /v1/presentation/library-rebuild` reports the route-owned
+secure storage. `GET /v1/session/status` reports the route-owned initial-login
+rebuild controller when mounted, falling back to the session phase and catalog
+sync status when no controller exists. Observation never instantiates a rebuild.
+The initial-sync retry/mobile/cancel routes act on that same mounted controller
+and return conflict when it is inactive. Cancel uses `cancelAndSignOut`, keeping
+local data just as the screen does; there is no second setup state machine.
+Clone-only `GET`/`POST /v1/presentation/library-rebuild` reports the route-owned
 full-screen rebuild controller for a given `reason`, and can `retry` or press
 its `cancelAndSignOut`. It reports `inactive` rather than instantiating an
 unmounted controller, because instantiation starts a rebuild. The
 `existing-catalog` mode uses these to verify keep-data sign-out, cancellation
-and wipe sign-out followed by a new sign-in in the same process. The legacy
-diagnostics setup controller follows the same session scoping. It starts setup
-only once the phase requires it, never while the phase is still loading. A
-non-passive session call activates it with a lasting subscription. Riverpod
-pauses a provider that is only read, and a paused provider would miss a
-sign-out or sign-in between two requests.
+and wipe sign-out followed by a new sign-in in the same process. The mounted
+rebuild controller watches session identity, so a new session starts a new visit
+and supersedes the old run.
 
 Clone-only `POST /v1/session/connect` validates and saves a server session
-through the production connection service but does not instantiate the legacy
-initial-sync controller merely to build its response. The required rebuild
-screen owns the interactive first-sync request; the library controller coalesces
+through the production connection service without starting a rebuild merely to
+build its response. The required rebuild screen owns the interactive first-sync
+request; the library controller coalesces
 any overlapping automatic pass. Observing a newly connected session must not
 upgrade it into an interactive Repair Library request.
 

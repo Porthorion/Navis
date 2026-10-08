@@ -807,16 +807,19 @@ presses the screen's "Cancel and sign out" through
 `POST /v1/presentation/library-rebuild` and signs in again. The new visit
 must start automatically, record a `repairLibrary` catalog run (never
 `manualCatalogDiscovery`), store the usable marker, open Home with the album
-still pending, and stay ready after a clean restart. Its session calls use
-`passive=1` so the legacy diagnostics controller does not run a competing
-setup. When setup does not resume, the mode saves the route, controller
-state, ledger and a screenshot before failing.
+still pending, and stay ready after a clean restart. Session status observes
+that same route-owned controller without starting setup. When setup does not
+resume, the mode saves the route, controller state, ledger and a screenshot
+before failing.
 The `partial` mode's rebuild pass visits manual cache reset and Repair
 Library a second time in the same process. Each visit must record its own
 catalog run. The `clone` mode ends with a third profile that cancels a
 waiting setup through `POST /v1/session/initial-sync/cancel` and signs in
-again in the same process. The legacy diagnostics setup controller must then
-report `complete` with the session `ready`, rather than staying `cancelling`.
+again in the same process. Initial-sync actions use the mounted initial-login
+rebuild controller, including its keep-data cancellation. The new route visit
+must reach `complete` with the session `ready`; observing session status never
+creates a setup controller. Cancellation evidence uses the completed sign-out
+response, since fast teardown need not expose a transient `cancelling` frame.
 The clone-only `POST /v1/diagnostics/sync-foreground` control sets the same
 foreground admission provider as Flutter lifecycle events, allowing the
 headless desktop fixture to exercise automatic work even when the window is not
