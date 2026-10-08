@@ -1,3 +1,5 @@
+import '../../../../helpers/library_sync_plan.dart';
+
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
@@ -330,7 +332,9 @@ void main() {
       ]);
       const other = Album(id: 'b', name: 'Other', artistId: 'ar', songCount: 0);
       api.albumDetails['b'] = other;
-      final first = await engine.forceFullSync();
+      final first = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(first.candidateStatus, 'awaitingDeletionConfirmation');
       final original = (await db.librarySyncDao.getOrCreateState(serverId))
           .deletionCandidateFingerprint;
@@ -338,7 +342,9 @@ void main() {
       // would incorrectly reconfirm the old removal here.
       api.fastPathPages[0] = [other];
       api.newestPages[0] = [other];
-      final changed = await engine.forceFullSync();
+      final changed = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(changed.candidateStatus, 'awaitingDeletionConfirmation');
       expect(await db.libraryDao.getAlbumById('a'), isNotNull);
       expect(await db.libraryDao.getAlbumById('b'), isNotNull);
@@ -355,10 +361,14 @@ void main() {
           ),
         ),
       );
-      final expired = await engine.forceFullSync();
+      final expired = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(expired.candidateStatus, 'awaitingDeletionConfirmation');
       expect(await db.libraryDao.getAlbumById('a'), isNotNull);
-      final confirmed = await engine.forceFullSync();
+      final confirmed = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(confirmed.status, LibrarySyncStatus.succeeded);
       expect(confirmed.candidateStatus, isNull);
       expect(await db.libraryDao.getAlbumById('a'), isNull);
@@ -383,7 +393,8 @@ void main() {
         api.newestPages[0] = [changed];
         api.albumDetails['a'] = changed;
         final progress = <LibrarySyncState>[];
-        final result = await engine.forceFullSync(
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
           onProgress: (state) {
             progress.add(state);
             if (state.stage == boundary) {
@@ -439,8 +450,12 @@ void main() {
         api.fastPathPages[0] = [mixed];
         final result = switch (path) {
           'target' => await engine.hydrateAlbum('a'),
-          'repair' => await engine.forceFullSync(),
-          _ => await engine.syncNow(),
+          'repair' => await engine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          ),
+          _ => await engine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          ),
         };
         expect(result.status, LibrarySyncStatus.succeeded);
         expect((await db.libraryDao.getAlbumById('a'))!.songsHydrated, isTrue);
@@ -1417,12 +1432,19 @@ void main() {
         const Album(id: 'remote', name: 'External', isExternal: true),
       ];
       api.newestError = StateError('interrupt after page collection');
-      expect((await engine.forceFullSync()).status, LibrarySyncStatus.failed);
+      expect(
+        (await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        )).status,
+        LibrarySyncStatus.failed,
+      );
       api.calls.clear();
       api.newestError = null;
       api.fastPathErrors[1] = StateError('wrong resumed offset');
       expect(
-        (await engine.forceFullSync()).status,
+        (await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        )).status,
         LibrarySyncStatus.succeeded,
       );
       expect(api.calls, isNot(contains('getAlbumListPage:1:500')));
@@ -1439,7 +1461,12 @@ void main() {
         recentlyAddedRank: const Value(800),
       ),
     ]);
-    expect((await engine.syncNow()).status, LibrarySyncStatus.succeeded);
+    expect(
+      (await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+      )).status,
+      LibrarySyncStatus.succeeded,
+    );
     expect((await db.libraryDao.getAlbumById('tail'))!.recentlyAddedRank, 1);
   });
   test(
@@ -1480,7 +1507,9 @@ void main() {
           ),
         ],
       );
-      final result = await engine.syncNow();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+      );
       expect(result.status, LibrarySyncStatus.succeeded);
       expect(await db.libraryDao.getAlbumById('remote'), isNull);
       expect(await db.libraryDao.getSongById('remote-song'), isNull);
@@ -1491,7 +1520,9 @@ void main() {
     await seed();
     api.newestPages[0] = [album];
     api.newestPages[1] = [const Album(id: 'new', name: 'New', songCount: 0)];
-    final result = await engine.syncNow();
+    final result = await engine.executeSyncPlan(
+      syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+    );
     expect(result.status, LibrarySyncStatus.succeeded);
     expect(api.calls.where((c) => c.startsWith('newest:')).toList(), [
       'newest:0:100',
@@ -1745,7 +1776,12 @@ void main() {
           ),
         ],
       );
-      expect((await engine.syncNow()).status, LibrarySyncStatus.succeeded);
+      expect(
+        (await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        )).status,
+        LibrarySyncStatus.succeeded,
+      );
       expect(api.calls, contains('getAlbum:new-album'));
       expect(
         (await db.libraryDao.getAlbumById('new-album'))!.songsHydrated,
