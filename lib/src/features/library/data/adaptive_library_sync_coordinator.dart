@@ -89,23 +89,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   // reaches persistence: a process restart, sign-out, account change, or
   // explicit cancel always starts from "no consent".
   int? _repairSessionServerId;
-  String? _repairSessionId;
   bool _repairSessionMeteredGrant = false;
 
-  /// Opens a repair session and returns its stable identity.
+  /// Opens a repair session with its mobile-data grant.
   ///
   /// The session owns the mobile-data grant for all retry and reconnect
   /// attempts until [endRepairSession] clears it, so a consented repair never
   /// loses its grant to an automatic resume that re-enters without the
   /// original flag.
-  String beginRepairSession({
-    required int serverId,
-    bool allowMetered = false,
-  }) {
+  void beginRepairSession({required int serverId, bool allowMetered = false}) {
     _repairSessionServerId = serverId;
-    _repairSessionId = _newLeaseToken();
     _repairSessionMeteredGrant = allowMetered;
-    return _repairSessionId!;
   }
 
   /// Clears the session and its grant. Safe to call for any server.
@@ -114,7 +108,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       return;
     }
     _repairSessionServerId = null;
-    _repairSessionId = null;
     _repairSessionMeteredGrant = false;
   }
 
@@ -1092,21 +1085,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               lastRunRequests: Value(runRequests),
             ),
           );
-          final candidateGeneration =
-              result.candidateGeneration ?? persisted.candidateGeneration;
-          final candidateStatus =
-              result.candidateStatus ?? persisted.candidateStatus;
-          if (candidateGeneration != null && candidateStatus != null) {
-            await _database.librarySyncDao.writeRepairSession(
-              serverId: serverId,
-              generation: candidateGeneration,
-              phase: _repairPhaseFor(candidateStatus),
-              deletionFingerprint: persisted.deletionCandidateFingerprint,
-              deletionCount: persisted.deletionCandidateCount,
-              startedAt: persisted.candidateStartedAt ?? startedAt,
-              now: completedAt,
-            );
-          }
           await _database.librarySyncDao.pruneCompletedBefore(
             completedAt.subtract(const Duration(days: 7)),
           );
@@ -1447,17 +1425,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     );
   }
 
-  int _repairPhaseFor(String status) {
-    return switch (status) {
-      'collecting' => 0,
-      'validating' => 1,
-      'awaitingDeletionConfirmation' => 2,
-      'ready' => 3,
-      'applying' => 4,
-      _ => 0,
-    };
-  }
-
   Future<void> _enqueueDeltaReconcile({
     required int serverId,
     required LibrarySyncState result,
@@ -1613,20 +1580,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             ? const Value(null)
             : const Value.absent(),
       ),
-    );
-    await _database.librarySyncDao.writeSyncProviderProfile(
-      serverId: serverId,
-      providerFingerprint: config == null
-          ? null
-          : '${config.url}|${config.apiVersion}',
-      conditionalIndexesMode: unsupported
-          ? SyncCapabilityMode.unsupported.index
-          : cursor != null
-          ? SyncCapabilityMode.reliable.index
-          : SyncCapabilityMode.unknown.index,
-      bulkSongSearchMode: bulkQuery is String ? 1 : 0,
-      safePageSize: 500,
-      observedAt: _now(),
     );
   }
 

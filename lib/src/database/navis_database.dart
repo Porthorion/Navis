@@ -49,8 +49,6 @@ import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dar
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
-import 'package:navis/src/database/tables/library_sync_provider_profile_table.dart';
-import 'package:navis/src/database/tables/library_sync_repair_session_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
@@ -121,8 +119,6 @@ part 'navis_database.g.dart';
     LibrarySyncRunRequestTable,
     LibrarySyncRunAttemptTable,
     LibrarySyncRunOutcomeTable,
-    LibrarySyncProviderProfileTable,
-    LibrarySyncRepairSessionTable,
     LibraryScanObservationTable,
     LibraryRecoveryReviewTable,
     EntityIdentityAliasTable,
@@ -231,7 +227,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 92;
+  int get schemaVersion => 93;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -333,10 +329,16 @@ class NavisDatabase extends _$NavisDatabase {
       from89To90,
       from90To91,
       from91To92,
+      from92To93,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
     }
+  }
+
+  Future<void> from92To93(Migrator migrator) async {
+    await customStatement('DROP TABLE IF EXISTS library_sync_provider_profile');
+    await customStatement('DROP TABLE IF EXISTS library_sync_repair_session');
   }
 
   /// Clears LRCLIB lyrics selected before edition-aware matching.
@@ -795,12 +797,6 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (!await _tableExists('library_sync_run_outcome')) {
       await migrator.createTable(librarySyncRunOutcomeTable);
-    }
-    if (!await _tableExists('library_sync_provider_profile')) {
-      await migrator.createTable(librarySyncProviderProfileTable);
-    }
-    if (!await _tableExists('library_sync_repair_session')) {
-      await migrator.createTable(librarySyncRepairSessionTable);
     }
   }
 

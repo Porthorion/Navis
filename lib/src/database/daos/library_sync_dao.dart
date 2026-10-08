@@ -7,8 +7,6 @@ import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
-import 'package:navis/src/database/tables/library_sync_provider_profile_table.dart';
-import 'package:navis/src/database/tables/library_sync_repair_session_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
@@ -63,8 +61,6 @@ class LibrarySyncRunHistoryEntry {
     LibrarySyncRunRequestTable,
     LibrarySyncRunAttemptTable,
     LibrarySyncRunOutcomeTable,
-    LibrarySyncProviderProfileTable,
-    LibrarySyncRepairSessionTable,
     LibraryScanObservationTable,
     LibraryRecoveryReviewTable,
     EntityIdentityAliasTable,
@@ -407,49 +403,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           'count': row.read<int>('count'),
         },
     ];
-  }
-
-  Future<void> writeSyncProviderProfile({
-    required int serverId,
-    String? providerFingerprint,
-    required int conditionalIndexesMode,
-    required int bulkSongSearchMode,
-    required int safePageSize,
-    DateTime? observedAt,
-  }) {
-    return into(librarySyncProviderProfileTable).insertOnConflictUpdate(
-      LibrarySyncProviderProfileTableCompanion(
-        serverId: Value(serverId),
-        providerFingerprint: Value(providerFingerprint),
-        conditionalIndexesMode: Value(conditionalIndexesMode),
-        bulkSongSearchMode: Value(bulkSongSearchMode),
-        safePageSize: Value(safePageSize),
-        observedAt: Value(observedAt?.toUtc()),
-      ),
-    );
-  }
-
-  Future<void> writeRepairSession({
-    required int serverId,
-    required int generation,
-    required int phase,
-    String? deletionFingerprint,
-    required int deletionCount,
-    required DateTime startedAt,
-    DateTime? now,
-  }) {
-    final timestamp = (now ?? DateTime.now()).toUtc();
-    return into(librarySyncRepairSessionTable).insertOnConflictUpdate(
-      LibrarySyncRepairSessionTableCompanion(
-        serverId: Value(serverId),
-        generation: Value(generation),
-        phase: Value(phase),
-        deletionFingerprint: Value(deletionFingerprint),
-        deletionCount: Value(deletionCount),
-        startedAt: Value(startedAt.toUtc()),
-        updatedAt: Value(timestamp),
-      ),
-    );
   }
 
   /// Attempts to acquire the server's broad-sync lease.

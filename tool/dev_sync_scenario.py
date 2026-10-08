@@ -40,8 +40,6 @@ RESET_TABLES = (
     "library_sync_run_request",
     "library_sync_operation_ledger",
     "library_sync_execution_lease",
-    "library_sync_repair_session",
-    "library_sync_provider_profile",
     "library_sync_work",
     "library_sync_local_mutations",
     "library_sync_candidate_songs",

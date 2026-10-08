@@ -170,8 +170,10 @@ Located in `lib/src/providers/app_providers.dart`:
   Schema 43 and later preserve data through an ordered migration-step table.
 - Schema v71 adds a typed, redacted sync lifecycle beside the retained
   compatibility work mirror: `library_sync_run_request`,
-  `library_sync_run_attempt`, `library_sync_run_outcome`,
-  `library_sync_provider_profile`, and `library_sync_repair_session`.
+  `library_sync_run_attempt`, and `library_sync_run_outcome`. Schema v93
+  drops the write-only `library_sync_provider_profile` and
+  `library_sync_repair_session` observations; operational provider/candidate
+  state remains in `library_sync_state`; the mobile-data grant stays in memory.
   `SyncRunRequest` records a versioned origin, intent, target kind, priority,
   resumption provenance, and metered grant. The scheduler resolves it once
   into immutable `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency
@@ -3035,15 +3037,12 @@ states without starting audio or modifying a queue.
    full repair. The scheduler admits one immutable `SyncExecutionPlan` per
    run, including its endpoint allowlist and data/concurrency budget.
 2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the typed
-   request/attempt/outcome lifecycle and the chosen plan, mirrors legacy work
-   during the compatibility release, restores interrupted attempts, and
-   persists provider-profile and repair-session observations. It still uses a
-   compatibility executor adapter internally; execution receives the selected
+   request/attempt/outcome lifecycle and the chosen plan, mirrors durable work,
+   and restores interrupted attempts. It still uses a compatibility executor
+   adapter internally; execution receives the selected
    immutable plan rather than reconstructing the operation from display text
    or checkpoints. The coordinator deduplicates durable work, measures
    requests/bytes, and owns cooldown/circuit policy. Targeted work
-   and provider profile, deduplicates durable work, restores interrupted work,
-   measures requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
    domains remain independent. The coordinator removes that namespace before
    passing an entity ID to a hydrator or server endpoint. Automatic broad work
