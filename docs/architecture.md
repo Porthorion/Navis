@@ -3365,7 +3365,9 @@ contract.
   evidence, local mutation journals, and writes both the legacy and the typed
   profile-scoped alias tables (`entity_identity_aliases`). Cache and download
   ownership validation is storage-kind aware: Android SAF content URIs are
-  validated through the platform bridge, never `File.exists()`.
+  validated through the platform bridge, never `File.exists()`. Identity
+  remapping preserves every cache-row column, including storage kind; rolling
+  cache pruning also recognizes content URIs even on legacy filesystem rows.
 - **Album/artist relinking.** Candidate staging tables carry
   `release_mbid`/`artist_mbid` (schema 80) promoted from OpenSubsonic
   `musicBrainzId` fields; `EntityIdentityReconciler` runs inside the

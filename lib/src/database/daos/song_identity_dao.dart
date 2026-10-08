@@ -860,16 +860,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     await into(cachedTracksTable).insert(
-      CachedTracksTableCompanion.insert(
-        songId: canonicalSongId,
-        filePath: winner.filePath,
-        fileSize: winner.fileSize,
-        format: winner.format,
-        bitRate: Value(winner.bitRate),
-        lastAccessedAt: winner.lastAccessedAt,
-        cacheType: winner.cacheType,
-        downloadStatus: winner.downloadStatus,
-      ),
+      winner.toCompanion(false).copyWith(songId: Value(canonicalSongId)),
     );
   }
 }

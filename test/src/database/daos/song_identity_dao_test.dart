@@ -52,6 +52,33 @@ void main() {
     await tempDirectory.delete(recursive: true);
   });
 
+  test('remap preserves every permanent SAF download column', () async {
+    await database.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: 'remote-song',
+        filePath: 'content://downloads/document/track',
+        storageKind: const Value('androidSaf'),
+        fileSize: 8192,
+        format: 'flac',
+        bitRate: const Value(900),
+        lastAccessedAt: DateTime.utc(2026, 1, 2),
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+      ),
+    );
+    final original = await database.cacheDao.getCachedTrack('remote-song');
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'recordingMbid',
+    );
+    expect(
+      await database.cacheDao.getCachedTrack('server-song'),
+      original!.copyWith(songId: 'server-song'),
+    );
+    expect(await database.cacheDao.getCachedTrack('remote-song'), isNull);
+  }, skip: !sqliteAvailable);
+
   test('notifies playback before deleting a provisional identity', () async {
     var callbackObservedProvisionalRow = false;
     final canonical = await database.libraryDao.getSongById('server-song');

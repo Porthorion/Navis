@@ -1928,13 +1928,13 @@ final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   final database = ref.watch(navisDatabaseProvider);
-  const safStorage = AndroidSafStorage();
   return DriftRollingCacheManager(
     cacheDao: database.cacheDao,
     songIdentityDao: database.songIdentityDao,
-    entryExists: (entry) => entry.storageKind == 'androidSaf'
-        ? safStorage.exists(entry.filePath)
-        : Future<bool>.value(File(entry.filePath).existsSync()),
+    entryExists: (entry) => storedAudioExists(
+      locator: entry.filePath,
+      storageKind: entry.storageKind,
+    ),
   );
 });
 

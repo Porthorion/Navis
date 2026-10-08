@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Android folder downloads keep their storage type when a server song ID changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Missing album and artist artwork now refreshes its server metadata once through library sync',
         type: ChangelogEntryType.fix,
       ),
