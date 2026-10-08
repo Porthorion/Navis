@@ -2273,12 +2273,13 @@ void main() {
       const header = ValueKey<String>('homeCenteredLogoHeader');
       setAdaptiveTestViewport(tester, const Size(390, 844));
       await _pumpHomeWithAppSettings(tester, database: database);
-      // 32 top + 84 logo + 8 bottom (was 48 + 96 + 14).
+      // 16 top + 104 logo + 4 bottom (was 48 + 96 + 14): a larger logo in the
+      // same height, using the transparent margin inside the logo asset.
       expect(tester.getSize(find.byKey(header)).height, 124);
       final logoRect = tester.getRect(
         find.byKey(const ValueKey<String>('home-sync-logo')),
       );
-      expect(logoRect.height, 84);
+      expect(logoRect.height, 104);
       final actionRow = find.byKey(
         const ValueKey<String>('homeMobileActionRow'),
       );
