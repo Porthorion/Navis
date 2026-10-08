@@ -1638,8 +1638,8 @@
   "appearanceLanguageSystemDefault": "System default",
   "appearanceLanguageUnavailable": "Language switching is disabled in this build.",
   "appearanceLanguageEnglish": "English",
-  "appearanceColorSchemeLabel": "Color Scheme",
-  "appearanceColorSchemeSub": "Choose a seed color for the app's color palette.",
+  "appearanceColorSchemeLabel": "Accent Color",
+  "appearanceColorSchemeSub": "Choose the accent color your color style is built from.",
   "appearanceColorSchemeDynamicSub": "Selected colors are used when album art has no available accent.",
   "appearanceColorDefault": "Default",
   "appearanceColorCustom": "Custom",
@@ -1676,8 +1676,18 @@
       "end": {}
     }
   },
-  "appearanceNightScheduleStarts": "Starts",
-  "appearanceNightScheduleEnds": "Ends",
+  "appearanceNightScheduleStartsAt": "Starts at {time}",
+  "@appearanceNightScheduleStartsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceNightScheduleEndsAt": "Ends at {time}",
+  "@appearanceNightScheduleEndsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
   "appearanceNightScheduleActiveNote": "Night is on until {time}",
   "@appearanceNightScheduleActiveNote": {
     "placeholders": {

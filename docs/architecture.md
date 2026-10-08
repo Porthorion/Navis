@@ -685,7 +685,8 @@ target-selection rules.
     each swatch as the selected style will use it.
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
-  - The Use OLED When Dark (Auto only), Night Schedule and Flat Surfaces
+  - The Use OLED When Dark (Auto only, indented under Theme Mode), Night
+    Schedule (one row of start and end time pills when on) and Flat Surfaces
     controls live in `appearance_settings_screen.dart`; `app.dart` re-checks
     the scheduled style when the app resumes.
 - `navis_tokens.dart`:

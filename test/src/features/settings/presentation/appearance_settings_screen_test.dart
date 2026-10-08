@@ -504,7 +504,7 @@ void main() {
       final container = await pumpAppearance(tester);
       final finder = find.text(l10n.appearanceNightScheduleLabel);
       await reveal(tester, finder);
-      expect(find.text(l10n.appearanceNightScheduleStarts), findsNothing);
+      expect(find.byIcon(Icons.bedtime_outlined), findsNothing);
       await tester.tap(finder);
       await tester.pump(const Duration(milliseconds: 100));
       final settings = await tester.runAsync(
@@ -513,12 +513,60 @@ void main() {
       expect(settings?.nightScheduleEnabled, isTrue);
     });
 
-    testWidgets('enabled schedule lists Starts and Ends', (tester) async {
+    testWidgets('enabled schedule shows one row of time pills', (tester) async {
       await pumpAppearance(tester, nightScheduleEnabled: true);
-      await reveal(tester, find.text(l10n.appearanceNightScheduleStarts));
-      expect(find.text(l10n.appearanceNightScheduleStarts), findsOneWidget);
-      expect(find.text(l10n.appearanceNightScheduleEnds), findsOneWidget);
+      await reveal(tester, find.byIcon(Icons.bedtime_outlined));
+      expect(find.byType(ActionChip), findsNWidgets(2));
+      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      final start = find.byType(ActionChip).first;
+      final end = find.byType(ActionChip).last;
+      expect(
+        tester.getCenter(start).dy,
+        moreOrLessEquals(tester.getCenter(end).dy),
+      );
       expect(find.text(l10n.appearanceNightScheduleSameTimes), findsNothing);
+    });
+
+    testWidgets('time pills open the picker', (tester) async {
+      await pumpAppearance(tester, nightScheduleEnabled: true);
+      await reveal(tester, find.byType(ActionChip).first);
+      expect(find.bySemanticsLabel(RegExp('^Starts at ')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Ends at ')), findsOneWidget);
+      await tester.tap(find.byType(ActionChip).first);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(TimePickerDialog), findsOneWidget);
+    });
+
+    testWidgets('dependent options are inset as sub-options', (tester) async {
+      await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        nightScheduleEnabled: true,
+      );
+      final parent = tester.getTopLeft(
+        find.text(l10n.appearanceNightScheduleLabel),
+      );
+      final oled = tester.getTopLeft(
+        find.text(l10n.appearanceOledForAutoLabel),
+      );
+      final modeSwitch = tester.getTopLeft(
+        find.text(l10n.appearanceColorStyleLabel),
+      );
+      expect(oled.dx, greaterThan(modeSwitch.dx + 8));
+      await reveal(tester, find.byType(ActionChip).first);
+      final pill = tester.getTopLeft(find.byType(ActionChip).first);
+      final icon = tester.getTopLeft(find.byIcon(Icons.bedtime_outlined));
+      expect(icon.dx, greaterThanOrEqualTo(32));
+      expect(pill.dx, greaterThan(icon.dx));
+      expect(parent.dx, lessThan(icon.dx));
+    });
+
+    testWidgets('accent section uses the Accent Color header', (tester) async {
+      await pumpAppearance(tester);
+      expect(l10n.appearanceColorSchemeLabel, 'Accent Color');
+      await reveal(tester, find.text('Accent Color'));
+      expect(find.text('Accent Color'), findsOneWidget);
+      expect(find.text('Color Scheme'), findsNothing);
     });
 
     testWidgets('equal start and end show the helper text', (tester) async {

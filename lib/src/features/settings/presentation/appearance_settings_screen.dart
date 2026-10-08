@@ -17,6 +17,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
@@ -60,7 +61,7 @@ class _NightScheduleSection extends ConsumerWidget {
     }
 
     Widget note(String text) => Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(_subOptionInset, 0, 16, 8),
       child: Text(text, style: theme.textTheme.bodySmall),
     );
 
@@ -81,26 +82,112 @@ class _NightScheduleSection extends ConsumerWidget {
             await db.appSettingsDao.updateNightSchedule(enabled: enabled);
           },
         ),
-        if (schedule.enabled) ...<Widget>[
-          ListTile(
-            title: Text(l10n.appearanceNightScheduleStarts),
-            trailing: Text(format(schedule.startMinutes)),
-            onTap: () => pick(isStart: true),
-          ),
-          ListTile(
-            title: Text(l10n.appearanceNightScheduleEnds),
-            trailing: Text(format(schedule.endMinutes)),
-            onTap: () => pick(isStart: false),
-          ),
-          if (sameTimes) note(l10n.appearanceNightScheduleSameTimes),
-          if (showActiveNote)
-            note(
-              l10n.appearanceNightScheduleActiveNote(
-                format(schedule.endMinutes),
+        _SubOptionReveal(
+          visible: schedule.enabled,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _ScheduleWindowRow(
+                startLabel: format(schedule.startMinutes),
+                endLabel: format(schedule.endMinutes),
+                startSemantics: l10n.appearanceNightScheduleStartsAt(
+                  format(schedule.startMinutes),
+                ),
+                endSemantics: l10n.appearanceNightScheduleEndsAt(
+                  format(schedule.endMinutes),
+                ),
+                onPickStart: () => pick(isStart: true),
+                onPickEnd: () => pick(isStart: false),
               ),
-            ),
-        ],
+              if (sameTimes) note(l10n.appearanceNightScheduleSameTimes),
+              if (showActiveNote)
+                note(
+                  l10n.appearanceNightScheduleActiveNote(
+                    format(schedule.endMinutes),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+/// Left inset that marks an option as depending on the control above it.
+const double _subOptionInset = 32;
+
+/// Shows [child] under its parent control, animating the height change
+/// unless the platform asks for reduced motion.
+class _SubOptionReveal extends StatelessWidget {
+  const new({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: MotionPolicy.of(context).surface,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: visible ? child : const SizedBox(width: double.infinity),
+    );
+  }
+}
+
+/// One row holding the night window: moon, start pill, arrow, end pill.
+class _ScheduleWindowRow extends StatelessWidget {
+  const new({
+    required this.startLabel,
+    required this.endLabel,
+    required this.startSemantics,
+    required this.endSemantics,
+    required this.onPickStart,
+    required this.onPickEnd,
+  });
+
+  final String startLabel;
+  final String endLabel;
+  final String startSemantics;
+  final String endSemantics;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget pill(String label, String semantics, VoidCallback onTap) {
+      return Semantics(
+        label: semantics,
+        button: true,
+        excludeSemantics: true,
+        onTap: onTap,
+        child: ActionChip(
+          key: ValueKey<String>(semantics),
+          label: Text(label),
+          onPressed: onTap,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(_subOptionInset, 4, 16, 8),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 4,
+        children: <Widget>[
+          Icon(
+            Icons.bedtime_outlined,
+            size: 20,
+            color: scheme.onSurfaceVariant,
+          ),
+          pill(startLabel, startSemantics, onPickStart),
+          Icon(Icons.arrow_forward, size: 16, color: scheme.onSurfaceVariant),
+          pill(endLabel, endSemantics, onPickEnd),
+        ],
+      ),
     );
   }
 }
@@ -211,8 +298,13 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   await db.appSettingsDao.updateThemeMode(mode);
                 },
               ),
-              if (currentMode == 'system')
-                SwitchListTile(
+              _SubOptionReveal(
+                visible: currentMode == 'system',
+                child: SwitchListTile(
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: _subOptionInset,
+                    end: 16,
+                  ),
                   title: Text(l10n.appearanceOledForAutoLabel),
                   subtitle: Text(l10n.appearanceOledForAutoSub),
                   value: oledForAuto,
@@ -221,6 +313,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     await db.appSettingsDao.updateOledForAuto(enabled: enabled);
                   },
                 ),
+              ),
 
               // ── Color Style ─────────────────────────────────────────
               Padding(
@@ -254,7 +347,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               ),
               const Divider(height: 32),
 
-              // ── Color Scheme ────────────────────────────────────────
+              // ── Accent Color ────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Text(

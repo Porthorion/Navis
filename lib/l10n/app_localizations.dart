@@ -5750,13 +5750,13 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorSchemeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Color Scheme'**
+  /// **'Accent Color'**
   String get appearanceColorSchemeLabel;
 
   /// No description provided for @appearanceColorSchemeSub.
   ///
   /// In en, this message translates to:
-  /// **'Choose a seed color for the app\'s color palette.'**
+  /// **'Choose the accent color your color style is built from.'**
   String get appearanceColorSchemeSub;
 
   /// No description provided for @appearanceColorSchemeDynamicSub.
@@ -5873,17 +5873,17 @@ abstract class AppLocalizations {
   /// **'Use the Night style from {start} to {end}'**
   String appearanceNightScheduleSub(Object start, Object end);
 
-  /// No description provided for @appearanceNightScheduleStarts.
+  /// No description provided for @appearanceNightScheduleStartsAt.
   ///
   /// In en, this message translates to:
-  /// **'Starts'**
-  String get appearanceNightScheduleStarts;
+  /// **'Starts at {time}'**
+  String appearanceNightScheduleStartsAt(Object time);
 
-  /// No description provided for @appearanceNightScheduleEnds.
+  /// No description provided for @appearanceNightScheduleEndsAt.
   ///
   /// In en, this message translates to:
-  /// **'Ends'**
-  String get appearanceNightScheduleEnds;
+  /// **'Ends at {time}'**
+  String appearanceNightScheduleEndsAt(Object time);
 
   /// No description provided for @appearanceNightScheduleActiveNote.
   ///

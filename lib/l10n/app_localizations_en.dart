@@ -3638,11 +3638,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLanguageEnglish => 'English';
 
   @override
-  String get appearanceColorSchemeLabel => 'Color Scheme';
+  String get appearanceColorSchemeLabel => 'Accent Color';
 
   @override
   String get appearanceColorSchemeSub =>
-      'Choose a seed color for the app\'s color palette.';
+      'Choose the accent color your color style is built from.';
 
   @override
   String get appearanceColorSchemeDynamicSub =>
@@ -3712,10 +3712,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get appearanceNightScheduleStarts => 'Starts';
+  String appearanceNightScheduleStartsAt(Object time) {
+    return 'Starts at $time';
+  }
 
   @override
-  String get appearanceNightScheduleEnds => 'Ends';
+  String appearanceNightScheduleEndsAt(Object time) {
+    return 'Ends at $time';
+  }
 
   @override
   String appearanceNightScheduleActiveNote(Object time) {
