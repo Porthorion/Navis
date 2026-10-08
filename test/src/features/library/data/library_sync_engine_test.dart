@@ -9,6 +9,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -50,6 +51,33 @@ const _meteredManualDiscoveryPlan = SyncExecutionPlan(
 String _testIndexesFingerprint(Iterable<String> artistIds) {
   final normalized = artistIds.toList(growable: false)..sort();
   return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
+}
+
+class _BatchTrackingLibrarySyncApi extends FakeLibrarySyncApi {
+  final batchSizes = <int>[];
+  int _active = 0;
+  bool retryFirstAlbum = false;
+
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async {
+    if (_active == 0) batchSizes.add(0);
+    batchSizes[batchSizes.length - 1]++;
+    _active++;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      if (retryFirstAlbum && id == 'album-0') {
+        final scope = SyncRequestScope.current!;
+        final first = scope.beginTransport('getAlbum');
+        first.finish(succeeded: false);
+        scope
+            .beginTransport('getAlbum', retryOf: first)
+            .finish(succeeded: true);
+      }
+      return await super.getAlbum(id, maxResponseBytes: maxResponseBytes);
+    } finally {
+      _active--;
+    }
+  }
 }
 
 void main() {
@@ -3532,7 +3560,6 @@ void main() {
         expect(diagnostics.single, containsPair('entityId', 'missing-detail'));
         expect(diagnostics.single, containsPair('endpoint', 'getArtist'));
         expect(diagnostics.single, containsPair('errorType', 'StateError'));
-        expect(diagnostics.single, containsPair('attempts', 1));
 
         api.artistDetails['missing-detail'] = const Artist(
           id: 'missing-detail',
@@ -4624,6 +4651,84 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    for (final pressure in ['clean', '503', 'transport retry', '404']) {
+      test('adaptive hydration batches respond to $pressure', () async {
+        await saveSession();
+        final batchApi = _BatchTrackingLibrarySyncApi();
+        batchApi.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        batchApi.fastPathPages[0] = List<Album>.generate(
+          18,
+          (index) => Album(
+            id: 'album-$index',
+            name: 'Album $index',
+            artistId: 'artist-1',
+          ),
+        );
+        for (var index = 0; index < 18; index++) {
+          batchApi.albumDetails['album-$index'] = Album(
+            id: 'album-$index',
+            name: 'Album $index',
+            songs: [Song(id: 'song-$index', title: 'Song')],
+          );
+        }
+        if (pressure == '503') {
+          batchApi.albumErrors['album-0'] = const SubsonicGenericException(
+            message: 'Busy',
+            code: 503,
+          );
+        } else if (pressure == '404') {
+          batchApi.notFoundAlbumIds.add('album-0');
+        }
+        batchApi.retryFirstAlbum = pressure == 'transport retry';
+        final batchEngine = DriftLibrarySyncEngine(
+          api: batchApi,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          writeChunkSize: 18,
+          isolateThreshold: 1000,
+        );
+        final scope = SyncRequestScope(
+          allowedEndpoints: {
+            'getIndexes',
+            'getArtists',
+            'getAlbumListPage',
+            'getNewestAlbumList2',
+            'searchSongsPage',
+            'getAlbum',
+            'getStarredContent',
+            'getPlaylists',
+          },
+          maxRequests: 100,
+          maxNewestPages: 0,
+          maxAlbumHydrations: 0,
+          maxResponseBytes: null,
+          maxTotalBytes: null,
+          maxConcurrency: 24,
+          maxDuration: const Duration(seconds: 30),
+          canRequest: () => true,
+        );
+
+        final state = await scope.run(batchEngine.forceFullSync);
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          batchApi.batchSizes,
+          pressure == '503' || pressure == 'transport retry'
+              ? [8, 6, 4]
+              : [8, 10],
+        );
+        expect(
+          state.pendingHydrationCount,
+          pressure == '503' || pressure == '404' ? 1 : 0,
+        );
+        expect(
+          batchApi.calls.where((call) => call == 'getAlbum:album-0'),
+          hasLength(1),
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     test('transient album failures are left for durable retry', () async {
       await saveSession();

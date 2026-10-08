@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Library repair reduces simultaneous album requests when the server is busy or requests need a transport retry',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library cache renewal runs automatically on major or minor app upgrades; patch releases keep the same cache epoch',
       ),
       ChangelogEntry(

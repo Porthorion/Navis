@@ -49,14 +49,16 @@ class SyncNetworkDeferredException implements Exception {
 enum _AlbumFetchOutcome { success, requeue, hardFailure }
 
 class _AlbumFetchResult {
-  const new _(this.outcome, [this.album]);
+  const new _(this.outcome, [this.album, this.transient = false]);
 
   const new success(Album album) : this._(_AlbumFetchOutcome.success, album);
 
-  const new requeue() : this._(_AlbumFetchOutcome.requeue);
+  const new requeue({bool transient = false})
+    : this._(_AlbumFetchOutcome.requeue, null, transient);
 
   const new hardFailure() : this._(_AlbumFetchOutcome.hardFailure);
 
+  final bool transient;
   final _AlbumFetchOutcome outcome;
   final Album? album;
 }
@@ -97,21 +99,18 @@ class _SyncFailureDiagnostic {
     required this.endpoint,
     required this.entityId,
     required this.errorType,
-    required this.attempts,
   });
 
   final String stage;
   final String endpoint;
   final String entityId;
   final String errorType;
-  final int attempts;
 
   Map<String, Object> toJson() => <String, Object>{
     'stage': stage,
     'endpoint': endpoint,
     'entityId': entityId,
     'errorType': errorType,
-    'attempts': attempts,
   };
 }
 
@@ -999,7 +998,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final budget = _meteredInteractionBudget();
       final maxBytes =
           budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
-      final response = await _withRetry(
+      final response = await _request(
         () => _api.getAlbum(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
         endpoint: 'getAlbum',
@@ -1232,7 +1231,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         endpoint: failureEndpoint,
         entityId: normalizedId,
         error: error,
-        attempts: metrics.apiRequests,
       );
       await _persistFailureDiagnosticsBestEffort(
         metrics,
@@ -1284,7 +1282,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final budget = _meteredInteractionBudget();
       final maxBytes =
           budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
-      final detail = await _withRetry(
+      final detail = await _request(
         () => _api.getArtist(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
         endpoint: 'getArtist',
@@ -1490,7 +1488,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final budget = _meteredInteractionBudget();
       final maxBytes =
           budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
-      final playlist = await _withRetry(
+      final playlist = await _request(
         () => _api.getPlaylist(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
         endpoint: 'getPlaylist',
@@ -1922,7 +1920,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
         metrics.recordApiAttempt(
           elapsed: Duration.zero,
-          isRetryAttempt: false,
           endpoint: 'getIndexes',
         );
         final targetCursor = indexes.lastModified;
@@ -1937,7 +1934,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       } on Object catch (error) {
         metrics.recordApiAttempt(
           elapsed: Duration.zero,
-          isRetryAttempt: false,
           endpoint: 'getIndexes',
         );
         if (!_isIndexesUnsupported(error)) {
@@ -2344,7 +2340,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         endpoint: 'sync',
         entityId: 'sync',
         error: error,
-        attempts: 1,
       );
       if (error is SyncLeaseLostException) {
         // The coordinator's own handler never sees this error because the
@@ -2416,7 +2411,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   /// the standard `getIndexes` response.
   Future<List<Artist>> _loadCatalogArtists(_SyncRunMetrics metrics) async {
     try {
-      return await _withRetry(
+      return await _request(
         _api.getArtists,
         metrics: metrics,
         endpoint: 'getArtists',
@@ -2427,7 +2422,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
 
       try {
-        final indexes = await _withRetry(
+        final indexes = await _request(
           _api.getIndexes,
           metrics: metrics,
           endpoint: 'getIndexes',
@@ -2476,7 +2471,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
   Future<void> _syncStarredContentStrict(_SyncRunMetrics metrics) async {
     final snapshotStartedAt = DateTime.now();
-    final starred = await _withRetry(
+    final starred = await _request(
       _api.getStarredContent,
       metrics: metrics,
       endpoint: 'getStarredContent',
@@ -2918,7 +2913,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // window full of unknown content is genuine discovery evidence.
     final overlapCheckActive = !manual || limitedMeteredManualDiscovery;
     for (var pageIndex = 0; pageIndex < maxPages; pageIndex++) {
-      final page = await _withRetry(
+      final page = await _request(
         () => _api.getNewestAlbumListPage(size: pageSize, offset: offset),
         metrics: metrics,
         endpoint: 'getNewestAlbumList2',
@@ -3054,7 +3049,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   ) async {
     final now = DateTime.now();
     try {
-      final indexes = await _withRetry(
+      final indexes = await _request(
         _api.getIndexes,
         metrics: metrics,
         endpoint: 'getIndexes',
@@ -3178,7 +3173,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final checkpoint = _decodeCatalogPageCheckpoint(row.checkpointJson ?? '');
       final offset = int.tryParse(row.entityId.split(':').last);
       if (checkpoint == null || offset == null) return false;
-      final page = await _withRetry(
+      final page = await _request(
         () => _api.getAlbumListPage(size: fastPathPageSize, offset: offset),
         metrics: metrics,
         endpoint: 'getAlbumListPage',
@@ -3344,7 +3339,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         _artistConcurrency,
         (artist) async {
           try {
-            final detail = await _withRetry(
+            final detail = await _request(
               () => _api.getArtist(artist.id),
               metrics: metrics,
               endpoint: 'getArtist',
@@ -3663,7 +3658,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final status = await _api.getScanStatusOrNull();
       metrics.recordApiAttempt(
         elapsed: Duration.zero,
-        isRetryAttempt: false,
         endpoint: 'getScanStatus',
       );
       if (status == null) {
@@ -3705,7 +3699,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         final status = await _api.getScanStatusOrNull();
         metrics.recordApiAttempt(
           elapsed: Duration.zero,
-          isRetryAttempt: false,
           endpoint: 'getScanStatus',
         );
         if (status == null || !status.scanning) {
@@ -3734,7 +3727,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final status = await _api.getScanStatusOrNull();
       metrics.recordApiAttempt(
         elapsed: Duration.zero,
-        isRetryAttempt: false,
         endpoint: 'getScanStatus',
       );
       if (status == null) {
@@ -4469,7 +4461,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     var indexesReliable = false;
     if (shouldRetryIndexes) {
       try {
-        final fetchedIndexes = await _withRetry(
+        final fetchedIndexes = await _request(
           () => _api.getIndexes(ifModifiedSince: committedCursor),
           metrics: metrics,
           endpoint: 'getIndexes',
@@ -4546,7 +4538,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
       }
     } else {
-      final artists = await _withRetry(
+      final artists = await _request(
         _api.getArtists,
         metrics: metrics,
         endpoint: 'getArtists',
@@ -4801,7 +4793,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           failedArtistIds.add(artistId);
           return null;
         }
-        var attempts = 1;
         void publishArtistProgress() {
           current = _withMetrics(
             current.copyWith(processed: (current.processed ?? 0) + 1),
@@ -4811,13 +4802,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         }
 
         try {
-          final artist = await _withRetry(
+          final artist = await _request(
             () => _api.getArtist(artistId),
             metrics: metrics,
             endpoint: 'getArtist',
-            onFinalFailure: (error, finalAttempts) {
-              attempts = finalAttempts;
-            },
           );
           publishArtistProgress();
           return artist;
@@ -4833,7 +4821,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             endpoint: 'getArtist',
             entityId: artistId,
             error: error,
-            attempts: attempts,
           );
           if (SyncRequestScope.current?.stopped != null ||
               error is SyncNetworkDeferredException ||
@@ -5248,7 +5235,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   Future<void> _syncPlaylistHeadersStrict(_SyncRunMetrics metrics) async {
-    final playlists = await _withRetry(
+    final playlists = await _request(
       _api.getPlaylists,
       metrics: metrics,
       endpoint: 'getPlaylists',
@@ -5849,7 +5836,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
     for (final query in candidateQueries) {
       try {
-        final page = await _withRetry(
+        final page = await _request(
           () => _api.searchSongsPage(query: query, size: 1, offset: 0),
           metrics: metrics,
           endpoint: 'searchSongsPage',
@@ -5975,7 +5962,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         break;
       }
 
-      final page = await _withRetry(
+      final page = await _request(
         () => _api.searchSongsPage(
           query: query,
           size: bulkSearchPageSize,
@@ -6113,7 +6100,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     while (true) {
       List<Album> page;
       try {
-        page = await _withRetry(
+        page = await _request(
           () => _api.getNewestAlbumListPage(size: pageSize, offset: offset),
           metrics: metrics,
           endpoint: 'getNewestAlbumList2',
@@ -6217,7 +6204,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         }
       }
 
-      final page = await _withRetry(
+      final page = await _request(
         () => _api.getAlbumListPage(size: fastPathPageSize, offset: offset),
         metrics: metrics,
         endpoint: 'getAlbumListPage',
@@ -6384,54 +6371,32 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return false;
   }
 
-  Future<T> _withRetry<T>(
+  Future<T> _request<T>(
     Future<T> Function() action, {
     required _SyncRunMetrics metrics,
     String? endpoint,
-    void Function(Object error, int attempts)? onFinalFailure,
   }) async {
     // Transport owns the single immediate retry. Persisted work owns every
     // later attempt so nested loops cannot multiply requests.
-    const effectiveMaxAttempts = 1;
-    var attempt = 0;
-    while (true) {
-      _checkCancelled();
-      attempt++;
-      final stopwatch = Stopwatch()..start();
-      try {
-        final scope = SyncRequestScope.current;
-        final result = scope == null
-            ? await action()
-            : await scope.request(endpoint ?? 'unknown', action);
-        metrics.recordApiAttempt(
-          elapsed: stopwatch.elapsed,
-          isRetryAttempt: attempt > 1,
-          endpoint: endpoint,
-        );
-        return result;
-      } on SyncCancelledException {
-        rethrow;
-      } on SyncNetworkDeferredException {
-        rethrow;
-      } on SubsonicResponseBudgetExceededException {
-        rethrow;
-      } on Object catch (error) {
-        metrics.recordApiAttempt(
-          elapsed: stopwatch.elapsed,
-          isRetryAttempt: attempt > 1,
-          endpoint: endpoint,
-        );
-        if (!_isTransient(error) ||
-            attempt >= effectiveMaxAttempts ||
-            (error is SubsonicApiException &&
-                error.retryAt?.isAfter(DateTime.now()) == true)) {
-          metrics.recordApiFailure();
-          onFinalFailure?.call(error, attempt);
-          rethrow;
-        }
-        final delay = Duration(milliseconds: 250 * (1 << (attempt - 1)));
-        await Future<void>.delayed(delay);
-      }
+    _checkCancelled();
+    final stopwatch = Stopwatch()..start();
+    try {
+      final scope = SyncRequestScope.current;
+      final result = scope == null
+          ? await action()
+          : await scope.request(endpoint ?? 'unknown', action);
+      metrics.recordApiAttempt(elapsed: stopwatch.elapsed, endpoint: endpoint);
+      return result;
+    } on SyncCancelledException {
+      rethrow;
+    } on SyncNetworkDeferredException {
+      rethrow;
+    } on SubsonicResponseBudgetExceededException {
+      rethrow;
+    } on Object {
+      metrics.recordApiAttempt(elapsed: stopwatch.elapsed, endpoint: endpoint);
+      metrics.recordApiFailure();
+      rethrow;
     }
   }
 
@@ -6470,15 +6435,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required _SyncRunMetrics metrics,
     int? maxResponseBytes,
   }) async {
-    var attempts = 1;
     try {
-      final album = await _withRetry(
+      final album = await _request(
         () => _api.getAlbum(albumId, maxResponseBytes: maxResponseBytes),
         metrics: metrics,
         endpoint: 'getAlbum',
-        onFinalFailure: (error, finalAttempts) {
-          attempts = finalAttempts;
-        },
       );
       final canonical = canonicalAlbumSnapshot(album, requestedId: albumId);
       metrics.incompleteAlbumIds.remove(albumId);
@@ -6495,7 +6456,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         endpoint: 'getAlbum',
         entityId: albumId,
         error: error,
-        attempts: attempts,
       );
       return const _AlbumFetchResult.requeue();
     } on Object catch (error) {
@@ -6504,7 +6464,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         endpoint: 'getAlbum',
         entityId: albumId,
         error: error,
-        attempts: attempts,
       );
       if (_isFatalEntityError(error)) {
         rethrow;
@@ -6514,7 +6473,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         return const _AlbumFetchResult.requeue();
       }
       if (_isTransient(error)) {
-        return const _AlbumFetchResult.requeue();
+        return const _AlbumFetchResult.requeue(transient: true);
       }
       metrics.recordHardAlbumFailure();
       return const _AlbumFetchResult.hardFailure();
@@ -6540,7 +6499,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final batch = chunk.sublist(offset, end);
       offset = end;
 
-      final retriesBefore = metrics.apiRetries;
+      final retriesBefore = SyncRequestScope.current?.retryCount ?? 0;
       final batchStopwatch = Stopwatch()..start();
       final results = await Future.wait(
         batch.map(
@@ -6573,7 +6532,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           : (batchStopwatch.elapsedMilliseconds ~/ successCount);
       concurrencyController.observeBatch(
         averageLatencyMs: avgLatencyMs,
-        hadTransientRetries: metrics.apiRetries > retriesBefore,
+        hadTransientPressure:
+            results.any((result) => result.transient) ||
+            (SyncRequestScope.current?.retryCount ?? 0) > retriesBefore,
       );
     }
 
@@ -6596,7 +6557,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       endpointRequests: Map<String, int>.unmodifiable(
         metrics.apiRequestsByEndpoint,
       ),
-      apiRetries: metrics.apiRetries,
       apiFailures: metrics.apiFailures,
       averageLatencyMs: metrics.averageLatencyMs,
       dbWriteBatches: metrics.dbWriteBatches,
@@ -6729,12 +6689,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       'mode=${state.mode?.name ?? 'unknown'} '
       'stage=${state.stage.name} '
       'requests=${metrics.apiRequests} '
-      'retries=${metrics.apiRetries} '
       'failures=${metrics.apiFailures} '
       'endpointRequests=${_formatEndpointCounts(metrics.apiRequestsByEndpoint)} '
       'metadataChanged=${metrics.metadataChanged} '
       'skippedReason=${metrics.skippedReason ?? 'none'} '
-      'deletedAlbums=${metrics.deletedAlbums} '
       'hardAlbumFailures=${metrics.hardAlbumFailures} '
       'freshness=${state.freshness.name} '
       'remainingVerification=${state.remainingVerificationCount} '
@@ -6965,10 +6923,8 @@ class _SyncRunMetrics {
   static const _maxFailureDiagnostics = 12;
 
   int apiRequests = 0;
-  int apiRetries = 0;
   int apiFailures = 0;
   int dbWriteBatches = 0;
-  int deletedAlbums = 0;
   int hardAlbumFailures = 0;
   int canonicalizedSongCount = 0;
   int ambiguousMatchCount = 0;
@@ -6992,18 +6948,11 @@ class _SyncRunMetrics {
     return (_latencySumMs / _latencySamples).round();
   }
 
-  void recordApiAttempt({
-    required Duration elapsed,
-    required bool isRetryAttempt,
-    String? endpoint,
-  }) {
+  void recordApiAttempt({required Duration elapsed, String? endpoint}) {
     apiRequests++;
     if (endpoint != null && endpoint.isNotEmpty) {
       apiRequestsByEndpoint[endpoint] =
           (apiRequestsByEndpoint[endpoint] ?? 0) + 1;
-    }
-    if (isRetryAttempt) {
-      apiRetries++;
     }
     _latencySumMs += elapsed.inMilliseconds;
     _latencySamples++;
@@ -7022,7 +6971,6 @@ class _SyncRunMetrics {
     required String endpoint,
     required String entityId,
     required Object error,
-    required int attempts,
   }) {
     failureDiagnostics.removeWhere(
       (diagnostic) =>
@@ -7034,7 +6982,6 @@ class _SyncRunMetrics {
         endpoint: endpoint,
         entityId: entityId,
         errorType: error.runtimeType.toString(),
-        attempts: attempts,
       ),
     );
     if (failureDiagnostics.length > _maxFailureDiagnostics) {
@@ -7068,16 +7015,16 @@ class _AdaptiveHydrationConcurrency {
 
   void observeBatch({
     required int averageLatencyMs,
-    required bool hadTransientRetries,
+    required bool hadTransientPressure,
   }) {
-    if (hadTransientRetries) {
+    if (hadTransientPressure) {
       _decrease(by: 2);
       return;
     }
     // Request latency alone is not congestion. Reducing parallelism on a
     // healthy but high-latency server turns a large repair into a serial
-    // getAlbum crawl. Back off only on an actual transport retry; otherwise
-    // continue probing toward the bounded platform concurrency limit.
+    // getAlbum crawl. Back off by two workers after transient album failures
+    // or transport retries; otherwise probe toward the bounded limit.
     if (averageLatencyMs <= 0) return;
     if (averageLatencyMs <= 450) {
       _increase(by: 2);

@@ -3145,6 +3145,8 @@ states without starting audio or modifying a queue.
    active playback, an explicit repair remains bounded at four to eight Wi-Fi
    workers rather than falling to the ordinary two-worker interactive cap, so a
    server search-result window cannot turn the repair tail into a serial crawl.
+   Concurrency backs off by two workers after a batch with a 429/5xx, timeout,
+   connection error, or transport retry.
    Multi-album detail batches yield during song-row conversion while keeping
    reconciliation and identity matching on the complete fetched batch.
 6. The transport interceptor owns at most one immediate idempotent retry and
