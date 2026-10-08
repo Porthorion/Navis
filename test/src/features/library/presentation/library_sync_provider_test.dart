@@ -56,6 +56,45 @@ Future<ServerConfigModel> _saveAuthenticatedServer(
   );
 }
 
+const _exampleServer = ServerConfigModel(
+  url: 'https://example.com',
+  username: 'alice',
+  password: 'secret',
+  apiVersion: '1.16.1',
+);
+
+final _hourlyInterval = <Override>[
+  syncIntervalMinutesProvider.overrideWithValue(60),
+  syncIntervalDurationProvider.overrideWithValue(const Duration(hours: 1)),
+];
+
+/// A container wired to [engine] with a static reachability state. Without
+/// [database] none is overridden, without [server] nobody is signed in, and
+/// [interval] defaults to manual-only syncing.
+ProviderContainer _container(
+  LibrarySyncEngine engine, {
+  NavisDatabase? database,
+  ServerConfigModel? server,
+  ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
+  List<Override> interval = const <Override>[],
+  List<Override> extra = const <Override>[],
+}) {
+  return ProviderContainer(
+    overrides: [
+      if (interval.isEmpty) _manualSyncInterval else ...interval,
+      if (database != null) navisDatabaseProvider.overrideWithValue(database),
+      serverConfigStateProvider.overrideWithValue(AsyncData(server)),
+      serverReachabilityControllerProvider.overrideWith(
+        () => _StaticReachabilityController(
+          ServerReachabilityState(status: reachability),
+        ),
+      ),
+      librarySyncEngineProvider.overrideWithValue(engine),
+      ...extra,
+    ],
+  );
+}
+
 class _StaticReachabilityController extends ServerReachabilityController {
   new(this._state);
 
@@ -273,23 +312,11 @@ void main() {
           ({forceFull = false, onProgress}) async =>
               const LibrarySyncState.idle(),
         );
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
         container.listen(librarySyncControllerProvider, (_, _) {});
@@ -369,20 +396,14 @@ void main() {
             return manualResult.future;
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            syncIntervalMinutesProvider.overrideWithValue(60),
           ],
         );
         addTearDown(container.dispose);
@@ -435,14 +456,7 @@ void main() {
             return failure.future;
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
-        );
+        final container = _container(engine, database: database);
         addTearDown(container.dispose);
         container.listen(librarySyncControllerProvider, (_, _) {});
         final controller = container.read(
@@ -556,30 +570,16 @@ void main() {
           return state;
         },
       );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(
-            AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-                lastSynced: DateTime.now().subtract(const Duration(days: 1)),
-              ),
-            ),
-          ),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        database: database,
+        server: ServerConfigModel(
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+          lastSynced: DateTime.now().subtract(const Duration(days: 1)),
+        ),
       );
       addTearDown(container.dispose);
 
@@ -618,20 +618,12 @@ void main() {
           completedAt: DateTime.now(),
         ),
       );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
@@ -692,23 +684,12 @@ void main() {
           ),
         );
         final startedAt = DateTime.now();
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
 
@@ -752,23 +733,12 @@ void main() {
           ({forceFull = false, onProgress}) async =>
               const LibrarySyncState.idle(),
         );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.offline,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
         final notifier = container.read(librarySyncControllerProvider.notifier);
@@ -826,23 +796,13 @@ void main() {
             stage: LibrarySyncStage.completed,
           ),
         );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -898,23 +858,13 @@ void main() {
         ({forceFull = false, onProgress}) async =>
             const LibrarySyncState.idle(),
       );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        interval: _hourlyInterval,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
@@ -978,23 +928,13 @@ void main() {
             );
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            syncIntervalMinutesProvider.overrideWithValue(60),
-            syncIntervalDurationProvider.overrideWithValue(
-              const Duration(hours: 1),
-            ),
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          interval: _hourlyInterval,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -1059,23 +999,14 @@ void main() {
           stage: LibrarySyncStage.completed,
         ),
       );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+        extra: [
           requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.offline,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
       addTearDown(container.dispose);
@@ -1118,23 +1049,12 @@ void main() {
         ({forceFull = false, onProgress}) async =>
             const LibrarySyncState.idle(),
       );
-      final container = ProviderContainer(
-        overrides: [
-          syncIntervalMinutesProvider.overrideWithValue(60),
-          syncIntervalDurationProvider.overrideWithValue(
-            const Duration(hours: 1),
-          ),
-          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.offline,
-              ),
-            ),
-          ),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
       );
       addTearDown(container.dispose);
       final controller = container.read(librarySyncControllerProvider.notifier);
@@ -1258,19 +1178,9 @@ void main() {
         },
       );
 
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -1307,19 +1217,9 @@ void main() {
           ({onProgress}) async => const LibrarySyncState.idle(),
           ({forceFull = false, onProgress}) => active.future,
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
         final controller = container.read(
@@ -1361,19 +1261,9 @@ void main() {
           return await completer.future;
         },
       );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -1414,19 +1304,9 @@ void main() {
           ({onProgress}) => automaticCompletion.future,
           ({forceFull = false, onProgress}) async => manualResult,
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -1488,19 +1368,9 @@ void main() {
             return targetCompletion.future;
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -1602,20 +1472,10 @@ void main() {
             );
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            navisDatabaseProvider.overrideWithValue(database),
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -2176,19 +2036,9 @@ void main() {
                   lastRunBytes: 1024,
                 )),
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.checking,
-                ),
-              ),
-            ),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          reachability: ServerReachabilityStatus.checking,
         );
         addTearDown(container.dispose);
 
@@ -2246,19 +2096,9 @@ void main() {
         },
       );
 
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -2353,32 +2193,15 @@ void main() {
           },
         );
 
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             networkTypeProvider.overrideWith((ref) => networkType),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
             requiredLibrarySyncModelVersionProvider.overrideWithValue(
               'model-v2',
             ),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -2426,30 +2249,11 @@ void main() {
             );
           },
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
         );
         addTearDown(container.dispose);
 
@@ -2482,30 +2286,11 @@ void main() {
             completedAt: DateTime.now(),
           ),
         );
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
-          ],
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
         );
         addTearDown(container.dispose);
 
@@ -2546,30 +2331,11 @@ void main() {
           },
         );
         ProviderContainer buildContainer(LibrarySyncEngine engine) {
-          return ProviderContainer(
-            overrides: [
-              _manualSyncInterval,
-              networkTypeProvider.overrideWithValue(NetworkType.wifi),
-              serverConfigStateProvider.overrideWithValue(
-                const AsyncData(
-                  ServerConfigModel(
-                    url: 'https://example.com',
-                    username: 'alice',
-                    password: 'secret',
-                    apiVersion: '1.16.1',
-                  ),
-                ),
-              ),
-              serverReachabilityControllerProvider.overrideWith(
-                () => _StaticReachabilityController(
-                  const ServerReachabilityState(
-                    status: ServerReachabilityStatus.online,
-                  ),
-                ),
-              ),
-              navisDatabaseProvider.overrideWithValue(database),
-              librarySyncEngineProvider.overrideWithValue(engine),
-            ],
+          return _container(
+            engine,
+            database: database,
+            server: _exampleServer,
+            extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
           );
         }
 
@@ -2614,19 +2380,9 @@ void main() {
           );
         },
       );
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(container.dispose);
 
@@ -2667,19 +2423,9 @@ void main() {
         },
       );
 
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.checking,
-              ),
-            ),
-          ),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
+      final container = _container(
+        engine,
+        reachability: ServerReachabilityStatus.checking,
       );
       addTearDown(() async {
         container.dispose();
@@ -2777,29 +2523,12 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
 
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
@@ -2848,30 +2577,13 @@ void main() {
         );
         final database = createTestDatabase();
         addTearDown(database.close);
-        final container = ProviderContainer(
-          overrides: [
-            _manualSyncInterval,
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-            serverConfigStateProvider.overrideWithValue(
-              const AsyncData(
-                ServerConfigModel(
-                  url: 'https://example.com',
-                  username: 'alice',
-                  password: 'secret',
-                  apiVersion: '1.16.1',
-                ),
-              ),
-            ),
-            serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
-                const ServerReachabilityState(
-                  status: ServerReachabilityStatus.online,
-                ),
-              ),
-            ),
             networkTypeProvider.overrideWithValue(NetworkType.wifi),
-            navisDatabaseProvider.overrideWithValue(database),
-            librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
         addTearDown(container.dispose);
