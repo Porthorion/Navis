@@ -386,10 +386,13 @@ class _Recipe {
       surfaceDim: n.at(s + 2, t - 8),
       surfaceBright: n.at(s, math.min<double>(t + 1, 99)),
       surfaceContainerLowest: n.at(s * 0.4, math.min<double>(t + 2, 99.5)),
-      surfaceContainerLow: n.at(s + 1, t - 2),
-      surfaceContainer: n.at(s + 2, t - 4),
-      surfaceContainerHigh: n.at(s + 3, t - 6),
-      surfaceContainerHighest: n.at(s + 4, t - 8),
+      // Bottom sheets, cards and drawers use Low, popup menus Container and
+      // dialogs High (Material defaults). Low is 3 tone steps below the
+      // paper so sheets and cards stay distinct from the tinted page.
+      surfaceContainerLow: n.at(s + 1, t - 3),
+      surfaceContainer: n.at(s + 2, t - 5),
+      surfaceContainerHigh: n.at(s + 3, t - 7),
+      surfaceContainerHighest: n.at(s + 4, t - 9),
       onSurfaceVariant: textHue.at(textChroma + 10, 34),
       outline: n.at(s + 4, 52),
       outlineVariant: n.at(s + 4, 82),
