@@ -46,7 +46,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
@@ -150,16 +150,12 @@ final coverArtLoadCoordinatorProvider = Provider<CoverArtLoadCoordinator>((
 
 /// Cover art recovery orchestration (plan F6/F7): targeted eviction of
 /// corrupt entries and one coalesced entity-metadata refresh per missing
-/// cover reference, routed into the sync engine's targeted hydration.
+/// cover reference, routed through the sync controller's targeted requests.
 final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
   return CoverArtRecoveryCoordinator(
     refreshEntityForCover: (coverArtId) async {
       final database = ref.read(navisDatabaseProvider);
-      final engineOrNull = ref.read(librarySyncEngineProvider);
-      if (engineOrNull == null) {
-        return;
-      }
-      final engine = engineOrNull as TargetedLibrarySyncExecutor;
+      final controller = ref.read(librarySyncControllerProvider.notifier);
       // Route by which entity currently owns this cover reference: the
       // refresh may change the cover ID or bump its revision, after which
       // widgets retry the resulting cover identity.
@@ -170,7 +166,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (albumRow != null) {
-        await engine.hydrateAlbum(albumRow.read<String>('id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.album(albumRow.read<String>('id')),
+        );
         return;
       }
       final artistRow = await database
@@ -180,7 +178,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (artistRow != null) {
-        await engine.hydrateArtist(artistRow.read<String>('id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.artist(artistRow.read<String>('id')),
+        );
         return;
       }
       final songAlbumRow = await database
@@ -191,7 +191,9 @@ final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
           )
           .getSingleOrNull();
       if (songAlbumRow != null) {
-        await engine.hydrateAlbum(songAlbumRow.read<String>('album_id'));
+        await controller.requestTarget(
+          LibrarySyncTarget.album(songAlbumRow.read<String>('album_id')),
+        );
       }
     },
   );

@@ -3418,8 +3418,9 @@ contract.
   evicts a corrupt or invalid cache entry exactly once per key for a single
   bounded refetch, and coalesces one entity-metadata refresh per missing
   cover reference (cooldown per cover identity per session) routed through
-  the sync engine's targeted hydration so widgets retry the resulting cover
-  identity. A server cover whose load times out is also retried by
+  the sync controller's deduplicated targeted requests under the coordinator
+  lease so widgets retry the resulting cover identity. A server cover whose
+  load times out is also retried by
   `CoverArtImage` itself, once per cache key after
   `kCoverArtTimeoutRetryDelay`, instead of keeping its placeholder until the
   page is reopened; a second timeout keeps the placeholder (external artwork

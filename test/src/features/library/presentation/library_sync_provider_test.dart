@@ -195,6 +195,69 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final kind in [
+    LibrarySyncTargetKind.album,
+    LibrarySyncTargetKind.artist,
+  ]) {
+    test('missing $kind cover requests one controller target', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      if (kind == LibrarySyncTargetKind.album) {
+        await database
+            .into(database.albumsTable)
+            .insert(
+              AlbumsTableCompanion.insert(
+                id: 'entity',
+                name: 'Album',
+                coverArt: const Value('missing-cover'),
+              ),
+            );
+      } else {
+        await database
+            .into(database.artistsTable)
+            .insert(
+              ArtistsTableCompanion.insert(
+                id: 'entity',
+                name: 'Artist',
+                coverArt: const Value('missing-cover'),
+              ),
+            );
+      }
+      final requests = <LibrarySyncRequest>[];
+      final engine = _FakeLibrarySyncEngine(
+        ({onProgress}) async => const LibrarySyncState.idle(),
+        ({forceFull = false, onProgress}) async =>
+            const LibrarySyncState.idle(),
+        requestHandler: (request, {onProgress}) async {
+          requests.add(request);
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          );
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          librarySyncEngineProvider.overrideWithValue(engine),
+          _manualSyncInterval,
+        ],
+      );
+      addTearDown(container.dispose);
+      final recovery = container.read(coverArtRecoveryProvider);
+      await Future.wait([
+        recovery.handleMissingCover('missing-cover'),
+        recovery.handleMissingCover('missing-cover'),
+      ]);
+      await recovery.handleMissingCover('missing-cover');
+      expect(requests, hasLength(1));
+      expect(requests.single.target.kind, kind);
+      expect(requests.single.target.entityId, 'entity');
+      expect(requests.single.trigger, LibrarySyncTrigger.interaction);
+    });
+  }
+
   group('librarySyncControllerProvider', () {
     test(
       'setup defers startup and automatic schedules until readiness',
