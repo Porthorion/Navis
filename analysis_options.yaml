@@ -15,6 +15,7 @@ analyzer:
 
 linter:
   rules:
+    unreachable_from_main: true
     public_member_api_docs: false
     lines_longer_than_80_chars: false
     always_put_required_named_parameters_first: false
