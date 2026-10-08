@@ -756,37 +756,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   void _ensureBackgroundWorkAllowed() {
-    final plan = _activeExecutionPlan;
-    final kind = switch (plan?.kind) {
-      SyncExecutionPlanKind.automaticProbe => LibrarySyncPlanKind.probe,
-      SyncExecutionPlanKind.manualCatalogDiscovery =>
-        LibrarySyncPlanKind.deltaReconcile,
-      SyncExecutionPlanKind.repairLibrary => LibrarySyncPlanKind.fullRepair,
-      SyncExecutionPlanKind.compatibilityAudit =>
-        LibrarySyncPlanKind.compatibilityAudit,
-      SyncExecutionPlanKind.targetHydration ||
-      SyncExecutionPlanKind.auxiliaryRefresh =>
-        LibrarySyncPlanKind.targetedHydration,
-      _ => LibrarySyncPlanKind.catalogSnapshot,
-    };
-    if (librarySyncWorkAllowed(
-      kind: kind,
-      workClass: 'background',
-      intent: switch (plan?.request.intent) {
-        SyncRunIntent.automaticCatalogCheck => LibrarySyncIntent.automatic,
-        SyncRunIntent.repairLibrary => LibrarySyncIntent.repair,
-        _ => LibrarySyncIntent.checkForUpdates,
-      },
-      trigger: plan?.request.origin == SyncRunOrigin.interaction
-          ? LibrarySyncTrigger.interaction
-          : LibrarySyncTrigger.user,
-      targetKind: plan?.request.target.kind ?? LibrarySyncTargetKind.catalog,
-      policy: _currentSyncPolicy,
-      isForeground: true,
-      hasActivePlayback: readActiveSongId?.call() != null,
-      isBackgroundExecutor: false,
-      networkGrant: plan?.request.networkGrant ?? SyncNetworkGrant.none,
-    )) {
+    SyncRequestScope.current?.check();
+    final policy = _currentSyncPolicy;
+    if (!policy.isOffline &&
+        ((!policy.isMetered && policy.allowsBackgroundSync) ||
+            _activeExecutionPlan?.request.networkGrant ==
+                SyncNetworkGrant.broadMeteredOnce ||
+            _allowsLimitedMeteredManualDiscovery(manual: true))) {
       return;
     }
     _api.cancelActiveRequests();

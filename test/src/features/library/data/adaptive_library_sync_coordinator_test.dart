@@ -1259,6 +1259,42 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  for (final (name, foreground, playing, worker, allowed) in [
+    ('foreground playback', true, true, false, true),
+    ('hidden', false, false, false, false),
+    ('hidden playback', false, true, false, false),
+    ('idle worker', false, false, true, true),
+    ('playing worker', false, true, true, false),
+  ]) {
+    test('interactive hydration retains visibility limits: $name', () async {
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final guarded = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => foreground,
+        readHasActivePlayback: () => playing,
+        isBackgroundExecution: worker,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final result = await guarded.requestSync(
+        const LibrarySyncRequest(
+          trigger: LibrarySyncTrigger.interaction,
+          intent: LibrarySyncIntent.automatic,
+          target: LibrarySyncTarget.album('album-1'),
+        ),
+      );
+
+      expect(
+        result.status,
+        allowed ? LibrarySyncStatus.succeeded : LibrarySyncStatus.deferred,
+      );
+      expect(probeEngine.hydrateAlbumCalls, allowed ? 1 : 0);
+    }, skip: !sqliteAvailable);
+  }
+
   test('interactive album hydration is allowed on metered networks', () async {
     final probeEngine = _ProbeLibrarySyncEngine();
     final meteredCoordinator = AdaptiveLibrarySyncCoordinator(

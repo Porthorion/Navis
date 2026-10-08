@@ -133,7 +133,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Check for updates keeps queued repairs waiting for Repair Library',
+        'Automatic library checks can continue while playback is paused; Check for updates keeps queued repairs waiting for Repair Library',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

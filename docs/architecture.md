@@ -3070,7 +3070,11 @@ states without starting audio or modifying a queue.
    constrained Android background executor may run while hidden when playback
    is idle. An explicit user refresh may resume queued broad work in the
    foreground, including during playback. Metered grants never bypass
-   visibility or automatic-playback gates.
+   visibility or automatic-playback gates. Interactive entity hydration can
+   run during foreground playback; hidden foreground execution defers it,
+   retaining the former request-scope visibility limit. Engine checkpoints
+   use the admitted request scope's live policy, so a paused queue's current
+   song ID cannot veto an otherwise eligible automatic pass.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
    mistake an in-flight state for a failed sync. Pending durable work resumes

@@ -276,18 +276,15 @@ bool librarySyncWorkAllowed({
     return false;
   }
   if (kind == LibrarySyncPlanKind.probe) return policy.allowsHardProbe;
+  if (!isForeground && !isBackgroundExecutor) return false;
+  if (!isForeground && isBackgroundExecutor && hasActivePlayback) return false;
   final interactive =
       kind == LibrarySyncPlanKind.targetedHydration &&
       (workClass == 'interactive' ||
           (targetKind.requiresEntityId &&
               trigger == LibrarySyncTrigger.interaction));
   if (interactive) return policy.allowsInteractiveHydration;
-  if (!isForeground && !isBackgroundExecutor) return false;
-  if (hasActivePlayback &&
-      (intent == LibrarySyncIntent.automatic ||
-          (!isForeground && isBackgroundExecutor))) {
-    return false;
-  }
+  if (intent == LibrarySyncIntent.automatic && hasActivePlayback) return false;
   if (networkGrant == SyncNetworkGrant.broadMeteredOnce) return true;
   if (policy.isMetered) {
     return kind == LibrarySyncPlanKind.deltaReconcile &&

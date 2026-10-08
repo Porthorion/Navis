@@ -15,6 +15,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
@@ -170,6 +171,39 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    for (final (name, playing, manual, expected) in [
+      ('paused automatic', false, false, LibrarySyncStatus.succeeded),
+      ('playing automatic', true, false, LibrarySyncStatus.deferred),
+      ('playing manual', true, true, LibrarySyncStatus.succeeded),
+    ]) {
+      test('engine uses admitted playback policy: $name', () async {
+        await saveSession(lastSynced: DateTime.utc(2026, 8, 1));
+        final playbackEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          readActiveSongId: () => 'current-song',
+        );
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: playbackEngine,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => playing,
+          now: () => DateTime.utc(2026, 8, 4),
+        );
+
+        final result = manual
+            ? await coordinator.syncNow()
+            : await coordinator.syncIfStale();
+
+        expect(result.status, expected);
+        expect(api.calls, playing && !manual ? isEmpty : isNotEmpty);
+      }, skip: !sqliteAvailable);
+    }
 
     for (final utc in [false, true]) {
       test('hydration maps every album and song field (UTC: $utc)', () async {
