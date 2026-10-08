@@ -780,8 +780,25 @@ and the `coverTint` album-card caption (a temporary design experiment, see
   way it keeps waiting. Cards that fly past never request. Known colours are
   read synchronously from `peekCoverColourField` on the first frame.
 - *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
-  store file or the rolling-cache file (`getFileFromCache`) through a 24 px
-  `ResizeImage`. It never fetches; a cover not on the device yields null.
+  store file or the rolling-cache file (`getFileFromCache`) and decodes it
+  natively at 24 px (`ImmutableBuffer.fromFilePath`, `ImageDescriptor`,
+  `targetWidth/Height`). The decode bypasses `PaintingBinding.imageCache`, so
+  tiny tint images never evict real artwork. It never fetches; a cover not on
+  the device yields null.
+- *Off the UI isolate.* `CoverColourWorker` (`cover_colour_worker.dart`) is a
+  long-lived worker isolate, started on first use
+  (`coverColourWorkerProvider`; tests inject `InlineCoverColourWorker`). The
+  UI isolate only hands it the 2 KB RGBA buffer and receives plain ints. It
+  does the pixel averaging, the `captionTintFor` maths (HCT conversions and
+  tone search) and all persistence: read, merge, trim to 5000, encode and
+  atomic write of the colour file, debounced 2 s. A card derives its tint
+  through `resolveCaptionTint` (memoised in `caption_tint_resolver.dart`),
+  so `captionTintFor` never runs in `build`.
+- *Burst control.* Results reach cards through `FrameBudgetDispatcher`
+  (`frame_budget_dispatcher.dart`): at most three tint repaints start per
+  frame, the rest follow on later frames. A card also never starts sampling
+  while its list is scrolling at all (`isScrollingNotifier`) or Flutter
+  recommends deferred loading.
 - *Bounded scheduling.* Each request tracks interest on a dedicated
   `CoverArtLoadCoordinator` (`coverColourLoadCoordinatorProvider`, two active
   slots, no critical reserve) under the key `tint:<cover cache key>`, then
@@ -791,15 +808,13 @@ and the `coverTint` album-card caption (a temporary design experiment, see
   downloads, which tint decodes must never delay. Requests for one cover
   share one decode.
 - *Persistent cache.* Fields resolve from the memory LRU (512), then from
-  `cover_colour_fields.bin` in the application support directory (a compact
-  binary file, newest 5000 entries, debounced atomic writes), then by
-  decoding. The file is read once, asynchronously, and the newest entries warm
-  the memory LRU. A file, not a Drift table: the data is a disposable cache
-  that needs no queries, relations or migration, and a table would touch the
-  schema, generated code and every schema test for no gain. The file records a
-  hash of the server URL and user name (never credentials); another account
-  reads as empty and the sampler resets the memory LRU when the account
-  changes.
+  the worker's copy of `cover_colour_fields.bin` in the application support
+  directory (newest 5000 entries), then by decoding. The newest 512 entries
+  warm the memory LRU when the store opens. A file, not a Drift table: the
+  data is a disposable cache that needs no queries, relations or migration.
+  The file records a hash of the server URL and user name (never
+  credentials); another account reads as empty and the sampler resets the
+  memory LRU when the account changes.
 - *Limitation.* The provider is keyed by cover id, so a refreshed cover
   (`cover_art_revision` bump) keeps its old colours until its entry is
   trimmed.

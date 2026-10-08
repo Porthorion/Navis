@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -31,6 +32,7 @@ Widget _app(_Counter counter, Widget home) {
       albumCardCaptionVariantProvider.overrideWith(_CoverTintVariant.new),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
+      coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),
     ],
     child: MaterialApp(
       theme: buildLightTheme(defaultColorSchemeSeedColor),
@@ -95,6 +97,8 @@ void main() {
       ),
     );
     await tester.pump(kCoverTintSettleDelay + const Duration(milliseconds: 10));
+    await tester.pump();
+    await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(counter.requested, <String>['x']);

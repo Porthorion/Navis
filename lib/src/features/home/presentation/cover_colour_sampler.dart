@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
@@ -9,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
@@ -18,23 +18,20 @@ import 'package:path_provider/path_provider.dart';
 /// no usable art. Injectable so tests can count and gate decodes.
 typedef CoverColourDecoder = Future<CoverColourField?> Function(String coverId);
 
-/// Decodes running at once. Sampling is background work; two keep the raster
-/// and IO threads free for scrolling while still draining a screenful quickly.
-const int kCoverColourMaxConcurrentDecodes = 2;
-
-/// Fields kept on disk; the newest survive. Each costs about 50 bytes.
-const int kCoverColourPersistedCapacity = 5000;
-
-/// Wait after the last new sample before the store is rewritten.
-const Duration kCoverColourPersistDelay = Duration(seconds: 2);
-
-/// Disk home of sampled colour fields.
+/// Disk home of sampled colour fields. Every operation is asynchronous and
+/// the heavy parts run off the UI isolate (see [CoverColourWorker]).
 abstract interface class CoverColourStore {
-  /// Every stored field, oldest first; empty when nothing usable is stored.
-  Future<Map<String, CoverColourField>> load();
+  /// The newest [count] stored fields, oldest first.
+  Future<List<MapEntry<String, CoverColourField>>> warm(int count);
 
-  /// Replaces the stored fields with [entries] (oldest first).
-  Future<void> save(Map<String, CoverColourField> entries);
+  /// The stored field of [id], or null.
+  Future<CoverColourField?> lookup(String id);
+
+  /// Records a freshly sampled field; persisted after a quiet period.
+  void add(String id, CoverColourField field);
+
+  /// Persists pending additions now.
+  Future<void> flush();
 }
 
 /// A store that keeps nothing. Used until an account is known.
@@ -42,134 +39,80 @@ class NullCoverColourStore implements CoverColourStore {
   const new();
 
   @override
-  Future<Map<String, CoverColourField>> load() async =>
-      <String, CoverColourField>{};
+  Future<List<MapEntry<String, CoverColourField>>> warm(int count) async =>
+      const <MapEntry<String, CoverColourField>>[];
 
   @override
-  Future<void> save(Map<String, CoverColourField> entries) async {}
+  Future<CoverColourField?> lookup(String id) async => null;
+
+  @override
+  void add(String id, CoverColourField field) {}
+
+  @override
+  Future<void> flush() async {}
 }
 
-/// Compact binary file in the application support directory.
-///
-/// Layout: magic `NCF1`, a length-prefixed scope string, an entry count, then
-/// per entry a length-prefixed UTF-8 id and nine ARGB words. The scope names
-/// the server and user the colours were sampled from, so cover ids that
-/// collide across accounts never mix; a file of another scope reads as empty
-/// and is overwritten by the next save. Reads and writes are asynchronous
-/// and failures read as an empty store, so a bad file only costs a resample.
+CoverColourField _fieldOf(List<int> argb) =>
+    CoverColourField(<Color>[for (final c in argb) Color(c)]);
+
+List<int> _argbOf(CoverColourField field) => <int>[
+  for (final c in field.colors) c.toARGB32(),
+];
+
+/// Compact binary file `cover_colour_fields.bin` in the application support
+/// directory (layout in [encodeColourStoreEntries]), read, merged, trimmed
+/// and written by the [CoverColourWorker]; the UI isolate only sends and
+/// receives small lists. A file of another [scope] reads as empty and is
+/// overwritten by the next save; failures read as an empty store.
 class FileCoverColourStore implements CoverColourStore {
-  new({required this.scope, Future<Directory> Function()? readRootDirectory})
-    : _readRootDirectory = readRootDirectory ?? getApplicationSupportDirectory;
+  new({
+    required this.scope,
+    required this.worker,
+    Future<Directory> Function()? readRootDirectory,
+  }) : _readRootDirectory = readRootDirectory ?? getApplicationSupportDirectory;
 
   static const fileName = 'cover_colour_fields.bin';
-  static const _magic = <int>[0x4e, 0x43, 0x46, 0x31];
 
   final String scope;
+  final CoverColourWorker worker;
   final Future<Directory> Function() _readRootDirectory;
+  Future<List<List<Object>>>? _opened;
 
-  Future<File> _file() async =>
-      File(p.join((await _readRootDirectory()).path, fileName));
+  Future<List<List<Object>>> _open(int warm) => _opened ??= () async {
+    try {
+      final dir = await _readRootDirectory();
+      return await worker.openStore(p.join(dir.path, fileName), scope, warm);
+    } on Object catch (error) {
+      AppLogger.debug('CoverColourStore: open failed: $error');
+      return <List<Object>>[];
+    }
+  }();
 
   @override
-  Future<Map<String, CoverColourField>> load() async {
+  Future<List<MapEntry<String, CoverColourField>>> warm(int count) async => [
+    for (final entry in await _open(count))
+      MapEntry(
+        entry.first as String,
+        _fieldOf(entry.skip(1).cast<int>().toList()),
+      ),
+  ];
+
+  @override
+  Future<CoverColourField?> lookup(String id) async {
+    await _open(0);
     try {
-      final file = await _file();
-      // Keep filesystem checks off the UI isolate.
-      // ignore: avoid_slow_async_io
-      if (!await file.exists()) return <String, CoverColourField>{};
-      return decodeCoverColourStore(await file.readAsBytes(), scope: scope);
-    } on Object catch (error) {
-      AppLogger.debug('CoverColourStore: load failed: $error');
-      return <String, CoverColourField>{};
+      final colors = await worker.lookup(id);
+      return colors == null ? null : _fieldOf(colors);
+    } on Object {
+      return null;
     }
   }
 
   @override
-  Future<void> save(Map<String, CoverColourField> entries) async {
-    try {
-      final file = await _file();
-      await file.parent.create(recursive: true);
-      final temp = File('${file.path}.tmp');
-      await temp.writeAsBytes(
-        encodeCoverColourStore(entries, scope: scope),
-        flush: true,
-      );
-      await temp.rename(file.path);
-    } on Object catch (error) {
-      AppLogger.debug('CoverColourStore: save failed: $error');
-    }
-  }
-}
+  void add(String id, CoverColourField field) => worker.add(id, _argbOf(field));
 
-/// Encodes [entries] in the [FileCoverColourStore] layout.
-@visibleForTesting
-Uint8List encodeCoverColourStore(
-  Map<String, CoverColourField> entries, {
-  required String scope,
-}) {
-  final builder = BytesBuilder()..add(FileCoverColourStore._magic);
-  final header = ByteData(4);
-  void addString(String value) {
-    final bytes = utf8.encode(value);
-    header.setUint16(0, bytes.length);
-    builder
-      ..add(header.buffer.asUint8List(0, 2))
-      ..add(bytes);
-  }
-
-  addString(scope);
-  header.setUint32(0, entries.length);
-  builder.add(header.buffer.asUint8List(0, 4));
-  final cells = ByteData(kCoverColourGrid * kCoverColourGrid * 4);
-  for (final MapEntry(:key, :value) in entries.entries) {
-    if (utf8.encode(key).length > 0xffff) continue;
-    addString(key);
-    for (var i = 0; i < value.colors.length; i++) {
-      cells.setUint32(i * 4, value.colors[i].toARGB32());
-    }
-    builder.add(cells.buffer.asUint8List());
-  }
-  return builder.takeBytes();
-}
-
-/// Decodes a [FileCoverColourStore] file; empty for another [scope] or any
-/// malformed input.
-@visibleForTesting
-Map<String, CoverColourField> decodeCoverColourStore(
-  Uint8List bytes, {
-  required String scope,
-}) {
-  final result = <String, CoverColourField>{};
-  try {
-    final data = ByteData.sublistView(bytes);
-    var offset = 0;
-    for (final byte in FileCoverColourStore._magic) {
-      if (data.getUint8(offset++) != byte) return result;
-    }
-    String readString() {
-      final length = data.getUint16(offset);
-      offset += 2;
-      final value = utf8.decode(bytes.sublist(offset, offset + length));
-      offset += length;
-      return value;
-    }
-
-    if (readString() != scope) return result;
-    final count = data.getUint32(offset);
-    offset += 4;
-    for (var i = 0; i < count; i++) {
-      final id = readString();
-      final colors = <Color>[
-        for (var c = 0; c < kCoverColourGrid * kCoverColourGrid; c++)
-          Color(data.getUint32(offset + c * 4)),
-      ];
-      offset += kCoverColourGrid * kCoverColourGrid * 4;
-      result[id] = CoverColourField(colors);
-    }
-  } on Object {
-    // A truncated file keeps the entries read before the damage.
-  }
-  return result;
+  @override
+  Future<void> flush() => worker.flush();
 }
 
 /// A caller's claim on a cover's colours. [cancel] withdraws it: when every
@@ -205,8 +148,8 @@ String coverColourLoadKey(String coverId) =>
 
 /// The app-wide cover colour sampler.
 ///
-/// A request resolves from the memory cache, then the persistent store (read
-/// once, asynchronously, into memory), and only then decodes the cover's
+/// A request resolves from the memory cache, then the persistent store (an
+/// asynchronous lookup in the worker isolate), and only then decodes the cover's
 /// already-local artwork. The decode is scheduled through a
 /// [CoverArtLoadCoordinator]: every request tracks interest in its cover, so
 /// a decode still queued when its last card is gone is cancelled by the
@@ -218,8 +161,6 @@ class CoverColourSampler {
     required this.cache,
     required this.coordinator,
     this.store = const NullCoverColourStore(),
-    this.persistedCapacity = kCoverColourPersistedCapacity,
-    this.persistDelay = kCoverColourPersistDelay,
   }) {
     _ready = _loadStore();
   }
@@ -228,40 +169,20 @@ class CoverColourSampler {
   final CoverColourFieldCache cache;
   final CoverArtLoadCoordinator coordinator;
   final CoverColourStore store;
-  final int persistedCapacity;
-  final Duration persistDelay;
 
-  final Map<String, CoverColourField> _persisted = <String, CoverColourField>{};
   final Map<String, _Job> _jobs = <String, _Job>{};
   late final Future<void> _ready;
   bool _disposed = false;
-  Timer? _persistTimer;
-  Future<void> _saving = Future<void>.value();
 
   /// Completes once the persistent store has been read into memory.
   Future<void> get ready => _ready;
 
   Future<void> _loadStore() async {
     try {
-      final loaded = await store.load();
-      if (_disposed) return;
-      // Anything sampled while loading is newer than the stored entries.
-      final fresh = Map<String, CoverColourField>.of(_persisted);
-      _persisted
-        ..clear()
-        ..addAll(loaded)
-        ..addAll(fresh);
-      _trim();
       // Warm the memory cache with the newest fields so cards that build
       // after this paint their tint on the first frame.
-      final newest = _persisted.entries
-          .toList()
-          .reversed
-          .take(cache.capacity)
-          .toList()
-          .reversed;
-      for (final MapEntry(:key, :value) in newest) {
-        if (cache.peek(key) == null) cache.put(key, value);
+      for (final MapEntry(:key, :value) in await store.warm(cache.capacity)) {
+        if (!_disposed && cache.peek(key) == null) cache.put(key, value);
       }
     } on Object catch (error) {
       AppLogger.debug('CoverColourSampler: store load failed: $error');
@@ -305,7 +226,8 @@ class CoverColourSampler {
     CoverColourField? field;
     try {
       await _ready;
-      field = _persisted[job.coverId];
+      if (job.requests.isEmpty || _disposed) return;
+      field = await store.lookup(job.coverId);
       if (field != null) {
         cache.put(job.coverId, field);
         return;
@@ -325,10 +247,7 @@ class CoverColourSampler {
       }
       if (field != null && !_disposed) {
         cache.put(job.coverId, field);
-        _persisted
-          ..remove(job.coverId)
-          ..[job.coverId] = field;
-        _schedulePersist();
+        store.add(job.coverId, field);
       }
     } on Object catch (error) {
       field = null;
@@ -344,37 +263,11 @@ class CoverColourSampler {
     }
   }
 
-  void _trim() {
-    while (_persisted.length > persistedCapacity) {
-      _persisted.remove(_persisted.keys.first);
-    }
-  }
-
-  void _schedulePersist() {
-    if (_persistTimer != null) return;
-    _persistTimer = Timer(persistDelay, _writeNow);
-  }
-
-  void _writeNow() {
-    _persistTimer = null;
-    _trim();
-    final snapshot = Map<String, CoverColourField>.of(_persisted);
-    _saving = _saving.then((_) => store.save(snapshot));
-  }
-
-  /// Writes any unsaved fields now; resolves once the store has them.
-  Future<void> flush() async {
-    if (_persistTimer != null) {
-      _persistTimer!.cancel();
-      _writeNow();
-    }
-    await _saving;
-  }
+  /// Persists unsaved fields now; resolves once the store has them.
+  Future<void> flush() => store.flush();
 
   void dispose() {
     _disposed = true;
-    _persistTimer?.cancel();
-    _persistTimer = null;
     for (final job in _jobs.values) {
       for (final request in job.requests) {
         request._interest?.dispose();
@@ -394,6 +287,10 @@ const int _kSampleSize = 24;
 /// colour field. It never touches the network: the permanent artwork store
 /// and the rolling cache are looked up locally, and a cover that is in
 /// neither yields null (the card retries once its artwork has loaded).
+///
+/// The file is decoded natively at 24 px without entering the shared image
+/// cache (tint decodes must not evict real artwork); only the 2 KB pixel
+/// buffer reaches Dart, and the averaging runs in the [CoverColourWorker].
 Future<CoverColourField?> decodeLocalCoverColour(
   Ref ref,
   String coverId,
@@ -410,24 +307,37 @@ Future<CoverColourField?> decodeLocalCoverColour(
     file = cached?.file;
   }
   if (file == null) return null;
-  final info = await resolveImageInfo(
-    ResizeImage(FileImage(file), width: _kSampleSize, height: _kSampleSize),
-  );
-  if (info == null) return null;
+  ui.ImmutableBuffer? buffer;
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  ui.Image? image;
   try {
-    final bytes = await info.image.toByteData(
-      format: ui.ImageByteFormat.rawRgba,
+    buffer = await ui.ImmutableBuffer.fromFilePath(file.path);
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    codec = await descriptor.instantiateCodec(
+      targetWidth: _kSampleSize,
+      targetHeight: _kSampleSize,
     );
+    image = (await codec.getNextFrame()).image;
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (bytes == null) return null;
-    final colors = averageColourGrid(
-      bytes,
-      info.image.width,
-      info.image.height,
-    );
-    if (colors.any((color) => color.a == 0)) return null;
-    return CoverColourField(colors);
+    final argb = await ref
+        .read(coverColourWorkerProvider)
+        .averageGrid(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          image.width,
+          image.height,
+        );
+    if (argb.any((c) => c >> 24 == 0)) return null;
+    return _fieldOf(argb);
+  } on Object catch (error) {
+    AppLogger.debug('CoverColourSampler: decode failed: $error');
+    return null;
   } finally {
-    info.dispose();
+    image?.dispose();
+    codec?.dispose();
+    descriptor?.dispose();
+    buffer?.dispose();
   }
 }
 
@@ -466,7 +376,10 @@ final coverColourStoreProvider = Provider<CoverColourStore>((ref) {
   final scope = ref.watch(coverColourScopeProvider);
   return scope == null
       ? const NullCoverColourStore()
-      : FileCoverColourStore(scope: scope);
+      : FileCoverColourStore(
+          scope: scope,
+          worker: ref.watch(coverColourWorkerProvider),
+        );
 });
 
 /// The single app-wide sampler (see [CoverColourSampler]). Rebuilt, with an
@@ -479,7 +392,10 @@ final coverColourSamplerProvider = Provider<CoverColourSampler>((ref) {
     coordinator: ref.watch(coverColourLoadCoordinatorProvider),
     store: ref.watch(coverColourStoreProvider),
   );
-  ref.onDispose(sampler.dispose);
+  ref.onDispose(() {
+    unawaited(sampler.flush());
+    sampler.dispose();
+  });
   return sampler;
 });
 

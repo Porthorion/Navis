@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
+import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
+import 'package:navis/src/common_widgets/frame_budget_dispatcher.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -435,6 +438,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   Timer? _settleTimer;
   bool _requested = false;
   CoverColourField? _known;
+  String? _derivingKey;
 
   String? get _id {
     final id = widget.coverArtId;
@@ -492,12 +496,40 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   void _settled() {
     _settleTimer = null;
     if (!mounted || !(widget.coverReady?.value ?? true)) return;
-    // A fast scroll defers work; look again once it slows.
-    if (Scrollable.recommendDeferredLoadingForContext(context)) {
+    // Never start sampling while the list is moving: a fast fling is
+    // deferred by Flutter's own recommendation, and any other motion by the
+    // scroll position. Look again once it settles.
+    if (Scrollable.recommendDeferredLoadingForContext(context) ||
+        (Scrollable.maybeOf(context)?.position.isScrollingNotifier.value ??
+            false)) {
       _settleTimer = Timer(kCoverTintSettleDelay, _settled);
       return;
     }
     setState(() => _requested = true);
+  }
+
+  /// Derives the caption tint in the worker isolate and repaints through the
+  /// frame-budgeted dispatcher, so a burst of arrivals does not rebuild
+  /// every card in one frame.
+  void _deriveTint(Color sampled, NavisColorStyleData style) {
+    final key = '${sampled.toARGB32()}|${style.style.index}|${style.dark}';
+    if (_derivingKey == key) return;
+    _derivingKey = key;
+    final worker = ref.read(coverColourWorkerProvider);
+    final dispatcher = ref.read(frameBudgetDispatcherProvider);
+    unawaited(
+      resolveCaptionTint(worker, sampled, style).then(
+        (_) {
+          if (!mounted) return;
+          dispatcher.enqueue(() {
+            if (mounted) setState(() => _derivingKey = null);
+          });
+        },
+        onError: (Object _) {
+          if (mounted) _derivingKey = null;
+        },
+      ),
+    );
   }
 
   @override
@@ -523,10 +555,18 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         titleMaxLines: widget.titleMaxLines,
       );
     }
-    final target = captionTintFor(
-      field.bottomRowAverage,
-      NavisColorStyleData.of(context),
-    );
+    final style = NavisColorStyleData.of(context);
+    final sampled = field.bottomRowAverage;
+    final target = peekCaptionTint(sampled, style);
+    if (target == null) {
+      _deriveTint(sampled, style);
+      return _OverlayFadeLabel(
+        tint: fallback,
+        title: widget.title,
+        subtitle: widget.subtitle,
+        titleMaxLines: widget.titleMaxLines,
+      );
+    }
     return TweenAnimationBuilder<CaptionTint>(
       key: const ValueKey<String>('albumCardCoverTint'),
       tween: _CaptionTintTween(begin: fallback, end: target),

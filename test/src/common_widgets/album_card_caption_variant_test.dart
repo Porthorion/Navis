@@ -10,6 +10,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -165,6 +166,9 @@ void main() {
             albumCardCaptionVariantProvider.overrideWith(
               () => _FixedVariant(AlbumCardCaptionVariant.coverTint),
             ),
+            coverColourWorkerProvider.overrideWithValue(
+              InlineCoverColourWorker(),
+            ),
             coverColourFieldProvider.overrideWith((ref, id) async => field),
           ],
           child: MaterialApp(
@@ -177,6 +181,9 @@ void main() {
           ),
         ),
       );
+      // Worker result, dispatcher frame, then the tint animation.
+      await tester.pump();
+      await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
