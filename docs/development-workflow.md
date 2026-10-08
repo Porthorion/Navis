@@ -157,7 +157,7 @@ NAVIS_UPDATE_TOKEN_BASELINE=1 flutter test test/src/theme/design_token_guard_tes
 For exploratory Linux setup and sync routing, `./tool/dev_app.sh run -d linux`
 accepts the isolated presets documented in
 [Dev Testing Builds](dev-testing-builds.md). `--first-setup`, `--bad-cache`,
-`--force-setup`, the full-screen repair entries, and deterministic
+`--force-setup`, the full-screen rebuild entries, and deterministic
 `--partial-album`/`--server-error` fixtures create disposable profiles under
 `build/dev-sync-scenarios/`. The launcher uses profile-mode clone diagnostics,
 so the normal local database, both rolling and cover-art caches, and the real

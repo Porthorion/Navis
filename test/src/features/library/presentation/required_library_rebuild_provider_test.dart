@@ -350,7 +350,6 @@ void main() {
     RequiredLibraryRebuildReason.manualCacheReset,
     RequiredLibraryRebuildReason.playbackRecovery,
     RequiredLibraryRebuildReason.cacheUpgrade,
-    RequiredLibraryRebuildReason.repairLibrary,
   ]) {
     test(
       '$reason leaves full-screen after safe incomplete album response',
@@ -463,7 +462,7 @@ void main() {
         ),
       );
       addTearDown(container.dispose);
-      const reason = RequiredLibraryRebuildReason.repairLibrary;
+      const reason = RequiredLibraryRebuildReason.manualCacheReset;
       _mount(container, reason);
       await _drainMicrotasks();
       expect(

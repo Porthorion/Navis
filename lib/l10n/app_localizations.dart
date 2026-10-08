@@ -310,12 +310,6 @@ abstract class AppLocalizations {
   /// **'Rebuilding Your Library'**
   String get requiredSyncRebuildTitle;
 
-  /// No description provided for @requiredSyncRepairTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Repairing Your Library'**
-  String get requiredSyncRepairTitle;
-
   /// No description provided for @requiredSyncInitialBody.
   ///
   /// In en, this message translates to:
@@ -327,12 +321,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis is clearing recoverable library data and downloading a fresh library. Your downloads are kept.'**
   String get requiredSyncRebuildBody;
-
-  /// No description provided for @requiredSyncRepairBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Navis is checking every album and song to rebuild a complete, up-to-date library.'**
-  String get requiredSyncRepairBody;
 
   /// No description provided for @requiredSyncClearingCache.
   ///

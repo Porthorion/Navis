@@ -3572,7 +3572,8 @@ contract.
    their metered confirmations, history origins, and full-screen progress
    states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a
-   first login, Repair Library, Settings cache reset, and playback recovery. It blocks ordinary
+   first login, cache upgrade, Settings cache reset, and playback recovery; ordinary
+   Repair Library runs in the background from Sync Settings. It blocks ordinary
    navigation until the catalog is committed, keeps users in place with retry,
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads

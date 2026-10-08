@@ -12,7 +12,8 @@ responses supplied. A complete first catalog had already been validated and
 promoted, but requiring every album detail to succeed left setup on the
 full-screen retry view indefinitely. Users cannot correct a server response.
 The same full-screen controller handles first setup, cache upgrade, manual
-cache reset, playback recovery, and Repair Library.
+cache reset, and playback recovery. Ordinary Repair Library runs in the
+background from Sync Settings and does not use it.
 
 ## Decision
 
@@ -28,7 +29,7 @@ albums; the normal manual-only and metered-data policies still apply.
 
 First setup records a separate durable usable-catalog timestamp after this
 decision, rather than setting the full-sync timestamp or advancing the server
-cursor. All five full-screen reasons use the same
+cursor. All four full-screen reasons use the same
 partial-result predicate, and
 the existing app notice explains that some items continue in the background.
 Complete results continue to use their existing completion evidence.

@@ -667,10 +667,10 @@ assert any(
 ), value
 PY
   : > "$PARTIAL_ALBUM_FLAG"
-  # The second manual-cache-reset and repair-library visits in the same
+  # The second manual-cache-reset and playback-recovery visits in the same
   # process must run again rather than reuse the earlier visit's controller.
-  for rebuild_visit in manual-cache-reset repair-library playback-recovery \
-    cache-upgrade manual-cache-reset/2 repair-library/2; do
+  for rebuild_visit in manual-cache-reset playback-recovery \
+    cache-upgrade manual-cache-reset/2 playback-recovery/2; do
     rebuild_reason="${rebuild_visit%%/*}"
     rebuild_label="${rebuild_visit//\//-}"
     baseline_request_id="$(api GET /v1/sync/ledger | python3 -c \

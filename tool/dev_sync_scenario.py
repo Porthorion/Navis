@@ -21,7 +21,6 @@ SCENARIOS = {
     "first-setup": None,
     "bad-cache": None,
     "force-setup": None,
-    "repair-library": "/library-rebuild?reason=repair-library",
     "manual-cache-reset": "/library-rebuild?reason=manual-cache-reset",
     "playback-recovery": "/library-rebuild?reason=playback-recovery",
     "partial-album": None,
@@ -31,7 +30,6 @@ SCENARIOS = {
 FIRST_CATALOG_SCENARIOS = {"first-setup", "partial-album", "server-error"}
 REQUIRES_READY_CATALOG = {
     "force-setup",
-    "repair-library",
     "manual-cache-reset",
     "playback-recovery",
     "bad-cache",
