@@ -1080,6 +1080,67 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets(
+    'a library rebuild route without a known destructive reason opens Home',
+    (tester) async {
+      final container = _createContainerWithDatabase(
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: _testApp),
+      );
+      await tester.pumpAndSettle();
+
+      final router = container.read(appRouterProvider);
+      for (final location in const <String>[
+        '/library-rebuild',
+        '/library-rebuild?reason=unknown',
+        '/library-rebuild?reason=initial-login',
+      ]) {
+        router.go(location);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(router.state.matchedLocation, AppRoutes.home, reason: location);
+        expect(find.byType(RequiredLibraryRebuildScreen), findsNothing);
+      }
+      await tester.pump(const Duration(milliseconds: 500));
+    },
+  );
+
   testWidgets('hero-driven album detail does not fade the landing artwork', (
     tester,
   ) async {
