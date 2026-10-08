@@ -365,7 +365,8 @@ void main() {
           dark: true,
         ).adaptArtColor(oliveSample);
         final hct = _hct(adapted);
-        expect(hct.hue, lessThan(80), reason: '$hct');
+        // Pastel rotates warm hues into the rose/plum range (>= 300).
+        expect(hct.hue < 80 || hct.hue >= 300, isTrue, reason: '$hct');
       });
 
       test('${style.name} lifts light-theme washes to pale tones', () {
@@ -376,5 +377,81 @@ void main() {
         expect(_hct(adapted).tone, greaterThanOrEqualTo(77));
       });
     }
+
+    for (final raw in const <Color>[Color(0xFFE2581E), Color(0xFFF2B630)]) {
+      for (final oled in <bool>[false, true]) {
+        test('pastel dark turns ${raw.toARGB32().toRadixString(16)} '
+            'rose or plum, not brown (oled: $oled)', () {
+          final adapted = NavisColorStyleData(
+            style: NavisColorStyle.pastel,
+            dark: true,
+            oled: oled,
+          ).adaptArtColor(raw);
+          final hue = _hct(adapted).hue;
+          expect(hue >= 300 || hue <= 20, isTrue, reason: 'hue $hue');
+        });
+      }
+    }
+
+    test('pastel light and night dark keep their hues', () {
+      const orange = Color(0xFFE2581E);
+      final light = NavisColorStyleData(
+        style: NavisColorStyle.pastel,
+        dark: false,
+      ).adaptArtColor(orange);
+      expect(_hct(light).hue, closeTo(_hct(orange).hue, 6));
+      final night = NavisColorStyleData(
+        style: NavisColorStyle.night,
+        dark: true,
+      ).adaptArtColor(orange);
+      expect(_hct(night).hue, inInclusiveRange(15, 95));
+    });
+
+    test('immersive dark caps warm chroma but keeps the hue', () {
+      const orange = Color(0xFFE2581E);
+      final adapted = NavisColorStyleData(
+        style: NavisColorStyle.immersive,
+        dark: true,
+      ).adaptArtColor(orange);
+      expect(_hct(adapted).chroma, lessThanOrEqualTo(23));
+      expect(_hct(adapted).hue, closeTo(_hct(orange).hue, 8));
+      const blue = Color(0xFF1E3A8A);
+      final cool = NavisColorStyleData(
+        style: NavisColorStyle.immersive,
+        dark: true,
+      ).adaptArtColor(blue);
+      expect(_hct(cool).chroma, greaterThan(23));
+    });
+  });
+
+  group('artwork scrim', () {
+    test('neutral is pure black', () {
+      expect(NavisColorStyleData.neutralDark.artworkScrim, Colors.black);
+      final theme = buildDarkTheme(const Color(0xFFE2581E));
+      expect(
+        theme.extension<NavisColorStyleData>()!.artworkScrim,
+        Colors.black,
+      );
+    });
+
+    for (final style in styled) {
+      test('${style.name} is a near-black tint, not black', () {
+        final theme = buildDarkTheme(const Color(0xFFE2581E), style: style);
+        final scrim = theme.extension<NavisColorStyleData>()!.artworkScrim;
+        expect(scrim, isNot(Colors.black));
+        expect(_hct(scrim).tone, inInclusiveRange(4, 9));
+        expect(_hct(scrim).chroma, greaterThan(3));
+      });
+    }
+
+    test('pastel follows the dusk hue and OLED is recorded', () {
+      final theme = buildOledTheme(
+        const Color(0xFFE2581E),
+        style: NavisColorStyle.pastel,
+      );
+      final data = theme.extension<NavisColorStyleData>()!;
+      expect(data.oled, isTrue);
+      expect(_hct(data.artworkScrim).hue, closeTo(340, 12));
+    });
   });
 }

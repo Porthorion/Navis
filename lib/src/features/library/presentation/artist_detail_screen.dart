@@ -46,7 +46,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
-import 'package:navis/src/common_widgets/flat_artwork_text_variant.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// The album count an artist page shows: the larger of the artist row's
@@ -917,19 +917,11 @@ class _ArtistImageHeader extends ConsumerWidget {
                   return const SizedBox.shrink();
                 },
               ),
-              // Dual gradient: slight top vignette + heavy bottom scrim. Flat's
-              // band variant swaps it for a caption band behind the name.
+              // Dual gradient: slight top vignette + heavy bottom scrim. Kept
+              // under Flat: it is what keeps the name readable.
               const ArtworkScrim(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Color(0x55000000),
-                    Color(0x00000000),
-                    Color(0xF2000000),
-                  ],
-                  stops: <double>[0, 0.35, 1],
-                ),
+                alphas: <int>[0x55, 0x00, 0xF2],
+                stops: <double>[0, 0.35, 1],
               ),
               // Artist name (bottom-left) + heart (bottom-right) overlaid
               Positioned(
@@ -940,73 +932,60 @@ class _ArtistImageHeader extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: <Widget>[
                     Expanded(
-                      child: ArtworkCaptionBand(
-                        bandPadding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                artistName,
-                                style: Theme.of(context).textTheme.displayLarge
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: -1,
-                                      height: 1.05,
-                                      fontSize: 64,
-                                      shadows: artworkTextShadows(
-                                        context,
-                                        ref,
-                                        const <Shadow>[
-                                          Shadow(
-                                            blurRadius: 4,
-                                            color: Color(0xCC000000),
-                                          ),
-                                          Shadow(
-                                            blurRadius: 24,
-                                            color: Color(0xAA000000),
-                                          ),
-                                        ],
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.bottomLeft,
+                            child: Text(
+                              artistName,
+                              style: Theme.of(context).textTheme.displayLarge
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -1,
+                                    height: 1.05,
+                                    fontSize: 64,
+                                    shadows: const <Shadow>[
+                                      Shadow(
+                                        blurRadius: 4,
+                                        color: Color(0xCC000000),
                                       ),
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.clip,
-                              ),
+                                      Shadow(
+                                        blurRadius: 24,
+                                        color: Color(0xAA000000),
+                                      ),
+                                    ],
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.clip,
                             ),
-                            if (summary.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 6),
-                              Text(
-                                summary,
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.82,
+                          ),
+                          if (summary.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 6),
+                            Text(
+                              summary,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.82),
+                                    shadows: const <Shadow>[
+                                      Shadow(
+                                        blurRadius: 8,
+                                        color: Color(0xCC000000),
                                       ),
-                                      shadows: artworkTextShadows(
-                                        context,
-                                        ref,
-                                        const <Shadow>[
-                                          Shadow(
-                                            blurRadius: 8,
-                                            color: Color(0xCC000000),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                              ),
-                            ],
-                            if (isExternalSource) ...<Widget>[
-                              const SizedBox(height: 8),
-                              const RemoteSourceIndicator(
-                                variant: RemoteSourceIndicatorVariant.chip,
-                              ),
-                            ],
+                                    ],
+                                  ),
+                            ),
                           ],
-                        ),
+                          if (isExternalSource) ...<Widget>[
+                            const SizedBox(height: 8),
+                            const RemoteSourceIndicator(
+                              variant: RemoteSourceIndicatorVariant.chip,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     IconButton(

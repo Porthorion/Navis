@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:material_color_utilities/material_color_utilities.dart'
     show Hct;
 import 'package:material_ui/material_ui.dart';
@@ -10,7 +12,13 @@ import 'package:navis/src/theme/navis_style_schemes.dart';
 /// Artwork itself is never recoloured; only the fields drawn from it are.
 @immutable
 class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
-  const new({required this.style, required this.dark, this.flat = false});
+  const new({
+    required this.style,
+    required this.dark,
+    this.flat = false,
+    this.oled = false,
+    this.accentHue = seaGlassHue,
+  });
 
   final NavisColorStyle style;
 
@@ -20,6 +28,13 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   /// Whether Flat rendering is on: no glows, gradients, shadows or blur,
   /// solid colour fields instead. Orthogonal to the theme mode and [style].
   final bool flat;
+
+  /// Whether the theme is OLED (pure black backgrounds). Implies [dark].
+  final bool oled;
+
+  /// HCT hue of the scheme's accent; tints [artworkScrim] for Pastel and
+  /// Immersive.
+  final double accentHue;
 
   static const NavisColorStyleData neutralDark = NavisColorStyleData(
     style: NavisColorStyle.neutral,
@@ -36,6 +51,18 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
           dark: theme.brightness == Brightness.dark,
           flat: false,
         );
+  }
+
+  /// Near-black colour for the legibility scrims behind white text over
+  /// artwork. Neutral keeps pure black; the other styles tint it with their
+  /// own hue (tone 6-8, so white text contrast is unchanged in practice).
+  Color get artworkScrim {
+    return switch (style) {
+      NavisColorStyle.neutral => Colors.black,
+      NavisColorStyle.pastel => hct(pastelDuskHue(accentHue), 10, 7),
+      NavisColorStyle.immersive => hct(accentHue, 12, 6),
+      NavisColorStyle.night => hct(62, 10, 6),
+    };
   }
 
   /// Map a colour sampled from artwork into the style.
@@ -60,13 +87,40 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       (NavisColorStyle.neutral, _) => (0.0, 0.0, 100.0),
     };
     final tone = source.tone.clamp(minTone, maxTone);
-    final chroma = achromatic
+    var chroma = achromatic
         ? source.chroma
         : source.chroma.clamp(0.0, maxChroma);
-    final hue = style == NavisColorStyle.night && !achromatic
+    var hue = style == NavisColorStyle.night && !achromatic
         ? nightHue(source.hue)
         : source.hue;
+    if (dark && !achromatic && isWarmHue(hue)) {
+      switch (style) {
+        case NavisColorStyle.pastel:
+          // Warm hues turn brown at dark tones: blend toward the plum dusk
+          // so an orange cover reads as rose or plum, like Pastel's scheme.
+          // Yellows are the muddiest, so they travel further (60% up to 85%).
+          final yellowness = ((hue - 60) / 40).clamp(0.0, 1.0);
+          hue = _blendHue(hue, pastelDuskHue(hue), 0.6 + 0.25 * yellowness);
+        case NavisColorStyle.immersive:
+          // Keep the hue but stop dark warm colours from reading as brown:
+          // lower chroma gives wine or mahogany instead of saturated umber.
+          if (tone < 35) {
+            chroma = math.min(chroma, 22);
+          }
+        case NavisColorStyle.neutral || NavisColorStyle.night:
+          break;
+      }
+    }
     return hct(mudGuardHue(hue, tone), chroma, tone);
+  }
+
+  /// Rotate [from] toward [to] along the shorter arc by [t] (0-1).
+  static double _blendHue(double from, double to, double t) {
+    var delta = (to - from) % 360;
+    if (delta > 180) {
+      delta -= 360;
+    }
+    return from + delta * t;
   }
 
   /// Opacity of the background veil over the Home cover wash. Lower values
@@ -117,11 +171,15 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     NavisColorStyle? style,
     bool? dark,
     bool? flat,
+    bool? oled,
+    double? accentHue,
   }) {
     return NavisColorStyleData(
       style: style ?? this.style,
       dark: dark ?? this.dark,
       flat: flat ?? this.flat,
+      oled: oled ?? this.oled,
+      accentHue: accentHue ?? this.accentHue,
     );
   }
 

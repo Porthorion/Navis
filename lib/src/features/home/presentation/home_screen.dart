@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:intl/intl.dart' show DateFormat;
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -72,7 +74,7 @@ import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
-import 'package:navis/src/common_widgets/flat_artwork_text_variant.dart';
+import 'package:navis/src/common_widgets/artwork_scrim.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
@@ -465,7 +467,9 @@ class _ListenBrainzWeeklyDetailContentState
                               ? null
                               : <Shadow>[
                                   Shadow(
-                                    color: Colors.black.withValues(alpha: 0.55),
+                                    color: NavisColorStyleData.of(context)
+                                        .artworkScrim
+                                        .withValues(alpha: 0.55),
                                     blurRadius: 12,
                                     offset: const Offset(0, 2),
                                   ),
@@ -2649,24 +2653,15 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                       children: <Widget>[
                         const Positioned.fill(
                           child: ArtworkScrim(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                Colors.transparent,
-                                Colors.transparent,
-                                Color(0x66000000),
-                                Color(0xD0000000),
-                              ],
-                              stops: <double>[0, 0.52, 0.74, 1],
-                            ),
+                            alphas: <int>[0, 0, 0x66, 0xD0],
+                            stops: <double>[0, 0.52, 0.74, 1],
                           ),
                         ),
                         Positioned(
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          child: ArtworkCaptionBand(
+                          child: Padding(
                             padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2680,17 +2675,13 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                                       ?.copyWith(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
-                                        shadows: artworkTextShadows(
-                                          context,
-                                          ref,
-                                          const <Shadow>[
-                                            Shadow(
-                                              offset: Offset(0, 1),
-                                              blurRadius: 2,
-                                              color: Color(0x99000000),
-                                            ),
-                                          ],
-                                        ),
+                                        shadows: const <Shadow>[
+                                          Shadow(
+                                            offset: Offset(0, 1),
+                                            blurRadius: 2,
+                                            color: Color(0x99000000),
+                                          ),
+                                        ],
                                       ),
                                 ),
                                 if (album.artist != null &&
@@ -2706,17 +2697,13 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                                           .bodyMedium
                                           ?.copyWith(
                                             color: const Color(0xE6FFFFFF),
-                                            shadows: artworkTextShadows(
-                                              context,
-                                              ref,
-                                              const <Shadow>[
-                                                Shadow(
-                                                  offset: Offset(0, 1),
-                                                  blurRadius: 2,
-                                                  color: Color(0x99000000),
-                                                ),
-                                              ],
-                                            ),
+                                            shadows: const <Shadow>[
+                                              Shadow(
+                                                offset: Offset(0, 1),
+                                                blurRadius: 2,
+                                                color: Color(0x99000000),
+                                              ),
+                                            ],
                                           ),
                                     ),
                                   ),
@@ -2822,21 +2809,12 @@ class _ShowcasePlaylistVisual extends ConsumerWidget {
           fit: StackFit.expand,
           children: <Widget>[
             _ShowcasePlaylistArtwork(item: item, size: 480),
-            ArtworkScrim(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Colors.black.withValues(alpha: 0),
-                  Colors.black.withValues(alpha: 0.78),
-                ],
-              ),
-            ),
+            ArtworkScrim(alphas: const <int>[0, 199]),
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: ArtworkCaptionBand(
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4069,23 +4047,13 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  ArtworkScrim(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        Colors.black.withValues(alpha: 0),
-                        Colors.black.withValues(alpha: 0.76),
-                      ],
-                    ),
-                  ),
+                  ArtworkScrim(alphas: const <int>[0, 194]),
                   Align(
                     alignment: Alignment.bottomLeft,
                     child: SizedBox(
                       width: double.infinity,
-                      child: ArtworkCaptionBand(
-                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                        gradientHeadroom: 44,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4170,23 +4138,13 @@ class _RandomPlaylistHeroCard extends ConsumerWidget {
           fit: StackFit.expand,
           children: <Widget>[
             _ShowcasePlaylistArtwork(item: item, size: 420),
-            ArtworkScrim(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Colors.black.withValues(alpha: 0),
-                  Colors.black.withValues(alpha: 0.78),
-                ],
-              ),
-            ),
+            ArtworkScrim(alphas: const <int>[0, 199]),
             Align(
               alignment: Alignment.bottomLeft,
               child: SizedBox(
                 width: double.infinity,
-                child: ArtworkCaptionBand(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  gradientHeadroom: 44,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -4341,20 +4299,10 @@ class _ServerAlbumCard extends StatelessWidget {
                     child: Stack(
                       children: <Widget>[
                         Positioned.fill(
-                          child: ArtworkScrim(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                Colors.black.withValues(alpha: 0),
-                                Colors.black.withValues(alpha: 0.75),
-                              ],
-                            ),
-                          ),
+                          child: ArtworkScrim(alphas: const <int>[0, 191]),
                         ),
-                        ArtworkCaptionBand(
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                          gradientHeadroom: 24,
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,

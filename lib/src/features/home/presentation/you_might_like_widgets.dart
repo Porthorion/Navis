@@ -410,6 +410,9 @@ class _ShowcaseColourWash extends ConsumerWidget {
   }
 }
 
+/// HCT chroma below which the Flat wash colour is treated as grey.
+const double _flatWashChromaFloor = 6;
+
 extension on _ShowcaseColourWash {
   /// Flat wash: one solid block with hard edges, the adapted average of the
   /// field's cells at the style's veil strength over the page background.
@@ -430,10 +433,18 @@ extension on _ShowcaseColourWash {
         green: cells.fold<double>(0, (sum, c) => sum + c.g) / cells.length,
         blue: cells.fold<double>(0, (sum, c) => sum + c.b) / cells.length,
       );
-      fill = Color.alphaBlend(
-        style.adaptArtColor(average).withValues(alpha: 1 - veil),
-        background,
-      );
+      var adapted = style.adaptArtColor(average);
+      // Grey covers would give an unstyled grey panel: below this chroma the
+      // colour takes 25% of the theme's secondary container so it always
+      // carries the style.
+      if (Hct.fromInt(adapted.toARGB32()).chroma < _flatWashChromaFloor) {
+        adapted = Color.lerp(
+          adapted,
+          Theme.of(context).colorScheme.secondaryContainer,
+          0.25,
+        )!;
+      }
+      fill = Color.alphaBlend(adapted.withValues(alpha: 1 - veil), background);
     }
     return IgnorePointer(
       key: _ShowcaseColourWash.washKey,
@@ -444,10 +455,18 @@ extension on _ShowcaseColourWash {
               ? Duration.zero
               : const Duration(milliseconds: 400),
           curve: Curves.easeOut,
-          builder: (context, value, _) => ColoredBox(
-            key: _ShowcaseColourWash.flatFillKey,
-            color: value ?? fill,
-            child: const SizedBox.expand(),
+          // An intentional panel: inset to the page's content margins with
+          // rounded corners rather than a full-bleed hard-edged rectangle.
+          builder: (context, value, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: NavisSpace.md),
+            child: DecoratedBox(
+              key: _ShowcaseColourWash.flatFillKey,
+              decoration: BoxDecoration(
+                color: value ?? fill,
+                borderRadius: NavisRadius.xlAll,
+              ),
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
       ),

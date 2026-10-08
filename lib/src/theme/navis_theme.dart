@@ -1,3 +1,5 @@
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -216,6 +218,8 @@ ThemeData _buildNavisTheme(
     style: style,
     dark: colorScheme.brightness == Brightness.dark,
     flat: flat,
+    oled: oled,
+    accentHue: Hct.fromInt(colorScheme.primary.toARGB32()).hue,
   );
   // Light Pastel fills its main buttons with the pastel container colour and
   // keeps the deeper primary for text, which needs the contrast.

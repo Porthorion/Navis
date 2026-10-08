@@ -12,8 +12,15 @@ Future<BoxDecoration> _pump(
   required Color? tintColor,
   required bool flat,
   NavisColorStyle style = NavisColorStyle.immersive,
+  bool oled = false,
+  Color surface = _surface,
 }) async {
-  final data = NavisColorStyleData(style: style, dark: true, flat: flat);
+  final data = NavisColorStyleData(
+    style: style,
+    dark: true,
+    flat: flat,
+    oled: oled,
+  );
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
@@ -22,7 +29,7 @@ Future<BoxDecoration> _pump(
         decoration: nowPlayingSurfaceDecoration(
           tintColor: tintColor,
           colorStyle: data,
-          surfaceColor: _surface,
+          surfaceColor: surface,
         ),
         child: const SizedBox.expand(),
       ),
@@ -64,6 +71,37 @@ void main() {
     expect(gradient.colors.last, _surface);
     expect(gradient.colors.first, isNot(_surface));
     expect(gradient.stops, const <double>[0, 0.7]);
+  });
+
+  for (final style in NavisColorStyle.values) {
+    testWidgets('OLED + Flat stays plain black (${style.name})', (
+      tester,
+    ) async {
+      final decoration = await _pump(
+        tester,
+        tintColor: _tint,
+        flat: true,
+        style: style,
+        oled: true,
+        surface: Colors.black,
+      );
+      expect(decoration.gradient, isNull);
+      expect(decoration.color, Colors.black);
+    });
+  }
+
+  testWidgets('OLED without Flat keeps the tinted gradient', (tester) async {
+    final decoration = await _pump(
+      tester,
+      tintColor: _tint,
+      flat: false,
+      oled: true,
+      surface: Colors.black,
+    );
+    expect(decoration.color, isNull);
+    final gradient = decoration.gradient! as LinearGradient;
+    expect(gradient.colors.last, Colors.black);
+    expect(gradient.colors.first, isNot(Colors.black));
   });
 
   for (final flat in <bool>[true, false]) {

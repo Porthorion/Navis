@@ -1276,8 +1276,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             ? null
                                             : <Shadow>[
                                                 Shadow(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.55),
+                                                  color:
+                                                      NavisColorStyleData.of(
+                                                        context,
+                                                      ).artworkScrim.withValues(
+                                                        alpha: 0.55,
+                                                      ),
                                                   blurRadius: 12,
                                                   offset: const Offset(0, 2),
                                                 ),

@@ -1,11 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 const _seed = Color(0xFF009688);
 
@@ -75,9 +78,12 @@ void main() {
           of: find.byKey(const ValueKey<String>('home-showcase-wash')),
           matching: find.byType(DecoratedBox),
         ),
-        findsNothing,
+        // Only the solid panel itself: no gradient veil.
+        findsOneWidget,
       );
-      final box = tester.widget<ColoredBox>(find.byKey(flatFill));
+      final box =
+          tester.widget<DecoratedBox>(find.byKey(flatFill)).decoration
+              as BoxDecoration;
 
       final data = theme.extension<NavisColorStyleData>()!;
       final cells = _field().colors;
@@ -87,13 +93,26 @@ void main() {
         green: cells.fold<double>(0, (s, c) => s + c.g) / cells.length,
         blue: cells.fold<double>(0, (s, c) => s + c.b) / cells.length,
       );
+      var adapted = data.adaptArtColor(average);
+      if (Hct.fromInt(adapted.toARGB32()).chroma < 6) {
+        adapted = Color.lerp(
+          adapted,
+          theme.colorScheme.secondaryContainer,
+          .25,
+        )!;
+      }
       final expected = Color.alphaBlend(
-        data
-            .adaptArtColor(average)
-            .withValues(alpha: 1 - data.artWashVeil(subtle: false)),
+        adapted.withValues(alpha: 1 - data.artWashVeil(subtle: false)),
         theme.scaffoldBackgroundColor,
       );
       expect(box.color, expected);
+      expect(box.borderRadius, NavisRadius.xlAll);
+      // Inset to the content margins, not full-bleed.
+      expect(tester.getTopLeft(find.byKey(flatFill)).dx, NavisSpace.md);
+      expect(
+        tester.getSize(find.byKey(flatFill)).width,
+        300 - 2 * NavisSpace.md,
+      );
     });
   }
 
@@ -104,10 +123,39 @@ void main() {
       style: NavisColorStyle.pastel,
     );
     expect(
-      tester.widget<ColoredBox>(find.byKey(flatFill)).color,
+      (tester.widget<DecoratedBox>(find.byKey(flatFill)).decoration
+              as BoxDecoration)
+          .color,
       theme.scaffoldBackgroundColor,
     );
   });
+
+  for (final style in NavisColorStyle.values) {
+    testWidgets('Flat ${style.name} grey cover takes the style chroma floor', (
+      tester,
+    ) async {
+      final theme = await _pump(
+        tester,
+        flat: true,
+        style: style,
+        field: CoverColourField(List<Color>.filled(9, const Color(0xFF808080))),
+      );
+      final data = theme.extension<NavisColorStyleData>()!;
+      final adapted = Color.lerp(
+        data.adaptArtColor(const Color(0xFF808080)),
+        theme.colorScheme.secondaryContainer,
+        0.25,
+      )!;
+      final expected = Color.alphaBlend(
+        adapted.withValues(alpha: 1 - data.artWashVeil(subtle: false)),
+        theme.scaffoldBackgroundColor,
+      );
+      final box =
+          tester.widget<DecoratedBox>(find.byKey(flatFill)).decoration
+              as BoxDecoration;
+      expect(box.color, expected);
+    });
+  }
 
   testWidgets('Flat off keeps the shaded mesh and veil', (tester) async {
     await _pump(

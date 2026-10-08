@@ -211,7 +211,9 @@ BoxDecoration nowPlayingSurfaceDecoration({
   required NavisColorStyleData colorStyle,
   required Color surfaceColor,
 }) {
-  if (tintColor == null) {
+  // OLED + Flat stays pure black: a solid tint would lift the whole screen
+  // off black, which defeats OLED. Non-flat OLED keeps its gradient.
+  if (tintColor == null || (colorStyle.flat && colorStyle.oled)) {
     return BoxDecoration(color: surfaceColor);
   }
   final tint = colorStyle
