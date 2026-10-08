@@ -21,7 +21,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
 
-// Test overrides for @visibleForTesting providers.
+// Deterministic manual-only and short automatic schedules.
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
@@ -143,41 +143,28 @@ final _serverConfigSource =
     );
 
 class _FakeLibrarySyncEngine extends LibrarySyncEngine {
-  new(this._handlerIfStale, this._handlerNow, {this.requestHandler});
+  new(this._handler);
 
-  /// Every sync entry point resolves to [state].
-  new returning(
-    LibrarySyncState state, {
-    Future<LibrarySyncState> Function(
-      LibrarySyncRequest request, {
-      LibrarySyncProgressCallback? onProgress,
-    })?
-    requestHandler,
-  }) : this(
-         ({onProgress}) async => state,
-         ({forceFull = false, onProgress}) async => state,
-         requestHandler: requestHandler,
-       );
+  /// Every request resolves to [state].
+  new returning(LibrarySyncState state)
+    : this((request, {onProgress}) async => state);
 
-  final Future<LibrarySyncState> Function({
-    LibrarySyncProgressCallback? onProgress,
-  })
-  _handlerIfStale;
-  final Future<LibrarySyncState> Function({
-    bool forceFull,
-    LibrarySyncProgressCallback? onProgress,
-  })
-  _handlerNow;
   final Future<LibrarySyncState> Function(
     LibrarySyncRequest request, {
     LibrarySyncProgressCallback? onProgress,
-  })?
-  requestHandler;
+  })
+  _handler;
 
-  int staleCalls = 0;
-  int nowCalls = 0;
-  int continuationCalls = 0;
-  final List<bool> forceFullCalls = <bool>[];
+  final requests = <LibrarySyncRequest>[];
+
+  Iterable<LibrarySyncRequest> get automaticRequests =>
+      requests.where((request) => request.isAutomatic);
+
+  Iterable<LibrarySyncRequest> get explicitCatalogRequests => requests.where(
+    (request) =>
+        !request.isAutomatic &&
+        request.target.kind == LibrarySyncTargetKind.catalog,
+  );
 
   @override
   Future<LibrarySyncState> requestSync(
@@ -185,28 +172,33 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) {
-    final handler = requestHandler;
-    if (handler != null &&
-        request.target.kind != LibrarySyncTargetKind.catalog) {
-      return handler(request, onProgress: onProgress);
-    }
-    switch (request.intent) {
-      case SyncRunIntent.automaticCatalogCheck:
-        staleCalls++;
-        return _handlerIfStale(onProgress: onProgress);
-      case SyncRunIntent.targetHydration:
-      case SyncRunIntent.auxiliaryRefresh:
-      case SyncRunIntent.manualCatalogCheck:
-        nowCalls++;
-        forceFullCalls.add(false);
-        return _handlerNow(forceFull: false, onProgress: onProgress);
-      case SyncRunIntent.repairLibrary:
-        nowCalls++;
-        forceFullCalls.add(true);
-        return _handlerNow(forceFull: true, onProgress: onProgress);
-    }
+    requests.add(request);
+    return _handler(request, onProgress: onProgress);
   }
 }
+
+Matcher _catalogRequest(SyncRunOrigin origin, SyncRunIntent intent) =>
+    isA<LibrarySyncRequest>()
+        .having((request) => request.origin, 'origin', origin)
+        .having((request) => request.intent, 'intent', intent)
+        .having(
+          (request) => request.target.kind,
+          'target',
+          LibrarySyncTargetKind.catalog,
+        );
+
+final _automaticRequest = _catalogRequest(
+  SyncRunOrigin.timer,
+  SyncRunIntent.automaticCatalogCheck,
+);
+final _manualRequest = _catalogRequest(
+  SyncRunOrigin.libraryPullToRefresh,
+  SyncRunIntent.manualCatalogCheck,
+);
+final _repairRequest = _catalogRequest(
+  SyncRunOrigin.settingsRepair,
+  SyncRunIntent.repairLibrary,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -240,18 +232,16 @@ void main() {
             );
       }
       final requests = <LibrarySyncRequest>[];
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => const LibrarySyncState.idle(),
-        ({forceFull = false, onProgress}) async =>
-            const LibrarySyncState.idle(),
-        requestHandler: (request, {onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.target.kind != LibrarySyncTargetKind.catalog) {
           requests.add(request);
           return const LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
           );
-        },
-      );
+        }
+        return const LibrarySyncState.idle();
+      });
       final container = ProviderContainer(
         overrides: [
           navisDatabaseProvider.overrideWithValue(database),
@@ -275,6 +265,41 @@ void main() {
   }
 
   group('librarySyncControllerProvider', () {
+    test(
+      'repair and cache reset submit distinct origins with the same grant',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final engine = _FakeLibrarySyncEngine.returning(_succeeded);
+        final container = _container(
+          engine,
+          database: database,
+          reachability: ServerReachabilityStatus.checking,
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        await controller.repairLibrary(allowMeteredBroadOverride: true);
+        await controller.resetCachesAndRebuildLibrary(
+          allowMeteredBroadOverride: true,
+        );
+
+        expect(engine.requests, [
+          _repairRequest,
+          _catalogRequest(
+            SyncRunOrigin.cacheReset,
+            SyncRunIntent.repairLibrary,
+          ),
+        ]);
+        expect(engine.requests.map((request) => request.grant), [
+          SyncNetworkGrant.broadMeteredOnce,
+          SyncNetworkGrant.broadMeteredOnce,
+        ]);
+      },
+    );
+
     test(
       'setup defers startup and automatic schedules until readiness',
       () async {
@@ -305,8 +330,8 @@ void main() {
         );
         await controller.syncIfStale();
         await Future<void>.delayed(const Duration(milliseconds: 30));
-        expect(engine.nowCalls, 0);
-        expect(engine.staleCalls, 0);
+        expect(engine.explicitCatalogRequests, isEmpty);
+        expect(engine.automaticRequests, isEmpty);
         expect(
           (await database.librarySyncDao.getOrCreateState(config.id!))
               .nextAutomaticCheckAt,
@@ -343,8 +368,8 @@ void main() {
           deadline.difference(resumedAt.add(const Duration(hours: 1))).abs(),
           lessThan(const Duration(seconds: 2)),
         );
-        expect(engine.forceFullCalls, isEmpty);
-        expect(engine.staleCalls, 0);
+        expect(engine.explicitCatalogRequests, isEmpty);
+        expect(engine.automaticRequests, isEmpty);
       },
     );
 
@@ -358,16 +383,14 @@ void main() {
         final manualResult = Completer<LibrarySyncState>();
         final enteredAutomatic = Completer<void>();
         final enteredManual = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             enteredAutomatic.complete();
-            return automaticResult.future;
-          },
-          ({forceFull = false, onProgress}) {
-            enteredManual.complete();
-            return manualResult.future;
-          },
-        );
+            return await automaticResult.future;
+          }
+          enteredManual.complete();
+          return await manualResult.future;
+        });
         final container = _container(
           engine,
           database: database,
@@ -411,13 +434,13 @@ void main() {
         addTearDown(database.close);
         final failure = Completer<LibrarySyncState>();
         final entered = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) {
-            entered.complete();
-            return failure.future;
-          },
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          entered.complete();
+          return await failure.future;
+        });
         final container = _container(engine, database: database);
         addTearDown(container.dispose);
         container.listen(librarySyncControllerProvider, (_, _) {});
@@ -491,7 +514,7 @@ void main() {
         expect(container.read(librarySyncEngineProvider), same(engine));
         await Future<void>.delayed(const Duration(milliseconds: 100));
 
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           container.read(librarySyncControllerProvider).status,
           LibrarySyncStatus.succeeded,
@@ -505,28 +528,16 @@ void main() {
       await database.appSettingsDao.setLastFullSyncAppBuild(
         currentLibrarySyncModelVersion,
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
-          final state = LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            lastSyncedAt: DateTime.now(),
-          );
-          onProgress?.call(state);
-          return state;
-        },
-        ({forceFull = false, onProgress}) async {
-          final state = LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            lastSyncedAt: DateTime.now(),
-          );
-          onProgress?.call(state);
-          return state;
-        },
-      );
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final state = LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          lastSyncedAt: DateTime.now(),
+        );
+        onProgress?.call(state);
+        return state;
+      });
       final container = _container(
         engine,
         database: database,
@@ -544,8 +555,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       container.read(librarySyncControllerProvider);
 
-      expect(engine.staleCalls, 1);
-      expect(engine.nowCalls, 0);
+      expect(engine.automaticRequests, [_automaticRequest]);
+      expect(engine.explicitCatalogRequests, isEmpty);
     });
 
     test('automatic checks honor a persisted deadline and manual checks leave it unchanged', () async {
@@ -564,14 +575,16 @@ void main() {
           nextEligibleAt: Value(retryAt),
         ),
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => _succeeded,
-        ({forceFull = false, onProgress}) async => LibrarySyncState(
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return _succeeded;
+        }
+        return LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
-        ),
-      );
+        );
+      });
       final container = _container(
         engine,
         database: database,
@@ -585,7 +598,7 @@ void main() {
       final controller = container.read(librarySyncControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await controller.syncIfStale();
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
       expect(
         container
             .read(librarySyncControllerProvider)
@@ -599,7 +612,7 @@ void main() {
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
       );
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
       expect(
         persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
         lessThan(const Duration(seconds: 1)),
@@ -626,14 +639,16 @@ void main() {
             const Duration(minutes: 1),
           ),
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => _succeeded,
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          }
+          return _succeeded;
+        });
         final startedAt = DateTime.now();
         final container = _container(
           engine,
@@ -652,7 +667,7 @@ void main() {
         );
 
         expect(result.status, LibrarySyncStatus.succeeded);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         expect(persisted.nextAutomaticCheckAt, isNotNull);
         expect(persisted.nextAutomaticCheckAt!.isAfter(startedAt), isTrue);
         expect(
@@ -676,14 +691,13 @@ void main() {
         );
         final automaticResult = Completer<LibrarySyncState>();
         final enteredEngine = Completer<void>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             enteredEngine.complete();
-            return automaticResult.future;
-          },
-          ({forceFull = false, onProgress}) async =>
-              const LibrarySyncState.idle(),
-        );
+            return await automaticResult.future;
+          }
+          return const LibrarySyncState.idle();
+        });
         final container = _container(
           engine,
           database: database,
@@ -736,14 +750,16 @@ void main() {
           kind: LibrarySyncPlanKind.deltaReconcile.name,
           priority: 60,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => _succeeded,
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          }
+          return _succeeded;
+        });
         final container = _container(
           engine,
           database: database,
@@ -758,7 +774,7 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         final persisted = await database.librarySyncDao.getOrCreateState(
           config.id!,
         );
@@ -784,8 +800,8 @@ void main() {
         kind: LibrarySyncPlanKind.deltaReconcile.name,
         priority: 60,
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           // Engine frames and results never carry the automatic deadline.
           onProgress?.call(
             const LibrarySyncState(
@@ -802,10 +818,9 @@ void main() {
             failureCategory: 'entityBudget',
             completedAt: DateTime.now(),
           );
-        },
-        ({forceFull = false, onProgress}) async =>
-            const LibrarySyncState.idle(),
-      );
+        }
+        return const LibrarySyncState.idle();
+      });
       final container = _container(
         engine,
         database: database,
@@ -820,7 +835,7 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
       final status = container.read(librarySyncControllerProvider);
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
@@ -853,29 +868,29 @@ void main() {
             nextEligibleAt: Value(retryAt),
           ),
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) async {
-            for (final stage in <LibrarySyncStage>[
-              LibrarySyncStage.collectingCandidate,
-              LibrarySyncStage.applyingCandidate,
-            ]) {
-              onProgress?.call(
-                LibrarySyncState(
-                  status: LibrarySyncStatus.running,
-                  stage: stage,
-                  planKind: LibrarySyncPlanKind.fullRepair,
-                ),
-              );
-            }
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              planKind: LibrarySyncPlanKind.fullRepair,
-              completedAt: DateTime.now(),
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          for (final stage in <LibrarySyncStage>[
+            LibrarySyncStage.collectingCandidate,
+            LibrarySyncStage.applyingCandidate,
+          ]) {
+            onProgress?.call(
+              LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: stage,
+                planKind: LibrarySyncPlanKind.fullRepair,
+              ),
             );
-          },
-        );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            planKind: LibrarySyncPlanKind.fullRepair,
+            completedAt: DateTime.now(),
+          );
+        });
         final container = _container(
           engine,
           database: database,
@@ -890,7 +905,7 @@ void main() {
           librarySyncControllerProvider.notifier,
         );
         await Future<void>.delayed(const Duration(milliseconds: 50));
-        expect(engine.staleCalls, 0);
+        expect(engine.automaticRequests, isEmpty);
         expect(
           container.read(librarySyncControllerProvider).nextAutomaticCheckAt,
           isNotNull,
@@ -903,7 +918,7 @@ void main() {
         );
         await controller.repairLibrary();
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           published.where((value) => value.status == LibrarySyncStatus.running),
           isNotEmpty,
@@ -936,14 +951,16 @@ void main() {
           const Duration(milliseconds: 1500),
         ),
       );
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-        ),
-        ({forceFull = false, onProgress}) async => _succeeded,
-      );
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        }
+        return _succeeded;
+      });
       final container = _container(
         engine,
         database: database,
@@ -958,10 +975,10 @@ void main() {
 
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
 
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
       );
@@ -986,14 +1003,13 @@ void main() {
       );
       final entered = Completer<void>();
       final completion = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           entered.complete();
-          return completion.future;
-        },
-        ({forceFull = false, onProgress}) async =>
-            const LibrarySyncState.idle(),
-      );
+          return await completion.future;
+        }
+        return const LibrarySyncState.idle();
+      });
       final container = _container(
         engine,
         database: database,
@@ -1026,7 +1042,7 @@ void main() {
       expect(persisted.nextAutomaticCheckAt!.isAfter(DateTime.now()), isTrue);
       expect(drained, isTrue);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(engine.staleCalls, 1);
+      expect(engine.automaticRequests, [_automaticRequest]);
     });
 
     test(
@@ -1038,10 +1054,12 @@ void main() {
           currentLibrarySyncModelVersion,
         );
         final startupResult = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) => startupResult.future,
-          ({forceFull = false, onProgress}) async => _succeeded,
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return await startupResult.future;
+          }
+          return _succeeded;
+        });
         final container = ProviderContainer(
           overrides: [
             _manualSyncInterval,
@@ -1071,7 +1089,7 @@ void main() {
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(Duration.zero);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         var cancellationCompleted = false;
         final cancellation = container
             .read(librarySyncControllerProvider.notifier)
@@ -1095,30 +1113,28 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
 
         expect(cancellationCompleted, isTrue);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
       },
     );
 
     test('syncNow transitions through running to succeeded state', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.fetchingArtists,
-              startedAt: DateTime.now(),
-            ),
-          );
-          return await completer.future;
-        },
-      );
+        }
+        onProgress?.call(
+          LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingArtists,
+            startedAt: DateTime.now(),
+          ),
+        );
+        return await completer.future;
+      });
 
       final container = _container(
         engine,
@@ -1148,17 +1164,19 @@ void main() {
       final finalState = container.read(librarySyncControllerProvider);
       expect(finalState.status, LibrarySyncStatus.succeeded);
       expect(finalState.stage, LibrarySyncStage.completed);
-      expect(engine.forceFullCalls.last, isFalse);
+      expect(engine.explicitCatalogRequests.last, _manualRequest);
     });
 
     test(
       'cancellation prevents a queued stronger repair from starting',
       () async {
         final active = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) => active.future,
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState.idle();
+          }
+          return await active.future;
+        });
         final container = _container(
           engine,
           reachability: ServerReachabilityStatus.checking,
@@ -1179,30 +1197,33 @@ void main() {
         );
         await check;
         expect((await repair).status, LibrarySyncStatus.cancelled);
-        expect(engine.forceFullCalls, [false]);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         // A subsequent explicit command is new intent and remains allowed.
         await controller.repairLibrary();
-        expect(engine.forceFullCalls, [false, true]);
+        expect(engine.explicitCatalogRequests, [
+          _manualRequest,
+          _repairRequest,
+        ]);
       },
     );
 
     test('overlapping sync callers await one terminal result', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.skipped,
-          stage: LibrarySyncStage.completed,
-        ),
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            const LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.collectingCandidate,
-            ),
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
           );
-          return await completer.future;
-        },
-      );
+        }
+        onProgress?.call(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.collectingCandidate,
+          ),
+        );
+        return await completer.future;
+      });
       final container = _container(
         engine,
         reachability: ServerReachabilityStatus.checking,
@@ -1214,8 +1235,8 @@ void main() {
       final second = notifier.syncIfStale();
       await Future<void>.delayed(Duration.zero);
 
-      expect(engine.nowCalls, 1);
-      expect(engine.staleCalls, 0);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
+      expect(engine.automaticRequests, isEmpty);
       expect(container.read(librarySyncControllerProvider).isRunning, isTrue);
 
       const completed = _succeeded;
@@ -1239,10 +1260,12 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) => automaticCompletion.future,
-          ({forceFull = false, onProgress}) async => manualResult,
-        );
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return await automaticCompletion.future;
+          }
+          return manualResult;
+        });
         final container = _container(
           engine,
           reachability: ServerReachabilityStatus.checking,
@@ -1254,8 +1277,8 @@ void main() {
         final manual = notifier.syncNow();
         await Future<void>.delayed(Duration.zero);
 
-        expect(engine.staleCalls, 1);
-        expect(engine.nowCalls, 0);
+        expect(engine.automaticRequests, [_automaticRequest]);
+        expect(engine.explicitCatalogRequests, isEmpty);
 
         automaticCompletion.complete(
           const LibrarySyncState(
@@ -1266,7 +1289,7 @@ void main() {
         await automatic;
 
         expect(await manual, same(manualResult));
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).planKind,
           LibrarySyncPlanKind.deltaReconcile,
@@ -1285,16 +1308,8 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            onProgress?.call(catalogResult);
-            return catalogResult;
-          },
-          requestHandler: (request, {onProgress}) {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.album);
             targetRequests++;
             onProgress?.call(
@@ -1304,9 +1319,17 @@ void main() {
                 planKind: LibrarySyncPlanKind.targetedHydration,
               ),
             );
-            return targetCompletion.future;
-          },
-        );
+            return await targetCompletion.future;
+          }
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          onProgress?.call(catalogResult);
+          return catalogResult;
+        });
         final container = _container(
           engine,
           reachability: ServerReachabilityStatus.checking,
@@ -1330,7 +1353,7 @@ void main() {
 
         final refreshed = await notifier.syncNow();
         expect(refreshed, same(catalogResult));
-        expect(engine.nowCalls, 1);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).planKind,
           LibrarySyncPlanKind.deltaReconcile,
@@ -1392,12 +1415,8 @@ void main() {
           ),
         ]);
         final requestedArtistIds = <String>[];
-        final engine = _FakeLibrarySyncEngine.returning(
-          const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          requestHandler: (request, {onProgress}) async {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.artist);
             requestedArtistIds.add(request.target.entityId!);
             return LibrarySyncState(
@@ -1405,8 +1424,12 @@ void main() {
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
             );
-          },
-        );
+          }
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        });
         final container = _container(
           engine,
           database: database,
@@ -1497,16 +1520,16 @@ void main() {
         ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
         Override? serverConfig,
       }) {
-        final engine = _FakeLibrarySyncEngine.returning(
-          const LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
+            requestedArtistIds.add(request.target.entityId!);
+            return await nextResult();
+          }
+          return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
-          ),
-          requestHandler: (request, {onProgress}) {
-            requestedArtistIds.add(request.target.entityId!);
-            return nextResult();
-          },
-        );
+          );
+        });
         final container = ProviderContainer(
           overrides: [
             _manualSyncInterval,
@@ -1650,21 +1673,23 @@ void main() {
       );
 
       test('opening without an engine does not use up the open', () async {
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.target.kind != LibrarySyncTargetKind.catalog) {
+            requestedArtistIds.add(request.target.entityId!);
+            return await nextResult();
+          }
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
-          ),
-          requestHandler: (request, {onProgress}) {
-            requestedArtistIds.add(request.target.entityId!);
-            return nextResult();
-          },
-        );
+          );
+        });
         final engineState =
             NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
               _MutableLibrarySyncEngine.new,
@@ -1950,12 +1975,14 @@ void main() {
       'forceFullSync becomes visibly preparing before engine planning',
       () async {
         final completer = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => await (forceFull
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return await ((request.intent == SyncRunIntent.repairLibrary)
               ? completer.future
               : const LibrarySyncState(
                   status: LibrarySyncStatus.succeeded,
@@ -1965,8 +1992,8 @@ void main() {
                   apiRequests: 9,
                   endpointRequests: {'getAlbum': 9},
                   lastRunBytes: 1024,
-                )),
-        );
+                ));
+        });
         final container = _container(
           engine,
           reachability: ServerReachabilityStatus.checking,
@@ -2003,29 +2030,27 @@ void main() {
     );
 
     test('syncNow transitions through running to failed state', () async {
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          onProgress?.call(
-            LibrarySyncState(
-              status: LibrarySyncStatus.running,
-              stage: LibrarySyncStage.fetchingAlbums,
-              startedAt: DateTime.now(),
-            ),
-          );
-          return LibrarySyncState(
-            status: LibrarySyncStatus.failed,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            errorMessage: 'Sync failed.',
-          );
-        },
-      );
+        }
+        onProgress?.call(
+          LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingAlbums,
+            startedAt: DateTime.now(),
+          ),
+        );
+        return LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync failed.',
+        );
+      });
 
       final container = _container(
         engine,
@@ -2038,7 +2063,7 @@ void main() {
       final finalState = container.read(librarySyncControllerProvider);
       expect(finalState.status, LibrarySyncStatus.failed);
       expect(finalState.errorMessage, 'Sync failed.');
-      expect(engine.forceFullCalls.last, isFalse);
+      expect(engine.explicitCatalogRequests.last, _manualRequest);
     });
 
     test(
@@ -2080,12 +2105,12 @@ void main() {
 
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(engine.staleCalls, 0);
+        expect(engine.automaticRequests, isEmpty);
 
         reachability.setStatus(ServerReachabilityStatus.online);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
       },
     );
 
@@ -2095,21 +2120,19 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         var networkType = NetworkType.cellular;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              completedAt: DateTime.now(),
-            );
-          },
-        );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        });
 
         final container = _container(
           engine,
@@ -2127,8 +2150,8 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.staleCalls, 1);
-        expect(engine.nowCalls, 0);
+        expect(engine.automaticRequests, [_automaticRequest]);
+        expect(engine.explicitCatalogRequests, isEmpty);
         expect(await database.appSettingsDao.getLastFullSyncAppBuild(), isNull);
 
         networkType = NetworkType.wifi;
@@ -2136,8 +2159,8 @@ void main() {
         expect(container.read(networkTypeProvider), NetworkType.wifi);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.nowCalls, 1);
-        expect(engine.forceFullCalls.single, isTrue);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
+        expect(engine.explicitCatalogRequests.single, _repairRequest);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           'model-v2',
@@ -2150,23 +2173,23 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            expect(forceFull, isTrue);
-            return LibrarySyncState(
-              status: LibrarySyncStatus.partial,
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
-              mode: LibrarySyncMode.forceFull,
-              metadataReady: true,
-              pendingHydrationCount: 1,
-              completedAt: DateTime.now(),
             );
-          },
-        );
+          }
+          expect(request.intent, SyncRunIntent.repairLibrary);
+          return LibrarySyncState(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.completed,
+            mode: LibrarySyncMode.forceFull,
+            metadataReady: true,
+            pendingHydrationCount: 1,
+            completedAt: DateTime.now(),
+          );
+        });
         final container = _container(
           engine,
           database: database,
@@ -2178,7 +2201,7 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2192,18 +2215,20 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         await database.appSettingsDao.setLastFullSyncAppBuild('56');
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             mode: LibrarySyncMode.forceFull,
             completedAt: DateTime.now(),
-          ),
-        );
+          );
+        });
         final container = _container(
           engine,
           database: database,
@@ -2215,7 +2240,7 @@ void main() {
         container.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(engine.forceFullCalls, <bool>[true]);
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2231,23 +2256,24 @@ void main() {
         // The previous release's model version: this startup must schedule
         // exactly one recovery reconciliation.
         await database.appSettingsDao.setLastFullSyncAppBuild('57');
-        var forceFullCalls = 0;
+        final repairRequests = <LibrarySyncRequest>[];
         var forcedStatus = LibrarySyncStatus.failed;
-        LibrarySyncEngine buildEngine() => _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async {
-            forceFullCalls++;
-            return LibrarySyncState(
-              status: forcedStatus,
-              stage: LibrarySyncStage.completed,
-              mode: LibrarySyncMode.forceFull,
-              completedAt: DateTime.now(),
-            );
-          },
-        );
+        LibrarySyncEngine buildEngine() =>
+            _FakeLibrarySyncEngine((request, {onProgress}) async {
+              if (request.isAutomatic) {
+                return const LibrarySyncState(
+                  status: LibrarySyncStatus.skipped,
+                  stage: LibrarySyncStage.completed,
+                );
+              }
+              repairRequests.add(request);
+              return LibrarySyncState(
+                status: forcedStatus,
+                stage: LibrarySyncStage.completed,
+                mode: LibrarySyncMode.forceFull,
+                completedAt: DateTime.now(),
+              );
+            });
         ProviderContainer buildContainer(LibrarySyncEngine engine) {
           return _container(
             engine,
@@ -2263,7 +2289,7 @@ void main() {
         addTearDown(failedContainer.dispose);
         failedContainer.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(forceFullCalls, 1);
+        expect(repairRequests, [_repairRequest]);
         expect(await database.appSettingsDao.getLastFullSyncAppBuild(), '57');
         failedContainer.dispose();
 
@@ -2274,7 +2300,7 @@ void main() {
         forcedStatus = LibrarySyncStatus.succeeded;
         recoveredContainer.read(librarySyncControllerProvider);
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(forceFullCalls, 2);
+        expect(repairRequests, [_repairRequest, _repairRequest]);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           currentLibrarySyncModelVersion,
@@ -2294,8 +2320,8 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(engine.staleCalls, 0);
-      expect(engine.nowCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
+      expect(engine.explicitCatalogRequests, isEmpty);
     });
 
     test('sync does not auto-retry on resume after failure', () async {
@@ -2303,30 +2329,28 @@ void main() {
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
       var attempt = 0;
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          attempt++;
-          if (attempt == 1) {
-            return LibrarySyncState(
-              status: LibrarySyncStatus.failed,
-              stage: LibrarySyncStage.fetchingAlbums,
-              errorMessage: 'Transient background failure',
-              completedAt: DateTime.now(),
-            );
-          }
+        }
+        attempt++;
+        if (attempt == 1) {
           return LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.fetchingAlbums,
+            errorMessage: 'Transient background failure',
             completedAt: DateTime.now(),
           );
-        },
-      );
+        }
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        );
+      });
 
       final container = _container(
         engine,
@@ -2341,13 +2365,13 @@ void main() {
           .read(librarySyncControllerProvider.notifier)
           .syncNow();
       await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
 
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await future;
 
       final finalState = container.read(librarySyncControllerProvider);
-      expect(engine.nowCalls, 1);
+      expect(engine.explicitCatalogRequests, [_manualRequest]);
       expect(finalState.status, LibrarySyncStatus.failed);
     });
 
@@ -2355,18 +2379,16 @@ void main() {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
+      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
           return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
           );
-        },
-        ({forceFull = false, onProgress}) async {
-          return _succeeded;
-        },
-      );
+        }
+        return _succeeded;
+      });
 
       final container = ProviderContainer(
         overrides: [
@@ -2391,37 +2413,35 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 35));
 
-      expect(engine.staleCalls, 0);
+      expect(engine.automaticRequests, isEmpty);
     });
 
     test(
       'syncIfStale keeps a failed sync visible after a no-op pass',
       () async {
         var syncNowAttempts = 0;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            syncNowAttempts++;
-            if (syncNowAttempts == 1) {
-              return LibrarySyncState(
-                status: LibrarySyncStatus.failed,
-                stage: LibrarySyncStage.completed,
-                completedAt: DateTime.now(),
-                errorMessage: 'Sync failed.',
-              );
-            }
+          }
+          syncNowAttempts++;
+          if (syncNowAttempts == 1) {
             return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
+              status: LibrarySyncStatus.failed,
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
+              errorMessage: 'Sync failed.',
             );
-          },
-        );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        });
         final database = createTestDatabase();
         addTearDown(database.close);
 
@@ -2445,7 +2465,7 @@ void main() {
         await notifier.syncIfStale();
 
         expect(syncNowAttempts, 1);
-        expect(engine.staleCalls, 1);
+        expect(engine.automaticRequests, [_automaticRequest]);
         expect(
           container.read(librarySyncControllerProvider).status,
           LibrarySyncStatus.failed,
@@ -2457,26 +2477,24 @@ void main() {
       'manual-only mode leaves pending hydration for the next explicit action',
       () async {
         var boundedPass = 0;
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
+        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
               stage: LibrarySyncStage.completed,
             );
-          },
-          ({forceFull = false, onProgress}) async {
-            boundedPass++;
-            return LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-              completedAt: DateTime.now(),
-              pendingHydrationCount: boundedPass == 1 ? 2 : 0,
-              freshness: boundedPass == 1
-                  ? LibrarySyncFreshness.verificationPending
-                  : LibrarySyncFreshness.current,
-            );
-          },
-        );
+          }
+          boundedPass++;
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            pendingHydrationCount: boundedPass == 1 ? 2 : 0,
+            freshness: boundedPass == 1
+                ? LibrarySyncFreshness.verificationPending
+                : LibrarySyncFreshness.current,
+          );
+        });
         final database = createTestDatabase();
         addTearDown(database.close);
         final container = _container(
@@ -2495,8 +2513,7 @@ void main() {
         await notifier.syncNow();
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        expect(engine.nowCalls, 1);
-        expect(engine.continuationCalls, 0);
+        expect(engine.explicitCatalogRequests, [_manualRequest]);
         expect(
           container.read(librarySyncControllerProvider).freshness,
           LibrarySyncFreshness.verificationPending,
