@@ -1665,7 +1665,28 @@
   },
 
   "appearanceArtTintedLabel": "Art-tinted Now Playing",
-  "appearanceArtTintedSub": "Tint the Now Playing background with colours from the album art.",
+  "appearanceArtTintedSub": "Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.",
+  "appearanceOledForAutoLabel": "Use OLED When Dark",
+  "appearanceOledForAutoSub": "In Auto, use pure black instead of Dark when your device is in dark mode.",
+  "appearanceNightScheduleLabel": "Night Schedule",
+  "appearanceNightScheduleSub": "Use the Night style from {start} to {end}",
+  "@appearanceNightScheduleSub": {
+    "placeholders": {
+      "start": {},
+      "end": {}
+    }
+  },
+  "appearanceNightScheduleStarts": "Starts",
+  "appearanceNightScheduleEnds": "Ends",
+  "appearanceNightScheduleActiveNote": "Night is on until {time}",
+  "@appearanceNightScheduleActiveNote": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceNightScheduleSameTimes": "Pick different start and end times.",
+  "appearanceFlatSurfacesLabel": "Flat Surfaces",
+  "appearanceFlatSurfacesSub": "Solid colours without glows, gradients or shadows.",
   "appearanceDynamicAlbumColorLabel": "Dynamic Album Color",
   "appearanceDynamicAlbumColorEnabledSub": "Album art is currently overriding the selected color when artwork is available.",
   "appearanceDynamicAlbumColorDisabledSub": "Use the currently playing album art to theme app accent colors.",

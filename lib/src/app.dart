@@ -40,7 +40,8 @@ class NavisApp extends ConsumerStatefulWidget {
   ConsumerState<NavisApp> createState() => _NavisAppState();
 }
 
-class _NavisAppState extends ConsumerState<NavisApp> {
+class _NavisAppState extends ConsumerState<NavisApp>
+    with WidgetsBindingObserver {
   bool _didScheduleBootstrap = false;
   final ShortcutManager _desktopActivationShortcutManager =
       _DesktopActivationShortcutManager();
@@ -48,6 +49,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (!widget.requirePlaybackBootstrap ||
         !widget.schedulePlaybackBootstrap ||
         _didScheduleBootstrap) {
@@ -60,6 +62,20 @@ class _NavisAppState extends ConsumerState<NavisApp> {
         ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
       }),
     );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android may delay the schedule timer while suspended.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(effectiveColorStyleProvider);
+    }
   }
 
   @override

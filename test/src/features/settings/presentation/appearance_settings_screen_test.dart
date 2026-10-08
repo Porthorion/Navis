@@ -25,13 +25,29 @@ void main() {
     AdaptiveContext? adaptiveContext,
     TextScaler textScaler = TextScaler.noScaling,
     List<String>? homeSectionOrder,
+    String? themeMode,
+    bool nightScheduleEnabled = false,
+    int? nightStartMinutes,
+    int? nightEndMinutes,
   }) async {
+    if (adaptiveContext == null &&
+        tester.view.physicalSize / tester.view.devicePixelRatio ==
+            const Size(800, 600)) {
+      // Tall enough that the style tiles, schedule rows and colour grid build.
+      tester.view.physicalSize = const Size(800, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
     final database = createTestDatabase();
     await tester.runAsync(database.appSettingsDao.getSettings);
     final settings = const AppSettingsModel.defaults().copyWith(
       colorSchemeSeed: colorSeed,
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
       homeSectionOrder: homeSectionOrder,
+      themeMode: themeMode,
+      nightScheduleEnabled: nightScheduleEnabled,
+      nightScheduleStartMinutes: nightStartMinutes,
+      nightScheduleEndMinutes: nightEndMinutes,
     );
     final container = ProviderContainer(
       overrides: withTestDatabase(
@@ -458,4 +474,74 @@ void main() {
       expect(releases, lessThan(liked));
     },
   );
+
+  group('appearance switches', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+
+    Future<void> reveal(WidgetTester tester, Finder finder) async {
+      await tester.ensureVisible(finder);
+      await tester.pump();
+    }
+
+    testWidgets('OLED switch is hidden outside Auto', (tester) async {
+      await pumpAppearance(tester);
+      expect(find.text(l10n.appearanceOledForAutoLabel), findsNothing);
+    });
+
+    testWidgets('OLED switch saves in Auto', (tester) async {
+      final container = await pumpAppearance(tester, themeMode: 'system');
+      final finder = find.text(l10n.appearanceOledForAutoLabel);
+      expect(finder, findsOneWidget);
+      await tester.tap(finder);
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.oledForAuto, isTrue);
+    });
+
+    testWidgets('Night schedule switch saves', (tester) async {
+      final container = await pumpAppearance(tester);
+      final finder = find.text(l10n.appearanceNightScheduleLabel);
+      await reveal(tester, finder);
+      expect(find.text(l10n.appearanceNightScheduleStarts), findsNothing);
+      await tester.tap(finder);
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.nightScheduleEnabled, isTrue);
+    });
+
+    testWidgets('enabled schedule lists Starts and Ends', (tester) async {
+      await pumpAppearance(tester, nightScheduleEnabled: true);
+      await reveal(tester, find.text(l10n.appearanceNightScheduleStarts));
+      expect(find.text(l10n.appearanceNightScheduleStarts), findsOneWidget);
+      expect(find.text(l10n.appearanceNightScheduleEnds), findsOneWidget);
+      expect(find.text(l10n.appearanceNightScheduleSameTimes), findsNothing);
+    });
+
+    testWidgets('equal start and end show the helper text', (tester) async {
+      await pumpAppearance(
+        tester,
+        nightScheduleEnabled: true,
+        nightStartMinutes: 600,
+        nightEndMinutes: 600,
+      );
+      await reveal(tester, find.text(l10n.appearanceNightScheduleSameTimes));
+      expect(find.text(l10n.appearanceNightScheduleSameTimes), findsOneWidget);
+    });
+
+    testWidgets('Flat Surfaces switch saves', (tester) async {
+      final container = await pumpAppearance(tester);
+      final finder = find.text(l10n.appearanceFlatSurfacesLabel);
+      await reveal(tester, finder);
+      await tester.tap(finder);
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.flatSurfaces, isTrue);
+    });
+  });
 }

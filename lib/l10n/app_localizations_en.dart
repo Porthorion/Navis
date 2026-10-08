@@ -3694,7 +3694,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceArtTintedSub =>
-      'Tint the Now Playing background with colours from the album art.';
+      'Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.';
+
+  @override
+  String get appearanceOledForAutoLabel => 'Use OLED When Dark';
+
+  @override
+  String get appearanceOledForAutoSub =>
+      'In Auto, use pure black instead of Dark when your device is in dark mode.';
+
+  @override
+  String get appearanceNightScheduleLabel => 'Night Schedule';
+
+  @override
+  String appearanceNightScheduleSub(Object start, Object end) {
+    return 'Use the Night style from $start to $end';
+  }
+
+  @override
+  String get appearanceNightScheduleStarts => 'Starts';
+
+  @override
+  String get appearanceNightScheduleEnds => 'Ends';
+
+  @override
+  String appearanceNightScheduleActiveNote(Object time) {
+    return 'Night is on until $time';
+  }
+
+  @override
+  String get appearanceNightScheduleSameTimes =>
+      'Pick different start and end times.';
+
+  @override
+  String get appearanceFlatSurfacesLabel => 'Flat Surfaces';
+
+  @override
+  String get appearanceFlatSurfacesSub =>
+      'Solid colours without glows, gradients or shadows.';
 
   @override
   String get appearanceDynamicAlbumColorLabel => 'Dynamic Album Color';

@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Appearance preferences now retain OLED for Auto, a daily Night colour-style schedule and Flat mode; enabled Night schedules switch styles automatically',
+        'Appearance can use OLED black in Auto, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colours without glows or shadows',
       ),
       ChangelogEntry(
         'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',

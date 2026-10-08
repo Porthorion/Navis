@@ -5846,8 +5846,68 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceArtTintedSub.
   ///
   /// In en, this message translates to:
-  /// **'Tint the Now Playing background with colours from the album art.'**
+  /// **'Now Playing takes its colour from the album art, as a gradient or as a solid colour when Flat Surfaces is on.'**
   String get appearanceArtTintedSub;
+
+  /// No description provided for @appearanceOledForAutoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use OLED When Dark'**
+  String get appearanceOledForAutoLabel;
+
+  /// No description provided for @appearanceOledForAutoSub.
+  ///
+  /// In en, this message translates to:
+  /// **'In Auto, use pure black instead of Dark when your device is in dark mode.'**
+  String get appearanceOledForAutoSub;
+
+  /// No description provided for @appearanceNightScheduleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Night Schedule'**
+  String get appearanceNightScheduleLabel;
+
+  /// No description provided for @appearanceNightScheduleSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the Night style from {start} to {end}'**
+  String appearanceNightScheduleSub(Object start, Object end);
+
+  /// No description provided for @appearanceNightScheduleStarts.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts'**
+  String get appearanceNightScheduleStarts;
+
+  /// No description provided for @appearanceNightScheduleEnds.
+  ///
+  /// In en, this message translates to:
+  /// **'Ends'**
+  String get appearanceNightScheduleEnds;
+
+  /// No description provided for @appearanceNightScheduleActiveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Night is on until {time}'**
+  String appearanceNightScheduleActiveNote(Object time);
+
+  /// No description provided for @appearanceNightScheduleSameTimes.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick different start and end times.'**
+  String get appearanceNightScheduleSameTimes;
+
+  /// No description provided for @appearanceFlatSurfacesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Flat Surfaces'**
+  String get appearanceFlatSurfacesLabel;
+
+  /// No description provided for @appearanceFlatSurfacesSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Solid colours without glows, gradients or shadows.'**
+  String get appearanceFlatSurfacesSub;
 
   /// No description provided for @appearanceDynamicAlbumColorLabel.
   ///

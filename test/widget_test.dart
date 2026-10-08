@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/playback_recovery_provide
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'helpers/test_theme.dart';
@@ -17,12 +18,13 @@ import 'helpers/test_theme.dart';
 /// Overrides that prevent Drift streams (and their periodic timers) from being
 /// subscribed in widget tests.  Without these, `tester.pump()` enters an
 /// infinite loop servicing Drift's internal change-check timer.
-List<Override> _noDbOverrides({List<Override> extras = const []}) {
+List<Override> _noDbOverrides({
+  List<Override> extras = const [],
+  AppSettingsModel settings = const AppSettingsModel.defaults(),
+}) {
   return [
     // Prevent the database from being accessed at all.
-    appSettingsProvider.overrideWith(
-      (_) => Stream.value(const AppSettingsModel.defaults()),
-    ),
+    appSettingsProvider.overrideWith((_) => Stream.value(settings)),
     onboardingVersionProvider.overrideWithValue(
       const AsyncData(currentOnboardingVersion),
     ),
@@ -63,6 +65,51 @@ class _FakePlaybackRecoveryService implements PlaybackRecoveryService {
 }
 
 void main() {
+  testWidgets('resuming re-checks the scheduled Night style', (tester) async {
+    var clock = DateTime(2026, 10, 8, 12);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _noDbOverrides(
+          settings: const AppSettingsModel.defaults().copyWith(
+            nightScheduleEnabled: true,
+          ),
+          extras: [
+            nowProvider.overrideWithValue(() => clock),
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          ],
+        ),
+        child: testNavisApp,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    expect(
+      container.read(effectiveColorStyleProvider),
+      NavisColorStyle.neutral,
+    );
+
+    clock = DateTime(2026, 10, 8, 23);
+    expect(
+      container.read(effectiveColorStyleProvider),
+      NavisColorStyle.neutral,
+    );
+
+    <AppLifecycleState>[
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ].forEach(tester.binding.handleAppLifecycleStateChanged);
+    await tester.pump();
+
+    expect(container.read(effectiveColorStyleProvider), NavisColorStyle.night);
+  });
+
   testWidgets('shows login screen while unauthenticated', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

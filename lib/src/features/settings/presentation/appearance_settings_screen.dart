@@ -21,6 +21,90 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
+/// Night schedule switch with its start and end rows.
+class _NightScheduleSection extends ConsumerWidget {
+  const new({required this.userStyle});
+
+  /// The style the user chose, not the scheduled override.
+  final NavisColorStyle userStyle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final schedule = ref.watch(nightScheduleProvider);
+    final now = ref.watch(nowProvider)();
+    final localizations = MaterialLocalizations.of(context);
+    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    String format(int minutes) => localizations.formatTimeOfDay(
+      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+      alwaysUse24HourFormat: use24Hour,
+    );
+    final sameTimes = schedule.startMinutes == schedule.endMinutes;
+    final showActiveNote =
+        schedule.isActiveAt(now) && userStyle != NavisColorStyle.night;
+
+    Future<void> pick({required bool isStart}) async {
+      final current = isStart ? schedule.startMinutes : schedule.endMinutes;
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+      );
+      if (picked == null) return;
+      final minutes = picked.hour * 60 + picked.minute;
+      final db = ref.read(navisDatabaseProvider);
+      await db.appSettingsDao.updateNightSchedule(
+        startMinutes: isStart ? minutes : null,
+        endMinutes: isStart ? null : minutes,
+      );
+    }
+
+    Widget note(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Text(text, style: theme.textTheme.bodySmall),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        SwitchListTile(
+          title: Text(l10n.appearanceNightScheduleLabel),
+          subtitle: Text(
+            l10n.appearanceNightScheduleSub(
+              format(schedule.startMinutes),
+              format(schedule.endMinutes),
+            ),
+          ),
+          value: schedule.enabled,
+          onChanged: (enabled) async {
+            final db = ref.read(navisDatabaseProvider);
+            await db.appSettingsDao.updateNightSchedule(enabled: enabled);
+          },
+        ),
+        if (schedule.enabled) ...<Widget>[
+          ListTile(
+            title: Text(l10n.appearanceNightScheduleStarts),
+            trailing: Text(format(schedule.startMinutes)),
+            onTap: () => pick(isStart: true),
+          ),
+          ListTile(
+            title: Text(l10n.appearanceNightScheduleEnds),
+            trailing: Text(format(schedule.endMinutes)),
+            onTap: () => pick(isStart: false),
+          ),
+          if (sameTimes) note(l10n.appearanceNightScheduleSameTimes),
+          if (showActiveNote)
+            note(
+              l10n.appearanceNightScheduleActiveNote(
+                format(schedule.endMinutes),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
 class AppearanceSettingsScreen extends ConsumerWidget {
   const new({super.key});
 
@@ -38,6 +122,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
       'system' => MediaQuery.platformBrightnessOf(context),
       _ => Brightness.dark,
     };
+    final oledForAuto = ref.watch(oledForAutoProvider);
+    final previewOled =
+        currentMode == 'oled' ||
+        (currentMode == 'system' &&
+            oledForAuto &&
+            previewBrightness == Brightness.dark);
     final dynamicAlbumColorEnabled = ref.watch(
       dynamicAlbumColorEnabledProvider,
     );
@@ -121,6 +211,16 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   await db.appSettingsDao.updateThemeMode(mode);
                 },
               ),
+              if (currentMode == 'system')
+                SwitchListTile(
+                  title: Text(l10n.appearanceOledForAutoLabel),
+                  subtitle: Text(l10n.appearanceOledForAutoSub),
+                  value: oledForAuto,
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateOledForAuto(enabled: enabled);
+                  },
+                ),
 
               // ── Color Style ─────────────────────────────────────────
               Padding(
@@ -136,10 +236,20 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 currentStyle: currentStyle,
                 seed: previewSeed,
                 brightness: previewBrightness,
-                oled: currentMode == 'oled',
+                oled: previewOled,
                 onChanged: (style) async {
                   final db = ref.read(navisDatabaseProvider);
                   await db.appSettingsDao.updateColorStyle(style.storageKey);
+                },
+              ),
+              _NightScheduleSection(userStyle: currentStyle),
+              SwitchListTile(
+                title: Text(l10n.appearanceFlatSurfacesLabel),
+                subtitle: Text(l10n.appearanceFlatSurfacesSub),
+                value: ref.watch(flatSurfacesProvider),
+                onChanged: (enabled) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateFlatSurfaces(enabled: enabled);
                 },
               ),
               const Divider(height: 32),
