@@ -4252,7 +4252,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           .where((id) => !preserved.artistIds.contains(id))
           .toList(growable: false);
       if (removableAlbumIds.isNotEmpty) {
-        await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
+        deferredCacheFiles.addAll(
+          await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds),
+        );
       }
       await _database.libraryDao.deleteArtistsByIds(removableArtistIds);
 
@@ -5570,12 +5572,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 .where((song) => song.isProvisional)
                 .map((song) => song.id)
                 .toSet();
-        await _database.libraryDao.reconcileSongsForAlbumsChunk(
-          songsByAlbum,
-          markAlbumsHydrated: true,
-          snapshotStartedAt: state.startedAt,
-          serverId: (await _serverConfigRepository.getActiveServer())?.id,
-        );
+        final removedCacheFiles = await _database.libraryDao
+            .reconcileSongsForAlbumsChunk(
+              songsByAlbum,
+              markAlbumsHydrated: true,
+              snapshotStartedAt: state.startedAt,
+              serverId: (await _serverConfigRepository.getActiveServer())?.id,
+            );
+        await _database.libraryDao.cleanupRemovedCacheFiles(removedCacheFiles);
         await _reconcileHydratedSongIds(
           canonicalSongIds: canonicalSongIds,
           sameIdProvisionalSongs: sameIdProvisionalSongs,
@@ -5932,11 +5936,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 .where((song) => song.isProvisional)
                 .map((song) => song.id)
                 .toSet();
-        await _database.libraryDao.reconcileSongsForAlbumsChunk(
-          songsByAlbum,
-          snapshotStartedAt: snapshotStartedAt,
-          serverId: (await _serverConfigRepository.getActiveServer())?.id,
-        );
+        final removedCacheFiles = await _database.libraryDao
+            .reconcileSongsForAlbumsChunk(
+              songsByAlbum,
+              snapshotStartedAt: snapshotStartedAt,
+              serverId: (await _serverConfigRepository.getActiveServer())?.id,
+            );
+        await _database.libraryDao.cleanupRemovedCacheFiles(removedCacheFiles);
         await _reconcileHydratedSongIds(
           canonicalSongIds: canonicalSongIds,
           sameIdProvisionalSongs: sameIdProvisionalSongs,

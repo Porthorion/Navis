@@ -3339,7 +3339,10 @@ contract.
   `serverDeletedAt` marker keeps them out of normal Play All, shuffle, and
   download selection while review entries in `library_recovery_review` keep
   them recoverable; the legacy `removeServerSongsForPromotion` contract is now
-  `retainOrRemoveServerSongs`. An isolated media-fetch 404/410 during a
+  `retainOrRemoveServerSongs`. Album deletion and detail reconciliation use
+  that same chunked retention path. Retained rows keep their cache files; only
+  removed rows release file paths, which the caller deletes after its outer
+  transaction commits. An isolated media-fetch 404/410 during a
   download records `suspectedMissing` on rows still reading as present —
   suspicion never hides content or advances toward confirmed absence.
   Promotion rewrites re-observed rows with cleared absence markers, and bulk

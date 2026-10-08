@@ -1580,16 +1580,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<void> replaceSongsForAlbum(
+  Future<List<String>> replaceSongsForAlbum(
     String albumId,
     List<SongsTableCompanion> songs,
   ) async {
-    await reconcileSongsForAlbumsChunk(<String, List<SongsTableCompanion>>{
-      albumId: songs,
-    });
+    return await reconcileSongsForAlbumsChunk(
+      <String, List<SongsTableCompanion>>{albumId: songs},
+    );
   }
 
-  Future<void> replaceSongsForAlbumsChunk(
+  Future<List<String>> replaceSongsForAlbumsChunk(
     Map<String, List<SongsTableCompanion>> songsByAlbumId,
   ) {
     return reconcileSongsForAlbumsChunk(songsByAlbumId);
@@ -1619,7 +1619,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.map((row) => row.id).toList(growable: false);
   }
 
-  Future<void> reconcileSongsForAlbumsChunk(
+  /// Reconciles membership and returns files released by removed rows.
+  ///
+  /// The caller cleans them up only after its outer transaction commits.
+  Future<List<String>> reconcileSongsForAlbumsChunk(
     Map<String, List<SongsTableCompanion>> songsByAlbumId, {
     bool markAlbumsHydrated = false,
     List<AlbumsTableCompanion> albumMetadata = const <AlbumsTableCompanion>[],
@@ -1632,7 +1635,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .where((id) => id.isNotEmpty)
         .toList(growable: false);
     if (albumIds.isEmpty) {
-      return;
+      return const <String>[];
     }
 
     final cacheFiles = <String>[];
@@ -1712,10 +1715,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .toList(growable: false);
 
       cacheFiles.addAll(
-        await _handleRemovedServerSongs(
-          removedRows,
-          deferCacheFileDeletion: true,
-        ),
+        (await retainOrRemoveServerSongs(removedRows)).deferredCacheFiles,
       );
       if (serverId != null && removedRows.isNotEmpty) {
         await attachedDatabase.librarySyncDao.recordOperationLedgerEntry(
@@ -1767,9 +1767,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
     if (deferredCacheFiles != null) {
       deferredCacheFiles.addAll(cacheFiles);
-    } else {
-      await cleanupRemovedCacheFiles(cacheFiles);
     }
+    return cacheFiles;
   }
 
   Future<void> upsertSongs(
@@ -2771,22 +2770,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<void> deleteAlbumsByIds(Iterable<String> albumIds) async {
+  /// Deletes albums and returns cache files for post-commit cleanup.
+  Future<List<String>> deleteAlbumsByIds(Iterable<String> albumIds) async {
     final ids = albumIds.where((id) => id.trim().isNotEmpty).toList();
     if (ids.isEmpty) {
-      return;
+      return const <String>[];
     }
+    final cacheFiles = <String>[];
     await transaction(() async {
       for (final chunk in _sqlVariableChunks(ids)) {
         final songs = await (select(
           songsTable,
         )..where((table) => table.albumId.isIn(chunk))).get();
-        await _handleRemovedServerSongs(songs);
+        cacheFiles.addAll(
+          (await retainOrRemoveServerSongs(songs)).deferredCacheFiles,
+        );
         await (delete(
           albumsTable,
         )..where((table) => table.id.isIn(chunk))).go();
       }
     });
+    return cacheFiles;
   }
 
   /// Removes artists whose dependent server songs and albums were already
@@ -3040,8 +3044,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             );
         if (preserve) {
           preservedIds.add(cache.songId);
-        } else {
-          deferredCacheFiles.add(cache.filePath);
         }
       }
       final ownedIds = await _ownedSongIds(
@@ -3051,10 +3053,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .where((id) => !preservedIds.contains(id))
           .toList(growable: false);
       retainedUnavailableIds.addAll(retainedUnavailableIdsForChunk);
-      if (preservedIds.isNotEmpty) {
+      final keptIds = {...preservedIds, ...retainedUnavailableIdsForChunk};
+      if (keptIds.isNotEmpty) {
         await (update(
           songsTable,
-        )..where((table) => table.id.isIn(preservedIds.toList()))).write(
+        )..where((table) => table.id.isIn(keptIds))).write(
           SongsTableCompanion(
             albumId: const Value(null),
             artistId: const Value(null),
@@ -3064,20 +3067,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             ),
           ),
         );
-      }
-      if (retainedUnavailableIdsForChunk.isNotEmpty) {
-        await (update(songsTable)
-              ..where((table) => table.id.isIn(retainedUnavailableIdsForChunk)))
-            .write(
-              SongsTableCompanion(
-                albumId: const Value(null),
-                artistId: const Value(null),
-                serverDeletedAt: Value(now),
-                catalogAvailability: Value(
-                  CatalogAvailability.confirmedMissing.name,
-                ),
-              ),
-            );
       }
       final removableIds = chunk
           .where(
@@ -3089,6 +3078,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       if (removableIds.isEmpty) {
         continue;
       }
+      final removableSet = removableIds.toSet();
+      deferredCacheFiles.addAll(
+        caches
+            .where((cache) => removableSet.contains(cache.songId))
+            .map((cache) => cache.filePath),
+      );
       await (delete(
         cachedTracksTable,
       )..where((table) => table.songId.isIn(removableIds))).go();
@@ -3238,90 +3233,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         );
       }
     });
-  }
-
-  Future<List<String>> _handleRemovedServerSongs(
-    Iterable<SongsTableData> removedRows, {
-    bool deferCacheFileDeletion = false,
-  }) async {
-    final now = DateTime.now();
-    final deferredCacheFiles = <String>[];
-    for (final song in removedRows) {
-      if (song.serverDeletedAt != null) {
-        continue;
-      }
-      final cache = await (select(
-        cachedTracksTable,
-      )..where((table) => table.songId.equals(song.id))).getSingleOrNull();
-      final preserve =
-          cache != null &&
-          cache.cacheType == CacheType.permanent &&
-          cache.downloadStatus == DownloadStatus.complete &&
-          await storedAudioExists(
-            locator: cache.filePath,
-            storageKind: cache.storageKind,
-          );
-
-      if (preserve) {
-        await (update(
-          songsTable,
-        )..where((table) => table.id.equals(song.id))).write(
-          SongsTableCompanion(
-            albumId: const Value(null),
-            artistId: const Value(null),
-            serverDeletedAt: Value(now),
-            catalogAvailability: Value(
-              CatalogAvailability.confirmedMissing.name,
-            ),
-          ),
-        );
-        continue;
-      }
-
-      // A row that still owns user state survives as confirmed-missing so a
-      // later scan or manual review can relink it; only unowned rows are
-      // destroyed with their references.
-      final owned = (await _ownedSongIds(<String>[song.id])).isNotEmpty;
-      if (owned) {
-        await (update(
-          songsTable,
-        )..where((table) => table.id.equals(song.id))).write(
-          SongsTableCompanion(
-            albumId: const Value(null),
-            artistId: const Value(null),
-            serverDeletedAt: Value(now),
-            catalogAvailability: Value(
-              CatalogAvailability.confirmedMissing.name,
-            ),
-          ),
-        );
-        continue;
-      }
-
-      if (cache != null) {
-        if (deferCacheFileDeletion) {
-          deferredCacheFiles.add(cache.filePath);
-        } else {
-          await _deleteCacheFileBestEffort(cache.filePath);
-        }
-        await (delete(
-          cachedTracksTable,
-        )..where((table) => table.songId.equals(song.id))).go();
-      }
-      await (delete(
-        downloadQueueTable,
-      )..where((table) => table.songId.equals(song.id))).go();
-      await (delete(
-        externalLyricsCacheTable,
-      )..where((table) => table.songId.equals(song.id))).go();
-      await (delete(
-        matchFlowSongsTable,
-      )..where((table) => table.songId.equals(song.id))).go();
-      await (delete(
-        songsTable,
-      )..where((table) => table.id.equals(song.id))).go();
-    }
-    return deferredCacheFiles;
   }
 
   Future<void> _deleteCacheFileBestEffort(String path) async {

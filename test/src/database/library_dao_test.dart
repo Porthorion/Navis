@@ -854,10 +854,12 @@ void main() {
         ),
       );
 
-      await database.libraryDao.reconcileSongsForAlbumsChunk(
+      final files = await database.libraryDao.reconcileSongsForAlbumsChunk(
         const <String, List<SongsTableCompanion>>{'album-2': []},
       );
 
+      expect(audioFile.existsSync(), isTrue);
+      await database.libraryDao.cleanupRemovedCacheFiles(files);
       expect(await database.libraryDao.getSongById('plain-song'), isNull);
       expect(await database.cacheDao.getCachedTrack('plain-song'), isNull);
       expect(audioFile.existsSync(), isFalse);
