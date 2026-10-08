@@ -108,7 +108,6 @@ void main() {
           cellularAlbumConcurrency: 8,
           otherAlbumConcurrency: 8,
           writeChunkSize: 512,
-          isolateThreshold: 1000,
         );
 
         final watch = Stopwatch()..start();
@@ -184,7 +183,6 @@ void main() {
           cellularAlbumConcurrency: 8,
           otherAlbumConcurrency: 8,
           writeChunkSize: 512,
-          isolateThreshold: 1000,
         );
         const albums = _perfRebuildAlbumCount;
         void serve(String prefix) {

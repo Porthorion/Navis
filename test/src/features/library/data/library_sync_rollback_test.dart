@@ -117,7 +117,6 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
-        isolateThreshold: 1000,
       );
       final result = await engine.forceFullSync();
 

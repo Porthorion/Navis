@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -697,7 +696,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     this.cellularMaxAlbumConcurrency = 1,
     this.otherMaxAlbumConcurrency = 4,
     this.writeChunkSize = 48,
-    this.isolateThreshold = 100,
     this.onBeforeSongIdentityRemap,
     this.readActiveSongId,
     this.readProtectedSongIds,
@@ -728,7 +726,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   final int cellularMaxAlbumConcurrency;
   final int otherMaxAlbumConcurrency;
   final int writeChunkSize;
-  final int isolateThreshold;
   final Future<void> Function(Map<String, String> aliases)?
   onBeforeSongIdentityRemap;
   final String? Function()? readActiveSongId;
@@ -6382,21 +6379,15 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     bool inheritExternalWhenMissing = false,
     Map<String, int> newestRanks = const <String, int>{},
   }) async {
-    final payload = albums
-        .map((album) => album.toJson())
-        .toList(growable: false);
-    final rows = payload.length >= isolateThreshold
-        ? await _parseAlbumRowsInIsolate(payload)
-        : _albumRowsFromJson(payload);
     final pendingHydrationSet = pendingHydrationAlbumIds.toSet();
 
-    return rows
+    return albums
         .map(
           (row) => AlbumsTableCompanion.insert(
             id: row.id,
             name: row.name,
             artistId: Value(row.artistId),
-            artistName: Value(row.artistName),
+            artistName: Value(row.artist),
             artists: Value(row.artists),
             songCount: Value(row.songCount),
             duration: Value(row.duration),
@@ -6407,7 +6398,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
-            releaseMbid: Value(row.releaseMbid),
+            releaseMbid: Value(row.musicBrainzId),
             recentlyAddedRank: newestRanks.containsKey(row.id)
                 ? Value(newestRanks[row.id])
                 : const Value.absent(),
@@ -6415,7 +6406,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               isExternalCatalogSource(
                 id: row.id,
                 apiIsExternal:
-                    row.apiIsExternal ??
+                    row.isExternal ??
                     (inheritExternalWhenMissing ? true : null),
               ),
             ),
@@ -6434,12 +6425,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     int? catalogGeneration,
     bool inheritExternalWhenMissing = false,
   }) async {
-    final payload = songs.map((song) => song.toJson()).toList(growable: false);
-    final rows = payload.length >= isolateThreshold
-        ? await _parseSongRowsInIsolate(payload)
-        : _songRowsFromJson(payload);
-
-    return rows
+    return songs
         .map(
           (row) => SongsTableCompanion.insert(
             id: row.id,
@@ -6451,8 +6437,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 validArtistIds: validArtistIds,
               ),
             ),
-            artistName: Value(row.artistName),
-            albumName: Value(row.albumName),
+            artistName: Value(row.artist),
+            albumName: Value(row.album),
             track: Value(row.track),
             discNumber: Value(row.discNumber),
             duration: Value(row.duration),
@@ -6463,22 +6449,22 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             size: Value(row.size),
             coverArt: Value(row.coverArt),
             starred: Value(row.starred),
-            recordingMbid: Value(row.recordingMbid),
+            recordingMbid: Value(row.musicBrainzId),
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
-            createdAt: Value(row.createdAt),
+            createdAt: Value(row.created),
             isExternal: Value(
               isExternalCatalogSource(
                 id: row.id,
                 apiIsExternal:
-                    row.apiIsExternal ??
+                    row.isExternal ??
                     (inheritExternalWhenMissing ? true : null),
               ),
             ),
-            replayGainTrackGain: Value(row.replayGainTrackGain),
-            replayGainAlbumGain: Value(row.replayGainAlbumGain),
-            replayGainTrackPeak: Value(row.replayGainTrackPeak),
-            replayGainAlbumPeak: Value(row.replayGainAlbumPeak),
+            replayGainTrackGain: Value(row.replayGain?.trackGain),
+            replayGainAlbumGain: Value(row.replayGain?.albumGain),
+            replayGainTrackPeak: Value(row.replayGain?.trackPeak),
+            replayGainAlbumPeak: Value(row.replayGain?.albumPeak),
             catalogGeneration: catalogGeneration == null
                 ? const Value.absent()
                 : Value(catalogGeneration),
@@ -6688,189 +6674,6 @@ class _AdaptiveHydrationConcurrency {
     final next = _current - by;
     _current = next < _min ? _min : next;
   }
-}
-
-class _AlbumRow {
-  const new({
-    required this.id,
-    required this.name,
-    this.artistId,
-    this.artistName,
-    this.artists = const <ArtistRef>[],
-    this.songCount,
-    this.duration,
-    this.year,
-    this.coverArt,
-    this.starred,
-    this.userRating,
-    this.playCount,
-    this.created,
-    this.releaseMbid,
-    this.apiIsExternal,
-  });
-
-  final String id;
-  final String name;
-  final String? artistId;
-  final String? artistName;
-
-  /// OpenSubsonic multi-artist list. Empty on standard Subsonic servers.
-  final List<ArtistRef> artists;
-
-  final int? songCount;
-  final int? duration;
-  final int? year;
-  final String? coverArt;
-  final DateTime? starred;
-  final int? userRating;
-  final int? playCount;
-
-  /// When the album was added to the server library (`created` from the API).
-  final DateTime? created;
-
-  /// OpenSubsonic MusicBrainz release ID. Null on standard Subsonic servers.
-  final String? releaseMbid;
-  final bool? apiIsExternal;
-}
-
-class _SongRow {
-  const new({
-    required this.id,
-    required this.title,
-    this.albumId,
-    this.artistId,
-    this.artistName,
-    this.albumName,
-    this.track,
-    this.discNumber,
-    this.duration,
-    this.bitRate,
-    this.sampleRate,
-    this.contentType,
-    this.suffix,
-    this.size,
-    this.coverArt,
-    this.starred,
-    this.recordingMbid,
-    this.userRating,
-    this.playCount,
-    this.createdAt,
-    this.replayGainTrackGain,
-    this.replayGainAlbumGain,
-    this.replayGainTrackPeak,
-    this.replayGainAlbumPeak,
-    this.apiIsExternal,
-  });
-
-  final String id;
-  final String title;
-  final String? albumId;
-  final String? artistId;
-  final String? artistName;
-  final String? albumName;
-  final int? track;
-  final int? discNumber;
-  final int? duration;
-  final int? bitRate;
-  final int? sampleRate;
-  final String? contentType;
-  final String? suffix;
-  final int? size;
-  final String? coverArt;
-  final DateTime? starred;
-  final String? recordingMbid;
-  final int? userRating;
-  final int? playCount;
-  final DateTime? createdAt;
-  final double? replayGainTrackGain;
-  final double? replayGainAlbumGain;
-  final double? replayGainTrackPeak;
-  final double? replayGainAlbumPeak;
-  final bool? apiIsExternal;
-}
-
-Future<List<_AlbumRow>> _parseAlbumRowsInIsolate(
-  List<Map<String, dynamic>> payload,
-) {
-  return Isolate.run(() => _albumRowsFromJson(payload));
-}
-
-Future<List<_SongRow>> _parseSongRowsInIsolate(
-  List<Map<String, dynamic>> payload,
-) {
-  return Isolate.run(() => _songRowsFromJson(payload));
-}
-
-List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
-  return payload
-      .map((json) {
-        final rawArtists = json['artists'] as List<dynamic>?;
-        final artists = rawArtists != null
-            ? rawArtists
-                  .map((e) => ArtistRef.fromJson(e as Map<String, dynamic>))
-                  .toList(growable: false)
-            : const <ArtistRef>[];
-        return _AlbumRow(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          artistId: json['artistId'] as String?,
-          artistName: json['artist'] as String?,
-          artists: artists,
-          songCount: json['songCount'] as int?,
-          duration: json['duration'] as int?,
-          year: json['year'] as int?,
-          coverArt: json['coverArt'] as String?,
-          starred: _parseIsoDate(json['starred'] as String?),
-          userRating: json['userRating'] as int?,
-          playCount: json['playCount'] as int?,
-          created: _parseIsoDate(json['created'] as String?),
-          releaseMbid: json['musicBrainzId'] as String?,
-          apiIsExternal: json['isExternal'] as bool?,
-        );
-      })
-      .toList(growable: false);
-}
-
-List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
-  return payload
-      .map((json) {
-        final rg = json['replayGain'] as Map<String, dynamic>?;
-        return _SongRow(
-          id: json['id'] as String,
-          title: json['title'] as String,
-          albumId: json['albumId'] as String?,
-          artistId: json['artistId'] as String?,
-          artistName: json['artist'] as String?,
-          albumName: json['album'] as String?,
-          track: json['track'] as int?,
-          discNumber: json['discNumber'] as int?,
-          duration: json['duration'] as int?,
-          bitRate: json['bitRate'] as int?,
-          sampleRate: (json['sampleRate'] as num?)?.toInt(),
-          contentType: json['contentType'] as String?,
-          suffix: json['suffix'] as String?,
-          size: json['size'] as int?,
-          coverArt: json['coverArt'] as String?,
-          starred: _parseIsoDate(json['starred'] as String?),
-          recordingMbid: json['musicBrainzId'] as String?,
-          userRating: json['userRating'] as int?,
-          playCount: json['playCount'] as int?,
-          createdAt: _parseIsoDate(json['created'] as String?),
-          replayGainTrackGain: (rg?['trackGain'] as num?)?.toDouble(),
-          replayGainAlbumGain: (rg?['albumGain'] as num?)?.toDouble(),
-          replayGainTrackPeak: (rg?['trackPeak'] as num?)?.toDouble(),
-          replayGainAlbumPeak: (rg?['albumPeak'] as num?)?.toDouble(),
-          apiIsExternal: json['isExternal'] as bool?,
-        );
-      })
-      .toList(growable: false);
-}
-
-DateTime? _parseIsoDate(String? value) {
-  if (value == null || value.isEmpty) {
-    return null;
-  }
-  return DateTime.tryParse(value);
 }
 
 String _toSafeErrorMessage(Object error) {

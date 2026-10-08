@@ -146,7 +146,6 @@ void main() {
       serverConfigRepository: repo,
       networkType: NetworkType.wifi,
       writeChunkSize: 4,
-      isolateThreshold: 1000,
     );
     coordinator = AdaptiveLibrarySyncCoordinator(
       executor: engine,

@@ -81,7 +81,6 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
-        isolateThreshold: 1000,
         scanSettlePollInterval: const Duration(milliseconds: 1),
         scanSettleMaxPolls: 2,
       );

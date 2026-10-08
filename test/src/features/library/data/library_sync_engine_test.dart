@@ -141,13 +141,172 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
-        isolateThreshold: 1000,
       );
     });
 
     tearDown(() async {
       await database.close();
     });
+
+    for (final utc in [false, true]) {
+      test('hydration maps every album and song field (UTC: $utc)', () async {
+        await saveSession();
+        final created = utc
+            ? DateTime.utc(2025, 2, 3, 4, 5, 6)
+            : DateTime(2025, 2, 3, 4, 5, 6);
+        final starred = created.add(const Duration(days: 1));
+        final song = Song(
+          id: 'ext-song',
+          title: 'Track',
+          albumId: 'ext-album',
+          album: 'Release',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          track: 7,
+          discNumber: 2,
+          year: 2025,
+          duration: 321,
+          bitRate: 320,
+          sampleRate: 96000,
+          contentType: 'audio/flac',
+          suffix: 'flac',
+          size: 123456,
+          coverArt: 'song-cover',
+          starred: starred,
+          musicBrainzId: 'recording',
+          userRating: 4,
+          playCount: 12,
+          created: created,
+          isExternal: false,
+          replayGain: const ReplayGain(
+            trackGain: -4.5,
+            albumGain: -3,
+            trackPeak: 0.92,
+            albumPeak: 0.95,
+          ),
+        );
+        final album = Album(
+          id: 'ext-album',
+          name: 'Release',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          artists: const [
+            ArtistRef(id: 'artist-1', name: 'Artist'),
+            ArtistRef(id: 'artist-2', name: 'Guest'),
+          ],
+          songCount: 1,
+          duration: 321,
+          year: 2025,
+          coverArt: 'album-cover',
+          starred: starred,
+          userRating: 5,
+          playCount: 13,
+          created: created,
+          musicBrainzId: 'release',
+          isExternal: false,
+          songs: [song],
+        );
+        api.albumDetails[album.id] = album;
+        final result = await engine.hydrateAlbum(album.id);
+        expect(result.status, LibrarySyncStatus.succeeded);
+        final storedAlbum = (await database.libraryDao.getAlbumById(album.id))!;
+        final storedSong = (await database.libraryDao.getSongById(song.id))!;
+        expect(
+          [
+            storedAlbum.id,
+            storedAlbum.name,
+            storedAlbum.artistId,
+            storedAlbum.artistName,
+            storedAlbum.artists,
+            storedAlbum.songCount,
+            storedAlbum.duration,
+            storedAlbum.year,
+            storedAlbum.coverArt,
+            storedAlbum.starred,
+            storedAlbum.userRating,
+            storedAlbum.playCount,
+            storedAlbum.serverCreatedAt,
+            storedAlbum.releaseMbid,
+            storedAlbum.isExternal,
+            storedAlbum.songsHydrated,
+          ],
+          [
+            album.id,
+            album.name,
+            album.artistId,
+            album.artist,
+            album.artists,
+            album.songCount,
+            album.duration,
+            album.year,
+            album.coverArt,
+            starred.toLocal(),
+            album.userRating,
+            album.playCount,
+            created.toLocal(),
+            album.musicBrainzId,
+            false,
+            true,
+          ],
+        );
+        expect(
+          [
+            storedSong.id,
+            storedSong.title,
+            storedSong.albumId,
+            storedSong.artistId,
+            storedSong.artistName,
+            storedSong.albumName,
+            storedSong.track,
+            storedSong.discNumber,
+            storedSong.duration,
+            storedSong.bitRate,
+            storedSong.sampleRate,
+            storedSong.contentType,
+            storedSong.suffix,
+            storedSong.size,
+            storedSong.coverArt,
+            storedSong.starred,
+            storedSong.recordingMbid,
+            storedSong.userRating,
+            storedSong.playCount,
+            storedSong.createdAt,
+            storedSong.isExternal,
+            storedSong.replayGainTrackGain,
+            storedSong.replayGainAlbumGain,
+            storedSong.replayGainTrackPeak,
+            storedSong.replayGainAlbumPeak,
+          ],
+          [
+            song.id,
+            song.title,
+            song.albumId,
+            song.artistId,
+            song.artist,
+            song.album,
+            song.track,
+            song.discNumber,
+            song.duration,
+            song.bitRate,
+            song.sampleRate,
+            song.contentType,
+            song.suffix,
+            song.size,
+            song.coverArt,
+            starred.toLocal(),
+            song.musicBrainzId,
+            song.userRating,
+            song.playCount,
+            created.toLocal(),
+            false,
+            -4.5,
+            -3.0,
+            0.92,
+            0.95,
+          ],
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     for (final invalid in <String, Album>{
       'partial count': const Album(
@@ -1662,7 +1821,6 @@ void main() {
           cellularAlbumConcurrency: 1,
           otherAlbumConcurrency: 1,
           writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final first = await protectedEngine.forceFullSync();
@@ -1747,7 +1905,6 @@ void main() {
           cellularAlbumConcurrency: 1,
           otherAlbumConcurrency: 1,
           writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final result = await aliasEngine.forceFullSync();
@@ -2192,7 +2349,6 @@ void main() {
           otherAlbumConcurrency: 1,
           fastPathPageSize: 2,
           writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
@@ -2245,7 +2401,6 @@ void main() {
           serverConfigRepository: serverConfigRepository,
           fastPathPageSize: 4,
           writeChunkSize: 8,
-          isolateThreshold: 1000,
         );
 
         final state = await cappedPageEngine.forceFullSync();
@@ -2295,7 +2450,6 @@ void main() {
           database: database,
           serverConfigRepository: serverConfigRepository,
           fastPathPageSize: 2,
-          isolateThreshold: 1000,
         );
       }
 
@@ -2407,7 +2561,6 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
-        isolateThreshold: 1000,
       );
 
       final interrupted = await localEngine.forceFullSync();
@@ -2457,7 +2610,6 @@ void main() {
             database: database,
             serverConfigRepository: serverConfigRepository,
             fastPathPageSize: 2,
-            isolateThreshold: 1000,
           );
           expect(
             (await localEngine.forceFullSync()).status,
@@ -2667,7 +2819,6 @@ void main() {
           fastPathPageSize: 4,
           bulkSearchPageSize: 3,
           writeChunkSize: 2,
-          isolateThreshold: 1000,
         );
 
         final state = await cappedPageEngine.forceFullSync();
@@ -2738,7 +2889,6 @@ void main() {
           otherAlbumConcurrency: 1,
           bulkSearchPageSize: 3,
           writeChunkSize: 4,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
@@ -2821,7 +2971,6 @@ void main() {
           cellularAlbumConcurrency: 1,
           otherAlbumConcurrency: 1,
           writeChunkSize: 1,
-          isolateThreshold: 1000,
         );
         await tailEngine.forceFullSync();
 
@@ -2905,7 +3054,6 @@ void main() {
           otherAlbumConcurrency: 1,
           bulkSearchPageSize: 2,
           writeChunkSize: 1,
-          isolateThreshold: 1000,
         );
 
         final progress = <LibrarySyncState>[];
@@ -2930,7 +3078,7 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('bulk song fast path with isolate parsing does not crash', () async {
+    test('bulk song fast path maps pages without detail requests', () async {
       await saveSession();
       api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
       api.fastPathPages[0] = List<Album>.generate(
@@ -2953,7 +3101,7 @@ void main() {
         ),
       );
 
-      final isolateEngine = DriftLibrarySyncEngine(
+      final bulkEngine = DriftLibrarySyncEngine(
         api: api,
         database: database,
         serverConfigRepository: serverConfigRepository,
@@ -2962,10 +3110,9 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
-        isolateThreshold: 1,
       );
 
-      final state = await isolateEngine.forceFullSync();
+      final state = await bulkEngine.forceFullSync();
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3004,7 +3151,7 @@ void main() {
           ),
         );
 
-        final isolateEngine = DriftLibrarySyncEngine(
+        final bulkEngine = DriftLibrarySyncEngine(
           api: api,
           database: database,
           serverConfigRepository: serverConfigRepository,
@@ -3013,10 +3160,9 @@ void main() {
           cellularAlbumConcurrency: 1,
           otherAlbumConcurrency: 1,
           writeChunkSize: 4,
-          isolateThreshold: 1,
         );
 
-        final state = await isolateEngine.forceFullSync();
+        final state = await bulkEngine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3118,7 +3264,6 @@ void main() {
             api: bulkApi,
             database: database,
             serverConfigRepository: serverConfigRepository,
-            isolateThreshold: 1000,
           );
 
           final state = await bulkEngine.forceFullSync();
@@ -3284,7 +3429,6 @@ void main() {
         cellularAlbumConcurrency: 1,
         otherAlbumConcurrency: 1,
         writeChunkSize: 1,
-        isolateThreshold: 1000,
       );
 
       final state = await bulkEnabledEngine.forceFullSync();
@@ -4647,7 +4791,6 @@ void main() {
           otherAlbumConcurrency: 2,
           otherMaxAlbumConcurrency: 4,
           writeChunkSize: 18,
-          isolateThreshold: 1000,
         );
 
         final state = await adaptiveEngine.forceFullSync();
@@ -4691,7 +4834,6 @@ void main() {
           networkType: NetworkType.wifi,
           readActiveSongId: () => 'song-playing',
           writeChunkSize: 12,
-          isolateThreshold: 1000,
         );
 
         final state = await activePlaybackEngine.forceFullSync();
@@ -4734,7 +4876,6 @@ void main() {
           wifiAlbumConcurrency: 2,
           wifiMaxAlbumConcurrency: 8,
           writeChunkSize: 12,
-          isolateThreshold: 1000,
         );
 
         final state = await adaptiveEngine.forceFullSync();
@@ -4780,7 +4921,6 @@ void main() {
           serverConfigRepository: serverConfigRepository,
           networkType: NetworkType.wifi,
           writeChunkSize: 18,
-          isolateThreshold: 1000,
         );
         final scope = SyncRequestScope(
           allowedEndpoints: {

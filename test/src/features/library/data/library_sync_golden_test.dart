@@ -58,7 +58,6 @@ void main() {
       cellularAlbumConcurrency: 1,
       otherAlbumConcurrency: 1,
       writeChunkSize: 4,
-      isolateThreshold: 1000,
     );
     final starred = DateTime.utc(2026, 1, 2);
 

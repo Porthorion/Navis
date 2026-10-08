@@ -42,7 +42,6 @@ void main() {
       cellularAlbumConcurrency: 1,
       otherAlbumConcurrency: 1,
       writeChunkSize: 4,
-      isolateThreshold: 1000,
     );
     void serve(String albumId, String songId) {
       final album = Album(
