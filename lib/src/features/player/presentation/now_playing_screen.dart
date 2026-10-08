@@ -199,6 +199,37 @@ String? nowPlayingVisualCacheKeyFor({
   return null;
 }
 
+/// Background of the Now Playing surface.
+///
+/// No [tintColor] (art tint off or no art yet): plain [surfaceColor]. With a
+/// tint: the style-adapted art colour fading into the surface, or under Flat
+/// one solid colour, the adapted tint at the style's alpha composited over
+/// the surface.
+@visibleForTesting
+BoxDecoration nowPlayingSurfaceDecoration({
+  required Color? tintColor,
+  required NavisColorStyleData colorStyle,
+  required Color surfaceColor,
+}) {
+  if (tintColor == null) {
+    return BoxDecoration(color: surfaceColor);
+  }
+  final tint = colorStyle
+      .adaptArtColor(tintColor)
+      .withValues(alpha: colorStyle.nowPlayingTintAlpha);
+  if (colorStyle.flat) {
+    return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
+  }
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[tint, surfaceColor],
+      stops: const <double>[0, 0.7],
+    ),
+  );
+}
+
 Color? nowPlayingCachedTintColor({
   required Brightness brightness,
   String? coverArtId,
@@ -576,21 +607,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         key: const ValueKey<String>('nowPlayingSurfaceTint'),
         duration: motion.surface,
         curve: Curves.easeInOutCubic,
-        decoration: BoxDecoration(
-          gradient: tintColor != null
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    colorStyle
-                        .adaptArtColor(tintColor)
-                        .withValues(alpha: colorStyle.nowPlayingTintAlpha),
-                    surfaceColor,
-                  ],
-                  stops: const <double>[0, 0.7],
-                )
-              : null,
-          color: tintColor == null ? surfaceColor : null,
+        decoration: nowPlayingSurfaceDecoration(
+          tintColor: tintColor,
+          colorStyle: colorStyle,
+          surfaceColor: surfaceColor,
         ),
         // In compact-wide mode the overlay panels must cover the full
         // Material area including any safe-area insets, so we skip the
@@ -1698,26 +1718,42 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                   width: 34,
                                   height: double.infinity,
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: feedbackDirection > 0
-                                          ? Alignment.centerLeft
-                                          : Alignment.centerRight,
-                                      end: feedbackDirection > 0
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      colors: <Color>[
-                                        colorScheme.primary.withValues(
-                                          alpha:
-                                              (reducedMotion
-                                                      ? 0.36
-                                                      : 0.36 * feedbackProgress)
-                                                  .clamp(0.0, 1.0),
-                                        ),
-                                        colorScheme.primary.withValues(
-                                          alpha: 0,
-                                        ),
-                                      ],
-                                    ),
+                                    // Flat: the glow becomes a solid edge
+                                    // bar that still fades with progress.
+                                    color: NavisColorStyleData.of(context).flat
+                                        ? colorScheme.primary.withValues(
+                                            alpha:
+                                                (reducedMotion
+                                                        ? 0.36
+                                                        : 0.36 *
+                                                              feedbackProgress)
+                                                    .clamp(0.0, 1.0),
+                                          )
+                                        : null,
+                                    gradient:
+                                        NavisColorStyleData.of(context).flat
+                                        ? null
+                                        : LinearGradient(
+                                            begin: feedbackDirection > 0
+                                                ? Alignment.centerLeft
+                                                : Alignment.centerRight,
+                                            end: feedbackDirection > 0
+                                                ? Alignment.centerRight
+                                                : Alignment.centerLeft,
+                                            colors: <Color>[
+                                              colorScheme.primary.withValues(
+                                                alpha:
+                                                    (reducedMotion
+                                                            ? 0.36
+                                                            : 0.36 *
+                                                                  feedbackProgress)
+                                                        .clamp(0.0, 1.0),
+                                              ),
+                                              colorScheme.primary.withValues(
+                                                alpha: 0,
+                                              ),
+                                            ],
+                                          ),
                                   ),
                                 ),
                               ),
@@ -2808,14 +2844,20 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             border: Border.all(
               color: colorScheme.outlineVariant.withValues(alpha: 0.4),
             ),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[
-                colorScheme.surfaceContainerLowest,
-                colorScheme.surfaceContainerLow,
-              ],
-            ),
+            // Flat: the gradient's end colour as a solid fill.
+            color: NavisColorStyleData.of(context).flat
+                ? colorScheme.surfaceContainerLow
+                : null,
+            gradient: NavisColorStyleData.of(context).flat
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[
+                      colorScheme.surfaceContainerLowest,
+                      colorScheme.surfaceContainerLow,
+                    ],
+                  ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -3125,13 +3167,17 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               alpha: 0.5,
                             ),
                           ),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: colorScheme.shadow.withValues(alpha: 0.08),
-                              blurRadius: 22,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
+                          boxShadow: NavisColorStyleData.of(context).flat
+                              ? null
+                              : <BoxShadow>[
+                                  BoxShadow(
+                                    color: colorScheme.shadow.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
                         ),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),

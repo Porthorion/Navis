@@ -15,6 +15,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 // Re-export constants so that files which import cover_art_image.dart continue
 // to access coverArtCacheKey and kCoverArtStandardSize without extra imports.
@@ -724,14 +725,20 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-          colors: <Color>[
-            colors.surfaceContainerHigh,
-            colors.surfaceContainerHighest,
-          ],
-        ),
+        // Flat: the gradient's end colour as a solid fill.
+        color: NavisColorStyleData.of(context).flat
+            ? colors.surfaceContainerHighest
+            : null,
+        gradient: NavisColorStyleData.of(context).flat
+            ? null
+            : LinearGradient(
+                begin: AlignmentDirectional.topStart,
+                end: AlignmentDirectional.bottomEnd,
+                colors: <Color>[
+                  colors.surfaceContainerHigh,
+                  colors.surfaceContainerHighest,
+                ],
+              ),
         borderRadius: _isCircular ? null : _borderRadius,
         shape: _isCircular ? BoxShape.circle : BoxShape.rectangle,
       ),

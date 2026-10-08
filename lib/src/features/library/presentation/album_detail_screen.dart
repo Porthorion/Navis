@@ -42,6 +42,7 @@ import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// An album's page. An album the library does not hold yet, or a remote
 /// (`ext-…`) album without tracks, is fetched from the server first: the page
@@ -745,16 +746,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         // ── Gradient fade from header into track list ──
                         Container(
                           height: 28,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                colors.surfaceContainerHigh,
-                                colors.surface,
-                              ],
-                            ),
-                          ),
+                          // Flat: a hard step to the solid end colour.
+                          decoration: NavisColorStyleData.of(context).flat
+                              ? BoxDecoration(color: colors.surface)
+                              : BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      colors.surfaceContainerHigh,
+                                      colors.surface,
+                                    ],
+                                  ),
+                                ),
                         ),
                         // ── Track list — flat, no card ──
                         Expanded(
@@ -1210,22 +1214,39 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             fit: BoxFit.cover,
                             fadeInDuration: Duration.zero,
                           ),
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: <Color>[
-                                    Colors.transparent,
-                                    Colors.transparent,
-                                    Theme.of(context).scaffoldBackgroundColor,
-                                  ],
-                                  stops: const <double>[0, 0.60, 0.85],
+                          if (NavisColorStyleData.of(context).flat)
+                            // Flat: a hard-edged solid block under the title
+                            // instead of the fade into the page.
+                            Positioned.fill(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: FractionallySizedBox(
+                                  heightFactor: 0.4,
+                                  widthFactor: 1,
+                                  child: ColoredBox(
+                                    color: Theme.of(context)
+                                        .scaffoldBackgroundColor,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      Colors.transparent,
+                                      Colors.transparent,
+                                      Theme.of(context).scaffoldBackgroundColor,
+                                    ],
+                                    stops: const <double>[0, 0.60, 0.85],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
                           // The title scrolls out with the lower gradient.
                           Positioned(
                             bottom: 0,
@@ -1248,7 +1269,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         color: isLightTheme
                                             ? mobileColors.onSurface
                                             : Colors.white,
-                                        shadows: isLightTheme
+                                        shadows:
+                                            isLightTheme ||
+                                                NavisColorStyleData.of(context)
+                                                    .flat
                                             ? null
                                             : <Shadow>[
                                                 Shadow(

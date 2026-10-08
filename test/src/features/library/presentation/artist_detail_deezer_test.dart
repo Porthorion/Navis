@@ -7,6 +7,7 @@ import 'package:file/memory.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -15,6 +16,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/deezer_models.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
+import 'package:navis/src/common_widgets/flat_artwork_text_variant.dart';
 import 'package:navis/src/common_widgets/external_artwork_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -178,9 +180,11 @@ void main() {
     ThemeData? theme,
     int albumCount = 12,
     DiagnosticsPresentationController? presentation,
+    List<Override> extraOverrides = const [],
   }) {
     return ProviderScope(
       overrides: [
+        ...extraOverrides,
         navisDatabaseProvider.overrideWithValue(database),
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         subsonicApiProvider.overrideWith((_) => null),
@@ -266,6 +270,69 @@ void main() {
     await tester.ensureVisible(finder.first);
     await tester.pumpAndSettle();
   }
+
+  group('Flat artwork text', () {
+    const photoInfo = ArtistInfo(largeImageUrl: _serverPhoto);
+    final scrim = find.byType(ArtworkScrim);
+    final band = find.byKey(artworkCaptionBandKey);
+
+    Future<void> pumpHero(
+      WidgetTester tester, {
+      required bool flat,
+      FlatArtworkTextVariant? variant,
+    }) async {
+      await tester.pumpWidget(
+        app(
+          info: photoInfo,
+          theme: buildDarkTheme(defaultColorSchemeSeedColor, flat: flat),
+          extraOverrides: <Override>[
+            if (variant != null)
+              flatArtworkTextVariantProvider.overrideWith(
+                () => _FixedVariant(variant),
+              ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(headerImage(_serverPhoto), findsOneWidget);
+    }
+
+    bool scrimPaints(WidgetTester tester) => find
+        .descendant(of: scrim, matching: find.byType(DecoratedBox))
+        .evaluate()
+        .isNotEmpty;
+
+    testWidgets('Flat off keeps the gradient whatever the variant', (
+      tester,
+    ) async {
+      await pumpHero(tester, flat: false, variant: FlatArtworkTextVariant.band);
+      expect(scrimPaints(tester), isTrue);
+      expect(band, findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('Flat with the gradient variant keeps the scrim', (
+      tester,
+    ) async {
+      await pumpHero(tester, flat: true);
+      expect(scrimPaints(tester), isTrue);
+      expect(band, findsNothing);
+      await dispose(tester);
+    });
+
+    testWidgets('Flat with the band variant paints a solid band instead', (
+      tester,
+    ) async {
+      await pumpHero(tester, flat: true, variant: FlatArtworkTextVariant.band);
+      expect(scrimPaints(tester), isFalse);
+      expect(band, findsOneWidget);
+      final decoration =
+          tester.widget<DecoratedBox>(band).decoration as BoxDecoration;
+      expect(decoration.gradient, isNull);
+      expect(decoration.color, Colors.black.withValues(alpha: 0.62));
+      await dispose(tester);
+    });
+  });
 
   group('header photo', () {
     testWidgets('the server photo comes first', (tester) async {
@@ -868,4 +935,13 @@ void main() {
       await dispose(tester);
     });
   });
+}
+
+class _FixedVariant extends FlatArtworkTextVariantNotifier {
+  new(this.fixed);
+
+  final FlatArtworkTextVariant fixed;
+
+  @override
+  FlatArtworkTextVariant build() => fixed;
 }

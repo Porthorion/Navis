@@ -176,13 +176,16 @@ class _ShowcaseCoverCard extends ConsumerWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          // Flat: no drop shadow under the showcase artwork.
+          boxShadow: NavisColorStyleData.of(context).flat
+              ? null
+              : <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Material(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -321,6 +324,10 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
   }
 }
 
+/// Test seam for the private [_ShowcaseColourWash].
+@visibleForTesting
+typedef ShowcaseColourWash = _ShowcaseColourWash;
+
 /// A soft wash of the focused cover's colours behind the section.
 ///
 /// The cover is sampled into a small colour grid (see
@@ -332,6 +339,9 @@ class _ShowcaseColourWash extends ConsumerWidget {
   const new({required this.coverArtId, this.subtle = false});
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
+
+  /// The single solid block painted instead of the mesh when Flat is on.
+  static const Key flatFillKey = ValueKey<String>('home-showcase-wash-flat');
 
   final String? coverArtId;
 
@@ -351,6 +361,9 @@ class _ShowcaseColourWash extends ConsumerWidget {
     final field = coverId == null || coverId.isEmpty
         ? null
         : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
+    if (style.flat) {
+      return _buildFlat(context, background, style, field, veil);
+    }
     final target = field == null
         ? CoverColourField.uniform(background)
         : CoverColourField(
@@ -390,6 +403,51 @@ class _ShowcaseColourWash extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on _ShowcaseColourWash {
+  /// Flat wash: one solid block with hard edges, the adapted average of the
+  /// field's cells at the style's veil strength over the page background.
+  Widget _buildFlat(
+    BuildContext context,
+    Color background,
+    NavisColorStyleData style,
+    CoverColourField? field,
+    double veil,
+  ) {
+    final motion = MotionPolicy.of(context);
+    final cells = field?.colors.where((c) => c.a > 0).toList() ?? <Color>[];
+    var fill = background;
+    if (cells.isNotEmpty) {
+      final average = Color.from(
+        alpha: 1,
+        red: cells.fold<double>(0, (sum, c) => sum + c.r) / cells.length,
+        green: cells.fold<double>(0, (sum, c) => sum + c.g) / cells.length,
+        blue: cells.fold<double>(0, (sum, c) => sum + c.b) / cells.length,
+      );
+      fill = Color.alphaBlend(
+        style.adaptArtColor(average).withValues(alpha: 1 - veil),
+        background,
+      );
+    }
+    return IgnorePointer(
+      key: _ShowcaseColourWash.washKey,
+      child: ExcludeSemantics(
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: fill),
+          duration: motion.reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          builder: (context, value, _) => ColoredBox(
+            key: _ShowcaseColourWash.flatFillKey,
+            color: value ?? fill,
+            child: const SizedBox.expand(),
           ),
         ),
       ),

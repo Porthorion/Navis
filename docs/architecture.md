@@ -619,6 +619,25 @@ target-selection rules.
     effective style current without changing the saved style. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Flat (`flatSurfacesProvider`, `NavisColorStyleData.flat`) is orthogonal to
+    theme mode and colour style: it removes depth effects so the style's solid
+    colours read stronger. `app.dart` passes it to `buildLightTheme`,
+    `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
+    make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
+    shadow transparent. Under Flat: the Home cover wash is one solid block (the
+    adapted average of the cover colour field at `1 - artWashVeil` over the
+    page background); art-tinted Now Playing is one solid colour (adapted tint
+    at `nowPlayingTintAlpha` over `surface`, see
+    `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
+    off; decorative gradients become their solid end colour; hand-drawn drop
+    shadows and the seek-preview blur are dropped for opaque container fills.
+    Kept deliberately: the shimmer animation, the scroll-edge fade mask
+    (`quick_panel.dart`; it signals scrollable overflow) and focus/selection
+    styling. Text over artwork is a temporary experiment:
+    `flatArtworkTextVariantProvider` (`flat_artwork_text_variant.dart`) selects
+    `gradient` (keep the black scrims) or `band` (an opaque black 62% caption
+    band, no gradient or text shadow) under Flat; Flat off always uses the
+    gradients. Delete the provider and helpers once one is chosen.
   - Neutral reproduces the original schemes (`tonalSpot` light, `fidelity`
     dark, black OLED overrides) except that dark and OLED primary, secondary
     and tertiary containers in the muddy band are replaced by the same hue at

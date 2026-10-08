@@ -75,6 +75,26 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final seekPreviewPosition = Duration(
       milliseconds: (_dragSliderValue ?? _lastSeekPreviewMs).round(),
     );
+    final seekPreviewText = Text(
+      '${formatDuration(seekPreviewPosition, showHours: true)} / '
+      '${formatDuration(duration, showHours: true)}',
+      style: Theme.of(context).textTheme.titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    );
+    // Flat drops the blur: the preview sits on an opaque container fill.
+    final seekPreview = NavisColorStyleData.of(context).flat
+        ? ColoredBox(
+            color: cs.surfaceContainerHigh,
+            child: Center(child: seekPreviewText),
+          )
+        : BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              color: cs.surface.withValues(alpha: 0.24),
+              alignment: Alignment.center,
+              child: seekPreviewText,
+            ),
+          );
     final artistDisplay =
         (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
         ? l10n.miniPlayerUnknownArtist
@@ -421,21 +441,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
                               borderRadius: NavisRadius.xlAll,
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                child: Container(
-                                  color: cs.surface.withValues(alpha: 0.24),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${formatDuration(seekPreviewPosition, showHours: true)} / '
-                                    '${formatDuration(duration, showHours: true)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
+                              child: seekPreview,
                             ),
                           ),
                         ),

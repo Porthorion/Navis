@@ -46,6 +46,8 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/common_widgets/flat_artwork_text_variant.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// The album count an artist page shows: the larger of the artist row's
 /// [stored] count and the [listed] albums on the page. A server whose artist
@@ -644,15 +646,21 @@ class _ArtistDetailLoadingState extends StatelessWidget {
                   height: headerHeight,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: <Color>[
-                          colorScheme.surfaceContainerHighest,
-                          colorScheme.surfaceContainerHigh,
-                          colorScheme.surface,
-                        ],
-                      ),
+                      // Flat: the solid end colour instead of the gradient.
+                      color: NavisColorStyleData.of(context).flat
+                          ? colorScheme.surface
+                          : null,
+                      gradient: NavisColorStyleData.of(context).flat
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: <Color>[
+                                colorScheme.surfaceContainerHighest,
+                                colorScheme.surfaceContainerHigh,
+                                colorScheme.surface,
+                              ],
+                            ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
@@ -849,7 +857,7 @@ class _ArtistHeaderState extends State<_ArtistHeader> {
 /// Full-width header image shown at the top of the artist detail page when
 /// the artist has a photo (the server's, else Deezer's). Overlays the artist
 /// name, the summary line and the heart at the bottom of the image.
-class _ArtistImageHeader extends StatelessWidget {
+class _ArtistImageHeader extends ConsumerWidget {
   const new({
     required this.imageUrl,
     required this.onImageFailed,
@@ -874,7 +882,7 @@ class _ArtistImageHeader extends StatelessWidget {
   final bool isExternalSource;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth.isFinite
@@ -909,19 +917,18 @@ class _ArtistImageHeader extends StatelessWidget {
                   return const SizedBox.shrink();
                 },
               ),
-              // Dual gradient: slight top vignette + heavy bottom scrim
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      Color(0x55000000),
-                      Color(0x00000000),
-                      Color(0xF2000000),
-                    ],
-                    stops: <double>[0, 0.35, 1],
-                  ),
+              // Dual gradient: slight top vignette + heavy bottom scrim. Flat's
+              // band variant swaps it for a caption band behind the name.
+              const ArtworkScrim(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x55000000),
+                    Color(0x00000000),
+                    Color(0xF2000000),
+                  ],
+                  stops: <double>[0, 0.35, 1],
                 ),
               ),
               // Artist name (bottom-left) + heart (bottom-right) overlaid
@@ -933,60 +940,73 @@ class _ArtistImageHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: <Widget>[
                     Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.bottomLeft,
-                            child: Text(
-                              artistName,
-                              style: Theme.of(context).textTheme.displayLarge
-                                  ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1,
-                                    height: 1.05,
-                                    fontSize: 64,
-                                    shadows: const <Shadow>[
-                                      Shadow(
-                                        blurRadius: 4,
-                                        color: Color(0xCC000000),
+                      child: ArtworkCaptionBand(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.bottomLeft,
+                              child: Text(
+                                artistName,
+                                style: Theme.of(context).textTheme.displayLarge
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1,
+                                      height: 1.05,
+                                      fontSize: 64,
+                                      shadows: artworkTextShadows(
+                                        context,
+                                        ref,
+                                        const <Shadow>[
+                                          Shadow(
+                                            blurRadius: 4,
+                                            color: Color(0xCC000000),
+                                          ),
+                                          Shadow(
+                                            blurRadius: 24,
+                                            color: Color(0xAA000000),
+                                          ),
+                                        ],
                                       ),
-                                      Shadow(
-                                        blurRadius: 24,
-                                        color: Color(0xAA000000),
-                                      ),
-                                    ],
-                                  ),
-                              maxLines: 1,
-                              overflow: TextOverflow.clip,
+                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                              ),
                             ),
-                          ),
-                          if (summary.isNotEmpty) ...<Widget>[
-                            const SizedBox(height: 6),
-                            Text(
-                              summary,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.82),
-                                    shadows: const <Shadow>[
-                                      Shadow(
-                                        blurRadius: 8,
-                                        color: Color(0xCC000000),
+                            if (summary.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 6),
+                              Text(
+                                summary,
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.82,
                                       ),
-                                    ],
-                                  ),
-                            ),
+                                      shadows: artworkTextShadows(
+                                        context,
+                                        ref,
+                                        const <Shadow>[
+                                          Shadow(
+                                            blurRadius: 8,
+                                            color: Color(0xCC000000),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ),
+                            ],
+                            if (isExternalSource) ...<Widget>[
+                              const SizedBox(height: 8),
+                              const RemoteSourceIndicator(
+                                variant: RemoteSourceIndicatorVariant.chip,
+                              ),
+                            ],
                           ],
-                          if (isExternalSource) ...<Widget>[
-                            const SizedBox(height: 8),
-                            const RemoteSourceIndicator(
-                              variant: RemoteSourceIndicatorVariant.chip,
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
                     IconButton(

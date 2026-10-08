@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// Shows the explanatory hover label without Material [Tooltip]'s
 /// [OverlayPortal] semantics reparenting.
@@ -216,13 +217,15 @@ class _NavisTooltipBubble extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.inverseSurface,
             borderRadius: NavisRadius.xsAll,
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
+            boxShadow: NavisColorStyleData.of(context).flat
+                ? null
+                : const <BoxShadow>[
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
