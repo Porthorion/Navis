@@ -14,6 +14,7 @@ Last updated: 2026-10-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Lazy cover tint revision refresh and remote-cache Home wash — 2026-10-08 (existing sampler/coordinator/worker/store and caption dispatcher reused; NCF1→NCF2 compatibility, lazy/deduplicated refresh, stale-colour retention, and 600/480/420/96 px remote-cache regression tests. Runtime and full gate remain coordinator-owned for this worktree.)
 > Historical AT-SPI attempts recorded below are failed evidence, not a testing
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless

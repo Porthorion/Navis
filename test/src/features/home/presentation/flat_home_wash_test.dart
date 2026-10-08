@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_color_utilities/material_color_utilities.dart'
@@ -89,6 +91,64 @@ Future<ThemeData> _pumpBand(
 }
 
 void main() {
+  testWidgets('wash retains cached colour while its new revision loads', (
+    tester,
+  ) async {
+    sharedCoverColourFieldCache.clear();
+    addTearDown(sharedCoverColourFieldCache.clear);
+    final old = _field();
+    sharedCoverColourFieldCache.put('cover', old);
+    final gate = Completer<CoverColourField?>();
+    final requested = <(String, int)>[];
+    final revision = ValueNotifier<int>(0);
+    addTearDown(revision.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          coverColourFieldProvider.overrideWith((ref, key) {
+            requested.add(key);
+            return key.$2 == 0 ? Future.value(old) : gate.future;
+          }),
+        ],
+        child: MaterialApp(
+          theme: buildDarkTheme(_seed, flat: true),
+          home: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: revision,
+              builder: (context, rev, _) => SizedBox(
+                width: 300,
+                height: 200,
+                child: ShowcaseColourWash(
+                  coverArtId: 'cover',
+                  coverArtRevision: rev,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Color fill() =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find.byKey(
+                        const ValueKey<String>('home-showcase-wash-flat'),
+                      ),
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color!;
+    final oldFill = fill();
+    revision.value = 1;
+    await tester.pump();
+    expect(fill(), oldFill);
+    expect(requested, [('cover', 0), ('cover', 1)]);
+    gate.complete(CoverColourField.uniform(const Color(0xFF1976D2)));
+    await tester.pumpAndSettle();
+    expect(fill(), isNot(oldFill));
+  });
+
   const bandKey = ValueKey<String>('home-showcase-flat-band');
   const flatFill = ValueKey<String>('home-showcase-wash-flat');
 
@@ -310,7 +370,9 @@ void main() {
               (ref, id) async => CoverColourField(
                 List<Color>.filled(
                   9,
-                  id == 'a' ? const Color(0xFFD32F2F) : const Color(0xFF1976D2),
+                  id.$1 == 'a'
+                      ? const Color(0xFFD32F2F)
+                      : const Color(0xFF1976D2),
                 ),
               ),
             ),

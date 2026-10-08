@@ -15,7 +15,7 @@ const int kCoverColourGrid = 3;
 /// colours, row-major from the top-left.
 @immutable
 class CoverColourField {
-  const new(this.colors)
+  const new(this.colors, {this.revision = 0})
     : assert(
         colors.length == kCoverColourGrid * kCoverColourGrid,
         'A colour field needs one colour per grid cell.',
@@ -35,6 +35,10 @@ class CoverColourField {
   }
 
   final List<Color> colors;
+
+  /// Artwork revision sampled into this field. Retained with cached colours
+  /// so a visible caller can refresh lazily without losing the old field.
+  final int revision;
 
   /// Average of the bottom row of the grid: the colour under a caption drawn
   /// along the cover's lower edge.

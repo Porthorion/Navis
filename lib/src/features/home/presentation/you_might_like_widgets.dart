@@ -26,6 +26,12 @@ String? _showcaseWashCoverId(HomeRandomShowcaseItem item) {
   };
 }
 
+/// Revision of the album cover when local library metadata is available.
+int _showcaseWashCoverRevision(HomeRandomShowcaseItem item) => switch (item) {
+  HomeRandomShowcaseAlbum(:final coverArtRevision) => coverArtRevision,
+  HomeRandomShowcasePlaylist() => 0,
+};
+
 /// "2023 • 12 songs · Similar to your likes": unknown parts are left out.
 String _showcaseMetaLine(AppLocalizations l10n, HomeRandomShowcaseItem item) {
   final reason = _showcaseReasonLabel(l10n, item);
@@ -140,6 +146,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
         );
         artwork = HeroCoverArt(
           coverArtId: item.coverArtId,
+          revision: item.coverArtRevision,
           heroTag: heroTag,
           size: kCoverArtStandardSize,
           fit: BoxFit.cover,
@@ -341,7 +348,11 @@ typedef ShowcaseColourWash = _ShowcaseColourWash;
 /// glides the colours instead of crossfading images, and a page-coloured
 /// veil keeps contrast.
 class _ShowcaseColourWash extends ConsumerWidget {
-  const new({required this.coverArtId, this.subtle = false});
+  const new({
+    required this.coverArtId,
+    this.coverArtRevision = 0,
+    this.subtle = false,
+  });
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
 
@@ -349,6 +360,7 @@ class _ShowcaseColourWash extends ConsumerWidget {
   static const Key flatFillKey = ValueKey<String>('home-showcase-wash-flat');
 
   final String? coverArtId;
+  final int coverArtRevision;
 
   /// Large desktop surfaces use a lighter tint.
   final bool subtle;
@@ -365,7 +377,10 @@ class _ShowcaseColourWash extends ConsumerWidget {
     final veil = style.artWashVeil(subtle: subtle);
     final field = coverId == null || coverId.isEmpty
         ? null
-        : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
+        : ref
+                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .value ??
+              peekCoverColourField(coverId);
     if (style.flat) {
       return _buildFlat(context, background, style, field, veil);
     }
@@ -511,6 +526,7 @@ typedef ShowcaseFlatBand = _ShowcaseFlatBand;
 class _ShowcaseFlatBand extends ConsumerWidget {
   const new({
     required this.coverArtId,
+    this.coverArtRevision = 0,
     required this.builder,
     this.borderRadius,
   });
@@ -518,6 +534,7 @@ class _ShowcaseFlatBand extends ConsumerWidget {
   static const Key bandKey = ValueKey<String>('home-showcase-flat-band');
 
   final String? coverArtId;
+  final int coverArtRevision;
   final Widget Function(BuildContext context, CaptionTint tint) builder;
 
   /// Clips the band to rounded corners; null keeps it hard-edged (phones).
@@ -532,7 +549,10 @@ class _ShowcaseFlatBand extends ConsumerWidget {
     final coverId = coverArtId?.trim();
     final field = coverId == null || coverId.isEmpty
         ? null
-        : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
+        : ref
+                  .watch(coverColourFieldProvider((coverId, coverArtRevision)))
+                  .value ??
+              peekCoverColourField(coverId);
     final average = _averageCoverColour(field);
     final CaptionTint target;
     if (average == null) {
