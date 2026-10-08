@@ -35,6 +35,23 @@ void main() {
     enableLogging: false,
   );
 
+  test('a zero byte budget stops before admitting a request', () async {
+    final budget = scope(bytes: 0);
+    var called = false;
+    await expectLater(
+      budget.run(
+        () => budget.request('getPlaylists', () async {
+          called = true;
+        }),
+      ),
+      throwsA(isA<SubsonicSyncLimitException>()),
+    );
+    expect(called, isFalse);
+    expect(budget.stopped?.reason, 'byteBudget');
+    expect(budget.requestCount, 0);
+    expect(budget.logicalRequests, isEmpty);
+  });
+
   test(
     'retry telemetry joins attempts without retaining payloads or credentials',
     () async {

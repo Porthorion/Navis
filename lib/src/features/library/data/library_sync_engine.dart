@@ -308,41 +308,6 @@ abstract class LibrarySyncApi {
 const kMeteredSyncMaxResponseBytes = 16 * 1024 * 1024;
 const kMeteredSyncMaxInteractionBytes = 32 * 1024 * 1024;
 
-class _MeteredInteractionBudget {
-  new({required this.maxResponseBytes, required this.maxInteractionBytes});
-
-  final int maxResponseBytes;
-  final int maxInteractionBytes;
-  int _used = 0;
-
-  int remainingInteractionBytes() =>
-      maxInteractionBytes > _used ? maxInteractionBytes - _used : 0;
-
-  int nextMaxResponseBytes() {
-    final remaining = remainingInteractionBytes();
-    if (remaining <= 0) {
-      throw SubsonicResponseBudgetExceededException(
-        maxBytes: maxInteractionBytes,
-        observedBytes: _used,
-      );
-    }
-    return remaining < maxResponseBytes ? remaining : maxResponseBytes;
-  }
-
-  void recordObservedBytes(int bytes) {
-    if (bytes <= 0) {
-      return;
-    }
-    _used += bytes;
-    if (_used > maxInteractionBytes) {
-      throw SubsonicResponseBudgetExceededException(
-        maxBytes: maxInteractionBytes,
-        observedBytes: _used,
-      );
-    }
-  }
-}
-
 class SubsonicLibrarySyncApi implements LibrarySyncApi {
   new(this._api);
 
@@ -995,9 +960,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         normalizedId,
       );
       final preserveExternalTree = existingAlbum?.isExternal ?? false;
-      final budget = _meteredInteractionBudget();
-      final maxBytes =
-          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final maxBytes = _meteredResponseBudgetBytes();
       final response = await _request(
         () => _api.getAlbum(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
@@ -1279,9 +1242,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
     onProgress?.call(state);
     try {
-      final budget = _meteredInteractionBudget();
-      final maxBytes =
-          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final maxBytes = _meteredResponseBudgetBytes();
       final detail = await _request(
         () => _api.getArtist(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
@@ -1485,9 +1446,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
     onProgress?.call(state);
     try {
-      final budget = _meteredInteractionBudget();
-      final maxBytes =
-          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final maxBytes = _meteredResponseBudgetBytes();
       final playlist = await _request(
         () => _api.getPlaylist(normalizedId, maxResponseBytes: maxBytes),
         metrics: metrics,
@@ -2026,20 +1985,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       return override;
     }
     return kMeteredSyncMaxResponseBytes;
-  }
-
-  _MeteredInteractionBudget? _meteredInteractionBudget() {
-    if (!_currentSyncPolicy.isMetered) {
-      return null;
-    }
-    final override = _readMeteredResponseBudgetBytes?.call();
-    final maxResponse = override ?? kMeteredSyncMaxResponseBytes;
-    return _MeteredInteractionBudget(
-      maxResponseBytes: maxResponse,
-      maxInteractionBytes: override == null
-          ? kMeteredSyncMaxInteractionBytes
-          : (override * 2),
-    );
   }
 
   Future<LibrarySyncState> _runWithLock({
