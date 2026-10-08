@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/theme/caption_tint.dart';
+import 'package:navis/src/theme/flat_band_tone.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -232,10 +233,14 @@ void main() {
       final grey =
           Hct.fromInt(data.adaptArtColor(average).toARGB32()).chroma < 6;
       final expected = captionTintFor(
-        grey
-            ? Color.lerp(average, theme.colorScheme.secondaryContainer, .25)!
-            : average,
+        flatBandSample(
+          grey
+              ? Color.lerp(average, theme.colorScheme.secondaryContainer, .25)!
+              : average,
+          data,
+        ),
         data,
+        adapted: true,
       );
 
       final band = tester.widget<ColoredBox>(find.byKey(bandKey));
@@ -267,8 +272,12 @@ void main() {
     );
     final data = theme.extension<NavisColorStyleData>()!;
     final expected = captionTintFor(
-      Color.lerp(grey, theme.colorScheme.secondaryContainer, 0.25)!,
+      flatBandSample(
+        Color.lerp(grey, theme.colorScheme.secondaryContainer, 0.25)!,
+        data,
+      ),
       data,
+      adapted: true,
     );
     expect(tester.widget<ColoredBox>(find.byKey(bandKey)).color, expected.fill);
   });

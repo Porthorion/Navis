@@ -630,7 +630,9 @@ target-selection rules.
     carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
     so its height follows the content; its fill is
     `captionTintFor(average, style).fill` (the adapted cover average, with the
-    grey chroma floor applied to the sample first) and the title, artist, meta
+    grey chroma floor applied to the sample first and its HCT tone clamped by
+    `flatBandSample` to 16-30 in dark themes or 82-92 in light ones, so a
+    light cover never paints a bright block on a dark page) and the title, artist, meta
     and page-dot colours come from the same tint, all gliding together when
     the cover changes. Elsewhere (desktop pager, tablet card) it is the
     adapted average of the cover colour field at `1 - artWashVeil` over the

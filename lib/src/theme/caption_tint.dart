@@ -63,14 +63,20 @@ final Color _ink = hct(0, 0, 8);
 /// is chosen by whichever contrasts more with it. The fill's HCT tone is then
 /// moved (hue and chroma kept) away from the text until both the title and
 /// the subtitle reach [kCaptionMinContrast].
-CaptionTint captionTintFor(Color sampled, NavisColorStyleData style) {
-  final adapted = style.adaptArtColor(sampled);
+///
+/// Set [adapted] when [sampled] already went through
+/// [NavisColorStyleData.adaptArtColor], so the style is applied only once.
+CaptionTint captionTintFor(
+  Color sampled,
+  NavisColorStyleData style, {
+  bool adapted = false,
+}) {
+  final base = adapted ? sampled : style.adaptArtColor(sampled);
   const white = Colors.white;
   final whiteSub = white.withValues(alpha: kCaptionSubtitleAlpha);
   final inkSub = _ink.withValues(alpha: kCaptionSubtitleAlpha);
 
-  final lightText =
-      captionContrast(white, adapted) >= captionContrast(_ink, adapted);
+  final lightText = captionContrast(white, base) >= captionContrast(_ink, base);
   final text = lightText ? white : _ink;
   final subtext = lightText ? whiteSub : inkSub;
 
@@ -78,7 +84,7 @@ CaptionTint captionTintFor(Color sampled, NavisColorStyleData style) {
       captionContrast(text, fill) >= kCaptionMinContrast &&
       captionContrast(subtext, fill) >= kCaptionMinContrast;
 
-  var fill = Color(adapted.toARGB32() | 0xFF000000);
+  var fill = Color(base.toARGB32() | 0xFF000000);
   if (!passes(fill)) {
     final source = Hct.fromInt(fill.toARGB32());
     // Light text wants a darker fill and vice versa.

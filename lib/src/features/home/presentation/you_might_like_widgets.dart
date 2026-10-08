@@ -504,7 +504,8 @@ typedef ShowcaseFlatBand = _ShowcaseFlatBand;
 /// covers sit fully inside it.
 ///
 /// The band colour is the current cover's adapted average (with the style's
-/// chroma floor for grey covers) passed through [captionTintFor], which also
+/// chroma floor for grey covers) toned to the theme by [flatBandSample] and
+/// passed through [captionTintFor], which also
 /// yields the title, subtitle and page-dot colours handed to [builder]. A new
 /// cover glides the band and text colours together.
 class _ShowcaseFlatBand extends ConsumerWidget {
@@ -544,7 +545,11 @@ class _ShowcaseFlatBand extends ConsumerWidget {
           0.25,
         )!;
       }
-      target = captionTintFor(sampled, style);
+      target = captionTintFor(
+        flatBandSample(sampled, style),
+        style,
+        adapted: true,
+      );
     }
     return SizedBox(
       width: double.infinity,
