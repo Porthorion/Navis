@@ -63,6 +63,12 @@ const _exampleServer = ServerConfigModel(
   apiVersion: '1.16.1',
 );
 
+/// A completed, successful sync with no other detail.
+const _succeeded = LibrarySyncState(
+  status: LibrarySyncStatus.succeeded,
+  stage: LibrarySyncStage.completed,
+);
+
 final _hourlyInterval = <Override>[
   syncIntervalMinutesProvider.overrideWithValue(60),
   syncIntervalDurationProvider.overrideWithValue(const Duration(hours: 1)),
@@ -146,6 +152,20 @@ final _serverConfigSource =
 
 class _FakeLibrarySyncEngine extends LibrarySyncEngine {
   new(this._handlerIfStale, this._handlerNow, {this.requestHandler});
+
+  /// Every sync entry point resolves to [state].
+  new returning(
+    LibrarySyncState state, {
+    Future<LibrarySyncState> Function(
+      LibrarySyncRequest request, {
+      LibrarySyncProgressCallback? onProgress,
+    })?
+    requestHandler,
+  }) : this(
+         ({onProgress}) async => state,
+         ({forceFull = false, onProgress}) async => state,
+         requestHandler: requestHandler,
+       );
 
   final Future<LibrarySyncState> Function({
     LibrarySyncProgressCallback? onProgress,
@@ -307,10 +327,8 @@ void main() {
           database,
           setupPending: true,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState.idle(),
-          ({forceFull = false, onProgress}) async =>
-              const LibrarySyncState.idle(),
+        final engine = _FakeLibrarySyncEngine.returning(
+          const LibrarySyncState.idle(),
         );
         final container = _container(
           engine,
@@ -349,10 +367,7 @@ void main() {
           await recordInitialCatalogReadiness(
             database: database,
             serverId: config.id!,
-            result: const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            ),
+            result: _succeeded,
             syncModelVersion: currentLibrarySyncModelVersion,
           ),
           isTrue,
@@ -420,21 +435,11 @@ void main() {
           (_) => finished = true,
         );
         final manual = controller.syncNow();
-        automaticResult.complete(
-          const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        automaticResult.complete(_succeeded);
         await enteredManual.future;
         await Future<void>.delayed(Duration.zero);
         expect(finished, isFalse);
-        manualResult.complete(
-          const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
-        );
+        manualResult.complete(_succeeded);
         await Future.wait([automatic, manual]);
         await waiting;
         expect(finished, isTrue);
@@ -478,13 +483,8 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          ),
-          ({forceFull = false, onProgress}) async => LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine.returning(
+          LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
@@ -608,10 +608,7 @@ void main() {
         ),
       );
       final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-        ),
+        ({onProgress}) async => _succeeded,
         ({forceFull = false, onProgress}) async => LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
@@ -678,10 +675,7 @@ void main() {
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
           ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
+          ({forceFull = false, onProgress}) async => _succeeded,
         );
         final startedAt = DateTime.now();
         final container = _container(
@@ -791,10 +785,7 @@ void main() {
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
           ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
+          ({forceFull = false, onProgress}) async => _succeeded,
         );
         final container = _container(
           engine,
@@ -994,10 +985,7 @@ void main() {
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
         ),
-        ({forceFull = false, onProgress}) async => const LibrarySyncState(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-        ),
+        ({forceFull = false, onProgress}) async => _succeeded,
       );
       final container = _container(
         engine,
@@ -1095,10 +1083,7 @@ void main() {
         final startupResult = Completer<LibrarySyncState>();
         final engine = _FakeLibrarySyncEngine(
           ({onProgress}) => startupResult.future,
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          ),
+          ({forceFull = false, onProgress}) async => _succeeded,
         );
         final container = ProviderContainer(
           overrides: [
@@ -1276,10 +1261,7 @@ void main() {
       expect(engine.staleCalls, 0);
       expect(container.read(librarySyncControllerProvider).isRunning, isTrue);
 
-      const completed = LibrarySyncState(
-        status: LibrarySyncStatus.succeeded,
-        stage: LibrarySyncStage.completed,
-      );
+      const completed = _succeeded;
       completer.complete(completed);
 
       expect(await first, completed);
@@ -1453,12 +1435,8 @@ void main() {
           ),
         ]);
         final requestedArtistIds = <String>[];
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine.returning(
+          const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           ),
@@ -1562,12 +1540,8 @@ void main() {
         ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
         Override? serverConfig,
       }) {
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async => const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          ),
-          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+        final engine = _FakeLibrarySyncEngine.returning(
+          const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           ),
@@ -2118,20 +2092,7 @@ void main() {
         await database.appSettingsDao.setLastFullSyncAppBuild(
           currentLibrarySyncModelVersion,
         );
-        final engine = _FakeLibrarySyncEngine(
-          ({onProgress}) async {
-            return const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            );
-          },
-          ({forceFull = false, onProgress}) async {
-            return const LibrarySyncState(
-              status: LibrarySyncStatus.succeeded,
-              stage: LibrarySyncStage.completed,
-            );
-          },
-        );
+        final engine = _FakeLibrarySyncEngine.returning(_succeeded);
         late _MutableReachabilityController reachability;
 
         final container = ProviderContainer(
@@ -2366,20 +2327,7 @@ void main() {
     );
 
     test('unauthenticated state does not trigger startup sync', () async {
-      final engine = _FakeLibrarySyncEngine(
-        ({onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-        ({forceFull = false, onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-      );
+      final engine = _FakeLibrarySyncEngine.returning(_succeeded);
       final container = _container(
         engine,
         reachability: ServerReachabilityStatus.checking,
@@ -2459,10 +2407,7 @@ void main() {
           );
         },
         ({forceFull = false, onProgress}) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-          );
+          return _succeeded;
         },
       );
 
