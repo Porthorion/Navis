@@ -47,11 +47,13 @@ class _GatedDecoder {
   final Map<String, Completer<CoverColourField?>> gates =
       <String, Completer<CoverColourField?>>{};
   final List<String> started = <String>[];
+  final List<int> revisions = <int>[];
   int inFlight = 0;
   int maxInFlight = 0;
 
-  Future<CoverColourField?> call(String id) {
+  Future<CoverColourField?> call(String id, {int revision = 0}) {
     started.add(id);
+    revisions.add(revision);
     inFlight++;
     if (inFlight > maxInFlight) maxInFlight = inFlight;
     final gate = gates[id] = Completer<CoverColourField?>();
@@ -115,6 +117,91 @@ void main() {
       sampler.dispose();
     });
 
+    test(
+      'revision bump refreshes once and keeps stale colours meanwhile',
+      () async {
+        final old = _field(1);
+        final store = _MemoryStore()..saved['cover'] = old;
+        final cache = CoverColourFieldCache();
+        final decoder = _GatedDecoder();
+        final sampler = _sampler(decoder, store: store, cache: cache);
+        addTearDown(sampler.dispose);
+        await sampler.ready;
+        final a = sampler.request('cover', revision: 1);
+        final b = sampler.request('cover', revision: 1);
+        await _settle();
+        expect(decoder.started, ['cover']);
+        expect(decoder.revisions, [1]);
+        expect(cache.peek('cover'), old);
+        expect(store.saved['cover'], old);
+        decoder.complete('cover', _field(2));
+        expect(await a.future, _field(2));
+        expect(await b.future, _field(2));
+        expect(cache.peek('cover')!.revision, 1);
+        expect(store.saved['cover']!.revision, 1);
+        expect(await sampler.request('cover', revision: 1).future, _field(2));
+        expect(decoder.started, ['cover']);
+        // An older caller cannot revert the newly sampled field.
+        expect(await sampler.request('cover').future, _field(2));
+      },
+    );
+
+    test(
+      'many bumped covers stay lazy and queued refreshes can cancel',
+      () async {
+        final store = _MemoryStore();
+        for (var i = 0; i < 2000; i++) {
+          store.saved['cover$i'] = _field(i);
+        }
+        final decoder = _GatedDecoder();
+        final cache = CoverColourFieldCache();
+        final sampler = _sampler(decoder, store: store, cache: cache);
+        addTearDown(sampler.dispose);
+        await sampler.ready;
+        expect(decoder.started, isEmpty);
+        final a = sampler.request('cover0', revision: 1);
+        final b = sampler.request('cover1', revision: 1);
+        final gone = sampler.request('cover2', revision: 1)..cancel();
+        await _settle();
+        expect(decoder.started, ['cover0', 'cover1']);
+        decoder.complete('cover0');
+        decoder.complete('cover1');
+        await Future.wait([a.future, b.future, gone.future]);
+        expect(decoder.started.length, 2);
+        expect(store.saved['cover2']!.revision, 0);
+      },
+    );
+
+    test('late old revision cannot replace an evicted newer sample', () async {
+      final gates = [
+        Completer<CoverColourField?>(),
+        Completer<CoverColourField?>(),
+      ];
+      final cache = CoverColourFieldCache(capacity: 1);
+      final store = _MemoryStore();
+      final sampler = CoverColourSampler(
+        decode: (id, {revision = 0}) => gates[revision].future,
+        cache: cache,
+        store: store,
+        coordinator: CoverArtLoadCoordinator(
+          maxActiveDownloads: 2,
+          criticalReserve: 0,
+        ),
+      );
+      addTearDown(sampler.dispose);
+      final old = sampler.request('cover');
+      final fresh = sampler.request('cover', revision: 1);
+      await _settle();
+      gates[1].complete(_field(2));
+      await fresh.future;
+      cache.put('other', _field(3));
+      gates[0].complete(_field(1));
+      await old.future;
+      expect(cache.peek('cover'), isNull);
+      expect(await sampler.request('cover', revision: 1).future, _field(2));
+      expect(store.saved['cover']!.revision, 1);
+    });
+
     test('drops queued requests whose cards went away', () async {
       final decoder = _GatedDecoder();
       final sampler = _sampler(decoder);
@@ -150,7 +237,7 @@ void main() {
 
     test('a failing decode completes with null and frees its slot', () async {
       final sampler = CoverColourSampler(
-        decode: (id) async => throw StateError('boom'),
+        decode: (id, {revision = 0}) async => throw StateError('boom'),
         cache: CoverColourFieldCache(),
         coordinator: CoverArtLoadCoordinator(
           maxActiveDownloads: 2,
@@ -213,7 +300,7 @@ void main() {
       );
       expect(await store.warm(10), isEmpty);
       for (var i = 0; i < 5; i++) {
-        store.add('c$i', _field(i));
+        store.add('c$i', CoverColourField(_field(i).colors, revision: i));
       }
       await store.flush();
       expect(File(path).existsSync(), isTrue);
@@ -226,6 +313,8 @@ void main() {
       final warm = await reopened.warm(2);
       expect(warm.map((e) => e.key), <String>['c3', 'c4']);
       expect(warm.last.value, _field(4));
+      expect(warm.last.value.revision, 4);
+      expect((await reopened.lookup('c2'))!.revision, 2);
       expect(await reopened.lookup('c2'), _field(2));
       expect(await reopened.lookup('c0'), isNull);
 
@@ -242,6 +331,51 @@ void main() {
         readRootDirectory: () async => dir,
       );
       expect(await damaged.warm(10), isEmpty);
+    });
+
+    test('old NCF1 file loads and is upgraded on save', () async {
+      final dir = Directory.systemTemp.createTempSync('tint_legacy');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      // Original layout: NCF1, scope "s", one entry "x", nine colours.
+      final cells = ByteData(36);
+      for (var i = 0; i < 9; i++) {
+        cells.setUint32(i * 4, 0xFF112233);
+      }
+      final file = File(p.join(dir.path, FileCoverColourStore.fileName));
+      file.writeAsBytesSync([
+        0x4e,
+        0x43,
+        0x46,
+        0x31,
+        0,
+        1,
+        0x73,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0x78,
+        ...cells.buffer.asUint8List(),
+      ]);
+      final store = FileCoverColourStore(
+        scope: 's',
+        worker: InlineCoverColourWorker(),
+        readRootDirectory: () async => dir,
+      );
+      final loaded = (await store.warm(1)).single.value;
+      expect(loaded.colors.first, const Color(0xFF112233));
+      expect(loaded.revision, 0);
+      store.add('x', CoverColourField(_field(2).colors, revision: 3));
+      await store.flush();
+      expect(file.readAsBytesSync()[3], 0x32);
+      final reopened = FileCoverColourStore(
+        scope: 's',
+        worker: InlineCoverColourWorker(),
+        readRootDirectory: () async => dir,
+      );
+      expect((await reopened.lookup('x'))!.revision, 3);
     });
 
     test('writes are debounced inside the worker', () async {
@@ -383,54 +517,71 @@ void main() {
         addTearDown(container.dispose);
         final decode = container.read(coverColourDecoderProvider);
         expect(await decode('missing'), isNull);
-        expect(manager.cacheLookups, <String>['missing:600']);
+        expect(manager.cacheLookups, <String>[
+          'missing:600',
+          'missing:480',
+          'missing:420',
+          'missing:96',
+        ]);
         expect(manager.otherCalls, isEmpty);
       },
     );
 
-    testWidgets('samples a cover file that is already cached', (tester) async {
-      final dir = Directory.systemTemp.createTempSync('tint_cover');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final file = File(p.join(dir.path, 'cover.png'));
-      await tester.runAsync(() async {
-        final recorder = ui.PictureRecorder();
-        Canvas(recorder).drawRect(
-          const Rect.fromLTWH(0, 0, 30, 30),
-          Paint()..color = const Color(0xFF3366CC),
+    for (final size in [600, 480, 420, 96]) {
+      testWidgets('samples a revisioned remote cover cached only at $size px', (
+        tester,
+      ) async {
+        final dir = Directory.systemTemp.createTempSync('tint_cover');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final file = File(p.join(dir.path, 'cover.png'));
+        await tester.runAsync(() async {
+          final recorder = ui.PictureRecorder();
+          Canvas(recorder).drawRect(
+            const Rect.fromLTWH(0, 0, 30, 30),
+            Paint()..color = const Color(0xFF3366CC),
+          );
+          final image = await recorder.endRecording().toImage(30, 30);
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          file.writeAsBytesSync(data!.buffer.asUint8List());
+        });
+        final manager = _RecordingCacheManager(
+          file: file,
+          key: 'present:r2:$size',
         );
-        final image = await recorder.endRecording().toImage(30, 30);
-        final data = await image.toByteData(format: ui.ImageByteFormat.png);
-        file.writeAsBytesSync(data!.buffer.asUint8List());
+        final container = ProviderContainer(
+          overrides: [
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+            coverColourWorkerProvider.overrideWithValue(
+              InlineCoverColourWorker(),
+            ),
+            permanentArtworkStoreProvider.overrideWithValue(
+              _EmptyArtworkStore(),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        CoverColourField? field;
+        var done = false;
+        unawaited(
+          container
+              .read(coverColourDecoderProvider)('present', revision: 2)
+              .then((value) {
+                field = value;
+                done = true;
+              }),
+        );
+        for (var i = 0; i < 100 && !done; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        expect(field, isNotNull);
+        expect(field!.colors.first, const Color(0xFF3366CC));
+        expect(manager.otherCalls, isEmpty);
+        expect(manager.cacheLookups.last, 'present:r2:$size');
       });
-      final manager = _RecordingCacheManager(file: file);
-      final container = ProviderContainer(
-        overrides: [
-          coverArtCacheManagerProvider.overrideWithValue(manager),
-          coverColourWorkerProvider.overrideWithValue(
-            InlineCoverColourWorker(),
-          ),
-          permanentArtworkStoreProvider.overrideWithValue(_EmptyArtworkStore()),
-        ],
-      );
-      addTearDown(container.dispose);
-      CoverColourField? field;
-      var done = false;
-      unawaited(
-        container.read(coverColourDecoderProvider)('present').then((value) {
-          field = value;
-          done = true;
-        }),
-      );
-      for (var i = 0; i < 100 && !done; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pump();
-      }
-      expect(field, isNotNull);
-      expect(field!.colors.first, const Color(0xFF3366CC));
-      expect(manager.otherCalls, isEmpty);
-    });
+    }
   });
 }
 
@@ -445,9 +596,10 @@ class _EmptyArtworkStore extends Fake implements PermanentArtworkStore {
 /// A cache manager that serves one local file and records any call that
 /// could reach the network (everything but the cache lookup).
 class _RecordingCacheManager extends Fake implements CacheManager {
-  new({this.file});
+  new({this.file, this.key});
 
   final File? file;
+  final String? key;
   final List<String> cacheLookups = <String>[];
   final List<String> otherCalls = <String>[];
 
@@ -457,7 +609,7 @@ class _RecordingCacheManager extends Fake implements CacheManager {
     bool ignoreMemCache = false,
   }) async {
     cacheLookups.add(key);
-    final f = file;
+    final f = this.key == null || this.key == key ? file : null;
     return f == null
         ? null
         : FileInfo(

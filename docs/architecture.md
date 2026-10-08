@@ -790,8 +790,12 @@ never pays for it:
   store file or the rolling-cache file (`getFileFromCache`) and decodes it
   natively at 24 px (`ImmutableBuffer.fromFilePath`, `ImageDescriptor`,
   `targetWidth/Height`). The decode bypasses `PaintingBinding.imageCache`, so
-  tiny tint images never evict real artwork. It never fetches; a cover not on
-  the device yields null.
+  tiny tint images never evict real artwork. Remote cache lookup tries the
+  sizes the showcase actually loads: 600 px for album cards/heroes, 480/420
+  px for playlist mosaics, then 96 px for the mini-cover strip. It never
+  fetches; a cover not on the device yields null. A nonzero revision samples
+  only that revision's remote cache key, so an older permanent copy cannot
+  be recorded as the refreshed artwork.
 - *Off the UI isolate.* `CoverColourWorker` (`cover_colour_worker.dart`) is a
   long-lived worker isolate, started on first use
   (`coverColourWorkerProvider`; tests inject `InlineCoverColourWorker`). The
@@ -812,8 +816,8 @@ never pays for it:
   acquires a slot. A decode still queued when its last card is gone is
   cancelled by the coordinator's stale-interest logic. A separate instance is
   used because the artwork coordinator's slots also gate real artwork
-  downloads, which tint decodes must never delay. Requests for one cover
-  share one decode.
+  downloads, which tint decodes must never delay. Requests for one cover and
+  revision share one decode.
 - *Persistent cache.* Fields resolve from the memory LRU (512), then from
   the worker's copy of `cover_colour_fields.bin` in the application support
   directory (newest 5000 entries), then by decoding. The newest 512 entries
@@ -821,10 +825,20 @@ never pays for it:
   data is a disposable cache that needs no queries, relations or migration.
   The file records a hash of the server URL and user name (never
   credentials); another account reads as empty and the sampler resets the
-  memory LRU when the account changes.
-- *Limitation.* The provider is keyed by cover id, so a refreshed cover
-  (`cover_art_revision` bump) keeps its old colours until its entry is
-  trimmed.
+  memory LRU when the account changes. NCF2 stores the sampled artwork
+  revision alongside each field; NCF1 files load with revision zero and are
+  upgraded on the next save.
+- *Lazy artwork refresh.* The provider takes `(coverId, revision)`, while
+  memory and disk retain one field per cover id. Album cards and the Home
+  album showcase pass the existing `coverArtRevision` from library metadata
+  to both artwork and sampling. A revision bump refreshes only when a visible
+  caller requests that cover, through the same settle/scroll gate, two-slot
+  coordinator, worker and frame-budgeted caption dispatcher. Unshown covers
+  do no work. The old field and derived caption tint remain visible until
+  their replacements are ready; an older in-flight decode cannot overwrite
+  a newer cached revision. Unchanged revisions reuse the field without file
+  stats or image decoding. URL-only external album cards have no Subsonic
+  cover id/revision and retain the existing caption fallback.
 
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged. The hero's items and

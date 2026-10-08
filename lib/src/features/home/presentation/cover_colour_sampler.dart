@@ -16,7 +16,10 @@ import 'package:path_provider/path_provider.dart';
 
 /// Decodes one cover and averages it into a colour field, or null when it has
 /// no usable art. Injectable so tests can count and gate decodes.
-typedef CoverColourDecoder = Future<CoverColourField?> Function(String coverId);
+typedef CoverColourDecoder = Future<CoverColourField?> Function(
+  String coverId, {
+  int revision,
+});
 
 /// Disk home of sampled colour fields. Every operation is asynchronous and
 /// the heavy parts run off the UI isolate (see [CoverColourWorker]).
@@ -52,11 +55,13 @@ class NullCoverColourStore implements CoverColourStore {
   Future<void> flush() async {}
 }
 
-CoverColourField _fieldOf(List<int> argb) =>
-    CoverColourField(<Color>[for (final c in argb) Color(c)]);
+CoverColourField _fieldOf(List<int> argb) => CoverColourField(<Color>[
+  for (final c in argb.take(9)) Color(c),
+], revision: argb.length > 9 ? argb[9] : 0);
 
 List<int> _argbOf(CoverColourField field) => <int>[
   for (final c in field.colors) c.toARGB32(),
+  field.revision,
 ];
 
 /// Compact binary file `cover_colour_fields.bin` in the application support
@@ -119,10 +124,11 @@ class FileCoverColourStore implements CoverColourStore {
 /// claim on a cover is cancelled before its decode starts, the decode never
 /// runs.
 class CoverColourRequest {
-  new _(this._sampler, this.coverId);
+  new _(this._sampler, this.coverId, this.revision);
 
   final CoverColourSampler _sampler;
   final String coverId;
+  final int revision;
   final Completer<CoverColourField?> _completer =
       Completer<CoverColourField?>();
   CoverArtLoadInterest? _interest;
@@ -135,16 +141,18 @@ class CoverColourRequest {
 }
 
 class _Job {
-  new(this.coverId);
+  new(this.coverId, this.revision);
 
   final String coverId;
+  final int revision;
+  (String, int) get key => (coverId, revision);
   final List<CoverColourRequest> requests = <CoverColourRequest>[];
 }
 
 /// The coordinator key of a cover's colour sample.
 @visibleForTesting
-String coverColourLoadKey(String coverId) =>
-    'tint:${coverArtImageCacheKey(coverId, kCoverArtStandardSize)}';
+String coverColourLoadKey(String coverId, {int revision = 0}) =>
+    'tint:${coverArtImageCacheKey(coverId, kCoverArtStandardSize, revision: revision)}';
 
 /// The app-wide cover colour sampler.
 ///
@@ -170,7 +178,7 @@ class CoverColourSampler {
   final CoverArtLoadCoordinator coordinator;
   final CoverColourStore store;
 
-  final Map<String, _Job> _jobs = <String, _Job>{};
+  final Map<(String, int), _Job> _jobs = <(String, int), _Job>{};
   late final Future<void> _ready;
   bool _disposed = false;
 
@@ -189,23 +197,25 @@ class CoverColourSampler {
     }
   }
 
-  /// Asks for [coverId]'s colours. Memory hits complete without scheduling.
-  CoverColourRequest request(String coverId) {
-    final request = CoverColourRequest._(this, coverId);
+  /// Asks for [coverId]'s [revision]. Current memory hits complete without
+  /// scheduling; stale fields stay cached until the replacement is ready.
+  CoverColourRequest request(String coverId, {int revision = 0}) {
+    final request = CoverColourRequest._(this, coverId, revision);
     final cached = cache.get(coverId);
-    if (cached != null || _disposed) {
+    if ((cached != null && cached.revision >= revision) || _disposed) {
       request._completer.complete(cached);
       return request;
     }
-    final existing = _jobs[coverId];
-    final job = existing ?? _Job(coverId);
+    final key = (coverId, revision);
+    final existing = _jobs[key];
+    final job = existing ?? _Job(coverId, revision);
     job.requests.add(request);
     request._interest = coordinator.trackInterest(
-      coverColourLoadKey(coverId),
+      coverColourLoadKey(coverId, revision: revision),
       CoverArtLoadPriority.visible,
     );
     if (existing == null) {
-      _jobs[coverId] = job;
+      _jobs[key] = job;
       unawaited(_run(job));
     }
     return request;
@@ -215,11 +225,11 @@ class CoverColourSampler {
     request._interest?.dispose();
     request._interest = null;
     if (!request._completer.isCompleted) request._completer.complete(null);
-    final job = _jobs[request.coverId];
+    final job = _jobs[(request.coverId, request.revision)];
     if (job == null) return;
     job.requests.remove(request);
     // A new request for this cover must not join a job nobody wants.
-    if (job.requests.isEmpty) _jobs.remove(request.coverId);
+    if (job.requests.isEmpty) _jobs.remove((request.coverId, request.revision));
   }
 
   Future<void> _run(_Job job) async {
@@ -228,32 +238,44 @@ class CoverColourSampler {
       await _ready;
       if (job.requests.isEmpty || _disposed) return;
       field = await store.lookup(job.coverId);
-      if (field != null) {
+      if (field != null && field.revision >= job.revision) {
         cache.put(job.coverId, field);
         return;
       }
       if (job.requests.isEmpty || _disposed) return;
       final CoverArtLoadLease lease;
       try {
-        lease = await coordinator.acquire(coverColourLoadKey(job.coverId));
+        lease = await coordinator.acquire(
+          coverColourLoadKey(job.coverId, revision: job.revision),
+        );
       } on CoverArtLoadCanceledException {
         return;
       }
       try {
         if (job.requests.isEmpty || _disposed) return;
-        field = await decode(job.coverId);
+        field = await decode(job.coverId, revision: job.revision);
+        if (field != null) {
+          field = CoverColourField(field.colors, revision: job.revision);
+        }
       } finally {
         lease.release();
       }
       if (field != null && !_disposed) {
-        cache.put(job.coverId, field);
-        store.add(job.coverId, field);
+        // A newer job may finish while this one decodes, and its memory
+        // entry may already have been evicted. Check the same store too.
+        final stored = await store.lookup(job.coverId);
+        if (!_disposed &&
+            (stored?.revision ?? -1) <= job.revision &&
+            (cache.peek(job.coverId)?.revision ?? -1) <= job.revision) {
+          cache.put(job.coverId, field);
+          store.add(job.coverId, field);
+        }
       }
     } on Object catch (error) {
       field = null;
       AppLogger.debug('CoverColourSampler: sampling failed: $error');
     } finally {
-      if (identical(_jobs[job.coverId], job)) _jobs.remove(job.coverId);
+      if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
       for (final request in job.requests) {
         request._interest?.dispose();
         request._interest = null;
@@ -291,20 +313,31 @@ const int _kSampleSize = 24;
 /// The file is decoded natively at 24 px without entering the shared image
 /// cache (tint decodes must not evict real artwork); only the 2 KB pixel
 /// buffer reaches Dart, and the averaging runs in the [CoverColourWorker].
+/// Refreshed revisions require their own cache key: an old permanent copy
+/// must not be recorded as if it were fresh.
 Future<CoverColourField?> decodeLocalCoverColour(
   Ref ref,
-  String coverId,
-) async {
-  final permanent = ref.read(permanentArtworkStoreProvider);
-  var file =
-      permanent.loadedFileFor(coverId) ?? await permanent.fileFor(coverId);
+  String coverId, {
+  int revision = 0,
+}) async {
+  File? file;
+  if (revision == 0) {
+    final permanent = ref.read(permanentArtworkStoreProvider);
+    file = permanent.loadedFileFor(coverId) ?? await permanent.fileFor(coverId);
+  }
   if (file == null) {
-    final cached = await ref
-        .read(coverArtCacheManagerProvider)
-        .getFileFromCache(
-          coverArtImageCacheKey(coverId, kCoverArtStandardSize),
-        );
-    file = cached?.file;
+    final manager = ref.read(coverArtCacheManagerProvider);
+    // Album heroes/cards use 600; showcase mosaics use 480/420 and the
+    // mini-cover strip uses 96. Only inspect files, never fetch artwork.
+    for (final size in [kCoverArtStandardSize, 480, 420, 96]) {
+      final cached = await manager.getFileFromCache(
+        coverArtImageCacheKey(coverId, size, revision: revision),
+      );
+      if (cached != null) {
+        file = cached.file;
+        break;
+      }
+    }
   }
   if (file == null) return null;
   ui.ImmutableBuffer? buffer;
@@ -343,7 +376,8 @@ Future<CoverColourField?> decodeLocalCoverColour(
 
 /// Decoder used by the app (see [decodeLocalCoverColour]). Replaced in tests.
 final coverColourDecoderProvider = Provider<CoverColourDecoder>((ref) {
-  return (coverId) => decodeLocalCoverColour(ref, coverId);
+  return (coverId, {revision = 0}) =>
+      decodeLocalCoverColour(ref, coverId, revision: revision);
 });
 
 /// Coordinator for colour decodes. Separate from the artwork coordinator on
@@ -387,7 +421,8 @@ final coverColourStoreProvider = Provider<CoverColourStore>((ref) {
 final coverColourSamplerProvider = Provider<CoverColourSampler>((ref) {
   sharedCoverColourFieldCache.clear();
   final sampler = CoverColourSampler(
-    decode: (coverId) => ref.read(coverColourDecoderProvider)(coverId),
+    decode: (coverId, {revision = 0}) =>
+        ref.read(coverColourDecoderProvider)(coverId, revision: revision),
     cache: sharedCoverColourFieldCache,
     coordinator: ref.watch(coverColourLoadCoordinatorProvider),
     store: ref.watch(coverColourStoreProvider),
@@ -399,7 +434,7 @@ final coverColourSamplerProvider = Provider<CoverColourSampler>((ref) {
   return sampler;
 });
 
-final Map<String, int> _missingArtRetries = <String, int>{};
+final Map<(String, int), int> _missingArtRetries = <(String, int), int>{};
 
 /// Colour field for a cover, from memory, the persistent store or a bounded
 /// decode of locally stored artwork (see [CoverColourSampler]). Disposing the
@@ -407,22 +442,25 @@ final Map<String, int> _missingArtRetries = <String, int>{};
 /// not on the device yet is retried a few times, one, two and four seconds
 /// apart, while something still watches it.
 final coverColourFieldProvider = FutureProvider.autoDispose
-    .family<CoverColourField?, String>((ref, coverId) async {
-      final request = ref.watch(coverColourSamplerProvider).request(coverId);
+    .family<CoverColourField?, (String, int)>((ref, key) async {
+      final (coverId, revision) = key;
+      final request = ref
+          .watch(coverColourSamplerProvider)
+          .request(coverId, revision: revision);
       ref.onDispose(request.cancel);
       final field = await request.future;
       if (field != null) {
-        _missingArtRetries.remove(coverId);
+        _missingArtRetries.remove(key);
       } else if (ref.mounted) {
-        final attempt = _missingArtRetries[coverId] ?? 0;
+        final attempt = _missingArtRetries[key] ?? 0;
         if (attempt < 3) {
-          _missingArtRetries[coverId] = attempt + 1;
+          _missingArtRetries[key] = attempt + 1;
           final timer = Timer(Duration(seconds: 1 << attempt), () {
             if (ref.mounted) ref.invalidateSelf();
           });
           ref.onDispose(timer.cancel);
         } else {
-          _missingArtRetries.remove(coverId);
+          _missingArtRetries.remove(key);
         }
       }
       return field;

@@ -16,7 +16,7 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 /// Number of colours in a cover's colour field (a 3×3 grid).
 const int kCoverColourCells = 9;
 
-/// Fields kept on disk; the newest survive. Each costs about 50 bytes.
+/// Fields kept on disk; the newest survive. Each costs about 54 bytes.
 const int kCoverColourPersistedCapacity = 5000;
 
 /// Wait after the last new sample before the file is rewritten.
@@ -55,12 +55,13 @@ List<int> averageArgbGrid(Uint8List rgba, int width, int height) {
   ];
 }
 
-const List<int> _magic = <int>[0x4e, 0x43, 0x46, 0x31];
+const List<int> _magic = <int>[0x4e, 0x43, 0x46, 0x32];
 
 /// Encodes [entries] (id to nine ARGB ints, oldest first) in the layout of
-/// `cover_colour_fields.bin`: magic `NCF1`, a length-prefixed scope string,
+/// `cover_colour_fields.bin`: magic `NCF2`, a length-prefixed scope string,
 /// an entry count, then per entry a length-prefixed UTF-8 id and nine ARGB
-/// words. The scope names the server and user the colours came from.
+/// words and a 32-bit artwork revision. NCF1 files load with revision zero.
+/// The scope names the server and user the colours came from.
 Uint8List encodeColourStoreEntries(
   Map<String, List<int>> entries, {
   required String scope,
@@ -78,13 +79,14 @@ Uint8List encodeColourStoreEntries(
   addString(scope);
   header.setUint32(0, entries.length);
   builder.add(header.buffer.asUint8List(0, 4));
-  final cells = ByteData(kCoverColourCells * 4);
+  final cells = ByteData((kCoverColourCells + 1) * 4);
   for (final MapEntry(:key, :value) in entries.entries) {
     if (utf8.encode(key).length > 0xffff) continue;
     addString(key);
     for (var i = 0; i < kCoverColourCells; i++) {
       cells.setUint32(i * 4, value[i]);
     }
+    cells.setUint32(kCoverColourCells * 4, value.length > 9 ? value[9] : 0);
     builder.add(cells.buffer.asUint8List());
   }
   return builder.takeBytes();
@@ -100,9 +102,11 @@ Map<String, List<int>> decodeColourStoreEntries(
   try {
     final data = ByteData.sublistView(bytes);
     var offset = 0;
-    for (final byte in _magic) {
+    for (final byte in _magic.take(3)) {
       if (data.getUint8(offset++) != byte) return result;
     }
+    final version = data.getUint8(offset++);
+    if (version != 0x31 && version != 0x32) return result;
     String readString() {
       final length = data.getUint16(offset);
       offset += 2;
@@ -121,6 +125,8 @@ Map<String, List<int>> decodeColourStoreEntries(
           data.getUint32(offset + c * 4),
       ];
       offset += kCoverColourCells * 4;
+      colors.add(version == 0x32 ? data.getUint32(offset) : 0);
+      if (version == 0x32) offset += 4;
       result[id] = colors;
     }
   } on Object {
@@ -142,13 +148,14 @@ abstract interface class CoverColourWorker {
   Future<List<double>> captionTint(Color sampled, NavisColorStyleData style);
 
   /// Opens the colour file at [path] for [scope]; returns the newest [warm]
-  /// entries (oldest first) as `[id, argb × 9]` lists.
+  /// entries (oldest first) as `[id, argb × 9, revision]` lists.
   Future<List<List<Object>>> openStore(String path, String scope, int warm);
 
-  /// The stored colours of [id], or null.
+  /// The stored colours and sampled revision of [id], or null.
   Future<List<int>?> lookup(String id);
 
-  /// Records [colors] for [id]; written to disk after a quiet period.
+  /// Records [colors] (nine ARGB cells, then revision) for [id]; written to
+  /// disk after a quiet period.
   void add(String id, List<int> colors);
 
   /// Writes pending additions now.

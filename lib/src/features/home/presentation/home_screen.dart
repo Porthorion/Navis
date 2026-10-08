@@ -1939,6 +1939,12 @@ bool _homeRandomShowcaseItemsVisuallyChanged(
               prior.songs.map((song) => song.id).toList(growable: false),
               incoming.songs.map((song) => song.id).toList(growable: false),
             ),
+      (
+        final HomeRandomShowcaseAlbum prior,
+        final HomeRandomShowcaseAlbum incoming,
+      ) =>
+        prior.coverArtId != incoming.coverArtId ||
+            prior.coverArtRevision != incoming.coverArtRevision,
       _ => false,
     };
     if (changed) {
@@ -2521,6 +2527,7 @@ class _DesktopRandomAlbumsPagerState
         Positioned.fill(
           child: _ShowcaseColourWash(
             coverArtId: _showcaseWashCoverId(currentItem),
+            coverArtRevision: _showcaseWashCoverRevision(currentItem),
             subtle: true,
           ),
         ),
@@ -2640,6 +2647,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                 children: <Widget>[
                   HeroCoverArt(
                     coverArtId: album.coverArtId,
+                    revision: album.coverArtRevision,
                     heroTag: heroTag,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
@@ -3404,6 +3412,7 @@ class _RandomMiniCover extends StatelessWidget {
         ),
         final HomeRandomShowcaseAlbum album => CoverArtImage(
           coverArtId: album.coverArtId,
+          revision: album.coverArtRevision,
           size: 96,
           fit: BoxFit.cover,
           placeholderIcon: Icons.album_outlined,
@@ -3977,6 +3986,7 @@ class _RandomAlbumsHeroCarouselState
     if (phone && NavisColorStyleData.of(context).flat) {
       return _ShowcaseFlatBand(
         coverArtId: _showcaseWashCoverId(currentItem),
+        coverArtRevision: _showcaseWashCoverRevision(currentItem),
         builder: (context, tint) => Padding(
           padding: const EdgeInsets.symmetric(vertical: NavisSpace.lg),
           child: buildSection(tint),
@@ -3989,6 +3999,7 @@ class _RandomAlbumsHeroCarouselState
         Positioned.fill(
           child: _ShowcaseColourWash(
             coverArtId: _showcaseWashCoverId(currentItem),
+            coverArtRevision: _showcaseWashCoverRevision(currentItem),
           ),
         ),
         buildSection(null),
@@ -4056,6 +4067,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
           children: <Widget>[
             HeroCoverArt(
               coverArtId: album.coverArtId,
+              revision: album.coverArtRevision,
               heroTag: heroTag,
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,

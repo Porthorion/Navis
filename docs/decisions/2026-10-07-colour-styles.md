@@ -66,3 +66,27 @@ and caption-below height plumbing are removed; the plain fade remains the
 fallback until a cover's tint is known or when no cover-art id is available.
 Measured on a phone emulator with 40 jump-scrolls: 0 frames over 33 ms, and
 the same over-16 ms profile as the plain fade, cold and warm.
+
+### Cover tint refresh and local cache coverage
+
+Caption fields and the Home wash retain the sampled artwork revision in the
+existing memory LRU and NCF2 persistent store. NCF1 entries load safely as
+revision zero. Library revision bumps trigger lazy re-sampling when a caller
+shows the cover, with the previous colour retained through decoding and
+caption derivation. Refreshes reuse the existing settle/scroll deferral,
+two-slot coordinator, worker isolate and frame-budget dispatcher; a bulk sync
+never starts a colour re-scan. The canonical artwork revision is used instead
+of filesystem metadata so unchanged covers need neither stats nor decodes,
+and alternate cached image sizes do not count as artwork changes.
+
+Local-only remote lookup covers album cards/heroes (600 px), showcase playlist
+mosaics (480/420 px), and the mini-cover strip (96 px), using the requested
+revision's cache keys. A refreshed request waits for those bytes instead of
+sampling an old permanent copy as if it were fresh.
+
+### Known limitations
+
+A server-side change must reach Navis's existing artwork revision mechanism
+to invalidate a sampled field. URL-only external cards have no Subsonic cover
+identity and continue to use the caption fallback. Sampling never downloads
+artwork; missing local files use the existing bounded retry path.

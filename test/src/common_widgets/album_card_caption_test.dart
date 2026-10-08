@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -65,6 +70,128 @@ void main() {
     'light': buildLightTheme(defaultColorSchemeSeedColor),
     'dark': buildDarkTheme(defaultColorSchemeSeedColor),
   };
+
+  testWidgets(
+    'revision refresh waits for artwork and scrolling, keeps tint through worker dispatch',
+    (tester) async {
+      clearCaptionTintMemo();
+      sharedCoverColourFieldCache.clear();
+      addTearDown(clearCaptionTintMemo);
+      addTearDown(sharedCoverColourFieldCache.clear);
+      final old = CoverColourField.uniform(const Color(0xFFE53935));
+      final fresh = CoverColourField.uniform(const Color(0xFF1976D2));
+      sharedCoverColourFieldCache.put('cover', old);
+      final gate = Completer<CoverColourField?>();
+      var decodes = 0;
+      final sampler = CoverColourSampler(
+        decode: (id, {revision = 0}) {
+          expect(revision, 1);
+          decodes++;
+          return gate.future;
+        },
+        cache: sharedCoverColourFieldCache,
+        coordinator: CoverArtLoadCoordinator(
+          maxActiveDownloads: 2,
+          criticalReserve: 0,
+        ),
+      );
+      addTearDown(sampler.dispose);
+      final worker = _GatedTintWorker();
+      final revision = ValueNotifier<int>(0);
+      final ready = ValueNotifier<bool>(true);
+      final scroll = ScrollController();
+      addTearDown(revision.dispose);
+      addTearDown(ready.dispose);
+      addTearDown(scroll.dispose);
+      final theme = buildDarkTheme(defaultColorSchemeSeedColor);
+      final style = theme.extension<NavisColorStyleData>()!;
+      final expectedOld = captionTintFor(old.bottomRowAverage, style).fill;
+      final expectedNew = captionTintFor(fresh.bottomRowAverage, style).fill;
+      Color fill() {
+        final box = tester.widget<DecoratedBox>(
+          find.byKey(const ValueKey<String>('albumCardTintText')),
+        );
+        return ((box.decoration as BoxDecoration).gradient! as LinearGradient)
+            .colors
+            .last;
+      }
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            coverColourSamplerProvider.overrideWithValue(sampler),
+            coverColourWorkerProvider.overrideWithValue(worker),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                controller: scroll,
+                child: Column(
+                  children: [
+                    ValueListenableBuilder<int>(
+                      valueListenable: revision,
+                      builder: (context, rev, _) => SizedBox(
+                        width: 160,
+                        height: 160,
+                        child: Stack(
+                          children: [
+                            AlbumCardLabel(
+                              title: 'Cover',
+                              subtitle: 'Artist',
+                              coverArtId: 'cover',
+                              coverArtRevision: rev,
+                              coverReady: ready,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 1000),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(fill(), expectedOld);
+      expect(decodes, 0);
+      ready.value = false;
+      revision.value = 1;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(decodes, 0);
+      expect(fill(), expectedOld);
+      // The existing scroll/settle gate also applies to revision refreshes.
+      scroll.position.isScrollingNotifier.value = true;
+      ready.value = true;
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(decodes, 0);
+      scroll.position.isScrollingNotifier.value = false;
+      await tester.pump(kCoverTintSettleDelay);
+      await tester.pump();
+      expect(decodes, 1);
+      expect(fill(), expectedOld);
+      worker.hold = true;
+      gate.complete(fresh);
+      await tester.pump();
+      await tester.pump();
+      expect(worker.pending, isNotNull);
+      expect(fill(), expectedOld);
+      scroll.position.isScrollingNotifier.value = true;
+      worker.pending!.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      // Arrival during scrolling applies instantly through the dispatcher.
+      expect(fill(), expectedNew);
+      expect(decodes, 1);
+      scroll.position.isScrollingNotifier.value = false;
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   for (final entry in themes.entries) {
     testWidgets('caption fallback stays over the cover in ${entry.key}', (
@@ -160,5 +287,22 @@ void main() {
         findsNothing,
       );
     });
+  }
+}
+
+class _GatedTintWorker extends InlineCoverColourWorker {
+  bool hold = false;
+  Completer<void>? pending;
+
+  @override
+  Future<List<double>> captionTint(
+    Color sampled,
+    NavisColorStyleData style,
+  ) async {
+    if (hold) {
+      pending = Completer<void>();
+      await pending!.future;
+    }
+    return await super.captionTint(sampled, style);
   }
 }
