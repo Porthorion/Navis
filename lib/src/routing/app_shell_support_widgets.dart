@@ -1,5 +1,32 @@
 part of 'app_shell.dart';
 
+/// Show the battery optimisation prompt.
+///
+/// The sheet takes its background from the ambient `bottomSheetTheme` instead
+/// of an explicit `backgroundColor`: a colour read from the opener's theme is
+/// frozen when the route is pushed, so a live theme switch left the sheet on
+/// its old surface while its text followed the new theme.
+Future<void> showBatteryOptimizationSheet(
+  BuildContext context, {
+  required Future<void> Function() onOpenSettings,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      return _BatteryOptimizationSheet(
+        onOpenSettings: () {
+          Navigator.of(sheetContext).pop();
+          unawaited(onOpenSettings());
+        },
+      );
+    },
+  );
+}
+
 class _BatteryOptimizationSheet extends StatelessWidget {
   const new({required this.onOpenSettings});
 

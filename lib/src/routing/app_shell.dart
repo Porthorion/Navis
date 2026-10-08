@@ -674,21 +674,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!mounted || !shouldPrompt) {
       return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      builder: (sheetContext) {
-        return _BatteryOptimizationSheet(
-          onOpenSettings: () {
-            Navigator.of(sheetContext).pop();
-            unawaited(service.openDisableBatteryOptimizationSettings());
-          },
-        );
-      },
+    await showBatteryOptimizationSheet(
+      context,
+      onOpenSettings: service.openDisableBatteryOptimizationSettings,
     );
   }
 
