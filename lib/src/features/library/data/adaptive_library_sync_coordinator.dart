@@ -430,6 +430,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         request: request,
         plan: deferredPlan,
         policy: _syncPolicy,
+        capabilitiesJson: capabilitiesJson,
       );
       final durableRun = await _database.librarySyncDao.enqueueSyncRun(
         serverId: serverId,
@@ -535,6 +536,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       request: resumedRequest,
       plan: plan,
       policy: policy,
+      capabilitiesJson: capabilitiesJson,
     );
     final durableRun = await _database.librarySyncDao.enqueueSyncRun(
       serverId: serverId,
@@ -1267,13 +1269,19 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required LibrarySyncRequest request,
     required LibrarySyncPlan plan,
     required SyncNetworkPolicy policy,
+    required String? capabilitiesJson,
   }) {
     final kind = plan.kind;
     return SyncExecutionPlan(
       request: request,
       kind: kind,
       reason: _safeReasonForPlan(plan, policy),
-      budget: executionBudgetFor(request: request, kind: kind, policy: policy),
+      budget: executionBudgetFor(
+        request: request,
+        kind: kind,
+        policy: policy,
+        capabilitiesJson: capabilitiesJson,
+      ),
     );
   }
 
@@ -1282,6 +1290,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required LibrarySyncRequest request,
     required LibrarySyncPlanKind kind,
     required SyncNetworkPolicy policy,
+    String? capabilitiesJson,
   }) {
     final meteredManual =
         kind == LibrarySyncPlanKind.deltaReconcile &&
@@ -1329,6 +1338,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     // Target and auxiliary operations retain their own execution budgets.
     final automatic =
         request.runHistoryIntent == SyncRunIntent.automaticCatalogCheck;
+    var hasDiscoveryDebt = false;
+    if (automatic && kind == LibrarySyncPlanKind.deltaReconcile) {
+      try {
+        final root = jsonDecode(capabilitiesJson ?? '');
+        if (root is Map && root['navis'] is Map) {
+          final debt = (root['navis'] as Map)['libraryDiscoveryDebtStreak'];
+          hasDiscoveryDebt = debt is String && (int.tryParse(debt) ?? 0) > 0;
+        }
+      } on FormatException {
+        // Missing or malformed evidence retains the ordinary page window.
+      }
+    }
     final boundedAlbums = automatic ? 32 : 64;
     final boundedRequests = automatic ? 96 : 200;
     final boundedBytes = automatic
@@ -1347,7 +1368,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         duration: boundedDuration,
       ),
       LibrarySyncPlanKind.deltaReconcile => (
-        pages: automatic ? 2 : 5,
+        pages: automatic && !hasDiscoveryDebt ? 2 : 5,
         albums: boundedAlbums,
         responseBytes: 16 * 1024 * 1024,
         totalBytes: boundedBytes,

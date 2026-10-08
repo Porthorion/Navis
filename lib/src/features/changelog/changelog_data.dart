@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Automatic library checks look further back when recent additions exceed the discovery window',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Changing the server backend clears stale sync cursors before the next library check',
         type: ChangelogEntryType.fix,
       ),

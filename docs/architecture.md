@@ -3353,8 +3353,9 @@ states without starting audio or modifying a queue.
     checks inspect at most five. A recorded discovery-debt streak
     (`libraryDiscoveryDebtStreak`, persisted per server when a check hits its
     page cap without ever reaching known, unchanged content) keeps the probe
-    on schedule and widens the automatic window to five pages until known
-    content is reached; a streak past the escalation threshold
+    on schedule and widens the admitted automatic delta-reconciliation budget
+    to five pages until known content is reached, retaining the same request,
+    byte, duration, and hydration limits; a streak past the escalation threshold
     (`discoveryDebtEscalationStreak`) hands deep discovery to a queued delta
     reconciliation. Automatic discovery defers during playback or
     hidden foreground execution; fresh metered automation without background

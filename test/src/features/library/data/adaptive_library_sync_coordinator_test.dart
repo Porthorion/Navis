@@ -221,6 +221,111 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  test(
+    'automatic discovery widens its admitted window only while debt remains',
+    () async {
+      var timestamp = DateTime.utc(2026, 8, 4);
+      final recordingExecutor = StubSyncPlanExecutor((
+        plan, {
+        onProgress,
+      }) async {
+        expect(
+          SyncRequestScope.current!.maxNewestPages,
+          plan.budget.maxNewestPages,
+        );
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          metadataReady: true,
+          completedAt: timestamp,
+        );
+      });
+      final sync = AdaptiveLibrarySyncCoordinator(
+        executor: recordingExecutor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => timestamp,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(timestamp),
+        ),
+      );
+
+      for (final (debt, expectedPages) in [
+        ('0', 2),
+        ('1', 5),
+        ('2', 5),
+        ('0', 2),
+      ]) {
+        await repository.updateCapabilitiesJson(
+          jsonEncode({
+            'navis': {
+              'libraryIndexesCursor': DateTime.utc(
+                2026,
+                8,
+                1,
+              ).toIso8601String(),
+              'libraryDiscoveryDebtStreak': debt,
+            },
+          }),
+        );
+        final result = await sync.requestSync(
+          const LibrarySyncRequest.automatic(),
+        );
+        expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+        final catalogPlan = recordingExecutor.plans.lastWhere(
+          (plan) => plan.request.target.kind == LibrarySyncTargetKind.catalog,
+        );
+        expect(catalogPlan.budget.maxNewestPages, expectedPages);
+        expect(catalogPlan.budget.maxAlbumHydrations, 32);
+        expect(catalogPlan.budget.maxRequests, 96);
+        timestamp = timestamp.add(const Duration(hours: 2));
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'discovery debt does not expand restricted metered automatic work',
+    () async {
+      await repository.updateCapabilitiesJson(
+        jsonEncode({
+          'navis': {'libraryDiscoveryDebtStreak': '2'},
+        }),
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final sync = AdaptiveLibrarySyncCoordinator(
+        executor: executor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.cellular,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final result = await sync.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+      expect(result.planKind, LibrarySyncPlanKind.probe);
+      expect(executor.plans, hasLength(1));
+      expect(executor.plans.single.kind, LibrarySyncPlanKind.probe);
+      expect(executor.plans.single.budget.maxNewestPages, 0);
+      expect(executor.plans.single.budget.maxRequests, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('missing session fails without executing a plan', () async {
     await repository.signOutKeepData();
     final progress = <LibrarySyncState>[];
