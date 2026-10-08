@@ -137,10 +137,24 @@ Checks performed:
   `./tool/dart_format.sh` (or `make format`) to apply what it reports
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)
+- dead-code ratchet (`dart run tool/dead_code_check.dart`)
 - migration and critical regression suites
 - full tests (`flutter test`)
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
+
+The dead-code gate checks public Dart declarations, l10n keys, declared file
+assets and font families, missing files loaded from declared asset directories,
+and direct dependencies. Generated Dart supplies references but no declarations;
+declarations referenced only by tests or tools are reported without failing.
+New findings, stale baseline entries, and empty reasons fail. Remove the unused
+code or add an entry with a factual, non-empty reason to
+`tool/dead_code_baseline.json`; `dart run tool/dead_code_check.dart --update`
+preserves reasons and removes stale entries. It refuses unreasoned additions,
+writing `tool/dead_code_baseline.pending.json` for review instead; an explicit
+`--reason "text"` applies only to new entries. The baseline's `dependencyUses`
+records the small CLI/builder exception list with reasons and checked evidence;
+lint includes are detected from root and vendored analysis options.
 
 The full suite includes the design-token ratchet
 (`test/src/theme/design_token_guard_test.dart`). It fails when a file under

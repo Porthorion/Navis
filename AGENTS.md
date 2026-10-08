@@ -99,6 +99,14 @@ construction and provider mutation during build as hard failures. Use
 screenshots, and platform-specific validation; use `docs/ci-cd.md` for release
 and CI-equivalent gates.
 
+The dead-code gate checks public Dart declarations, l10n keys, declared assets
+and font families, missing directory-asset loads, and direct dependencies.
+New findings and stale baseline entries fail; test-only declarations are
+reported without failing. Remove unused code or record a factual, non-empty
+reason in `tool/dead_code_baseline.json`. Use
+`dart run tool/dead_code_check.dart --update` to shrink the baseline; new entries
+without reasons go to a pending file and the update is refused.
+
 Android runtime evidence can use a temporary emulator that you create, use
 and delete yourself; see "Temporary Android emulators" in
 `docs/development-workflow.md`. Never wipe or uninstall from an emulator you

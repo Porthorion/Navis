@@ -55,10 +55,14 @@ Checks performed (in order, fail-fast):
    vendored CargoKit, which is checked from its own directory)
 5. `dart run build_runner build`
 6. `flutter analyze --no-fatal-infos`
-7. Drift migration tests
-8. Critical routing/provider/playback/library sync test suite
-9. Full `flutter test`
-10. Coverage when `CI=true`
+7. `dart run tool/dead_code_check.dart` (public declarations, l10n, assets,
+   font families and dependencies; new or stale findings and empty baseline
+   reasons fail, while test-only declarations are report-only). See
+   [baseline maintenance](development-workflow.md#quality-gate).
+8. Drift migration tests
+9. Critical routing/provider/playback/library sync test suite
+10. Full `flutter test`
+11. Coverage when `CI=true`
 
 Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
 `ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
