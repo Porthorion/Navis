@@ -1006,10 +1006,7 @@ void main() {
         readIsForeground: () => true,
         now: () => DateTime.utc(2026, 8, 4),
       );
-      final automatic = await onlineCoordinator.syncIfStale();
-      expect(automatic.status, LibrarySyncStatus.deferred);
-      expect(probeEngine.syncNowCalls, 0);
-      final resumed = await onlineCoordinator.syncNow();
+      final resumed = await onlineCoordinator.syncIfStale();
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(resumed.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -1017,6 +1014,58 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  for (final (name, network, foreground, playing, worker, resumes) in [
+    ('foreground playback', NetworkType.wifi, true, true, false, true),
+    ('offline', NetworkType.offline, true, false, false, false),
+    ('metered', NetworkType.cellular, true, false, false, false),
+    ('hidden', NetworkType.wifi, false, false, false, false),
+    ('hidden playback', NetworkType.wifi, false, true, false, false),
+    ('idle worker', NetworkType.wifi, false, false, true, true),
+    ('playing worker', NetworkType.wifi, false, true, true, false),
+  ]) {
+    test(
+      'queued explicit discovery resumes only when eligible: $name',
+      () async {
+        await database.librarySyncDao.writeState(
+          const LibrarySyncStateTableCompanion(
+            serverId: Value(1),
+            currentGeneration: Value(1),
+          ),
+        );
+        await database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 60,
+          checkpointJson: jsonEncode({'intent': 'checkForUpdates'}),
+        );
+        final probeEngine = _ProbeLibrarySyncEngine();
+        final guarded = AdaptiveLibrarySyncCoordinator(
+          executor: probeEngine,
+          database: database,
+          serverConfigRepository: repository,
+          networkType: network,
+          staleAfter: const Duration(hours: 1),
+          readIsForeground: () => foreground,
+          readHasActivePlayback: () => playing,
+          isBackgroundExecution: worker,
+          now: () => DateTime.utc(2026, 8, 4),
+        );
+
+        await guarded.syncIfStale();
+
+        expect(probeEngine.syncNowCalls, resumes ? 1 : 0);
+        expect(
+          (await database.librarySyncDao.getWork(
+            serverId: 1,
+            kind: LibrarySyncPlanKind.deltaReconcile.name,
+          ))?.status,
+          resumes ? 'completed' : 'queued',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
 
   test('manual cellular refresh runs bounded discovery before a broad-data override', () async {
     await database.librarySyncDao.writeState(

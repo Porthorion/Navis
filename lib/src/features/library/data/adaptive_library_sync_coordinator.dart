@@ -1691,7 +1691,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   planKind == LibrarySyncPlanKind.probe))) {
         continue;
       }
-      if (_workAllowed(work.workClass, policy, request, planKind: planKind)) {
+      final workRequest = _requestFromWork(work, fallback: request);
+      if (_workAllowed(
+        work.workClass,
+        policy,
+        workRequest,
+        planKind: planKind,
+      )) {
         return work;
       }
     }
@@ -1759,7 +1765,10 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       final decoded = jsonDecode(work.checkpointJson ?? '');
       if (decoded is Map &&
           decoded['intent'] == LibrarySyncIntent.checkForUpdates.name) {
-        return const LibrarySyncRequest.checkForUpdates();
+        return LibrarySyncRequest.checkForUpdates(
+          allowMeteredBroadOverride: fallback.allowMeteredBroadOverride,
+          allowMeteredLimitedDiscovery: fallback.allowMeteredLimitedDiscovery,
+        );
       }
     } on FormatException {
       // Legacy work has no request provenance and retains the caller policy.

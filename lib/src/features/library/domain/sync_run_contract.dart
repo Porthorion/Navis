@@ -255,7 +255,9 @@ SyncExecutionPlanKind syncExecutionPlanKindFromLegacy(
 
 /// Admission shared by planning, durable work selection and live execution.
 /// A metered grant changes network permission, never playback or visibility
-/// permission. Full repairs require a fresh explicit repair action.
+/// permission. Restored manual discovery retains its explicit intent, but
+/// grants come only from the current caller. Full repairs require a fresh
+/// explicit repair action.
 bool librarySyncWorkAllowed({
   required LibrarySyncPlanKind kind,
   required String workClass,
@@ -281,7 +283,11 @@ bool librarySyncWorkAllowed({
               trigger == LibrarySyncTrigger.interaction));
   if (interactive) return policy.allowsInteractiveHydration;
   if (!isForeground && !isBackgroundExecutor) return false;
-  if (intent == LibrarySyncIntent.automatic && hasActivePlayback) return false;
+  if (hasActivePlayback &&
+      (intent == LibrarySyncIntent.automatic ||
+          (!isForeground && isBackgroundExecutor))) {
+    return false;
+  }
   if (networkGrant == SyncNetworkGrant.broadMeteredOnce) return true;
   if (policy.isMetered) {
     return kind == LibrarySyncPlanKind.deltaReconcile &&

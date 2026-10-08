@@ -3063,11 +3063,14 @@ states without starting audio or modifying a queue.
    passing an entity ID to a hydrator or server endpoint. Sync work
    uses one pure `librarySyncWorkAllowed` gate at planning, work selection,
    admission, and live request boundaries. Automatic broad work defers while
-   Navis is backgrounded or playing, including previously queued manual
-   discovery. The constrained Android background executor may run while hidden
-   when playback is idle. An explicit user refresh may resume queued broad
-   work in the foreground, including during playback. Metered grants never
-   bypass visibility or automatic-playback gates.
+   Navis is backgrounded or playing. Queued manual discovery retains its
+   explicit intent when an automatic foreground pass resumes it, including
+   during playback. Its durable checkpoint restores intent, never a network
+   grant: metered admission needs permission from the current request. The
+   constrained Android background executor may run while hidden when playback
+   is idle. An explicit user refresh may resume queued broad work in the
+   foreground, including during playback. Metered grants never bypass
+   visibility or automatic-playback gates.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
    mistake an in-flight state for a failed sync. Pending durable work resumes

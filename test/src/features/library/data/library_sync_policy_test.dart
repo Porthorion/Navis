@@ -6,7 +6,12 @@ import 'package:navis/src/utils/connectivity.dart';
 void main() {
   const probe = {'automaticProbe', 'manualProbe'};
   const interactive = {'artist', 'album', 'playlist'};
-  const foregroundExplicit = {'manualDelta', 'repair', 'explicitAuxiliary'};
+  const foregroundExplicit = {
+    'manualDelta',
+    'queuedManualDelta',
+    'repair',
+    'explicitAuxiliary',
+  };
   const automaticBroad = {
     'automaticDelta',
     'snapshot',
@@ -53,6 +58,14 @@ void main() {
           'background',
         ),
         'manualDelta': (
+          LibrarySyncPlanKind.deltaReconcile,
+          LibrarySyncIntent.checkForUpdates,
+          LibrarySyncTrigger.user,
+          LibrarySyncTargetKind.catalog,
+          'background',
+        ),
+        // The automatic caller restores this intent from the durable row.
+        'queuedManualDelta': (
           LibrarySyncPlanKind.deltaReconcile,
           LibrarySyncIntent.checkForUpdates,
           LibrarySyncTrigger.user,
@@ -168,7 +181,7 @@ void main() {
       true,
       true,
       none,
-      {...probe, ...interactive, ...foregroundExplicit},
+      {...probe, ...interactive},
     ),
     (
       'metered',
@@ -186,7 +199,7 @@ void main() {
       false,
       false,
       bounded,
-      {...probe, ...interactive, 'manualDelta'},
+      {...probe, ...interactive, 'manualDelta', 'queuedManualDelta'},
     ),
     (
       'bounded metered playing',
@@ -195,7 +208,7 @@ void main() {
       true,
       false,
       bounded,
-      {...probe, ...interactive, 'manualDelta'},
+      {...probe, ...interactive, 'manualDelta', 'queuedManualDelta'},
     ),
     (
       'bounded metered hidden',
@@ -241,7 +254,7 @@ void main() {
       false,
       true,
       bounded,
-      {...probe, ...interactive, 'manualDelta'},
+      {...probe, ...interactive, 'manualDelta', 'queuedManualDelta'},
     ),
     (
       'broad metered worker',
