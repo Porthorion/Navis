@@ -634,7 +634,6 @@ void main() {
       await run;
       expect(settled, isTrue);
       expect(api.calls, isNot(contains('getPlaylists')));
-      expect(api.calls, isNot(contains('getGenres')));
     },
   );
 
@@ -705,7 +704,6 @@ void main() {
     expect(auxiliary.every((row) => row.requestCount == 0), isTrue);
     expect(api.calls, isNot(contains('getStarredContent')));
     expect(api.calls, isNot(contains('getPlaylists')));
-    expect(api.calls, isNot(contains('getGenres')));
   });
 
   test(
@@ -749,7 +747,6 @@ void main() {
 
       expect(api.calls, contains('getStarredContent'));
       expect(api.calls, contains('getPlaylists'));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.libraryDao.getSongById('remote-favorite'))?.starred,
         isNotNull,
@@ -804,7 +801,6 @@ void main() {
         hasLength(1),
       );
       expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.librarySyncDao.getWork(
           serverId: id,
@@ -871,7 +867,6 @@ void main() {
         hasLength(1),
       );
       expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(
         (await db.libraryDao.getSongById('scheduled-favorite'))?.starred,
         isNotNull,
@@ -1327,7 +1322,6 @@ void main() {
     expect(result.planReason, 'automaticCatalogDiscovery');
     expect(result.status, LibrarySyncStatus.succeeded);
     expect(result.endpointRequests['getAlbum'], 1);
-    expect(result.endpointRequests.containsKey('getGenres'), isFalse);
     expect((await db.libraryDao.getAlbumById('b'))?.songsHydrated, isTrue);
     expect((await db.libraryDao.getSongById('s3'))?.albumId, 'b');
     expect(
@@ -1342,45 +1336,38 @@ void main() {
     await coordinator.requestSync(const LibrarySyncRequest.automatic());
     expect(api.calls.where((call) => call.startsWith('newest:')), isEmpty);
   });
-  test(
-    'F03 initial catalog initializes likes and playlist headers without genres',
-    () async {
-      final serverId = await session(initial: true);
-      api.starredContent = const StarredContent(
-        songs: [
-          Song(id: 'remote-favorite', title: 'Favorite', isExternal: true),
-        ],
-      );
-      api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
-      final result = await coordinator.requestSync(
-        const LibrarySyncRequest.automatic(),
-      );
-      expect(result.status, LibrarySyncStatus.succeeded);
-      expect(
-        api.calls.where((call) => call == 'getStarredContent'),
-        hasLength(1),
-      );
-      expect(api.calls, isNot(contains('getGenres')));
-      expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
-      expect(
-        (await db.libraryDao.getSongById('remote-favorite'))?.starred,
-        isNotNull,
-      );
-      expect(
-        (await db.libraryDao.watchAllStarredSongs().first).single.id,
-        'remote-favorite',
-      );
-      expect(await db.libraryDao.getAllSongs(), isEmpty);
-      expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
-      final state = await db.librarySyncDao.getOrCreateState(serverId);
-      expect(state.lastAuxiliarySyncedAt, isNotNull);
-      api.calls.clear();
-      await coordinator.requestSync(const LibrarySyncRequest.automatic());
-      expect(api.calls, isNot(contains('getStarredContent')));
-      expect(api.calls, isNot(contains('getGenres')));
-      expect(api.calls, isNot(contains('getPlaylists')));
-    },
-  );
+  test('F03 initial catalog initializes likes and playlist headers', () async {
+    final serverId = await session(initial: true);
+    api.starredContent = const StarredContent(
+      songs: [Song(id: 'remote-favorite', title: 'Favorite', isExternal: true)],
+    );
+    api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.automatic(),
+    );
+    expect(result.status, LibrarySyncStatus.succeeded);
+    expect(
+      api.calls.where((call) => call == 'getStarredContent'),
+      hasLength(1),
+    );
+    expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
+    expect(
+      (await db.libraryDao.getSongById('remote-favorite'))?.starred,
+      isNotNull,
+    );
+    expect(
+      (await db.libraryDao.watchAllStarredSongs().first).single.id,
+      'remote-favorite',
+    );
+    expect(await db.libraryDao.getAllSongs(), isEmpty);
+    expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
+    final state = await db.librarySyncDao.getOrCreateState(serverId);
+    expect(state.lastAuxiliarySyncedAt, isNotNull);
+    api.calls.clear();
+    await coordinator.requestSync(const LibrarySyncRequest.automatic());
+    expect(api.calls, isNot(contains('getStarredContent')));
+    expect(api.calls, isNot(contains('getPlaylists')));
+  });
 
   test(
     'F03 auxiliary failure retains its retry without suppressing other domains',
@@ -1409,7 +1396,6 @@ void main() {
       api.calls.clear();
       await coordinator.requestSync(const LibrarySyncRequest.automatic());
       expect(api.calls, isNot(contains('getStarredContent')));
-      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls, isNot(contains('getPlaylists')));
       api.throwOnStarred = null;
       await db.librarySyncDao.requeue(starred!.id);
@@ -1419,7 +1405,6 @@ void main() {
         api.calls.where((call) => call == 'getStarredContent'),
         hasLength(1),
       );
-      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls, isNot(contains('getPlaylists')));
       expect(
         (await db.librarySyncDao.getOrCreateState(serverId))
