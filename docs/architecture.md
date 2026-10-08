@@ -3393,8 +3393,10 @@ contract.
   evidence and local mutation journals. If the canonical song already has a
   download-queue entry, remapping discards the old identity’s queue entries and
   keeps the canonical entry intact; otherwise it moves the old entries. It
-  writes both the legacy and typed profile-scoped alias tables
-  (`entity_identity_aliases`). Cache and download ownership validation is storage-kind aware: Android SAF content URIs are
+  writes the typed `entity_identity_aliases` table, shared across profiles.
+  Schema 94 keeps the newest alias per entity type and old ID, enforces that
+  key, and removes the legacy song alias table; sign-out and data reset clear
+  typed aliases. Cache and download ownership validation is storage-kind aware: Android SAF content URIs are
   validated through the platform bridge, never `File.exists()`. Identity
   remapping preserves every cache-row column, including storage kind; rolling
   cache pruning also recognizes content URIs even on legacy filesystem rows.

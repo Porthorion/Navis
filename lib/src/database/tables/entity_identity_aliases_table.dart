@@ -1,20 +1,17 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 
-/// Profile-scoped identity alias for any catalog entity type.
+/// Identity aliases shared across profiles for songs, albums and artists.
 ///
-/// Extends the song-only `song_identity_aliases` contract to albums and
-/// artists. Legacy song aliases migrated from that table keep `serverId` null
-/// so they continue resolving for every profile exactly as before; new rows
-/// are always profile-scoped. Resolution reads this table first and falls
-/// back to the legacy song table for compatibility.
+/// Resolution uses the newest row for each entity type and old ID. Schema 94
+/// deduplicates historical rows and enforces that key with a unique index.
 class EntityIdentityAliasTable extends Table {
   @override
   String get tableName => 'entity_identity_aliases';
 
   IntColumn get id => integer().autoIncrement()();
 
-  /// Null for legacy rows imported from `song_identity_aliases`.
+  /// Null preserves cross-profile resolution, including newly recorded aliases.
   IntColumn get serverId => integer().nullable().references(
     ServerConfigTable,
     #id,

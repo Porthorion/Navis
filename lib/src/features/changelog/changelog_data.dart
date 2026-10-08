@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Library identity repairs keep one current alias per item, and resetting server data clears repaired identities',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library cache renewal stops waiting after five seconds when app version metadata is unavailable',
         type: ChangelogEntryType.fix,
       ),

@@ -65,7 +65,6 @@ import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
-import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
@@ -106,7 +105,6 @@ part 'navis_database.g.dart';
     ListenBrainzFeedbackQueueTable,
     ListenBrainzWeeklyCacheTable,
     NetworkUsageTable,
-    SongIdentityAliasesTable,
     LibrarySyncStateTable,
     LibrarySyncWorkTable,
     LibrarySyncCandidateArtistsTable,
@@ -227,7 +225,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 93;
+  int get schemaVersion => 94;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -330,10 +328,23 @@ class NavisDatabase extends _$NavisDatabase {
       from90To91,
       from91To92,
       from92To93,
+      from93To94,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
     }
+  }
+
+  Future<void> from93To94(Migrator _) async {
+    await customStatement(
+      'DELETE FROM entity_identity_aliases WHERE id NOT IN ( '
+      'SELECT MAX(id) FROM entity_identity_aliases GROUP BY entity_type, old_id)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_identity_aliases_kind_old '
+      'ON entity_identity_aliases(entity_type, old_id)',
+    );
+    await customStatement('DROP TABLE IF EXISTS song_identity_aliases');
   }
 
   Future<void> from92To93(Migrator migrator) async {
@@ -664,14 +675,15 @@ class NavisDatabase extends _$NavisDatabase {
       "UPDATE songs SET catalog_availability = 'confirmedMissing' "
       'WHERE server_deleted_at IS NOT NULL;',
     );
-    // Legacy song aliases stay in song_identity_aliases; copy them into the
-    // typed table with a null profile so resolution behavior is unchanged.
-    await customStatement('''
+    // Copy legacy songs with a null profile to preserve cross-profile resolution.
+    if (await _tableExists('song_identity_aliases')) {
+      await customStatement('''
       INSERT OR IGNORE INTO entity_identity_aliases
         (server_id, entity_type, old_id, new_id, match_reason, matched_at)
       SELECT NULL, 'song', old_song_id, canonical_song_id, match_reason, matched_at
       FROM song_identity_aliases;
     ''');
+    }
   }
 
   /// Adds MusicBrainz release/artist identifiers to the candidate staging
@@ -1118,7 +1130,11 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(songsTable, songsTable.isProvisional);
     }
     if (!await _tableExists('song_identity_aliases')) {
-      await migrator.createTable(songIdentityAliasesTable);
+      await customStatement(
+        'CREATE TABLE song_identity_aliases ( '
+        'old_song_id TEXT NOT NULL PRIMARY KEY, canonical_song_id TEXT NOT NULL, '
+        'match_reason TEXT NOT NULL, matched_at INTEGER NOT NULL)',
+      );
     }
   }
 
@@ -1632,7 +1648,8 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_listenbrainz_weekly_cache_fetched_at ON listenbrainz_weekly_cache(fetched_at);',
     );
     await customStatement(
-      'CREATE INDEX IF NOT EXISTS idx_song_identity_aliases_canonical ON song_identity_aliases(canonical_song_id);',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_identity_aliases_kind_old '
+      'ON entity_identity_aliases(entity_type, old_id)',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_sync_work_due ON library_sync_work(server_id, status, not_before, priority);',

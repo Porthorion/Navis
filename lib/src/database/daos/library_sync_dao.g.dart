@@ -28,8 +28,6 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.libraryScanObservationTable;
   $LibraryRecoveryReviewTableTable get libraryRecoveryReviewTable =>
       attachedDatabase.libraryRecoveryReviewTable;
-  $EntityIdentityAliasTableTable get entityIdentityAliasTable =>
-      attachedDatabase.entityIdentityAliasTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -104,10 +102,5 @@ class LibrarySyncDaoManager {
       $$LibraryRecoveryReviewTableTableTableManager(
         _db.attachedDatabase,
         _db.libraryRecoveryReviewTable,
-      );
-  $$EntityIdentityAliasTableTableTableManager get entityIdentityAliasTable =>
-      $$EntityIdentityAliasTableTableTableManager(
-        _db.attachedDatabase,
-        _db.entityIdentityAliasTable,
       );
 }

@@ -257,7 +257,7 @@ class ServerDataResetService {
       await _database.delete(_database.externalLyricsCacheTable).go();
       await _database.delete(_database.listenBrainzWeeklyCacheTable).go();
       await _database.delete(_database.networkUsageTable).go();
-      await _database.delete(_database.songIdentityAliasesTable).go();
+      await _database.delete(_database.entityIdentityAliasTable).go();
       await _database.delete(_database.cachedTracksTable).go();
       await _database.delete(_database.songsTable).go();
       await _database.delete(_database.albumsTable).go();

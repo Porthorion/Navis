@@ -7,8 +7,6 @@ mixin _$SongIdentityDaoMixin on DatabaseAccessor<NavisDatabase> {
   $ArtistsTableTable get artistsTable => attachedDatabase.artistsTable;
   $AlbumsTableTable get albumsTable => attachedDatabase.albumsTable;
   $SongsTableTable get songsTable => attachedDatabase.songsTable;
-  $SongIdentityAliasesTableTable get songIdentityAliasesTable =>
-      attachedDatabase.songIdentityAliasesTable;
   $ServerConfigTableTable get serverConfigTable =>
       attachedDatabase.serverConfigTable;
   $EntityIdentityAliasTableTable get entityIdentityAliasTable =>
@@ -50,11 +48,6 @@ class SongIdentityDaoManager {
       $$AlbumsTableTableTableManager(_db.attachedDatabase, _db.albumsTable);
   $$SongsTableTableTableManager get songsTable =>
       $$SongsTableTableTableManager(_db.attachedDatabase, _db.songsTable);
-  $$SongIdentityAliasesTableTableTableManager get songIdentityAliasesTable =>
-      $$SongIdentityAliasesTableTableTableManager(
-        _db.attachedDatabase,
-        _db.songIdentityAliasesTable,
-      );
   $$ServerConfigTableTableTableManager get serverConfigTable =>
       $$ServerConfigTableTableTableManager(
         _db.attachedDatabase,

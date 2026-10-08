@@ -12,7 +12,6 @@ import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
 import 'package:navis/src/database/tables/library_scan_observation_table.dart';
 import 'package:navis/src/database/tables/library_recovery_review_table.dart';
-import 'package:navis/src/database/tables/entity_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
@@ -63,7 +62,6 @@ class LibrarySyncRunHistoryEntry {
     LibrarySyncRunOutcomeTable,
     LibraryScanObservationTable,
     LibraryRecoveryReviewTable,
-    EntityIdentityAliasTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>

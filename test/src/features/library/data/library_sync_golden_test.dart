@@ -270,8 +270,8 @@ Future<Map<String, Object?>> _snapshot(
       'starred IS NOT NULL AS starred, user_rating FROM songs ORDER BY id',
     ),
     'songAliases': await rows(
-      'SELECT old_song_id, canonical_song_id, match_reason '
-      'FROM song_identity_aliases ORDER BY old_song_id',
+      'SELECT old_id AS old_song_id, new_id AS canonical_song_id, match_reason '
+      "FROM entity_identity_aliases WHERE entity_type = 'song' ORDER BY old_id",
     ),
     'entityAliases': await rows(
       'SELECT entity_type, old_id, new_id, match_reason '

@@ -92,6 +92,31 @@ void main() {
       expect(cacheFile.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
+    test(
+      'server data reset clears typed aliases for every entity kind',
+      () async {
+        for (final kind in ['song', 'album', 'artist']) {
+          await database
+              .into(database.entityIdentityAliasTable)
+              .insert(
+                EntityIdentityAliasTableCompanion.insert(
+                  entityType: kind,
+                  oldId: 'old',
+                  newId: 'new',
+                  matchReason: 'metadata',
+                  matchedAt: DateTime.now(),
+                ),
+              );
+        }
+        await ServerDataResetService(database: database).reset();
+        expect(
+          await database.select(database.entityIdentityAliasTable).get(),
+          isEmpty,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('full wipe clears local data and deletes cached files', () async {
       final cacheFile = File('${tmpDir.path}/track.mp3');
       cacheFile.writeAsStringSync('audio');
