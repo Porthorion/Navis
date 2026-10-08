@@ -66,6 +66,9 @@ Checks performed (in order, fail-fast):
 10. Full `flutter test`
 11. Coverage when `CI=true`
 
+The dead-code CLI self-tests invoke its shared library entry point against
+temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
+
 Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
 `ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
 filter responses, measured PCM gain, headroom, channel isolation, and bypass;

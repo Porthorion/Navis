@@ -141,6 +141,9 @@ Checks performed:
 - migration and critical regression suites
 - full tests (`flutter test`)
 
+The dead-code CLI self-tests invoke its shared library entry point against
+temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
+
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 
 The dead-code gate checks public Dart declarations, l10n keys, declared file

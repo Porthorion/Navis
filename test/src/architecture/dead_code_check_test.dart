@@ -363,7 +363,10 @@ dev_dependencies:
   ({
     Directory directory,
     File baseline,
-    Future<ProcessResult> Function(List<String>) run,
+    Future<({int exitCode, String stdout, String stderr})> Function(
+      List<String>,
+    )
+    run,
   })
   cliFixture(String source) {
     final directory = Directory.systemTemp.createTempSync('navis-dead-code-');
@@ -381,32 +384,27 @@ dev_dependencies:
       p.join(directory.path, 'tool', 'dead_code_baseline.json'),
     );
     baseline.writeAsStringSync('{"entries":[]}\n');
-    // Flutter tests run in flutter_tester, so locate the Dart SDK via Flutter.
-    final config = jsonDecode(
-      File('.dart_tool/package_config.json').readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final flutter = (config['packages'] as List<dynamic>)
-        .cast<Map<String, dynamic>>()
-        .firstWhere((package) => package['name'] == 'flutter');
-    final dart = p.normalize(
-      p.join(
-        p.fromUri(flutter['rootUri'] as String),
-        '..',
-        '..',
-        'bin',
-        'cache',
-        'dart-sdk',
-        'bin',
-        Platform.isWindows ? 'dart.exe' : 'dart',
-      ),
-    );
-    final script = File('tool/dead_code_check.dart').absolute.path;
-    final packages = File('.dart_tool/package_config.json').absolute.path;
-    Future<ProcessResult> run(List<String> arguments) => Process.run(dart, [
-      '--packages=$packages',
-      script,
-      ...arguments,
-    ], workingDirectory: directory.path);
+    Future<({int exitCode, String stdout, String stderr})> run(
+      List<String> arguments,
+    ) async {
+      final output = File(p.join(directory.path, 'stdout.txt'));
+      final errors = File(p.join(directory.path, 'stderr.txt'));
+      final out = output.openWrite();
+      final err = errors.openWrite();
+      late final int code;
+      try {
+        code = runDeadCodeCheck(arguments, root: directory, out: out, err: err);
+      } finally {
+        await out.close();
+        await err.close();
+      }
+      return (
+        exitCode: code,
+        stdout: output.readAsStringSync(),
+        stderr: errors.readAsStringSync(),
+      );
+    }
+
     return (directory: directory, baseline: baseline, run: run);
   }
 

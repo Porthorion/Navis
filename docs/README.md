@@ -106,10 +106,6 @@ own folder. Move a root plan there only after its implementation and required
 in-repository validation are complete; leave plans with open implementation
 work or blockers at the root.
 
-[Dead-code G2 triage](audits/dead-code-g2-2026-10-09.md) records all 49 initial
-test-only findings, caller/history evidence, removals, retained test seams, and
-the unresolved artwork decode-classification call.
-
 ### History and decisions
 
 [history/README.md](history/README.md) is the discoverable ledger for material
