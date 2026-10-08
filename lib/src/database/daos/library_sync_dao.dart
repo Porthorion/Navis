@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
@@ -112,9 +113,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         priority: request.priority,
         coalescingKey: request.coalescingKey,
         status: const Value(_runQueued),
-        resumedFromRequestId: request.resumedFromRequestId == null
-            ? const Value(null)
-            : Value(request.resumedFromRequestId),
+        resumedFromRequestId: Value(request.resumedFromRequestId),
         createdAt: timestamp,
         updatedAt: timestamp,
       ),
@@ -176,7 +175,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       await into(librarySyncRunOutcomeTable).insert(
         LibrarySyncRunOutcomeTableCompanion.insert(
           requestId: requestId,
-          attemptId: attemptId == null ? const Value(null) : Value(attemptId),
+          attemptId: Value(attemptId),
           outcomeKind: outcome.kind.index,
           safeReason: outcome.reason.index,
           requestCount: Value(outcome.requestCount),
@@ -541,40 +540,24 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       librarySyncStateTable,
     )..where((table) => table.serverId.equals(serverId))).write(
       LibrarySyncStateTableCompanion(
-        androidScheduleReconciledAt: scheduleReconciledAt == null
-            ? const Value.absent()
-            : Value(scheduleReconciledAt.toUtc()),
+        androidScheduleReconciledAt: Value.absentIfNull(
+          scheduleReconciledAt?.toUtc(),
+        ),
         androidRequestedIntervalMinutes: clearRequestedIntervalMinutes
             ? const Value(null)
-            : requestedIntervalMinutes == null
-            ? const Value.absent()
-            : Value(requestedIntervalMinutes),
+            : Value.absentIfNull(requestedIntervalMinutes),
         androidWorkId: clearWorkId
             ? const Value(null)
-            : workId == null
-            ? const Value.absent()
-            : Value(workId),
-        androidWorkState: workState == null
-            ? const Value.absent()
-            : Value(workState),
-        androidWorkAttemptCount: attemptCount == null
-            ? const Value.absent()
-            : Value(attemptCount),
-        androidWorkerStartedAt: workerStartedAt == null
-            ? const Value.absent()
-            : Value(workerStartedAt.toUtc()),
-        androidWorkerCompletedAt: workerCompletedAt == null
-            ? const Value.absent()
-            : Value(workerCompletedAt.toUtc()),
-        androidWorkerDurationMs: workerDurationMs == null
-            ? const Value.absent()
-            : Value(workerDurationMs),
-        androidWorkerResult: workerResult == null
-            ? const Value.absent()
-            : Value(workerResult),
-        androidWorkerStopReason: workerStopReason == null
-            ? const Value.absent()
-            : Value(workerStopReason),
+            : Value.absentIfNull(workId),
+        androidWorkState: Value.absentIfNull(workState),
+        androidWorkAttemptCount: Value.absentIfNull(attemptCount),
+        androidWorkerStartedAt: Value.absentIfNull(workerStartedAt?.toUtc()),
+        androidWorkerCompletedAt: Value.absentIfNull(
+          workerCompletedAt?.toUtc(),
+        ),
+        androidWorkerDurationMs: Value.absentIfNull(workerDurationMs),
+        androidWorkerResult: Value.absentIfNull(workerResult),
+        androidWorkerStopReason: Value.absentIfNull(workerStopReason),
       ),
     );
   }
@@ -620,34 +603,26 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<LibrarySyncOperationLedgerTableData>>
-  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
-    final safeLimit = limit.clamp(1, 50);
-    return (select(librarySyncOperationLedgerTable)
-          ..where((table) => table.serverId.equals(serverId))
-          ..orderBy([
-            (table) => OrderingTerm.desc(table.occurredAt),
-            (table) => OrderingTerm.desc(table.id),
-          ])
-          ..limit(safeLimit))
-        .get();
-  }
+  getRecentOperationLedgerEntries(int serverId, {int limit = 50}) =>
+      _recentOperationLedgerQuery(serverId, limit).get();
 
   /// Emits the newest safe operation summaries for one retained server.
-  ///
-  /// The Settings screen uses this rather than controller state so a catalog
-  /// change remains explainable after an app restart or a later no-op check.
   Stream<List<LibrarySyncOperationLedgerTableData>>
-  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) {
-    final safeLimit = limit.clamp(1, 50);
-    return (select(librarySyncOperationLedgerTable)
-          ..where((table) => table.serverId.equals(serverId))
-          ..orderBy([
-            (table) => OrderingTerm.desc(table.occurredAt),
-            (table) => OrderingTerm.desc(table.id),
-          ])
-          ..limit(safeLimit))
-        .watch();
-  }
+  watchRecentOperationLedgerEntries(int serverId, {int limit = 50}) =>
+      _recentOperationLedgerQuery(serverId, limit).watch();
+
+  SimpleSelectStatement<
+    LibrarySyncOperationLedgerTable,
+    LibrarySyncOperationLedgerTableData
+  >
+  _recentOperationLedgerQuery(int serverId, int limit) =>
+      select(librarySyncOperationLedgerTable)
+        ..where((table) => table.serverId.equals(serverId))
+        ..orderBy([
+          (table) => OrderingTerm.desc(table.occurredAt),
+          (table) => OrderingTerm.desc(table.id),
+        ])
+        ..limit(limit.clamp(1, 50));
 
   /// Records absent locally-starred IDs and returns only those observed absent
   /// by two independent successful server snapshots.
@@ -706,7 +681,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required String entityType,
     required Set<String> ids,
   }) async {
-    for (final chunk in _idChunks(ids)) {
+    for (final chunk in chunked(ids.toList(growable: false), 500)) {
       await (delete(starredAbsenceCandidatesTable)..where(
             (table) =>
                 table.serverId.equals(serverId) &
@@ -714,14 +689,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 table.entityId.isIn(chunk),
           ))
           .go();
-    }
-  }
-
-  Iterable<List<String>> _idChunks(Set<String> ids) sync* {
-    final values = ids.toList(growable: false);
-    for (var offset = 0; offset < values.length; offset += 500) {
-      final end = (offset + 500).clamp(0, values.length);
-      yield values.sublist(offset, end);
     }
   }
 
@@ -1078,135 +1045,103 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<int> countPendingWork(int serverId) async {
-    final countExpression = librarySyncWorkTable.id.count();
-    final query = selectOnly(librarySyncWorkTable)
-      ..addColumns([countExpression])
-      ..where(
-        librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(const <String>[
-              'queued',
-              'running',
-              'failed',
-            ]),
-      );
-    final row = await query.getSingle();
-    final resolvedCount = row.read(countExpression) ?? 0;
-    return resolvedCount;
+  Future<int> countPendingWork(int serverId) =>
+      _pendingWorkQuery(serverId).getSingle();
+
+  /// Emits backlog changes without waiting for the next sync run.
+  Stream<int> watchPendingWork(int serverId) =>
+      _pendingWorkQuery(serverId).watchSingle();
+
+  Selectable<int> _pendingWorkQuery(int serverId) {
+    final count = librarySyncWorkTable.id.count();
+    return (selectOnly(librarySyncWorkTable)
+          ..addColumns([count])
+          ..where(
+            librarySyncWorkTable.serverId.equals(serverId) &
+                librarySyncWorkTable.status.isIn(const <String>[
+                  'queued',
+                  'running',
+                  'failed',
+                ]),
+          ))
+        .map((row) => row.read(count) ?? 0);
   }
 
-  /// Live variant of [countPendingWork] so the UI can reflect backlog
-  /// changes without waiting for the next sync run.
-  Stream<int> watchPendingWork(int serverId) {
-    final countExpression = librarySyncWorkTable.id.count();
-    final query = selectOnly(librarySyncWorkTable)
-      ..addColumns([countExpression])
-      ..where(
-        librarySyncWorkTable.serverId.equals(serverId) &
-            librarySyncWorkTable.status.isIn(const <String>[
-              'queued',
-              'running',
-              'failed',
-            ]),
-      );
-    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
-  }
+  Future<void> _writeWork(
+    Expression<bool> Function(LibrarySyncWorkTable) where, {
+    required String status,
+    DateTime? now,
+    Value<String?> checkpointJson = const Value.absent(),
+    Value<DateTime?> notBefore = const Value.absent(),
+    Value<String?> lastErrorType = const Value.absent(),
+    Value<int> attemptCount = const Value.absent(),
+  }) => (update(librarySyncWorkTable)..where(where)).write(
+    LibrarySyncWorkTableCompanion(
+      status: Value(status),
+      updatedAt: Value(now ?? DateTime.now()),
+      checkpointJson: checkpointJson,
+      notBefore: notBefore,
+      lastErrorType: lastErrorType,
+      attemptCount: attemptCount,
+    ),
+  );
 
-  Future<void> markRunning(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('running'),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  Future<void> markRunning(int id, {DateTime? now}) =>
+      _writeWork((table) => table.id.equals(id), status: 'running', now: now);
 
-  Future<void> requeue(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('queued'),
-        notBefore: const Value(null),
-        lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  Future<void> requeue(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'queued',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
 
   Future<void> markCompleted(
     int id, {
     DateTime? now,
     bool preserveCheckpoint = false,
-  }) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('completed'),
-        checkpointJson: preserveCheckpoint
-            ? const Value.absent()
-            : const Value(null),
+  }) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'completed',
+    now: now,
+    checkpointJson: preserveCheckpoint
+        ? const Value.absent()
+        : const Value(null),
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
+
+  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) =>
+      _writeWork(
+        (table) =>
+            table.serverId.equals(serverId) &
+            table.kind.isIn(const <String>['fullRepair', 'catalogSnapshot']) &
+            table.status.equals('running'),
+        status: 'completed',
+        now: now,
+        checkpointJson: const Value(null),
         notBefore: const Value(null),
         lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+      );
 
-  Future<void> completeRunningCatalogWork(int serverId, {DateTime? now}) {
-    return (update(librarySyncWorkTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) &
-              table.kind.isIn(const <String>['fullRepair', 'catalogSnapshot']) &
-              table.status.equals('running'),
-        ))
-        .write(
-          LibrarySyncWorkTableCompanion(
-            status: const Value('completed'),
-            checkpointJson: const Value(null),
-            notBefore: const Value(null),
-            lastErrorType: const Value(null),
-            updatedAt: Value(now ?? DateTime.now()),
-          ),
-        );
-  }
+  /// Cancellation remains terminal until an explicit action reactivates the row.
+  Future<void> markCancelled(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'cancelled',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value('cancelled'),
+  );
 
-  Future<void> markCancelled(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        // Cancellation is a user-visible terminal transition. Re-queueing it
-        // here lets the next lifecycle event restart work the user just
-        // stopped, which is both surprising and indistinguishable from an
-        // automatic-sync loop. Explicit actions may reactivate this row.
-        status: const Value('cancelled'),
-        notBefore: const Value(null),
-        lastErrorType: const Value('cancelled'),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
-
-  /// Stops automatic retries until an explicit user action reactivates it.
-  ///
-  /// The candidate checkpoint is deliberately retained so Repair Library can
-  /// present a concrete confirmation instead of rebuilding the same snapshot.
-  Future<void> markAwaitingConfirmation(int id, {DateTime? now}) {
-    return (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('awaitingConfirmation'),
-        notBefore: const Value(null),
-        lastErrorType: const Value(null),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
-    );
-  }
+  /// Retains the candidate checkpoint and stops retries until explicit confirmation.
+  Future<void> markAwaitingConfirmation(int id, {DateTime? now}) => _writeWork(
+    (table) => table.id.equals(id),
+    status: 'awaitingConfirmation',
+    now: now,
+    notBefore: const Value(null),
+    lastErrorType: const Value(null),
+  );
 
   Future<void> markFailed(
     int id, {
@@ -1220,31 +1155,23 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     if (row == null) {
       return;
     }
-    await (update(
-      librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).write(
-      LibrarySyncWorkTableCompanion(
-        status: const Value('failed'),
-        attemptCount: Value(row.attemptCount + 1),
-        notBefore: Value(notBefore),
-        lastErrorType: Value(errorType),
-        updatedAt: Value(now ?? DateTime.now()),
-      ),
+    await _writeWork(
+      (table) => table.id.equals(id),
+      status: 'failed',
+      attemptCount: Value(row.attemptCount + 1),
+      notBefore: Value(notBefore),
+      lastErrorType: Value(errorType),
+      now: now,
     );
   }
 
-  Future<void> resetInterruptedWork(int serverId, {DateTime? now}) {
-    return (update(librarySyncWorkTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) & table.status.equals('running'),
-        ))
-        .write(
-          LibrarySyncWorkTableCompanion(
-            status: const Value('queued'),
-            updatedAt: Value(now ?? DateTime.now()),
-          ),
-        );
-  }
+  Future<void> resetInterruptedWork(int serverId, {DateTime? now}) =>
+      _writeWork(
+        (table) =>
+            table.serverId.equals(serverId) & table.status.equals('running'),
+        status: 'queued',
+        now: now,
+      );
 
   Future<void> deleteEntityWork({
     required int serverId,
@@ -1414,13 +1341,11 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     await (update(
       libraryRecoveryReviewTable,
     )..where((table) => table.id.equals(existing.id))).write(
-      LibraryRecoveryReviewTableCompanion(
-        savedTitle: Value(savedTitle),
-        savedSubtitle: Value(savedSubtitle),
-        reason: Value(reason),
-        evidenceGeneration: Value(evidenceGeneration),
-        candidateJson: Value(candidateJson),
-        updatedAt: Value(now),
+      companion.copyWith(
+        serverId: const Value.absent(),
+        entityType: const Value.absent(),
+        oldId: const Value.absent(),
+        createdAt: const Value.absent(),
       ),
     );
   }

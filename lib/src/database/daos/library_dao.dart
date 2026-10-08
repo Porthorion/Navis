@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/snapshot_write_guard.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -187,20 +187,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   static const _safeSqlVariableChunkSize = 500;
 
-  /// Splits [ids] so no statement exceeds SQLite's bound-variable limit.
-  static Iterable<List<String>> _sqlVariableChunks(List<String> ids) sync* {
-    for (
-      var start = 0;
-      start < ids.length;
-      start += _safeSqlVariableChunkSize
-    ) {
-      yield ids.sublist(
-        start,
-        math.min(start + _safeSqlVariableChunkSize, ids.length),
-      );
-    }
-  }
-
   Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
@@ -328,19 +314,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       final albumIds = albums.map((album) => album.id).toSet();
       final albumIdList = albumIds.toList(growable: false);
       final albumSongs = <SongsTableData>[];
-      for (
-        var offset = 0;
-        offset < albumIdList.length;
-        offset += _safeSqlVariableChunkSize
-      ) {
-        final end = math.min(
-          offset + _safeSqlVariableChunkSize,
-          albumIdList.length,
-        );
+      for (final chunk in chunked(albumIdList, _safeSqlVariableChunkSize)) {
         albumSongs.addAll(
           await (select(songsTable)..where(
                 (table) =>
-                    table.albumId.isIn(albumIdList.sublist(offset, end)) &
+                    table.albumId.isIn(chunk) &
                     (table.isProvisional.equals(false) |
                         table.isExternal.equals(true)) &
                     _selectableForBulkUse,
@@ -469,11 +447,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             )
           : raw.map(albumArtistIndexEntry).toList(growable: false);
       const chunkSize = 300;
-      for (var offset = 0; offset < entries.length; offset += chunkSize) {
-        final chunk = entries.sublist(
-          offset,
-          math.min(offset + chunkSize, entries.length),
-        );
+      for (final chunk in chunked(entries, chunkSize)) {
         await customStatement(
           'INSERT INTO album_artist_index(album_id, source, artist_keys) '
           'VALUES ${List<String>.filled(chunk.length, '(?, ?, ?)').join(', ')} '
@@ -534,23 +508,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .toSet()
         .toList(growable: false);
     final related = <AlbumsTableData>[];
-    for (
-      var offset = 0;
-      offset < missing.length;
-      offset += _safeSqlVariableChunkSize
-    ) {
+    for (final chunk in chunked(missing, _safeSqlVariableChunkSize)) {
       related.addAll(
         await (select(albumsTable)..where(
               (table) =>
-                  table.id.isIn(
-                    missing.sublist(
-                      offset,
-                      math.min(
-                        offset + _safeSqlVariableChunkSize,
-                        missing.length,
-                      ),
-                    ),
-                  ) &
+                  table.id.isIn(chunk) &
                   (table.isProvisional.equals(false) |
                       table.isExternal.equals(true)),
             ))
@@ -2312,7 +2274,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return const <ArtistsTableData>[];
     }
     final rows = <ArtistsTableData>[
-      for (final chunk in _sqlVariableChunks(ids))
+      for (final chunk in chunked(ids, _safeSqlVariableChunkSize))
         ...await (select(
           artistsTable,
         )..where((table) => table.id.isIn(chunk))).get(),
@@ -2346,7 +2308,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return const <AlbumsTableData>[];
     }
     final rows = <AlbumsTableData>[
-      for (final chunk in _sqlVariableChunks(ids))
+      for (final chunk in chunked(ids, _safeSqlVariableChunkSize))
         ...await (select(
           albumsTable,
         )..where((table) => table.id.isIn(chunk))).get(),
@@ -2617,16 +2579,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
 
     final byId = <String, SongsTableData>{};
-    for (
-      var offset = 0;
-      offset < idList.length;
-      offset += _safeSqlVariableChunkSize
-    ) {
-      final end = math.min(offset + _safeSqlVariableChunkSize, idList.length);
+    for (final chunk in chunked(idList, _safeSqlVariableChunkSize)) {
       final query = select(songsTable)
         ..where(
           (table) =>
-              table.id.isIn(idList.sublist(offset, end)) &
+              table.id.isIn(chunk) &
               (includeLocalOnly
                   ? const Constant<bool>(true)
                   : table.serverDeletedAt.isNull()),
@@ -2694,7 +2651,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     final cacheFiles = <String>[];
     await transaction(() async {
-      for (final chunk in _sqlVariableChunks(ids)) {
+      for (final chunk in chunked(ids, _safeSqlVariableChunkSize)) {
         final songs = await (select(
           songsTable,
         )..where((table) => table.albumId.isIn(chunk))).get();
@@ -2719,11 +2676,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .toSet()
         .toList(growable: false);
     const chunkSize = 500;
-    for (var start = 0; start < ids.length; start += chunkSize) {
-      final end = (start + chunkSize).clamp(0, ids.length);
-      await (delete(
-        artistsTable,
-      )..where((table) => table.id.isIn(ids.sublist(start, end)))).go();
+    for (final chunk in chunked(ids, chunkSize)) {
+      await (delete(artistsTable)..where((table) => table.id.isIn(chunk))).go();
     }
   }
 
@@ -2882,7 +2836,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// bound-variable limit.
   Future<void> _fillPreservationIds(Map<String, List<String>> idsByKind) async {
     for (final MapEntry(key: kind, value: ids) in idsByKind.entries) {
-      for (final chunk in _sqlVariableChunks(ids)) {
+      for (final chunk in chunked(ids, _safeSqlVariableChunkSize)) {
         await customStatement(
           'INSERT OR IGNORE INTO $_preservationIdsTable (kind, id) VALUES '
           '${List<String>.filled(chunk.length, '(?, ?)').join(', ')};',
@@ -2943,9 +2897,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final deferredCacheFiles = <String>[];
     final retainedUnavailableIds = <String>[];
     const chunkSize = 500;
-    for (var start = 0; start < ids.length; start += chunkSize) {
-      final end = (start + chunkSize).clamp(0, ids.length);
-      final chunk = ids.sublist(start, end);
+    for (final chunk in chunked(ids, chunkSize)) {
       final caches = await (select(
         cachedTracksTable,
       )..where((table) => table.songId.isIn(chunk))).get();
@@ -3059,8 +3011,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final predicate = existsChecks.values
         .map((exists) => 'EXISTS ($exists)')
         .join(' OR ');
-    for (var start = 0; start < ids.length; start += 100) {
-      final chunk = ids.sublist(start, (start + 100).clamp(0, ids.length));
+    for (final chunk in chunked(ids, 100)) {
       final placeholders = List.filled(chunk.length, '?').join(',');
       final rows = await customSelect(
         'SELECT DISTINCT s.id FROM songs s '
@@ -3102,51 +3053,28 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     Iterable<String> albumIds = const <String>[],
     Iterable<String> artistIds = const <String>[],
   }) async {
-    final songs = songIds.where((id) => id.isNotEmpty).toSet().toList();
-    final albums = albumIds.where((id) => id.isNotEmpty).toSet().toList();
-    final artists = artistIds.where((id) => id.isNotEmpty).toSet().toList();
-    if (songs.isEmpty && albums.isEmpty && artists.isEmpty) {
-      return;
-    }
+    final idsByType = {
+      for (final (type, ids) in [
+        ('song', songIds),
+        ('album', albumIds),
+        ('artist', artistIds),
+      ])
+        type: ids.where((id) => id.isNotEmpty).toSet().toList(),
+    };
+    if (idsByType.values.every((ids) => ids.isEmpty)) return;
     await transaction(() async {
-      for (var start = 0; start < songs.length; start += 500) {
-        final chunk = songs.sublist(
-          start,
-          (start + 500).clamp(0, songs.length),
-        );
-        await customUpdate(
-          'UPDATE songs SET cover_art_revision = '
-          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
-          '(${List.filled(chunk.length, '?').join(',')});',
-          variables: [for (final id in chunk) Variable.withString(id)],
-          updates: {songsTable},
-        );
-      }
-      for (var start = 0; start < albums.length; start += 500) {
-        final chunk = albums.sublist(
-          start,
-          (start + 500).clamp(0, albums.length),
-        );
-        await customUpdate(
-          'UPDATE albums SET cover_art_revision = '
-          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
-          '(${List.filled(chunk.length, '?').join(',')});',
-          variables: [for (final id in chunk) Variable.withString(id)],
-          updates: {albumsTable},
-        );
-      }
-      for (var start = 0; start < artists.length; start += 500) {
-        final chunk = artists.sublist(
-          start,
-          (start + 500).clamp(0, artists.length),
-        );
-        await customUpdate(
-          'UPDATE artists SET cover_art_revision = '
-          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
-          '(${List.filled(chunk.length, '?').join(',')});',
-          variables: [for (final id in chunk) Variable.withString(id)],
-          updates: {artistsTable},
-        );
+      for (final entry in idsByType.entries) {
+        final ids = entry.value;
+        final table = _entityTable(entry.key);
+        for (final chunk in chunked(ids, _safeSqlVariableChunkSize)) {
+          await customUpdate(
+            'UPDATE ${table.actualTableName} SET cover_art_revision = '
+            'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
+            '(${List.filled(chunk.length, '?').join(',')});',
+            variables: [for (final id in chunk) Variable.withString(id)],
+            updates: {table},
+          );
+        }
       }
     });
   }
@@ -3398,11 +3326,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     // One multi-row statement per chunk keeps a full rebuild to about a
     // hundred round trips to the database isolate.
     const chunkSize = 300;
-    for (var offset = 0; offset < entries.length; offset += chunkSize) {
-      final chunk = entries.sublist(
-        offset,
-        math.min(offset + chunkSize, entries.length),
-      );
+    for (final chunk in chunked(entries, chunkSize)) {
       try {
         await customStatement(
           'INSERT INTO song_search_text(song_id, source, search_text, '
