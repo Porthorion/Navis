@@ -24,6 +24,7 @@ import '../../../../helpers/library_sync_fakes.dart';
 
 class _AuditApi extends FakeLibrarySyncApi {
   Object? newestError;
+  void Function()? onNewestPage;
   Completer<StarredContent>? starredGate;
   @override
   Future<StarredContent> getStarredContent() async {
@@ -39,6 +40,7 @@ class _AuditApi extends FakeLibrarySyncApi {
     required int offset,
   }) async {
     calls.add('newest:$offset:$size');
+    onNewestPage?.call();
     if (newestError != null) {
       Error.throwWithStackTrace(newestError!, StackTrace.current);
     }
@@ -159,6 +161,63 @@ void main() {
   tearDown(() async {
     await db.close();
   });
+  for (final (name, network, request) in [
+    (
+      'wifi check',
+      NetworkType.wifi,
+      const LibrarySyncRequest.checkForUpdates(),
+    ),
+    ('wifi repair', NetworkType.wifi, const LibrarySyncRequest.repair()),
+    (
+      'bounded mobile check',
+      NetworkType.cellular,
+      const LibrarySyncRequest.checkForUpdates(),
+    ),
+    (
+      'broad mobile check',
+      NetworkType.cellular,
+      const LibrarySyncRequest.checkForUpdates(allowMeteredBroadOverride: true),
+    ),
+    (
+      'broad mobile repair',
+      NetworkType.cellular,
+      const LibrarySyncRequest.repair(allowMeteredBroadOverride: true),
+    ),
+  ]) {
+    test('explicit sync continues after the app is hidden: $name', () async {
+      await session();
+      await seed();
+      var foreground = true;
+      api.onNewestPage = () => foreground = false;
+      final hiddenEngine = DriftLibrarySyncEngine(
+        api: api,
+        database: db,
+        serverConfigRepository: repo,
+        networkType: network,
+      );
+      final hiddenCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: hiddenEngine,
+        database: db,
+        serverConfigRepository: repo,
+        networkType: network,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => foreground,
+        readHasActivePlayback: () => true,
+      );
+
+      final result = await hiddenCoordinator.requestSync(request);
+
+      expect(foreground, isFalse);
+      expect(result.status, LibrarySyncStatus.succeeded);
+      if (network == NetworkType.wifi || request.allowMeteredBroadOverride) {
+        expect(api.calls, containsAll(['getStarredContent', 'getPlaylists']));
+      } else {
+        expect(api.calls, isNot(contains('getStarredContent')));
+        expect(api.calls, isNot(contains('getPlaylists')));
+      }
+    });
+  }
+
   test('incomplete detail survives coordinator as partial and retries incrementally', () async {
     final serverId = await session(initial: true);
     await seed();

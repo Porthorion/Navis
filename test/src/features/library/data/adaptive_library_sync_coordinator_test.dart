@@ -1019,8 +1019,8 @@ void main() {
     ('foreground playback', NetworkType.wifi, true, true, false, true),
     ('offline', NetworkType.offline, true, false, false, false),
     ('metered', NetworkType.cellular, true, false, false, false),
-    ('hidden', NetworkType.wifi, false, false, false, false),
-    ('hidden playback', NetworkType.wifi, false, true, false, false),
+    ('hidden', NetworkType.wifi, false, false, false, true),
+    ('hidden playback', NetworkType.wifi, false, true, false, true),
     ('idle worker', NetworkType.wifi, false, false, true, true),
     ('playing worker', NetworkType.wifi, false, true, true, false),
   ]) {

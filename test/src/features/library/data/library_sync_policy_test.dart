@@ -6,7 +6,7 @@ import 'package:navis/src/utils/connectivity.dart';
 void main() {
   const probe = {'automaticProbe', 'manualProbe'};
   const interactive = {'artist', 'album', 'playlist'};
-  const foregroundExplicit = {
+  const explicit = {
     'manualDelta',
     'queuedManualDelta',
     'repair',
@@ -19,12 +19,7 @@ void main() {
     'auxiliary',
     'backlog',
   };
-  const all = {
-    ...probe,
-    ...interactive,
-    ...foregroundExplicit,
-    ...automaticBroad,
-  };
+  const all = {...probe, ...interactive, ...explicit, ...automaticBroad};
   final work =
       <
         String,
@@ -153,9 +148,17 @@ void main() {
       true,
       false,
       none,
-      {...probe, ...interactive, ...foregroundExplicit},
+      {...probe, ...interactive, ...explicit},
     ),
-    ('hidden', NetworkType.wifi, false, false, false, none, probe),
+    (
+      'hidden',
+      NetworkType.wifi,
+      false,
+      false,
+      false,
+      none,
+      {...probe, ...explicit},
+    ),
     (
       'hidden while playing',
       NetworkType.wifi,
@@ -163,7 +166,7 @@ void main() {
       true,
       false,
       broad,
-      probe,
+      {...probe, ...explicit},
     ),
     ('worker', NetworkType.wifi, false, false, true, none, all),
     ('playing worker', NetworkType.wifi, false, true, true, none, probe),
@@ -201,7 +204,7 @@ void main() {
       false,
       false,
       bounded,
-      probe,
+      {...probe, 'manualDelta', 'queuedManualDelta'},
     ),
     ('broad metered', NetworkType.cellular, true, false, false, broad, all),
     (
@@ -211,7 +214,7 @@ void main() {
       true,
       false,
       broad,
-      {...probe, ...interactive, ...foregroundExplicit},
+      {...probe, ...interactive, ...explicit},
     ),
     (
       'broad metered hidden',
@@ -220,7 +223,7 @@ void main() {
       false,
       false,
       broad,
-      probe,
+      {...probe, ...explicit},
     ),
     (
       'metered worker',

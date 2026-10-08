@@ -3069,8 +3069,10 @@ states without starting audio or modifying a queue.
    grant: metered admission needs permission from the current request. The
    constrained Android background executor may run while hidden when playback
    is idle. An explicit user refresh may resume queued broad work in the
-   foreground, including during playback. Metered grants never bypass
-   visibility or automatic-playback gates. Interactive entity hydration can
+   foreground, including during playback. Explicit catalog and auxiliary work
+   continues if the app is then hidden, including with current mobile-data
+   grants. Automatic visibility/playback gates and the idle-only hidden Android
+   worker limit still apply. Interactive entity hydration can
    run during foreground playback; hidden foreground execution defers it,
    retaining the former request-scope visibility limit. Engine checkpoints
    use the admitted request scope's live policy, so a paused queue's current
