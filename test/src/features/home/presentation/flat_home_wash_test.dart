@@ -5,6 +5,7 @@ import 'package:material_color_utilities/material_color_utilities.dart'
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -52,7 +53,42 @@ Future<ThemeData> _pump(
   return theme;
 }
 
+Future<ThemeData> _pumpBand(
+  WidgetTester tester, {
+  required NavisColorStyle style,
+  CoverColourField? field,
+  bool reduceMotion = true,
+  void Function(CaptionTint tint)? onTint,
+}) async {
+  final theme = buildDarkTheme(_seed, style: style, flat: true);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        coverColourFieldProvider.overrideWith((ref, id) async => field),
+      ],
+      child: MaterialApp(
+        theme: theme,
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: reduceMotion),
+          child: Scaffold(
+            body: ShowcaseFlatBand(
+              coverArtId: 'cover-1',
+              builder: (context, tint) {
+                onTint?.call(tint);
+                return const SizedBox(height: 120);
+              },
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return theme;
+}
+
 void main() {
+  const bandKey = ValueKey<String>('home-showcase-flat-band');
   const flatFill = ValueKey<String>('home-showcase-wash-flat');
 
   for (final style in NavisColorStyle.values) {
@@ -172,5 +208,141 @@ void main() {
       ),
       findsWidgets,
     );
+  });
+
+  for (final style in NavisColorStyle.values) {
+    testWidgets('Flat ${style.name} phone band is a full-bleed opaque fill', (
+      tester,
+    ) async {
+      late CaptionTint seen;
+      final theme = await _pumpBand(
+        tester,
+        style: style,
+        field: _field(),
+        onTint: (tint) => seen = tint,
+      );
+      final data = theme.extension<NavisColorStyleData>()!;
+      final cells = _field().colors;
+      final average = Color.from(
+        alpha: 1,
+        red: cells.fold<double>(0, (s, c) => s + c.r) / cells.length,
+        green: cells.fold<double>(0, (s, c) => s + c.g) / cells.length,
+        blue: cells.fold<double>(0, (s, c) => s + c.b) / cells.length,
+      );
+      final grey =
+          Hct.fromInt(data.adaptArtColor(average).toARGB32()).chroma < 6;
+      final expected = captionTintFor(
+        grey
+            ? Color.lerp(average, theme.colorScheme.secondaryContainer, .25)!
+            : average,
+        data,
+      );
+
+      final band = tester.widget<ColoredBox>(find.byKey(bandKey));
+      expect(band.color.a, 1);
+      expect(band.color, expected.fill);
+      expect(seen, expected);
+      // Edge to edge and sized by its content; no rounded corners.
+      expect(tester.getTopLeft(find.byKey(bandKey)).dx, 0);
+      expect(
+        tester.getSize(find.byKey(bandKey)),
+        Size(
+          tester.view.physicalSize.width / tester.view.devicePixelRatio,
+          120,
+        ),
+      );
+      expect(find.byType(DecoratedBox), findsNothing);
+      expect(find.byKey(flatFill), findsNothing);
+    });
+  }
+
+  testWidgets('Flat phone band grey cover takes the style chroma floor', (
+    tester,
+  ) async {
+    const grey = Color(0xFF808080);
+    final theme = await _pumpBand(
+      tester,
+      style: NavisColorStyle.pastel,
+      field: CoverColourField(List<Color>.filled(9, grey)),
+    );
+    final data = theme.extension<NavisColorStyleData>()!;
+    final expected = captionTintFor(
+      Color.lerp(grey, theme.colorScheme.secondaryContainer, 0.25)!,
+      data,
+    );
+    expect(tester.widget<ColoredBox>(find.byKey(bandKey)).color, expected.fill);
+  });
+
+  testWidgets('Flat phone band without a cover uses the page background', (
+    tester,
+  ) async {
+    final theme = await _pumpBand(tester, style: NavisColorStyle.pastel);
+    expect(
+      tester.widget<ColoredBox>(find.byKey(bandKey)).color,
+      theme.scaffoldBackgroundColor,
+    );
+  });
+
+  testWidgets('Flat phone band glides between covers unless motion is off', (
+    tester,
+  ) async {
+    final theme = buildDarkTheme(
+      _seed,
+      style: NavisColorStyle.pastel,
+      flat: true,
+    );
+    final ids = ValueNotifier<String>('a');
+    addTearDown(ids.dispose);
+    Future<void> pumpWith({required bool reduce}) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            coverColourFieldProvider.overrideWith(
+              (ref, id) async => CoverColourField(
+                List<Color>.filled(
+                  9,
+                  id == 'a' ? const Color(0xFFD32F2F) : const Color(0xFF1976D2),
+                ),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            home: MediaQuery(
+              data: MediaQueryData(disableAnimations: reduce),
+              child: ValueListenableBuilder<String>(
+                valueListenable: ids,
+                builder: (context, id, _) => Scaffold(
+                  body: ShowcaseFlatBand(
+                    coverArtId: id,
+                    builder: (context, tint) => const SizedBox(height: 50),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    for (final reduce in <bool>[false, true]) {
+      ids.value = 'a';
+      await pumpWith(reduce: reduce);
+      final before = tester.widget<ColoredBox>(find.byKey(bandKey)).color;
+      ids.value = 'b';
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final mid = tester.widget<ColoredBox>(find.byKey(bandKey)).color;
+      await tester.pumpAndSettle();
+      final after = tester.widget<ColoredBox>(find.byKey(bandKey)).color;
+      expect(after, isNot(before));
+      if (reduce) {
+        expect(mid, after);
+      } else {
+        expect(mid, isNot(after));
+      }
+    }
   });
 }

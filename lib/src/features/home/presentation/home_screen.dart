@@ -73,6 +73,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
 
@@ -3810,7 +3811,7 @@ class _RandomAlbumsHeroCarouselState
     const shadowBottom = 24.0;
     const peekGap = 16.0;
 
-    final section = Column(
+    Widget buildSection(CaptionTint? tint) => Column(
       children: <Widget>[
         LayoutBuilder(
           builder: (context, constraints) {
@@ -3931,7 +3932,11 @@ class _RandomAlbumsHeroCarouselState
             );
           },
         ),
-        _ShowcaseInfoPanel(item: currentItem, heroContext: widget.heroContext),
+        _ShowcaseInfoPanel(
+          item: currentItem,
+          heroContext: widget.heroContext,
+          tint: tint,
+        ),
         if (_displayedAlbums.length > 1) ...[
           const SizedBox(height: NavisSpace.sm),
           Wrap(
@@ -3947,7 +3952,11 @@ class _RandomAlbumsHeroCarouselState
                 width: currentIndex == index ? 16 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: currentIndex == index
+                  color: tint != null
+                      ? (currentIndex == index
+                            ? tint.text
+                            : tint.text.withValues(alpha: 0.35))
+                      : currentIndex == index
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.35),
@@ -3960,6 +3969,21 @@ class _RandomAlbumsHeroCarouselState
       ],
     );
 
+    // Phones under Flat: a full-bleed colour band sized by its content, so
+    // the neighbouring covers sit fully inside it (see [_ShowcaseFlatBand]).
+    final phone =
+        !widget.desktopMode &&
+        widget.adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
+    if (phone && NavisColorStyleData.of(context).flat) {
+      return _ShowcaseFlatBand(
+        coverArtId: _showcaseWashCoverId(currentItem),
+        builder: (context, tint) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: NavisSpace.lg),
+          child: buildSection(tint),
+        ),
+      );
+    }
+
     return Stack(
       children: <Widget>[
         Positioned.fill(
@@ -3967,7 +3991,7 @@ class _RandomAlbumsHeroCarouselState
             coverArtId: _showcaseWashCoverId(currentItem),
           ),
         ),
-        section,
+        buildSection(null),
       ],
     );
   }

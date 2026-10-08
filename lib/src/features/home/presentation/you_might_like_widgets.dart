@@ -240,12 +240,15 @@ class _ShowcaseCoverCard extends ConsumerWidget {
 
 /// Title, artist and "year • songs · reason" for the focused carousel item.
 class _ShowcaseInfoPanel extends ConsumerWidget {
-  const new({required this.item, required this.heroContext});
+  const new({required this.item, required this.heroContext, this.tint});
 
   static const Key panelKey = ValueKey<String>('home-showcase-info');
 
   final HomeRandomShowcaseItem item;
   final String heroContext;
+
+  /// Text colours over the Flat colour band; null keeps the theme colours.
+  final CaptionTint? tint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -282,7 +285,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: textTheme.titleMedium,
+              style: textTheme.titleMedium?.copyWith(color: tint?.text),
             ),
           ),
         ),
@@ -293,7 +296,7 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
-              color: colors.onSurfaceVariant,
+              color: tint?.subtext ?? colors.onSurfaceVariant,
             ),
           ),
         const SizedBox(height: NavisSpace.xxs),
@@ -302,7 +305,9 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
-          style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+          style: textTheme.bodySmall?.copyWith(
+            color: tint?.subtext ?? colors.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -413,6 +418,18 @@ class _ShowcaseColourWash extends ConsumerWidget {
 /// HCT chroma below which the Flat wash colour is treated as grey.
 const double _flatWashChromaFloor = 6;
 
+/// Opaque average of the field's non-transparent cells; null without any.
+Color? _averageCoverColour(CoverColourField? field) {
+  final cells = field?.colors.where((c) => c.a > 0).toList() ?? <Color>[];
+  if (cells.isEmpty) return null;
+  return Color.from(
+    alpha: 1,
+    red: cells.fold<double>(0, (sum, c) => sum + c.r) / cells.length,
+    green: cells.fold<double>(0, (sum, c) => sum + c.g) / cells.length,
+    blue: cells.fold<double>(0, (sum, c) => sum + c.b) / cells.length,
+  );
+}
+
 extension on _ShowcaseColourWash {
   /// Flat wash: one solid block with hard edges, the adapted average of the
   /// field's cells at the style's veil strength over the page background.
@@ -424,15 +441,9 @@ extension on _ShowcaseColourWash {
     double veil,
   ) {
     final motion = MotionPolicy.of(context);
-    final cells = field?.colors.where((c) => c.a > 0).toList() ?? <Color>[];
     var fill = background;
-    if (cells.isNotEmpty) {
-      final average = Color.from(
-        alpha: 1,
-        red: cells.fold<double>(0, (sum, c) => sum + c.r) / cells.length,
-        green: cells.fold<double>(0, (sum, c) => sum + c.g) / cells.length,
-        blue: cells.fold<double>(0, (sum, c) => sum + c.b) / cells.length,
-      );
+    final average = _averageCoverColour(field);
+    if (average != null) {
       var adapted = style.adaptArtColor(average);
       // Grey covers would give an unstyled grey panel: below this chroma the
       // colour takes 25% of the theme's secondary container so it always
@@ -482,4 +493,80 @@ class _CoverColourFieldTween extends Tween<CoverColourField> {
     final from = begin ?? end!;
     return CoverColourField.lerp(from, end!, t);
   }
+}
+
+/// Test seam for the private [_ShowcaseFlatBand].
+@visibleForTesting
+typedef ShowcaseFlatBand = _ShowcaseFlatBand;
+
+/// Flat phone wash: a solid, full-bleed, hard-edged colour band that wraps
+/// the carousel, so it is exactly as tall as its content and the neighbouring
+/// covers sit fully inside it.
+///
+/// The band colour is the current cover's adapted average (with the style's
+/// chroma floor for grey covers) passed through [captionTintFor], which also
+/// yields the title, subtitle and page-dot colours handed to [builder]. A new
+/// cover glides the band and text colours together.
+class _ShowcaseFlatBand extends ConsumerWidget {
+  const new({required this.coverArtId, required this.builder});
+
+  static const Key bandKey = ValueKey<String>('home-showcase-flat-band');
+
+  final String? coverArtId;
+  final Widget Function(BuildContext context, CaptionTint tint) builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final style = NavisColorStyleData.of(context);
+    final motion = MotionPolicy.of(context);
+    final coverId = coverArtId?.trim();
+    final field = coverId == null || coverId.isEmpty
+        ? null
+        : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
+    final average = _averageCoverColour(field);
+    final CaptionTint target;
+    if (average == null) {
+      target = CaptionTint(
+        fill: theme.scaffoldBackgroundColor,
+        text: theme.colorScheme.onSurface,
+        subtext: theme.colorScheme.onSurfaceVariant,
+      );
+    } else {
+      var sampled = average;
+      // Grey covers would give an unstyled grey band: below the chroma floor
+      // the sample takes 25% of the theme's secondary container first.
+      if (Hct.fromInt(style.adaptArtColor(sampled).toARGB32()).chroma <
+          _flatWashChromaFloor) {
+        sampled = Color.lerp(
+          sampled,
+          theme.colorScheme.secondaryContainer,
+          0.25,
+        )!;
+      }
+      target = captionTintFor(sampled, style);
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: TweenAnimationBuilder<CaptionTint>(
+        tween: _CaptionTintTween(end: target),
+        duration: motion.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+        builder: (context, value, _) => ColoredBox(
+          key: bandKey,
+          color: value.fill,
+          child: builder(context, value),
+        ),
+      ),
+    );
+  }
+}
+
+class _CaptionTintTween extends Tween<CaptionTint> {
+  new({super.end});
+
+  @override
+  CaptionTint lerp(double t) => CaptionTint.lerp(begin ?? end!, end!, t);
 }

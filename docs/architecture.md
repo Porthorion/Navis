@@ -624,15 +624,23 @@ target-selection rules.
     colours read stronger. `app.dart` passes it to `buildLightTheme`,
     `buildDarkTheme` and `buildOledTheme`, which record it in the extension and
     make `ColorScheme.shadow`, `ThemeData.shadowColor` and the OLED dialog
-    shadow transparent. Under Flat: the Home cover wash is one solid block (the
+    shadow transparent. Under Flat: the Home cover wash is one solid block. On
+    phones (`phoneCompact`, not desktop) the You Might Like wash is a
+    full-bleed, hard-edged colour band (`_ShowcaseFlatBand`) that wraps the
+    carousel, title lines and page dots with `NavisSpace.lg` vertical padding,
+    so its height follows the content; its fill is
+    `captionTintFor(average, style).fill` (the adapted cover average, with the
+    grey chroma floor applied to the sample first) and the title, artist, meta
+    and page-dot colours come from the same tint, all gliding together when
+    the cover changes. Elsewhere (desktop pager, tablet card) it is the
     adapted average of the cover colour field at `1 - artWashVeil` over the
-    page background); art-tinted Now Playing is one solid colour (adapted tint
+    page background; art-tinted Now Playing is one solid colour (adapted tint
     at `nowPlayingTintAlpha` over `surface`, see
     `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
     off; decorative gradients become their solid end colour; hand-drawn drop
     shadows and the seek-preview blur are dropped for opaque container fills.
-    Exceptions that stay: the Home wash is a rounded panel (`NavisRadius.xl`)
-    inset to the 16 px content margins, and a wash colour with HCT chroma
+    Exceptions that stay: the desktop/tablet Home wash is a rounded panel
+    (`NavisRadius.xl`) inset to the 16 px content margins, and a wash colour with HCT chroma
     below 6 (grey covers) takes 25% of `secondaryContainer` so it carries the
     style; OLED + Flat Now Playing is plain `surface` (black), never the solid
     tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility

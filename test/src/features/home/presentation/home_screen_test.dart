@@ -38,7 +38,10 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -610,6 +613,8 @@ Future<void> _pumpRandomSectionHome(
   List<String> sectionOrder = const [HomeSectionIds.randomAlbums],
   bool reduceMotion = true,
   ValueNotifier<bool>? homeActive,
+  ThemeData? baseTheme,
+  double textScale = 1,
 }) async {
   final sectionOverrides = withTestDatabase(
     database,
@@ -707,11 +712,14 @@ Future<void> _pumpRandomSectionHome(
     ProviderScope(
       overrides: sectionOverrides,
       child: MaterialApp.router(
-        theme: testTheme(),
+        theme: testTheme(baseTheme),
         localizationsDelegates: navisLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
+          data: MediaQuery.of(ctx).copyWith(
+            disableAnimations: reduceMotion,
+            textScaler: TextScaler.linear(textScale),
+          ),
           child: child!,
         ),
         routerConfig: router,
@@ -1965,6 +1973,75 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final scale in <double>[1, 2]) {
+    testWidgets('Flat You Might Like band on a phone at ${scale}x text', (
+      tester,
+    ) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+      final theme = buildDarkTheme(
+        const Color(0xFF009688),
+        style: NavisColorStyle.pastel,
+        flat: true,
+      );
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        baseTheme: theme,
+        textScale: scale,
+        overrides: <Override>[
+          coverColourFieldProvider.overrideWith(
+            (ref, id) async => CoverColourField(
+              List<Color>.filled(9, const Color(0xFFD32F2F)),
+            ),
+          ),
+        ],
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseAlbum(
+            id: 'band-1',
+            name: 'A Rather Long Album Title That Needs More Than One Line',
+            artist: 'An Artist With A Rather Long Name Too',
+            coverArtId: 'cover-band-1',
+            year: 2023,
+            songCount: 12,
+            source: HomeRandomShowcaseSource.likedDiscovery,
+          ),
+          HomeRandomShowcaseAlbum(
+            id: 'band-2',
+            name: 'Band Two',
+            artist: 'Artist Two',
+            coverArtId: 'cover-band-2',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+        ],
+      );
+      final band = find.byKey(
+        const ValueKey<String>('home-showcase-flat-band'),
+      );
+      expect(band, findsOneWidget);
+      // Full-bleed: edge to edge, and tall enough to hold the carousel, info
+      // panel and dots with their padding.
+      expect(tester.getTopLeft(band).dx, 0);
+      expect(tester.getSize(band).width, 390);
+      final bandRect = tester.getRect(band);
+      final carouselRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+      );
+      final infoRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-showcase-info')),
+      );
+      expect(bandRect.top, lessThanOrEqualTo(carouselRect.top - NavisSpace.lg));
+      expect(bandRect.bottom, greaterThan(infoRect.bottom));
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('You Might Like fits a landscape phone without overflow', (
     tester,
