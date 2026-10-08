@@ -24,12 +24,10 @@ import '../../../../helpers/test_database.dart';
 
 const _meteredManualDiscoveryPlan = SyncExecutionPlan(
   request: SyncRunRequest(
-    contractVersion: SyncRunRequest.currentContractVersion,
     origin: SyncRunOrigin.libraryPullToRefresh,
     intent: SyncRunIntent.manualCatalogCheck,
     target: LibrarySyncTarget.catalog(),
     networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
-    priority: 60,
   ),
   kind: SyncExecutionPlanKind.manualCatalogDiscovery,
   reason: SyncSafeReason.none,
@@ -99,26 +97,28 @@ class _BulkPageLibrarySyncApi extends FakeLibrarySyncApi {
 }
 
 class _FailingTargetSyncApi extends FakeLibrarySyncApi {
-  _FailingTargetSyncApi(this.error);
+  new(this.error);
   final Object error;
   @override
   Future<Album> getAlbum(String id, {int? maxResponseBytes}) async =>
-      throw error;
+      Error.throwWithStackTrace(error, StackTrace.current);
   @override
   Future<Artist> getArtist(String id, {int? maxResponseBytes}) async =>
-      throw error;
+      Error.throwWithStackTrace(error, StackTrace.current);
   @override
   Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) async =>
-      throw error;
+      Error.throwWithStackTrace(error, StackTrace.current);
   @override
-  Future<StarredContent> getStarredContent() async => throw error;
+  Future<StarredContent> getStarredContent() async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
   @override
-  Future<List<Playlist>> getPlaylists() async => throw error;
+  Future<List<Playlist>> getPlaylists() async =>
+      Error.throwWithStackTrace(error, StackTrace.current);
   @override
   Future<Indexes> getIndexes({
     DateTime? ifModifiedSince,
     bool disableRetry = false,
-  }) async => throw error;
+  }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }
 
 void main() {

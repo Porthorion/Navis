@@ -79,7 +79,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   /// Persists a typed request before legacy work is enqueued. Equivalent
   /// active requests share this durable identity, but terminal requests are
   /// retained as independent history entries.
-  Future<LibrarySyncRunRequestTableData> enqueueSyncRun({
+  Future<({int id})> enqueueSyncRun({
     required int serverId,
     required SyncExecutionPlan plan,
     DateTime? now,
@@ -98,29 +98,26 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
               ..limit(1))
             .getSingleOrNull();
     if (active != null) {
-      return active;
+      return (id: active.id);
     }
     final id = await into(librarySyncRunRequestTable).insert(
       LibrarySyncRunRequestTableCompanion.insert(
         serverId: serverId,
-        contractVersion: request.contractVersion,
+        contractVersion: SyncRunRequest.currentContractVersion,
         origin: request.origin.index,
         intent: request.intent.index,
         targetKind: request.target.kind.index,
-        targetKey: Value(librarySyncTargetWorkKey(request.target)),
-        networkGrant: request.networkGrant.index,
+        targetKey: const Value(''),
+        networkGrant: SyncNetworkGrant.none.index,
         planKind: plan.kind.index,
-        priority: request.priority,
+        priority: 0,
         coalescingKey: request.coalescingKey,
         status: const Value(_runQueued),
-        resumedFromRequestId: Value(request.resumedFromRequestId),
         createdAt: timestamp,
         updatedAt: timestamp,
       ),
     );
-    return await (select(
-      librarySyncRunRequestTable,
-    )..where((table) => table.id.equals(id))).getSingle();
+    return (id: id);
   }
 
   Future<LibrarySyncRunAttemptTableData> beginSyncRunAttempt({
@@ -151,9 +148,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  /// Completes a request with a redacted, typed result. A target identifier is
-  /// cleared from the request at this boundary, so durable history can explain
-  /// a run without retaining private library metadata.
+  /// Completes a request once with a redacted, typed result.
+  ///
+  /// Shared waiters cannot duplicate outcomes or overwrite an executed result.
+  /// Legacy target identifiers are cleared at this boundary.
   Future<void> completeSyncRun({
     required int requestId,
     required SyncRunOutcome outcome,
@@ -162,6 +160,20 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final timestamp = (now ?? DateTime.now()).toUtc();
     await transaction(() async {
+      final changed =
+          await (update(librarySyncRunRequestTable)..where(
+                (table) =>
+                    table.id.equals(requestId) &
+                    table.status.isNotValue(_runTerminal),
+              ))
+              .write(
+                LibrarySyncRunRequestTableCompanion(
+                  status: const Value(_runTerminal),
+                  targetKey: const Value(''),
+                  updatedAt: Value(timestamp),
+                ),
+              );
+      if (changed == 0) return;
       if (attemptId != null) {
         await (update(
           librarySyncRunAttemptTable,
@@ -181,15 +193,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           requestCount: Value(outcome.requestCount),
           byteCount: Value(outcome.byteCount),
           completedAt: timestamp,
-        ),
-      );
-      await (update(
-        librarySyncRunRequestTable,
-      )..where((table) => table.id.equals(requestId))).write(
-        LibrarySyncRunRequestTableCompanion(
-          status: const Value(_runTerminal),
-          targetKey: const Value(''),
-          updatedAt: Value(timestamp),
         ),
       );
     });

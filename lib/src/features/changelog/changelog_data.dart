@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Changing the server backend clears stale sync cursors before the next library check',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Automatic checks leave queued discovery paused during playback, and Check for updates keeps queued repairs waiting for Repair Library',
         type: ChangelogEntryType.fix,
       ),

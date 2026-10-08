@@ -41,11 +41,8 @@ void main() {
     bool due = true,
     int pendingHydration = 0,
     SyncCapabilityMode indexes = SyncCapabilityMode.reliable,
-    bool? indexChanged,
-    bool explainable = false,
     bool auxiliaryDue = false,
     bool auditDue = false,
-    bool repairRequired = false,
     bool foreground = true,
     bool playing = false,
   }) {
@@ -65,11 +62,8 @@ void main() {
       pendingHydrationCount: pendingHydration,
       pendingWorkCount: 0,
       indexesMode: indexes,
-      indexChanged: indexChanged,
-      changeIsExplainable: explainable,
       auxiliaryDue: auxiliaryDue,
       auditDue: auditDue,
-      repairRequired: repairRequired,
       isForeground: foreground,
       hasActivePlayback: playing,
     );
@@ -147,7 +141,7 @@ void main() {
   });
 
   test('unchanged fresh domains produce a true no-op', () {
-    final plan = planner.plan(context(due: false, indexChanged: false));
+    final plan = planner.plan(context(due: false));
     expect(plan.kind, LibrarySyncPlanKind.probe);
     expect(plan.shouldExecute, isFalse);
   });
@@ -168,7 +162,7 @@ void main() {
   });
 
   test('eligible due automatic checks discover beyond an unchanged index', () {
-    final plan = planner.plan(context(indexChanged: false));
+    final plan = planner.plan(context());
     expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
     expect(plan.reason, 'automaticCatalogDiscovery');
     expect(plan.shouldExecute, isTrue);
@@ -212,16 +206,6 @@ void main() {
       expect(plan.reason, 'manualCatalogDiscoveryOffline');
     },
   );
-
-  test('explainable index change selects bounded delta reconciliation', () {
-    final plan = planner.plan(context(indexChanged: true, explainable: true));
-    expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
-  });
-
-  test('unexplained or regressing change selects a catalog snapshot', () {
-    final plan = planner.plan(context(indexChanged: true, explainable: false));
-    expect(plan.kind, LibrarySyncPlanKind.catalogSnapshot);
-  });
 
   test('unsupported indexes select only a due compatibility partition', () {
     final plan = planner.plan(
@@ -279,12 +263,6 @@ void main() {
     expect(plan.kind, LibrarySyncPlanKind.catalogSnapshot);
     expect(plan.deferred, isTrue);
     expect(plan.shouldExecute, isFalse);
-  });
-
-  test('automatic repair waits for foreground idle unmetered safety', () {
-    final plan = planner.plan(context(repairRequired: true, playing: true));
-    expect(plan.kind, LibrarySyncPlanKind.fullRepair);
-    expect(plan.deferred, isTrue);
   });
 
   test('explicit repair remains guarded on cellular', () {

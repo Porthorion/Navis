@@ -184,7 +184,6 @@ class LibrarySyncState {
     int? runRequestId,
     int? runAttemptId,
     bool clearRunIdentity = false,
-    bool clearMode = false,
     bool? metadataReady,
     bool? isHydrating,
     bool? fastPathActive,
@@ -200,23 +199,18 @@ class LibrarySyncState {
     bool? catalogPublishedThisRun,
     bool clearPendingHydrationCount = false,
     DateTime? startedAt,
-    bool clearStartedAt = false,
     DateTime? completedAt,
     bool clearCompletedAt = false,
     String? errorMessage,
     bool clearErrorMessage = false,
     DateTime? lastSyncedAt,
-    bool clearLastSyncedAt = false,
     DateTime? lastCheckedAt,
-    bool clearLastCheckedAt = false,
     DateTime? nextAutomaticCheckAt,
     bool clearNextAutomaticCheckAt = false,
     DateTime? nextRetryAt,
     bool clearNextRetryAt = false,
     DateTime? lastCatalogUpdatedAt,
-    bool clearLastCatalogUpdatedAt = false,
     DateTime? lastAuxiliarySyncedAt,
-    bool clearLastAuxiliarySyncedAt = false,
     bool? starredSynchronized,
     bool? playlistHeadersSynchronized,
     int? apiRequests,
@@ -233,7 +227,6 @@ class LibrarySyncState {
     int? canonicalizedSongCount,
     int? ambiguousMatchCount,
     LibrarySyncPlanKind? planKind,
-    bool clearPlanKind = false,
     String? planReason,
     bool clearPlanReason = false,
     int? pendingWorkCount,
@@ -247,10 +240,8 @@ class LibrarySyncState {
     int? deletionCandidateCount,
     int? carriedForwardEntityCount,
     int? lastApplyDurationMs,
-    bool clearLastApplyDuration = false,
     bool? probeIndexChanged,
     String? probeEvidenceVersion,
-    bool clearProbeIndexChanged = false,
     bool? probeIndexesUnsupported,
     int? probeDiscoveryDebtStreak,
     bool? updatesAvailable,
@@ -260,7 +251,7 @@ class LibrarySyncState {
       runRequestId: clearRunIdentity ? null : runRequestId ?? this.runRequestId,
       runAttemptId: clearRunIdentity ? null : runAttemptId ?? this.runAttemptId,
       stage: stage ?? this.stage,
-      mode: clearMode ? null : mode ?? this.mode,
+      mode: mode ?? this.mode,
       metadataReady: metadataReady ?? this.metadataReady,
       isHydrating: isHydrating ?? this.isHydrating,
       fastPathActive: fastPathActive ?? this.fastPathActive,
@@ -278,27 +269,20 @@ class LibrarySyncState {
           onlyIncompleteAlbumDetails ?? this.onlyIncompleteAlbumDetails,
       catalogPublishedThisRun:
           catalogPublishedThisRun ?? this.catalogPublishedThisRun,
-      startedAt: clearStartedAt ? null : startedAt ?? this.startedAt,
+      startedAt: startedAt ?? this.startedAt,
       completedAt: clearCompletedAt ? null : completedAt ?? this.completedAt,
       errorMessage: clearErrorMessage
           ? null
           : errorMessage ?? this.errorMessage,
-      lastSyncedAt: clearLastSyncedAt
-          ? null
-          : lastSyncedAt ?? this.lastSyncedAt,
-      lastCheckedAt: clearLastCheckedAt
-          ? null
-          : lastCheckedAt ?? this.lastCheckedAt,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       nextAutomaticCheckAt: clearNextAutomaticCheckAt
           ? null
           : nextAutomaticCheckAt ?? this.nextAutomaticCheckAt,
       nextRetryAt: clearNextRetryAt ? null : nextRetryAt ?? this.nextRetryAt,
-      lastCatalogUpdatedAt: clearLastCatalogUpdatedAt
-          ? null
-          : lastCatalogUpdatedAt ?? this.lastCatalogUpdatedAt,
-      lastAuxiliarySyncedAt: clearLastAuxiliarySyncedAt
-          ? null
-          : lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
+      lastCatalogUpdatedAt: lastCatalogUpdatedAt ?? this.lastCatalogUpdatedAt,
+      lastAuxiliarySyncedAt:
+          lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
       starredSynchronized: starredSynchronized ?? this.starredSynchronized,
       playlistHeadersSynchronized:
           playlistHeadersSynchronized ?? this.playlistHeadersSynchronized,
@@ -320,7 +304,7 @@ class LibrarySyncState {
       canonicalizedSongCount:
           canonicalizedSongCount ?? this.canonicalizedSongCount,
       ambiguousMatchCount: ambiguousMatchCount ?? this.ambiguousMatchCount,
-      planKind: clearPlanKind ? null : planKind ?? this.planKind,
+      planKind: planKind ?? this.planKind,
       planReason: clearPlanReason ? null : planReason ?? this.planReason,
       pendingWorkCount: pendingWorkCount ?? this.pendingWorkCount,
       lastRunBytes: lastRunBytes ?? this.lastRunBytes,
@@ -337,12 +321,8 @@ class LibrarySyncState {
           deletionCandidateCount ?? this.deletionCandidateCount,
       carriedForwardEntityCount:
           carriedForwardEntityCount ?? this.carriedForwardEntityCount,
-      lastApplyDurationMs: clearLastApplyDuration
-          ? null
-          : lastApplyDurationMs ?? this.lastApplyDurationMs,
-      probeIndexChanged: clearProbeIndexChanged
-          ? null
-          : probeIndexChanged ?? this.probeIndexChanged,
+      lastApplyDurationMs: lastApplyDurationMs ?? this.lastApplyDurationMs,
+      probeIndexChanged: probeIndexChanged ?? this.probeIndexChanged,
       probeEvidenceVersion: probeEvidenceVersion ?? this.probeEvidenceVersion,
       probeIndexesUnsupported:
           probeIndexesUnsupported ?? this.probeIndexesUnsupported,

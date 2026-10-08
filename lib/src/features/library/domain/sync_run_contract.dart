@@ -131,24 +131,18 @@ class SyncExecutionBudget {
 /// previous [LibrarySyncRequest] shape.
 class SyncRunRequest {
   const new({
-    required this.contractVersion,
     required this.origin,
     required this.intent,
     required this.target,
     required this.networkGrant,
-    required this.priority,
-    this.resumedFromRequestId,
   });
 
   static const int currentContractVersion = 1;
 
-  final int contractVersion;
   final SyncRunOrigin origin;
   final SyncRunIntent intent;
   final LibrarySyncTarget target;
   final SyncNetworkGrant networkGrant;
-  final int priority;
-  final int? resumedFromRequestId;
 
   /// An intent-specific durable key. In particular, an automatic probe and a
   /// manual discovery request never coalesce merely because both address the
@@ -201,10 +195,7 @@ class SyncRunOutcome {
 /// Transitional conversion from the legacy request model. It is intentionally
 /// centralized so callers do not spread origin/permission guesses through
 /// coordinators and executors.
-SyncRunRequest syncRunRequestFromLegacy(
-  LibrarySyncRequest request, {
-  int? resumedFromRequestId,
-}) {
+SyncRunRequest syncRunRequestFromLegacy(LibrarySyncRequest request) {
   final intent = switch (request.target.kind) {
     LibrarySyncTargetKind.catalog => switch (request.intent) {
       LibrarySyncIntent.automatic => SyncRunIntent.automaticCatalogCheck,
@@ -234,21 +225,11 @@ SyncRunRequest syncRunRequestFromLegacy(
       : request.allowMeteredLimitedDiscovery
       ? SyncNetworkGrant.boundedMeteredDiscovery
       : SyncNetworkGrant.none;
-  final priority = switch (intent) {
-    SyncRunIntent.repairLibrary => 80,
-    SyncRunIntent.manualCatalogCheck => 60,
-    SyncRunIntent.targetHydration => 100,
-    SyncRunIntent.auxiliaryRefresh => 40,
-    SyncRunIntent.automaticCatalogCheck => 20,
-  };
   return SyncRunRequest(
-    contractVersion: SyncRunRequest.currentContractVersion,
     origin: origin,
     intent: intent,
     target: request.target,
     networkGrant: grant,
-    priority: priority,
-    resumedFromRequestId: resumedFromRequestId,
   );
 }
 

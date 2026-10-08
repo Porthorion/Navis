@@ -13,11 +13,8 @@ class LibrarySyncPlannerContext {
     required this.pendingHydrationCount,
     required this.pendingWorkCount,
     required this.indexesMode,
-    required this.indexChanged,
-    required this.changeIsExplainable,
     required this.auxiliaryDue,
     required this.auditDue,
-    required this.repairRequired,
     required this.isForeground,
     required this.hasActivePlayback,
     this.isBackgroundExecutor = false,
@@ -30,11 +27,8 @@ class LibrarySyncPlannerContext {
   final int pendingHydrationCount;
   final int pendingWorkCount;
   final SyncCapabilityMode indexesMode;
-  final bool? indexChanged;
-  final bool changeIsExplainable;
   final bool auxiliaryDue;
   final bool auditDue;
-  final bool repairRequired;
   final bool isForeground;
   final bool hasActivePlayback;
 
@@ -115,13 +109,6 @@ class LibrarySyncPlanner {
       );
     }
 
-    if (context.repairRequired) {
-      return LibrarySyncPlan(
-        kind: LibrarySyncPlanKind.fullRepair,
-        reason: 'catalogInvariantRepair',
-      );
-    }
-
     // A user-requested check is a discovery operation, not an automatic
     // freshness-gated poll. `getIndexes` only invalidates the artist
     // collection, so the executor must also inspect the bounded newest-album
@@ -191,19 +178,6 @@ class LibrarySyncPlanner {
       return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.targetedHydration,
         reason: 'resumePendingWork',
-      );
-    }
-
-    if (context.indexChanged == true) {
-      if (context.changeIsExplainable) {
-        return const LibrarySyncPlan(
-          kind: LibrarySyncPlanKind.deltaReconcile,
-          reason: 'boundedCatalogDelta',
-        );
-      }
-      return LibrarySyncPlan(
-        kind: LibrarySyncPlanKind.catalogSnapshot,
-        reason: 'unexplainedCatalogChange',
       );
     }
 

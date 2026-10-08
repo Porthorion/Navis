@@ -1037,12 +1037,10 @@ void main() {
     );
     const plan = SyncExecutionPlan(
       request: SyncRunRequest(
-        contractVersion: 1,
         origin: SyncRunOrigin.interaction,
         intent: SyncRunIntent.targetHydration,
         target: LibrarySyncTarget.album('private-target'),
         networkGrant: SyncNetworkGrant.none,
-        priority: 1,
       ),
       kind: SyncExecutionPlanKind.targetHydration,
       reason: SyncSafeReason.none,

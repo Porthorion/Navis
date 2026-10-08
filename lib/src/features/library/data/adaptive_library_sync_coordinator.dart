@@ -281,6 +281,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
+    var capabilitiesJson = config.capabilitiesJson;
+
     // Resolve the repair-session consent before any planning, durable run, or
     // queued work is joined, so a consented request can never be satisfied by
     // a weaker deferred one and an automatic start cannot race the consent
@@ -334,7 +336,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               }
             }
             // Re-read under ownership: another admitted engine may have already
-            // initialized or replaced the provider profile before this lease.
+            // initialized or replaced the backend fingerprint before this lease.
             persisted = await _database.librarySyncDao.getOrCreateState(
               serverId,
             );
@@ -343,20 +345,29 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               if (backendChanged) {
                 await _database.librarySyncCandidateDao.clearAll();
                 await _database.librarySyncDao.clearWorkForServer(serverId);
+                final backend = await (_database.select(
+                  _database.serverConfigTable,
+                )..where((row) => row.id.equals(serverId))).getSingleOrNull();
+                String? capabilities;
+                try {
+                  final root = jsonDecode(backend?.capabilities ?? '');
+                  if (root is Map<String, dynamic>) {
+                    root.remove('navis');
+                    capabilities = root.isEmpty ? null : jsonEncode(root);
+                  }
+                } on FormatException {
+                  // Invalid legacy JSON has no capability evidence to retain.
+                }
+                await _database.serverDao.updateRetainedServer(
+                  serverId,
+                  ServerConfigTableCompanion(capabilities: Value(capabilities)),
+                );
+                capabilitiesJson = capabilities;
               }
               await _database.librarySyncDao.writeState(
                 LibrarySyncStateTableCompanion(
                   serverId: Value(serverId),
                   providerFingerprint: Value(providerFingerprint),
-                  conditionalIndexesMode: backendChanged
-                      ? const Value('unknown')
-                      : Value(persisted.conditionalIndexesMode),
-                  bulkSearchMode: backendChanged
-                      ? const Value('unknown')
-                      : Value(persisted.bulkSearchMode),
-                  bulkSearchQuery: backendChanged
-                      ? const Value(null)
-                      : Value(persisted.bulkSearchQuery),
                   candidateGeneration: backendChanged
                       ? const Value(null)
                       : Value(persisted.candidateGeneration),
@@ -459,7 +470,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     );
     final auxiliaryDue =
         isAuxiliary && await _auxiliaryIsDue(serverId, request.target);
-    final auditInterval = persisted.conditionalIndexesMode == 'unsupported'
+    final indexesMode = _indexesModeFromCapabilities(capabilitiesJson);
+    final auditInterval = indexesMode == SyncCapabilityMode.unsupported
         ? const Duration(days: 1)
         : const Duration(days: 7);
     final auditDue =
@@ -501,14 +513,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             isCatalogCheckDue: isDue,
             pendingHydrationCount: localPendingHydration,
             pendingWorkCount: pendingWork,
-            indexesMode: _capabilityMode(persisted.conditionalIndexesMode),
-            indexChanged: null,
-            changeIsExplainable: false,
+            indexesMode: indexesMode,
             auxiliaryDue: auxiliaryDue,
             auditDue: auditDue,
-            repairRequired:
-                request.trigger == LibrarySyncTrigger.migration ||
-                request.trigger == LibrarySyncTrigger.invariant,
             isForeground: _readIsForeground(),
             hasActivePlayback: _readHasActivePlayback(),
             isBackgroundExecutor: _isBackgroundExecution,
@@ -628,7 +635,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           reason: _safeReasonForPlan(plan, policy),
         ),
         now: timestamp,
-
         state: state,
         onProgress: onProgress,
       );
@@ -662,7 +668,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           reason: SyncSafeReason.meteredPolicy,
         ),
         now: timestamp,
-
         state: state,
         onProgress: onProgress,
       );
@@ -682,7 +687,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           reason: SyncSafeReason.cancellation,
         ),
         now: _now(),
-
         state: LibrarySyncState(
           status: LibrarySyncStatus.cancelled,
           stage: LibrarySyncStage.completed,
@@ -698,15 +702,31 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
     final running = _inFlight;
     if (running != null) {
-      await running;
-      if (cancellationGeneration != _cancellationGeneration) {
-        return await cancelledBeforeExecution();
+      int? resumedRequestId;
+      try {
+        await running;
+        if (cancellationGeneration != _cancellationGeneration) {
+          return await cancelledBeforeExecution();
+        }
+        final resumed = await _requestSync(
+          request,
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: onProgress,
+        );
+        resumedRequestId = resumed.runRequestId;
+        return resumed;
+      } finally {
+        if (resumedRequestId != durableRun.id) {
+          await _database.librarySyncDao.completeSyncRun(
+            requestId: durableRun.id,
+            outcome: const SyncRunOutcome(
+              kind: SyncRunOutcomeKind.skipped,
+              reason: SyncSafeReason.none,
+            ),
+            now: _now(),
+          );
+        }
       }
-      return await _requestSync(
-        request,
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: onProgress,
-      );
     }
     final future = _executePlanned(
       serverId: serverId,
@@ -973,13 +993,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             }
             final pendingCount = await _database.librarySyncDao
                 .countPendingWork(serverId);
-            try {
-              await _refreshProviderProfile(serverId, result);
-            } on Object {
-              // The compatibility profile is advisory. A malformed legacy capability
-              // value must never turn a successfully committed catalog pass into a
-              // failed run.
-            }
             final persisted = await _database.librarySyncDao.getOrCreateState(
               serverId,
             );
@@ -1174,14 +1187,22 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   'since ${holder.startedAt.toUtc().toIso8601String()} '
                   '(expires ${holder.expiresAt.toUtc().toIso8601String()})'}',
       );
-      return LibrarySyncState(
-        runRequestId: durableRunId,
-        runAttemptId: activeAttemptId,
-        status: LibrarySyncStatus.deferred,
-        stage: LibrarySyncStage.completed,
-        completedAt: _now(),
-        planKind: plan.kind,
-        planReason: 'leaseHeld',
+      return await _finish(
+        requestId: durableRunId,
+        attemptId: activeAttemptId,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.leaseHeld,
+        ),
+        state: LibrarySyncState(
+          runRequestId: durableRunId,
+          runAttemptId: activeAttemptId,
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: _now(),
+          planKind: plan.kind,
+          planReason: 'leaseHeld',
+        ),
       );
     }
   }
@@ -1566,88 +1587,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     return current?.status == 'completed';
   }
 
-  Future<void> _refreshProviderProfile(
-    int serverId,
-    LibrarySyncState result,
-  ) async {
-    final config = await _serverConfigRepository.getActiveServer();
-    final navis = _readNavisCapabilities(config?.capabilitiesJson);
-    final unsupported = navis['libraryIndexesUnsupportedAt'] != null;
-    final cursor = _parseDate(navis['libraryIndexesCursor']);
-    final bulkQuery = navis['bulkSongSearchWildcardQuery'];
-    await _database.librarySyncDao.writeState(
-      LibrarySyncStateTableCompanion(
-        serverId: Value(serverId),
-        conditionalIndexesMode: Value(
-          unsupported
-              ? 'unsupported'
-              : cursor != null
-              ? 'reliable'
-              : 'unknown',
-        ),
-        bulkSearchMode: Value(bulkQuery is String ? 'supported' : 'unknown'),
-        bulkSearchQuery: Value(bulkQuery is String ? bulkQuery : null),
-        catalogCursor: Value(cursor),
-        catalogFingerprint: Value(
-          navis['libraryIndexesFingerprint'] is String
-              ? navis['libraryIndexesFingerprint']! as String
-              : null,
-        ),
-        averageLatencyMs: Value(result.averageLatencyMs),
-        detailConcurrency: Value(_preferredDetailConcurrency()),
-        // The executor persists stage/endpoint/entity failure diagnostics.
-        // Do not erase those safe details when its returned state has no
-        // coarse failure category; callers otherwise see only a generic failed
-        // sync and the durable retry record cannot explain what happened.
-        endpointFailureJson: result.failureCategory != null
-            ? Value(
-                jsonEncode(<String, Object?>{
-                  'category': result.failureCategory,
-                  'at': _now().toUtc().toIso8601String(),
-                }),
-              )
-            : result.status == LibrarySyncStatus.succeeded
-            ? const Value(null)
-            : const Value.absent(),
-      ),
-    );
-  }
-
-  Map<String, Object?> _readNavisCapabilities(String? raw) {
-    if (raw == null || raw.trim().isEmpty) {
-      return const <String, Object?>{};
-    }
-    try {
-      final root = jsonDecode(raw);
-      if (root is Map<String, dynamic> &&
-          root['navis'] is Map<String, dynamic>) {
-        return Map<String, Object?>.from(root['navis'] as Map<String, dynamic>);
-      }
-    } on FormatException {
-      return const <String, Object?>{};
-    }
-    return const <String, Object?>{};
-  }
-
-  DateTime? _parseDate(Object? value) {
-    if (value is! String) {
-      return null;
-    }
-    return DateTime.tryParse(value)?.toLocal();
-  }
-
-  int _preferredDetailConcurrency() {
-    if (_readHasActivePlayback()) {
-      return 2;
-    }
-    return switch (networkType) {
-      NetworkType.wifi => 8,
-      NetworkType.other => 4,
-      NetworkType.cellular => 1,
-      NetworkType.offline => 1,
-    };
-  }
-
   DateTime _cooldownUntil(int attempt) {
     final multiplier = 1 << (attempt - 1).clamp(0, 5);
     final minutes = (15 * multiplier).clamp(15, 360);
@@ -1673,12 +1612,23 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     );
   }
 
-  SyncCapabilityMode _capabilityMode(String value) {
-    return switch (value) {
-      'reliable' => SyncCapabilityMode.reliable,
-      'unsupported' => SyncCapabilityMode.unsupported,
-      _ => SyncCapabilityMode.unknown,
-    };
+  SyncCapabilityMode _indexesModeFromCapabilities(String? raw) {
+    try {
+      final root = jsonDecode(raw ?? '');
+      if (root is Map && root['navis'] is Map) {
+        final navis = root['navis'] as Map;
+        if (navis['libraryIndexesUnsupportedAt'] != null) {
+          return SyncCapabilityMode.unsupported;
+        }
+        final cursor = navis['libraryIndexesCursor'];
+        if (cursor is String && DateTime.tryParse(cursor) != null) {
+          return SyncCapabilityMode.reliable;
+        }
+      }
+    } on FormatException {
+      // Missing or malformed capability evidence leaves the mode unknown.
+    }
+    return SyncCapabilityMode.unknown;
   }
 
   int _priorityFor(LibrarySyncRequest request) {

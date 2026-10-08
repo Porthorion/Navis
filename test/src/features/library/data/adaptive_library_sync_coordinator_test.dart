@@ -355,6 +355,179 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'replanning to another target retires the original queued request',
+    () async {
+      final blocking = _BlockingCatalogEngine();
+      final serial = AdaptiveLibrarySyncCoordinator(
+        executor: blocking,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final active = serial.requestSync(const LibrarySyncRequest.repair());
+      await blocking.entered.future;
+      final waiting = serial.requestSync(const LibrarySyncRequest.automatic());
+      LibrarySyncRunRequestTableData? original;
+      for (var i = 0; i < 100; i++) {
+        final rows = await database
+            .select(database.librarySyncRunRequestTable)
+            .get();
+        final queued = rows.where((row) => row.status == 0);
+        if (queued.isNotEmpty) {
+          original = queued.first;
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(original, isNotNull);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityId: 'album:a',
+        priority: 100,
+        workClass: 'interactive',
+        checkpointJson: '{"targetKind":"album"}',
+      );
+      blocking.release.complete();
+      await active;
+      final result = await waiting;
+      expect(result.runRequestId, isNot(original!.id));
+      final rows = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      expect(rows.where((row) => row.status != 2), isEmpty);
+      final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+      final retired = history.where((entry) => entry.requestId == original!.id);
+      expect(retired, hasLength(1));
+      expect(retired.single.outcome, SyncRunOutcomeKind.skipped);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final (capabilities, mirrored, expected) in [
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesUnsupportedAt': '2026-08-01'},
+      }),
+      'reliable',
+      LibrarySyncPlanKind.compatibilityAudit,
+    ),
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesCursor': '2026-08-01T00:00:00Z'},
+      }),
+      'unsupported',
+      LibrarySyncPlanKind.probe,
+    ),
+    ('malformed', 'unsupported', LibrarySyncPlanKind.probe),
+    (
+      jsonEncode({
+        'navis': {'libraryIndexesCursor': 'invalid'},
+      }),
+      'unsupported',
+      LibrarySyncPlanKind.probe,
+    ),
+  ]) {
+    test(
+      'planning reads capabilities instead of mirrored $mirrored: $capabilities',
+      () async {
+        await repository.updateCapabilitiesJson(capabilities);
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: const Value(1),
+            currentGeneration: const Value(1),
+            providerFingerprint: const Value(
+              'https://music.example.test|1.16.1',
+            ),
+            conditionalIndexesMode: Value(mirrored),
+            lastCheckedAt: Value(DateTime.utc(2026, 8, 4)),
+            lastAuditAt: Value(DateTime.utc(2026, 8, 2)),
+          ),
+        );
+        final result = await coordinator.syncIfStale();
+        expect(result.planKind, expected);
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1))
+              .conditionalIndexesMode,
+          mirrored,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'backend changes clear sync capabilities and preserve provider metadata',
+    () async {
+      await repository.updateCapabilitiesJson(
+        jsonEncode({
+          'provider': {'supportsScanStatus': true},
+          'navis': {
+            'libraryIndexesUnsupportedAt': '2026-08-01',
+            'libraryIndexesCursor': '2026-08-01T00:00:00Z',
+            'bulkSongSearchWildcardQuery': '',
+            'libraryPendingIndexesArtistIds': '["stale"]',
+          },
+        }),
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          providerFingerprint: const Value('previous-backend'),
+          currentGeneration: const Value(1),
+          candidateGeneration: const Value(2),
+          candidateStatus: const Value('collecting'),
+          lastCheckedAt: Value(DateTime.utc(2026, 8, 4)),
+          lastAuditAt: Value(DateTime.utc(2026, 8, 2)),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.catalogSnapshot.name,
+        priority: 1,
+      );
+      const otherCapabilities =
+          '{"navis":{"libraryIndexesCursor":"other-server"}}';
+      final otherServer = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://other.example.test',
+              username: 'listener',
+              apiVersion: '1.16.1',
+              isAuthenticated: const Value(false),
+              capabilities: const Value(otherCapabilities),
+            ),
+          );
+      final result = await coordinator.syncIfStale();
+      expect(result.planKind, LibrarySyncPlanKind.probe);
+      final root = jsonDecode(
+        (await repository.getActiveServer())!.capabilitiesJson!,
+      ) as Map;
+      expect(root.containsKey('navis'), isFalse);
+      expect(root['provider'], {'supportsScanStatus': true});
+      final other = await (database.select(
+        database.serverConfigTable,
+      )..where((row) => row.id.equals(otherServer))).getSingle();
+      expect(other.capabilities, otherCapabilities);
+      final state = await database.librarySyncDao.getOrCreateState(1);
+      expect(state.candidateGeneration, isNull);
+      expect(state.candidateStatus, isNull);
+      expect(
+        await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.catalogSnapshot.name,
+        ),
+        isNull,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'a promoted catalog task completes before remaining album hydration',
     () async {
       final result = await coordinator.requestSync(

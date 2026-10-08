@@ -3029,7 +3029,8 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
-1. Callers submit a versioned `SyncRunRequest`; the current
+1. Callers submit a `SyncRunRequest`; the durable contract version is stamped
+   at insertion. The current
    `LibrarySyncRequest` remains a one-release compatibility adapter at the
    outer boundary. The request distinguishes automatic catalog checks, manual
    catalog checks, Repair Library, target hydration, and auxiliary refreshes.
@@ -3045,6 +3046,16 @@ states without starting audio or modifying a queue.
    or checkpoints. Recovery and execution share lease acquisition, write
    fencing, and release; execution alone adds the periodic heartbeat. Endpoint
    aliases live on `SyncEndpoint`, and plan-kind records resolve run budgets.
+   Planning derives conditional-index support directly from the active server
+   capabilities JSON, without a state-table provider-profile mirror. A backend
+   fingerprint change discards the old Navis sync capabilities, durable work,
+   and candidate state while preserving provider capability metadata. Replanning
+   to another coalescing key completes the superseded request as `skipped`;
+   terminal completion is idempotent for shared waiters. Execution requests
+   retain their ephemeral network grant. Durable inserts stamp the contract
+   version and leave the legacy grant, priority, target identifier, and resume
+   lineage columns at neutral values; no persisted coalescing key restores
+   network consent.
    The coordinator deduplicates durable work, measures
    requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different

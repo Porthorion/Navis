@@ -874,6 +874,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         mode: LibrarySyncMode.incremental,
         metadataReady: true,
         isHydrating: true,
+        processed: 0,
         total: 1,
         pendingHydrationCount: 1,
       ),
