@@ -70,7 +70,7 @@ final librarySyncOperationLedgerProvider =
           .watchRecentOperationLedgerEntries(serverId);
     });
 
-final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
+final librarySyncNotifierProvider = Provider<SystemLibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
 });
 

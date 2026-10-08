@@ -3,16 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
-abstract class LibrarySyncNotifier {
-  const new();
-
-  Future<void> showProgress(LibrarySyncState state);
-  Future<void> dismissProgress();
-  Future<void> showComplete(LibrarySyncState state);
-  Future<void> showFailed(LibrarySyncState state);
-}
-
-class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
+class SystemLibrarySyncNotifier {
   const new();
 
   static final FlutterLocalNotificationsPlugin _plugin =
@@ -24,16 +15,12 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'Library scan progress and completion updates';
   static const int _progressId = 9101;
   static const int _summaryId = 9102;
+  static const int _progressScale = 1000;
   static const Duration _throttleInterval = Duration(milliseconds: 500);
 
   static DateTime _lastProgressUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
-  @override
   Future<void> showProgress(LibrarySyncState state) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
-
     final now = DateTime.now();
     final elapsed = now.difference(_lastProgressUpdate);
     final total = state.total ?? 0;
@@ -46,38 +33,21 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     _lastProgressUpdate = now;
 
     final hasProgress = total > 0;
-    const normMax = 1000;
     final normProgress = hasProgress
-        ? (processed * normMax ~/ total).clamp(0, normMax)
+        ? (processed * _progressScale ~/ total).clamp(0, _progressScale)
         : 0;
-    final androidDetails = AndroidNotificationDetails(
-      _silentChannelId,
-      _silentChannelName,
-      channelDescription: _silentChannelDescription,
-      icon: 'ic_stat_navis_light',
-      color: Colors.white,
-      importance: Importance.low,
-      priority: Priority.low,
-      playSound: false,
-      enableVibration: false,
-      onlyAlertOnce: true,
-      ongoing: true,
-      autoCancel: false,
-      showProgress: hasProgress,
-      maxProgress: normMax,
-      progress: normProgress,
-      category: AndroidNotificationCategory.progress,
-    );
-
     await _safeShow(
       _progressId,
       title: 'Scanning library',
       body: _progressBody(state),
-      details: androidDetails,
+      details: _details(
+        progress: true,
+        determinate: hasProgress,
+        value: normProgress,
+      ),
     );
   }
 
-  @override
   Future<void> dismissProgress() async {
     if (defaultTargetPlatform != TargetPlatform.android) {
       return;
@@ -89,38 +59,34 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     }
   }
 
-  @override
   Future<void> showComplete(LibrarySyncState state) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
     await dismissProgress();
-    const androidDetails = AndroidNotificationDetails(
-      _silentChannelId,
-      _silentChannelName,
-      channelDescription: _silentChannelDescription,
-      icon: 'ic_stat_navis_light',
-      color: Colors.white,
-      importance: Importance.low,
-      priority: Priority.low,
-      playSound: false,
-      enableVibration: false,
-    );
     await _safeShow(
       _summaryId,
       title: 'Library scan complete',
       body: _completionBody(state),
-      details: androidDetails,
+      details: _details(progress: false),
     );
   }
 
-  @override
   Future<void> showFailed(LibrarySyncState state) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
     await dismissProgress();
-    const androidDetails = AndroidNotificationDetails(
+    await _safeShow(
+      _summaryId,
+      title: librarySyncNotificationFailureTitle(state),
+      body: librarySyncNotificationFailureBody(state),
+      details: _details(progress: false),
+    );
+  }
+
+  /// Silent low-priority details. [progress] makes the notification the
+  /// ongoing scan-progress one; [determinate] adds a bar at [value] of 1000.
+  static AndroidNotificationDetails _details({
+    required bool progress,
+    bool determinate = false,
+    int value = 0,
+  }) {
+    return AndroidNotificationDetails(
       _silentChannelId,
       _silentChannelName,
       channelDescription: _silentChannelDescription,
@@ -130,12 +96,13 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       priority: Priority.low,
       playSound: false,
       enableVibration: false,
-    );
-    await _safeShow(
-      _summaryId,
-      title: librarySyncNotificationFailureTitle(state),
-      body: librarySyncNotificationFailureBody(state),
-      details: androidDetails,
+      onlyAlertOnce: progress,
+      ongoing: progress,
+      autoCancel: !progress,
+      showProgress: determinate,
+      maxProgress: progress ? _progressScale : 0,
+      progress: value,
+      category: progress ? AndroidNotificationCategory.progress : null,
     );
   }
 
@@ -145,6 +112,9 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     required String body,
     required AndroidNotificationDetails details,
   }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
     try {
       await _plugin.show(
         id: id,
