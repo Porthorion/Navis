@@ -1217,11 +1217,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Padding(
             key: const ValueKey<String>('homeCenteredLogoHeader'),
             padding: phoneHeader
-                ? const EdgeInsets.fromLTRB(0, 32, 0, 8)
+                ? const EdgeInsets.fromLTRB(0, 16, 0, 4)
                 : const EdgeInsets.fromLTRB(0, 48, 0, 14),
             child: Center(
               child: _HomeSyncLogo(
-                size: phoneHeader ? 84 : 96,
+                size: phoneHeader ? 104 : 96,
                 pullProgress: useCustomHomePullRefresh ? _homePullProgress : 0,
                 showImmediateRefreshRing:
                     useCustomHomePullRefresh &&
