@@ -13,7 +13,11 @@ import 'package:navis/src/features/integrations/data/integration_guard_intercept
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
@@ -614,11 +618,20 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
     final seed = resolveColorSchemeSeedColor(draft.colorSchemeSeed);
     final style = NavisColorStyle.parse(draft.colorStyle);
-    if (!dark) return buildLightTheme(seed, style: style);
-    return draft.themeMode == 'oled'
-        ? buildOledTheme(seed, style: style)
-        : buildDarkTheme(seed, style: style);
+    final flat = draft.flatSurfaces;
+    if (!dark) return buildLightTheme(seed, style: style, flat: flat);
+    return _previewOled(context, draft)
+        ? buildOledTheme(seed, style: style, flat: flat)
+        : buildDarkTheme(seed, style: style, flat: flat);
   }
+
+  /// Mirrors app.dart: OLED mode, or Auto with "OLED when dark" while the
+  /// platform is dark. The night schedule never switches the preview by time.
+  bool _previewOled(BuildContext context, AppSettingsModel draft) =>
+      draft.themeMode == 'oled' ||
+      (draft.themeMode == 'system' &&
+          draft.oledForAuto &&
+          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
   /// The current step, built under the preview theme: the [Builder]'s
   /// context sits below `Theme(data: previewTheme)`, unlike the state's own
@@ -635,6 +648,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget _appearanceStep(BuildContext context, AppSettingsModel draft) {
     final l10n = AppLocalizations.of(context)!;
     final customPresets = _draftCustomPresets ?? const <int>[];
+    final pending = ref.watch(pendingSetupHighlightsProvider);
+    Widget? tagFor(SetupHighlight highlight) =>
+        pending.contains(highlight) ? const NewFeatureTag() : null;
+    final colorStyleTag = tagFor(SetupHighlight.colorStyle);
     return _scrollStep(
       children: [
         Text(
@@ -649,19 +666,59 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(themeMode: value)),
         ),
+        OledForAutoOption(
+          visible: draft.themeMode == 'system',
+          value: draft.oledForAuto,
+          adornment: tagFor(SetupHighlight.oledForAuto),
+          onChanged: (value) =>
+              setState(() => _draft = draft.copyWith(oledForAuto: value)),
+        ),
         const SizedBox(height: 16),
-        Text(
-          l10n.appearanceColorStyleLabel,
-          style: Theme.of(context).textTheme.titleMedium,
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                l10n.appearanceColorStyleLabel,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            if (colorStyleTag != null) ...[
+              const SizedBox(width: 8),
+              colorStyleTag,
+            ],
+          ],
         ),
         ColorStyleSelector(
           currentStyle: NavisColorStyle.parse(draft.colorStyle),
           seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
           brightness: Theme.of(context).brightness,
-          oled: draft.themeMode == 'oled',
+          oled: _previewOled(context, draft),
           onChanged: (style) => setState(
             () => _draft = draft.copyWith(colorStyle: style.storageKey),
           ),
+        ),
+        NightScheduleSection(
+          schedule: NightSchedule(
+            enabled: draft.nightScheduleEnabled,
+            startMinutes: draft.nightScheduleStartMinutes,
+            endMinutes: draft.nightScheduleEndMinutes,
+          ),
+          userStyle: NavisColorStyle.parse(draft.colorStyle),
+          now: ref.watch(nowProvider)(),
+          adornment: tagFor(SetupHighlight.nightSchedule),
+          onChanged: (schedule) => setState(
+            () => _draft = draft.copyWith(
+              nightScheduleEnabled: schedule.enabled,
+              nightScheduleStartMinutes: schedule.startMinutes,
+              nightScheduleEndMinutes: schedule.endMinutes,
+            ),
+          ),
+        ),
+        FlatSurfacesOption(
+          value: draft.flatSurfaces,
+          adornment: tagFor(SetupHighlight.flatSurfaces),
+          onChanged: (value) =>
+              setState(() => _draft = draft.copyWith(flatSurfaces: value)),
         ),
         const SizedBox(height: 24),
         Text(

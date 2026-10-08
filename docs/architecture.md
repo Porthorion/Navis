@@ -1149,6 +1149,21 @@ The authenticated clone-only `POST /v1/presentation/setup-highlights/reset`
 clears both markers in a transaction to simulate an updated user whose
 onboarding is already complete; the integrations settings dump exposes them.
 
+The look step shows every appearance option through the same callback-driven
+widgets as Settings › Appearance (`OledForAutoOption`, `NightScheduleSection`,
+`FlatSurfacesOption` in `settings/presentation/appearance_options.dart`), in
+the order Theme Mode, Use OLED When Dark (Auto only), Color Style, Night
+Schedule, Flat Surfaces, then accent. They write only to the draft that Finish
+saves. The preview theme mirrors `app.dart`: OLED for OLED mode or Auto with
+OLED When Dark at dark platform brightness, and `flat:` from the draft. The
+night schedule never switches the preview by time. Options whose
+`SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`),
+and Home shows `SetupHighlightsCard` (`HomeNoticeCard`, "New in {version}")
+while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
+onboarding review without acknowledging anything; its close button only calls
+`dismissCard`. Home shows one notice: the setup card, else the Integrations
+notice, else the What's New row.
+
 When a successful required initial-library build or cache renewal immediately
 leads to onboarding, the rebuild route carries only an internal eligibility
 marker. It becomes the route-scoped `homeWarmup=1` handoff only after the

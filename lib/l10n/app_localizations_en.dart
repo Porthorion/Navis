@@ -1971,6 +1971,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.';
 
   @override
+  String get setupHighlightsCardBody =>
+      'Pastel, Immersive and Night styles, Flat Surfaces and a night schedule. Try them in setup.';
+
+  @override
+  String get newFeatureTagSemantics => 'New option';
+
+  @override
   String get integrationsNoticeDismiss => 'Dismiss';
 
   @override

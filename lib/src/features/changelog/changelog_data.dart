@@ -132,6 +132,9 @@ const List<ChangelogVersion> changelogs = [
         'Album cards blend their titles into a colour taken from each cover, so titles stay readable on any artwork in light and dark themes',
       ),
       ChangelogEntry(
+        'Setup shows the new appearance options, marked New for people updating, and Home invites you to try them',
+      ),
+      ChangelogEntry(
         'Appearance can use OLED black in Auto, switch to the Night style on a daily schedule, and turn on Flat Surfaces for solid colours without glows or shadows',
       ),
       ChangelogEntry(
