@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
-import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -29,11 +28,7 @@ final List<AlbumsTableData> _albums = List<AlbumsTableData>.generate(
   ),
 );
 
-Future<void> _pump(
-  WidgetTester tester,
-  AlbumCardCaptionVariant variant,
-  ThemeData theme,
-) async {
+Future<void> _pump(WidgetTester tester, ThemeData theme) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -43,9 +38,6 @@ Future<void> _pump(
         subsonicApiProvider.overrideWithValue(null),
         coverArtShapeProvider.overrideWithValue('rounded'),
         gridArtworkSizeProvider.overrideWithValue(GridArtworkSize.auto),
-        albumCardCaptionVariantProvider.overrideWith(
-          () => _FixedVariant(variant),
-        ),
       ],
       child: MaterialApp(
         theme: theme,
@@ -68,67 +60,34 @@ Future<void> _pump(
   await tester.pump(const Duration(milliseconds: 250));
 }
 
-class _FixedVariant extends AlbumCardCaptionVariantNotifier {
-  new(this.variant);
-
-  final AlbumCardCaptionVariant variant;
-
-  @override
-  AlbumCardCaptionVariant build() => variant;
-}
-
 void main() {
   final themes = <String, ThemeData>{
     'light': buildLightTheme(defaultColorSchemeSeedColor),
     'dark': buildDarkTheme(defaultColorSchemeSeedColor),
   };
 
-  for (final variant in AlbumCardCaptionVariant.values) {
-    for (final entry in themes.entries) {
-      testWidgets('${variant.name} grid lays out in ${entry.key}', (
-        tester,
-      ) async {
-        await _pump(tester, variant, entry.value);
-        expect(tester.takeException(), isNull);
-
-        final firstTitle = find.textContaining('Album 0');
-        expect(firstTitle, findsOneWidget);
-        final titleRect = tester.getRect(firstTitle);
-        final coverRect = tester.getRect(
-          find.byKey(const ValueKey('albumCardTapTarget')).first,
-        );
-
-        switch (variant) {
-          case AlbumCardCaptionVariant.overlayFade:
-            expect(
-              find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
-              findsWidgets,
-            );
-            expect(titleRect.bottom, lessThanOrEqualTo(coverRect.bottom));
-          case AlbumCardCaptionVariant.below:
-            expect(titleRect.top, greaterThanOrEqualTo(coverRect.bottom));
-            expect(
-              find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
-              findsNothing,
-            );
-            final text = tester.widget<Text>(firstTitle);
-            expect(text.style!.color, entry.value.colorScheme.onSurface);
-          case AlbumCardCaptionVariant.coverTint:
-            // No field available: the overlayFade look.
-            expect(
-              find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
-              findsWidgets,
-            );
-            final text = tester.widget<Text>(firstTitle);
-            expect(text.style!.color, entry.value.colorScheme.onSurface);
-            expect(titleRect.bottom, lessThanOrEqualTo(coverRect.bottom));
-        }
-        expect(tester.takeException(), isNull);
-      });
-    }
-  }
-
   for (final entry in themes.entries) {
+    testWidgets('caption fallback stays over the cover in ${entry.key}', (
+      tester,
+    ) async {
+      await _pump(tester, entry.value);
+      expect(tester.takeException(), isNull);
+
+      final firstTitle = find.textContaining('Album 0');
+      expect(firstTitle, findsOneWidget);
+      final titleRect = tester.getRect(firstTitle);
+      final coverRect = tester.getRect(
+        find.byKey(const ValueKey('albumCardTapTarget')).first,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
+        findsWidgets,
+      );
+      final text = tester.widget<Text>(firstTitle);
+      expect(text.style!.color, entry.value.colorScheme.onSurface);
+      expect(titleRect.bottom, lessThanOrEqualTo(coverRect.bottom));
+    });
+
     testWidgets('coverTint paints the derived fill in ${entry.key}', (
       tester,
     ) async {
@@ -163,9 +122,6 @@ void main() {
           overrides: [
             subsonicApiProvider.overrideWithValue(null),
             coverArtShapeProvider.overrideWithValue('rounded'),
-            albumCardCaptionVariantProvider.overrideWith(
-              () => _FixedVariant(AlbumCardCaptionVariant.coverTint),
-            ),
             coverColourWorkerProvider.overrideWithValue(
               InlineCoverColourWorker(),
             ),
@@ -205,44 +161,4 @@ void main() {
       );
     });
   }
-
-  testWidgets('below caption fits at 200% text scale', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          subsonicApiProvider.overrideWithValue(null),
-          coverArtShapeProvider.overrideWithValue('rounded'),
-          gridArtworkSizeProvider.overrideWithValue(GridArtworkSize.auto),
-          albumCardCaptionVariantProvider.overrideWith(
-            () => _FixedVariant(AlbumCardCaptionVariant.below),
-          ),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
-          ),
-          home: Scaffold(
-            body: CustomScrollView(
-              slivers: [
-                ResponsiveContentSliverGrid(
-                  itemCount: _albums.length,
-                  itemBuilder: (context, index) =>
-                      AlbumCard(album: _albums[index]),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(tester.takeException(), isNull);
-  });
 }

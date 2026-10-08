@@ -8,7 +8,6 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
-import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
@@ -1556,15 +1555,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Expanded(
-                                  child: _yearAlbumCell(
-                                    context,
-                                    item.albums[0],
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: _buildYearAlbumCard(
+                                      context,
+                                      item.albums[0],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: item.albums.length > 1
-                                      ? _yearAlbumCell(context, item.albums[1])
+                                      ? AspectRatio(
+                                          aspectRatio: 1,
+                                          child: _buildYearAlbumCard(
+                                            context,
+                                            item.albums[1],
+                                          ),
+                                        )
                                       : const SizedBox.shrink(),
                                 ),
                               ],
@@ -1609,17 +1617,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ),
       ],
     );
-  }
-
-  /// One cell of the year list's album pair. Cards are square except under
-  /// the `below` caption variant, where the card is taller than its width and
-  /// sizes itself, so the square [AspectRatio] must not constrain it.
-  Widget _yearAlbumCell(BuildContext context, AlbumsTableData album) {
-    final card = _buildYearAlbumCard(context, album);
-    final below =
-        ref.watch(albumCardCaptionVariantProvider) ==
-        AlbumCardCaptionVariant.below;
-    return below ? card : AspectRatio(aspectRatio: 1, child: card);
   }
 
   Widget _buildYearAlbumCard(BuildContext context, AlbumsTableData album) {
@@ -1892,8 +1889,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         key: const ValueKey('liked-albums-shelf'),
                         showNextTooltip: false,
                         extent: albumExtent,
-                        height:
-                            albumExtent + albumCardExtraHeight(context, ref),
+                        height: albumExtent,
                         gap: gap,
                         itemCount: albumPreview.length,
                         itemBuilder: (context, index) {

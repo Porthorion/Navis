@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
-import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
@@ -12,11 +11,6 @@ import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-
-class _CoverTintVariant extends AlbumCardCaptionVariantNotifier {
-  @override
-  AlbumCardCaptionVariant build() => AlbumCardCaptionVariant.coverTint;
-}
 
 class _Counter {
   final List<String> requested = <String>[];
@@ -31,7 +25,6 @@ Widget _app(_Counter counter, Widget home) {
   return ProviderScope(
     overrides: [
       subsonicApiProvider.overrideWithValue(null),
-      albumCardCaptionVariantProvider.overrideWith(_CoverTintVariant.new),
       coverColourDecoderProvider.overrideWithValue(counter.call),
       coverColourStoreProvider.overrideWithValue(const NullCoverColourStore()),
       coverColourWorkerProvider.overrideWithValue(InlineCoverColourWorker()),

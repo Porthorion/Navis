@@ -53,7 +53,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('album title surface fade follows the selected theme', (
+  testWidgets('album caption fallback follows the selected theme', (
     tester,
   ) async {
     final themes = <ThemeData>[
@@ -89,8 +89,8 @@ void main() {
       final decoration = fade.decoration as BoxDecoration;
       final gradient = decoration.gradient! as LinearGradient;
 
-      // The text sits on the page-background fade, so it uses the scheme's
-      // text roles in every theme.
+      // Without a cover id, the fallback uses the page background and
+      // scheme text roles in every theme.
       expect(title.style!.color, theme.colorScheme.onSurface);
       expect(artist.style!.color, theme.colorScheme.onSurfaceVariant);
       expect(gradient.colors.last, theme.scaffoldBackgroundColor);

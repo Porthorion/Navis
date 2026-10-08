@@ -770,8 +770,15 @@ header adds the same reason line and a compact Play/Shuffle pair.
   switches instantly.
 
 **Cover colour sampling (`cover_colour_sampler.dart`).** Shared by this wash
-and the `coverTint` album-card caption (a temporary design experiment, see
-`AlbumCardCaptionVariant`). It is built so that scrolling never pays for it:
+and the cover-tinted album-card caption, the shared design for all album
+cards. Titles and subtitles sit over a fade into a colour sampled from the
+cover's bottom edge, with fill and text adjusted for 4.5:1 contrast. Until the
+tint is known, and for cards without a cover-art id (including external album
+cards), the caption falls back to the page-background fade and scheme text
+colours. Cards remain square in grids and rails. Each caption has its own
+`RepaintBoundary`; a lone tint on an idle list fades in, while bursts and
+arrivals during scrolling apply instantly. Sampling is built so that scrolling
+never pays for it:
 - *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
   `AlbumCardLabel` as `coverReady`, so a card samples only after the same
   visibility and load-window logic that loads its artwork has shown the

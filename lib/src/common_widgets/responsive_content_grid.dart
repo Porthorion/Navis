@@ -1,6 +1,5 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
@@ -64,10 +63,7 @@ class ResponsiveContentSliverGrid extends ConsumerWidget {
               crossAxisCount: grid.columns,
               mainAxisExtent: artists
                   ? artistTileHeight(context, grid.extent)
-                  // The `below` caption variant puts the album caption under
-                  // the square cover, so the album cell grows by its height.
-                  : grid.extent +
-                        albumCardExtraHeight(context, ref, titleMaxLines: 2),
+                  : grid.extent,
               crossAxisSpacing: grid.gap,
               mainAxisSpacing: grid.gap,
             ),

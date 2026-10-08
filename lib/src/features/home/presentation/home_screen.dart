@@ -2223,7 +2223,6 @@ class _LocalAlbumCarousel extends ConsumerWidget {
           0.0,
           double.infinity,
         );
-        final captionExtra = albumCardExtraHeight(context, ref);
         final visibleAlbums = heroContext == 'home_recently_liked'
             ? albums
                   .take(ContentLayout.shelfLimit(usableWidth, cardSize))
@@ -2232,7 +2231,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ContentShelf(
-            height: cardSize + captionExtra,
+            height: cardSize,
             extent: cardSize,
             gap: ContentLayout.gap(usableWidth),
             itemCount: visibleAlbums.length,

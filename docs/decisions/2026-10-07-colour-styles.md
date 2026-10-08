@@ -57,3 +57,12 @@ indicator, and a yellow cover produced an olive Home wash.
   backgrounds.
 - New widgets should read colours from `ColorScheme` roles or `NavisTokens`.
   Hardcoded colours on theme surfaces will not follow the style.
+
+### Album card captions
+
+The cover-tinted fade was chosen over caption-below, a solid band and a dark
+scrim as the album-card caption for everyone. The temporary variant selector
+and caption-below height plumbing are removed; the plain fade remains the
+fallback until a cover's tint is known or when no cover-art id is available.
+Measured on a phone emulator with 40 jump-scrolls: 0 frames over 33 ms, and
+the same over-16 ms profile as the plain fade, cold and warm.
