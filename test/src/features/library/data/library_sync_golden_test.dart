@@ -224,6 +224,8 @@ void main() {
     // One more sync settles what the rebuild left provisional.
     final fourth = await engine.forceFullSync();
     final afterFourth = await _snapshot(database, files);
+    // Settling is idempotent, so it is asserted equal rather than stored.
+    expect(afterFourth, afterThird);
 
     final actual = const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'runs': <String>[
@@ -232,7 +234,6 @@ void main() {
       ],
       'afterRebuildSync': afterSecond,
       'afterFollowingSync': afterThird,
-      'afterSettlingSync': afterFourth,
     });
     final golden = File(goldenPath);
     if (Platform.environment['NAVIS_UPDATE_SYNC_GOLDENS'] == '1') {
