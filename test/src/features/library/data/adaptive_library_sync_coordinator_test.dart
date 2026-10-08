@@ -30,8 +30,8 @@ class _MemoryCredentialStore implements SecureCredentialStore {
   Future<void> savePassword(String value) async => password = value;
 }
 
-class _ProbeLibrarySyncEngine
-    implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
+class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
+  int cancelCalls = 0;
   int probeCalls = 0;
   int forceFullSyncCalls = 0;
   int syncIfStaleCalls = 0;
@@ -51,92 +51,44 @@ class _ProbeLibrarySyncEngine
       );
 
   @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
+  void cancelSync() {
+    cancelCalls++;
+  }
 
   @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    forceFullSyncCalls++;
+    switch (plan.kind) {
+      case SyncExecutionPlanKind.automaticProbe:
+        probeCalls++;
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          metadataReady: true,
+          completedAt: DateTime.utc(2026, 8, 4),
+          probeIndexChanged: probeIndexChanged,
+          probeIndexesUnsupported: probeIndexesUnsupported,
+          updatesAvailable: probeIndexChanged || probeIndexesUnsupported,
+          apiRequests: 1,
+        );
+      case SyncExecutionPlanKind.catalogSnapshot:
+      case SyncExecutionPlanKind.repairLibrary:
+        forceFullSyncCalls++;
+      case SyncExecutionPlanKind.manualCatalogDiscovery:
+        syncNowCalls++;
+      case SyncExecutionPlanKind.targetHydration:
+        if (plan.request.target.kind == LibrarySyncTargetKind.album) {
+          hydrateAlbumCalls++;
+        }
+      case SyncExecutionPlanKind.compatibilityAudit:
+      case SyncExecutionPlanKind.auxiliaryRefresh:
+        break;
+    }
     return _idle();
   }
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    syncIfStaleCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    syncNowCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    probeCalls++;
-    return LibrarySyncState(
-      status: LibrarySyncStatus.succeeded,
-      stage: LibrarySyncStage.completed,
-      metadataReady: true,
-      completedAt: DateTime.utc(2026, 8, 4),
-      probeIndexChanged: probeIndexChanged,
-      probeIndexesUnsupported: probeIndexesUnsupported,
-      updatesAvailable: probeIndexChanged || probeIndexesUnsupported,
-      apiRequests: 1,
-    );
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateAlbum(
-    String albumId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    hydrateAlbumCalls++;
-    return _idle();
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateArtist(
-    String artistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> hydratePlaylist(
-    String playlistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> syncPlaylistHeaders({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
-  Future<LibrarySyncState> syncStarredContent({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
 }
 
 class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
@@ -144,7 +96,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
   final release = Completer<void>();
 
   @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -152,7 +105,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
       entered.complete();
       await release.future;
     }
-    return await super.forceFullSync(
+    return await super.executeSyncPlan(
+      plan,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );
@@ -161,7 +115,8 @@ class _BlockingCatalogEngine extends _ProbeLibrarySyncEngine {
 
 class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
   @override
-  Future<LibrarySyncState> forceFullSync({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -178,8 +133,8 @@ class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
   }
 }
 
-class _CompletedCatalogWithPendingAlbumEngine
-    implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
+class _CompletedCatalogWithPendingAlbumEngine implements SyncPlanExecutor {
+  final List<SyncExecutionPlan> plans = <SyncExecutionPlan>[];
   final List<String> targetedCalls = <String>[];
   int syncIfStaleCalls = 0;
 
@@ -199,80 +154,25 @@ class _CompletedCatalogWithPendingAlbumEngine
   );
 
   @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
+  void cancelSync() {}
 
   @override
-  Future<LibrarySyncState> continueVerification({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> forceFullSync({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> syncIfStale({
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    syncIfStaleCalls++;
+    plans.add(plan);
+    final target = plan.request.target;
+    if (plan.kind == SyncExecutionPlanKind.targetHydration) {
+      targetedCalls.add('${target.kind.name}:${target.entityId}');
+      return _targetResult();
+    }
+    if (plan.kind == SyncExecutionPlanKind.auxiliaryRefresh) {
+      return _targetResult();
+    }
     return _result();
   }
-
-  @override
-  Future<LibrarySyncState> syncNow({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
-
-  @override
-  Future<LibrarySyncState> hydrateAlbum(
-    String albumId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('album:$albumId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> hydrateArtist(
-    String artistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('artist:$artistId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> hydratePlaylist(
-    String playlistId, {
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    targetedCalls.add('playlist:$playlistId');
-    return _targetResult();
-  }
-
-  @override
-  Future<LibrarySyncState> syncPlaylistHeaders({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _targetResult();
-
-  @override
-  Future<LibrarySyncState> syncStarredContent({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _targetResult();
-
-  @override
-  Future<LibrarySyncState> probeCatalog({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
 }
 
 void main() {
@@ -352,6 +252,37 @@ void main() {
       history.where((run) => run.requestId == queuedRow!.id),
       hasLength(1),
     );
+  }, skip: !sqliteAvailable);
+
+  test('missing session fails without executing a plan', () async {
+    await repository.signOutKeepData();
+    final progress = <LibrarySyncState>[];
+    final result = await coordinator.requestSync(
+      const LibrarySyncRequest.checkForUpdates(),
+      onProgress: progress.add,
+    );
+    expect(result.status, LibrarySyncStatus.failed);
+    expect(result.errorMessage, 'No authenticated server session.');
+    expect(progress, [result]);
+    expect(executor.plans, isEmpty);
+    expect(
+      await database.select(database.librarySyncRunRequestTable).get(),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
+
+  test('cancellation reaches the plan executor', () async {
+    final delegate = _ProbeLibrarySyncEngine();
+    final sync = AdaptiveLibrarySyncCoordinator(
+      executor: delegate,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+    );
+    await sync.cancelAndWait();
+    expect(delegate.cancelCalls, 1);
   }, skip: !sqliteAvailable);
 
   test(

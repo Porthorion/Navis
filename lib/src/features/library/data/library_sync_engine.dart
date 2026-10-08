@@ -146,103 +146,15 @@ abstract class LibrarySyncEngine {
   });
 }
 
-abstract interface class TargetedLibrarySyncExecutor {
-  Future<LibrarySyncState> hydrateAlbum(
-    String albumId, {
-    LibrarySyncProgressCallback? onProgress,
-  });
-
-  Future<LibrarySyncState> hydrateArtist(
-    String artistId, {
-    LibrarySyncProgressCallback? onProgress,
-  });
-
-  Future<LibrarySyncState> hydratePlaylist(
-    String playlistId, {
-    LibrarySyncProgressCallback? onProgress,
-  });
-
-  Future<LibrarySyncState> syncPlaylistHeaders({
-    LibrarySyncProgressCallback? onProgress,
-  });
-
-  Future<LibrarySyncState> syncStarredContent({
-    LibrarySyncProgressCallback? onProgress,
-  });
-}
-
-/// Compatibility boundary for the typed scheduler. Implementations receive
-/// the plan selected at admission time; the legacy methods remain temporary
-/// adapters until the underlying executor is fully migrated.
-extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
+/// Executes the immutable plan admitted by the sync coordinator.
+abstract interface class SyncPlanExecutor {
   Future<LibrarySyncState> executeSyncPlan(
     SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
-  }) {
-    if (this case final DriftLibrarySyncEngine engine) {
-      return engine.executeSyncExecutionPlan(
-        plan,
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: onProgress,
-      );
-    }
-    final targetExecutor = switch (this) {
-      final TargetedLibrarySyncExecutor executor => executor,
-      _ => null,
-    };
-    final target = plan.request.target;
-    return switch (plan.kind) {
-      SyncExecutionPlanKind.automaticProbe => probeCatalog(
-        onProgress: onProgress,
-      ),
-      SyncExecutionPlanKind.manualCatalogDiscovery => syncNow(
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: onProgress,
-      ),
-      SyncExecutionPlanKind.repairLibrary ||
-      SyncExecutionPlanKind.catalogSnapshot => forceFullSync(
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: onProgress,
-      ),
-      SyncExecutionPlanKind.compatibilityAudit => switch (this) {
-        final DriftLibrarySyncEngine engine => engine.runCompatibilityAudit(
-          priorityAlbumIds: priorityAlbumIds,
-          onProgress: onProgress,
-        ),
-        _ => continueVerification(
-          priorityAlbumIds: priorityAlbumIds,
-          onProgress: onProgress,
-        ),
-      },
-      SyncExecutionPlanKind.targetHydration ||
-      SyncExecutionPlanKind.auxiliaryRefresh => switch (target.kind) {
-        LibrarySyncTargetKind.album
-            when target.entityId != null && targetExecutor != null =>
-          targetExecutor.hydrateAlbum(target.entityId!, onProgress: onProgress),
-        LibrarySyncTargetKind.artist
-            when target.entityId != null && targetExecutor != null =>
-          targetExecutor.hydrateArtist(
-            target.entityId!,
-            onProgress: onProgress,
-          ),
-        LibrarySyncTargetKind.playlist
-            when target.entityId != null && targetExecutor != null =>
-          targetExecutor.hydratePlaylist(
-            target.entityId!,
-            onProgress: onProgress,
-          ),
-        LibrarySyncTargetKind.playlistHeaders when targetExecutor != null =>
-          targetExecutor.syncPlaylistHeaders(onProgress: onProgress),
-        LibrarySyncTargetKind.starred when targetExecutor != null =>
-          targetExecutor.syncStarredContent(onProgress: onProgress),
-        _ => continueVerification(
-          priorityAlbumIds: priorityAlbumIds,
-          onProgress: onProgress,
-        ),
-      },
-    };
-  }
+  });
+
+  void cancelSync();
 }
 
 abstract class LibrarySyncApi {
@@ -674,7 +586,7 @@ class _NewestAlbumHealthProbe {
 }
 
 class DriftLibrarySyncEngine extends LibrarySyncEngine
-    implements TargetedLibrarySyncExecutor {
+    implements SyncPlanExecutor {
   new({
     required this._api,
     required this._database,
@@ -735,6 +647,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   SyncExecutionPlan? _activeExecutionPlan;
 
   /// Cancel any in-progress sync. Durable orchestration retains the work.
+  @override
   void cancelSync() {
     _cancelled = true;
     _api.cancelActiveRequests();
@@ -820,7 +733,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     });
   }
 
-  @override
   Future<LibrarySyncState> hydrateAlbum(
     String albumId, {
     LibrarySyncProgressCallback? onProgress,
@@ -1047,7 +959,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  @override
   Future<LibrarySyncState> hydrateArtist(
     String artistId, {
     LibrarySyncProgressCallback? onProgress,
@@ -1170,7 +1081,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  @override
   Future<LibrarySyncState> hydratePlaylist(
     String playlistId, {
     LibrarySyncProgressCallback? onProgress,
@@ -1258,7 +1168,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  @override
   Future<LibrarySyncState> syncStarredContent({
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -1269,7 +1178,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  @override
   Future<LibrarySyncState> syncPlaylistHeaders({
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -1491,10 +1399,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  /// Typed scheduler entrypoint. Policy-sensitive broad execution receives the
-  /// immutable plan selected at admission time; the public methods above are
-  /// retained only as compatibility adapters for older callers.
-  Future<LibrarySyncState> executeSyncExecutionPlan(
+  /// Executes the plan selected at admission time.
+  @override
+  Future<LibrarySyncState> executeSyncPlan(
     SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,

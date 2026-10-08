@@ -1366,7 +1366,7 @@ void main() {
         );
       }
 
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
       final albums = await database.libraryDao
@@ -4197,7 +4197,7 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.executeSyncExecutionPlan(
+        final state = await meteredEngine.executeSyncPlan(
           _meteredManualDiscoveryPlan,
         );
 
@@ -4276,7 +4276,7 @@ void main() {
         );
       }
 
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
 
@@ -4329,11 +4329,11 @@ void main() {
       }
 
       // First pass: everything is unknown, so debt is recorded.
-      await meteredEngine.executeSyncExecutionPlan(_meteredManualDiscoveryPlan);
+      await meteredEngine.executeSyncPlan(_meteredManualDiscoveryPlan);
       // Second pass: the same window is now known and unchanged, so the
       // probe reaches known content and clears the debt.
       api.calls.clear();
-      final state = await meteredEngine.executeSyncExecutionPlan(
+      final state = await meteredEngine.executeSyncPlan(
         _meteredManualDiscoveryPlan,
       );
 
@@ -4397,7 +4397,7 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.executeSyncExecutionPlan(
+        final state = await meteredEngine.executeSyncPlan(
           _meteredManualDiscoveryPlan,
         );
 

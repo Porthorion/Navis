@@ -64,7 +64,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     };
   }
 
-  final LibrarySyncEngine _executor;
+  final SyncPlanExecutor _executor;
   DriftLibrarySyncEngine? get driftExecutor => switch (_executor) {
     final DriftLibrarySyncEngine drift => drift,
     _ => null,
@@ -274,11 +274,15 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final config = await _serverConfigRepository.getActiveServer();
     final serverId = config?.id;
     if (config == null || serverId == null) {
-      return await _executor.requestSync(
-        requestInput,
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: onProgress,
+      final failed = LibrarySyncState(
+        status: LibrarySyncStatus.failed,
+        stage: LibrarySyncStage.completed,
+        startedAt: _now(),
+        completedAt: _now(),
+        errorMessage: 'No authenticated server session.',
       );
+      onProgress?.call(failed);
+      return failed;
     }
 
     var capabilitiesJson = config.capabilitiesJson;
@@ -850,7 +854,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               request,
               planKind: plan.kind,
             ),
-            onStop: driftExecutor?.cancelSync,
+            onStop: _executor.cancelSync,
           );
           final recorder = SyncAttemptRecorder(
             requestId: durableRunId,
@@ -1884,10 +1888,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
   void cancelSync() {
     _cancellationGeneration++;
-    final executor = _executor;
-    if (executor is DriftLibrarySyncEngine) {
-      executor.cancelSync();
-    }
+    _executor.cancelSync();
   }
 
   Future<void> cancelAndWait() async {

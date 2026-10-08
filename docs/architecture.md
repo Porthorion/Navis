@@ -3046,10 +3046,9 @@ states without starting audio or modifying a queue.
    run, including its endpoint allowlist and data/concurrency budget.
 2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the typed
    request/attempt/outcome lifecycle and the chosen plan, mirrors durable work,
-   and restores interrupted attempts. It still uses a compatibility executor
-   adapter internally; execution receives the selected
-   immutable plan rather than reconstructing the operation from display text
-   or checkpoints. Recovery and execution share lease acquisition, write
+   and restores interrupted attempts. Its `SyncPlanExecutor` receives the
+   selected immutable plan directly through `executeSyncPlan`, rather than
+   reconstructing the operation from display text or checkpoints. Recovery and execution share lease acquisition, write
    fencing, and release; execution alone adds the periodic heartbeat. Endpoint
    aliases live on `SyncEndpoint`, and plan-kind records resolve run budgets.
    Planning derives conditional-index support directly from the active server
