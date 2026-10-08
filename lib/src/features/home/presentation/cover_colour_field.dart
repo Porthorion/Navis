@@ -40,6 +40,26 @@ class CoverColourField {
 
   final List<Color> colors;
 
+  /// Average of the bottom row of the grid: the colour under a caption drawn
+  /// along the cover's lower edge.
+  Color get bottomRowAverage {
+    var r = 0.0;
+    var g = 0.0;
+    var b = 0.0;
+    for (var column = 0; column < kCoverColourGrid; column++) {
+      final color = colors[(kCoverColourGrid - 1) * kCoverColourGrid + column];
+      r += color.r;
+      g += color.g;
+      b += color.b;
+    }
+    return Color.from(
+      alpha: 1,
+      red: r / kCoverColourGrid,
+      green: g / kCoverColourGrid,
+      blue: b / kCoverColourGrid,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       other is CoverColourField && _listEquals(other.colors, colors);
@@ -95,10 +115,14 @@ List<Color> averageColourGrid(
   ];
 }
 
+/// Fields kept in memory. Each is nine colours, so a few hundred cost
+/// kilobytes; the size covers a long grid plus its rails.
+const int kCoverColourFieldCacheCapacity = 512;
+
 /// Small least-recently-used cache so revisiting a cover reuses its field.
 @visibleForTesting
 class CoverColourFieldCache {
-  new({this.capacity = 64});
+  new({this.capacity = kCoverColourFieldCacheCapacity});
 
   final int capacity;
   final LinkedHashMap<String, CoverColourField> _entries =
@@ -123,6 +147,11 @@ class CoverColourFieldCache {
 }
 
 final CoverColourFieldCache _fieldCache = CoverColourFieldCache();
+
+/// The cached field for [coverId], if it was already sampled. Lets a card
+/// paint its final colours on first build instead of flashing the fallback.
+CoverColourField? peekCoverColourField(String coverId) =>
+    _fieldCache.get(coverId);
 
 /// Colour field for a cover, sampled from the already-cached 600 px artwork.
 ///

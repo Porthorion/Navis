@@ -15,11 +15,10 @@ enum AlbumCardCaptionVariant {
   /// The caption sits below the square cover on the page background.
   below,
 
-  /// A short fade into a fully opaque page-background band holding the text.
-  band,
-
-  /// A black gradient with white text in every theme.
-  darkScrim,
+  /// The fade ends in a colour sampled from the cover's bottom edge, nudged
+  /// until the caption reads at 4.5:1; falls back to [overlayFade] until the
+  /// cover's colours are known.
+  coverTint,
 }
 
 /// Notifier behind [albumCardCaptionVariantProvider].

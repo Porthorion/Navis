@@ -11,7 +11,10 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Size presets for [AlbumCard].
@@ -117,6 +120,7 @@ class AlbumCard extends ConsumerWidget {
                       title: album.name,
                       subtitle: album.artistName ?? '',
                       titleMaxLines: titleMaxLines,
+                      coverArtId: album.coverArt,
                     ),
                     if (onTap != null && isDesktopRuntime)
                       Positioned.fill(
@@ -135,24 +139,16 @@ class AlbumCard extends ConsumerWidget {
 
 const double _captionTopGap = 6;
 const double _captionLineGap = 2;
-const double _bandFadeHeight = 16;
+const double _captionFadeHeight = 24;
+const double _tintFadeMidAlpha = 0.85;
 
-TextStyle _titleStyle(Color color, List<Shadow>? shadows) => TextStyle(
-  color: color,
-  fontSize: 13,
-  fontWeight: FontWeight.w600,
-  shadows: shadows,
-);
+TextStyle _titleStyle(Color color) =>
+    TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600);
 
-TextStyle? _subtitleStyle(
-  ThemeData theme,
-  Color color,
-  List<Shadow>? shadows,
-) => theme.textTheme.labelSmall?.copyWith(
-  color: color,
-  fontWeight: FontWeight.w400,
-  shadows: shadows,
-);
+TextStyle? _subtitleStyle(ThemeData theme, Color color) => theme
+    .textTheme
+    .labelSmall
+    ?.copyWith(color: color, fontWeight: FontWeight.w400);
 
 /// The height the `below` caption needs under a cover: top gap, up to
 /// [titleMaxLines] title lines and one subtitle line, at the ambient text
@@ -174,14 +170,8 @@ double albumCardCaptionHeight(BuildContext context, int titleMaxLines) {
     return height;
   }
 
-  final title = measure(
-    base.merge(_titleStyle(Colors.black, null)),
-    titleMaxLines,
-  );
-  final subtitle = measure(
-    base.merge(_subtitleStyle(theme, Colors.black, null)),
-    1,
-  );
+  final title = measure(base.merge(_titleStyle(Colors.black)), titleMaxLines);
+  final subtitle = measure(base.merge(_subtitleStyle(theme, Colors.black)), 1);
   // A little slack for rounding so the caption never overflows its box.
   return (_captionTopGap + title + _captionLineGap + subtitle + 1)
       .ceilToDouble();
@@ -270,7 +260,6 @@ class _CaptionTexts extends StatelessWidget {
     required this.titleMaxLines,
     required this.titleColor,
     required this.subtitleColor,
-    this.shadows,
   });
 
   final String title;
@@ -278,7 +267,6 @@ class _CaptionTexts extends StatelessWidget {
   final int titleMaxLines;
   final Color titleColor;
   final Color subtitleColor;
-  final List<Shadow>? shadows;
 
   @override
   Widget build(BuildContext context) {
@@ -291,14 +279,14 @@ class _CaptionTexts extends StatelessWidget {
           title,
           maxLines: titleMaxLines,
           overflow: TextOverflow.ellipsis,
-          style: _titleStyle(titleColor, shadows),
+          style: _titleStyle(titleColor),
         ),
         const SizedBox(height: _captionLineGap),
         Text(
           subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: _subtitleStyle(theme, subtitleColor, shadows),
+          style: _subtitleStyle(theme, subtitleColor),
         ),
       ],
     );
@@ -306,7 +294,7 @@ class _CaptionTexts extends StatelessWidget {
 }
 
 /// The title and subtitle at the bottom of an album card, drawn over the
-/// cover for the `overlayFade`, `band` and `darkScrim` caption variants (see
+/// cover for the `overlayFade` and `coverTint` caption variants (see
 /// [AlbumCardCaptionVariant]); it draws nothing for `below`, where
 /// [AlbumCardCaptionLayout] places the caption under the cover. Shared by
 /// [AlbumCard] and `ExternalAlbumCard`; place it directly in the card's
@@ -316,6 +304,7 @@ class AlbumCardLabel extends ConsumerWidget {
     required this.title,
     required this.subtitle,
     this.titleMaxLines = 1,
+    this.coverArtId,
     super.key,
   });
 
@@ -323,6 +312,10 @@ class AlbumCardLabel extends ConsumerWidget {
   final String subtitle;
 
   final int titleMaxLines;
+
+  /// Cover whose colours tint the `coverTint` caption; null falls back to the
+  /// `overlayFade` look.
+  final String? coverArtId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -340,106 +333,182 @@ class AlbumCardLabel extends ConsumerWidget {
           left: 0,
           right: 0,
           bottom: 0,
-          child: DecoratedBox(
-            key: const ValueKey<String>('albumCardTitleSurfaceFade'),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[surface.withValues(alpha: 0), surface],
-              ),
+          child: _OverlayFadeLabel(
+            tint: CaptionTint(
+              fill: surface,
+              text: colorScheme.onSurface,
+              subtext: colorScheme.onSurfaceVariant,
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-              child: _CaptionTexts(
-                title: title,
-                subtitle: subtitle,
-                titleMaxLines: titleMaxLines,
-                titleColor: colorScheme.onSurface,
-                subtitleColor: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            title: title,
+            subtitle: subtitle,
+            titleMaxLines: titleMaxLines,
           ),
         );
-      case AlbumCardCaptionVariant.band:
+      case AlbumCardCaptionVariant.coverTint:
         return Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: Column(
+          child: _CoverTintLabel(
+            coverArtId: coverArtId,
+            title: title,
+            subtitle: subtitle,
+            titleMaxLines: titleMaxLines,
+          ),
+        );
+    }
+  }
+}
+
+/// The `coverTint` caption: a fade into a colour sampled from the cover's
+/// bottom edge, with text chosen and the fill nudged for 4.5:1 contrast (see
+/// [captionTintFor]). Until the colours are known, or for a cover without
+/// art, it shows the `overlayFade` look.
+class _CoverTintLabel extends ConsumerWidget {
+  const new({
+    required this.coverArtId,
+    required this.title,
+    required this.subtitle,
+    required this.titleMaxLines,
+  });
+
+  final String? coverArtId;
+  final String title;
+  final String subtitle;
+  final int titleMaxLines;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final id = coverArtId;
+    // Only a built card samples; the cache hit avoids a fallback flash.
+    final field = id == null || id.isEmpty
+        ? null
+        : ref.watch(coverColourFieldProvider(id)).value ??
+              peekCoverColourField(id);
+    final fallback = CaptionTint(
+      fill: theme.scaffoldBackgroundColor,
+      text: colorScheme.onSurface,
+      subtext: colorScheme.onSurfaceVariant,
+    );
+    if (field == null) {
+      return _OverlayFadeLabel(
+        tint: fallback,
+        title: title,
+        subtitle: subtitle,
+        titleMaxLines: titleMaxLines,
+      );
+    }
+    final target = captionTintFor(
+      field.bottomRowAverage,
+      NavisColorStyleData.of(context),
+    );
+    return TweenAnimationBuilder<CaptionTint>(
+      key: const ValueKey<String>('albumCardCoverTint'),
+      tween: _CaptionTintTween(begin: fallback, end: target),
+      duration: MotionPolicy.of(context).tint,
+      builder: (context, tint, _) => _OverlayFadeLabel(
+        tint: tint,
+        stagedFade: true,
+        title: title,
+        subtitle: subtitle,
+        titleMaxLines: titleMaxLines,
+      ),
+    );
+  }
+}
+
+class _CaptionTintTween extends Tween<CaptionTint> {
+  new({required super.begin, required super.end});
+
+  @override
+  CaptionTint lerp(double t) => CaptionTint.lerp(begin!, end!, t);
+}
+
+/// A caption fading from transparent into [CaptionTint.fill]. With
+/// [stagedFade] the fade reaches 85% opacity where the text starts and is
+/// solid behind it; otherwise it is the plain `overlayFade` gradient.
+class _OverlayFadeLabel extends StatelessWidget {
+  const new({
+    required this.tint,
+    required this.title,
+    required this.subtitle,
+    required this.titleMaxLines,
+    this.stagedFade = false,
+  });
+
+  final CaptionTint tint;
+  final bool stagedFade;
+  final String title;
+  final String subtitle;
+  final int titleMaxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = tint.fill;
+    final texts = _CaptionTexts(
+      title: title,
+      subtitle: subtitle,
+      titleMaxLines: titleMaxLines,
+      titleColor: tint.text,
+      subtitleColor: tint.subtext,
+    );
+    LinearGradient gradient(Color from, Color to) => LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[from, to],
+    );
+    return stagedFade
+        ? Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               DecoratedBox(
-                key: const ValueKey<String>('albumCardBandFade'),
+                key: const ValueKey<String>('albumCardTintFade'),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[surface.withValues(alpha: 0), surface],
+                  gradient: gradient(
+                    fill.withValues(alpha: 0),
+                    fill.withValues(alpha: _tintFadeMidAlpha),
                   ),
                 ),
                 child: const SizedBox(
-                  height: _bandFadeHeight,
+                  height: _captionFadeHeight,
                   width: double.infinity,
                 ),
               ),
-              ColoredBox(
-                key: const ValueKey<String>('albumCardBand'),
-                color: surface,
+              DecoratedBox(
+                key: const ValueKey<String>('albumCardTintText'),
+                decoration: BoxDecoration(
+                  gradient: gradient(
+                    fill.withValues(alpha: _tintFadeMidAlpha),
+                    fill,
+                  ),
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                    child: _CaptionTexts(
-                      title: title,
-                      subtitle: subtitle,
-                      titleMaxLines: titleMaxLines,
-                      titleColor: colorScheme.onSurface,
-                      subtitleColor: colorScheme.onSurfaceVariant,
-                    ),
+                    child: texts,
                   ),
                 ),
               ),
             ],
-          ),
-        );
-      case AlbumCardCaptionVariant.darkScrim:
-        return Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: DecoratedBox(
-            key: const ValueKey<String>('albumCardDarkScrim'),
+          )
+        : DecoratedBox(
+            key: const ValueKey<String>('albumCardTitleSurfaceFade'),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Colors.black.withValues(alpha: 0),
-                  Colors.black.withValues(alpha: 0.75),
-                ],
-              ),
+              gradient: gradient(fill.withValues(alpha: 0), fill),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-              child: _CaptionTexts(
-                title: title,
-                subtitle: subtitle,
-                titleMaxLines: titleMaxLines,
-                titleColor: Colors.white,
-                subtitleColor: Colors.white.withValues(alpha: 0.82),
-                shadows: <Shadow>[
-                  Shadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(
+                10,
+                _captionFadeHeight,
+                10,
+                10,
               ),
+              child: texts,
             ),
-          ),
-        );
-    }
+          );
   }
 }
 

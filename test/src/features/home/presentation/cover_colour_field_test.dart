@@ -123,4 +123,12 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  test('bottomRowAverage averages the three bottom cells', () {
+    final field = CoverColourField(cells);
+    // Cells 6..8: yellow, cyan, magenta.
+    expect(field.bottomRowAverage.r, closeTo((1 + 0 + 1) / 3, 0.01));
+    expect(field.bottomRowAverage.g, closeTo((1 + 1 + 0) / 3, 0.01));
+    expect(field.bottomRowAverage.b, closeTo((0 + 1 + 1) / 3, 0.01));
+  });
 }
