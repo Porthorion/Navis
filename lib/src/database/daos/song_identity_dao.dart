@@ -373,6 +373,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           'UPDATE ${reference.actualTableName} SET $column = ? WHERE $column = ?',
           variables: [Variable<String>(canonicalId), Variable<String>(oldId)],
           updates: {reference},
+          updateKind: UpdateKind.update,
         );
       }
       if (kind == _IdentityKind.song) {
@@ -390,6 +391,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
             'UPDATE OR IGNORE ${reference.actualTableName} SET song_id = ? WHERE song_id = ?',
             variables: [Variable<String>(canonicalId), Variable<String>(oldId)],
             updates: {reference},
+            updateKind: UpdateKind.update,
           );
           await customUpdate(
             'DELETE FROM ${reference.actualTableName} WHERE song_id = ?',
@@ -406,6 +408,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           Variable<String>(oldId),
         ],
         updates: {starSyncQueueTable},
+        updateKind: UpdateKind.update,
       );
       await customUpdate(
         'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
@@ -416,6 +419,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           Variable<String>(oldId),
         ],
         updates: {attachedDatabase.starredAbsenceCandidatesTable},
+        updateKind: UpdateKind.update,
       );
       await customUpdate(
         'DELETE FROM starred_absence_candidates WHERE entity_type = ? AND entity_id = ?',
@@ -430,6 +434,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           Variable<String>(oldId),
         ],
         updates: {attachedDatabase.librarySyncLocalMutationsTable},
+        updateKind: UpdateKind.update,
       );
 
       // An explicit canonical annotation wins; otherwise carry the old local value.
@@ -450,6 +455,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
             Variable<String>(canonicalId),
           ],
           updates: {table},
+          updateKind: UpdateKind.update,
         );
       }
       if (starred != null) {

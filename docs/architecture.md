@@ -3270,6 +3270,9 @@ states without starting audio or modifying a queue.
     genre data (see "Genres are not a Navis concept").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
+    Favorites, ratings, artwork revisions, and identity reference updates
+    announce update-only Drift writes, avoiding delete-cascade invalidation
+    of dependent tables.
     Playlist headers upsert without replacing parent rows, so an unchanged
     header refresh cannot cascade-delete cached membership. The authoritative
     header list prunes confirmed server deletions and queues new, count-changed,

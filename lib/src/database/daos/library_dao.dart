@@ -1866,6 +1866,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         'UPDATE ${table.actualTableName} SET $column = ? WHERE id = ?',
         variables: [value, Variable<String>(id)],
         updates: {table},
+        updateKind: UpdateKind.update,
       );
       await _recordLocalMutation(
         entityType: type,
@@ -2013,6 +2014,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           'WHERE starred IS NOT NULL AND id IN (${List.filled(clearIds.length, '?').join(',')})',
           variables: clearIds.map(Variable<String>.new).toList(),
           updates: {table},
+          updateKind: UpdateKind.update,
         );
       }
       for (final entry in starredMap.entries) {
@@ -2024,6 +2026,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             Variable<String>(entry.key),
           ],
           updates: {table},
+          updateKind: UpdateKind.update,
         );
       }
     });
@@ -3073,6 +3076,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             '(${List.filled(chunk.length, '?').join(',')});',
             variables: [for (final id in chunk) Variable.withString(id)],
             updates: {table},
+            updateKind: UpdateKind.update,
           );
         }
       }
