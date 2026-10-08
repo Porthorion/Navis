@@ -1454,11 +1454,12 @@ class _MissingAlbumsSection extends ConsumerWidget {
               // shelves share one card. Home's compact density is a Home
               // setting, so the artist page keeps the comfortable size.
               final extent = ContentLayout.shelfCardExtent(width);
+              final captionExtra = albumCardExtraHeight(context, ref);
               return Padding(
                 // The album grids' insets, bottom included.
                 padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
                 child: ContentShelf(
-                  height: extent,
+                  height: extent + captionExtra,
                   extent: extent,
                   gap: ContentLayout.gap(width - padding * 2),
                   itemCount: albums.length,

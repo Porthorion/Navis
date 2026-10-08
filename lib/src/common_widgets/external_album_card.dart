@@ -46,31 +46,30 @@ class ExternalAlbumCard extends ConsumerWidget {
       placeholderIcon: Icons.album_outlined,
     );
     final url = coverUrl;
-    return SizedBox(
+    return AlbumCardCaptionLayout(
       width: extent,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: borderRadius),
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                if (url == null)
-                  placeholder(context)
-                else
-                  ExternalArtworkImage(
-                    url: url,
-                    feature: feature,
-                    fit: BoxFit.cover,
-                    fallbackBuilder: placeholder,
-                  ),
-                AlbumCardLabel(title: title, subtitle: subtitle),
-              ],
-            ),
+      title: title,
+      subtitle: subtitle,
+      card: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: borderRadius),
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (url == null)
+                placeholder(context)
+              else
+                ExternalArtworkImage(
+                  url: url,
+                  feature: feature,
+                  fit: BoxFit.cover,
+                  fallbackBuilder: placeholder,
+                ),
+              AlbumCardLabel(title: title, subtitle: subtitle),
+            ],
           ),
         ),
       ),

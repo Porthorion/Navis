@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
 import 'package:navis/src/features/home/domain/new_releases.dart';
 import 'package:navis/src/features/integrations/presentation/deezer_release_labels.dart';
@@ -53,6 +54,7 @@ class HomeNewReleasesShelf extends ConsumerWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final extent = ContentLayout.shelfCardExtent(width, compact: compact);
+        final captionExtra = albumCardExtraHeight(context, ref);
         final usableWidth = (width - horizontalPadding * 2).clamp(
           0.0,
           double.infinity,
@@ -60,7 +62,7 @@ class HomeNewReleasesShelf extends ConsumerWidget {
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ContentShelf(
-            height: extent,
+            height: extent + captionExtra,
             extent: extent,
             gap: ContentLayout.gap(usableWidth),
             itemCount: releases.length,

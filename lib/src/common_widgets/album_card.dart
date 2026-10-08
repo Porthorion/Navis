@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -62,68 +63,69 @@ class AlbumCard extends ConsumerWidget {
     );
     final cardWidth = extent ?? size.extent;
 
-    return SizedBox(
+    final titleMaxLines = size == AlbumCardSize.library ? 2 : 1;
+    return AlbumCardCaptionLayout(
       width: cardWidth,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
-          child: InkWell(
-            key: const ValueKey('albumCardTapTarget'),
-            onTap: onTap,
-            onSecondaryTapDown: onSecondaryTapDown,
-            onLongPress: onLongPress == null
-                ? null
-                : () {
-                    unawaited(HapticFeedback.mediumImpact());
-                    onLongPress!();
-                  },
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                if (heroTag != null)
-                  HeroCoverArt(
-                    coverArtId: album.coverArt,
-                    revision: album.coverArtRevision ?? 0,
-                    heroTag: heroTag!,
-                    size: kCoverArtStandardSize,
-                    fit: BoxFit.cover,
-                    placeholderIcon: Icons.album_outlined,
-                    borderRadius: cardBorderRadius,
-                    isExternalSource: album.isExternal,
-                  )
-                else
-                  CoverArtImage(
-                    coverArtId: album.coverArt,
-                    revision: album.coverArtRevision ?? 0,
-                    size: kCoverArtStandardSize,
-                    fit: BoxFit.cover,
-                    placeholderIcon: Icons.album_outlined,
-                    isExternalSource: album.isExternal,
-                  ),
-                HeroRouteChrome(
-                  heroTag: heroTag,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      if (badge != null)
-                        Positioned(top: 8, right: 8, child: badge!),
-                      AlbumCardLabel(
-                        title: album.name,
-                        subtitle: album.artistName ?? '',
-                        titleMaxLines: size == AlbumCardSize.library ? 2 : 1,
-                      ),
-                      if (onTap != null && isDesktopRuntime)
-                        Positioned.fill(
-                          child: _AlbumCardHoverPlay(albumId: album.id),
-                        ),
-                    ],
-                  ),
+      title: album.name,
+      subtitle: album.artistName ?? '',
+      titleMaxLines: titleMaxLines,
+      card: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
+        child: InkWell(
+          key: const ValueKey('albumCardTapTarget'),
+          onTap: onTap,
+          onSecondaryTapDown: onSecondaryTapDown,
+          onLongPress: onLongPress == null
+              ? null
+              : () {
+                  unawaited(HapticFeedback.mediumImpact());
+                  onLongPress!();
+                },
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (heroTag != null)
+                HeroCoverArt(
+                  coverArtId: album.coverArt,
+                  revision: album.coverArtRevision ?? 0,
+                  heroTag: heroTag!,
+                  size: kCoverArtStandardSize,
+                  fit: BoxFit.cover,
+                  placeholderIcon: Icons.album_outlined,
+                  borderRadius: cardBorderRadius,
+                  isExternalSource: album.isExternal,
+                )
+              else
+                CoverArtImage(
+                  coverArtId: album.coverArt,
+                  revision: album.coverArtRevision ?? 0,
+                  size: kCoverArtStandardSize,
+                  fit: BoxFit.cover,
+                  placeholderIcon: Icons.album_outlined,
+                  isExternalSource: album.isExternal,
                 ),
-              ],
-            ),
+              HeroRouteChrome(
+                heroTag: heroTag,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: <Widget>[
+                    if (badge != null)
+                      Positioned(top: 8, right: 8, child: badge!),
+                    AlbumCardLabel(
+                      title: album.name,
+                      subtitle: album.artistName ?? '',
+                      titleMaxLines: titleMaxLines,
+                    ),
+                    if (onTap != null && isDesktopRuntime)
+                      Positioned.fill(
+                        child: _AlbumCardHoverPlay(albumId: album.id),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -131,11 +133,185 @@ class AlbumCard extends ConsumerWidget {
   }
 }
 
-/// The title and subtitle at the bottom of an album card, where the artwork
-/// fades into the app surface so the text uses the app's own foreground
-/// colours. Shared by [AlbumCard] and `ExternalAlbumCard`; place it directly
-/// in the card's [Stack].
-class AlbumCardLabel extends StatelessWidget {
+const double _captionTopGap = 6;
+const double _captionLineGap = 2;
+const double _bandFadeHeight = 16;
+
+TextStyle _titleStyle(Color color, List<Shadow>? shadows) => TextStyle(
+  color: color,
+  fontSize: 13,
+  fontWeight: FontWeight.w600,
+  shadows: shadows,
+);
+
+TextStyle? _subtitleStyle(
+  ThemeData theme,
+  Color color,
+  List<Shadow>? shadows,
+) => theme.textTheme.labelSmall?.copyWith(
+  color: color,
+  fontWeight: FontWeight.w400,
+  shadows: shadows,
+);
+
+/// The height the `below` caption needs under a cover: top gap, up to
+/// [titleMaxLines] title lines and one subtitle line, at the ambient text
+/// scale. Grids and rails add it to their cover extent while the `below`
+/// variant is active (see [albumCardExtraHeight]).
+double albumCardCaptionHeight(BuildContext context, int titleMaxLines) {
+  final theme = Theme.of(context);
+  final base = DefaultTextStyle.of(context).style;
+  final scaler = MediaQuery.textScalerOf(context);
+  final direction = Directionality.of(context);
+  double measure(TextStyle style, int lines) {
+    final painter = TextPainter(
+      text: TextSpan(text: List.filled(lines, 'Ag').join('\n'), style: style),
+      textDirection: direction,
+      textScaler: scaler,
+    )..layout();
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  final title = measure(
+    base.merge(_titleStyle(Colors.black, null)),
+    titleMaxLines,
+  );
+  final subtitle = measure(
+    base.merge(_subtitleStyle(theme, Colors.black, null)),
+    1,
+  );
+  // A little slack for rounding so the caption never overflows its box.
+  return (_captionTopGap + title + _captionLineGap + subtitle + 1)
+      .ceilToDouble();
+}
+
+/// Extra card height a grid or rail must reserve under the cover for the
+/// active caption variant: zero except for `below`.
+double albumCardExtraHeight(
+  BuildContext context,
+  WidgetRef ref, {
+  int titleMaxLines = 1,
+}) =>
+    ref.watch(albumCardCaptionVariantProvider) == AlbumCardCaptionVariant.below
+    ? albumCardCaptionHeight(context, titleMaxLines)
+    : 0;
+
+/// Lays out a cover [card] with its caption for the active
+/// [AlbumCardCaptionVariant]. Shared by [AlbumCard] and `ExternalAlbumCard`.
+///
+/// Every variant but `below` keeps the card a square of [width]; `below`
+/// stacks the caption under the square cover, so the widget is taller by
+/// [albumCardCaptionHeight].
+class AlbumCardCaptionLayout extends ConsumerWidget {
+  const new({
+    required this.width,
+    required this.card,
+    required this.title,
+    required this.subtitle,
+    this.titleMaxLines = 1,
+    super.key,
+  });
+
+  final double? width;
+  final Widget card;
+  final String title;
+  final String subtitle;
+  final int titleMaxLines;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final below =
+        ref.watch(albumCardCaptionVariantProvider) ==
+        AlbumCardCaptionVariant.below;
+    if (!below) {
+      return SizedBox(
+        width: width,
+        child: AspectRatio(aspectRatio: 1, child: card),
+      );
+    }
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          AspectRatio(aspectRatio: 1, child: card),
+          SizedBox(
+            key: const ValueKey<String>('albumCardCaptionBelow'),
+            height: albumCardCaptionHeight(context, titleMaxLines),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: _captionTopGap,
+                left: 2,
+                right: 2,
+              ),
+              child: _CaptionTexts(
+                title: title,
+                subtitle: subtitle,
+                titleMaxLines: titleMaxLines,
+                titleColor: colors.onSurface,
+                subtitleColor: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CaptionTexts extends StatelessWidget {
+  const new({
+    required this.title,
+    required this.subtitle,
+    required this.titleMaxLines,
+    required this.titleColor,
+    required this.subtitleColor,
+    this.shadows,
+  });
+
+  final String title;
+  final String subtitle;
+  final int titleMaxLines;
+  final Color titleColor;
+  final Color subtitleColor;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          title,
+          maxLines: titleMaxLines,
+          overflow: TextOverflow.ellipsis,
+          style: _titleStyle(titleColor, shadows),
+        ),
+        const SizedBox(height: _captionLineGap),
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _subtitleStyle(theme, subtitleColor, shadows),
+        ),
+      ],
+    );
+  }
+}
+
+/// The title and subtitle at the bottom of an album card, drawn over the
+/// cover for the `overlayFade`, `band` and `darkScrim` caption variants (see
+/// [AlbumCardCaptionVariant]); it draws nothing for `below`, where
+/// [AlbumCardCaptionLayout] places the caption under the cover. Shared by
+/// [AlbumCard] and `ExternalAlbumCard`; place it directly in the card's
+/// [Stack].
+class AlbumCardLabel extends ConsumerWidget {
   const new({
     required this.title,
     required this.subtitle,
@@ -149,60 +325,121 @@ class AlbumCardLabel extends StatelessWidget {
   final int titleMaxLines;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final variant = ref.watch(albumCardCaptionVariantProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    // The title sits on a fade of the page background, not on the artwork,
-    // so it uses the scheme's text colours in every theme and colour style.
-    final titleColor = colorScheme.onSurface;
-    final subtitleColor = colorScheme.onSurfaceVariant;
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: DecoratedBox(
-        key: const ValueKey<String>('albumCardTitleSurfaceFade'),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              theme.scaffoldBackgroundColor.withValues(alpha: 0),
-              theme.scaffoldBackgroundColor,
-            ],
+    final surface = theme.scaffoldBackgroundColor;
+    switch (variant) {
+      case AlbumCardCaptionVariant.below:
+        return const SizedBox.shrink();
+      case AlbumCardCaptionVariant.overlayFade:
+        // The title sits on a fade of the page background, not on the
+        // artwork, so it uses the scheme's text colours in every theme.
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: DecoratedBox(
+            key: const ValueKey<String>('albumCardTitleSurfaceFade'),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[surface.withValues(alpha: 0), surface],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+              child: _CaptionTexts(
+                title: title,
+                subtitle: subtitle,
+                titleMaxLines: titleMaxLines,
+                titleColor: colorScheme.onSurface,
+                subtitleColor: colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+        );
+      case AlbumCardCaptionVariant.band:
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                title,
-                maxLines: titleMaxLines,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: titleColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              DecoratedBox(
+                key: const ValueKey<String>('albumCardBandFade'),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[surface.withValues(alpha: 0), surface],
+                  ),
+                ),
+                child: const SizedBox(
+                  height: _bandFadeHeight,
+                  width: double.infinity,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: subtitleColor,
-                  fontWeight: FontWeight.w400,
+              ColoredBox(
+                key: const ValueKey<String>('albumCardBand'),
+                color: surface,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                    child: _CaptionTexts(
+                      title: title,
+                      subtitle: subtitle,
+                      titleMaxLines: titleMaxLines,
+                      titleColor: colorScheme.onSurface,
+                      subtitleColor: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
+      case AlbumCardCaptionVariant.darkScrim:
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: DecoratedBox(
+            key: const ValueKey<String>('albumCardDarkScrim'),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Colors.black.withValues(alpha: 0),
+                  Colors.black.withValues(alpha: 0.75),
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+              child: _CaptionTexts(
+                title: title,
+                subtitle: subtitle,
+                titleMaxLines: titleMaxLines,
+                titleColor: Colors.white,
+                subtitleColor: Colors.white.withValues(alpha: 0.82),
+                shadows: <Shadow>[
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+    }
   }
 }
 
