@@ -15,7 +15,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 class _Counter {
   final List<String> requested = <String>[];
 
-  Future<CoverColourField?> call(String id) async {
+  Future<CoverColourField?> call(String id, {int revision = 0}) async {
     requested.add(id);
     return CoverColourField.uniform(const Color(0xFF336699));
   }
