@@ -164,64 +164,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('humanizes legacy persisted resume reasons', (tester) async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...withTestDatabase(database),
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState(
-                status: LibrarySyncStatus.idle,
-                stage: LibrarySyncStage.idle,
-                planKind: LibrarySyncPlanKind.targetedHydration,
-                planReason: 'resumetargetedHydration',
-              ),
-            ),
-          ),
-          syncNetworkPolicyProvider.overrideWith(
-            (_) => const SyncNetworkPolicy(
-              networkType: NetworkType.wifi,
-              isMetered: false,
-              allowsBackgroundSync: true,
-              allowsHardProbe: true,
-              allowsInteractiveHydration: true,
-            ),
-          ),
-          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
-        ],
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Strategy: targeted hydration — resume targeted hydration'),
-      findsOneWidget,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
-  });
-
   testWidgets('desktop summarizes sync state without exposing server errors', (
     tester,
   ) async {

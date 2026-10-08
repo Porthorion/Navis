@@ -15,6 +15,8 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
+typedef _StatusLine = ({String text, Key? key});
+
 class SyncSettingsScreen extends ConsumerWidget {
   const new({super.key});
 
@@ -63,6 +65,108 @@ class SyncSettingsScreen extends ConsumerWidget {
             child: Divider(),
           )
         : const SizedBox(height: 12);
+
+    final leadingLines = <_StatusLine>[
+      if (showUpdatesMessaging)
+        (
+          text: syncPolicy.isMetered
+              ? l10n.syncSettingsUpdatesAvailableMetered
+              : l10n.syncSettingsUpdatesAvailable,
+          key: null,
+        ),
+      if (hasFailure && (syncState.errorMessage?.trim().isNotEmpty ?? false))
+        (text: l10n.syncSettingsFailureDescription, key: null),
+      if (syncState.remainingVerificationCount > 0)
+        (
+          text: l10n.syncSettingsRemainingVerification(
+            syncState.remainingVerificationCount,
+          ),
+          key: null,
+        ),
+      // Between runs the hydration backlog is reported here rather than in
+      // Library, where it would never clear.
+      if (!isRunning && (syncState.pendingHydrationCount ?? 0) > 0)
+        (
+          text: syncState.onlyIncompleteAlbumDetails
+              ? l10n.syncSettingsIncompleteAlbumDetails(
+                  syncState.pendingHydrationCount!,
+                )
+              : l10n.syncSettingsPendingAlbumDetails(
+                  syncState.pendingHydrationCount!,
+                ),
+          key: const ValueKey<String>('sync-settings-pending-album-details'),
+        ),
+    ];
+    // Desktop shows the plan and pending work in the metrics grid instead.
+    final planLines = <_StatusLine>[
+      if (syncState.planKind != null)
+        (
+          text: l10n.syncSettingsStrategy(
+            _humanize(syncState.planKind!.name),
+            _humanize(syncState.planReason ?? 'selected by planner'),
+          ),
+          key: null,
+        ),
+      if (syncState.pendingWorkCount > 0)
+        (
+          text: l10n.syncSettingsPendingWork(syncState.pendingWorkCount),
+          key: null,
+        ),
+    ];
+    final trailingLines = <_StatusLine>[
+      // The confirmation message below says more.
+      if (syncState.candidateStatus != null && !awaitingDeletionConfirmation)
+        (
+          text: l10n.syncSettingsCandidate(
+            _humanize(syncState.candidateStatus!),
+          ),
+          key: null,
+        ),
+      if (awaitingDeletionConfirmation)
+        (
+          text: l10n.syncSettingsRepairDeletionConfirmationPending(
+            syncState.deletionCandidateCount,
+          ),
+          key: null,
+        ),
+      if (syncState.carriedForwardEntityCount > 0)
+        (
+          text: l10n.syncSettingsCarriedForward(
+            syncState.carriedForwardEntityCount,
+          ),
+          key: null,
+        ),
+      if (!desktopMode && syncState.lastApplyDurationMs != null)
+        (
+          text: l10n.syncSettingsApplyDuration(syncState.lastApplyDurationMs!),
+          key: null,
+        ),
+      if (syncState.failureCategory != null)
+        (
+          text: l10n.syncSettingsDegradation(
+            _humanize(syncState.failureCategory!),
+          ),
+          key: null,
+        ),
+      if (!desktopMode &&
+          (syncState.apiRequests > 0 || syncState.lastRunBytes > 0))
+        (
+          text: l10n.syncSettingsUsage(
+            syncState.apiRequests,
+            _formatBytes(syncState.lastRunBytes),
+          ),
+          key: null,
+        ),
+      if (syncState.canonicalizedSongCount > 0 ||
+          syncState.ambiguousMatchCount > 0)
+        (
+          text: l10n.syncSettingsIdentitySummary(
+            syncState.canonicalizedSongCount,
+            syncState.ambiguousMatchCount,
+          ),
+          key: null,
+        ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -118,56 +222,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                           _statusLabel(l10n, syncState),
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        if (showUpdatesMessaging) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            syncPolicy.isMetered
-                                ? l10n.syncSettingsUpdatesAvailableMetered
-                                : l10n.syncSettingsUpdatesAvailable,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (hasFailure &&
-                            syncState.errorMessage != null &&
-                            syncState.errorMessage!
-                                .trim()
-                                .isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsFailureDescription,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (syncState.remainingVerificationCount >
-                            0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsRemainingVerification(
-                              syncState.remainingVerificationCount,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        // Between runs the hydration backlog is reported here
-                        // rather than in Library, where it would never clear.
-                        if (!isRunning &&
-                            (syncState.pendingHydrationCount ?? 0) >
-                                0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            syncState.onlyIncompleteAlbumDetails
-                                ? l10n.syncSettingsIncompleteAlbumDetails(
-                                    syncState.pendingHydrationCount!,
-                                  )
-                                : l10n.syncSettingsPendingAlbumDetails(
-                                    syncState.pendingHydrationCount!,
-                                  ),
-                            key: const ValueKey<String>(
-                              'sync-settings-pending-album-details',
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                        ..._statusLineWidgets(context, leadingLines),
                         if (desktopMode)
                           _DesktopSyncStatusMetrics(
                             plan: syncState.planKind == null
@@ -194,101 +249,9 @@ class SyncSettingsScreen extends ConsumerWidget {
                                 : null,
                             l10n: l10n,
                           )
-                        else ...<Widget>[
-                          if (syncState.planKind != null) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.syncSettingsStrategy(
-                                _humanize(syncState.planKind!.name),
-                                _humanize(
-                                  syncState.planReason ?? 'selected by planner',
-                                ),
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                          if (syncState.pendingWorkCount > 0) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.syncSettingsPendingWork(
-                                syncState.pendingWorkCount,
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ],
-                        // The confirmation message below says more.
-                        if (syncState.candidateStatus != null &&
-                            !awaitingDeletionConfirmation) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsCandidate(
-                              _humanize(syncState.candidateStatus!),
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (awaitingDeletionConfirmation) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsRepairDeletionConfirmationPending(
-                              syncState.deletionCandidateCount,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (syncState.carriedForwardEntityCount >
-                            0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsCarriedForward(
-                              syncState.carriedForwardEntityCount,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (!desktopMode &&
-                            syncState.lastApplyDurationMs != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsApplyDuration(
-                              syncState.lastApplyDurationMs!,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (syncState.failureCategory != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsDegradation(
-                              _humanize(syncState.failureCategory!),
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (!desktopMode &&
-                            (syncState.apiRequests > 0 ||
-                                syncState.lastRunBytes > 0)) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsUsage(
-                              syncState.apiRequests,
-                              _formatBytes(syncState.lastRunBytes),
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (syncState.canonicalizedSongCount > 0 ||
-                            syncState.ambiguousMatchCount > 0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsIdentitySummary(
-                              syncState.canonicalizedSongCount,
-                              syncState.ambiguousMatchCount,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                        else
+                          ..._statusLineWidgets(context, planLines),
+                        ..._statusLineWidgets(context, trailingLines),
                         if (destructiveOperation != null) ...<Widget>[
                           const SizedBox(height: 8),
                           Text(
@@ -606,6 +569,46 @@ class SyncSettingsScreen extends ConsumerWidget {
     );
   }
 
+  /// One small, spaced body line per status entry that applies.
+  List<Widget> _statusLineWidgets(
+    BuildContext context,
+    List<_StatusLine> lines,
+  ) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    return <Widget>[
+      for (final line in lines) ...<Widget>[
+        const SizedBox(height: 8),
+        Text(line.text, key: line.key, style: style),
+      ],
+    ];
+  }
+
+  Future<bool> _confirm(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required String action,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppLocalizations.of(dialogContext)!.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _repairLibrary(
     BuildContext context,
     WidgetRef ref,
@@ -617,56 +620,28 @@ class SyncSettingsScreen extends ConsumerWidget {
         syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
         syncState.deletionCandidateCount > 0;
     if (awaitingDeletionConfirmation) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.syncSettingsRepairDeletionConfirmationTitle),
-          content: Text(
-            l10n.syncSettingsRepairDeletionConfirmationBody(
-              syncState.deletionCandidateCount,
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.cancelAction),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.syncSettingsRepairDeletionConfirmationAction),
-            ),
-          ],
+      final confirmed = await _confirm(
+        context,
+        title: l10n.syncSettingsRepairDeletionConfirmationTitle,
+        body: l10n.syncSettingsRepairDeletionConfirmationBody(
+          syncState.deletionCandidateCount,
         ),
+        action: l10n.syncSettingsRepairDeletionConfirmationAction,
       );
-      if (confirmed != true) {
-        return;
-      }
+      if (!confirmed) return;
       if (!context.mounted) {
         return;
       }
     }
     var allowMeteredBroadOverride = false;
     if (isMetered) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.syncSettingsRepairMeteredConfirmTitle),
-          content: Text(l10n.syncSettingsRepairMeteredConfirmBody),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.cancelAction),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.syncSettingsRepairMeteredConfirmAction),
-            ),
-          ],
-        ),
+      final confirmed = await _confirm(
+        context,
+        title: l10n.syncSettingsRepairMeteredConfirmTitle,
+        body: l10n.syncSettingsRepairMeteredConfirmBody,
+        action: l10n.syncSettingsRepairMeteredConfirmAction,
       );
-      if (confirmed != true) {
-        return;
-      }
+      if (!confirmed) return;
       allowMeteredBroadOverride = true;
     }
     if (!context.mounted) return;
@@ -685,24 +660,13 @@ class SyncSettingsScreen extends ConsumerWidget {
     WidgetRef ref,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.syncSettingsRepairDiscardCandidateTitle),
-        content: Text(l10n.syncSettingsRepairDiscardCandidateBody),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.syncSettingsRepairDiscardCandidate),
-          ),
-        ],
-      ),
+    final confirmed = await _confirm(
+      context,
+      title: l10n.syncSettingsRepairDiscardCandidateTitle,
+      body: l10n.syncSettingsRepairDiscardCandidateBody,
+      action: l10n.syncSettingsRepairDiscardCandidate,
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       await ref
           .read(librarySyncControllerProvider.notifier)
           .discardAwaitingRepairCandidate();
@@ -780,14 +744,6 @@ class SyncSettingsScreen extends ConsumerWidget {
   }
 
   String _humanize(String value) {
-    for (final kind in LibrarySyncPlanKind.values) {
-      // Older persisted resume reasons combined the prefix and enum value
-      // without a camel-case boundary (for example, `resumetargetedHydration`).
-      // Keep those statuses readable after the write-side format is corrected.
-      if (value == 'resume${kind.name}') {
-        return 'resume ${_humanize(kind.name)}';
-      }
-    }
     return value
         .replaceAllMapped(
           RegExp('([a-z0-9])([A-Z])'),
