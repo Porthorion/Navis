@@ -152,11 +152,11 @@ void main() {
 
   test('persists one typed request, attempt, and redacted outcome', () async {
     final now = DateTime.utc(2026, 8, 26, 10);
-    const request = SyncRunRequest(
+    const request = LibrarySyncRequest(
       origin: SyncRunOrigin.libraryPullToRefresh,
       intent: SyncRunIntent.manualCatalogCheck,
       target: LibrarySyncTarget.catalog(),
-      networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
+      grant: SyncNetworkGrant.boundedMeteredDiscovery,
     );
     const plan = SyncExecutionPlan(
       request: request,
@@ -309,7 +309,7 @@ void main() {
       final queued = await database.librarySyncDao.enqueueSyncRun(
         serverId: 1,
         plan: SyncExecutionPlan(
-          request: SyncRunRequest(
+          request: LibrarySyncRequest(
             origin: SyncRunOrigin.startup,
             intent: intent,
             target: intent == SyncRunIntent.auxiliaryRefresh
@@ -317,7 +317,7 @@ void main() {
                 : intent == SyncRunIntent.targetHydration
                 ? const LibrarySyncTarget.album('album')
                 : const LibrarySyncTarget.catalog(),
-            networkGrant: SyncNetworkGrant.none,
+            grant: SyncNetworkGrant.none,
           ),
           kind: kind,
           reason: SyncSafeReason.none,
@@ -336,15 +336,24 @@ void main() {
         ),
       );
       final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
-      expect(history.first.planKind, kind);
+      expect(
+        history.first.planKind,
+        const [
+          'automaticProbe',
+          'manualCatalogDiscovery',
+          'repairLibrary',
+          'targetHydration',
+          'auxiliaryRefresh',
+          'catalogSnapshot',
+          'compatibilityAudit',
+        ][storedIndex],
+      );
     }
   }, skip: !sqliteAvailable);
 
   test('preserves separate durable origins for repair and cache reset', () {
-    final repair = syncRunRequestFromLegacy(const LibrarySyncRequest.repair());
-    final reset = syncRunRequestFromLegacy(
-      const LibrarySyncRequest.cacheReset(),
-    );
+    const repair = LibrarySyncRequest.repair();
+    const reset = LibrarySyncRequest.cacheReset();
 
     expect(repair.intent, SyncRunIntent.repairLibrary);
     expect(repair.origin, SyncRunOrigin.settingsRepair);
@@ -357,11 +366,11 @@ void main() {
     'restart recovery returns only typed running requests to the queue',
     () async {
       final now = DateTime.utc(2026, 8, 26, 10);
-      const request = SyncRunRequest(
+      const request = LibrarySyncRequest(
         origin: SyncRunOrigin.interaction,
         intent: SyncRunIntent.targetHydration,
         target: LibrarySyncTarget.album('album-1'),
-        networkGrant: SyncNetworkGrant.none,
+        grant: SyncNetworkGrant.none,
       );
       const plan = SyncExecutionPlan(
         request: request,
@@ -412,8 +421,8 @@ void main() {
   test(
     'terminal request completion is idempotent and omits dead request inputs',
     () async {
-      final request = syncRunRequestFromLegacy(
-        const LibrarySyncRequest.repair(allowMeteredBroadOverride: true),
+      const request = LibrarySyncRequest.repair(
+        grant: SyncNetworkGrant.broadMeteredOnce,
       );
       final queued = await database.librarySyncDao.enqueueSyncRun(
         serverId: 1,

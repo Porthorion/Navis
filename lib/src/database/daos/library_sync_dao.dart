@@ -42,7 +42,7 @@ class LibrarySyncRunHistoryEntry {
   final DateTime? startedAt;
   final SyncRunIntent intent;
   final LibrarySyncTargetKind targetKind;
-  final LibrarySyncPlanKind planKind;
+  final String planKind;
   final SyncRunOutcomeKind outcome;
   final SyncSafeReason reason;
   final int requestCount;
@@ -103,9 +103,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     final id = await into(librarySyncRunRequestTable).insert(
       LibrarySyncRunRequestTableCompanion.insert(
         serverId: serverId,
-        contractVersion: SyncRunRequest.currentContractVersion,
+        contractVersion: LibrarySyncRequest.currentContractVersion,
         origin: request.origin.index,
-        intent: request.intent.index,
+        intent: request.runHistoryIntent.index,
         targetKind: request.target.kind.index,
         targetKey: const Value(''),
         networkGrant: SyncNetworkGrant.none.index,
@@ -115,7 +115,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           LibrarySyncPlanKind.deltaReconcile => 1,
           LibrarySyncPlanKind.fullRepair => 2,
           LibrarySyncPlanKind.targetedHydration =>
-            request.intent == SyncRunIntent.auxiliaryRefresh ? 4 : 3,
+            request.runHistoryIntent == SyncRunIntent.auxiliaryRefresh ? 4 : 3,
           LibrarySyncPlanKind.catalogSnapshot => 5,
           LibrarySyncPlanKind.compatibilityAudit => 6,
         },
@@ -326,15 +326,17 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 .values[row.readTable(librarySyncRunRequestTable).intent],
             targetKind: LibrarySyncTargetKind
                 .values[row.readTable(librarySyncRunRequestTable).targetKind],
+            // Diagnostics consumers retain the names of historical plan indices.
             planKind: switch (row
                 .readTable(librarySyncRunRequestTable)
                 .planKind) {
-              0 => LibrarySyncPlanKind.probe,
-              1 => LibrarySyncPlanKind.deltaReconcile,
-              2 => LibrarySyncPlanKind.fullRepair,
-              3 || 4 => LibrarySyncPlanKind.targetedHydration,
-              5 => LibrarySyncPlanKind.catalogSnapshot,
-              6 => LibrarySyncPlanKind.compatibilityAudit,
+              0 => 'automaticProbe',
+              1 => 'manualCatalogDiscovery',
+              2 => 'repairLibrary',
+              3 => 'targetHydration',
+              4 => 'auxiliaryRefresh',
+              5 => 'catalogSnapshot',
+              6 => 'compatibilityAudit',
               _ => throw StateError('Unknown sync history plan kind'),
             },
             outcome: SyncRunOutcomeKind

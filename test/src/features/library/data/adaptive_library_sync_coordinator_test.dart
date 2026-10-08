@@ -612,27 +612,58 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  test(
+    'repair and cache reset keep their admitted and recorded origins',
+    () async {
+      for (final (request, origin) in [
+        (const LibrarySyncRequest.repair(), SyncRunOrigin.settingsRepair),
+        (const LibrarySyncRequest.cacheReset(), SyncRunOrigin.cacheReset),
+      ]) {
+        await coordinator.requestSync(request);
+        final catalogPlan = executor.plans.lastWhere(
+          (plan) => plan.request.target.kind == LibrarySyncTargetKind.catalog,
+        );
+        expect(catalogPlan.kind, LibrarySyncPlanKind.fullRepair);
+        expect(catalogPlan.request.origin, origin);
+        expect(catalogPlan.request.intent, SyncRunIntent.repairLibrary);
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          1,
+        );
+        expect(
+          history
+              .where(
+                (entry) => entry.targetKind == LibrarySyncTargetKind.catalog,
+              )
+              .first
+              .origin,
+          origin,
+        );
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('same-ID targeted work remains distinct by entity type', () async {
     const sharedId = 'shared-id';
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.artist(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.album(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
     await coordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.playlist(sharedId),
+        origin: SyncRunOrigin.interaction,
       ),
     );
 
@@ -681,9 +712,9 @@ void main() {
 
       final result = await coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-with-cooldown'),
+          origin: SyncRunOrigin.interaction,
         ),
       );
 
@@ -936,6 +967,13 @@ void main() {
         'queued',
       );
 
+      final queuedWork = await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'deltaReconcile',
+      );
+      expect(queuedWork?.checkpointJson, '{"intent":"checkForUpdates"}');
+      expect(queuedWork?.priority, 60);
+
       final onlineCoordinator = AdaptiveLibrarySyncCoordinator(
         executor: probeEngine,
         database: database,
@@ -1044,7 +1082,9 @@ void main() {
     expect(probeEngine.syncNowCalls, 1);
 
     final broadResult = await meteredCoordinator.requestSync(
-      const LibrarySyncRequest.checkForUpdates(allowMeteredBroadOverride: true),
+      const LibrarySyncRequest.checkForUpdates(
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
     );
 
     expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -1233,9 +1273,9 @@ void main() {
       );
       final result = await guarded.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.automatic,
+          intent: SyncRunIntent.automaticCatalogCheck,
           target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
         ),
       );
 
@@ -1267,9 +1307,9 @@ void main() {
 
     await meteredCoordinator.requestSync(
       const LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
+        intent: SyncRunIntent.manualCatalogCheck,
         target: LibrarySyncTarget.album('album-1'),
+        origin: SyncRunOrigin.interaction,
       ),
     );
 

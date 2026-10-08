@@ -7,41 +7,8 @@ import 'package:navis/src/utils/connectivity.dart';
 /// records the streak, and the coordinator, which enqueues the follow-up.
 const int discoveryDebtEscalationStreak = 2;
 
-/// Freshness interval shared by the typed and combined auxiliary paths.
+/// Freshness interval for independent starred and playlist-header work.
 const librarySyncAuxiliaryInterval = Duration(hours: 12);
-
-/// The source of a durable sync request. These values intentionally describe
-/// a user or scheduler action rather than an implementation detail.
-enum SyncRunOrigin {
-  libraryPullToRefresh,
-  settingsRepair,
-  cacheReset,
-  homeRefresh,
-  desktopCommand,
-  startup,
-  timer,
-  resume,
-  reconnect,
-  interaction,
-  androidWorker,
-  migration,
-  invariant,
-  // Retained because historical run rows persist this enum index.
-  legacyRecovery,
-}
-
-/// The user-visible contract that a request carries through scheduling.
-enum SyncRunIntent {
-  automaticCatalogCheck,
-  manualCatalogCheck,
-  repairLibrary,
-  targetHydration,
-  auxiliaryRefresh,
-}
-
-/// A user grant for metered network work. Unmetered access is a network
-/// condition, not a grant, so it is deliberately not represented here.
-enum SyncNetworkGrant { none, boundedMeteredDiscovery, broadMeteredOnce }
 
 enum SyncEndpoint {
   indexes({'getIndexes'}),
@@ -114,44 +81,6 @@ class SyncExecutionBudget {
   final Duration maxDuration;
 }
 
-/// A request is immutable from its caller through durable scheduling and
-/// execution. The compatibility adapter below is the only bridge from the
-/// previous [LibrarySyncRequest] shape.
-class SyncRunRequest {
-  const new({
-    required this.origin,
-    required this.intent,
-    required this.target,
-    required this.networkGrant,
-  });
-
-  static const int currentContractVersion = 1;
-
-  final SyncRunOrigin origin;
-  final SyncRunIntent intent;
-  final LibrarySyncTarget target;
-  final SyncNetworkGrant networkGrant;
-
-  /// An intent-specific durable key. In particular, an automatic probe and a
-  /// manual discovery request never coalesce merely because both address the
-  /// catalog. A device-cache reset also never joins Repair Library: they share
-  /// catalog collection but have different destructive local preparation and
-  /// user-facing recovery contracts.
-  String get coalescingKey {
-    final recoveryOrigin = switch (origin) {
-      SyncRunOrigin.settingsRepair || SyncRunOrigin.cacheReset => origin.name,
-      _ => '',
-    };
-    return [
-      intent.name,
-      target.kind.name,
-      target.entityId ?? '',
-      networkGrant.name,
-      recoveryOrigin,
-    ].join(':');
-  }
-}
-
 class SyncExecutionPlan {
   const new({
     required this.request,
@@ -160,7 +89,7 @@ class SyncExecutionPlan {
     required this.reason,
   });
 
-  final SyncRunRequest request;
+  final LibrarySyncRequest request;
   final LibrarySyncPlanKind kind;
   final SyncExecutionBudget budget;
   final SyncSafeReason reason;
@@ -180,47 +109,6 @@ class SyncRunOutcome {
   final int byteCount;
 }
 
-/// Transitional conversion from the legacy request model. It is intentionally
-/// centralized so callers do not spread origin/permission guesses through
-/// coordinators and executors.
-SyncRunRequest syncRunRequestFromLegacy(LibrarySyncRequest request) {
-  final intent = switch (request.target.kind) {
-    LibrarySyncTargetKind.catalog => switch (request.intent) {
-      LibrarySyncIntent.automatic => SyncRunIntent.automaticCatalogCheck,
-      LibrarySyncIntent.checkForUpdates => SyncRunIntent.manualCatalogCheck,
-      LibrarySyncIntent.repair => SyncRunIntent.repairLibrary,
-    },
-    LibrarySyncTargetKind.starred ||
-    LibrarySyncTargetKind.playlistHeaders => SyncRunIntent.auxiliaryRefresh,
-    _ => SyncRunIntent.targetHydration,
-  };
-  final origin = switch (request.caller) {
-    LibrarySyncRequestCaller.repairLibrary => SyncRunOrigin.settingsRepair,
-    LibrarySyncRequestCaller.cacheReset => SyncRunOrigin.cacheReset,
-    _ => switch (request.trigger) {
-      LibrarySyncTrigger.startup => SyncRunOrigin.startup,
-      LibrarySyncTrigger.interval => SyncRunOrigin.timer,
-      LibrarySyncTrigger.resume => SyncRunOrigin.resume,
-      LibrarySyncTrigger.reconnect => SyncRunOrigin.reconnect,
-      LibrarySyncTrigger.interaction => SyncRunOrigin.interaction,
-      LibrarySyncTrigger.migration => SyncRunOrigin.migration,
-      LibrarySyncTrigger.invariant => SyncRunOrigin.invariant,
-      LibrarySyncTrigger.user => SyncRunOrigin.libraryPullToRefresh,
-    },
-  };
-  final grant = request.allowMeteredBroadOverride
-      ? SyncNetworkGrant.broadMeteredOnce
-      : request.allowMeteredLimitedDiscovery
-      ? SyncNetworkGrant.boundedMeteredDiscovery
-      : SyncNetworkGrant.none;
-  return SyncRunRequest(
-    origin: origin,
-    intent: intent,
-    target: request.target,
-    networkGrant: grant,
-  );
-}
-
 /// Admission shared by planning, durable work selection and live execution.
 /// Explicit catalog and auxiliary work can continue while the app is hidden.
 /// A metered grant changes network permission, never automatic playback or
@@ -230,25 +118,22 @@ SyncRunRequest syncRunRequestFromLegacy(LibrarySyncRequest request) {
 bool librarySyncWorkAllowed({
   required LibrarySyncPlanKind kind,
   required String workClass,
-  required LibrarySyncIntent intent,
-  required LibrarySyncTrigger trigger,
+  required LibrarySyncRequest request,
   required SyncNetworkPolicy policy,
   required bool isForeground,
   required bool hasActivePlayback,
   required bool isBackgroundExecutor,
-  required SyncNetworkGrant networkGrant,
-  LibrarySyncTargetKind targetKind = LibrarySyncTargetKind.catalog,
 }) {
   if (policy.isOffline) return false;
   if (kind == LibrarySyncPlanKind.fullRepair &&
-      intent != LibrarySyncIntent.repair) {
+      request.intent != SyncRunIntent.repairLibrary) {
     return false;
   }
   if (kind == LibrarySyncPlanKind.probe) return policy.allowsHardProbe;
   if (!isForeground &&
       !isBackgroundExecutor &&
-      (intent == LibrarySyncIntent.automatic ||
-          targetKind.requiresEntityId ||
+      (request.isAutomatic ||
+          request.target.kind.requiresEntityId ||
           workClass == 'interactive')) {
     return false;
   }
@@ -256,14 +141,13 @@ bool librarySyncWorkAllowed({
   final interactive =
       kind == LibrarySyncPlanKind.targetedHydration &&
       (workClass == 'interactive' ||
-          (targetKind.requiresEntityId &&
-              trigger == LibrarySyncTrigger.interaction));
+          (request.target.kind.requiresEntityId && request.isInteraction));
   if (interactive) return policy.allowsInteractiveHydration;
-  if (intent == LibrarySyncIntent.automatic && hasActivePlayback) return false;
-  if (networkGrant == SyncNetworkGrant.broadMeteredOnce) return true;
+  if (request.isAutomatic && hasActivePlayback) return false;
+  if (request.grant == SyncNetworkGrant.broadMeteredOnce) return true;
   if (policy.isMetered && !policy.allowsBackgroundSync) {
     return kind == LibrarySyncPlanKind.deltaReconcile &&
-        networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
+        request.grant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
   return policy.allowsBackgroundSync;
 }

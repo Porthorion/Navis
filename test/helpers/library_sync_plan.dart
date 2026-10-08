@@ -11,7 +11,7 @@ SyncExecutionPlan syncPlanForTest(
   SyncNetworkGrant grant = SyncNetworkGrant.none,
   NetworkType networkType = NetworkType.other,
 }) {
-  final request = SyncRunRequest(
+  final request = LibrarySyncRequest(
     origin: switch (kind) {
       LibrarySyncPlanKind.fullRepair => SyncRunOrigin.settingsRepair,
       LibrarySyncPlanKind.deltaReconcile =>
@@ -35,7 +35,7 @@ SyncExecutionPlan syncPlanForTest(
           _ => SyncRunIntent.automaticCatalogCheck,
         },
     target: target,
-    networkGrant: grant,
+    grant: grant,
   );
   return SyncExecutionPlan(
     request: request,

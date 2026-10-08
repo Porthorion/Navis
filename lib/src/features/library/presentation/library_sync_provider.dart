@@ -467,7 +467,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         tolerateUnavailableEngine: false,
         forceFull: true,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: LibrarySyncRequestCaller.repairLibrary,
+        repairOrigin: SyncRunOrigin.settingsRepair,
       );
     } finally {
       coordinator?.endRepairSession(serverId: serverId);
@@ -483,7 +483,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       tolerateUnavailableEngine: false,
       forceFull: true,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: LibrarySyncRequestCaller.cacheReset,
+      repairOrigin: SyncRunOrigin.cacheReset,
     );
   }
 
@@ -577,9 +577,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       () => _runRequest(
         engine,
         LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: target,
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -597,9 +597,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       () => _runRequest(
         engine,
         LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.automatic,
+          intent: SyncRunIntent.automaticCatalogCheck,
           target: target,
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -1214,7 +1214,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool tolerateUnavailableEngine,
     bool forceFull = false,
     bool allowMeteredBroadOverride = false,
-    LibrarySyncRequestCaller caller = LibrarySyncRequestCaller.unspecified,
+    SyncRunOrigin repairOrigin = SyncRunOrigin.settingsRepair,
   }) async {
     return await _joinOrQueueCatalogSync(
       priority: forceFull
@@ -1227,7 +1227,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         tolerateUnavailableEngine: tolerateUnavailableEngine,
         forceFull: forceFull,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: caller,
+        repairOrigin: repairOrigin,
       ),
     );
   }
@@ -1319,7 +1319,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool tolerateUnavailableEngine,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
@@ -1395,7 +1395,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: force,
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: caller,
+      repairOrigin: repairOrigin,
       onProgressExternal: (progress) {
         if (progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
@@ -1510,7 +1510,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     // Engines report progress per artist or album batch, and every published
@@ -1548,7 +1548,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: force,
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: caller,
+      repairOrigin: repairOrigin,
       updateProgress: updateProgress,
     ).whenComplete(throttle.close);
   }
@@ -1558,20 +1558,22 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool forceFull,
     required bool allowMeteredBroadOverride,
-    required LibrarySyncRequestCaller caller,
+    required SyncRunOrigin repairOrigin,
     required void Function(LibrarySyncState progress) updateProgress,
   }) {
     final request = forceFull
-        ? caller == LibrarySyncRequestCaller.cacheReset
-              ? LibrarySyncRequest.cacheReset(
-                  allowMeteredBroadOverride: allowMeteredBroadOverride,
-                )
-              : LibrarySyncRequest.repair(
-                  allowMeteredBroadOverride: allowMeteredBroadOverride,
-                )
+        ? LibrarySyncRequest(
+            origin: repairOrigin,
+            intent: SyncRunIntent.repairLibrary,
+            grant: allowMeteredBroadOverride
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.none,
+          )
         : force
         ? LibrarySyncRequest.checkForUpdates(
-            allowMeteredBroadOverride: allowMeteredBroadOverride,
+            grant: allowMeteredBroadOverride
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.boundedMeteredDiscovery,
           )
         : const LibrarySyncRequest.automatic();
     return engine.requestSync(

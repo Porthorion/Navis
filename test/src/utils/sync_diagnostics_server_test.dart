@@ -1039,11 +1039,11 @@ void main() {
       ),
     );
     const plan = SyncExecutionPlan(
-      request: SyncRunRequest(
+      request: LibrarySyncRequest(
         origin: SyncRunOrigin.interaction,
         intent: SyncRunIntent.targetHydration,
         target: LibrarySyncTarget.album('private-target'),
-        networkGrant: SyncNetworkGrant.none,
+        grant: SyncNetworkGrant.none,
       ),
       kind: LibrarySyncPlanKind.targetedHydration,
       reason: SyncSafeReason.none,
@@ -1100,6 +1100,7 @@ void main() {
     expect(history['attemptId'], attempt.id);
     expect(history['startedAt'], isA<String>());
     expect(history['intent'], 'targetHydration');
+    expect(history['planKind'], 'targetHydration');
     expect(history['targetKind'], 'album');
     expect(history['outcome'], 'completed');
     expect(history['completedAt'], isA<String>());
@@ -3776,7 +3777,7 @@ class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    if (request.intent != LibrarySyncIntent.repair) return _succeeded;
+    if (request.intent != SyncRunIntent.repairLibrary) return _succeeded;
     forceFullCalls += 1;
     onProgress?.call(
       const LibrarySyncState(

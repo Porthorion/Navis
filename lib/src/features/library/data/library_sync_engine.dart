@@ -615,7 +615,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final policy = _currentSyncPolicy;
     if (!policy.isOffline &&
         (policy.allowsBackgroundSync ||
-            _activeExecutionPlan?.request.networkGrant ==
+            _activeExecutionPlan?.request.grant ==
                 SyncNetworkGrant.broadMeteredOnce ||
             _allowsLimitedMeteredManualDiscovery(manual: true))) {
       return;
@@ -629,7 +629,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     return manual &&
         _currentSyncPolicy.isMetered &&
         plan?.kind == LibrarySyncPlanKind.deltaReconcile &&
-        plan?.request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
+        plan?.request.grant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
 
   ({int initial, int max}) _hydrationConcurrency({bool fullCatalog = false}) {

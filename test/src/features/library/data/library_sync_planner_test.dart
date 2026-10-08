@@ -81,9 +81,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
         ),
         networkType: NetworkType.cellular,
       ),
@@ -96,9 +96,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.automatic,
+          intent: SyncRunIntent.automaticCatalogCheck,
           target: LibrarySyncTarget.starred(),
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -111,9 +111,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.playlistHeaders(),
+          origin: SyncRunOrigin.interaction,
         ),
       ),
     );
@@ -125,9 +125,9 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('album-1'),
+          origin: SyncRunOrigin.interaction,
         ),
         networkType: NetworkType.offline,
       ),
@@ -283,10 +283,11 @@ void main() {
       final plan = planner.plan(
         context(
           request: LibrarySyncRequest(
-            trigger: LibrarySyncTrigger.interval,
-            intent: LibrarySyncIntent.automatic,
-            allowMeteredLimitedDiscovery: !grant,
-            allowMeteredBroadOverride: grant,
+            intent: SyncRunIntent.automaticCatalogCheck,
+            origin: SyncRunOrigin.timer,
+            grant: grant
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.boundedMeteredDiscovery,
           ),
           networkType: NetworkType.cellular,
         ),
@@ -300,7 +301,7 @@ void main() {
     final plan = planner.plan(
       context(
         request: const LibrarySyncRequest.repair(
-          allowMeteredBroadOverride: true,
+          grant: SyncNetworkGrant.broadMeteredOnce,
         ),
         networkType: NetworkType.cellular,
       ),

@@ -168,17 +168,20 @@ Located in `lib/src/providers/app_providers.dart`:
   databases drop all user tables, indexes, views, and triggers with foreign
   keys disabled, then run the same creation and defaults as a fresh install.
   Schema 43 and later preserve data through an ordered migration-step table.
-- Schema v71 adds a typed, redacted sync lifecycle beside the retained
-  compatibility work mirror: `library_sync_run_request`,
+- Schema v71 adds redacted sync diagnostics history alongside the durable
+  `library_sync_work` queue: `library_sync_run_request`,
   `library_sync_run_attempt`, and `library_sync_run_outcome`. Schema v93
   drops the write-only `library_sync_provider_profile` and
   `library_sync_repair_session` observations; operational provider/candidate
   state remains in `library_sync_state`; the mobile-data grant stays in memory.
-  `SyncRunRequest` records a versioned origin, intent, target kind, priority,
-  resumption provenance, and metered grant. The scheduler resolves it once
-  into immutable `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency
-  limits before dispatch. Terminal history retains only enums, aggregate
-  counts, and timestamps for 90 days; a target key is cleared on completion,
+  The immutable `LibrarySyncRequest` carries origin, intent, target, and an
+  ephemeral metered grant. The scheduler resolves it into immutable
+  `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency limits before
+  dispatch. History records the contract version and target-derived intent;
+  the legacy grant, priority, target identifier, and resumption columns remain
+  neutral. Consent is never restored from a history row or durable work.
+  Terminal history retains only enums, aggregate counts, and timestamps for
+  90 days; a target key is cleared on completion,
   so neither diagnostics nor Settings history retains IDs, titles, URLs,
   credentials, or filesystem paths.
   Pre-v71 work is no longer imported into typed run history. Startup still
@@ -3036,19 +3039,22 @@ states without starting audio or modifying a queue.
 ### Sync Flow
 
 1. Callers submit a `LibrarySyncRequest` through the coordinator-facing
-   `LibrarySyncEngine.requestSync` interface. The coordinator constructs the
-   typed `SyncRunRequest` for execution and diagnostics history; the durable
-   contract version is stamped at insertion. The request distinguishes
-   automatic catalog checks, manual catalog checks, Repair Library, target
-   hydration, and auxiliary refreshes.
+   `LibrarySyncEngine.requestSync` interface. This immutable request carries
+   origin, intent, target, and an ephemeral network grant shared by
+   planning, admission, and execution. Priority, coalescing identity, interaction
+   policy, circuit probing, and diagnostics-history intent derive from those
+   fields; the durable contract version is stamped at history insertion.
+   The request distinguishes automatic catalog checks, manual catalog checks,
+   Repair Library, target hydration, and auxiliary refreshes.
    `LibrarySyncPlanner` selects the smallest safe plan: probe, targeted
    hydration, delta reconciliation, catalog snapshot, compatibility audit, or
    full repair. The scheduler admits one immutable `SyncExecutionPlan` per
    run, including its endpoint allowlist and data/concurrency budget.
 2. `AdaptiveLibrarySyncCoordinator` serializes runs. The `library_sync_work`
    table is the durable queue for deduplication, cooldowns, checkpoints, and
-   resume; the typed request/attempt/outcome tables retain the chosen plan and
-   diagnostics history. The coordinator restores interrupted attempts. Its
+   resume; the run request/attempt/outcome tables are diagnostics history,
+   retaining the chosen plan and redacted terminal result alongside the work
+   queue. The coordinator restores interrupted attempts. Its
    `SyncPlanExecutor` receives the selected immutable plan directly through
    `executeSyncPlan`. `DriftLibrarySyncEngine` implements only that executor
    contract: catalog execution requires a plan, whose kind and request intent
@@ -3058,7 +3064,7 @@ states without starting audio or modifying a queue.
    and release; execution alone adds the periodic heartbeat. Endpoint aliases
    live on `SyncEndpoint`. One `LibrarySyncPlanKind` selects planning and
    execution budgets; only the diagnostics-history boundary maps its durable
-   work names to the older stored plan indices.
+   work names to the older stored plan indices and diagnostics labels.
    Planning derives conditional-index support directly from the active server
    capabilities JSON, without a state-table provider-profile mirror. A backend
    fingerprint change discards the old Navis sync capabilities, durable work,
@@ -3097,10 +3103,9 @@ states without starting audio or modifying a queue.
    is no short continuation timer. A queued full repair is the exception: it
    remains resumable but dormant until an explicit Repair Library action, never
    a startup, reconnect, resume, periodic pass, or Check for updates. Resume
-   re-arms the periodic timer and submits at most its one staleness check; it never also schedules a
-   startup pass. A startup or
-   periodic caller also treats a not-yet-constructed credential-backed engine
-   as pending rather than failure, then restarts its startup pass once the
+   re-arms the periodic timer for at most one due staleness check; it never
+   also schedules a startup pass. A startup or periodic caller also treats a
+   not-yet-constructed credential-backed engine as pending rather than failure, then restarts its startup pass once the
    engine is available. When an explicit Check for updates reaches a deliberate
    page, entity, request, byte, or duration limit after doing work, it returns
    `partial` and preserves its checkpoint for the next pass. The same limit on
@@ -3196,8 +3201,12 @@ states without starting audio or modifying a queue.
    reconciliation and identity matching on the complete fetched batch.
 6. The transport interceptor owns at most one immediate idempotent retry and
    honors `Retry-After`. Durable work owns later attempts with exponential
-   cooldown. Three consecutive failures open the endpoint circuit; user,
-   reconnect, and resume triggers may probe it early. The cooldown is exposed
+   cooldown. Three consecutive failures open the endpoint circuit; user and
+   interaction requests may probe it early. The request contract retains resume
+   and reconnect origins that also allow an early probe, but the foreground
+   controller currently submits startup, reconnect, and scheduled checks with
+   the timer origin. Resume only re-arms the periodic timer. These automatic
+   passes respect the circuit cooldown. The cooldown is exposed
    as `LibrarySyncState.nextRetryAt`, populated from persisted state at launch
    and reloaded from it after every catalog run. Sync Settings renders it
    separately from `nextAutomaticCheckAt`, so a normal interval and a
@@ -3299,7 +3308,7 @@ states without starting audio or modifying a queue.
    a transition to a restricted metered connection without a current grant
    checkpoints and returns `deferred`. Cancellation returns work to the queue.
 10. Starred content and playlist headers are independent auxiliary targets.
-    Typed catalog checks and repairs do not update them as incidental work;
+    Catalog checks and repairs do not update them as incidental executor work;
     their user-facing states are **Updating liked items** and
     **Updating playlists**, not catalog-sync progress. A scheduled catalog
     check drains each due target (12 hours), preserving its separate playback,
@@ -3311,9 +3320,10 @@ states without starting audio or modifying a queue.
     neither repeats a committed catalog nor suppresses the other target. The
     auxiliary freshness clock is the single
     `library_sync_state.lastAuxiliarySyncedAt` column: the coordinator
-    advances it from completed starred/playlist-header work rows. The retired
-    per-server capabilities-JSON timestamp is no longer read or written. The
-    catalog circuit breaker does not suppress these independent endpoints.
+    advances it from completed starred/playlist-header work rows, independently
+    of catalog execution. The retired per-server capabilities-JSON timestamp
+    is no longer read or written. The catalog circuit breaker does not
+    suppress these independent endpoints.
     Genres are not synchronized: there is no genre target, endpoint or stored
     genre data (see "Genres are not a Navis concept").
     Starred reconciliation

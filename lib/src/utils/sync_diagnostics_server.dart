@@ -4189,7 +4189,7 @@ class SyncDiagnosticsServer {
             'origin': entry.origin.name,
             'intent': entry.intent.name,
             'targetKind': entry.targetKind.name,
-            'planKind': entry.planKind.name,
+            'planKind': entry.planKind,
             'outcome': entry.outcome.name,
             'reason': entry.reason.name,
             'requestCount': entry.requestCount,

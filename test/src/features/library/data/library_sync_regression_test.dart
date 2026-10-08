@@ -178,12 +178,14 @@ void main() {
     (
       'broad mobile check',
       NetworkType.cellular,
-      const LibrarySyncRequest.checkForUpdates(allowMeteredBroadOverride: true),
+      const LibrarySyncRequest.checkForUpdates(
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
     ),
     (
       'broad mobile repair',
       NetworkType.cellular,
-      const LibrarySyncRequest.repair(allowMeteredBroadOverride: true),
+      const LibrarySyncRequest.repair(grant: SyncNetworkGrant.broadMeteredOnce),
     ),
   ]) {
     test('explicit sync continues after the app is hidden: $name', () async {
@@ -211,7 +213,8 @@ void main() {
 
       expect(foreground, isFalse);
       expect(result.status, LibrarySyncStatus.succeeded);
-      if (network == NetworkType.wifi || request.allowMeteredBroadOverride) {
+      if (network == NetworkType.wifi ||
+          request.grant == SyncNetworkGrant.broadMeteredOnce) {
         expect(api.calls, containsAll(['getStarredContent', 'getPlaylists']));
       } else {
         expect(api.calls, isNot(contains('getStarredContent')));
@@ -266,10 +269,13 @@ void main() {
 
       final result = await mobileCoordinator.requestSync(
         LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interval,
-          intent: LibrarySyncIntent.automatic,
-          allowMeteredLimitedDiscovery: boundedGrant,
-          allowMeteredBroadOverride: broadGrant,
+          intent: SyncRunIntent.automaticCatalogCheck,
+          origin: SyncRunOrigin.timer,
+          grant: broadGrant
+              ? SyncNetworkGrant.broadMeteredOnce
+              : boundedGrant
+              ? SyncNetworkGrant.boundedMeteredDiscovery
+              : SyncNetworkGrant.none,
         ),
       );
 
@@ -640,9 +646,9 @@ void main() {
       api.starredGate = Completer<StarredContent>();
       final active = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.user,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.starred(),
+          origin: SyncRunOrigin.libraryPullToRefresh,
         ),
       );
       while (!api.calls.contains('getStarredContent')) {
@@ -650,9 +656,9 @@ void main() {
       }
       final queued = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.user,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.playlistHeaders(),
+          origin: SyncRunOrigin.libraryPullToRefresh,
         ),
       );
       while (await db.librarySyncDao.getWork(
@@ -1254,9 +1260,9 @@ void main() {
       api.albumCompleter = Completer<Album>();
       final pending = coordinator.requestSync(
         const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
+          intent: SyncRunIntent.manualCatalogCheck,
           target: LibrarySyncTarget.album('a'),
+          origin: SyncRunOrigin.interaction,
         ),
       );
       for (var i = 0; i < 100 && !api.calls.contains('getAlbum:a'); i++) {

@@ -125,10 +125,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final sessionGrant =
         _repairSessionServerId == serverId && _repairSessionMeteredGrant;
     var effective = request;
-    if (sessionGrant && !request.allowMeteredBroadOverride) {
-      effective = request.copyWithMeteredBroadOverride();
+    if (sessionGrant && request.grant != SyncNetworkGrant.broadMeteredOnce) {
+      effective = LibrarySyncRequest(
+        origin: request.origin,
+        intent: request.intent,
+        target: request.target,
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      );
     }
-    final consented = effective.allowMeteredBroadOverride || !policy.isMetered;
+    final consented =
+        effective.grant == SyncNetworkGrant.broadMeteredOnce ||
+        !policy.isMetered;
     return (effective, consented);
   }
 
@@ -232,7 +239,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     int cancellationGeneration, {
     required LibrarySyncRequest sourceRequest,
   }) async {
-    final isExplicit = sourceRequest.intent != LibrarySyncIntent.automatic;
+    final isExplicit =
+        sourceRequest.intent != SyncRunIntent.automaticCatalogCheck;
     for (final target in _auxiliaryTargets) {
       if (cancellationGeneration != _cancellationGeneration ||
           (await _serverConfigRepository.getActiveServer())?.id != serverId) {
@@ -246,18 +254,16 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       try {
         await _requestSync(
           LibrarySyncRequest(
-            trigger: isExplicit
-                ? sourceRequest.trigger
-                : LibrarySyncTrigger.interval,
+            origin: isExplicit ? sourceRequest.origin : SyncRunOrigin.timer,
             intent: isExplicit
-                ? LibrarySyncIntent.checkForUpdates
-                : LibrarySyncIntent.automatic,
+                ? SyncRunIntent.manualCatalogCheck
+                : SyncRunIntent.automaticCatalogCheck,
             target: target,
-            allowMeteredBroadOverride:
-                isExplicit && sourceRequest.allowMeteredBroadOverride,
-            caller: isExplicit
-                ? sourceRequest.caller
-                : LibrarySyncRequestCaller.unspecified,
+            grant:
+                isExplicit &&
+                    sourceRequest.grant == SyncNetworkGrant.broadMeteredOnce
+                ? SyncNetworkGrant.broadMeteredOnce
+                : SyncNetworkGrant.none,
           ),
         );
       } on Object {
@@ -297,7 +303,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
     final policy = _syncPolicy;
     var request = requestInput;
-    if (requestInput.intent == LibrarySyncIntent.repair) {
+    if (requestInput.intent == SyncRunIntent.repairLibrary) {
       final (admittedRequest, consented) = _admitRepairConsent(
         requestInput,
         serverId,
@@ -407,13 +413,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       }
       persisted = await _database.librarySyncDao.getOrCreateState(serverId);
     }
-    final canProbeCircuitEarly = switch (request.trigger) {
-      LibrarySyncTrigger.user ||
-      LibrarySyncTrigger.interaction ||
-      LibrarySyncTrigger.reconnect ||
-      LibrarySyncTrigger.resume => true,
-      _ => false,
-    };
+    final canProbeCircuitEarly = request.canProbeCircuitEarly;
     final circuitOpen =
         persisted.failureStreak >= 3 &&
         persisted.nextEligibleAt?.isAfter(_now()) == true;
@@ -426,14 +426,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         shouldExecute: false,
         deferred: true,
       );
-      final typedPlan = _typedPlanFor(
-        request: syncRunRequestFromLegacy(request),
+      final executionPlan = _executionPlanFor(
+        request: request,
         plan: deferredPlan,
         policy: _syncPolicy,
       );
       final durableRun = await _database.librarySyncDao.enqueueSyncRun(
         serverId: serverId,
-        plan: typedPlan,
+        plan: executionPlan,
         now: _now(),
       );
       final state = LibrarySyncState(
@@ -486,7 +486,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         .getRunnableWork(serverId: serverId, now: timestamp, limit: 8);
     final resumedWork =
         request.target.kind == LibrarySyncTargetKind.catalog &&
-            request.intent != LibrarySyncIntent.repair
+            request.intent != SyncRunIntent.repairLibrary
         ? _firstAllowedWork(
             runnableBeforePlanning,
             policy,
@@ -497,8 +497,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             // An automatic probe cannot replace manual discovery either;
             // it stays queued for a later automatic pass.
             catalogWorkOnly:
-                request.intent == LibrarySyncIntent.checkForUpdates ||
-                (request.intent == LibrarySyncIntent.automatic && isDue),
+                request.intent == SyncRunIntent.manualCatalogCheck ||
+                (request.intent == SyncRunIntent.automaticCatalogCheck &&
+                    isDue),
           )
         : null;
     final resumedRequest = resumedWork == null
@@ -527,31 +528,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           ),
         );
 
-    final effectiveTarget = resumedWork == null
-        ? request.target
-        : _targetFromWork(resumedWork);
-    final effectiveRequest = resumedWork == null
-        ? request
-        : LibrarySyncRequest(
-            trigger: resumedRequest.trigger,
-            intent: resumedRequest.intent,
-            target: effectiveTarget,
-            allowMeteredBroadOverride: resumedRequest.allowMeteredBroadOverride,
-            allowMeteredLimitedDiscovery:
-                resumedRequest.allowMeteredLimitedDiscovery,
-            caller: resumedRequest.caller,
-          );
-    final targetWorkKey = librarySyncTargetWorkKey(effectiveTarget);
+    final targetWorkKey = librarySyncTargetWorkKey(resumedRequest.target);
     final workClass =
-        resumedWork?.workClass ?? _workClassFor(effectiveRequest, plan);
-    final typedPlan = _typedPlanFor(
-      request: syncRunRequestFromLegacy(effectiveRequest),
+        resumedWork?.workClass ?? _workClassFor(resumedRequest, plan);
+    final executionPlan = _executionPlanFor(
+      request: resumedRequest,
       plan: plan,
       policy: policy,
     );
     final durableRun = await _database.librarySyncDao.enqueueSyncRun(
       serverId: serverId,
-      plan: typedPlan,
+      plan: executionPlan,
       now: timestamp,
     );
     if (resumedWork == null && (plan.shouldExecute || plan.deferred)) {
@@ -566,7 +553,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       final cancelledObservationIsFresh =
           previousWork?.status == 'cancelled' &&
           timestamp.difference(previousWork!.updatedAt) < staleAfter;
-      if (request.intent == LibrarySyncIntent.automatic &&
+      if (request.intent == SyncRunIntent.automaticCatalogCheck &&
           cancelledObservationIsFresh) {
         return await _finish(
           requestId: durableRun.id,
@@ -589,16 +576,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         serverId: serverId,
         kind: plan.kind.name,
         entityId: targetWorkKey,
-        priority: _priorityFor(request),
+        priority: request.priority,
         workClass: workClass,
         checkpointJson: _workCheckpoint(request),
         releaseCooldown: canProbeCircuitEarly,
         reactivateTerminal:
-            request.intent != LibrarySyncIntent.automatic ||
+            request.intent != SyncRunIntent.automaticCatalogCheck ||
             ((previousWork?.status == 'completed' ||
                     previousWork?.status == 'cancelled') &&
                 ((isAuxiliary && auxiliaryDue) ||
-                    (effectiveTarget.kind == LibrarySyncTargetKind.catalog &&
+                    (resumedRequest.target.kind ==
+                            LibrarySyncTargetKind.catalog &&
                         (isDue || auditDue || localPendingHydration > 0)))),
         now: timestamp,
       );
@@ -645,12 +633,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
-    if (!_workAllowed(
-      workClass,
-      policy,
-      effectiveRequest,
-      planKind: plan.kind,
-    )) {
+    if (!_workAllowed(workClass, policy, resumedRequest, planKind: plan.kind)) {
       final state = LibrarySyncState(
         status: LibrarySyncStatus.deferred,
         stage: LibrarySyncStage.completed,
@@ -735,9 +718,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
     final future = _executePlanned(
       serverId: serverId,
-      request: effectiveRequest,
+      request: resumedRequest,
       plan: plan,
-      typedPlan: typedPlan,
+      executionPlan: executionPlan,
       durableRunId: durableRun.id,
       targetWorkKey: targetWorkKey,
       workClass: workClass,
@@ -752,7 +735,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required int serverId,
     required LibrarySyncRequest request,
     required LibrarySyncPlan plan,
-    required SyncExecutionPlan typedPlan,
+    required SyncExecutionPlan executionPlan,
     required int durableRunId,
     required String targetWorkKey,
     required String workClass,
@@ -838,16 +821,16 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
           final scope = SyncRequestScope(
             allowedEndpoints: {
-              for (final endpoint in typedPlan.budget.allowedEndpoints)
+              for (final endpoint in executionPlan.budget.allowedEndpoints)
                 ...endpoint.requestNames,
             },
-            maxRequests: typedPlan.budget.maxRequests,
-            maxNewestPages: typedPlan.budget.maxNewestPages,
-            maxAlbumHydrations: typedPlan.budget.maxAlbumHydrations,
-            maxResponseBytes: typedPlan.budget.maxResponseBytes,
-            maxTotalBytes: typedPlan.budget.maxTotalBytes,
-            maxConcurrency: typedPlan.budget.maxConcurrency,
-            maxDuration: typedPlan.budget.maxDuration,
+            maxRequests: executionPlan.budget.maxRequests,
+            maxNewestPages: executionPlan.budget.maxNewestPages,
+            maxAlbumHydrations: executionPlan.budget.maxAlbumHydrations,
+            maxResponseBytes: executionPlan.budget.maxResponseBytes,
+            maxTotalBytes: executionPlan.budget.maxTotalBytes,
+            maxConcurrency: executionPlan.budget.maxConcurrency,
+            maxDuration: executionPlan.budget.maxDuration,
             now: _now,
             canRequest: () => _workAllowed(
               workClass,
@@ -871,7 +854,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             try {
               result = await scope.run(
                 () => _executeDelegate(
-                  typedPlan: typedPlan,
+                  executionPlan: executionPlan,
                   priorityAlbumIds: priorityAlbumIds,
                   onProgress: (progress) {
                     final correlated = progress.copyWith(
@@ -894,7 +877,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               // backgrounded, metered, and so on), and was making an explicit
               // refresh look like it did nothing.
               explicitBudgetPartial =
-                  request.intent == LibrarySyncIntent.checkForUpdates &&
+                  request.intent == SyncRunIntent.manualCatalogCheck &&
                   _isResumableBudgetStop(stoppedReason);
               if (stoppedReason != null) {
                 result = result.copyWith(
@@ -1280,8 +1263,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     return state;
   }
 
-  SyncExecutionPlan _typedPlanFor({
-    required SyncRunRequest request,
+  SyncExecutionPlan _executionPlanFor({
+    required LibrarySyncRequest request,
     required LibrarySyncPlan plan,
     required SyncNetworkPolicy policy,
   }) {
@@ -1296,14 +1279,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
   @visibleForTesting
   static SyncExecutionBudget executionBudgetFor({
-    required SyncRunRequest request,
+    required LibrarySyncRequest request,
     required LibrarySyncPlanKind kind,
     required SyncNetworkPolicy policy,
   }) {
     final meteredManual =
         kind == LibrarySyncPlanKind.deltaReconcile &&
         policy.isMetered &&
-        request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
+        request.grant == SyncNetworkGrant.boundedMeteredDiscovery;
     final endpoints = switch (kind) {
       LibrarySyncPlanKind.probe => const <SyncEndpoint>{SyncEndpoint.indexes},
       LibrarySyncPlanKind.deltaReconcile => const <SyncEndpoint>{
@@ -1343,7 +1326,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         },
       },
     };
-    final automatic = request.intent == SyncRunIntent.automaticCatalogCheck;
+    // Target and auxiliary operations retain their own execution budgets.
+    final automatic =
+        request.runHistoryIntent == SyncRunIntent.automaticCatalogCheck;
     final boundedAlbums = automatic ? 32 : 64;
     final boundedRequests = automatic ? 96 : 200;
     final boundedBytes = automatic
@@ -1542,18 +1527,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   }
 
   Future<LibrarySyncState> _executeDelegate({
-    required SyncExecutionPlan typedPlan,
+    required SyncExecutionPlan executionPlan,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) {
     final priorities = <String>{
       ...priorityAlbumIds,
-      if (typedPlan.request.target.kind == LibrarySyncTargetKind.album &&
-          typedPlan.request.target.entityId?.isNotEmpty == true)
-        typedPlan.request.target.entityId!,
+      if (executionPlan.request.target.kind == LibrarySyncTargetKind.album &&
+          executionPlan.request.target.entityId?.isNotEmpty == true)
+        executionPlan.request.target.entityId!,
     };
     return _executor.executeSyncPlan(
-      typedPlan,
+      executionPlan,
       priorityAlbumIds: priorities,
       onProgress: onProgress,
     );
@@ -1640,21 +1625,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     return SyncCapabilityMode.unknown;
   }
 
-  int _priorityFor(LibrarySyncRequest request) {
-    if (request.trigger == LibrarySyncTrigger.interaction) {
-      return 100;
-    }
-    return switch (request.intent) {
-      LibrarySyncIntent.repair => 80,
-      LibrarySyncIntent.checkForUpdates => 60,
-      LibrarySyncIntent.automatic => 20,
-    };
-  }
-
   String _workClassFor(LibrarySyncRequest request, LibrarySyncPlan plan) {
     final isInteractiveEntity =
-        request.trigger == LibrarySyncTrigger.interaction &&
-        request.target.kind.requiresEntityId;
+        request.isInteraction && request.target.kind.requiresEntityId;
     if (isInteractiveEntity &&
         plan.kind == LibrarySyncPlanKind.targetedHydration) {
       return 'interactive';
@@ -1670,14 +1643,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   }) => librarySyncWorkAllowed(
     kind: planKind,
     workClass: workClass,
-    intent: request.intent,
-    trigger: request.trigger,
-    targetKind: request.target.kind,
+    request: request,
     policy: policy,
     isForeground: _readIsForeground(),
     hasActivePlayback: _readHasActivePlayback(),
     isBackgroundExecutor: _isBackgroundExecution,
-    networkGrant: syncRunRequestFromLegacy(request).networkGrant,
   );
 
   LibrarySyncWorkTableData? _firstAllowedWork(
@@ -1696,7 +1666,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       final planKind = kind.first;
       if (catalogWorkOnly &&
           (planKind == LibrarySyncPlanKind.targetedHydration ||
-              (request.intent == LibrarySyncIntent.checkForUpdates &&
+              (request.intent == SyncRunIntent.manualCatalogCheck &&
                   planKind == LibrarySyncPlanKind.probe))) {
         continue;
       }
@@ -1755,14 +1725,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
   String? _workCheckpoint(LibrarySyncRequest request) {
     if (request.target.kind == LibrarySyncTargetKind.catalog &&
-        request.intent != LibrarySyncIntent.checkForUpdates) {
+        request.intent != SyncRunIntent.manualCatalogCheck) {
       return null;
     }
     return jsonEncode(<String, String>{
       if (request.target.kind != LibrarySyncTargetKind.catalog)
         'targetKind': request.target.kind.name,
-      if (request.intent == LibrarySyncIntent.checkForUpdates)
-        'intent': LibrarySyncIntent.checkForUpdates.name,
+      if (request.intent == SyncRunIntent.manualCatalogCheck)
+        'intent': 'checkForUpdates',
     });
   }
 
@@ -1770,46 +1740,43 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncWorkTableData work, {
     required LibrarySyncRequest fallback,
   }) {
+    Map<dynamic, dynamic>? checkpoint;
     try {
       final decoded = jsonDecode(work.checkpointJson ?? '');
-      if (decoded is Map &&
-          decoded['intent'] == LibrarySyncIntent.checkForUpdates.name) {
-        return LibrarySyncRequest.checkForUpdates(
-          allowMeteredBroadOverride: fallback.allowMeteredBroadOverride,
-          allowMeteredLimitedDiscovery: fallback.allowMeteredLimitedDiscovery,
-        );
-      }
+      if (decoded is Map) checkpoint = decoded;
     } on FormatException {
       // Legacy work has no request provenance and retains the caller policy.
     }
-    return fallback;
+    final manualDiscovery = checkpoint?['intent'] == 'checkForUpdates';
+    return LibrarySyncRequest(
+      origin: manualDiscovery
+          ? SyncRunOrigin.libraryPullToRefresh
+          : fallback.origin,
+      intent: manualDiscovery
+          ? SyncRunIntent.manualCatalogCheck
+          : fallback.intent,
+      target: _targetFromWork(work, checkpoint),
+      grant: fallback.grant,
+    );
   }
 
-  LibrarySyncTarget _targetFromWork(LibrarySyncWorkTableData work) {
-    final raw = work.checkpointJson;
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map && decoded['targetKind'] is String) {
-          final kindName = decoded['targetKind'] as String;
-          final kind = LibrarySyncTargetKind.values.where(
-            (candidate) => candidate.name == kindName,
-          );
-          if (kind.isNotEmpty) {
-            final targetKind = kind.first;
-            return LibrarySyncTarget(
-              targetKind,
-              entityId: targetKind.requiresEntityId
-                  ? librarySyncTargetEntityIdFromWorkKey(
-                      targetKind,
-                      work.entityId,
-                    )
-                  : null,
-            );
-          }
-        }
-      } on FormatException {
-        // Legacy queued work is conservatively treated as album hydration.
+  LibrarySyncTarget _targetFromWork(
+    LibrarySyncWorkTableData work,
+    Map<dynamic, dynamic>? checkpoint,
+  ) {
+    final kindName = checkpoint?['targetKind'];
+    if (kindName is String) {
+      final kind = LibrarySyncTargetKind.values.where(
+        (candidate) => candidate.name == kindName,
+      );
+      if (kind.isNotEmpty) {
+        final targetKind = kind.first;
+        return LibrarySyncTarget(
+          targetKind,
+          entityId: targetKind.requiresEntityId
+              ? librarySyncTargetEntityIdFromWorkKey(targetKind, work.entityId)
+              : null,
+        );
       }
     }
     if (work.kind == LibrarySyncPlanKind.targetedHydration.name &&

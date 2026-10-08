@@ -6,31 +6,38 @@ Duration syncStaleAfterForInterval(int minutes) {
   return Duration(seconds: minutes * 60 - toleranceSeconds);
 }
 
-enum LibrarySyncTrigger {
+/// Request origins are persisted by index: only append values.
+/// Unused origins remain readable in historical diagnostics rows.
+enum SyncRunOrigin {
+  libraryPullToRefresh,
+  settingsRepair,
+  cacheReset,
+  homeRefresh,
+  desktopCommand,
   startup,
-  interval,
+  timer,
   resume,
   reconnect,
-  user,
   interaction,
+  androidWorker,
   migration,
   invariant,
+  // Retained because historical run rows persist this enum index.
+  legacyRecovery,
 }
 
-enum LibrarySyncIntent { automatic, checkForUpdates, repair }
-
-/// The user-facing owner of a legacy request during the compatibility window.
-///
-/// This is intentionally separate from [LibrarySyncIntent]: both a library
-/// repair and a destructive device-cache reset eventually run a catalog
-/// rebuild, but their confirmation, progress, and durable history must remain
-/// distinguishable.
-enum LibrarySyncRequestCaller {
-  unspecified,
+/// Intent values are persisted by index: only append values.
+enum SyncRunIntent {
+  automaticCatalogCheck,
   manualCatalogCheck,
   repairLibrary,
-  cacheReset,
+  targetHydration,
+  auxiliaryRefresh,
 }
+
+/// A user grant for metered network work. Unmetered access is a network
+/// condition, not a grant, so it is deliberately not represented here.
+enum SyncNetworkGrant { none, boundedMeteredDiscovery, broadMeteredOnce }
 
 /// Persisted by index in `library_sync_run_request.target_kind`: only append
 /// new values. Schema 87 purged rows of the retired index 6.
@@ -101,76 +108,94 @@ String librarySyncTargetEntityIdFromWorkKey(
       : workKey;
 }
 
+/// Immutable caller policy shared by planning, admission and execution.
 class LibrarySyncRequest {
   const new({
-    required this.trigger,
+    required this.origin,
     required this.intent,
     this.target = const LibrarySyncTarget.catalog(),
-    this.allowMeteredBroadOverride = false,
-    this.allowMeteredLimitedDiscovery = false,
-    this.caller = LibrarySyncRequestCaller.unspecified,
+    this.grant = SyncNetworkGrant.none,
   });
 
-  const new automatic({
-    LibrarySyncTrigger trigger = LibrarySyncTrigger.interval,
-  }) : this(trigger: trigger, intent: LibrarySyncIntent.automatic);
+  const new automatic({SyncRunOrigin origin = SyncRunOrigin.timer})
+    : this(origin: origin, intent: SyncRunIntent.automaticCatalogCheck);
 
   const new checkForUpdates({
-    bool allowMeteredBroadOverride = false,
-    bool allowMeteredLimitedDiscovery = true,
+    SyncNetworkGrant grant = SyncNetworkGrant.boundedMeteredDiscovery,
   }) : this(
-         trigger: LibrarySyncTrigger.user,
-         intent: LibrarySyncIntent.checkForUpdates,
-         allowMeteredBroadOverride: allowMeteredBroadOverride,
-         allowMeteredLimitedDiscovery: allowMeteredLimitedDiscovery,
-         caller: LibrarySyncRequestCaller.manualCatalogCheck,
+         origin: SyncRunOrigin.libraryPullToRefresh,
+         intent: SyncRunIntent.manualCatalogCheck,
+         grant: grant,
        );
 
-  const new repair({bool allowMeteredBroadOverride = false})
+  const new repair({SyncNetworkGrant grant = SyncNetworkGrant.none})
     : this(
-        trigger: LibrarySyncTrigger.user,
-        intent: LibrarySyncIntent.repair,
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: LibrarySyncRequestCaller.repairLibrary,
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+        grant: grant,
       );
 
-  const new cacheReset({bool allowMeteredBroadOverride = false})
+  const new cacheReset({SyncNetworkGrant grant = SyncNetworkGrant.none})
     : this(
-        trigger: LibrarySyncTrigger.user,
-        intent: LibrarySyncIntent.repair,
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-        caller: LibrarySyncRequestCaller.cacheReset,
+        origin: SyncRunOrigin.cacheReset,
+        intent: SyncRunIntent.repairLibrary,
+        grant: grant,
       );
 
-  final LibrarySyncTrigger trigger;
-  final LibrarySyncIntent intent;
+  static const int currentContractVersion = 1;
+
+  final SyncRunOrigin origin;
+  final SyncRunIntent intent;
   final LibrarySyncTarget target;
 
-  /// Ephemeral one-time override for broad catalog work on a metered network.
-  /// Never persisted into durable work rows.
-  final bool allowMeteredBroadOverride;
+  /// Ephemeral network consent from the current caller, never durable work.
+  final SyncNetworkGrant grant;
 
-  /// Allows the foreground "Check for updates" action to inspect one bounded
-  /// newest-album page on a metered network. This never permits artist-wide
-  /// verification, bulk-song indexing, or a catalog repair.
-  final bool allowMeteredLimitedDiscovery;
+  bool get isAutomatic => intent == SyncRunIntent.automaticCatalogCheck;
+  bool get isInteraction => origin == SyncRunOrigin.interaction;
 
-  /// Preserved only while adapting legacy callers to the typed sync request.
-  final LibrarySyncRequestCaller caller;
+  bool get canProbeCircuitEarly => switch (origin) {
+    SyncRunOrigin.libraryPullToRefresh ||
+    SyncRunOrigin.settingsRepair ||
+    SyncRunOrigin.cacheReset ||
+    SyncRunOrigin.homeRefresh ||
+    SyncRunOrigin.desktopCommand ||
+    SyncRunOrigin.interaction ||
+    SyncRunOrigin.reconnect ||
+    SyncRunOrigin.resume => true,
+    _ => false,
+  };
 
-  /// Returns the same request with the broad metered override applied.
-  ///
-  /// Used by the coordinator to decorate an admission with an in-session
-  /// repair consent; the grant itself stays in controller memory.
-  LibrarySyncRequest copyWithMeteredBroadOverride() {
-    return LibrarySyncRequest(
-      trigger: trigger,
-      intent: intent,
-      target: target,
-      allowMeteredBroadOverride: true,
-      allowMeteredLimitedDiscovery: allowMeteredLimitedDiscovery,
-      caller: caller,
-    );
+  int get priority => isInteraction
+      ? 100
+      : switch (intent) {
+          SyncRunIntent.repairLibrary => 80,
+          SyncRunIntent.automaticCatalogCheck => 20,
+          _ => 60,
+        };
+
+  /// Diagnostics classify the target independently of its automatic policy.
+  SyncRunIntent get runHistoryIntent => switch (target.kind) {
+    LibrarySyncTargetKind.catalog => intent,
+    LibrarySyncTargetKind.starred ||
+    LibrarySyncTargetKind.playlistHeaders => SyncRunIntent.auxiliaryRefresh,
+    _ => SyncRunIntent.targetHydration,
+  };
+
+  /// Automatic checks and explicit discovery never join by catalog alone.
+  /// Repair Library and cache reset retain separate recovery identities.
+  String get coalescingKey {
+    final recoveryOrigin = switch (origin) {
+      SyncRunOrigin.settingsRepair || SyncRunOrigin.cacheReset => origin.name,
+      _ => '',
+    };
+    return [
+      runHistoryIntent.name,
+      target.kind.name,
+      target.entityId ?? '',
+      grant.name,
+      recoveryOrigin,
+    ].join(':');
   }
 }
 

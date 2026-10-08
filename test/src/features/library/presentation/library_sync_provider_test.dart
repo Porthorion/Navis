@@ -191,14 +191,16 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
       return handler(request, onProgress: onProgress);
     }
     switch (request.intent) {
-      case LibrarySyncIntent.automatic:
+      case SyncRunIntent.automaticCatalogCheck:
         staleCalls++;
         return _handlerIfStale(onProgress: onProgress);
-      case LibrarySyncIntent.checkForUpdates:
+      case SyncRunIntent.targetHydration:
+      case SyncRunIntent.auxiliaryRefresh:
+      case SyncRunIntent.manualCatalogCheck:
         nowCalls++;
         forceFullCalls.add(false);
         return _handlerNow(forceFull: false, onProgress: onProgress);
-      case LibrarySyncIntent.repair:
+      case SyncRunIntent.repairLibrary:
         nowCalls++;
         forceFullCalls.add(true);
         return _handlerNow(forceFull: true, onProgress: onProgress);
@@ -268,7 +270,7 @@ void main() {
       expect(requests, hasLength(1));
       expect(requests.single.target.kind, kind);
       expect(requests.single.target.entityId, 'entity');
-      expect(requests.single.trigger, LibrarySyncTrigger.interaction);
+      expect(requests.single.origin, SyncRunOrigin.interaction);
     });
   }
 

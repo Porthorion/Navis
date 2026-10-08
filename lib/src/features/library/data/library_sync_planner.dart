@@ -47,14 +47,11 @@ class LibrarySyncPlanner {
         librarySyncWorkAllowed(
           kind: plan.kind,
           workClass: 'background',
-          intent: request.intent,
-          trigger: request.trigger,
-          targetKind: request.target.kind,
+          request: request,
           policy: context.networkPolicy,
           isForeground: context.isForeground,
           hasActivePlayback: context.hasActivePlayback,
           isBackgroundExecutor: context.isBackgroundExecutor,
-          networkGrant: syncRunRequestFromLegacy(request).networkGrant,
         )) {
       return plan;
     }
@@ -80,7 +77,7 @@ class LibrarySyncPlanner {
       final isAuxiliaryTarget =
           target.kind == LibrarySyncTargetKind.starred ||
           target.kind == LibrarySyncTargetKind.playlistHeaders;
-      if (request.intent == LibrarySyncIntent.automatic &&
+      if (request.intent == SyncRunIntent.automaticCatalogCheck &&
           isAuxiliaryTarget &&
           !context.auxiliaryDue) {
         return LibrarySyncPlan(
@@ -95,7 +92,7 @@ class LibrarySyncPlanner {
       );
     }
 
-    if (request.intent == LibrarySyncIntent.repair) {
+    if (request.intent == SyncRunIntent.repairLibrary) {
       return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.fullRepair,
         reason: 'userRequestedRepair',
@@ -113,7 +110,7 @@ class LibrarySyncPlanner {
     // freshness-gated poll. `getIndexes` only invalidates the artist
     // collection, so the executor must also inspect the bounded newest-album
     // window even when that cursor is unchanged.
-    if (request.intent == LibrarySyncIntent.checkForUpdates) {
+    if (request.intent == SyncRunIntent.manualCatalogCheck) {
       // Preserve manual discovery intent while offline. Downgrading it to a
       // probe would lose the newest-album check when the queued work resumes:
       // an unchanged getIndexes cursor cannot prove that an existing artist
@@ -127,8 +124,8 @@ class LibrarySyncPlanner {
         );
       }
       if (context.networkPolicy.isMetered &&
-          !request.allowMeteredBroadOverride &&
-          !request.allowMeteredLimitedDiscovery) {
+          request.grant != SyncNetworkGrant.broadMeteredOnce &&
+          request.grant != SyncNetworkGrant.boundedMeteredDiscovery) {
         return const LibrarySyncPlan(
           kind: LibrarySyncPlanKind.probe,
           reason: 'manualMeteredProbe',
@@ -138,7 +135,7 @@ class LibrarySyncPlanner {
         kind: LibrarySyncPlanKind.deltaReconcile,
         reason:
             context.networkPolicy.isMetered &&
-                !request.allowMeteredBroadOverride
+                request.grant != SyncNetworkGrant.broadMeteredOnce
             ? 'manualMeteredLimitedDiscovery'
             : 'manualCatalogDiscovery',
       );
@@ -146,10 +143,10 @@ class LibrarySyncPlanner {
 
     // Without background-network permission or a broad grant, automatic catalog
     // checks stay probes; a bounded grant alone does not expand fresh planning.
-    if (request.intent == LibrarySyncIntent.automatic &&
+    if (request.intent == SyncRunIntent.automaticCatalogCheck &&
         context.networkPolicy.isMetered &&
         !context.networkPolicy.allowsBackgroundSync &&
-        !request.allowMeteredBroadOverride) {
+        request.grant != SyncNetworkGrant.broadMeteredOnce) {
       if (!context.isCatalogCheckDue &&
           !context.auxiliaryDue &&
           context.pendingHydrationCount == 0 &&

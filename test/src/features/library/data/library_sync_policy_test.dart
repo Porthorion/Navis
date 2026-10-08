@@ -25,101 +25,101 @@ void main() {
         String,
         (
           LibrarySyncPlanKind,
-          LibrarySyncIntent,
-          LibrarySyncTrigger,
+          SyncRunIntent,
+          SyncRunOrigin,
           LibrarySyncTargetKind,
           String,
         )
       >{
         'automaticProbe': (
           LibrarySyncPlanKind.probe,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.interval,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.timer,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'manualProbe': (
           LibrarySyncPlanKind.probe,
-          LibrarySyncIntent.checkForUpdates,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.manualCatalogCheck,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'automaticDelta': (
           LibrarySyncPlanKind.deltaReconcile,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.interval,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.timer,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'manualDelta': (
           LibrarySyncPlanKind.deltaReconcile,
-          LibrarySyncIntent.checkForUpdates,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.manualCatalogCheck,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         // The automatic caller restores this intent from the durable row.
         'queuedManualDelta': (
           LibrarySyncPlanKind.deltaReconcile,
-          LibrarySyncIntent.checkForUpdates,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.manualCatalogCheck,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'snapshot': (
           LibrarySyncPlanKind.catalogSnapshot,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.startup,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.startup,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'audit': (
           LibrarySyncPlanKind.compatibilityAudit,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.interval,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.timer,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'repair': (
           LibrarySyncPlanKind.fullRepair,
-          LibrarySyncIntent.repair,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.repairLibrary,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'dormantAutomaticRepair': (
           LibrarySyncPlanKind.fullRepair,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.reconnect,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.reconnect,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'dormantManualRepair': (
           LibrarySyncPlanKind.fullRepair,
-          LibrarySyncIntent.checkForUpdates,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.manualCatalogCheck,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
         'auxiliary': (
           LibrarySyncPlanKind.targetedHydration,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.interaction,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.interaction,
           LibrarySyncTargetKind.starred,
           'background',
         ),
         'explicitAuxiliary': (
           LibrarySyncPlanKind.targetedHydration,
-          LibrarySyncIntent.checkForUpdates,
-          LibrarySyncTrigger.user,
+          SyncRunIntent.manualCatalogCheck,
+          SyncRunOrigin.libraryPullToRefresh,
           LibrarySyncTargetKind.playlistHeaders,
           'background',
         ),
         'backlog': (
           LibrarySyncPlanKind.targetedHydration,
-          LibrarySyncIntent.automatic,
-          LibrarySyncTrigger.interval,
+          SyncRunIntent.automaticCatalogCheck,
+          SyncRunOrigin.timer,
           LibrarySyncTargetKind.catalog,
           'background',
         ),
@@ -130,8 +130,8 @@ void main() {
         ])
           kind.name: (
             LibrarySyncPlanKind.targetedHydration,
-            LibrarySyncIntent.automatic,
-            LibrarySyncTrigger.interaction,
+            SyncRunIntent.automaticCatalogCheck,
+            SyncRunOrigin.interaction,
             kind,
             'interactive',
           ),
@@ -277,7 +277,7 @@ void main() {
   ]) {
     for (final entry in work.entries) {
       test('$name: ${entry.key}', () {
-        final (kind, intent, trigger, target, workClass) = entry.value;
+        final (kind, intent, origin, target, workClass) = entry.value;
         final policy = resolveSyncNetworkPolicy(
           networkType: network,
           nativeMetered: network == NetworkType.cellular,
@@ -287,14 +287,16 @@ void main() {
           librarySyncWorkAllowed(
             kind: kind,
             workClass: workClass,
-            intent: intent,
-            trigger: trigger,
-            targetKind: target,
+            request: LibrarySyncRequest(
+              origin: origin,
+              intent: intent,
+              target: LibrarySyncTarget(target),
+              grant: grant,
+            ),
             policy: policy,
             isForeground: foreground,
             hasActivePlayback: playing,
             isBackgroundExecutor: worker,
-            networkGrant: grant,
           ),
           allowed.contains(entry.key),
         );
@@ -313,7 +315,7 @@ void main() {
         test(
           'metered background enabled ${network.name} $name: ${entry.key}',
           () {
-            final (kind, intent, trigger, target, workClass) = entry.value;
+            final (kind, intent, origin, target, workClass) = entry.value;
             final policy = resolveSyncNetworkPolicy(
               networkType: network,
               nativeMetered: true,
@@ -324,14 +326,16 @@ void main() {
               librarySyncWorkAllowed(
                 kind: kind,
                 workClass: workClass,
-                intent: intent,
-                trigger: trigger,
-                targetKind: target,
+                request: LibrarySyncRequest(
+                  origin: origin,
+                  intent: intent,
+                  target: LibrarySyncTarget(target),
+                  grant: none,
+                ),
                 policy: policy,
                 isForeground: foreground,
                 hasActivePlayback: playing,
                 isBackgroundExecutor: worker,
-                networkGrant: none,
               ),
               allowed.contains(entry.key),
             );
