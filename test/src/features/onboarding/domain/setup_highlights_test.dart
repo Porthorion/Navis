@@ -9,6 +9,7 @@ void main() {
       expect(setupWhatsNewRelease('1.4.2'), isNull);
       expect(setupWhatsNewRelease('1.4.3'), '1.4.3');
       expect(setupWhatsNewRelease('1.4.3+10403'), '1.4.3');
+      expect(setupWhatsNewRelease('1.4.3-sidecar'), '1.4.3');
       expect(setupWhatsNewRelease('1.4.10'), '1.4.3');
       expect(setupWhatsNewRelease('1.5.0'), '1.4.3');
       expect(setupWhatsNewRelease('invalid'), isNull);
@@ -37,6 +38,7 @@ void main() {
     expect(parseSemver('1.4'), isNull);
     expect(parseSemver('1.4.x'), isNull);
     expect(parseSemver('1.4.3+10403'), [1, 4, 3]);
+    expect(parseSemver('1.4.3-sidecar'), [1, 4, 3]);
     expect(
       compareSemver(parseSemver('1.4.10')!, parseSemver('1.4.3')!),
       greaterThan(0),

@@ -47,12 +47,13 @@ class ChangelogDiscovery {
   String get seenVersion => current.version;
 }
 
-/// Parses a three-part release version, ignoring a build suffix.
+/// Parses a three-part release version, ignoring a build suffix (`+10403`)
+/// and a label suffix such as the diagnostics builds' `-sidecar`.
 ///
 /// Returns null for a missing or malformed version.
 List<int>? parseSemver(String? version) {
   if (version == null) return null;
-  final parts = version.split('+').first.split('.');
+  final parts = version.split('+').first.split('-').first.split('.');
   if (parts.length != 3) return null;
   final numbers = parts.map(int.tryParse).toList();
   if (numbers.any((n) => n == null)) return null;
