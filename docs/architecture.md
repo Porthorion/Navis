@@ -3098,8 +3098,10 @@ states without starting audio or modifying a queue.
    song ID cannot veto an otherwise eligible automatic pass.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
-   mistake an in-flight state for a failed sync. Pending durable work resumes
-   only through the configured automatic interval or an explicit action; there
+   mistake an in-flight state for a failed sync. One startup task owns the pass
+   through session resets; epoch checks reject stale completion, and engine
+   readiness schedules a successor only after that task drains. Pending durable
+   work resumes only through the configured automatic interval or an explicit action; there
    is no short continuation timer. A queued full repair is the exception: it
    remains resumable but dormant until an explicit Repair Library action, never
    a startup, reconnect, resume, periodic pass, or Check for updates. Resume

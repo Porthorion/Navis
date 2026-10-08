@@ -246,7 +246,6 @@ final librarySyncControllerProvider =
 const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 
 class LibrarySyncController extends Notifier<LibrarySyncState> {
-  bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
   int _cancellationGeneration = 0;
@@ -766,7 +765,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _androidScheduledConfig = null;
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
-      _startupSyncInFlight = false;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
@@ -780,7 +778,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (_sessionFingerprint != fingerprint) {
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
-      _startupSyncInFlight = false;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
@@ -969,10 +966,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> _maybeRunStartupSync(int epoch) async {
-    if (!ref.mounted ||
-        _startupSyncSuppressed ||
-        epoch != _startupSyncEpoch ||
-        _startupSyncInFlight) {
+    if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
     }
 
@@ -1003,7 +997,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (_startupSyncSuppressed || epoch != _startupSyncEpoch) {
       return;
     }
-    _startupSyncInFlight = true;
     final database = ref.read(navisDatabaseProvider);
     final requiredSyncModelVersion = ref.read(
       requiredLibrarySyncModelVersionProvider,
@@ -1011,7 +1004,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final lastSyncModelVersion = await database.appSettingsDao
         .getLastFullSyncAppBuild();
     if (!ref.mounted || _startupSyncSuppressed || epoch != _startupSyncEpoch) {
-      _startupSyncInFlight = false;
       return;
     }
     final requiresSyncModelRepair =
@@ -1027,44 +1019,40 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         '$requiredSyncModelVersion.',
       );
     }
-    try {
-      final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
-          ? _runSync(
-              force: true,
-              forceFull: true,
-              tolerateUnavailableEngine: true,
-            )
-          : syncIfStale());
-      if (!ref.mounted || epoch != _startupSyncEpoch) {
-        return;
-      }
-      final completedSyncModelRepair =
-          requiresSyncModelRepair &&
-          !deferFullResyncOnMobile &&
-          (result.status == LibrarySyncStatus.succeeded ||
-              (result.status == LibrarySyncStatus.partial &&
-                  result.metadataReady &&
-                  result.candidateGeneration == null &&
-                  result.candidateStatus == null));
-      final completedStartupPass =
-          result.status == LibrarySyncStatus.succeeded ||
-          result.status == LibrarySyncStatus.partial ||
-          completedSyncModelRepair ||
-          result.status == LibrarySyncStatus.failed ||
-          (!deferFullResyncOnMobile &&
-              result.status == LibrarySyncStatus.skipped);
-      if (completedStartupPass) {
-        _startupSyncDoneFingerprint = fingerprint;
-      }
-      if (completedSyncModelRepair) {
-        unawaited(
-          database.appSettingsDao.setLastFullSyncAppBuild(
-            requiredSyncModelVersion,
-          ),
-        );
-      }
-    } finally {
-      _startupSyncInFlight = false;
+    final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
+        ? _runSync(
+            force: true,
+            forceFull: true,
+            tolerateUnavailableEngine: true,
+          )
+        : syncIfStale());
+    if (!ref.mounted || epoch != _startupSyncEpoch) {
+      return;
+    }
+    final completedSyncModelRepair =
+        requiresSyncModelRepair &&
+        !deferFullResyncOnMobile &&
+        (result.status == LibrarySyncStatus.succeeded ||
+            (result.status == LibrarySyncStatus.partial &&
+                result.metadataReady &&
+                result.candidateGeneration == null &&
+                result.candidateStatus == null));
+    final completedStartupPass =
+        result.status == LibrarySyncStatus.succeeded ||
+        result.status == LibrarySyncStatus.partial ||
+        completedSyncModelRepair ||
+        result.status == LibrarySyncStatus.failed ||
+        (!deferFullResyncOnMobile &&
+            result.status == LibrarySyncStatus.skipped);
+    if (completedStartupPass) {
+      _startupSyncDoneFingerprint = fingerprint;
+    }
+    if (completedSyncModelRepair) {
+      unawaited(
+        database.appSettingsDao.setLastFullSyncAppBuild(
+          requiredSyncModelVersion,
+        ),
+      );
     }
   }
 

@@ -522,6 +522,83 @@ void main() {
       },
     );
 
+    test(
+      'session reset waits for startup before retrying a ready engine',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final enteredFirst = Completer<void>();
+        final firstResult = Completer<LibrarySyncState>();
+        final enteredSecond = Completer<void>();
+        final firstEngine = _FakeLibrarySyncEngine((
+          request, {
+          onProgress,
+        }) async {
+          enteredFirst.complete();
+          return await firstResult.future;
+        });
+        final secondEngine = _FakeLibrarySyncEngine((
+          request, {
+          onProgress,
+        }) async {
+          enteredSecond.complete();
+          return _succeeded;
+        });
+        final engineState =
+            NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
+              _MutableLibrarySyncEngine.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverReachabilityControllerProvider.overrideWith(
+              () => StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWith(
+              (ref) => ref.watch(_serverConfigSource),
+            ),
+            librarySyncEngineProvider.overrideWith(
+              (ref) => ref.watch(engineState),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(engineState.notifier).replace(firstEngine);
+        final source = container.read(_serverConfigSource.notifier);
+        source.set(const AsyncData(_exampleServer));
+        container.listen(librarySyncControllerProvider, (_, _) {});
+        await enteredFirst.future.timeout(const Duration(seconds: 5));
+
+        source.set(const AsyncData(null));
+        expect(container.read(serverConfigStateProvider).value, isNull);
+        final nextServer = _exampleServer.copyWith(username: 'bob');
+        source.set(AsyncData(nextServer));
+        expect(container.read(serverConfigStateProvider).value, nextServer);
+        container.read(engineState.notifier).replace(secondEngine);
+        expect(container.read(librarySyncEngineProvider), same(secondEngine));
+        await Future<void>.delayed(Duration.zero);
+        expect(firstEngine.requests, [_automaticRequest]);
+        expect(secondEngine.requests, isEmpty);
+
+        firstResult.complete(_succeeded);
+        await enteredSecond.future.timeout(const Duration(seconds: 5));
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .waitForActiveCatalogSync();
+        await Future<void>.delayed(Duration.zero);
+        source.set(AsyncData(nextServer.copyWith(lastSynced: DateTime.now())));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(firstEngine.requests, [_automaticRequest]);
+        expect(secondEngine.requests, [_automaticRequest]);
+      },
+    );
+
     test('startup trigger runs once when authenticated', () async {
       final database = createTestDatabase();
       addTearDown(database.close);
