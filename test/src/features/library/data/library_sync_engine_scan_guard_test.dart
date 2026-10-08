@@ -75,15 +75,10 @@ void main() {
         credentials: credentials,
       );
       api = FakeLibrarySyncApi();
-      engine = DriftLibrarySyncEngine(
+      engine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
         scanSettlePollInterval: const Duration(milliseconds: 1),
         scanSettleMaxPolls: 2,
       );

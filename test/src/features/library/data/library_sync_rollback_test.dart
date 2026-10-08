@@ -8,9 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
@@ -25,18 +22,7 @@ void main() {
       addTearDown(database.close);
       final files = await Directory.systemTemp.createTemp('navis_rollback_');
       addTearDown(() => files.delete(recursive: true));
-      final repository = ServerConfigRepository(
-        database,
-        credentials: FakeSyncCredentialStore(),
-      );
-      await repository.save(
-        ServerConfigModel(
-          url: 'https://example.com',
-          username: 'alice',
-          password: 'secret',
-          apiVersion: '1.16.1',
-        ),
-      );
+      final repository = await seedSyncSession(database);
 
       // A cached song of an old album, and a rolling copy already cached
       // under the id the server now uses for the same recording: the remap
@@ -111,15 +97,10 @@ void main() {
         BEGIN SELECT RAISE(ABORT, 'injected failure'); END;
       ''');
 
-      final engine = DriftLibrarySyncEngine(
+      final engine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: repository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: repository,
       );
       final result = await engine.executeSyncPlan(
         syncPlanForTest(LibrarySyncPlanKind.fullRepair),

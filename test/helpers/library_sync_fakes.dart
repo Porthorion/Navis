@@ -2,8 +2,12 @@ import 'dart:async';
 
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 class FakeSyncCredentialStore implements SecureCredentialStore {
   String? _password;
@@ -21,6 +25,85 @@ class FakeSyncCredentialStore implements SecureCredentialStore {
     _password = password;
   }
 }
+
+/// A repository over [database] with the standard `alice@example.com` session
+/// already saved.
+Future<ServerConfigRepository> seedSyncSession(
+  NavisDatabase database, {
+  DateTime? lastSynced,
+}) async {
+  final repository = ServerConfigRepository(
+    database,
+    credentials: FakeSyncCredentialStore(),
+  );
+  await repository.save(
+    ServerConfigModel(
+      url: 'https://example.com',
+      username: 'alice',
+      password: 'secret',
+      apiVersion: '1.16.1',
+      lastSynced: lastSynced,
+    ),
+  );
+  return repository;
+}
+
+/// A Drift engine with single-lane album concurrency and tiny write chunks,
+/// so sync ordering is deterministic.
+DriftLibrarySyncEngine serialDriftEngine({
+  required LibrarySyncApi api,
+  required NavisDatabase database,
+  required ServerConfigRepository repository,
+  NetworkType networkType = NetworkType.other,
+  Duration scanSettlePollInterval = const Duration(seconds: 5),
+  int scanSettleMaxPolls = 12,
+  int fastPathPageSize = 500,
+  int bulkSearchPageSize = 1000,
+  int writeChunkSize = 4,
+  Future<void> Function(Map<String, String> aliases)? onBeforeSongIdentityRemap,
+  String? Function()? readActiveSongId,
+  Set<String> Function()? readProtectedSongIds,
+}) => DriftLibrarySyncEngine(
+  api: api,
+  database: database,
+  serverConfigRepository: repository,
+  networkType: networkType,
+  scanSettlePollInterval: scanSettlePollInterval,
+  scanSettleMaxPolls: scanSettleMaxPolls,
+  fastPathPageSize: fastPathPageSize,
+  bulkSearchPageSize: bulkSearchPageSize,
+  fallbackArtistConcurrency: 1,
+  wifiAlbumConcurrency: 1,
+  cellularAlbumConcurrency: 1,
+  otherAlbumConcurrency: 1,
+  writeChunkSize: writeChunkSize,
+  onBeforeSongIdentityRemap: onBeforeSongIdentityRemap,
+  readActiveSongId: readActiveSongId,
+  readProtectedSongIds: readProtectedSongIds,
+);
+
+/// A Drift engine on a metered cellular connection that still allows
+/// interactive hydration.
+DriftLibrarySyncEngine meteredDriftEngine({
+  required LibrarySyncApi api,
+  required NavisDatabase database,
+  required ServerConfigRepository repository,
+}) => DriftLibrarySyncEngine(
+  api: api,
+  database: database,
+  serverConfigRepository: repository,
+  networkType: NetworkType.cellular,
+  readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+    networkType: NetworkType.cellular,
+    isMetered: true,
+    allowsBackgroundSync: false,
+    allowsHardProbe: true,
+    allowsInteractiveHydration: true,
+  ),
+  fallbackArtistConcurrency: 1,
+  cellularAlbumConcurrency: 1,
+  writeChunkSize: 4,
+);
 
 class FakeLibrarySyncApi implements LibrarySyncApi {
   static final DateTime defaultIndexesCursor = DateTime.utc(2026, 1, 1);

@@ -5,7 +5,6 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
-import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -15,21 +14,9 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/stub_library_sync_engine.dart';
 import '../../../../helpers/test_database.dart';
-
-class _MemoryCredentialStore implements SecureCredentialStore {
-  String? password;
-
-  @override
-  Future<void> clearPassword() async => password = null;
-
-  @override
-  Future<String?> readPassword() async => password;
-
-  @override
-  Future<void> savePassword(String value) async => password = value;
-}
 
 class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
   int cancelCalls = 0;
@@ -165,7 +152,7 @@ void main() {
     database = createTestDatabase();
     repository = ServerConfigRepository(
       database,
-      credentials: _MemoryCredentialStore(),
+      credentials: FakeSyncCredentialStore(),
     );
     await repository.save(
       const ServerConfigModel(

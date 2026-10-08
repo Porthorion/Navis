@@ -8,8 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -79,18 +77,9 @@ void main() {
 
   setUp(() async {
     database = NavisDatabase(NativeDatabase.memory());
-    final repository = ServerConfigRepository(
+    final repository = await seedSyncSession(
       database,
-      credentials: FakeSyncCredentialStore(),
-    );
-    await repository.save(
-      ServerConfigModel(
-        url: 'https://example.com',
-        username: 'alice',
-        password: 'secret',
-        apiVersion: '1.16.1',
-        lastSynced: DateTime.now(),
-      ),
+      lastSynced: DateTime.now(),
     );
     api = FakeLibrarySyncApi();
     drift = DriftLibrarySyncEngine(

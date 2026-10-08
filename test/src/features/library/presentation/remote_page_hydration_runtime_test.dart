@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/auth/data/server_config_repository.dart';
-import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -47,18 +45,9 @@ void main() {
     // in-memory database does not have.
     directory = Directory.systemTemp.createTempSync('remote_page_runtime_');
     database = NavisDatabase.atPath('${directory.path}/navis.sqlite');
-    final repository = ServerConfigRepository(
+    final repository = await seedSyncSession(
       database,
-      credentials: FakeSyncCredentialStore(),
-    );
-    await repository.save(
-      ServerConfigModel(
-        url: 'https://example.com',
-        username: 'alice',
-        password: 'secret',
-        apiVersion: '1.16.1',
-        lastSynced: DateTime.now(),
-      ),
+      lastSynced: DateTime.now(),
     );
     api = FakeLibrarySyncApi();
     final drift = DriftLibrarySyncEngine(

@@ -138,15 +138,10 @@ void main() {
         credentials: credentials,
       );
       api = FakeLibrarySyncApi();
-      engine = DriftLibrarySyncEngine(
+      engine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
     });
 
@@ -1325,21 +1320,10 @@ void main() {
 
     test('manual 48-album newest probe preserves server order without creation dates', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       final newest = List<Album>.generate(
         48,
@@ -1968,17 +1952,12 @@ void main() {
             artistId: const Value('artist-stale'),
           ),
         ]);
-        final protectedEngine = DriftLibrarySyncEngine(
+        final protectedEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
+          repository: serverConfigRepository,
           readActiveSongId: () => 'song-playing',
           readProtectedSongIds: () => const <String>{'song-playing'},
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
         );
 
         final first = await protectedEngine.executeSyncPlan(
@@ -2051,10 +2030,10 @@ void main() {
           ],
         );
         final appliedAliases = <Map<String, String>>[];
-        final aliasEngine = DriftLibrarySyncEngine(
+        final aliasEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
+          repository: serverConfigRepository,
           onBeforeSongIdentityRemap: (aliases) async {
             expect(
               await database.libraryDao.getSongById('cached-remote-song'),
@@ -2062,11 +2041,6 @@ void main() {
             );
             appliedAliases.add(Map<String, String>.from(aliases));
           },
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
         );
 
         final result = await aliasEngine.executeSyncPlan(
@@ -2519,16 +2493,11 @@ void main() {
           songs: <Song>[],
         );
 
-        final localEngine = DriftLibrarySyncEngine(
+        final localEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           fastPathPageSize: 2,
-          writeChunkSize: 4,
         );
 
         final progress = <LibrarySyncState>[];
@@ -2746,16 +2715,11 @@ void main() {
           songs: <Song>[],
         );
       }
-      final localEngine = DriftLibrarySyncEngine(
+      final localEngine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
+        repository: serverConfigRepository,
         fastPathPageSize: 2,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
       );
 
       final interrupted = await localEngine.executeSyncPlan(
@@ -3092,16 +3056,11 @@ void main() {
           ),
         );
 
-        final bulkEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           bulkSearchPageSize: 3,
-          writeChunkSize: 4,
         );
 
         final progress = <LibrarySyncState>[];
@@ -3178,14 +3137,10 @@ void main() {
             artistId: 'artist-1',
           ),
         ];
-        final tailEngine = DriftLibrarySyncEngine(
+        final tailEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           writeChunkSize: 1,
         );
         await tailEngine.executeSyncPlan(
@@ -3273,14 +3228,10 @@ void main() {
           ],
         );
 
-        final bulkEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
+          repository: serverConfigRepository,
           bulkSearchPageSize: 2,
           writeChunkSize: 1,
         );
@@ -3333,15 +3284,10 @@ void main() {
         ),
       );
 
-      final bulkEngine = DriftLibrarySyncEngine(
+      final bulkEngine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
 
       final state = await bulkEngine.executeSyncPlan(
@@ -3385,15 +3331,10 @@ void main() {
           ),
         );
 
-        final bulkEngine = DriftLibrarySyncEngine(
+        final bulkEngine = serialDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          fallbackArtistConcurrency: 1,
-          wifiAlbumConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          otherAlbumConcurrency: 1,
-          writeChunkSize: 4,
+          repository: serverConfigRepository,
         );
 
         final state = await bulkEngine.executeSyncPlan(
@@ -3664,14 +3605,10 @@ void main() {
         ],
       );
 
-      final bulkEnabledEngine = DriftLibrarySyncEngine(
+      final bulkEnabledEngine = serialDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        fallbackArtistConcurrency: 1,
-        wifiAlbumConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        otherAlbumConcurrency: 1,
+        repository: serverConfigRepository,
         writeChunkSize: 1,
       );
 
@@ -4337,21 +4274,10 @@ void main() {
       'metered manual discovery hydrates only a bounded newest-album subset',
       () async {
         await saveSession(lastSynced: DateTime.now());
-        final meteredEngine = DriftLibrarySyncEngine(
+        final meteredEngine = meteredDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          networkType: NetworkType.cellular,
-          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-            networkType: NetworkType.cellular,
-            isMetered: true,
-            allowsBackgroundSync: false,
-            allowsHardProbe: true,
-            allowsInteractiveHydration: true,
-          ),
-          fallbackArtistConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          writeChunkSize: 4,
+          repository: serverConfigRepository,
         );
         api.fastPathPages[0] = List<Album>.generate(
           5,
@@ -4414,21 +4340,10 @@ void main() {
 
     test('capped metered discovery window records discovery debt', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       // A full 50-album page of unknown content: the metered window caps
       // without ever reaching known content.
@@ -4468,21 +4383,10 @@ void main() {
 
     test('reaching known content clears recorded discovery debt', () async {
       await saveSession(lastSynced: DateTime.now());
-      final meteredEngine = DriftLibrarySyncEngine(
+      final meteredEngine = meteredDriftEngine(
         api: api,
         database: database,
-        serverConfigRepository: serverConfigRepository,
-        networkType: NetworkType.cellular,
-        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-          networkType: NetworkType.cellular,
-          isMetered: true,
-          allowsBackgroundSync: false,
-          allowsHardProbe: true,
-          allowsInteractiveHydration: true,
-        ),
-        fallbackArtistConcurrency: 1,
-        cellularAlbumConcurrency: 1,
-        writeChunkSize: 4,
+        repository: serverConfigRepository,
       );
       api.fastPathPages[0] = List<Album>.generate(
         50,
@@ -4537,21 +4441,10 @@ void main() {
             'navis': <String, Object?>{'libraryDiscoveryDebtStreak': '1'},
           }),
         );
-        final meteredEngine = DriftLibrarySyncEngine(
+        final meteredEngine = meteredDriftEngine(
           api: api,
           database: database,
-          serverConfigRepository: serverConfigRepository,
-          networkType: NetworkType.cellular,
-          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
-            networkType: NetworkType.cellular,
-            isMetered: true,
-            allowsBackgroundSync: false,
-            allowsHardProbe: true,
-            allowsInteractiveHydration: true,
-          ),
-          fallbackArtistConcurrency: 1,
-          cellularAlbumConcurrency: 1,
-          writeChunkSize: 4,
+          repository: serverConfigRepository,
         );
         api.fastPathPages[0] = List<Album>.generate(
           50,
