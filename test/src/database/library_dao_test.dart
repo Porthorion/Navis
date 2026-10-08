@@ -281,10 +281,10 @@ void main() {
         SongsTableCompanion.insert(id: 's', title: 'S', starred: Value(star)),
       ]);
       final started = DateTime.now();
-      await database.libraryDao.updateAlbumStarred('a', null);
-      await database.libraryDao.updateAlbumRating('a', 5);
-      await database.libraryDao.updateSongStarred('s', null);
-      await database.libraryDao.updateSongRating('s', 4);
+      await database.libraryDao.setEntityStarred('album', 'a', null);
+      await database.libraryDao.setEntityRating('album', 'a', 5);
+      await database.libraryDao.setEntityStarred('song', 's', null);
+      await database.libraryDao.setEntityRating('song', 's', 4);
       await database.libraryDao.upsertAlbums([
         AlbumsTableCompanion.insert(
           id: 'a',

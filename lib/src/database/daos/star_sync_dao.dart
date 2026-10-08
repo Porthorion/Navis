@@ -76,16 +76,7 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   }) {
     return transaction(() async {
       final at = liked ? DateTime.now() : null;
-      switch (itemType) {
-        case 'song':
-          await attachedDatabase.libraryDao.updateSongStarred(itemId, at);
-        case 'album':
-          await attachedDatabase.libraryDao.updateAlbumStarred(itemId, at);
-        case 'artist':
-          await attachedDatabase.libraryDao.updateArtistStarred(itemId, at);
-        default:
-          throw ArgumentError.value(itemType, 'itemType');
-      }
+      await attachedDatabase.libraryDao.setEntityStarred(itemType, itemId, at);
       await queueStarAction(
         itemId: itemId,
         itemType: itemType,
@@ -102,14 +93,11 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     final normalized = rating.clamp(0, 5);
     return transaction(() async {
       final value = normalized == 0 ? null : normalized;
-      switch (itemType) {
-        case 'song':
-          await attachedDatabase.libraryDao.updateSongRating(itemId, value);
-        case 'album':
-          await attachedDatabase.libraryDao.updateAlbumRating(itemId, value);
-        default:
-          throw ArgumentError.value(itemType, 'itemType');
-      }
+      await attachedDatabase.libraryDao.setEntityRating(
+        itemType,
+        itemId,
+        value,
+      );
       await _queue(
         itemId: itemId,
         itemType: itemType,

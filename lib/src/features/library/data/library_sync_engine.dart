@@ -2389,73 +2389,44 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             .map((row) => row.readNullable<String>('album_id'))
             .whereType<String>(),
       );
-      final localAlbumIds = await _database.libraryDao.getStarredAlbumIds();
-      final localArtistIds = await _database.libraryDao.getStarredArtistIds();
-      final localSongIds = await _database.libraryDao.getStarredSongIds();
-      final confirmedAbsentAlbumIds = await _confirmedStarredAbsences(
-        serverId: serverId,
-        entityType: 'album',
-        localIds: localAlbumIds,
-        serverIds: albumStarredAt.keys.toSet(),
-        protectedIds: pendingByType['album']!,
-      );
-      final confirmedAbsentArtistIds = await _confirmedStarredAbsences(
-        serverId: serverId,
-        entityType: 'artist',
-        localIds: localArtistIds,
-        serverIds: artistStarredAt.keys.toSet(),
-        protectedIds: pendingByType['artist']!,
-      );
-      final confirmedAbsentSongIds = await _confirmedStarredAbsences(
-        serverId: serverId,
-        entityType: 'song',
-        localIds: localSongIds,
-        serverIds: songStarredAt.keys.toSet(),
-        protectedIds: pendingByType['song']!,
-      );
-      await _database.libraryDao.batchReconcileAlbumStarred(
-        albumStarredAt,
-        excludeIds: pendingByType['album']!,
-        confirmedAbsentIds: confirmedAbsentAlbumIds,
-      );
-      await _database.libraryDao.batchReconcileArtistStarred(
-        artistStarredAt,
-        excludeIds: pendingByType['artist']!,
-        confirmedAbsentIds: confirmedAbsentArtistIds,
-      );
-      await _database.libraryDao.batchReconcileSongStarred(
-        songStarredAt,
-        excludeIds: pendingByType['song']!,
-        confirmedAbsentIds: confirmedAbsentSongIds,
-      );
-      final confirmedRemovalCount =
-          confirmedAbsentAlbumIds.length +
-          confirmedAbsentArtistIds.length +
-          confirmedAbsentSongIds.length;
-      if (serverId != null && confirmedRemovalCount > 0) {
-        final afterAlbumIds = await _database.libraryDao.getStarredAlbumIds();
-        final afterArtistIds = await _database.libraryDao.getStarredArtistIds();
-        final afterSongIds = await _database.libraryDao.getStarredSongIds();
+      final before = <String, int>{};
+      final removed = <String, int>{};
+      for (final (type, starredAt) in [
+        ('album', albumStarredAt),
+        ('artist', artistStarredAt),
+        ('song', songStarredAt),
+      ]) {
+        final localIds = await _database.libraryDao.getStarredIds(type);
+        before['${type}s'] = localIds.length;
+        final confirmedAbsentIds = await _confirmedStarredAbsences(
+          serverId: serverId,
+          entityType: type,
+          localIds: localIds,
+          serverIds: starredAt.keys.toSet(),
+          protectedIds: pendingByType[type]!,
+        );
+        removed['${type}s'] = confirmedAbsentIds.length;
+        await _database.libraryDao.batchReconcileStarred(
+          type,
+          starredAt,
+          excludeIds: pendingByType[type]!,
+          confirmedAbsentIds: confirmedAbsentIds,
+        );
+      }
+      if (serverId != null && removed.values.any((count) => count > 0)) {
+        final after = <String, int>{};
+        for (final type in ['album', 'artist', 'song']) {
+          after['${type}s'] = (await _database.libraryDao.getStarredIds(type))
+              .length;
+        }
         await _database.librarySyncDao.recordOperationLedgerEntry(
           serverId: serverId,
           operation: 'starredReconciliation',
           reason: 'confirmedSecondAbsence',
           details: <String, Object?>{
-            'before': <String, int>{
-              'artists': localArtistIds.length,
-              'albums': localAlbumIds.length,
-              'songs': localSongIds.length,
-            },
-            'after': <String, int>{
-              'artists': afterArtistIds.length,
-              'albums': afterAlbumIds.length,
-              'songs': afterSongIds.length,
-            },
-            'removed': <String, int>{
-              'artists': confirmedAbsentArtistIds.length,
-              'albums': confirmedAbsentAlbumIds.length,
-              'songs': confirmedAbsentSongIds.length,
-            },
+            'before': before,
+            'after': after,
+            'removed': removed,
           },
         );
       }

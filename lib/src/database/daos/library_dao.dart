@@ -1859,57 +1859,56 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  /// Update only the [starred] column for a single album row.
-  Future<void> updateAlbumStarred(String albumId, DateTime? starred) {
-    return transaction(() async {
-      await (update(albumsTable)..where((t) => t.id.equals(albumId))).write(
-        AlbumsTableCompanion(starred: Value(starred)),
+  late final _entityTables = <String, TableInfo<Table, Object?>>{
+    'song': songsTable,
+    'album': albumsTable,
+    'artist': artistsTable,
+  };
+
+  TableInfo<Table, Object?> _entityTable(String type) =>
+      _entityTables[type] ?? (throw ArgumentError.value(type, 'type'));
+
+  /// Saves a local favorite and journals its intent against concurrent snapshots.
+  Future<void> setEntityStarred(String type, String id, DateTime? at) =>
+      _setEntityAnnotation(
+        type,
+        id,
+        'starred',
+        Variable<DateTime>(at),
+        at == null ? 'unstar' : 'star',
       );
-      await _recordLocalMutation(
-        entityType: 'album',
-        entityId: albumId,
-        operation: starred == null ? 'unstar' : 'star',
-      );
-    });
+
+  Future<void> setEntityRating(String type, String id, int? rating) {
+    if (type != 'song' && type != 'album') {
+      throw ArgumentError.value(type, 'type');
+    }
+    return _setEntityAnnotation(
+      type,
+      id,
+      'user_rating',
+      Variable<int>(rating),
+      'rating',
+    );
   }
 
-  /// Update only the [starred] column for a single artist row.
-  Future<void> updateArtistStarred(String artistId, DateTime? starred) {
+  Future<void> _setEntityAnnotation(
+    String type,
+    String id,
+    String column,
+    Variable<Object> value,
+    String operation,
+  ) {
+    final table = _entityTable(type);
     return transaction(() async {
-      await (update(artistsTable)..where((t) => t.id.equals(artistId))).write(
-        ArtistsTableCompanion(starred: Value(starred)),
+      await customUpdate(
+        'UPDATE ${table.actualTableName} SET $column = ? WHERE id = ?',
+        variables: [value, Variable<String>(id)],
+        updates: {table},
       );
       await _recordLocalMutation(
-        entityType: 'artist',
-        entityId: artistId,
-        operation: starred == null ? 'unstar' : 'star',
-      );
-    });
-  }
-
-  /// Update only the [starred] column for a single song row.
-  Future<void> updateSongStarred(String songId, DateTime? starred) {
-    return transaction(() async {
-      await (update(songsTable)..where((t) => t.id.equals(songId))).write(
-        SongsTableCompanion(starred: Value(starred)),
-      );
-      await _recordLocalMutation(
-        entityType: 'song',
-        entityId: songId,
-        operation: starred == null ? 'unstar' : 'star',
-      );
-    });
-  }
-
-  Future<void> updateSongRating(String songId, int? rating) {
-    return transaction(() async {
-      await (update(songsTable)..where((t) => t.id.equals(songId))).write(
-        SongsTableCompanion(userRating: Value(rating)),
-      );
-      await _recordLocalMutation(
-        entityType: 'song',
-        entityId: songId,
-        operation: 'rating',
+        entityType: type,
+        entityId: id,
+        operation: operation,
       );
     });
   }
@@ -1918,19 +1917,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return (update(songsTable)..where((t) => t.id.equals(songId))).write(
       SongsTableCompanion(recordingMbid: Value(recordingMbid)),
     );
-  }
-
-  Future<void> updateAlbumRating(String albumId, int? rating) {
-    return transaction(() async {
-      await (update(albumsTable)..where((t) => t.id.equals(albumId))).write(
-        AlbumsTableCompanion(userRating: Value(rating)),
-      );
-      await _recordLocalMutation(
-        entityType: 'album',
-        entityId: albumId,
-        operation: 'rating',
-      );
-    });
   }
 
   Future<void> _recordLocalMutation({
@@ -2038,99 +2024,44 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull().map((row) => row?.starred != null);
   }
 
-  Future<Set<String>> getStarredAlbumIds() async {
-    final rows = await (select(
-      albumsTable,
-    )..where((table) => table.starred.isNotNull())).get();
-    return rows.map((row) => row.id).toSet();
+  Future<Set<String>> getStarredIds(String type) async {
+    final table = _entityTable(type);
+    final rows = await customSelect(
+      'SELECT id FROM ${table.actualTableName} WHERE starred IS NOT NULL',
+      readsFrom: {table},
+    ).get();
+    return rows.map((row) => row.read<String>('id')).toSet();
   }
 
-  Future<Set<String>> getStarredArtistIds() async {
-    final rows = await (select(
-      artistsTable,
-    )..where((table) => table.starred.isNotNull())).get();
-    return rows.map((row) => row.id).toSet();
-  }
-
-  Future<Set<String>> getStarredSongIds() async {
-    final rows = await (select(
-      songsTable,
-    )..where((table) => table.starred.isNotNull())).get();
-    return rows.map((row) => row.id).toSet();
-  }
-
-  /// Efficiently reconcile starred state for all albums in a single
-  /// transaction. Applies server stars and clears only [confirmedAbsentIds],
-  /// which must have passed durable absence confirmation. [excludeIds] protect
-  /// pending local star operations.
-  Future<void> batchReconcileAlbumStarred(
+  /// Applies server favorites and clears only durably confirmed absences.
+  ///
+  /// [excludeIds] protects pending local star operations.
+  Future<void> batchReconcileStarred(
+    String type,
     Map<String, DateTime?> starredMap, {
     Set<String> excludeIds = const <String>{},
     Set<String> confirmedAbsentIds = const <String>{},
   }) async {
+    final table = _entityTable(type);
     await transaction(() async {
       final clearIds = confirmedAbsentIds.difference(excludeIds);
       if (clearIds.isNotEmpty) {
-        await (update(albumsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
-            ))
-            .write(const AlbumsTableCompanion(starred: Value(null)));
-      }
-
-      // 2. Set starred for each album in the server's starred set.
-      for (final entry in starredMap.entries) {
-        if (excludeIds.contains(entry.key)) continue;
-        await (update(albumsTable)..where((t) => t.id.equals(entry.key))).write(
-          AlbumsTableCompanion(starred: Value(entry.value)),
+        await customUpdate(
+          'UPDATE ${table.actualTableName} SET starred = NULL '
+          'WHERE starred IS NOT NULL AND id IN (${List.filled(clearIds.length, '?').join(',')})',
+          variables: clearIds.map(Variable<String>.new).toList(),
+          updates: {table},
         );
       }
-    });
-  }
-
-  /// Efficiently reconcile starred state for all artists in a single
-  /// transaction.
-  Future<void> batchReconcileArtistStarred(
-    Map<String, DateTime?> starredMap, {
-    Set<String> excludeIds = const <String>{},
-    Set<String> confirmedAbsentIds = const <String>{},
-  }) async {
-    await transaction(() async {
-      final clearIds = confirmedAbsentIds.difference(excludeIds);
-      if (clearIds.isNotEmpty) {
-        await (update(artistsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
-            ))
-            .write(const ArtistsTableCompanion(starred: Value(null)));
-      }
-
       for (final entry in starredMap.entries) {
         if (excludeIds.contains(entry.key)) continue;
-        await (update(artistsTable)..where((t) => t.id.equals(entry.key)))
-            .write(ArtistsTableCompanion(starred: Value(entry.value)));
-      }
-    });
-  }
-
-  /// Efficiently reconcile starred state for all songs in a single
-  /// transaction.
-  Future<void> batchReconcileSongStarred(
-    Map<String, DateTime?> starredMap, {
-    Set<String> excludeIds = const <String>{},
-    Set<String> confirmedAbsentIds = const <String>{},
-  }) async {
-    await transaction(() async {
-      final clearIds = confirmedAbsentIds.difference(excludeIds);
-      if (clearIds.isNotEmpty) {
-        await (update(songsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
-            ))
-            .write(const SongsTableCompanion(starred: Value(null)));
-      }
-
-      for (final entry in starredMap.entries) {
-        if (excludeIds.contains(entry.key)) continue;
-        await (update(songsTable)..where((t) => t.id.equals(entry.key))).write(
-          SongsTableCompanion(starred: Value(entry.value)),
+        await customUpdate(
+          'UPDATE ${table.actualTableName} SET starred = ? WHERE id = ?',
+          variables: [
+            Variable<DateTime>(entry.value),
+            Variable<String>(entry.key),
+          ],
+          updates: {table},
         );
       }
     });

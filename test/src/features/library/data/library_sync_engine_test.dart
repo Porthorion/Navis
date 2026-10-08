@@ -227,7 +227,11 @@ void main() {
         while (api.currentAlbumRequests == 0) {
           await Future<void>.delayed(Duration.zero);
         }
-        await database.libraryDao.updateSongStarred('s1', DateTime.now());
+        await database.libraryDao.setEntityStarred(
+          'song',
+          's1',
+          DateTime.now(),
+        );
         api.albumCompleter!.complete(
           const Album(
             id: 'a',
@@ -280,15 +284,15 @@ void main() {
           LibrarySyncStatus.succeeded,
         );
         expect(
-          await database.libraryDao.getStarredSongIds(),
+          await database.libraryDao.getStarredIds('song'),
           contains('remote-song'),
         );
         expect(
-          await database.libraryDao.getStarredAlbumIds(),
+          await database.libraryDao.getStarredIds('album'),
           contains('remote-album'),
         );
         expect(
-          await database.libraryDao.getStarredArtistIds(),
+          await database.libraryDao.getStarredIds('artist'),
           contains('remote-artist'),
         );
         expect(
@@ -696,7 +700,8 @@ void main() {
           )).single.name,
           'New Album',
         );
-        await database.libraryDao.updateSongStarred(
+        await database.libraryDao.setEntityStarred(
+          'song',
           'song-1',
           DateTime.utc(2026, 8, 4, 12),
         );
@@ -1553,7 +1558,8 @@ void main() {
         );
 
         final locallyStarredAt = DateTime.now();
-        await database.libraryDao.updateAlbumStarred(
+        await database.libraryDao.setEntityStarred(
+          'album',
           'album-keep',
           locallyStarredAt,
         );

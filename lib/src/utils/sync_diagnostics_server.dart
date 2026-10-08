@@ -4063,7 +4063,7 @@ class SyncDiagnosticsServer {
     await _container
         .read(navisDatabaseProvider)
         .libraryDao
-        .updateSongStarred(songId, liked ? DateTime.now() : null);
+        .setEntityStarred('song', songId, liked ? DateTime.now() : null);
     final starSyncDao = _container.read(navisDatabaseProvider).starSyncDao;
     final diagnosticActions = await starSyncDao.getPendingActions();
     for (final action in diagnosticActions.where(
