@@ -16,6 +16,7 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_provider.d
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -123,6 +124,7 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   bool lastFmBundled = true,
+  bool reviewMode = false,
   Future<void> Function(AppSettingsDao dao)? seed,
   ListenBrainzApiClient? listenBrainzClient,
   LastFmApiClient Function(String)? lastFmClientFactory,
@@ -139,6 +141,14 @@ Future<_Harness> _pump(
     overrides: withTestDatabase(
       database,
       overrides: <Override>[
+        packageInfoProvider.overrideWith(
+          (ref) async => PackageInfo(
+            appName: 'Navis',
+            packageName: 'test.navis',
+            version: '1.4.3',
+            buildNumber: '10403',
+          ),
+        ),
         lastFmBundledKeyProvider.overrideWithValue(lastFmBundled),
         externalScrobbleCredentialStoreProvider.overrideWithValue(credentials),
         if (listenBrainzClient != null)
@@ -153,7 +163,11 @@ Future<_Harness> _pump(
     routes: [
       GoRoute(
         path: AppRoutes.onboarding,
-        builder: (_, _) => const OnboardingScreen(),
+        builder: (_, _) => OnboardingScreen(reviewMode: reviewMode),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (_, _) => const Scaffold(body: Text('Settings stub')),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -441,6 +455,7 @@ void main() {
       'lrclib',
     });
     expect(row.integrationsNoticeDismissed, isTrue);
+    expect(row.setupHighlightsSeenRelease, '1.4.3');
   });
 
   testWidgets('Finish with Online services off stores the master switch', (
@@ -476,5 +491,62 @@ void main() {
     expect(row.externalIntegrationsEnabled, isTrue);
     expect(row.disabledIntegrations, '[]');
     expect(row.integrationsNoticeDismissed, isFalse);
+    expect(row.setupHighlightsSeenRelease, '1.4.3');
+  });
+
+  for (final reviewMode in [false, true]) {
+    testWidgets(
+      'Finish acknowledges updated-user highlights (review=$reviewMode)',
+      (tester) async {
+        final h = await _pump(
+          tester,
+          reviewMode: reviewMode,
+          seed: (dao) => dao.completeOnboarding(currentOnboardingVersion),
+        );
+        // This targeted write happens after draft hydration and must survive Finish.
+        await tester.runAsync(
+          () => h.database.appSettingsDao.updateSetupCardDismissedRelease(
+            '1.4.3',
+          ),
+        );
+        await h.finish();
+        final row = await h.row();
+        expect(row.setupHighlightsSeenRelease, '1.4.3');
+        expect(row.setupCardDismissedRelease, '1.4.3');
+      },
+    );
+
+    testWidgets('Skip keeps updated-user highlights (review=$reviewMode)', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        reviewMode: reviewMode,
+        seed: (dao) => dao.completeOnboarding(currentOnboardingVersion),
+      );
+      await h.tap(find.text('Skip setup'));
+      await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await h.settle();
+      expect((await h.row()).setupHighlightsSeenRelease, isNull);
+    });
+  }
+
+  testWidgets('first-run Skip remembers required state captured at hydration', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    // Another completion after entry must not change this screen's Skip rule.
+    await tester.runAsync(
+      () => h.database.appSettingsDao.completeOnboarding(
+        currentOnboardingVersion,
+      ),
+    );
+    await h.settle();
+    await h.tap(find.text('Skip setup'));
+    await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await h.settle();
+    expect((await h.row()).setupHighlightsSeenRelease, '1.4.3');
   });
 }

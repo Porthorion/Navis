@@ -13,6 +13,7 @@ import 'package:navis/src/features/integrations/data/integration_guard_intercept
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/presentation/integration_copy.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
@@ -56,6 +57,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const integrationsStep = 3;
   int _step = 0;
   bool _hydrated = false;
+  bool _onboardingRequiredAtEntry = false;
   bool _saving = false;
   bool _lastFmBusy = false;
   bool _listenBrainzBusy = false;
@@ -139,9 +141,10 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _homeWarmup?.stop();
   }
 
-  void _hydrate(AppSettingsModel settings) {
+  void _hydrate(AppSettingsModel settings, {required bool onboardingRequired}) {
     if (_hydrated) return;
     _hydrated = true;
+    _onboardingRequiredAtEntry = onboardingRequired;
     _draft = settings;
     _draftCustomPresets = List<int>.from(
       ref.read(customColorPresetsProvider).asData?.value ?? const <int>[],
@@ -180,6 +183,9 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await _saveIntegrationChoices(draft);
         final handler = ref.read(audioHandlerProvider);
         if (handler != null) await handler.applyRuntimeSettings();
+      }
+      if (!discardDraft || (!widget.reviewMode && _onboardingRequiredAtEntry)) {
+        await ref.read(setupHighlightsServiceProvider).markSeen();
       }
       await ref.read(onboardingCompletionServiceProvider).complete();
       if (!mounted) return;
@@ -355,7 +361,12 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
-    settings.whenData(_hydrate);
+    final onboardingRequired = ref.watch(onboardingRequiredProvider);
+    if (onboardingRequired != null) {
+      settings.whenData(
+        (value) => _hydrate(value, onboardingRequired: onboardingRequired),
+      );
+    }
     final draft = _draft;
     if (draft == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));

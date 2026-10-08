@@ -1137,7 +1137,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 94);
+    expect(authorized.body['schemaVersion'], 95);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -1760,6 +1760,75 @@ void main() {
     },
   );
 
+  test(
+    'setup highlights reset is authenticated, clone-only and targeted',
+    () async {
+      const path = '/v1/presentation/setup-highlights/reset';
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final dao = fixture.database.appSettingsDao;
+      await dao.getSettings();
+      await dao.completeOnboarding(1);
+      await dao.updateColorStyle('pastel');
+      await dao.updateSetupHighlightsSeenRelease('1.4.3');
+      await dao.updateSetupCardDismissedRelease('1.4.3');
+
+      final unauthorized = await _request(fixture.port, path, method: 'POST');
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      expect((await dao.getSettings())!.setupHighlightsSeenRelease, '1.4.3');
+      final before = await _request(
+        fixture.port,
+        '/v1/presentation/integrations',
+        token: fixture.token,
+      );
+      expect(before.statusCode, HttpStatus.ok);
+      expect(before.body['setupHighlightsSeenRelease'], '1.4.3');
+      expect(before.body['setupCardDismissedRelease'], '1.4.3');
+
+      for (var run = 0; run < 2; run++) {
+        final reset = await _request(
+          fixture.port,
+          path,
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(reset.statusCode, HttpStatus.ok);
+        expect(reset.body, {
+          'setupHighlightsSeenRelease': null,
+          'setupCardDismissedRelease': null,
+        });
+      }
+      final row = await dao.getSettings();
+      expect(row.setupHighlightsSeenRelease, isNull);
+      expect(row.setupCardDismissedRelease, isNull);
+      expect(row.onboardingVersion, 1);
+      expect(row.colorStyle, 'pastel');
+      await fixture.close();
+
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      await primary.database.appSettingsDao.getSettings();
+      await primary.database.appSettingsDao.updateSetupHighlightsSeenRelease(
+        '1.4.3',
+      );
+      final forbidden = await _request(
+        primary.port,
+        path,
+        method: 'POST',
+        token: primary.token,
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+      expect(
+        (await primary.database.appSettingsDao.getSettings())!
+            .setupHighlightsSeenRelease,
+        '1.4.3',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('presentation endpoints use the authenticated clone control plane', () async {
     final presentation = _MockPresentationController();
     final navigationDriver = _MockDiagnosticsNavigationDriver();
@@ -1815,6 +1884,7 @@ void main() {
       ('POST', '/v1/presentation/navigate'),
       ('POST', '/v1/presentation/dismiss-popup'),
       ('POST', '/v1/presentation/onboarding/complete'),
+      ('POST', '/v1/presentation/setup-highlights/reset'),
       ('GET', '/v1/presentation/home-warmup'),
       ('POST', '/v1/presentation/library-filter'),
       ('POST', '/v1/presentation/notice'),
@@ -2160,6 +2230,7 @@ void main() {
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/dismiss-popup'),
         ('POST', '/v1/presentation/onboarding/complete'),
+        ('POST', '/v1/presentation/setup-highlights/reset'),
         ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/notice'),

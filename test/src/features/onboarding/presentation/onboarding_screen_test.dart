@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -31,6 +32,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -57,6 +59,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -88,6 +91,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -173,6 +177,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(themeMode: 'light'),
@@ -228,6 +233,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
           customColorPresetsProvider.overrideWithValue(
             const AsyncData(<int>[]),
@@ -263,6 +269,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingRequiredProvider.overrideWithValue(true),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),

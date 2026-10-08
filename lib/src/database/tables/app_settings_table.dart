@@ -337,6 +337,12 @@ class AppSettingsTable extends Table {
   BoolColumn get integrationsNoticeDismissed =>
       boolean().withDefault(const Constant(false))();
 
+  /// Latest setup highlight release acknowledged by completing setup.
+  TextColumn get setupHighlightsSeenRelease => text().nullable()();
+
+  /// Latest setup highlight release whose Home invitation was dismissed.
+  TextColumn get setupCardDismissedRelease => text().nullable()();
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.

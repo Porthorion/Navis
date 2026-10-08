@@ -231,7 +231,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 94;
+  int get schemaVersion => 95;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -534,6 +534,25 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 94 && to >= 94) {
       await from93To94(migrator);
+    }
+    if (from < 95 && to >= 95) {
+      await from94To95(migrator);
+    }
+  }
+
+  /// Adds release-scoped setup acknowledgement and Home card dismissal.
+  Future<void> from94To95(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'setup_highlights_seen_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupHighlightsSeenRelease,
+      );
+    }
+    if (!await _columnExists('app_settings', 'setup_card_dismissed_release')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.setupCardDismissedRelease,
+      );
     }
   }
 
@@ -2369,6 +2388,8 @@ FROM scrobble_queue;
         flatSurfaces: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
+        setupHighlightsSeenRelease: const Value(null),
+        setupCardDismissedRelease: const Value(null),
         albumQueueEnabled: const Value(true),
         likedQueueEnabled: const Value(true),
         matchFlowEnabled: const Value(false),

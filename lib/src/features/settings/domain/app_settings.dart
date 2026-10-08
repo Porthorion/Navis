@@ -119,6 +119,8 @@ class AppSettingsModel {
     this.externalIntegrationsEnabled = true,
     this.disabledIntegrations = '[]',
     this.integrationsNoticeDismissed = false,
+    this.setupHighlightsSeenRelease,
+    this.setupCardDismissedRelease,
     this.customVoyageServers = const <CustomVoyageServer>[],
     this.groupListeningEnabled = false,
     this.voyageServerUrl,
@@ -204,6 +206,8 @@ class AppSettingsModel {
       externalIntegrationsEnabled = true,
       disabledIntegrations = '[]',
       integrationsNoticeDismissed = false,
+      setupHighlightsSeenRelease = null,
+      setupCardDismissedRelease = null,
       customVoyageServers = const <CustomVoyageServer>[],
       groupListeningEnabled = false,
       voyageServerUrl = null,
@@ -360,6 +364,16 @@ class AppSettingsModel {
   /// Whether the one-time Integrations notice on Home was dismissed.
   final bool integrationsNoticeDismissed;
 
+  /// Latest setup highlight release acknowledged by Finish (or first-run Skip).
+  ///
+  /// Written only through targeted writers, never by a full settings save.
+  final String? setupHighlightsSeenRelease;
+
+  /// Latest setup highlight release whose Home card was dismissed.
+  ///
+  /// Dismissal does not acknowledge the setup highlights themselves.
+  final String? setupCardDismissedRelease;
+
   /// Legacy retired Listen Together data retained for schema compatibility.
   /// Runtime settings always expose this as empty.
   final List<CustomVoyageServer> customVoyageServers;
@@ -457,6 +471,10 @@ class AppSettingsModel {
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
+    String? setupHighlightsSeenRelease,
+    String? setupCardDismissedRelease,
+    bool clearSetupHighlightsSeenRelease = false,
+    bool clearSetupCardDismissedRelease = false,
     List<CustomVoyageServer>? customVoyageServers,
     bool? groupListeningEnabled,
     String? voyageServerUrl,
@@ -607,6 +625,12 @@ class AppSettingsModel {
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
       integrationsNoticeDismissed:
           integrationsNoticeDismissed ?? this.integrationsNoticeDismissed,
+      setupHighlightsSeenRelease: clearSetupHighlightsSeenRelease
+          ? null
+          : setupHighlightsSeenRelease ?? this.setupHighlightsSeenRelease,
+      setupCardDismissedRelease: clearSetupCardDismissedRelease
+          ? null
+          : setupCardDismissedRelease ?? this.setupCardDismissedRelease,
       customVoyageServers:
           customVoyageServers ??
           List<CustomVoyageServer>.from(this.customVoyageServers),

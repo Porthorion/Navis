@@ -94,6 +94,8 @@ class SettingsRepository {
       likedQueueEnabled: settings.likedQueueEnabled,
       customVoyageServers: null,
     );
+    // Setup release markers are targeted-only, so a stale onboarding draft
+    // cannot overwrite acknowledgements or card dismissals.
     // Integration-owned columns (the policy columns, the legacy feature
     // columns, the Last.fm key and the ListenBrainz connection) are not part
     // of the full-row save; see AppSettingsDao.saveSettings.
@@ -160,6 +162,14 @@ class SettingsRepository {
   /// Records whether the one-time 1.4.3 Integrations note on Home was seen.
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
       _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
+
+  /// Records the acknowledged setup release; null clears it.
+  Future<void> updateSetupHighlightsSeenRelease(String? release) =>
+      _dao.updateSetupHighlightsSeenRelease(release);
+
+  /// Records the dismissed setup invitation release; null clears it.
+  Future<void> updateSetupCardDismissedRelease(String? release) =>
+      _dao.updateSetupCardDismissedRelease(release);
 
   /// Records the outcome of a ListenBrainz token check without a full-row
   /// save, so a slow validation cannot overwrite switches changed meanwhile.
@@ -270,6 +280,8 @@ class SettingsRepository {
       externalIntegrationsEnabled: row.externalIntegrationsEnabled,
       disabledIntegrations: row.disabledIntegrations,
       integrationsNoticeDismissed: row.integrationsNoticeDismissed,
+      setupHighlightsSeenRelease: row.setupHighlightsSeenRelease,
+      setupCardDismissedRelease: row.setupCardDismissedRelease,
       customVoyageServers: const <CustomVoyageServer>[],
       groupListeningEnabled: false,
       voyageServerUrl: null,
