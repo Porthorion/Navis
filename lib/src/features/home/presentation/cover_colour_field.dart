@@ -3,17 +3,13 @@ import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/providers/app_providers.dart';
+
+export 'package:navis/src/features/home/presentation/cover_colour_sampler.dart'
+    show coverColourFieldProvider;
 
 /// Side of the colour grid sampled from a cover.
 const int kCoverColourGrid = 3;
-
-/// Decode size used for sampling; small enough to read instantly.
-const int _kSampleSize = 24;
 
 /// A [kCoverColourGrid]×[kCoverColourGrid] grid of a cover's average
 /// colours, row-major from the top-left.
@@ -79,7 +75,6 @@ class CoverColourField {
 /// Averages an RGBA buffer into a [grid]×[grid] row-major colour grid.
 ///
 /// Transparent pixels are ignored so letterboxed covers do not wash out.
-@visibleForTesting
 List<Color> averageColourGrid(
   ByteData rgba,
   int width,
@@ -120,7 +115,6 @@ List<Color> averageColourGrid(
 const int kCoverColourFieldCacheCapacity = 512;
 
 /// Small least-recently-used cache so revisiting a cover reuses its field.
-@visibleForTesting
 class CoverColourFieldCache {
   new({this.capacity = kCoverColourFieldCacheCapacity});
 
@@ -143,60 +137,25 @@ class CoverColourFieldCache {
     }
   }
 
+  /// The cached value without marking it recently used.
+  CoverColourField? peek(String key) => _entries[key];
+
+  void clear() => _entries.clear();
+
   int get length => _entries.length;
 }
 
-final CoverColourFieldCache _fieldCache = CoverColourFieldCache();
+/// The cache behind [peekCoverColourField] and the app-wide sampler.
+final CoverColourFieldCache sharedCoverColourFieldCache =
+    CoverColourFieldCache();
 
 /// The cached field for [coverId], if it was already sampled. Lets a card
 /// paint its final colours on first build instead of flashing the fallback.
 CoverColourField? peekCoverColourField(String coverId) =>
-    _fieldCache.get(coverId);
+    sharedCoverColourFieldCache.get(coverId);
 
-/// Colour field for a cover, sampled from the already-cached 600 px artwork.
-///
-/// Uses the same URL and cache key as the album cards, so it never makes a
-/// new request; only a 24 px decode is read.
-final coverColourFieldProvider = FutureProvider.autoDispose
-    .family<CoverColourField?, String>((ref, coverId) async {
-      final cached = _fieldCache.get(coverId);
-      if (cached != null) return cached;
-      final api = ref.watch(subsonicApiProvider);
-      if (api == null) return null;
-      final cacheManager = ref.watch(coverArtCacheManagerProvider);
-      final provider = ResizeImage(
-        CachedNetworkImageProvider(
-          api
-              .getCoverArtUrl(id: coverId, size: kCoverArtStandardSize)
-              .toString(),
-          cacheKey: coverArtImageCacheKey(coverId, kCoverArtStandardSize),
-          cacheManager: cacheManager,
-        ),
-        width: _kSampleSize,
-        height: _kSampleSize,
-      );
-      final info = await _resolveImage(provider);
-      if (info == null) return null;
-      try {
-        final bytes = await info.image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        );
-        if (bytes == null) return null;
-        final colors = averageColourGrid(
-          bytes,
-          info.image.width,
-          info.image.height,
-        );
-        if (colors.any((color) => color.a == 0)) return null;
-        final field = CoverColourField(colors);
-        _fieldCache.put(coverId, field);
-        return field;
-      } finally {
-        info.dispose();
-      }
-    });
-
-Future<ImageInfo?> _resolveImage(ImageProvider provider) {
+/// Resolves [provider] to its first decoded frame, or null on error.
+Future<ImageInfo?> resolveImageInfo(ImageProvider provider) {
   final completer = Completer<ImageInfo?>();
   final stream = provider.resolve(ImageConfiguration.empty);
   late final ImageStreamListener listener;

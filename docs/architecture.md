@@ -754,10 +754,10 @@ recommendation showcase.
 header adds the same reason line and a compact Play/Shuffle pair.
 
 **Colour wash (`_ShowcaseColourWash`, both layouts):**
-- `coverColourFieldProvider` (`cover_colour_field.dart`) decodes the cached
-  600 px cover at 24 px (same URL and cache key as the cards, so no new
-  request), averages it into a 3×3 colour grid, and keeps the result in a
-  64-entry LRU.
+- `coverColourFieldProvider` returns a cover's 3×3 colour grid from the
+  app-wide `CoverColourSampler` (see "Cover colour sampling" below). It only
+  reads a cover that is already on the device and retries a missing one a few
+  times (1, 2, 4 s) while the wash is watching it.
 - `CoverColourFieldPainter` draws the grid as a vertex-coloured mesh
   (`Canvas.drawVertices`). The GPU shades it smoothly at any width, where a
   stretched thumbnail pixelates on wide displays. The mesh overscans its box
@@ -766,6 +766,41 @@ header adds the same reason line and a compact Play/Shuffle pair.
   desktop), so it needs no offscreen layer while idle.
 - Changing covers interpolates the nine colours over 400 ms; reduced motion
   switches instantly.
+
+**Cover colour sampling (`cover_colour_sampler.dart`).** Shared by this wash
+and the `coverTint` album-card caption (a temporary design experiment, see
+`AlbumCardCaptionVariant`). It is built so that scrolling never pays for it:
+- *Sampling gate.* `AlbumCard` passes `CoverArtImage.onImageReady` to its
+  `AlbumCardLabel` as `coverReady`, so a card samples only after the same
+  visibility and load-window logic that loads its artwork has shown the
+  cover. It then waits `kCoverTintSettleDelay` (150 ms) built, and while
+  `Scrollable.recommendDeferredLoadingForContext` says a fast scroll is under
+  way it keeps waiting. Cards that fly past never request. Known colours are
+  read synchronously from `peekCoverColourField` on the first frame.
+- *Local files only.* `decodeLocalCoverColour` reads the permanent artwork
+  store file or the rolling-cache file (`getFileFromCache`) through a 24 px
+  `ResizeImage`. It never fetches; a cover not on the device yields null.
+- *Bounded scheduling.* Each request tracks interest on a dedicated
+  `CoverArtLoadCoordinator` (`coverColourLoadCoordinatorProvider`, two active
+  slots, no critical reserve) under the key `tint:<cover cache key>`, then
+  acquires a slot. A decode still queued when its last card is gone is
+  cancelled by the coordinator's stale-interest logic. A separate instance is
+  used because the artwork coordinator's slots also gate real artwork
+  downloads, which tint decodes must never delay. Requests for one cover
+  share one decode.
+- *Persistent cache.* Fields resolve from the memory LRU (512), then from
+  `cover_colour_fields.bin` in the application support directory (a compact
+  binary file, newest 5000 entries, debounced atomic writes), then by
+  decoding. The file is read once, asynchronously, and the newest entries warm
+  the memory LRU. A file, not a Drift table: the data is a disposable cache
+  that needs no queries, relations or migration, and a table would touch the
+  schema, generated code and every schema test for no gain. The file records a
+  hash of the server URL and user name (never credentials); another account
+  reads as empty and the sampler resets the memory LRU when the account
+  changes.
+- *Limitation.* The provider is keyed by cover id, so a refreshed cover
+  (`cover_art_revision` bump) keeps its old colours until its entry is
+  trimmed.
 
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged. The hero's items and

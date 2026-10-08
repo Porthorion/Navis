@@ -612,6 +612,12 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       width: widget.width,
       height: widget.height,
       gaplessPlayback: widget.gaplessPlayback,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (frame != null || wasSynchronouslyLoaded) {
+          _reportImageReady('file:${file.path}');
+        }
+        return child;
+      },
       errorBuilder: (_, _, _) {
         // Decode failure of a cached file (plan F6): evict the entry once
         // so the next build performs one bounded network refetch.

@@ -136,6 +136,9 @@ void main() {
       addTearDown(tester.view.reset);
       const sampled = Color(0xFFE53935);
       final field = CoverColourField.uniform(sampled);
+      // A cover sampled earlier paints its tint on the first frame.
+      sharedCoverColourFieldCache.put('cover-1', field);
+      addTearDown(sharedCoverColourFieldCache.clear);
       final expected = captionTintFor(
         sampled,
         entry.value.extension<NavisColorStyleData>() ??

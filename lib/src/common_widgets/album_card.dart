@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +35,7 @@ enum AlbumCardSize {
 ///
 /// Album art fills the entire card.  The title and artist name are overlaid
 /// at the bottom where the artwork fades into the active app surface.
-class AlbumCard extends ConsumerWidget {
+class AlbumCard extends ConsumerStatefulWidget {
   const new({
     required this.album,
     super.key,
@@ -58,7 +60,40 @@ class AlbumCard extends ConsumerWidget {
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AlbumCard> createState() => _AlbumCardState();
+}
+
+class _AlbumCardState extends ConsumerState<AlbumCard> {
+  /// Whether this card's cover has loaded and is on the device. The
+  /// `coverTint` caption samples colours only after that, so it never starts
+  /// work for a cover that has not been shown and never fetches artwork.
+  final ValueNotifier<bool> _coverReady = ValueNotifier<bool>(false);
+
+  @override
+  void didUpdateWidget(AlbumCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.album.coverArt != widget.album.coverArt ||
+        oldWidget.album.coverArtRevision != widget.album.coverArtRevision) {
+      _coverReady.value = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _coverReady.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final album = widget.album;
+    final size = widget.size;
+    final heroTag = widget.heroTag;
+    final badge = widget.badge;
+    final onTap = widget.onTap;
+    final onLongPress = widget.onLongPress;
+    final onSecondaryTapDown = widget.onSecondaryTapDown;
+    final extent = widget.extent;
     final shape = ref.watch(coverArtShapeProvider);
     final cardBorderRadius = artworkBorderRadius(
       shape,
@@ -84,7 +119,7 @@ class AlbumCard extends ConsumerWidget {
               ? null
               : () {
                   unawaited(HapticFeedback.mediumImpact());
-                  onLongPress!();
+                  onLongPress();
                 },
           child: Stack(
             fit: StackFit.expand,
@@ -93,12 +128,13 @@ class AlbumCard extends ConsumerWidget {
                 HeroCoverArt(
                   coverArtId: album.coverArt,
                   revision: album.coverArtRevision ?? 0,
-                  heroTag: heroTag!,
+                  heroTag: heroTag,
                   size: kCoverArtStandardSize,
                   fit: BoxFit.cover,
                   placeholderIcon: Icons.album_outlined,
                   borderRadius: cardBorderRadius,
                   isExternalSource: album.isExternal,
+                  onImageReady: () => _coverReady.value = true,
                 )
               else
                 CoverArtImage(
@@ -108,6 +144,7 @@ class AlbumCard extends ConsumerWidget {
                   fit: BoxFit.cover,
                   placeholderIcon: Icons.album_outlined,
                   isExternalSource: album.isExternal,
+                  onImageReady: () => _coverReady.value = true,
                 ),
               HeroRouteChrome(
                 heroTag: heroTag,
@@ -115,12 +152,13 @@ class AlbumCard extends ConsumerWidget {
                   fit: StackFit.expand,
                   children: <Widget>[
                     if (badge != null)
-                      Positioned(top: 8, right: 8, child: badge!),
+                      Positioned(top: 8, right: 8, child: badge),
                     AlbumCardLabel(
                       title: album.name,
                       subtitle: album.artistName ?? '',
                       titleMaxLines: titleMaxLines,
                       coverArtId: album.coverArt,
+                      coverReady: _coverReady,
                     ),
                     if (onTap != null && isDesktopRuntime)
                       Positioned.fill(
@@ -305,6 +343,7 @@ class AlbumCardLabel extends ConsumerWidget {
     required this.subtitle,
     this.titleMaxLines = 1,
     this.coverArtId,
+    this.coverReady,
     super.key,
   });
 
@@ -316,6 +355,10 @@ class AlbumCardLabel extends ConsumerWidget {
   /// Cover whose colours tint the `coverTint` caption; null falls back to the
   /// `overlayFade` look.
   final String? coverArtId;
+
+  /// Turns true once the cover is loaded and on the device, which is when
+  /// the `coverTint` caption may sample it. Null counts as always ready.
+  final ValueListenable<bool>? coverReady;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -351,6 +394,7 @@ class AlbumCardLabel extends ConsumerWidget {
           bottom: 0,
           child: _CoverTintLabel(
             coverArtId: coverArtId,
+            coverReady: coverReady,
             title: title,
             subtitle: subtitle,
             titleMaxLines: titleMaxLines,
@@ -364,28 +408,107 @@ class AlbumCardLabel extends ConsumerWidget {
 /// bottom edge, with text chosen and the fill nudged for 4.5:1 contrast (see
 /// [captionTintFor]). Until the colours are known, or for a cover without
 /// art, it shows the `overlayFade` look.
-class _CoverTintLabel extends ConsumerWidget {
+class _CoverTintLabel extends ConsumerStatefulWidget {
   const new({
     required this.coverArtId,
+    required this.coverReady,
     required this.title,
     required this.subtitle,
     required this.titleMaxLines,
   });
 
   final String? coverArtId;
+  final ValueListenable<bool>? coverReady;
   final String title;
   final String subtitle;
   final int titleMaxLines;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CoverTintLabel> createState() => _CoverTintLabelState();
+}
+
+/// How long a card must stay built, with its cover ready, before it asks for
+/// its colours. Cards that fly past during a fling never do.
+const Duration kCoverTintSettleDelay = Duration(milliseconds: 150);
+
+class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
+  Timer? _settleTimer;
+  bool _requested = false;
+  CoverColourField? _known;
+
+  String? get _id {
+    final id = widget.coverArtId;
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _known = _lookup();
+    widget.coverReady?.addListener(_maybeSettle);
+    _maybeSettle();
+  }
+
+  @override
+  void didUpdateWidget(_CoverTintLabel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverReady != widget.coverReady) {
+      oldWidget.coverReady?.removeListener(_maybeSettle);
+      widget.coverReady?.addListener(_maybeSettle);
+    }
+    if (oldWidget.coverArtId != widget.coverArtId) {
+      _settleTimer?.cancel();
+      _settleTimer = null;
+      _requested = false;
+      _known = _lookup();
+    }
+    _maybeSettle();
+  }
+
+  @override
+  void dispose() {
+    _settleTimer?.cancel();
+    widget.coverReady?.removeListener(_maybeSettle);
+    super.dispose();
+  }
+
+  // Known colours paint on the first frame; nothing else is read here.
+  CoverColourField? _lookup() {
+    final id = _id;
+    return id == null ? null : peekCoverColourField(id);
+  }
+
+  void _maybeSettle() {
+    if (_known != null ||
+        _requested ||
+        _settleTimer != null ||
+        _id == null ||
+        !(widget.coverReady?.value ?? true)) {
+      return;
+    }
+    _settleTimer = Timer(kCoverTintSettleDelay, _settled);
+  }
+
+  void _settled() {
+    _settleTimer = null;
+    if (!mounted || !(widget.coverReady?.value ?? true)) return;
+    // A fast scroll defers work; look again once it slows.
+    if (Scrollable.recommendDeferredLoadingForContext(context)) {
+      _settleTimer = Timer(kCoverTintSettleDelay, _settled);
+      return;
+    }
+    setState(() => _requested = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final id = coverArtId;
-    // Only a built card samples; the cache hit avoids a fallback flash.
-    final field = id == null || id.isEmpty
+    final id = _id;
+    final field = id == null
         ? null
-        : ref.watch(coverColourFieldProvider(id)).value ??
+        : (_requested ? ref.watch(coverColourFieldProvider(id)).value : null) ??
+              _known ??
               peekCoverColourField(id);
     final fallback = CaptionTint(
       fill: theme.scaffoldBackgroundColor,
@@ -395,9 +518,9 @@ class _CoverTintLabel extends ConsumerWidget {
     if (field == null) {
       return _OverlayFadeLabel(
         tint: fallback,
-        title: title,
-        subtitle: subtitle,
-        titleMaxLines: titleMaxLines,
+        title: widget.title,
+        subtitle: widget.subtitle,
+        titleMaxLines: widget.titleMaxLines,
       );
     }
     final target = captionTintFor(
@@ -411,9 +534,9 @@ class _CoverTintLabel extends ConsumerWidget {
       builder: (context, tint, _) => _OverlayFadeLabel(
         tint: tint,
         stagedFade: true,
-        title: title,
-        subtitle: subtitle,
-        titleMaxLines: titleMaxLines,
+        title: widget.title,
+        subtitle: widget.subtitle,
+        titleMaxLines: widget.titleMaxLines,
       ),
     );
   }
