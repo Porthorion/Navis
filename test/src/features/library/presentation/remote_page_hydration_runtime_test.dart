@@ -18,36 +18,22 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 
 /// Routes artist and album targets to the real Drift engine.
-class _TargetEngine extends LibrarySyncEngine {
-  new(this._drift);
-
-  final DriftLibrarySyncEngine _drift;
-
-  static const _skipped = LibrarySyncState(
-    status: LibrarySyncStatus.skipped,
-    stage: LibrarySyncStage.completed,
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    final target = request.target;
-    return switch (target.kind) {
-      LibrarySyncTargetKind.artist => await _drift.hydrateArtist(
-        target.entityId!,
-      ),
-      LibrarySyncTargetKind.album => await _drift.hydrateAlbum(
-        target.entityId!,
-      ),
-      _ => _skipped,
-    };
-  }
-}
+StubLibrarySyncEngine _targetEngine(
+  DriftLibrarySyncEngine drift,
+) => StubLibrarySyncEngine((request, {onProgress}) async {
+  final target = request.target;
+  return switch (target.kind) {
+    LibrarySyncTargetKind.artist => await drift.hydrateArtist(target.entityId!),
+    LibrarySyncTargetKind.album => await drift.hydrateAlbum(target.entityId!),
+    _ => const LibrarySyncState(
+      status: LibrarySyncStatus.skipped,
+      stage: LibrarySyncStage.completed,
+    ),
+  };
+});
 
 void main() {
   late NavisDatabase database;
@@ -88,7 +74,7 @@ void main() {
         serverReachabilityControllerProvider.overrideWith(
           OnlineReachability.new,
         ),
-        librarySyncEngineProvider.overrideWithValue(_TargetEngine(drift)),
+        librarySyncEngineProvider.overrideWithValue(_targetEngine(drift)),
       ],
     );
   });

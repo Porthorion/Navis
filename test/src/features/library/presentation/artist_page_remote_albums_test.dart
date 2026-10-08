@@ -23,35 +23,24 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 
 /// Routes artist targets to the real Drift engine's `getArtist` hydration,
 /// as the adaptive coordinator does, so the test sees the rows it writes.
-class _ArtistHydrationEngine extends LibrarySyncEngine {
-  new(this._drift);
-
-  final DriftLibrarySyncEngine _drift;
-
-  static const _skipped = LibrarySyncState(
-    status: LibrarySyncStatus.skipped,
-    stage: LibrarySyncStage.completed,
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    final target = request.target;
-    if (target.kind == LibrarySyncTargetKind.artist) {
-      return await _drift.hydrateArtist(
-        target.entityId!,
-        onProgress: onProgress,
+StubLibrarySyncEngine _artistHydrationEngine(DriftLibrarySyncEngine drift) =>
+    StubLibrarySyncEngine((request, {onProgress}) async {
+      final target = request.target;
+      if (target.kind == LibrarySyncTargetKind.artist) {
+        return await drift.hydrateArtist(
+          target.entityId!,
+          onProgress: onProgress,
+        );
+      }
+      return const LibrarySyncState(
+        status: LibrarySyncStatus.skipped,
+        stage: LibrarySyncStage.completed,
       );
-    }
-    return _skipped;
-  }
-}
+    });
 
 class _FakeDeezer extends DeezerApiClient {
   new() : super(dio: Dio());
@@ -166,7 +155,7 @@ void main() {
           OnlineReachability.new,
         ),
         librarySyncEngineProvider.overrideWithValue(
-          _ArtistHydrationEngine(drift),
+          _artistHydrationEngine(drift),
         ),
         integrationPolicyProvider.overrideWithValue(const IntegrationPolicy()),
         integrationJsonCacheProvider.overrideWithValue(

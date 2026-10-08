@@ -52,6 +52,7 @@ import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/stub_library_sync_engine.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
@@ -956,7 +957,21 @@ void main() {
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
-    final engine = _SuccessfulFullSyncEngine();
+    const succeeded = LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+    );
+    final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+      if (request.intent == SyncRunIntent.repairLibrary) {
+        onProgress?.call(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.running,
+            stage: LibrarySyncStage.fetchingArtists,
+          ),
+        );
+      }
+      return succeeded;
+    });
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
       librarySyncEngine: engine,
@@ -973,7 +988,10 @@ void main() {
       (response.body['sync'] as Map<String, dynamic>)['status'],
       'succeeded',
     );
-    expect(engine.forceFullCalls, 1);
+    expect(
+      engine.requestsWithIntent(SyncRunIntent.repairLibrary),
+      hasLength(1),
+    );
     expect(await fixture.database.cacheSystemStateDao.getVersion(), 1004);
   });
 
@@ -1083,7 +1101,16 @@ void main() {
   );
 
   test('target sync diagnostics exercises controller-scoped status', () async {
-    final engine = _TargetProgressSyncEngine();
+    final completion = Completer<LibrarySyncState>();
+    final engine = StubLibrarySyncEngine((request, {onProgress}) {
+      onProgress?.call(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.running,
+          stage: LibrarySyncStage.fetchingSongs,
+        ),
+      );
+      return completion.future;
+    });
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
       librarySyncEngine: engine,
@@ -1096,7 +1123,7 @@ void main() {
     });
     expect(start.statusCode, HttpStatus.accepted);
     await Future<void>.delayed(Duration.zero);
-    expect(engine.requestCount, 1);
+    expect(engine.requests, hasLength(1));
 
     final status = await fixture.get('/v1/sync/status');
     expect(status.statusCode, HttpStatus.ok);
@@ -1112,7 +1139,12 @@ void main() {
       'songs': 0,
     });
 
-    engine.complete();
+    completion.complete(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      ),
+    );
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
     final ledger = await fixture.get('/v1/sync/ledger');
@@ -3119,62 +3151,6 @@ class _DiagnosticsRebuildController extends RequiredLibraryRebuildController {
     state = const RequiredLibraryRebuildState(
       status: RequiredLibraryRebuildStatus.cancelling,
     );
-  }
-}
-
-class _TargetProgressSyncEngine extends LibrarySyncEngine {
-  final Completer<LibrarySyncState> _completion = Completer<LibrarySyncState>();
-  int requestCount = 0;
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    requestCount++;
-    onProgress?.call(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.running,
-        stage: LibrarySyncStage.fetchingSongs,
-      ),
-    );
-    return _completion.future;
-  }
-
-  void complete() {
-    _completion.complete(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.succeeded,
-        stage: LibrarySyncStage.completed,
-      ),
-    );
-  }
-}
-
-class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
-  int forceFullCalls = 0;
-
-  static const LibrarySyncState _succeeded = LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    if (request.intent != SyncRunIntent.repairLibrary) return _succeeded;
-    forceFullCalls += 1;
-    onProgress?.call(
-      const LibrarySyncState(
-        status: LibrarySyncStatus.running,
-        stage: LibrarySyncStage.fetchingArtists,
-      ),
-    );
-    return _succeeded;
   }
 }
 

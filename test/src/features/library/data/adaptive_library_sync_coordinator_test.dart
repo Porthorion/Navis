@@ -15,6 +15,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/stub_library_sync_engine.dart';
 import '../../../../helpers/test_database.dart';
 
 class _MemoryCredentialStore implements SecureCredentialStore {
@@ -132,53 +133,33 @@ class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
   }
 }
 
-class _CompletedCatalogWithPendingAlbumEngine implements SyncPlanExecutor {
-  final List<SyncExecutionPlan> plans = <SyncExecutionPlan>[];
-  final List<String> targetedCalls = <String>[];
-  int syncIfStaleCalls = 0;
+/// Completes catalog plans with one pending album and targeted plans cleanly.
+StubSyncPlanExecutor _completedCatalogWithPendingAlbumExecutor() =>
+    StubSyncPlanExecutor((plan, {onProgress}) async {
+      final targeted = plan.kind == LibrarySyncPlanKind.targetedHydration;
+      return LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+        metadataReady: true,
+        pendingHydrationCount: targeted ? 0 : 1,
+        completedAt: DateTime.utc(2026, 8, 4),
+      );
+    });
 
-  LibrarySyncState _result() => LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-    metadataReady: true,
-    pendingHydrationCount: 1,
-    completedAt: DateTime.utc(2026, 8, 4),
-  );
-
-  LibrarySyncState _targetResult() => LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-    metadataReady: true,
-    completedAt: DateTime.utc(2026, 8, 4),
-  );
-
-  @override
-  void cancelSync() {}
-
-  @override
-  Future<LibrarySyncState> executeSyncPlan(
-    SyncExecutionPlan plan, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) async {
-    plans.add(plan);
-    final target = plan.request.target;
-    if (plan.kind == LibrarySyncPlanKind.targetedHydration) {
-      if (target.kind != LibrarySyncTargetKind.starred &&
-          target.kind != LibrarySyncTargetKind.playlistHeaders) {
-        targetedCalls.add('${target.kind.name}:${target.entityId}');
-      }
-      return _targetResult();
-    }
-    return _result();
-  }
-}
+/// The `kind:id` of each entity-targeted hydration plan the executor ran.
+List<String> _targetedCalls(StubSyncPlanExecutor executor) => [
+  for (final plan in executor.plans)
+    if (plan.kind == LibrarySyncPlanKind.targetedHydration &&
+        plan.request.target.kind != LibrarySyncTargetKind.starred &&
+        plan.request.target.kind != LibrarySyncTargetKind.playlistHeaders)
+      '${plan.request.target.kind.name}:${plan.request.target.entityId}',
+];
 
 void main() {
   late NavisDatabase database;
   late ServerConfigRepository repository;
   late AdaptiveLibrarySyncCoordinator coordinator;
-  late _CompletedCatalogWithPendingAlbumEngine executor;
+  late StubSyncPlanExecutor executor;
 
   setUp(() async {
     database = createTestDatabase();
@@ -194,7 +175,7 @@ void main() {
         apiVersion: '1.16.1',
       ),
     );
-    executor = _CompletedCatalogWithPendingAlbumEngine();
+    executor = _completedCatalogWithPendingAlbumExecutor();
     coordinator = AdaptiveLibrarySyncCoordinator(
       executor: executor,
       database: database,
@@ -541,7 +522,6 @@ void main() {
 
       expect(result.status, LibrarySyncStatus.deferred);
       expect(result.planReason, 'endpointCircuitOpen');
-      expect(executor.syncIfStaleCalls, 0);
       final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
       final deferred = history.where(
         (run) => run.reason == SyncSafeReason.cooldown,
@@ -686,7 +666,7 @@ void main() {
     expect(albumWork, isNotNull);
     expect(artistWork?.id, isNot(albumWork?.id));
     expect(
-      executor.targetedCalls,
+      _targetedCalls(executor),
       containsAll(<String>[
         'artist:$sharedId',
         'album:$sharedId',
@@ -694,7 +674,7 @@ void main() {
       ]),
     );
     expect(
-      executor.targetedCalls,
+      _targetedCalls(executor),
       isNot(contains('playlist:playlist:$sharedId')),
     );
   }, skip: !sqliteAvailable);

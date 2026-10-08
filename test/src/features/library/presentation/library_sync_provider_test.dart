@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/stub_library_sync_engine.dart';
 
 // Deterministic manual-only and short automatic schedules.
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
@@ -142,41 +143,6 @@ final _serverConfigSource =
       _ServerConfigSource.new,
     );
 
-class _FakeLibrarySyncEngine extends LibrarySyncEngine {
-  new(this._handler);
-
-  /// Every request resolves to [state].
-  new returning(LibrarySyncState state)
-    : this((request, {onProgress}) async => state);
-
-  final Future<LibrarySyncState> Function(
-    LibrarySyncRequest request, {
-    LibrarySyncProgressCallback? onProgress,
-  })
-  _handler;
-
-  final requests = <LibrarySyncRequest>[];
-
-  Iterable<LibrarySyncRequest> get automaticRequests =>
-      requests.where((request) => request.isAutomatic);
-
-  Iterable<LibrarySyncRequest> get explicitCatalogRequests => requests.where(
-    (request) =>
-        !request.isAutomatic &&
-        request.target.kind == LibrarySyncTargetKind.catalog,
-  );
-
-  @override
-  Future<LibrarySyncState> requestSync(
-    LibrarySyncRequest request, {
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    requests.add(request);
-    return _handler(request, onProgress: onProgress);
-  }
-}
-
 Matcher _catalogRequest(SyncRunOrigin origin, SyncRunIntent intent) =>
     isA<LibrarySyncRequest>()
         .having((request) => request.origin, 'origin', origin)
@@ -232,7 +198,7 @@ void main() {
             );
       }
       final requests = <LibrarySyncRequest>[];
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.target.kind != LibrarySyncTargetKind.catalog) {
           requests.add(request);
           return const LibrarySyncState(
@@ -270,7 +236,7 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine.returning(_succeeded);
+        final engine = StubLibrarySyncEngine.returning(_succeeded);
         final container = _container(
           engine,
           database: database,
@@ -309,7 +275,7 @@ void main() {
           database,
           setupPending: true,
         );
-        final engine = _FakeLibrarySyncEngine.returning(
+        final engine = StubLibrarySyncEngine.returning(
           const LibrarySyncState.idle(),
         );
         final container = _container(
@@ -383,7 +349,7 @@ void main() {
         final manualResult = Completer<LibrarySyncState>();
         final enteredAutomatic = Completer<void>();
         final enteredManual = Completer<void>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             enteredAutomatic.complete();
             return await automaticResult.future;
@@ -434,7 +400,7 @@ void main() {
         addTearDown(database.close);
         final failure = Completer<LibrarySyncState>();
         final entered = Completer<void>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState.idle();
           }
@@ -463,7 +429,7 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine.returning(
+        final engine = StubLibrarySyncEngine.returning(
           LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
             stage: LibrarySyncStage.completed,
@@ -530,14 +496,14 @@ void main() {
         final enteredFirst = Completer<void>();
         final firstResult = Completer<LibrarySyncState>();
         final enteredSecond = Completer<void>();
-        final firstEngine = _FakeLibrarySyncEngine((
+        final firstEngine = StubLibrarySyncEngine((
           request, {
           onProgress,
         }) async {
           enteredFirst.complete();
           return await firstResult.future;
         });
-        final secondEngine = _FakeLibrarySyncEngine((
+        final secondEngine = StubLibrarySyncEngine((
           request, {
           onProgress,
         }) async {
@@ -605,7 +571,7 @@ void main() {
       await database.appSettingsDao.setLastFullSyncAppBuild(
         currentLibrarySyncModelVersion,
       );
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         final state = LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
@@ -652,7 +618,7 @@ void main() {
           nextEligibleAt: Value(retryAt),
         ),
       );
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return _succeeded;
         }
@@ -716,7 +682,7 @@ void main() {
             const Duration(minutes: 1),
           ),
         );
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return LibrarySyncState(
               status: LibrarySyncStatus.succeeded,
@@ -768,7 +734,7 @@ void main() {
         );
         final automaticResult = Completer<LibrarySyncState>();
         final enteredEngine = Completer<void>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             enteredEngine.complete();
             return await automaticResult.future;
@@ -827,7 +793,7 @@ void main() {
           kind: LibrarySyncPlanKind.deltaReconcile.name,
           priority: 60,
         );
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return LibrarySyncState(
               status: LibrarySyncStatus.succeeded,
@@ -877,7 +843,7 @@ void main() {
         kind: LibrarySyncPlanKind.deltaReconcile.name,
         priority: 60,
       );
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           // Engine frames and results never carry the automatic deadline.
           onProgress?.call(
@@ -945,7 +911,7 @@ void main() {
             nextEligibleAt: Value(retryAt),
           ),
         );
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState.idle();
           }
@@ -1028,7 +994,7 @@ void main() {
           const Duration(milliseconds: 1500),
         ),
       );
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -1080,7 +1046,7 @@ void main() {
       );
       final entered = Completer<void>();
       final completion = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           entered.complete();
           return await completion.future;
@@ -1131,7 +1097,7 @@ void main() {
           currentLibrarySyncModelVersion,
         );
         final startupResult = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return await startupResult.future;
           }
@@ -1196,7 +1162,7 @@ void main() {
 
     test('syncNow transitions through running to succeeded state', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -1248,7 +1214,7 @@ void main() {
       'cancellation prevents a queued stronger repair from starting',
       () async {
         final active = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState.idle();
           }
@@ -1286,7 +1252,7 @@ void main() {
 
     test('overlapping sync callers await one terminal result', () async {
       final completer = Completer<LibrarySyncState>();
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -1337,7 +1303,7 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return await automaticCompletion.future;
           }
@@ -1385,7 +1351,7 @@ void main() {
           completedAt: DateTime.now(),
           planKind: LibrarySyncPlanKind.deltaReconcile,
         );
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.album);
             targetRequests++;
@@ -1492,7 +1458,7 @@ void main() {
           ),
         ]);
         final requestedArtistIds = <String>[];
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.target.kind != LibrarySyncTargetKind.catalog) {
             expect(request.target.kind, LibrarySyncTargetKind.artist);
             requestedArtistIds.add(request.target.entityId!);
@@ -1597,7 +1563,7 @@ void main() {
         ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
         Override? serverConfig,
       }) {
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.target.kind != LibrarySyncTargetKind.catalog) {
             requestedArtistIds.add(request.target.entityId!);
             return await nextResult();
@@ -1750,7 +1716,7 @@ void main() {
       );
 
       test('opening without an engine does not use up the open', () async {
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.target.kind != LibrarySyncTargetKind.catalog) {
             requestedArtistIds.add(request.target.entityId!);
             return await nextResult();
@@ -2052,7 +2018,7 @@ void main() {
       'forceFullSync becomes visibly preparing before engine planning',
       () async {
         final completer = Completer<LibrarySyncState>();
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
@@ -2107,7 +2073,7 @@ void main() {
     );
 
     test('syncNow transitions through running to failed state', () async {
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -2151,7 +2117,7 @@ void main() {
         await database.appSettingsDao.setLastFullSyncAppBuild(
           currentLibrarySyncModelVersion,
         );
-        final engine = _FakeLibrarySyncEngine.returning(_succeeded);
+        final engine = StubLibrarySyncEngine.returning(_succeeded);
         late _MutableReachabilityController reachability;
 
         final container = ProviderContainer(
@@ -2197,7 +2163,7 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         var networkType = NetworkType.cellular;
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
@@ -2250,7 +2216,7 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
@@ -2292,7 +2258,7 @@ void main() {
         final database = createTestDatabase();
         addTearDown(database.close);
         await database.appSettingsDao.setLastFullSyncAppBuild('56');
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
@@ -2336,7 +2302,7 @@ void main() {
         final repairRequests = <LibrarySyncRequest>[];
         var forcedStatus = LibrarySyncStatus.failed;
         LibrarySyncEngine buildEngine() =>
-            _FakeLibrarySyncEngine((request, {onProgress}) async {
+            StubLibrarySyncEngine((request, {onProgress}) async {
               if (request.isAutomatic) {
                 return const LibrarySyncState(
                   status: LibrarySyncStatus.skipped,
@@ -2387,7 +2353,7 @@ void main() {
     );
 
     test('unauthenticated state does not trigger startup sync', () async {
-      final engine = _FakeLibrarySyncEngine.returning(_succeeded);
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
       final container = _container(
         engine,
         reachability: ServerReachabilityStatus.checking,
@@ -2406,7 +2372,7 @@ void main() {
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
       var attempt = 0;
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -2456,7 +2422,7 @@ void main() {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
-      final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
         if (request.isAutomatic) {
           return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -2497,7 +2463,7 @@ void main() {
       'syncIfStale keeps a failed sync visible after a no-op pass',
       () async {
         var syncNowAttempts = 0;
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
@@ -2554,7 +2520,7 @@ void main() {
       'manual-only mode leaves pending hydration for the next explicit action',
       () async {
         var boundedPass = 0;
-        final engine = _FakeLibrarySyncEngine((request, {onProgress}) async {
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
           if (request.isAutomatic) {
             return const LibrarySyncState(
               status: LibrarySyncStatus.skipped,
