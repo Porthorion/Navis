@@ -5904,10 +5904,6 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToQueueItem(int index) => playFromIndex(index);
 
-  Future<void> moveQueueItem(int currentIndex, int newIndex) {
-    return reorderQueue(currentIndex, newIndex);
-  }
-
   @override
   Future<void> play() async {
     final transportGeneration = _supersedeTransportIntent(

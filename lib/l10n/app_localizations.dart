@@ -2244,12 +2244,6 @@ abstract class AppLocalizations {
   /// **'Legacy password'**
   String get serverSettingsAuthModeLegacy;
 
-  /// No description provided for @serverSettingsCapabilitiesCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 extension} other{{count} extensions}}'**
-  String serverSettingsCapabilitiesCount(int count);
-
   /// No description provided for @serverSettingsTestConnection.
   ///
   /// In en, this message translates to:
@@ -3484,12 +3478,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unknown artist'**
   String get albumDetailUnknownArtist;
-
-  /// No description provided for @albumDetailMeta.
-  ///
-  /// In en, this message translates to:
-  /// **'{artist} • {year} • {trackCount, plural, =1{1 track} other{{trackCount} tracks}}'**
-  String albumDetailMeta(Object artist, Object year, int trackCount);
 
   /// No description provided for @albumDetailTracksEmptyTitle.
   ///
@@ -5110,18 +5098,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue'**
   String get cacheSettingsAutoDownloadCellularWarningContinue;
-
-  /// No description provided for @cacheBadgeDownloaded.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloaded'**
-  String get cacheBadgeDownloaded;
-
-  /// No description provided for @cacheBadgeCached.
-  ///
-  /// In en, this message translates to:
-  /// **'Cached'**
-  String get cacheBadgeCached;
 
   /// No description provided for @externalSourceBadgeLabel.
   ///

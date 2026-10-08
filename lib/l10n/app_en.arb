@@ -620,15 +620,6 @@
   "serverSettingsAuthModeLabel": "Auth Mode",
   "serverSettingsAuthModeToken": "Token",
   "serverSettingsAuthModeLegacy": "Legacy password",
-  "serverSettingsCapabilitiesCount": "{count, plural, =1{1 extension} other{{count} extensions}}",
-  "@serverSettingsCapabilitiesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int",
-        "format": "decimalPattern"
-      }
-    }
-  },
   "serverSettingsTestConnection": "Test connection",
   "serverSettingsSave": "Save",
   "serverSettingsSignOut": "Sign out",
@@ -1019,17 +1010,6 @@
   "artistTopTracksPlaylistErrorTitle": "Failed to Load Top Tracks",
   "albumDetailTitle": "Album",
   "albumDetailUnknownArtist": "Unknown artist",
-  "albumDetailMeta": "{artist} • {year} • {trackCount, plural, =1{1 track} other{{trackCount} tracks}}",
-  "@albumDetailMeta": {
-    "placeholders": {
-      "artist": {},
-      "year": {},
-      "trackCount": {
-        "type": "int",
-        "format": "decimalPattern"
-      }
-    }
-  },
   "albumDetailTracksEmptyTitle": "No Tracks for This Album",
   "albumDetailTracksEmptySubtitle": "Sync your library to load album tracks.",
   "albumDetailLikedTracksEmptyTitle": "No Liked Tracks in This Album",
@@ -1514,8 +1494,6 @@
   "cacheSettingsAutoDownloadCellularWarning": "Your liked library can use a large amount of storage and mobile data when Wi-Fi-only downloads are off.",
   "cacheSettingsAutoDownloadCellularWarningContinue": "Continue",
 
-  "cacheBadgeDownloaded": "Downloaded",
-  "cacheBadgeCached": "Cached",
   "externalSourceBadgeLabel": "Remote source — not in your server library.",
   "remoteSourceLabel": "Remote",
 

@@ -27,11 +27,6 @@ void main() {
     expect(l10n.artistDetailAlbumCount(1), '1 album');
     expect(l10n.artistDetailAlbumCount(12), '12 albums');
     expect(l10n.searchAlbumCount(1), '1 album');
-    expect(l10n.albumDetailMeta('Artist', 2024, 1), 'Artist • 2024 • 1 track');
-    expect(
-      l10n.albumDetailMeta('Artist', 2024, 14),
-      'Artist • 2024 • 14 tracks',
-    );
     expect(l10n.smartQueueStarted(25), '25 tracks queued via Smart Queue.');
     expect(l10n.eqFilterCount(1), '1 filter');
     expect(l10n.eqFilterCount(10), '10 filters');
@@ -78,7 +73,6 @@ void main() {
       l10n.syncSettingsUsage(3, '1 KB'),
       l10n.syncSettingsRepairDeletionConfirmationBody(3),
       l10n.syncSettingsStarredReconciliationRemovalSummary(1, 2, 3),
-      l10n.serverSettingsCapabilitiesCount(3),
       l10n.cacheSettingsPrecacheSuccess(3),
     ], everyElement(isNot(contains('(s)'))));
   });

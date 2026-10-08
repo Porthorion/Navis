@@ -1485,21 +1485,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsAuthModeLegacy => 'Legacy password';
 
   @override
-  String serverSettingsCapabilitiesCount(int count) {
-    final intl.NumberFormat countNumberFormat =
-        intl.NumberFormat.decimalPattern(localeName);
-    final String countString = countNumberFormat.format(count);
-
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$countString extensions',
-      one: '1 extension',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get serverSettingsTestConnection => 'Test connection';
 
   @override
@@ -2267,21 +2252,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumDetailUnknownArtist => 'Unknown artist';
-
-  @override
-  String albumDetailMeta(Object artist, Object year, int trackCount) {
-    final intl.NumberFormat trackCountNumberFormat =
-        intl.NumberFormat.decimalPattern(localeName);
-    final String trackCountString = trackCountNumberFormat.format(trackCount);
-
-    String _temp0 = intl.Intl.pluralLogic(
-      trackCount,
-      locale: localeName,
-      other: '$trackCountString tracks',
-      one: '1 track',
-    );
-    return '$artist • $year • $_temp0';
-  }
 
   @override
   String get albumDetailTracksEmptyTitle => 'No Tracks for This Album';
@@ -3293,12 +3263,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSettingsAutoDownloadCellularWarningContinue => 'Continue';
-
-  @override
-  String get cacheBadgeDownloaded => 'Downloaded';
-
-  @override
-  String get cacheBadgeCached => 'Cached';
 
   @override
   String get externalSourceBadgeLabel =>

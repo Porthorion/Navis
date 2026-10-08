@@ -154,10 +154,9 @@ void main() {
 
       final chosen = controller.choose('/music/navis');
       await pumpEventQueue();
-      service.previewGates.single.completeError(
-        const FileSystemFailure('unreadable'),
-      );
-      await expectLater(chosen, throwsA(isA<FileSystemFailure>()));
+      final failure = Exception('unreadable');
+      service.previewGates.single.completeError(failure);
+      await expectLater(chosen, throwsA(same(failure)));
       expect(
         container.read(customDownloadFolderControllerProvider).busy,
         isFalse,
@@ -186,10 +185,4 @@ void main() {
       isFalse,
     );
   });
-}
-
-class FileSystemFailure implements Exception {
-  const new(this.message);
-
-  final String message;
 }

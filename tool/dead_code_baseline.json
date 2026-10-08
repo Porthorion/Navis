@@ -8,12 +8,6 @@
     },
     {
       "kind": "declaration",
-      "path": "lib/src/api/subsonic_api_client.dart",
-      "name": "SubsonicApiClient.getNowPlaying",
-      "reason": "dead: candidate for removal"
-    },
-    {
-      "kind": "declaration",
       "path": "lib/src/features/library/domain/library_sync_request.dart",
       "name": "SyncRunOrigin.invariant",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
@@ -41,18 +35,6 @@
       "path": "lib/src/features/library/domain/sync_run_contract.dart",
       "name": "SyncSafeReason.providerUnsupported",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
-    },
-    {
-      "kind": "declaration",
-      "path": "lib/src/features/player/data/navis_audio_handler.dart",
-      "name": "NavisAudioHandler.moveQueueItem",
-      "reason": "dead: candidate for removal"
-    },
-    {
-      "kind": "declaration",
-      "path": "lib/src/utils/diagnostics_provider_counter.dart",
-      "name": "DiagnosticsProviderCounter.alive",
-      "reason": "dead: candidate for removal"
     },
     {
       "kind": "dependency",
@@ -83,30 +65,6 @@
       "path": "pubspec.yaml",
       "name": "navis_android_storage",
       "reason": "deliberate: engine-registered Android SAF playback plugin is called via a method channel"
-    },
-    {
-      "kind": "l10n",
-      "path": "lib/l10n/app_en.arb",
-      "name": "albumDetailMeta",
-      "reason": "dead: candidate for removal"
-    },
-    {
-      "kind": "l10n",
-      "path": "lib/l10n/app_en.arb",
-      "name": "cacheBadgeCached",
-      "reason": "dead: candidate for removal"
-    },
-    {
-      "kind": "l10n",
-      "path": "lib/l10n/app_en.arb",
-      "name": "cacheBadgeDownloaded",
-      "reason": "dead: candidate for removal"
-    },
-    {
-      "kind": "l10n",
-      "path": "lib/l10n/app_en.arb",
-      "name": "serverSettingsCapabilitiesCount",
-      "reason": "dead: candidate for removal"
     }
   ],
   "dependencyUses": [
