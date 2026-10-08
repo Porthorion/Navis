@@ -395,12 +395,17 @@ class AlbumCardLabel extends ConsumerWidget {
           left: 0,
           right: 0,
           bottom: 0,
-          child: _CoverTintLabel(
-            coverArtId: coverArtId,
-            coverReady: coverReady,
-            title: title,
-            subtitle: subtitle,
-            titleMaxLines: titleMaxLines,
+          // Its own layer: a tint change repaints only the caption, never
+          // the cover or the rest of the grid.
+          child: RepaintBoundary(
+            key: const ValueKey<String>('albumCardCaptionLayer'),
+            child: _CoverTintLabel(
+              coverArtId: coverArtId,
+              coverReady: coverReady,
+              title: title,
+              subtitle: subtitle,
+              titleMaxLines: titleMaxLines,
+            ),
           ),
         );
     }
@@ -439,6 +444,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
   bool _requested = false;
   CoverColourField? _known;
   String? _derivingKey;
+  bool _instant = false;
 
   String? get _id {
     final id = widget.coverArtId;
@@ -522,7 +528,20 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
         (_) {
           if (!mounted) return;
           dispatcher.enqueue(() {
-            if (mounted) setState(() => _derivingKey = null);
+            if (!mounted) return;
+            // The fade is for a lone tint on an idle list. In a burst or
+            // while scrolling, each fade would repaint a gradient every
+            // frame on several cards at once, so those apply instantly.
+            final scrolling =
+                Scrollable.maybeOf(context)
+                    ?.position
+                    .isScrollingNotifier
+                    .value ??
+                false;
+            setState(() {
+              _derivingKey = null;
+              _instant = dispatcher.inBurst || scrolling;
+            });
           });
         },
         onError: (Object _) {
@@ -558,8 +577,10 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     final style = NavisColorStyleData.of(context);
     final sampled = field.bottomRowAverage;
     final target = peekCaptionTint(sampled, style);
-    if (target == null) {
-      _deriveTint(sampled, style);
+    // A tint derived for this card is held back until the dispatcher applies
+    // it, so the decision to fade or not is made once, at that moment.
+    if (target == null || _derivingKey != null) {
+      if (target == null) _deriveTint(sampled, style);
       return _OverlayFadeLabel(
         tint: fallback,
         title: widget.title,
@@ -570,7 +591,7 @@ class _CoverTintLabelState extends ConsumerState<_CoverTintLabel> {
     return TweenAnimationBuilder<CaptionTint>(
       key: const ValueKey<String>('albumCardCoverTint'),
       tween: _CaptionTintTween(begin: fallback, end: target),
-      duration: MotionPolicy.of(context).tint,
+      duration: _instant ? Duration.zero : MotionPolicy.of(context).tint,
       builder: (context, tint, _) => _OverlayFadeLabel(
         tint: tint,
         stagedFade: true,

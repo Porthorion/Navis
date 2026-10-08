@@ -5,10 +5,12 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/album_card_caption_variant.dart';
+import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 class _CoverTintVariant extends AlbumCardCaptionVariantNotifier {
@@ -53,7 +55,10 @@ Widget _cell(int i) => SizedBox(
 );
 
 void main() {
-  setUp(sharedCoverColourFieldCache.clear);
+  setUp(() {
+    sharedCoverColourFieldCache.clear();
+    clearCaptionTintMemo();
+  });
   tearDown(sharedCoverColourFieldCache.clear);
 
   testWidgets('a card gone within the settle delay never requests', (
@@ -181,5 +186,105 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
+  });
+
+  Iterable<Duration> tintDurations(WidgetTester tester) => tester
+      .widgetList<TweenAnimationBuilder<CaptionTint>>(
+        find.byKey(const ValueKey<String>('albumCardCoverTint')),
+      )
+      .map((w) => w.duration);
+
+  void seed(int count) {
+    for (var i = 0; i < count; i++) {
+      sharedCoverColourFieldCache.put(
+        'c$i',
+        CoverColourField.uniform(
+          Color(0xFF000000 | (i * 9973 + 4000) & 0xFFFFFF),
+        ),
+      );
+    }
+  }
+
+  testWidgets('each caption has its own repaint boundary', (tester) async {
+    await tester.pumpWidget(_app(_Counter(), _cell(0)));
+    expect(
+      find.byKey(const ValueKey<String>('albumCardCaptionLayer')),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget(
+        find.byKey(const ValueKey<String>('albumCardCaptionLayer')),
+      ),
+      isA<RepaintBoundary>(),
+    );
+  });
+
+  testWidgets('a lone tint on an idle list fades', (tester) async {
+    seed(1);
+    await tester.pumpWidget(_app(_Counter(), _cell(0)));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    final durations = tintDurations(tester).toList();
+    expect(durations, hasLength(1));
+    expect(durations.single, greaterThan(Duration.zero));
+  });
+
+  testWidgets('a burst of tints applies instantly', (tester) async {
+    seed(8);
+    tester.view.physicalSize = const Size(390, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        _Counter(),
+        SingleChildScrollView(
+          child: Column(
+            children: <Widget>[for (var i = 0; i < 8; i++) _cell(i)],
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+    final durations = tintDurations(tester).toList();
+    expect(durations, hasLength(8));
+    expect(durations, everyElement(Duration.zero));
+  });
+
+  testWidgets('tints arriving while the list scrolls apply instantly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    seed(100);
+    await tester.pumpWidget(
+      _app(
+        _Counter(),
+        ListView.builder(
+          itemExtent: 120,
+          itemCount: 100,
+          itemBuilder: (context, i) => _cell(i),
+        ),
+      ),
+    );
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+    final gesture = await tester.startGesture(const Offset(200, 600));
+    for (var step = 0; step < 6; step++) {
+      await gesture.moveBy(const Offset(0, -150));
+      // One new caption per pump or so: never a burst of several.
+      await tester.pump();
+      await tester.pump();
+    }
+    final durations = tintDurations(tester).toList();
+    expect(durations, isNotEmpty);
+    // Cards built and tinted during the drag skip the fade.
+    expect(durations.where((d) => d == Duration.zero), isNotEmpty);
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 }

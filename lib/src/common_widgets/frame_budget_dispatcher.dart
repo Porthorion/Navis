@@ -17,6 +17,11 @@ class FrameBudgetDispatcher {
   final SchedulerBinding? _binding;
   final Queue<VoidCallback> _queue = Queue<VoidCallback>();
   bool _armed = false;
+  int _batchSize = 0;
+
+  /// Whether the callback running now is one of several applied in the same
+  /// frame, or more are still waiting: updates that arrive as a burst.
+  bool get inBurst => _batchSize > 1 || _queue.isNotEmpty;
 
   /// Callbacks waiting for a later frame.
   int get pending => _queue.length;
@@ -39,9 +44,11 @@ class FrameBudgetDispatcher {
 
   void _drain(Duration _) {
     _armed = false;
-    for (var i = 0; i < perFrame && _queue.isNotEmpty; i++) {
+    _batchSize = _queue.length < perFrame ? _queue.length : perFrame;
+    for (var i = 0; i < _batchSize; i++) {
       _queue.removeFirst()();
     }
+    _batchSize = 0;
     _arm();
   }
 }
