@@ -9,8 +9,10 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 void main() {
@@ -72,7 +74,12 @@ void main() {
     }
 
     serve('old-album', 'old-song');
-    expect((await engine.forceFullSync()).status, LibrarySyncStatus.succeeded);
+    expect(
+      (await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      )).status,
+      LibrarySyncStatus.succeeded,
+    );
     final download = File('${files.path}/old-song.mp3')
       ..writeAsBytesSync(<int>[1, 2, 3]);
     await database.cacheDao.upsertCachedTrack(
@@ -93,7 +100,9 @@ void main() {
     serve('new-album', 'new-song');
     var promoted = false;
     for (var run = 0; run < 3 && !promoted; run++) {
-      await engine.forceFullSync();
+      await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       promoted = await database.libraryDao.getSongById('new-song') != null;
     }
     expect(promoted, isTrue);

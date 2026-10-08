@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
+import 'package:meta/meta.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
@@ -1285,6 +1286,20 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required SyncNetworkPolicy policy,
   }) {
     final kind = syncExecutionPlanKindFromLegacy(plan.kind, request);
+    return SyncExecutionPlan(
+      request: request,
+      kind: kind,
+      reason: _safeReasonForPlan(plan, policy),
+      budget: executionBudgetFor(request: request, kind: kind, policy: policy),
+    );
+  }
+
+  @visibleForTesting
+  static SyncExecutionBudget executionBudgetFor({
+    required SyncRunRequest request,
+    required SyncExecutionPlanKind kind,
+    required SyncNetworkPolicy policy,
+  }) {
     final meteredManual =
         kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
         policy.isMetered &&
@@ -1387,28 +1402,23 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final broad =
         kind == SyncExecutionPlanKind.catalogSnapshot ||
         kind == SyncExecutionPlanKind.repairLibrary;
-    return SyncExecutionPlan(
-      request: request,
-      kind: kind,
-      reason: _safeReasonForPlan(plan, policy),
-      budget: SyncExecutionBudget(
-        allowedEndpoints: endpoints,
-        maxNewestPages: meteredManual ? 1 : limits.pages,
-        maxAlbumHydrations: meteredManual ? 3 : limits.albums,
-        maxResponseBytes: policy.isMetered
-            ? kMeteredSyncMaxResponseBytes
-            : limits.responseBytes,
-        maxTotalBytes: policy.isMetered && !broad
-            ? kMeteredSyncMaxInteractionBytes
-            : limits.totalBytes,
-        maxConcurrency: policy.isMetered
-            ? 1
-            : automatic
-            ? 3
-            : 6,
-        maxRequests: limits.requests,
-        maxDuration: limits.duration,
-      ),
+    return SyncExecutionBudget(
+      allowedEndpoints: endpoints,
+      maxNewestPages: meteredManual ? 1 : limits.pages,
+      maxAlbumHydrations: meteredManual ? 3 : limits.albums,
+      maxResponseBytes: policy.isMetered
+          ? kMeteredSyncMaxResponseBytes
+          : limits.responseBytes,
+      maxTotalBytes: policy.isMetered && !broad
+          ? kMeteredSyncMaxInteractionBytes
+          : limits.totalBytes,
+      maxConcurrency: policy.isMetered
+          ? 1
+          : automatic
+          ? 3
+          : 6,
+      maxRequests: limits.requests,
+      maxDuration: limits.duration,
     );
   }
 

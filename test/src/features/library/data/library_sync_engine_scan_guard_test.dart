@@ -8,8 +8,10 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 void main() {
@@ -99,7 +101,9 @@ void main() {
       seedTwoAlbumCatalog();
       final serverId = await saveSession();
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       // The committed catalog stays visible; the candidate returns to
       // collection instead of replacing it with incomplete evidence.
@@ -141,7 +145,9 @@ void main() {
       seedTwoAlbumCatalog();
       final serverId = await saveSession();
 
-      await engine.forceFullSync();
+      await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       var syncState = await database.librarySyncDao.getOrCreateState(serverId);
       expect(syncState.currentGeneration, 0);
@@ -164,7 +170,9 @@ void main() {
         count: 11,
         lastScan: secondScanAt,
       );
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(await database.select(database.albumsTable).get(), hasLength(2));
       syncState = await database.librarySyncDao.getOrCreateState(serverId);
@@ -194,13 +202,17 @@ void main() {
         seedTwoAlbumCatalog();
         final serverId = await saveSession();
 
-        await engine.forceFullSync();
+        await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         scanCalls = 0;
         scanTimes = <DateTime>[
           DateTime.utc(2026, 9, 2, 10),
           DateTime.utc(2026, 9, 2, 11),
         ];
-        await engine.forceFullSync();
+        await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         final ledger = await database.librarySyncDao
             .getRecentOperationLedgerEntries(serverId);
@@ -251,7 +263,9 @@ void main() {
 
       // Third consecutive churn: the cap is reached, the settle poll finds
       // a quiet server, and the freshest completed snapshot is promoted.
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(await database.select(database.albumsTable).get(), hasLength(2));
@@ -294,7 +308,9 @@ void main() {
           }),
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.freshness, LibrarySyncFreshness.repairRecommended);
         expect(await database.select(database.albumsTable).get(), isEmpty);
@@ -326,7 +342,9 @@ void main() {
         seedTwoAlbumCatalog();
         final serverId = await saveSession();
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getScanStatus'));
@@ -381,7 +399,9 @@ void main() {
       expect(observation.reconciledToken, isNull);
 
       // Promotion covers the observed token and closes the window.
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(state.status, LibrarySyncStatus.succeeded);
       observation = await database.librarySyncDao.getScanObservation(serverId);
       expect(observation!.reconciledToken, scanAt.toIso8601String());
@@ -400,7 +420,9 @@ void main() {
         "SELECT RAISE(ABORT, 'injected promotion failure'); END;",
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(state.status, LibrarySyncStatus.failed);
       expect(await database.select(database.albumsTable).get(), isEmpty);
@@ -413,7 +435,9 @@ void main() {
       expect(syncState.candidateGeneration, 1);
 
       await database.customStatement('DROP TRIGGER fail_promotion_album2');
-      final retried = await engine.forceFullSync();
+      final retried = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(retried.status, LibrarySyncStatus.succeeded);
       expect(await database.select(database.albumsTable).get(), hasLength(2));
       final ledger = await database.librarySyncDao

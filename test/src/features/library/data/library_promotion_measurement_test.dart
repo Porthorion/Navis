@@ -9,8 +9,10 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 /// Synthetic promotion measurement (plan §4 56k fixture row).
@@ -111,7 +113,9 @@ void main() {
         );
 
         final watch = Stopwatch()..start();
-        final result = await engine.forceFullSync();
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         watch.stop();
 
         expect(result.status, LibrarySyncStatus.succeeded);
@@ -227,7 +231,9 @@ void main() {
 
         serve('v1');
         expect(
-          (await engine.forceFullSync()).status,
+          (await engine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          )).status,
           LibrarySyncStatus.succeeded,
         );
         for (var i = 0; i < albums; i++) {
@@ -247,7 +253,9 @@ void main() {
         final timings = <int>[];
         for (var run = 0; run < 3; run++) {
           final watch = Stopwatch()..start();
-          await engine.forceFullSync();
+          await engine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          );
           timings.add(watch.elapsedMilliseconds);
         }
         final aliases = await database
@@ -258,6 +266,7 @@ void main() {
             .getSingle();
         // Every old album and artist is matched by MusicBrainz id.
         expect(aliases.read<int>('n'), 2 * albums);
+        // This opt-in benchmark reports measured timings to its runner.
         // ignore: avoid_print
         print('rebuild measurement: albums=$albums runMs=${timings.join(',')}');
       },

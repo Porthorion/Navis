@@ -10,8 +10,10 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 import '../../../../helpers/test_database.dart';
 
 void main() {
@@ -118,7 +120,9 @@ void main() {
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
       );
-      final result = await engine.forceFullSync();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(result.status, isNot(LibrarySyncStatus.succeeded));
       expect(await database.songIdentityDao.getAliases(), isEmpty);
