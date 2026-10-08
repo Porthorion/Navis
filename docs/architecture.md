@@ -29,6 +29,10 @@ Located in `lib/src/providers/app_providers.dart`:
     `androidBackgroundSyncReconcilerProvider` own only native WorkManager
     scheduling reconciliation; sync domain logic remains in the library
     planner/coordinator.
+  - Foreground and worker staleness use the same configured interval minus
+    a 5% tolerance clamped to 10–120 seconds; manual-only uses 24 hours.
+    Worker terminal status records duration, including cancellation and
+    bootstrap failures.
   - `navisBackgroundSyncEntrypoint` is a retained, UI-free headless Dart
     entrypoint. It loads the active encrypted credentials and builds only the
     database/API/sync pipeline through `LibrarySyncExecutionBootstrap`, the

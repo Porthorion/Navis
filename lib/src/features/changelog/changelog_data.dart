@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Android background sync uses the same freshness window as foreground sync, including manual-only settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs missing from the server keep cached audio when saved state retains them, and failed library updates leave files intact',
         type: ChangelogEntryType.fix,
       ),

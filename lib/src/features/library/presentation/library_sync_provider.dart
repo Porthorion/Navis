@@ -27,7 +27,7 @@ import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
-/// The staleness window for the sync engine equals this interval so that
+/// The staleness window uses this interval with a small tolerance so that
 /// periodic ticks actually trigger a sync rather than being skipped.
 final syncIntervalMinutesProvider = Provider<int>((ref) {
   final settings =
@@ -46,18 +46,7 @@ final syncIntervalDurationProvider = Provider<Duration?>((ref) {
 });
 
 final syncStaleAfterProvider = Provider<Duration>((ref) {
-  final minutes = ref.watch(syncIntervalMinutesProvider);
-  if (minutes <= 0) {
-    // Manual-only: use a large staleness window so syncIfStale won't fire
-    // on its own, but syncNow still works.
-    return const Duration(hours: 24);
-  }
-  // Subtract a small tolerance so that when the periodic timer fires at
-  // exactly the interval boundary the data is guaranteed to be considered
-  // stale.  Without this, floating-point rounding can cause the check
-  // `now.difference(lastSynced) < staleAfter` to pass, skipping the sync.
-  final toleranceSeconds = (minutes * 60 * 0.05).round().clamp(10, 120);
-  return Duration(seconds: minutes * 60 - toleranceSeconds);
+  return syncStaleAfterForInterval(ref.watch(syncIntervalMinutesProvider));
 });
 
 /// Durable, server-scoped mutation evidence for Sync Settings.

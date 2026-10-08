@@ -1,15 +1,44 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 import '../../../../helpers/test_database.dart';
 
 void main() {
+  for (final entry in <int, Duration>{
+    -1: const Duration(hours: 24),
+    0: const Duration(hours: 24),
+    1: const Duration(seconds: 50),
+    10: const Duration(seconds: 570),
+    40: const Duration(seconds: 2280),
+    60: const Duration(seconds: 3480),
+  }.entries) {
+    test('shared staleness for ${entry.key} minutes matches foreground', () {
+      expect(syncStaleAfterForInterval(entry.key), entry.value);
+      final container = ProviderContainer(
+        overrides: [syncIntervalMinutesProvider.overrideWithValue(entry.key)],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(syncStaleAfterProvider), entry.value);
+    });
+  }
+
+  test('worker uses the foreground staleness calculation', () {
+    final source = File(
+      'lib/src/features/library/data/android_background_sync_entrypoint.dart',
+    ).readAsStringSync();
+    expect(source, contains('staleAfter: syncStaleAfterForInterval('));
+  });
+
   test(
     'worker defers setup even after an unready catalog was published',
     () async {

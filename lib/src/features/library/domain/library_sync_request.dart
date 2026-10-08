@@ -1,3 +1,11 @@
+/// Computes the foreground and worker freshness window for a sync interval.
+Duration syncStaleAfterForInterval(int minutes) {
+  if (minutes <= 0) return const Duration(hours: 24);
+  // Leave tolerance for timer rounding at the configured interval boundary.
+  final toleranceSeconds = (minutes * 60 * 0.05).round().clamp(10, 120);
+  return Duration(seconds: minutes * 60 - toleranceSeconds);
+}
+
 enum LibrarySyncTrigger {
   startup,
   interval,
