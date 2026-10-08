@@ -1,3 +1,5 @@
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -9,7 +11,6 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
-import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
@@ -76,7 +77,7 @@ void main() {
     serve('old-album', 'old-song');
     expect(
       (await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       )).status,
       LibrarySyncStatus.succeeded,
     );
@@ -101,7 +102,7 @@ void main() {
     var promoted = false;
     for (var run = 0; run < 3 && !promoted; run++) {
       await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       promoted = await database.libraryDao.getSongById('new-song') != null;
     }

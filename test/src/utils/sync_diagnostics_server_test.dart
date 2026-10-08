@@ -1045,7 +1045,7 @@ void main() {
         target: LibrarySyncTarget.album('private-target'),
         networkGrant: SyncNetworkGrant.none,
       ),
-      kind: SyncExecutionPlanKind.targetHydration,
+      kind: LibrarySyncPlanKind.targetedHydration,
       reason: SyncSafeReason.none,
       budget: SyncExecutionBudget(
         allowedEndpoints: {SyncEndpoint.album},

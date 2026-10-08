@@ -628,7 +628,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final plan = _activeExecutionPlan;
     return manual &&
         _currentSyncPolicy.isMetered &&
-        plan?.kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
+        plan?.kind == LibrarySyncPlanKind.deltaReconcile &&
         plan?.request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
 
@@ -1275,19 +1275,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   }) {
     final target = plan.request.target;
     return switch (plan.kind) {
-      SyncExecutionPlanKind.automaticProbe => probeCatalog(
-        onProgress: onProgress,
-      ),
-      SyncExecutionPlanKind.manualCatalogDiscovery ||
-      SyncExecutionPlanKind.repairLibrary ||
-      SyncExecutionPlanKind.catalogSnapshot ||
-      SyncExecutionPlanKind.compatibilityAudit => _runWithLock(
+      LibrarySyncPlanKind.probe => probeCatalog(onProgress: onProgress),
+      LibrarySyncPlanKind.deltaReconcile ||
+      LibrarySyncPlanKind.fullRepair ||
+      LibrarySyncPlanKind.catalogSnapshot ||
+      LibrarySyncPlanKind.compatibilityAudit => _runWithLock(
         executionPlan: plan,
         priorityAlbumIds: priorityAlbumIds,
         onProgress: onProgress,
       ),
-      SyncExecutionPlanKind.targetHydration ||
-      SyncExecutionPlanKind.auxiliaryRefresh => switch (target.kind) {
+      LibrarySyncPlanKind.targetedHydration => switch (target.kind) {
         LibrarySyncTargetKind.album when target.entityId != null =>
           hydrateAlbum(target.entityId!, onProgress: onProgress),
         LibrarySyncTargetKind.artist when target.entityId != null =>
@@ -1457,17 +1454,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     LibrarySyncProgressCallback? onProgress,
   }) async {
     final forceFull =
-        plan.kind == SyncExecutionPlanKind.repairLibrary ||
-        plan.kind == SyncExecutionPlanKind.catalogSnapshot;
+        plan.kind == LibrarySyncPlanKind.fullRepair ||
+        plan.kind == LibrarySyncPlanKind.catalogSnapshot;
     final manual =
         forceFull ||
-        (plan.kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
+        (plan.kind == LibrarySyncPlanKind.deltaReconcile &&
             plan.request.intent == SyncRunIntent.manualCatalogCheck);
     final compatibilityAudit =
-        plan.kind == SyncExecutionPlanKind.compatibilityAudit;
+        plan.kind == LibrarySyncPlanKind.compatibilityAudit;
     final verificationContinuation =
-        plan.kind == SyncExecutionPlanKind.targetHydration ||
-        plan.kind == SyncExecutionPlanKind.auxiliaryRefresh;
+        plan.kind == LibrarySyncPlanKind.targetedHydration;
     final metrics = _SyncRunMetrics();
     final startedAt = DateTime.now();
     final serverConfig = await _serverConfigRepository.getActiveServer();
@@ -4703,7 +4699,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     if (candidateMode &&
         bulkIndexCompleted &&
         pendingAlbumIds.isNotEmpty &&
-        _activeExecutionPlan!.kind != SyncExecutionPlanKind.repairLibrary) {
+        _activeExecutionPlan!.kind != LibrarySyncPlanKind.fullRepair) {
       final carriedAlbumIds = await _database.librarySyncCandidateDao
           .carryForwardPendingAlbums(
             serverId: candidateServerId,

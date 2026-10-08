@@ -160,7 +160,7 @@ void main() {
     );
     const plan = SyncExecutionPlan(
       request: request,
-      kind: SyncExecutionPlanKind.manualCatalogDiscovery,
+      kind: LibrarySyncPlanKind.deltaReconcile,
       reason: SyncSafeReason.none,
       budget: SyncExecutionBudget(
         allowedEndpoints: <SyncEndpoint>{
@@ -275,6 +275,71 @@ void main() {
     expect(storedRequest.targetKey, isEmpty);
   }, skip: !sqliteAvailable);
 
+  test('keeps every historical plan index readable', () async {
+    const budget = SyncExecutionBudget(
+      allowedEndpoints: <SyncEndpoint>{},
+      maxNewestPages: 0,
+      maxAlbumHydrations: 0,
+      maxResponseBytes: null,
+      maxTotalBytes: null,
+      maxConcurrency: 1,
+    );
+    const cases = [
+      (LibrarySyncPlanKind.probe, SyncRunIntent.automaticCatalogCheck, 0),
+      (LibrarySyncPlanKind.deltaReconcile, SyncRunIntent.manualCatalogCheck, 1),
+      (LibrarySyncPlanKind.fullRepair, SyncRunIntent.repairLibrary, 2),
+      (LibrarySyncPlanKind.targetedHydration, SyncRunIntent.targetHydration, 3),
+      (
+        LibrarySyncPlanKind.targetedHydration,
+        SyncRunIntent.auxiliaryRefresh,
+        4,
+      ),
+      (
+        LibrarySyncPlanKind.catalogSnapshot,
+        SyncRunIntent.automaticCatalogCheck,
+        5,
+      ),
+      (
+        LibrarySyncPlanKind.compatibilityAudit,
+        SyncRunIntent.automaticCatalogCheck,
+        6,
+      ),
+    ];
+    for (final (kind, intent, storedIndex) in cases) {
+      final queued = await database.librarySyncDao.enqueueSyncRun(
+        serverId: 1,
+        plan: SyncExecutionPlan(
+          request: SyncRunRequest(
+            origin: SyncRunOrigin.startup,
+            intent: intent,
+            target: intent == SyncRunIntent.auxiliaryRefresh
+                ? const LibrarySyncTarget.starred()
+                : intent == SyncRunIntent.targetHydration
+                ? const LibrarySyncTarget.album('album')
+                : const LibrarySyncTarget.catalog(),
+            networkGrant: SyncNetworkGrant.none,
+          ),
+          kind: kind,
+          reason: SyncSafeReason.none,
+          budget: budget,
+        ),
+      );
+      final stored = await (database.select(
+        database.librarySyncRunRequestTable,
+      )..where((row) => row.id.equals(queued.id))).getSingle();
+      expect(stored.planKind, storedIndex);
+      await database.librarySyncDao.completeSyncRun(
+        requestId: queued.id,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.completed,
+          reason: SyncSafeReason.none,
+        ),
+      );
+      final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+      expect(history.first.planKind, kind);
+    }
+  }, skip: !sqliteAvailable);
+
   test('preserves separate durable origins for repair and cache reset', () {
     final repair = syncRunRequestFromLegacy(const LibrarySyncRequest.repair());
     final reset = syncRunRequestFromLegacy(
@@ -300,7 +365,7 @@ void main() {
       );
       const plan = SyncExecutionPlan(
         request: request,
-        kind: SyncExecutionPlanKind.targetHydration,
+        kind: LibrarySyncPlanKind.targetedHydration,
         reason: SyncSafeReason.none,
         budget: SyncExecutionBudget(
           allowedEndpoints: <SyncEndpoint>{SyncEndpoint.album},
@@ -354,7 +419,7 @@ void main() {
         serverId: 1,
         plan: SyncExecutionPlan(
           request: request,
-          kind: SyncExecutionPlanKind.repairLibrary,
+          kind: LibrarySyncPlanKind.fullRepair,
           reason: SyncSafeReason.none,
           budget: const SyncExecutionBudget(
             allowedEndpoints: {},

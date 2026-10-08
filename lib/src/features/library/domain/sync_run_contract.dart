@@ -43,18 +43,6 @@ enum SyncRunIntent {
 /// condition, not a grant, so it is deliberately not represented here.
 enum SyncNetworkGrant { none, boundedMeteredDiscovery, broadMeteredOnce }
 
-/// A single executor path. The executor receives this plan directly and must
-/// never infer intent from legacy boolean flags.
-enum SyncExecutionPlanKind {
-  automaticProbe,
-  manualCatalogDiscovery,
-  repairLibrary,
-  targetHydration,
-  auxiliaryRefresh,
-  catalogSnapshot,
-  compatibilityAudit,
-}
-
 enum SyncEndpoint {
   indexes({'getIndexes'}),
   newestAlbums({'getNewestAlbumList2'}),
@@ -173,7 +161,7 @@ class SyncExecutionPlan {
   });
 
   final SyncRunRequest request;
-  final SyncExecutionPlanKind kind;
+  final LibrarySyncPlanKind kind;
   final SyncExecutionBudget budget;
   final SyncSafeReason reason;
 }
@@ -231,26 +219,6 @@ SyncRunRequest syncRunRequestFromLegacy(LibrarySyncRequest request) {
     target: request.target,
     networkGrant: grant,
   );
-}
-
-SyncExecutionPlanKind syncExecutionPlanKindFromLegacy(
-  LibrarySyncPlanKind kind,
-  SyncRunRequest request,
-) {
-  return switch (kind) {
-    LibrarySyncPlanKind.probe => SyncExecutionPlanKind.automaticProbe,
-    LibrarySyncPlanKind.deltaReconcile =>
-      SyncExecutionPlanKind.manualCatalogDiscovery,
-    LibrarySyncPlanKind.fullRepair => SyncExecutionPlanKind.repairLibrary,
-    LibrarySyncPlanKind.targetedHydration =>
-      request.intent == SyncRunIntent.auxiliaryRefresh
-          ? SyncExecutionPlanKind.auxiliaryRefresh
-          : SyncExecutionPlanKind.targetHydration,
-    LibrarySyncPlanKind.catalogSnapshot =>
-      SyncExecutionPlanKind.catalogSnapshot,
-    LibrarySyncPlanKind.compatibilityAudit =>
-      SyncExecutionPlanKind.compatibilityAudit,
-  };
 }
 
 /// Admission shared by planning, durable work selection and live execution.

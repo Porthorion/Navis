@@ -11,7 +11,6 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
-import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
@@ -64,18 +63,18 @@ void main() {
     );
     Future<LibrarySyncState> runRepair() async {
       final result = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       // Explicit repairs refresh both companions independently of the catalog.
       await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.auxiliaryRefresh,
+          LibrarySyncPlanKind.targetedHydration,
           target: const LibrarySyncTarget.starred(),
         ),
       );
       await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.auxiliaryRefresh,
+          LibrarySyncPlanKind.targetedHydration,
           target: const LibrarySyncTarget.playlistHeaders(),
         ),
       );

@@ -1285,7 +1285,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required LibrarySyncPlan plan,
     required SyncNetworkPolicy policy,
   }) {
-    final kind = syncExecutionPlanKindFromLegacy(plan.kind, request);
+    final kind = plan.kind;
     return SyncExecutionPlan(
       request: request,
       kind: kind,
@@ -1297,25 +1297,23 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   @visibleForTesting
   static SyncExecutionBudget executionBudgetFor({
     required SyncRunRequest request,
-    required SyncExecutionPlanKind kind,
+    required LibrarySyncPlanKind kind,
     required SyncNetworkPolicy policy,
   }) {
     final meteredManual =
-        kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
+        kind == LibrarySyncPlanKind.deltaReconcile &&
         policy.isMetered &&
         request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
     final endpoints = switch (kind) {
-      SyncExecutionPlanKind.automaticProbe => const <SyncEndpoint>{
-        SyncEndpoint.indexes,
-      },
-      SyncExecutionPlanKind.manualCatalogDiscovery => const <SyncEndpoint>{
+      LibrarySyncPlanKind.probe => const <SyncEndpoint>{SyncEndpoint.indexes},
+      LibrarySyncPlanKind.deltaReconcile => const <SyncEndpoint>{
         SyncEndpoint.indexes,
         SyncEndpoint.newestAlbums,
         SyncEndpoint.artist,
         SyncEndpoint.album,
       },
-      SyncExecutionPlanKind.repairLibrary ||
-      SyncExecutionPlanKind.catalogSnapshot => const <SyncEndpoint>{
+      LibrarySyncPlanKind.fullRepair ||
+      LibrarySyncPlanKind.catalogSnapshot => const <SyncEndpoint>{
         SyncEndpoint.catalogAlbums,
         SyncEndpoint.indexes,
         SyncEndpoint.newestAlbums,
@@ -1324,26 +1322,25 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         SyncEndpoint.album,
         SyncEndpoint.bulkSongs,
       },
-      SyncExecutionPlanKind.compatibilityAudit => const <SyncEndpoint>{
+      LibrarySyncPlanKind.compatibilityAudit => const <SyncEndpoint>{
         SyncEndpoint.newestAlbums,
         SyncEndpoint.indexes,
         SyncEndpoint.artists,
         SyncEndpoint.artist,
         SyncEndpoint.album,
       },
-      SyncExecutionPlanKind.auxiliaryRefresh => switch (request.target.kind) {
+      LibrarySyncPlanKind.targetedHydration => switch (request.target.kind) {
         LibrarySyncTargetKind.starred => const <SyncEndpoint>{
           SyncEndpoint.starred,
         },
         LibrarySyncTargetKind.playlistHeaders => const <SyncEndpoint>{
           SyncEndpoint.playlists,
         },
-        _ => const <SyncEndpoint>{},
-      },
-      SyncExecutionPlanKind.targetHydration => const <SyncEndpoint>{
-        SyncEndpoint.artist,
-        SyncEndpoint.album,
-        SyncEndpoint.playlists,
+        _ => const <SyncEndpoint>{
+          SyncEndpoint.artist,
+          SyncEndpoint.album,
+          SyncEndpoint.playlists,
+        },
       },
     };
     final automatic = request.intent == SyncRunIntent.automaticCatalogCheck;
@@ -1356,7 +1353,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         ? const Duration(seconds: 30)
         : const Duration(minutes: 1);
     final limits = switch (kind) {
-      SyncExecutionPlanKind.automaticProbe => (
+      LibrarySyncPlanKind.probe => (
         pages: 0,
         albums: boundedAlbums,
         responseBytes: 16 * 1024 * 1024,
@@ -1364,7 +1361,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         requests: 1,
         duration: boundedDuration,
       ),
-      SyncExecutionPlanKind.manualCatalogDiscovery => (
+      LibrarySyncPlanKind.deltaReconcile => (
         pages: automatic ? 2 : 5,
         albums: boundedAlbums,
         responseBytes: 16 * 1024 * 1024,
@@ -1372,8 +1369,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         requests: boundedRequests,
         duration: boundedDuration,
       ),
-      SyncExecutionPlanKind.catalogSnapshot ||
-      SyncExecutionPlanKind.repairLibrary => (
+      LibrarySyncPlanKind.catalogSnapshot || LibrarySyncPlanKind.fullRepair => (
         pages: 0,
         albums: 10000,
         responseBytes: 64 * 1024 * 1024,
@@ -1381,7 +1377,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         requests: 10000,
         duration: const Duration(minutes: 10),
       ),
-      SyncExecutionPlanKind.compatibilityAudit => (
+      LibrarySyncPlanKind.compatibilityAudit => (
         pages: 2,
         albums: boundedAlbums,
         responseBytes: 16 * 1024 * 1024,
@@ -1389,8 +1385,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         requests: boundedRequests,
         duration: boundedDuration,
       ),
-      SyncExecutionPlanKind.targetHydration ||
-      SyncExecutionPlanKind.auxiliaryRefresh => (
+      LibrarySyncPlanKind.targetedHydration => (
         pages: 0,
         albums: boundedAlbums,
         responseBytes: 16 * 1024 * 1024,
@@ -1400,8 +1395,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       ),
     };
     final broad =
-        kind == SyncExecutionPlanKind.catalogSnapshot ||
-        kind == SyncExecutionPlanKind.repairLibrary;
+        kind == LibrarySyncPlanKind.catalogSnapshot ||
+        kind == LibrarySyncPlanKind.fullRepair;
     return SyncExecutionBudget(
       allowedEndpoints: endpoints,
       maxNewestPages: meteredManual ? 1 : limits.pages,

@@ -174,6 +174,8 @@ class LibrarySyncRequest {
   }
 }
 
+/// Names are persisted in durable work and state; retain them when refactoring.
+/// Historical run-row indices are mapped only at the DAO boundary.
 enum LibrarySyncPlanKind {
   probe,
   targetedHydration,

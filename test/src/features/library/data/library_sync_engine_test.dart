@@ -25,7 +25,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
 
 final _meteredManualDiscoveryPlan = syncPlanForTest(
-  SyncExecutionPlanKind.manualCatalogDiscovery,
+  LibrarySyncPlanKind.deltaReconcile,
   grant: SyncNetworkGrant.boundedMeteredDiscovery,
   networkType: NetworkType.cellular,
 );
@@ -631,12 +631,12 @@ void main() {
         ];
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         await engine.executeSyncPlan(
           syncPlanForTest(
-            SyncExecutionPlanKind.auxiliaryRefresh,
+            LibrarySyncPlanKind.targetedHydration,
             target: const LibrarySyncTarget.playlistHeaders(),
           ),
         );
@@ -723,7 +723,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -794,7 +794,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -837,7 +837,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -900,7 +900,7 @@ void main() {
         await firstEmission.future;
 
         final sync = engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         while (!api.calls.contains('getAlbum:album-1')) {
           await Future<void>.delayed(Duration.zero);
@@ -996,7 +996,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -1305,7 +1305,7 @@ void main() {
       ];
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
       );
       final albums = await database.libraryDao
           .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
@@ -1432,7 +1432,7 @@ void main() {
       api.fastPathPages[0] = newest;
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
       );
       final albums = await database.libraryDao
           .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
@@ -1863,7 +1863,7 @@ void main() {
         );
 
         final first = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
         expect(
@@ -1879,7 +1879,7 @@ void main() {
         );
 
         final second = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(second.status, LibrarySyncStatus.succeeded);
         expect(await database.libraryDao.getAlbumById('album-stale'), isNull);
@@ -1929,7 +1929,7 @@ void main() {
         );
 
         final result = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final candidateSongs =
             await (database.select(database.librarySyncCandidateSongsTable)
@@ -1983,11 +1983,11 @@ void main() {
         );
 
         final first = await protectedEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
         final second = await protectedEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(second.status, LibrarySyncStatus.succeeded);
 
@@ -2071,7 +2071,7 @@ void main() {
         );
 
         final result = await aliasEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final aliases = await database.songIdentityDao.getAliases();
 
@@ -2140,7 +2140,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2216,7 +2216,7 @@ void main() {
         );
 
         final result = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(result.status, LibrarySyncStatus.succeeded);
@@ -2282,7 +2282,7 @@ void main() {
       );
 
       final result = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(result.status, LibrarySyncStatus.succeeded);
@@ -2359,7 +2359,7 @@ void main() {
       );
 
       final result = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(result.status, LibrarySyncStatus.succeeded);
@@ -2400,7 +2400,7 @@ void main() {
       }
 
       final first = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.compatibilityAudit),
+        syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
       );
       final firstRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
@@ -2414,7 +2414,7 @@ void main() {
 
       api.calls.clear();
       final second = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.compatibilityAudit),
+        syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
       );
       final secondRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
@@ -2458,7 +2458,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       final songRows = await database.select(database.songsTable).get();
 
@@ -2534,7 +2534,7 @@ void main() {
 
         final progress = <LibrarySyncState>[];
         await localEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           onProgress: progress.add,
         );
 
@@ -2588,7 +2588,7 @@ void main() {
         );
 
         final state = await cappedPageEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2649,7 +2649,7 @@ void main() {
         final localEngine = shiftedCatalogEngine();
 
         final state = await localEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2664,14 +2664,14 @@ void main() {
           api.fastPathErrors[4] = const SubsonicConnectionException('offline');
           expect(
             (await localEngine.executeSyncPlan(
-              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
             )).status,
             LibrarySyncStatus.failed,
           );
 
           api.fastPathErrors.clear();
           final resumed = await localEngine.executeSyncPlan(
-            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           );
 
           expect(resumed.status, LibrarySyncStatus.succeeded);
@@ -2700,7 +2700,7 @@ void main() {
           ..[2] = [header('c'), header('b'), header('a')];
 
         final state = await localEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2724,7 +2724,7 @@ void main() {
           ..[2] = [header('c'), header('d')];
 
         final state = await localEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -2760,7 +2760,7 @@ void main() {
       );
 
       final interrupted = await localEngine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       expect(interrupted.status, LibrarySyncStatus.failed);
       expect(
@@ -2773,7 +2773,7 @@ void main() {
         Album(id: 'album-3', name: 'Album 3', artistId: 'artist-1'),
       ];
       final resumed = await localEngine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
@@ -2813,7 +2813,7 @@ void main() {
           );
           expect(
             (await localEngine.executeSyncPlan(
-              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
             )).status,
             LibrarySyncStatus.failed,
           );
@@ -2826,7 +2826,7 @@ void main() {
           api.fastPathPages[4] = [header('e')];
           expect(
             (await localEngine.executeSyncPlan(
-              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+              syncPlanForTest(LibrarySyncPlanKind.fullRepair),
             )).status,
             LibrarySyncStatus.succeeded,
           );
@@ -2882,7 +2882,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final albums = await database.libraryDao.getAllAlbums();
 
@@ -2912,7 +2912,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final albums = await database.libraryDao.getAllAlbums();
 
@@ -2949,7 +2949,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -2980,7 +2980,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       final songs = await database.select(database.songsTable).get();
 
@@ -3034,7 +3034,7 @@ void main() {
         );
 
         final state = await cappedPageEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final songs = await database.select(database.songsTable).get();
 
@@ -3107,7 +3107,7 @@ void main() {
 
         final progress = <LibrarySyncState>[];
         await bulkEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           onProgress: progress.add,
         );
 
@@ -3190,7 +3190,7 @@ void main() {
           writeChunkSize: 1,
         );
         await tailEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         // The compatible bulk index now completes but omits album-1, as a
@@ -3198,7 +3198,7 @@ void main() {
         // should be reused without another getAlbum call.
         api.calls.clear();
         final result = await tailEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.catalogSnapshot),
+          syncPlanForTest(LibrarySyncPlanKind.catalogSnapshot),
         );
 
         expect(result.status, LibrarySyncStatus.succeeded);
@@ -3211,7 +3211,7 @@ void main() {
         // Explicit repair re-fetches even an unchanged stable tail.
         api.calls.clear();
         final repair = await tailEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(repair.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getAlbum:album-1'));
@@ -3288,7 +3288,7 @@ void main() {
 
         final progress = <LibrarySyncState>[];
         final result = await bulkEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           onProgress: progress.add,
         );
 
@@ -3346,7 +3346,7 @@ void main() {
       );
 
       final state = await bulkEngine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       final songs = await database.select(database.songsTable).get();
 
@@ -3398,7 +3398,7 @@ void main() {
         );
 
         final state = await bulkEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final songs = await database.select(database.songsTable).get();
 
@@ -3442,7 +3442,7 @@ void main() {
         }
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3506,7 +3506,7 @@ void main() {
           );
 
           final state = await bulkEngine.executeSyncPlan(
-            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           );
 
           expect(state.status, LibrarySyncStatus.succeeded);
@@ -3546,7 +3546,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3596,7 +3596,7 @@ void main() {
         ];
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3677,7 +3677,7 @@ void main() {
       );
 
       final state = await bulkEnabledEngine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       final songs = await database.select(database.songsTable).get();
 
@@ -3752,7 +3752,7 @@ void main() {
       ];
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
       final songs = await database.select(database.songsTable).get();
 
@@ -3799,7 +3799,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final songs = await database.select(database.songsTable).get();
 
@@ -3898,7 +3898,7 @@ void main() {
 
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -3922,7 +3922,7 @@ void main() {
         api.indexes = Indexes(lastModified: serverCursor);
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
         final config = await serverConfigRepository.getActiveServer();
         final capabilities =
@@ -3961,7 +3961,7 @@ void main() {
         }
 
         final first = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
         final firstArtistCalls = api.calls
             .where((call) => call.startsWith('getArtist:'))
@@ -3983,7 +3983,7 @@ void main() {
           api.calls.clear();
           next = await engine.executeSyncPlan(
             syncPlanForTest(
-              SyncExecutionPlanKind.manualCatalogDiscovery,
+              LibrarySyncPlanKind.deltaReconcile,
               intent: SyncRunIntent.automaticCatalogCheck,
             ),
           );
@@ -4029,7 +4029,7 @@ void main() {
         );
 
         final first = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
         final firstIds = api.calls
             .where((call) => call.startsWith('getArtist:'))
@@ -4049,7 +4049,7 @@ void main() {
 
         final second = await engine.executeSyncPlan(
           syncPlanForTest(
-            SyncExecutionPlanKind.manualCatalogDiscovery,
+            LibrarySyncPlanKind.deltaReconcile,
             intent: SyncRunIntent.automaticCatalogCheck,
           ),
         );
@@ -4090,7 +4090,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
         final config = await serverConfigRepository.getActiveServer();
         final navis =
@@ -4127,7 +4127,7 @@ void main() {
 
         final artistRecovered = await engine.executeSyncPlan(
           syncPlanForTest(
-            SyncExecutionPlanKind.manualCatalogDiscovery,
+            LibrarySyncPlanKind.deltaReconcile,
             intent: SyncRunIntent.automaticCatalogCheck,
           ),
         );
@@ -4166,7 +4166,7 @@ void main() {
         api.calls.clear();
 
         final recovered = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         final recoveredConfig = await serverConfigRepository.getActiveServer();
         final recoveredNavis =
@@ -4243,7 +4243,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -4323,7 +4323,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -4700,7 +4700,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+        syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -4767,7 +4767,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
         final albums = await database.select(database.albumsTable).get();
 
@@ -4805,7 +4805,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.compatibilityAudit),
+          syncPlanForTest(LibrarySyncPlanKind.compatibilityAudit),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -4845,7 +4845,7 @@ void main() {
 
         final state = await engine.executeSyncPlan(
           syncPlanForTest(
-            SyncExecutionPlanKind.manualCatalogDiscovery,
+            LibrarySyncPlanKind.deltaReconcile,
             intent: SyncRunIntent.automaticCatalogCheck,
           ),
         );
@@ -4903,7 +4903,7 @@ void main() {
 
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -4928,7 +4928,7 @@ void main() {
 
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -4957,7 +4957,7 @@ void main() {
 
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -4996,7 +4996,7 @@ void main() {
 
         final state = await engine.executeSyncPlan(
           syncPlanForTest(
-            SyncExecutionPlanKind.manualCatalogDiscovery,
+            LibrarySyncPlanKind.deltaReconcile,
             intent: SyncRunIntent.automaticCatalogCheck,
           ),
         );
@@ -5068,7 +5068,7 @@ void main() {
 
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -5121,7 +5121,7 @@ void main() {
         );
 
         final state = await adaptiveEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -5166,7 +5166,7 @@ void main() {
         );
 
         final state = await activePlaybackEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -5210,7 +5210,7 @@ void main() {
         );
 
         final state = await adaptiveEngine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -5278,7 +5278,7 @@ void main() {
 
         final state = await scope.run(
           () => batchEngine.executeSyncPlan(
-            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
           ),
         );
 
@@ -5314,7 +5314,7 @@ void main() {
       api.transientAlbumFailures['album-1'] = 2;
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
       );
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -5356,7 +5356,7 @@ void main() {
         );
 
         final first = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         expect(first.status, LibrarySyncStatus.succeeded);
         expect(first.pendingHydrationCount, 1);
@@ -5373,7 +5373,7 @@ void main() {
           ],
         );
         final recovered = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         expect(recovered.pendingHydrationCount, 0);
         expect(recovered.onlyIncompleteAlbumDetails, isFalse);
@@ -5405,7 +5405,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         final albums = await database.select(database.albumsTable).get();
         final songs = await database.select(database.songsTable).get();
@@ -5452,7 +5452,7 @@ void main() {
         // Intentionally omit api.albumDetails['album-1'] so hydration fails.
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final songs = await database.select(database.songsTable).get();
         final pendingAlbums = await database.libraryDao
@@ -5475,7 +5475,7 @@ void main() {
         api.calls.clear();
 
         final recovered = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         final recoveredSongs = await database.select(database.songsTable).get();
 
@@ -5507,7 +5507,7 @@ void main() {
       );
 
       final state = await engine.executeSyncPlan(
-        syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+        syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
       );
       final pendingAlbums = await database.libraryDao
           .getPendingHydrationAlbumIds();
@@ -5550,7 +5550,7 @@ void main() {
         api.notFoundAlbumIds.add('album-stale');
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         final albums = await database.select(database.albumsTable).get();
         final songs = await database.select(database.songsTable).get();
@@ -5593,7 +5593,7 @@ void main() {
         api.permanentTransientAlbumIds.add('album-2');
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.targetHydration),
+          syncPlanForTest(LibrarySyncPlanKind.targetedHydration),
         );
         final pending = await database.libraryDao.countPendingHydrationAlbums();
         final songs = await database.select(database.songsTable).get();
@@ -5620,7 +5620,7 @@ void main() {
       );
       final state = await engine.executeSyncPlan(
         syncPlanForTest(
-          SyncExecutionPlanKind.manualCatalogDiscovery,
+          LibrarySyncPlanKind.deltaReconcile,
           intent: SyncRunIntent.automaticCatalogCheck,
         ),
       );
@@ -5662,7 +5662,7 @@ void main() {
         ]);
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final artists = await database.select(database.artistsTable).get();
 
@@ -5710,7 +5710,7 @@ void main() {
         api.notFoundArtistIds.add('artist-1');
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -5756,7 +5756,7 @@ void main() {
         );
 
         final state = await engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.manualCatalogDiscovery),
+          syncPlanForTest(LibrarySyncPlanKind.deltaReconcile),
         );
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -5777,10 +5777,10 @@ void main() {
         api.artistsCompleter = completer;
 
         final first = engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
         final second = engine.executeSyncPlan(
-          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
         );
 
         completer.complete(const <Artist>[]);

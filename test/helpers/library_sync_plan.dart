@@ -5,7 +5,7 @@ import 'package:navis/src/utils/connectivity.dart';
 
 /// Builds an executor plan with the same budget as production admission.
 SyncExecutionPlan syncPlanForTest(
-  SyncExecutionPlanKind kind, {
+  LibrarySyncPlanKind kind, {
   SyncRunIntent? intent,
   LibrarySyncTarget target = const LibrarySyncTarget.catalog(),
   SyncNetworkGrant grant = SyncNetworkGrant.none,
@@ -13,24 +13,25 @@ SyncExecutionPlan syncPlanForTest(
 }) {
   final request = SyncRunRequest(
     origin: switch (kind) {
-      SyncExecutionPlanKind.repairLibrary => SyncRunOrigin.settingsRepair,
-      SyncExecutionPlanKind.manualCatalogDiscovery =>
+      LibrarySyncPlanKind.fullRepair => SyncRunOrigin.settingsRepair,
+      LibrarySyncPlanKind.deltaReconcile =>
         intent == SyncRunIntent.automaticCatalogCheck
             ? SyncRunOrigin.timer
             : SyncRunOrigin.libraryPullToRefresh,
-      SyncExecutionPlanKind.targetHydration => SyncRunOrigin.interaction,
+      LibrarySyncPlanKind.targetedHydration => SyncRunOrigin.interaction,
       _ => SyncRunOrigin.startup,
     },
     intent:
         intent ??
         switch (kind) {
-          SyncExecutionPlanKind.repairLibrary => SyncRunIntent.repairLibrary,
-          SyncExecutionPlanKind.manualCatalogDiscovery =>
+          LibrarySyncPlanKind.fullRepair => SyncRunIntent.repairLibrary,
+          LibrarySyncPlanKind.deltaReconcile =>
             SyncRunIntent.manualCatalogCheck,
-          SyncExecutionPlanKind.targetHydration =>
-            SyncRunIntent.targetHydration,
-          SyncExecutionPlanKind.auxiliaryRefresh =>
-            SyncRunIntent.auxiliaryRefresh,
+          LibrarySyncPlanKind.targetedHydration =>
+            target.kind == LibrarySyncTargetKind.starred ||
+                    target.kind == LibrarySyncTargetKind.playlistHeaders
+                ? SyncRunIntent.auxiliaryRefresh
+                : SyncRunIntent.targetHydration,
           _ => SyncRunIntent.automaticCatalogCheck,
         },
     target: target,

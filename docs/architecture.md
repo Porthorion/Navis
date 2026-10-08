@@ -3056,7 +3056,9 @@ states without starting audio or modifying a queue.
    gating belongs to the coordinator, and catalog runs never absorb auxiliary
    refreshes. Recovery and execution share lease acquisition, write fencing,
    and release; execution alone adds the periodic heartbeat. Endpoint aliases
-   live on `SyncEndpoint`, and plan-kind records resolve run budgets.
+   live on `SyncEndpoint`. One `LibrarySyncPlanKind` selects planning and
+   execution budgets; only the diagnostics-history boundary maps its durable
+   work names to the older stored plan indices.
    Planning derives conditional-index support directly from the active server
    capabilities JSON, without a state-table provider-profile mirror. A backend
    fingerprint change discards the old Navis sync capabilities, durable work,

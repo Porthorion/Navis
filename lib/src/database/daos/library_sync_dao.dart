@@ -42,7 +42,7 @@ class LibrarySyncRunHistoryEntry {
   final DateTime? startedAt;
   final SyncRunIntent intent;
   final LibrarySyncTargetKind targetKind;
-  final SyncExecutionPlanKind planKind;
+  final LibrarySyncPlanKind planKind;
   final SyncRunOutcomeKind outcome;
   final SyncSafeReason reason;
   final int requestCount;
@@ -76,7 +76,7 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   static const int _attemptRecovered = 1;
   static const int _attemptTerminal = 2;
 
-  /// Persists a typed request before legacy work is enqueued. Equivalent
+  /// Records a request before durable work is enqueued. Equivalent
   /// active requests share this durable identity, but terminal requests are
   /// retained as independent history entries.
   Future<({int id})> enqueueSyncRun({
@@ -109,7 +109,16 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         targetKind: request.target.kind.index,
         targetKey: const Value(''),
         networkGrant: SyncNetworkGrant.none.index,
-        planKind: plan.kind.index,
+        // Historical plan indices predate the durable work-kind names.
+        planKind: switch (plan.kind) {
+          LibrarySyncPlanKind.probe => 0,
+          LibrarySyncPlanKind.deltaReconcile => 1,
+          LibrarySyncPlanKind.fullRepair => 2,
+          LibrarySyncPlanKind.targetedHydration =>
+            request.intent == SyncRunIntent.auxiliaryRefresh ? 4 : 3,
+          LibrarySyncPlanKind.catalogSnapshot => 5,
+          LibrarySyncPlanKind.compatibilityAudit => 6,
+        },
         priority: 0,
         coalescingKey: request.coalescingKey,
         status: const Value(_runQueued),
@@ -317,8 +326,17 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                 .values[row.readTable(librarySyncRunRequestTable).intent],
             targetKind: LibrarySyncTargetKind
                 .values[row.readTable(librarySyncRunRequestTable).targetKind],
-            planKind: SyncExecutionPlanKind
-                .values[row.readTable(librarySyncRunRequestTable).planKind],
+            planKind: switch (row
+                .readTable(librarySyncRunRequestTable)
+                .planKind) {
+              0 => LibrarySyncPlanKind.probe,
+              1 => LibrarySyncPlanKind.deltaReconcile,
+              2 => LibrarySyncPlanKind.fullRepair,
+              3 || 4 => LibrarySyncPlanKind.targetedHydration,
+              5 => LibrarySyncPlanKind.catalogSnapshot,
+              6 => LibrarySyncPlanKind.compatibilityAudit,
+              _ => throw StateError('Unknown sync history plan kind'),
+            },
             outcome: SyncRunOutcomeKind
                 .values[row.readTable(librarySyncRunOutcomeTable).outcomeKind],
             reason: SyncSafeReason

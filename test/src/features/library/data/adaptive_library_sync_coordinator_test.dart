@@ -62,7 +62,7 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
     LibrarySyncProgressCallback? onProgress,
   }) async {
     switch (plan.kind) {
-      case SyncExecutionPlanKind.automaticProbe:
+      case LibrarySyncPlanKind.probe:
         probeCalls++;
         return LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
@@ -74,17 +74,16 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
           updatesAvailable: probeIndexChanged || probeIndexesUnsupported,
           apiRequests: 1,
         );
-      case SyncExecutionPlanKind.catalogSnapshot:
-      case SyncExecutionPlanKind.repairLibrary:
+      case LibrarySyncPlanKind.catalogSnapshot:
+      case LibrarySyncPlanKind.fullRepair:
         forceFullSyncCalls++;
-      case SyncExecutionPlanKind.manualCatalogDiscovery:
+      case LibrarySyncPlanKind.deltaReconcile:
         syncNowCalls++;
-      case SyncExecutionPlanKind.targetHydration:
+      case LibrarySyncPlanKind.targetedHydration:
         if (plan.request.target.kind == LibrarySyncTargetKind.album) {
           hydrateAlbumCalls++;
         }
-      case SyncExecutionPlanKind.compatibilityAudit:
-      case SyncExecutionPlanKind.auxiliaryRefresh:
+      case LibrarySyncPlanKind.compatibilityAudit:
         break;
     }
     return _idle();
@@ -164,11 +163,11 @@ class _CompletedCatalogWithPendingAlbumEngine implements SyncPlanExecutor {
   }) async {
     plans.add(plan);
     final target = plan.request.target;
-    if (plan.kind == SyncExecutionPlanKind.targetHydration) {
-      targetedCalls.add('${target.kind.name}:${target.entityId}');
-      return _targetResult();
-    }
-    if (plan.kind == SyncExecutionPlanKind.auxiliaryRefresh) {
+    if (plan.kind == LibrarySyncPlanKind.targetedHydration) {
+      if (target.kind != LibrarySyncTargetKind.starred &&
+          target.kind != LibrarySyncTargetKind.playlistHeaders) {
+        targetedCalls.add('${target.kind.name}:${target.entityId}');
+      }
       return _targetResult();
     }
     return _result();
