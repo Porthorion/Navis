@@ -19,6 +19,11 @@ Last updated: 2026-10-02
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Flat desktop You Might Like panel and compact phone Home header —
+  2026-10-08 (desktop Flat is one rounded solid panel around cover, track list
+  and thumbnail strip, tinted like the phone band, with no inner card; phone
+  Home header is about 40 px shorter. Evidence: `test/src/features/home/presentation/home_screen_test.dart`,
+  `flat_home_wash_test.dart`)
 - [x] Colour styles (Neutral, Pastel, Immersive, Night) — 2026-10-08 (a
   second appearance axis next to Light/Dark/OLED/Auto, stored in
   `app_settings.color_style` (schema 93) and chosen with live preview tiles in

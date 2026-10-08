@@ -509,12 +509,20 @@ typedef ShowcaseFlatBand = _ShowcaseFlatBand;
 /// yields the title, subtitle and page-dot colours handed to [builder]. A new
 /// cover glides the band and text colours together.
 class _ShowcaseFlatBand extends ConsumerWidget {
-  const new({required this.coverArtId, required this.builder});
+  const new({
+    required this.coverArtId,
+    required this.builder,
+    this.borderRadius,
+  });
 
   static const Key bandKey = ValueKey<String>('home-showcase-flat-band');
 
   final String? coverArtId;
   final Widget Function(BuildContext context, CaptionTint tint) builder;
+
+  /// Clips the band to rounded corners; null keeps it hard-edged (phones).
+  /// The desktop pager uses it to make the band one panel around its content.
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -559,15 +567,56 @@ class _ShowcaseFlatBand extends ConsumerWidget {
             ? Duration.zero
             : const Duration(milliseconds: 400),
         curve: Curves.easeOut,
-        builder: (context, value, _) => ColoredBox(
-          key: bandKey,
-          color: value.fill,
-          child: builder(context, value),
-        ),
+        builder: (context, value, _) {
+          final band = ColoredBox(
+            key: bandKey,
+            color: value.fill,
+            child: builder(context, value),
+          );
+          final radius = borderRadius;
+          return radius == null
+              ? band
+              : ClipRRect(borderRadius: radius, child: band);
+        },
       ),
     );
   }
 }
+
+/// Re-themes the Flat desktop panel's content for the band [tint]: text,
+/// icons, selection and the Play/Shuffle buttons read against the panel fill
+/// (title/subtitle colours from [captionTintFor], so contrast stays at least
+/// [kCaptionMinContrast]); raised surfaces become a faint lift of the text
+/// colour over the fill.
+ThemeData _flatPanelTheme(ThemeData base, CaptionTint tint) {
+  final lift = Color.alphaBlend(tint.text.withValues(alpha: 0.16), tint.fill);
+  final scheme = base.colorScheme.copyWith(
+    surface: tint.fill,
+    onSurface: tint.text,
+    onSurfaceVariant: tint.subtext,
+    primary: tint.text,
+    onPrimary: tint.fill,
+    secondaryContainer: lift,
+    onSecondaryContainer: tint.text,
+    surfaceContainerHigh: lift,
+    surfaceContainerHighest: lift,
+    outline: tint.subtext,
+    outlineVariant: tint.subtext,
+  );
+  return base.copyWith(
+    colorScheme: scheme,
+    textTheme: base.textTheme.apply(
+      bodyColor: tint.text,
+      displayColor: tint.text,
+    ),
+    iconTheme: base.iconTheme.copyWith(color: tint.text),
+  );
+}
+
+/// Test seam for the private [_flatPanelTheme].
+@visibleForTesting
+ThemeData flatPanelThemeForTest(ThemeData base, CaptionTint tint) =>
+    _flatPanelTheme(base, tint);
 
 class _CaptionTintTween extends Tween<CaptionTint> {
   new({super.end});
