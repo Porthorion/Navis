@@ -20,9 +20,11 @@ void main() {
 
     expect(stats.changedCount, 0);
     expect(stats.unchangedCount, 5);
-    final songs = await database.librarySyncCandidateDao.getSongs(
+    final songs = await database.librarySyncCandidateDao.getSongsPage(
       serverId: 1,
       generation: 2,
+      afterId: '',
+      limit: 10,
     );
     expect(
       songs.map((song) => song.applyState),
@@ -144,12 +146,14 @@ void main() {
         .analyze(serverId: 1, generation: 2);
 
     expect(stats.songUnchangedCount, 2);
-    final counts = await database.librarySyncCandidateDao.getApplyCounts(
-      serverId: 1,
-      generation: 2,
+    final rows = await database
+        .select(database.librarySyncCandidateSongsTable)
+        .get();
+    expect(rows, hasLength(3));
+    expect(
+      rows.map((row) => row.applyState),
+      everyElement(LibraryCandidateApplyState.unchanged),
     );
-    expect(counts.unchanged, 3);
-    expect(counts.unclassified, 0);
   });
 }
 

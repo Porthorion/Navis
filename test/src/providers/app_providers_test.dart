@@ -1696,23 +1696,21 @@ void main() {
         );
         addTearDown(subscription.close);
 
-        await database.libraryDao.replaceSongsForAlbum(
-          'album-1',
-          <SongsTableCompanion>[
+        await database.libraryDao.reconcileSongsForAlbumsChunk({
+          'album-1': <SongsTableCompanion>[
             SongsTableCompanion.insert(
               id: 'song-1',
               title: 'Song 1',
               albumId: const Value('album-1'),
             ),
           ],
-        );
+        });
         // Rapid writes may coalesce into one stream emission; wait until the
         // first write is visible so each write is observed on its own.
         await firstWrite.future.timeout(const Duration(seconds: 5));
 
-        await database.libraryDao.replaceSongsForAlbum(
-          'album-1',
-          <SongsTableCompanion>[
+        await database.libraryDao.reconcileSongsForAlbumsChunk({
+          'album-1': <SongsTableCompanion>[
             SongsTableCompanion.insert(
               id: 'song-1',
               title: 'Song 1',
@@ -1724,7 +1722,7 @@ void main() {
               albumId: const Value('album-1'),
             ),
           ],
-        );
+        });
 
         await completer.future.timeout(const Duration(seconds: 5));
         expect(emittedCounts, contains(1));

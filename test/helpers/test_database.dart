@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' show DatabaseConnection;
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -43,3 +43,14 @@ bool get sqliteAvailable {
     return false;
   }
 }
+
+Future<List<LibraryRecoveryReviewTableData>> pendingRecoveryReviews(
+  NavisDatabase database,
+  int serverId,
+) =>
+    (database.select(database.libraryRecoveryReviewTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.disposition.equals('pending'),
+        ))
+        .get();

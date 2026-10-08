@@ -598,7 +598,7 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
-      'replaceSongsForAlbumsChunk replaces targeted album songs atomically',
+      'reconcileSongsForAlbumsChunk replaces targeted album songs atomically',
       () async {
         await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
           AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
@@ -639,8 +639,8 @@ void main() {
           ],
         };
 
-        await database.libraryDao.replaceSongsForAlbumsChunk(chunk);
-        await database.libraryDao.replaceSongsForAlbumsChunk(chunk);
+        await database.libraryDao.reconcileSongsForAlbumsChunk(chunk);
+        await database.libraryDao.reconcileSongsForAlbumsChunk(chunk);
 
         final songs = await database.select(database.songsTable).get();
         expect(songs.map((song) => song.id).toSet(), {

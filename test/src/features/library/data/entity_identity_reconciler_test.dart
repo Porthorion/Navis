@@ -327,9 +327,7 @@ void main() {
       expect(summary.albumAliases, 0);
       expect(summary.reviewCount, 1);
       expect(await database.libraryDao.getAlbumById('album-old'), isNotNull);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       final entry = review.single;
       expect(entry.entityType, 'album');
       expect(entry.reason, 'ambiguousMatch');
@@ -374,9 +372,7 @@ void main() {
 
     expect(summary.albumAliases, 0);
     expect(summary.reviewCount, 1);
-    final review = await database.librarySyncDao.getPendingRecoveryReview(
-      serverId,
-    );
+    final review = await pendingRecoveryReviews(database, serverId);
     expect(review.single.reason, 'ambiguousMatch');
   }, skip: !sqliteAvailable);
 
@@ -400,9 +396,7 @@ void main() {
       expect(summary.albumAliases, 0);
       expect(summary.reviewCount, 1);
       expect(await database.libraryDao.getAlbumById('album-lost'), isNotNull);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       expect(review.single.reason, 'missingFromCatalog');
       expect(review.single.entityType, 'album');
       expect(review.single.savedTitle, 'Vanished');
@@ -422,10 +416,7 @@ void main() {
     );
 
     expect(summary.reviewCount, 0);
-    expect(
-      await database.librarySyncDao.getPendingRecoveryReview(serverId),
-      isEmpty,
-    );
+    expect(await pendingRecoveryReviews(database, serverId), isEmpty);
   }, skip: !sqliteAvailable);
 
   test(
@@ -448,9 +439,7 @@ void main() {
       );
 
       expect(summary.albumAliases, 0);
-      final review = await database.librarySyncDao.getPendingRecoveryReview(
-        serverId,
-      );
+      final review = await pendingRecoveryReviews(database, serverId);
       expect(review.single.reason, 'conflictingMbid');
     },
     skip: !sqliteAvailable,

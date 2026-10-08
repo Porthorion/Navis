@@ -1580,21 +1580,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<List<String>> replaceSongsForAlbum(
-    String albumId,
-    List<SongsTableCompanion> songs,
-  ) async {
-    return await reconcileSongsForAlbumsChunk(
-      <String, List<SongsTableCompanion>>{albumId: songs},
-    );
-  }
-
-  Future<List<String>> replaceSongsForAlbumsChunk(
-    Map<String, List<SongsTableCompanion>> songsByAlbumId,
-  ) {
-    return reconcileSongsForAlbumsChunk(songsByAlbumId);
-  }
-
   /// Oldest complete snapshots first; null is legacy/unverified evidence.
   Future<List<String>> getAlbumsDueForSongVerification({
     required DateTime before,

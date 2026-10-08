@@ -1472,17 +1472,6 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<List<LibraryRecoveryReviewTableData>> getPendingRecoveryReview(
-    int serverId,
-  ) {
-    return (select(libraryRecoveryReviewTable)..where(
-          (table) =>
-              table.serverId.equals(serverId) &
-              table.disposition.equals('pending'),
-        ))
-        .get();
-  }
-
   /// Review entries awaiting a decision, oldest first.
   Stream<List<LibraryRecoveryReviewTableData>> watchPendingRecoveryReview(
     int serverId,

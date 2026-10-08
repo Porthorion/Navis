@@ -63,13 +63,6 @@ class LibraryCatalogDiffAnalyzer {
     var pageCount = 0;
     var maximumPageSize = 0;
     var maximumPageLatency = Duration.zero;
-    var artistChanged = 0;
-    var artistUnchanged = 0;
-    var albumChanged = 0;
-    var albumUnchanged = 0;
-    var songChanged = 0;
-    var songUnchanged = 0;
-
     Future<void> afterPage(Stopwatch pageWatch, int count) async {
       pageCount++;
       if (count > maximumPageSize) {
@@ -88,116 +81,84 @@ class LibraryCatalogDiffAnalyzer {
       await Future<void>.delayed(Duration.zero);
     }
 
-    while (true) {
-      final pageWatch = Stopwatch()..start();
-      final candidates = await _database.librarySyncCandidateDao
-          .getUnclassifiedArtists(
-            serverId: serverId,
-            generation: generation,
-            limit: pageSize,
+    Future<(int, int)> classifyKind<C, E>({
+      required Future<List<C>> Function({
+        required int serverId,
+        required int generation,
+        required int limit,
+      })
+      read,
+      required Future<List<E>> Function(Iterable<String>) readExisting,
+      required String Function(C) candidateId,
+      required String Function(E) existingId,
+      required bool Function(C, E?) needsApply,
+      required Future<void> Function({
+        required int serverId,
+        required int generation,
+        required Iterable<String> changedIds,
+        required Iterable<String> unchangedIds,
+      })
+      classify,
+    }) async {
+      var changedCount = 0;
+      var unchangedCount = 0;
+      while (true) {
+        final pageWatch = Stopwatch()..start();
+        final candidates = await read(
+          serverId: serverId,
+          generation: generation,
+          limit: pageSize,
+        );
+        if (candidates.isEmpty) break;
+        final existing = await readExisting(candidates.map(candidateId));
+        final existingById = {for (final row in existing) existingId(row): row};
+        final changed = <String>[];
+        final unchanged = <String>[];
+        for (final candidate in candidates) {
+          final id = candidateId(candidate);
+          (needsApply(candidate, existingById[id]) ? changed : unchanged).add(
+            id,
           );
-      if (candidates.isEmpty) {
-        break;
-      }
-      final existing = await _database.libraryDao.getArtistsByIds(
-        candidates.map((row) => row.id),
-      );
-      final existingById = <String, ArtistsTableData>{
-        for (final row in existing) row.id: row,
-      };
-      final changed = <String>[];
-      final unchanged = <String>[];
-      for (final candidate in candidates) {
-        if (artistNeedsApply(candidate, existingById[candidate.id])) {
-          changed.add(candidate.id);
-        } else {
-          unchanged.add(candidate.id);
         }
+        await classify(
+          serverId: serverId,
+          generation: generation,
+          changedIds: changed,
+          unchangedIds: unchanged,
+        );
+        changedCount += changed.length;
+        unchangedCount += unchanged.length;
+        await afterPage(pageWatch, candidates.length);
       }
-      await _database.librarySyncCandidateDao.classifyArtists(
-        serverId: serverId,
-        generation: generation,
-        changedIds: changed,
-        unchangedIds: unchanged,
-      );
-      artistChanged += changed.length;
-      artistUnchanged += unchanged.length;
-      await afterPage(pageWatch, candidates.length);
+      return (changedCount, unchangedCount);
     }
 
-    while (true) {
-      final pageWatch = Stopwatch()..start();
-      final candidates = await _database.librarySyncCandidateDao
-          .getUnclassifiedAlbums(
-            serverId: serverId,
-            generation: generation,
-            limit: pageSize,
-          );
-      if (candidates.isEmpty) {
-        break;
-      }
-      final existing = await _database.libraryDao.getAlbumsByIds(
-        candidates.map((row) => row.id),
-      );
-      final existingById = <String, AlbumsTableData>{
-        for (final row in existing) row.id: row,
-      };
-      final changed = <String>[];
-      final unchanged = <String>[];
-      for (final candidate in candidates) {
-        if (albumNeedsApply(candidate, existingById[candidate.id])) {
-          changed.add(candidate.id);
-        } else {
-          unchanged.add(candidate.id);
-        }
-      }
-      await _database.librarySyncCandidateDao.classifyAlbums(
-        serverId: serverId,
-        generation: generation,
-        changedIds: changed,
-        unchangedIds: unchanged,
-      );
-      albumChanged += changed.length;
-      albumUnchanged += unchanged.length;
-      await afterPage(pageWatch, candidates.length);
-    }
+    final (artistChanged, artistUnchanged) = await classifyKind(
+      read: _database.librarySyncCandidateDao.getUnclassifiedArtists,
+      readExisting: _database.libraryDao.getArtistsByIds,
+      candidateId: (row) => row.id,
+      existingId: (row) => row.id,
+      needsApply: artistNeedsApply,
+      classify: _database.librarySyncCandidateDao.classifyArtists,
+    );
 
-    while (true) {
-      final pageWatch = Stopwatch()..start();
-      final candidates = await _database.librarySyncCandidateDao
-          .getUnclassifiedSongs(
-            serverId: serverId,
-            generation: generation,
-            limit: pageSize,
-          );
-      if (candidates.isEmpty) {
-        break;
-      }
-      final existing = await _database.libraryDao.getSongsByIds(
-        candidates.map((row) => row.id),
-      );
-      final existingById = <String, SongsTableData>{
-        for (final row in existing) row.id: row,
-      };
-      final changed = <String>[];
-      final unchanged = <String>[];
-      for (final candidate in candidates) {
-        if (songNeedsApply(candidate, existingById[candidate.id])) {
-          changed.add(candidate.id);
-        } else {
-          unchanged.add(candidate.id);
-        }
-      }
-      await _database.librarySyncCandidateDao.classifySongs(
-        serverId: serverId,
-        generation: generation,
-        changedIds: changed,
-        unchangedIds: unchanged,
-      );
-      songChanged += changed.length;
-      songUnchanged += unchanged.length;
-      await afterPage(pageWatch, candidates.length);
-    }
+    final (albumChanged, albumUnchanged) = await classifyKind(
+      read: _database.librarySyncCandidateDao.getUnclassifiedAlbums,
+      readExisting: _database.libraryDao.getAlbumsByIds,
+      candidateId: (row) => row.id,
+      existingId: (row) => row.id,
+      needsApply: albumNeedsApply,
+      classify: _database.librarySyncCandidateDao.classifyAlbums,
+    );
+
+    final (songChanged, songUnchanged) = await classifyKind(
+      read: _database.librarySyncCandidateDao.getUnclassifiedSongs,
+      readExisting: _database.libraryDao.getSongsByIds,
+      candidateId: (row) => row.id,
+      existingId: (row) => row.id,
+      needsApply: songNeedsApply,
+      classify: _database.librarySyncCandidateDao.classifySongs,
+    );
 
     stopwatch.stop();
     return CatalogDiffStats(

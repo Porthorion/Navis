@@ -1889,9 +1889,7 @@ void main() {
 
         expect(result.status, LibrarySyncStatus.succeeded);
         expect(await database.songIdentityDao.getAliases(), isEmpty);
-        final review = await database.librarySyncDao.getPendingRecoveryReview(
-          1,
-        );
+        final review = await pendingRecoveryReviews(database, 1);
         final contested = review
             .where((entry) => entry.reason == 'ambiguousMatch')
             .toList();
