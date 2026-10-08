@@ -80,6 +80,24 @@ class _BatchTrackingLibrarySyncApi extends FakeLibrarySyncApi {
   }
 }
 
+class _BulkPageLibrarySyncApi extends FakeLibrarySyncApi {
+  Future<void> Function()? onBulkPage;
+
+  @override
+  Future<SearchResult3> searchSongsPage({
+    required String query,
+    required int size,
+    required int offset,
+  }) async {
+    if (size > 1) await onBulkPage?.call();
+    return await super.searchSongsPage(
+      query: query,
+      size: size,
+      offset: offset,
+    );
+  }
+}
+
 void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
@@ -3047,6 +3065,117 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    for (final fails in [false, true]) {
+      test(
+        'bulk capability writes preserve fresh updates (failure: $fails)',
+        () async {
+          await saveSession(
+            capabilitiesJson: jsonEncode({
+              'navis': {'bulkSongSearchWildcardQuery': ''},
+            }),
+          );
+          final bulkApi = _BulkPageLibrarySyncApi();
+          bulkApi.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+          bulkApi.fastPathPages[0] = const [
+            Album(
+              id: 'album-1',
+              name: 'Album',
+              artistId: 'artist-1',
+              songCount: 1,
+            ),
+          ];
+          const song = Song(
+            id: 'song-1',
+            title: 'Song',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          );
+          bulkApi.bulkSongPages[0] = const [song];
+          bulkApi.albumDetails['album-1'] = const Album(
+            id: 'album-1',
+            name: 'Album',
+            songs: [song],
+          );
+          bulkApi.onBulkPage = () async {
+            final config = await serverConfigRepository.getActiveServer();
+            final capabilities =
+                jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+            capabilities['provider'] = {'retained': true};
+            (capabilities['navis'] as Map<String, dynamic>)['duringBulk'] =
+                'retained';
+            await serverConfigRepository.updateCapabilitiesJson(
+              jsonEncode(capabilities),
+            );
+            if (fails) {
+              throw const SubsonicGenericException(message: 'Unsupported');
+            }
+          };
+          final bulkEngine = DriftLibrarySyncEngine(
+            api: bulkApi,
+            database: database,
+            serverConfigRepository: serverConfigRepository,
+            isolateThreshold: 1000,
+          );
+
+          final state = await bulkEngine.forceFullSync();
+
+          expect(state.status, LibrarySyncStatus.succeeded);
+          final config = await serverConfigRepository.getActiveServer();
+          final capabilities =
+              jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+          final navis = capabilities['navis'] as Map<String, dynamic>;
+          expect(capabilities['provider'], {'retained': true});
+          expect(navis['duringBulk'], 'retained');
+          expect(navis['bulkSongSearchWildcardQuery'], fails ? isNull : '');
+          expect(await database.libraryDao.getSongById('song-1'), isNotNull);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test(
+      'index traversal preserves first raw duplicate and stable fingerprint',
+      () async {
+        await saveSession();
+        api.getArtistsError = const SubsonicNotFoundException(
+          message: 'Unsupported',
+        );
+        api.indexes = Indexes(
+          lastModified: DateTime(2026),
+          indexes: const [
+            IndexesIndex(
+              name: 'A',
+              artists: [
+                Artist(id: ' artist-1 ', name: 'First'),
+                Artist(id: ' artist-1 ', name: 'Last'),
+              ],
+            ),
+          ],
+          shortcut: const [Artist(id: 'artist-2', name: 'Shortcut')],
+          child: const [Artist(id: 'artist-2', name: 'Child')],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        final artists = await database.libraryDao.getAllArtists();
+        expect(
+          {for (final artist in artists) artist.id: artist.name},
+          {' artist-1 ': 'First', 'artist-2': 'Shortcut'},
+        );
+        final config = await serverConfigRepository.getActiveServer();
+        final navis =
+            (jsonDecode(config!.capabilitiesJson!)
+                    as Map<String, dynamic>)['navis']
+                as Map<String, dynamic>;
+        expect(
+          navis['libraryIndexesFingerprint'],
+          _testIndexesFingerprint(['artist-1', 'artist-2']),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test(
       'stored bulk-song query is reused for small pending hydration batches',
       () async {
@@ -3082,46 +3211,6 @@ void main() {
           api.calls.where((call) => call.startsWith('getAlbum:')),
           isEmpty,
         );
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'legacy wildcard bulk-song query is discarded instead of issued',
-      () async {
-        await saveSession(
-          capabilitiesJson: jsonEncode(<String, Object?>{
-            'navis': <String, Object?>{'bulkSongSearchWildcardQuery': '*'},
-          }),
-        );
-        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-        api.fastPathPages[0] = const <Album>[
-          Album(
-            id: 'album-1',
-            name: 'Album 1',
-            artistId: 'artist-1',
-            songCount: 1,
-          ),
-        ];
-        api.bulkSongPages[0] = const <Song>[
-          Song(
-            id: 'song-1',
-            title: 'Song 1',
-            albumId: 'album-1',
-            artistId: 'artist-1',
-          ),
-        ];
-
-        final state = await engine.forceFullSync();
-        final config = await serverConfigRepository.getActiveServer();
-        final capabilities =
-            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
-        final navis = capabilities['navis'] as Map<String, dynamic>;
-
-        expect(state.status, LibrarySyncStatus.succeeded);
-        expect(api.calls, isNot(contains('searchSongsPage:*:0:1')));
-        expect(api.calls, contains('getAlbum:album-1'));
-        expect(navis.containsKey('bulkSongSearchWildcardQuery'), isFalse);
       },
       skip: !sqliteAvailable,
     );

@@ -46,34 +46,17 @@ class SyncNetworkDeferredException implements Exception {
   String toString() => 'SyncNetworkDeferredException: $message';
 }
 
-enum _AlbumFetchOutcome { success, requeue, hardFailure }
-
 class _AlbumFetchResult {
-  const new _(this.outcome, [this.album, this.transient = false]);
+  const new({this.album, this.transient = false});
 
-  const new success(Album album) : this._(_AlbumFetchOutcome.success, album);
-
-  const new requeue({bool transient = false})
-    : this._(_AlbumFetchOutcome.requeue, null, transient);
-
-  const new hardFailure() : this._(_AlbumFetchOutcome.hardFailure);
-
-  final bool transient;
-  final _AlbumFetchOutcome outcome;
   final Album? album;
+  final bool transient;
 }
 
-class _AlbumBatchFetchResult {
-  const new({
-    required this.albums,
-    required this.requeueAlbumIds,
-    required this.hardFailedAlbumIds,
-  });
-
-  final List<Album> albums;
-  final List<String> requeueAlbumIds;
-  final List<String> hardFailedAlbumIds;
-}
+typedef _AlbumBatchFetchResult = ({
+  List<Album> albums,
+  List<String> pendingAlbumIds,
+});
 
 /// Version 3 counts the albums each page added to the candidate; version 2
 /// counted the page's albums, so its saved generations are never resumed.
@@ -479,20 +462,6 @@ const _manualNewestAlbumHealthProbeMaxPages = 5;
 const _meteredManualNewestAlbumHealthProbePageSize = 50;
 const _meteredManualAlbumHydrationLimit = 3;
 
-String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
-  return _readNavisStringCapability(
-    capabilitiesJson,
-    _bulkSongSearchQueryCapabilityKey,
-  );
-}
-
-int _readDiscoveryDebtStreak(String? capabilitiesJson) {
-  return _readNavisIntCapability(
-    capabilitiesJson,
-    _libraryDiscoveryDebtStreakCapabilityKey,
-  );
-}
-
 LibrarySyncFreshness _readStoredLibraryFreshness(String? capabilitiesJson) {
   final value = _readNavisStringCapability(
     capabilitiesJson,
@@ -538,32 +507,29 @@ String? _readNavisStringCapability(String? capabilitiesJson, String key) {
   }
 }
 
-String? _mergeStoredBulkSongSearchQuery(
-  String? capabilitiesJson,
-  String? query,
-) {
-  return _mergeNavisStringCapability(
-    capabilitiesJson,
-    _bulkSongSearchQueryCapabilityKey,
-    query,
-  );
-}
+const _clearPendingVerification = <String, Object?>{
+  _libraryPendingFingerprintCapabilityKey: null,
+  _libraryPendingCursorCapabilityKey: null,
+  _libraryPendingOffsetCapabilityKey: null,
+  _libraryPendingArtistIdsCapabilityKey: null,
+};
 
-String? _mergeStoredIndexesFingerprint(
-  String? capabilitiesJson,
-  String? fingerprint,
-) {
-  return _mergeNavisStringCapability(
-    capabilitiesJson,
-    _libraryIndexesFingerprintCapabilityKey,
-    fingerprint,
-  );
-}
+Map<String, Object?> _pendingVerificationCapabilities({
+  required String fingerprint,
+  required DateTime? cursor,
+  required int offset,
+  required List<String> artistIds,
+}) => {
+  _libraryPendingFingerprintCapabilityKey: fingerprint,
+  _libraryPendingCursorCapabilityKey: cursor,
+  _libraryPendingOffsetCapabilityKey: offset,
+  _libraryPendingArtistIdsCapabilityKey: jsonEncode(artistIds),
+  _libraryFreshnessCapabilityKey: LibrarySyncFreshness.verificationPending.name,
+};
 
-String? _mergeNavisStringCapability(
+String? _mergeNavisCapabilities(
   String? capabilitiesJson,
-  String key,
-  String? value,
+  Map<String, Object?> changes,
 ) {
   final root = <String, dynamic>{};
   if (capabilitiesJson != null && capabilitiesJson.trim().isNotEmpty) {
@@ -587,10 +553,16 @@ String? _mergeNavisStringCapability(
     }
   }
 
-  if (value == null) {
-    navisCapabilities.remove(key);
-  } else {
-    navisCapabilities[key] = value;
+  for (final entry in changes.entries) {
+    final value = entry.value;
+    if (value == null) {
+      navisCapabilities.remove(entry.key);
+    } else {
+      navisCapabilities[entry.key] = switch (value) {
+        DateTime() => value.toUtc().toIso8601String(),
+        _ => '$value',
+      };
+    }
   }
 
   if (navisCapabilities.isEmpty) {
@@ -605,66 +577,21 @@ String? _mergeNavisStringCapability(
   return jsonEncode(root);
 }
 
-String? _mergeNavisCapabilities(
-  String? capabilitiesJson,
-  Map<String, Object?> changes,
-) {
-  var merged = capabilitiesJson;
-  for (final entry in changes.entries) {
-    final value = entry.value;
-    merged = _mergeNavisStringCapability(merged, entry.key, switch (value) {
-      null => null,
-      DateTime() => value.toUtc().toIso8601String(),
-      _ => '$value',
-    });
-  }
-  return merged;
-}
+String _fingerprintIndexes(Indexes indexes) =>
+    _fingerprintArtistIds(_indexArtistsById(indexes).keys);
 
-String _fingerprintIndexes(Indexes indexes) {
-  final artistIds = <String>{};
-  for (final index in indexes.indexes) {
-    for (final artist in index.artists) {
-      final id = artist.id.trim();
-      if (id.isNotEmpty) {
-        artistIds.add(id);
-      }
-    }
-  }
-  for (final artist in indexes.shortcut) {
-    final id = artist.id.trim();
-    if (id.isNotEmpty) {
-      artistIds.add(id);
-    }
-  }
-  for (final artist in indexes.child) {
-    final id = artist.id.trim();
-    if (id.isNotEmpty) {
-      artistIds.add(id);
-    }
-  }
-  final normalized = artistIds.toList(growable: false)..sort();
-  return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
-}
-
-Map<String, Artist> _indexArtistsById(Indexes indexes) {
-  final artists = <String, Artist>{};
+Iterable<Artist> _artistsInIndexes(Indexes indexes) sync* {
   for (final group in indexes.indexes) {
-    for (final artist in group.artists) {
-      final id = artist.id.trim();
-      if (id.isNotEmpty) {
-        artists[id] = artist;
-      }
-    }
+    yield* group.artists;
   }
-  for (final artist in <Artist>[...indexes.shortcut, ...indexes.child]) {
-    final id = artist.id.trim();
-    if (id.isNotEmpty) {
-      artists[id] = artist;
-    }
-  }
-  return artists;
+  yield* indexes.shortcut;
+  yield* indexes.child;
 }
+
+Map<String, Artist> _indexArtistsById(Indexes indexes) => {
+  for (final artist in _artistsInIndexes(indexes))
+    if (artist.id.trim().isNotEmpty) artist.id.trim(): artist,
+};
 
 String _fingerprintArtistIds(Iterable<String> artistIds) {
   final normalized =
@@ -712,6 +639,21 @@ List<String> _dedupeArtistIds(Iterable<Iterable<String>> groups) {
     }
   }
   return ids;
+}
+
+({List<String> artistIds, int offset, int remaining}) _readPendingVerification(
+  String? capabilitiesJson,
+) {
+  final artistIds = _readPendingArtistIds(capabilitiesJson);
+  final offset = _readNavisIntCapability(
+    capabilitiesJson,
+    _libraryPendingOffsetCapabilityKey,
+  ).clamp(0, artistIds.length);
+  return (
+    artistIds: artistIds,
+    offset: offset,
+    remaining: artistIds.length - offset,
+  );
 }
 
 class _NewestAlbumHealthProbe {
@@ -2016,8 +1958,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
 
     final mode = _resolveMode(serverConfig, forceFull: forceFull);
-    final storedBulkSongSearchQuery = _readStoredBulkSongSearchQuery(
+    final storedBulkSongSearchQuery = _readNavisStringCapability(
       serverConfig.capabilitiesJson,
+      _bulkSongSearchQueryCapabilityKey,
     );
     var state = _withMetrics(
       LibrarySyncState(
@@ -2038,15 +1981,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         now.difference(serverConfig.lastSynced!) < staleAfter;
     final pendingHydrationCount = await _database.libraryDao
         .countPendingHydrationAlbums();
-    final pendingArtistIds = _readPendingArtistIds(
+    final pendingArtistVerificationCount = _readPendingVerification(
       serverConfig.capabilitiesJson,
-    );
-    final pendingArtistOffset = _readNavisIntCapability(
-      serverConfig.capabilitiesJson,
-      _libraryPendingOffsetCapabilityKey,
-    ).clamp(0, pendingArtistIds.length);
-    final pendingArtistVerificationCount =
-        pendingArtistIds.length - pendingArtistOffset;
+    ).remaining;
 
     if (!force &&
         hasFreshSync &&
@@ -2086,7 +2023,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             metrics,
           ),
           priorityAlbumIds: priorityAlbumIds,
-          serverCapabilitiesJson: serverConfig.capabilitiesJson,
           storedBulkSongSearchQuery: storedBulkSongSearchQuery,
           excludedAlbumIds: const <String>{},
           metrics: metrics,
@@ -2206,13 +2142,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           error is SubsonicSyncLimitException ||
           error is SubsonicResponseBudgetExceededException) {
         final deferredConfig = await _serverConfigRepository.getActiveServer();
-        final deferredArtists = _readPendingArtistIds(
+        final pendingVerification = _readPendingVerification(
           deferredConfig?.capabilitiesJson,
         );
-        final deferredOffset = _readNavisIntCapability(
-          deferredConfig?.capabilitiesJson,
-          _libraryPendingOffsetCapabilityKey,
-        ).clamp(0, deferredArtists.length);
         final deferred = _withMetrics(
           state.copyWith(
             status: LibrarySyncStatus.deferred,
@@ -2220,7 +2152,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             completedAt: DateTime.now(),
             pendingHydrationCount: await _database.libraryDao
                 .countPendingHydrationAlbums(),
-            remainingVerificationCount: deferredArtists.length - deferredOffset,
+            remainingVerificationCount: pendingVerification.remaining,
             errorMessage: _toSafeErrorMessage(error),
           ),
           metrics,
@@ -2337,17 +2269,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           endpoint: 'getIndexes',
         );
         final artistsById = <String, Artist>{};
-        void addAll(Iterable<Artist> candidates) {
-          for (final artist in candidates) {
-            artistsById.putIfAbsent(artist.id, () => artist);
-          }
+        for (final artist in _artistsInIndexes(indexes)) {
+          artistsById.putIfAbsent(artist.id, () => artist);
         }
-
-        for (final index in indexes.indexes) {
-          addAll(index.artists);
-        }
-        addAll(indexes.shortcut);
-        addAll(indexes.child);
         return artistsById.values.toList(growable: false);
       } on Object catch (indexesError) {
         if (_isIndexesUnsupported(indexesError)) {
@@ -2686,23 +2610,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         _defaultAuxiliarySyncStaleAfter;
   }
 
-  Future<void> _updateStoredIndexesFingerprint(
-    String fingerprint,
-    _SyncRunMetrics metrics,
-  ) async {
-    final serverConfig = await _serverConfigRepository.getActiveServer();
-    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
-    final nextCapabilitiesJson = _mergeStoredIndexesFingerprint(
-      currentCapabilitiesJson,
-      fingerprint,
-    );
-    if (nextCapabilitiesJson == currentCapabilitiesJson) {
-      return;
-    }
-    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
-    metrics.addDbWriteBatch();
-  }
-
   Future<void> _markAuxiliarySynced(
     DateTime syncedAt,
     _SyncRunMetrics metrics, {
@@ -2794,7 +2701,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // checks retain the low-data two-page probe, widened while discovery
     // debt is outstanding, plus the look-ahead stop on the first page that
     // reaches known, unchanged content.
-    final debtStreak = _readDiscoveryDebtStreak(capabilitiesJson);
+    final debtStreak = _readNavisIntCapability(
+      capabilitiesJson,
+      _libraryDiscoveryDebtStreakCapabilityKey,
+    );
     final limitedMeteredManualDiscovery = _allowsLimitedMeteredManualDiscovery(
       manual: manual,
     );
@@ -2901,10 +2811,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  Future<List<String>> _prioritizeVerificationArtists({
+  Future<({List<String> artistIds, int urgentCount})>
+  _prioritizeVerificationArtists({
     required Map<String, Artist> snapshotArtists,
-    required Set<String> healthProbeArtistIds,
-    bool includeRemaining = true,
   }) async {
     final localArtists = await _database.libraryDao.getAllArtists();
     final localById = <String, ArtistsTableData>{
@@ -2933,24 +2842,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
     }
     missingFromSnapshot.sort();
-    final prioritized = <String>[];
-    final seen = <String>{};
-    void addAll(Iterable<String> values) {
-      for (final value in values) {
-        if (seen.add(value)) {
-          prioritized.add(value);
-        }
-      }
-    }
-
-    addAll(missing);
-    addAll(countChanged);
-    addAll(healthProbeArtistIds.toList(growable: false)..sort());
-    addAll(missingFromSnapshot);
-    if (includeRemaining) {
-      addAll(remaining);
-    }
-    return prioritized;
+    return (
+      artistIds: [
+        ...missing,
+        ...countChanged,
+        ...missingFromSnapshot,
+        ...remaining,
+      ],
+      urgentCount:
+          missing.length + countChanged.length + missingFromSnapshot.length,
+    );
   }
 
   Future<void> _refreshIndexesCursorAfterFullSync(
@@ -2968,26 +2869,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         await _updateVerificationCapabilities(<String, Object?>{
           _libraryIndexesUnsupportedAtCapabilityKey: now,
           _libraryHealthCheckedAtCapabilityKey: now,
-          _libraryPendingFingerprintCapabilityKey: null,
-          _libraryPendingCursorCapabilityKey: null,
-          _libraryPendingOffsetCapabilityKey: null,
-          _libraryPendingArtistIdsCapabilityKey: null,
+          ..._clearPendingVerification,
           _libraryFreshnessCapabilityKey: LibrarySyncFreshness.current.name,
         }, metrics);
         return;
       }
-      await _updateStoredIndexesFingerprint(
-        _fingerprintIndexes(indexes),
-        metrics,
-      );
+      await _updateVerificationCapabilities({
+        _libraryIndexesFingerprintCapabilityKey: _fingerprintIndexes(indexes),
+      }, metrics);
       await _updateVerificationCapabilities(<String, Object?>{
         _libraryIndexesCursorCapabilityKey: cursor,
         _libraryIndexesUnsupportedAtCapabilityKey: null,
         _libraryHealthCheckedAtCapabilityKey: now,
-        _libraryPendingFingerprintCapabilityKey: null,
-        _libraryPendingCursorCapabilityKey: null,
-        _libraryPendingOffsetCapabilityKey: null,
-        _libraryPendingArtistIdsCapabilityKey: null,
+        ..._clearPendingVerification,
         _libraryFreshnessCapabilityKey: LibrarySyncFreshness.current.name,
       }, metrics);
     } on Object catch (error) {
@@ -3002,10 +2896,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await _updateVerificationCapabilities(<String, Object?>{
         _libraryIndexesUnsupportedAtCapabilityKey: now,
         _libraryHealthCheckedAtCapabilityKey: now,
-        _libraryPendingFingerprintCapabilityKey: null,
-        _libraryPendingCursorCapabilityKey: null,
-        _libraryPendingOffsetCapabilityKey: null,
-        _libraryPendingArtistIdsCapabilityKey: null,
+        ..._clearPendingVerification,
         _libraryFreshnessCapabilityKey: LibrarySyncFreshness.current.name,
       }, metrics);
     }
@@ -3029,12 +2920,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
 
     final config = await _serverConfigRepository.getActiveServer();
-    final pendingArtistIds = _readPendingArtistIds(config?.capabilitiesJson);
-    final pendingOffset = _readNavisIntCapability(
+    final pendingVerification = _readPendingVerification(
       config?.capabilitiesJson,
-      _libraryPendingOffsetCapabilityKey,
-    ).clamp(0, pendingArtistIds.length);
-    final remainingArtistCount = pendingArtistIds.length - pendingOffset;
+    );
+    final remainingArtistCount = pendingVerification.remaining;
     if (remainingArtistCount > 0) {
       return state.copyWith(
         pendingHydrationCount: 0,
@@ -3043,17 +2932,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
     }
 
-    if (pendingArtistIds.isNotEmpty) {
+    if (pendingVerification.artistIds.isNotEmpty) {
       final pendingCursor = _readNavisDateCapability(
         config?.capabilitiesJson,
         _libraryPendingCursorCapabilityKey,
       );
       await _updateVerificationCapabilities(<String, Object?>{
         _libraryIndexesCursorCapabilityKey: ?pendingCursor,
-        _libraryPendingFingerprintCapabilityKey: null,
-        _libraryPendingCursorCapabilityKey: null,
-        _libraryPendingOffsetCapabilityKey: null,
-        _libraryPendingArtistIdsCapabilityKey: null,
+        ..._clearPendingVerification,
         _libraryFreshnessCapabilityKey: LibrarySyncFreshness.current.name,
       }, metrics);
     } else if (_activeExecutionPlan == null ||
@@ -3247,23 +3133,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         artists,
         _artistConcurrency,
         (artist) async {
-          try {
-            final detail = await _request(
-              () => _api.getArtist(artist.id),
-              metrics: metrics,
-              endpoint: 'getArtist',
-            );
-            current = _withMetrics(
-              current.copyWith(processed: (current.processed ?? 0) + 1),
-              metrics,
-            );
-            onProgress?.call(current);
-            return detail;
-          } on SubsonicNotFoundException {
-            // A detail 404 is not authoritative deletion evidence. Abandon
-            // this snapshot and preserve the last committed generation.
-            rethrow;
-          }
+          final detail = await _request(
+            () => _api.getArtist(artist.id),
+            metrics: metrics,
+            endpoint: 'getArtist',
+          );
+          current = _withMetrics(
+            current.copyWith(processed: (current.processed ?? 0) + 1),
+            metrics,
+          );
+          onProgress?.call(current);
+          return detail;
         },
       );
       final albums = _dedupeAlbums([
@@ -3375,9 +3255,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics,
       ),
       priorityAlbumIds: priorityAlbumIds,
-      serverCapabilitiesJson: serverConfig.capabilitiesJson,
-      storedBulkSongSearchQuery: _readStoredBulkSongSearchQuery(
+      storedBulkSongSearchQuery: _readNavisStringCapability(
         serverConfig.capabilitiesJson,
+        _bulkSongSearchQueryCapabilityKey,
       ),
       excludedAlbumIds: const <String>{},
       catalogGeneration: catalogGeneration,
@@ -3416,17 +3296,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // earlier classifies every existing song as server-missing, which blocks a
     // legitimate repair behind a bogus large-deletion confirmation.
     final staleSongIds = <String>[];
-    var afterStaleId = '';
-    while (true) {
-      final page = await _database.librarySyncCandidateDao.getStaleSongsPage(
+    await for (final page in _keysetPages(
+      fetch: (afterId) => _database.librarySyncCandidateDao.getStaleSongsPage(
         serverId: serverId,
         generation: catalogGeneration,
-        afterId: afterStaleId,
+        afterId: afterId,
         limit: 500,
-      );
-      if (page.isEmpty) break;
+      ),
+      id: (row) => row.id,
+    )) {
       staleSongIds.addAll(page.map((row) => row.id));
-      afterStaleId = page.last.id;
     }
     final deletionAllowed = await _confirmSnapshotDeletion(
       serverId: serverConfig.id,
@@ -3560,31 +3439,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required int serverId,
     required _SyncRunMetrics metrics,
   }) async {
-    String? token;
-    var supported = true;
-    var scanning = false;
-    try {
-      final status = await _api.getScanStatusOrNull();
-      metrics.recordApiAttempt(
-        elapsed: Duration.zero,
-        endpoint: 'getScanStatus',
-      );
-      if (status == null) {
-        supported = false;
-      } else if (status.scanning) {
-        scanning = true;
-      } else {
-        token = status.lastScan?.toIso8601String();
-      }
-    } on SubsonicException catch (error) {
-      AppLogger.warning('Scan status unavailable: $error');
-      return false;
-    }
-    await _database.librarySyncDao.recordScanObservation(
+    final (token, _) = await _recordScanObservation(
       serverId: serverId,
-      scanInProgress: scanning,
-      supported: supported,
-      providerScanToken: token,
+      metrics: metrics,
     );
     if (token == null) {
       return false;
@@ -3694,20 +3551,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required int generation,
     required _SyncRunMetrics metrics,
   }) async {
-    var afterCanonicalId = '';
-    while (true) {
-      final page = await _database.librarySyncCandidateDao.getSongsPage(
+    await for (final page in _keysetPages(
+      fetch: (afterId) => _database.librarySyncCandidateDao.getSongsPage(
         serverId: serverId,
         generation: generation,
-        afterId: afterCanonicalId,
+        afterId: afterId,
         limit: writeChunkSize,
-      );
-      if (page.isEmpty) break;
+      ),
+      id: (row) => row.id,
+    )) {
       final canonicalSongs = await _database.libraryDao.getSongsByIds(
         page.map((song) => song.id),
       );
       await session.reconcile(canonicalSongs);
-      afterCanonicalId = page.last.id;
     }
     // Claims apply only after the complete replacement set has been
     // observed, so candidates contended for by several canonical rows
@@ -3779,6 +3635,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             _libraryScanDeferralStreakCapabilityKey,
           ) +
           1;
+      final scanDetails = <String, Object?>{
+        'generation': generation,
+        'tokenAtCollection': scanTokenAtCollection.$1,
+        'tokenAtPromotion': scanAtPromotion.$1,
+        'deferralStreak': deferralStreak,
+      };
       final capReached = deferralStreak >= _maxScanDeferralStreak;
       var capReleased = false;
       if (capReached) {
@@ -3798,12 +3660,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           serverId: serverId,
           operation: 'catalogPromotion',
           reason: 'scanChangedDuringCollection',
-          details: <String, Object?>{
-            'generation': generation,
-            'tokenAtCollection': scanTokenAtCollection.$1,
-            'tokenAtPromotion': scanAtPromotion.$1,
-            'deferralStreak': deferralStreak,
-          },
+          details: scanDetails,
         );
         AppLogger.warning(
           'Deferred catalog promotion: server scan changed during collection '
@@ -3818,12 +3675,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         serverId: serverId,
         operation: 'catalogPromotion',
         reason: 'scanChurnCapRelease',
-        details: <String, Object?>{
-          'generation': generation,
-          'tokenAtCollection': scanTokenAtCollection.$1,
-          'tokenAtPromotion': scanAtPromotion.$1,
-          'deferralStreak': deferralStreak,
-        },
+        details: scanDetails,
       );
       AppLogger.warning(
         'Released deferred catalog promotion after $deferralStreak '
@@ -3900,16 +3752,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final changedArtistIds = <String>[];
       final changedAlbumIds = <String>[];
       final changedSongIds = <String>[];
-      var afterArtistId = '';
-      while (true) {
-        final page = await _database.librarySyncCandidateDao
-            .getChangedArtistsPage(
+      await for (final page in _keysetPages(
+        fetch: (afterId) =>
+            _database.librarySyncCandidateDao.getChangedArtistsPage(
               serverId: serverId,
               generation: generation,
-              afterId: afterArtistId,
+              afterId: afterId,
               limit: writeChunkSize,
-            );
-        if (page.isEmpty) break;
+            ),
+        id: (row) => row.id,
+      )) {
         changedArtistIds.addAll(page.map((artist) => artist.id));
         await _database.libraryDao.upsertArtists([
           for (final artist in page)
@@ -3926,19 +3778,18 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               catalogAvailability: const Value(null),
             ),
         ]);
-        afterArtistId = page.last.id;
       }
 
-      var afterAlbumId = '';
-      while (true) {
-        final page = await _database.librarySyncCandidateDao
-            .getChangedAlbumsPage(
+      await for (final page in _keysetPages(
+        fetch: (afterId) =>
+            _database.librarySyncCandidateDao.getChangedAlbumsPage(
               serverId: serverId,
               generation: generation,
-              afterId: afterAlbumId,
+              afterId: afterId,
               limit: writeChunkSize,
-            );
-        if (page.isEmpty) break;
+            ),
+        id: (row) => row.id,
+      )) {
         changedAlbumIds.addAll(page.map((album) => album.id));
         await _database.libraryDao.upsertAlbums([
           for (final album in page)
@@ -3967,19 +3818,18 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               catalogAvailability: const Value(null),
             ),
         ], preserveHydrationState: false);
-        afterAlbumId = page.last.id;
       }
 
-      var afterSongId = '';
-      while (true) {
-        final page = await _database.librarySyncCandidateDao
-            .getChangedSongsPage(
+      await for (final page in _keysetPages(
+        fetch: (afterId) =>
+            _database.librarySyncCandidateDao.getChangedSongsPage(
               serverId: serverId,
               generation: generation,
-              afterId: afterSongId,
+              afterId: afterId,
               limit: writeChunkSize,
-            );
-        if (page.isEmpty) break;
+            ),
+        id: (row) => row.id,
+      )) {
         changedSongIds.addAll(page.map((song) => song.id));
         await _database.libraryDao.upsertSongs([
           for (final song in page)
@@ -4019,7 +3869,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               replayGainAlbumPeak: Value(song.replayGainAlbumPeak),
             ),
         ]);
-        afterSongId = page.last.id;
       }
 
       // Explicit repairs may carry new cover bytes behind unchanged cover-art
@@ -4063,17 +3912,15 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
           );
 
-      var afterStaleSongId = '';
-      while (true) {
-        final staleSongs = await _database.librarySyncCandidateDao
-            .getStaleSongsPage(
-              serverId: serverId,
-              generation: generation,
-              afterId: afterStaleSongId,
-              limit: writeChunkSize,
-            );
-        if (staleSongs.isEmpty) break;
-        afterStaleSongId = staleSongs.last.id;
+      await for (final staleSongs in _keysetPages(
+        fetch: (afterId) => _database.librarySyncCandidateDao.getStaleSongsPage(
+          serverId: serverId,
+          generation: generation,
+          afterId: afterId,
+          limit: writeChunkSize,
+        ),
+        id: (row) => row.id,
+      )) {
         final removal = await _database.libraryDao.retainOrRemoveServerSongs(
           staleSongs,
         );
@@ -4463,7 +4310,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       capabilitiesJson,
       _libraryHealthCheckedAtCapabilityKey,
     );
-    final discoveryDebtStreak = _readDiscoveryDebtStreak(capabilitiesJson);
+    final discoveryDebtStreak = _readNavisIntCapability(
+      capabilitiesJson,
+      _libraryDiscoveryDebtStreakCapabilityKey,
+    );
     final targetCursor = indexesReliable ? indexes?.lastModified : null;
     final cursorChanged =
         targetCursor != null &&
@@ -4545,7 +4395,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         ),
         priorityAlbumIds: discoveredAlbumIds,
         restrictedAlbumIds: discoveredAlbumIds,
-        serverCapabilitiesJson: serverConfig.capabilitiesJson,
         storedBulkSongSearchQuery: null,
         excludedAlbumIds: const <String>{},
         metrics: metrics,
@@ -4581,12 +4430,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       capabilitiesJson,
       _libraryPendingCursorCapabilityKey,
     );
-    final storedPendingArtistIds = _readPendingArtistIds(capabilitiesJson);
+    final pendingVerification = _readPendingVerification(capabilitiesJson);
+    final storedPendingArtistIds = pendingVerification.artistIds;
+    final storedPendingOffset = pendingVerification.offset;
     metrics.verificationContinuation = storedPendingArtistIds.isNotEmpty;
-    final storedPendingOffset = _readNavisIntCapability(
-      capabilitiesJson,
-      _libraryPendingOffsetCapabilityKey,
-    ).clamp(0, storedPendingArtistIds.length);
     final samePendingSnapshot =
         pendingFingerprint == indexesFingerprint &&
         storedPendingArtistIds.isNotEmpty &&
@@ -4594,14 +4441,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             pendingTargetCursor == null ||
             targetCursor.toUtc() == pendingTargetCursor.toUtc());
 
-    final urgentArtistIds = await _prioritizeVerificationArtists(
+    final prioritizedArtists = await _prioritizeVerificationArtists(
       snapshotArtists: snapshotArtists,
-      healthProbeArtistIds: const <String>{},
-      includeRemaining: false,
     );
-    final fullAuditArtistIds = await _prioritizeVerificationArtists(
-      snapshotArtists: snapshotArtists,
-      healthProbeArtistIds: const <String>{},
+    final fullAuditArtistIds = prioritizedArtists.artistIds;
+    final urgentArtistIds = fullAuditArtistIds.take(
+      prioritizedArtists.urgentCount,
     );
     final storedRemainingArtistIds = storedPendingArtistIds.sublist(
       storedPendingOffset,
@@ -4878,14 +4723,15 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       // track request can exhaust this run's budget. Successful details from
       // an interrupted batch advance too; failed/unstarted IDs remain queued.
       if (orderedArtistIds.isNotEmpty) {
-        await _updateVerificationCapabilities({
-          _libraryPendingFingerprintCapabilityKey: indexesFingerprint,
-          _libraryPendingCursorCapabilityKey: targetCursor,
-          _libraryPendingOffsetCapabilityKey: nextPendingOffset,
-          _libraryPendingArtistIdsCapabilityKey: jsonEncode(orderedArtistIds),
-          _libraryFreshnessCapabilityKey:
-              LibrarySyncFreshness.verificationPending.name,
-        }, metrics);
+        await _updateVerificationCapabilities(
+          _pendingVerificationCapabilities(
+            fingerprint: indexesFingerprint,
+            cursor: targetCursor,
+            offset: nextPendingOffset,
+            artistIds: orderedArtistIds,
+          ),
+          metrics,
+        );
       }
       // Artist-detail and bounded index responses are discovery evidence, not
       // a deletion authority. A compatible server can return a partial artist
@@ -4931,9 +4777,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         ...priorityAlbumIds,
         ...healthProbe.discrepantAlbums.map((album) => album.id),
       },
-      serverCapabilitiesJson: serverConfig.capabilitiesJson,
-      storedBulkSongSearchQuery: _readStoredBulkSongSearchQuery(
+      storedBulkSongSearchQuery: _readNavisStringCapability(
         serverConfig.capabilitiesJson,
+        _bulkSongSearchQueryCapabilityKey,
       ),
       excludedAlbumIds: hydratedWithoutSongRefresh,
       metrics: metrics,
@@ -4951,28 +4797,28 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
     }
 
-    await _updateStoredIndexesFingerprint(indexesFingerprint, metrics);
+    await _updateVerificationCapabilities({
+      _libraryIndexesFingerprintCapabilityKey: indexesFingerprint,
+    }, metrics);
     final pendingHydrationCount =
         current.pendingHydrationCount ??
         await _database.libraryDao.countPendingHydrationAlbums();
     final hasPendingVerification =
         remainingVerificationCount > 0 || pendingHydrationCount > 0;
     if (hasPendingVerification) {
-      await _updateVerificationCapabilities(<String, Object?>{
-        _libraryPendingFingerprintCapabilityKey: indexesFingerprint,
-        _libraryPendingCursorCapabilityKey: targetCursor,
-        _libraryPendingOffsetCapabilityKey: nextPendingOffset,
-        _libraryPendingArtistIdsCapabilityKey: jsonEncode(orderedArtistIds),
-        _libraryFreshnessCapabilityKey:
-            LibrarySyncFreshness.verificationPending.name,
-      }, metrics);
+      await _updateVerificationCapabilities(
+        _pendingVerificationCapabilities(
+          fingerprint: indexesFingerprint,
+          cursor: targetCursor,
+          offset: nextPendingOffset,
+          artistIds: orderedArtistIds,
+        ),
+        metrics,
+      );
     } else {
       await _updateVerificationCapabilities(<String, Object?>{
         _libraryIndexesCursorCapabilityKey: ?targetCursor,
-        _libraryPendingFingerprintCapabilityKey: null,
-        _libraryPendingCursorCapabilityKey: null,
-        _libraryPendingOffsetCapabilityKey: null,
-        _libraryPendingArtistIdsCapabilityKey: null,
+        ..._clearPendingVerification,
         _libraryFreshnessCapabilityKey: LibrarySyncFreshness.current.name,
       }, metrics);
     }
@@ -5006,12 +4852,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  /// Makes the bounded `newest` feed useful as a direct change path.
-  ///
-  /// `getIndexes` is intentionally only an artist-collection invalidation
-  /// signal. Its contents cannot tell us which existing artist received a new
-  /// album. The newest feed does, and every listed album is subsequently
-  /// hydrated through the normal song and identity-reconciliation path.
   Future<void> _repairExternalSourceEvidence({
     Iterable<Artist> artists = const [],
     Iterable<Album> albums = const [],
@@ -5038,6 +4878,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
+  /// Makes the bounded `newest` feed useful as a direct change path.
+  ///
+  /// `getIndexes` is intentionally only an artist-collection invalidation
+  /// signal. Its contents cannot tell us which existing artist received a new
+  /// album. The newest feed does, and every listed album is subsequently
+  /// hydrated through the normal song and identity-reconciliation path.
   Future<void> _stageNewestAlbumsForHydration(
     Iterable<Album> albums,
     _SyncRunMetrics metrics, {
@@ -5259,7 +5105,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   Future<LibrarySyncState> _hydratePendingSongs({
     required LibrarySyncState state,
     required Iterable<String> priorityAlbumIds,
-    required String? serverCapabilitiesJson,
     required String? storedBulkSongSearchQuery,
     required Iterable<String> excludedAlbumIds,
     Iterable<String>? restrictedAlbumIds,
@@ -5390,25 +5235,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
 
     Future<void> processAlbumBatch(_AlbumBatchFetchResult batchResult) async {
-      if (batchResult.requeueAlbumIds.isNotEmpty) {
-        for (final albumId in batchResult.requeueAlbumIds) {
-          if (pendingAlbumIds.remove(albumId)) {
-            prioritized.remove(albumId);
-            pendingRemaining--;
-          }
-        }
-        current = _withMetrics(
-          current.copyWith(
-            metadataReady: true,
-            isHydrating: true,
-            pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
-          ),
-          metrics,
-        );
-        onProgress?.call(current);
-      }
-      if (batchResult.hardFailedAlbumIds.isNotEmpty) {
-        for (final albumId in batchResult.hardFailedAlbumIds) {
+      if (batchResult.pendingAlbumIds.isNotEmpty) {
+        for (final albumId in batchResult.pendingAlbumIds) {
           if (pendingAlbumIds.remove(albumId)) {
             prioritized.remove(albumId);
             pendingRemaining--;
@@ -5488,25 +5316,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await publishProgress(hydratedAlbumIds);
     }
 
-    // OpenSubsonic defines an empty search3 query as the portable all-library
-    // query. Older Navis releases persisted `*` after probing legacy servers;
-    // do not let that non-standard, potentially unbounded search keep a full
-    // repair from reaching the authoritative getAlbum fallback.
-    final preferredBulkQuery = storedBulkSongSearchQuery == ''
-        ? storedBulkSongSearchQuery
-        : null;
-    if (storedBulkSongSearchQuery != null && preferredBulkQuery == null) {
-      final clearedCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
-        serverCapabilitiesJson,
-        null,
-      );
-      if (clearedCapabilitiesJson != serverCapabilitiesJson) {
-        await _serverConfigRepository.updateCapabilitiesJson(
-          clearedCapabilitiesJson,
-        );
-        metrics.addDbWriteBatch();
-      }
-    }
+    final preferredBulkQuery = storedBulkSongSearchQuery == '' ? '' : null;
     final permitsBulk =
         candidateMode &&
         (_activeExecutionPlan == null ||
@@ -5533,38 +5343,25 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           pendingAlbumIds: pendingAlbumIds,
           expectedSongCounts: expectedSongCounts,
           validArtistIds: validArtistIds,
-          catalogGeneration: catalogGeneration,
-          candidateServerId: candidateServerId,
+          catalogGeneration: catalogGeneration!,
+          candidateServerId: candidateServerId!,
           metrics: metrics,
           onHydratedChunk: publishProgress,
           onSongIndexProgress: publishSongIndexProgress,
         );
         bulkIndexCompleted = true;
-        final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
-          serverCapabilitiesJson,
-          bulkQuery,
-        );
-        if (nextCapabilitiesJson != serverCapabilitiesJson) {
-          await _serverConfigRepository.updateCapabilitiesJson(
-            nextCapabilitiesJson,
-          );
-          metrics.addDbWriteBatch();
-        }
+        await _updateVerificationCapabilities({
+          _bulkSongSearchQueryCapabilityKey: bulkQuery,
+        }, metrics);
       } on SyncCancelledException {
         rethrow;
       } on Object catch (error, stackTrace) {
         if (bulkQuery == preferredBulkQuery) {
-          final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
-            serverCapabilitiesJson,
-            null,
-          );
-          if (nextCapabilitiesJson != serverCapabilitiesJson) {
-            await _serverConfigRepository.updateCapabilitiesJson(
-              nextCapabilitiesJson,
-            );
-            metrics.addDbWriteBatch();
-          }
+          await _updateVerificationCapabilities({
+            _bulkSongSearchQueryCapabilityKey: null,
+          }, metrics);
         }
+
         AppLogger.debug(
           'Bulk song hydration fallback activated due to: $error',
         );
@@ -5768,14 +5565,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required Set<String> pendingAlbumIds,
     required Map<String, int?> expectedSongCounts,
     required Set<String> validArtistIds,
-    int? catalogGeneration,
-    int? candidateServerId,
+    required int catalogGeneration,
+    required int candidateServerId,
     required _SyncRunMetrics metrics,
     required Future<void> Function(Iterable<String> hydratedAlbumIds)
     onHydratedChunk,
     required Future<void> Function(int scannedEntries) onSongIndexProgress,
   }) async {
-    final snapshotStartedAt = DateTime.now();
     var offset = 0;
     var pageCount = 0;
     String? lastPageSignature;
@@ -5787,15 +5583,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (ids.isEmpty) {
         return;
       }
-      if (candidateServerId != null && catalogGeneration != null) {
-        await _database.librarySyncCandidateDao.markAlbumsHydrated(
-          serverId: candidateServerId,
-          generation: catalogGeneration,
-          albumIds: ids,
-        );
-      } else {
-        await _database.libraryDao.markAlbumsSongsHydratedByIds(ids);
-      }
+      await _database.librarySyncCandidateDao.markAlbumsHydrated(
+        serverId: candidateServerId,
+        generation: catalogGeneration,
+        albumIds: ids,
+      );
       metrics.addDbWriteBatch();
       await onHydratedChunk(ids);
     }
@@ -5817,36 +5609,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           catalogGeneration: catalogGeneration,
         );
       }
-      if (candidateServerId != null && catalogGeneration != null) {
-        await _database.librarySyncCandidateDao.replaceSongsForAlbums(
-          serverId: candidateServerId,
-          generation: catalogGeneration,
-          songsByAlbum: songsByAlbum,
-        );
-      } else {
-        final canonicalSongIds = songsByAlbum.values
-            .expand((songs) => songs)
-            .where((song) => song.id.present)
-            .map((song) => song.id.value)
-            .toSet();
-        final sameIdProvisionalSongs =
-            (await _database.libraryDao.getSongsByIds(canonicalSongIds))
-                .where((song) => song.isProvisional)
-                .map((song) => song.id)
-                .toSet();
-        final removedCacheFiles = await _database.libraryDao
-            .reconcileSongsForAlbumsChunk(
-              songsByAlbum,
-              snapshotStartedAt: snapshotStartedAt,
-              serverId: (await _serverConfigRepository.getActiveServer())?.id,
-            );
-        await _database.libraryDao.cleanupRemovedCacheFiles(removedCacheFiles);
-        await _reconcileHydratedSongIds(
-          canonicalSongIds: canonicalSongIds,
-          sameIdProvisionalSongs: sameIdProvisionalSongs,
-          metrics: metrics,
-        );
-      }
+      await _database.librarySyncCandidateDao.replaceSongsForAlbums(
+        serverId: candidateServerId,
+        generation: catalogGeneration,
+        songsByAlbum: songsByAlbum,
+      );
       metrics.addDbWriteBatch();
       await markHydrated(ids);
       ids.forEach(importedSongsByAlbum.remove);
@@ -6348,7 +6115,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
       final canonical = canonicalAlbumSnapshot(album, requestedId: albumId);
       metrics.incompleteAlbumIds.remove(albumId);
-      return _AlbumFetchResult.success(canonical);
+      return _AlbumFetchResult(album: canonical);
     } on SyncCancelledException {
       rethrow;
     } on SubsonicNotFoundException catch (error) {
@@ -6362,7 +6129,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         entityId: albumId,
         error: error,
       );
-      return const _AlbumFetchResult.requeue();
+      return const _AlbumFetchResult();
     } on Object catch (error) {
       metrics.recordFailureDiagnostic(
         stage: LibrarySyncStage.fetchingSongs.name,
@@ -6375,13 +6142,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
       if (error is SubsonicIncompleteResponseException) {
         metrics.incompleteAlbumIds.add(albumId);
-        return const _AlbumFetchResult.requeue();
+        return const _AlbumFetchResult();
       }
       if (_isTransient(error)) {
-        return const _AlbumFetchResult.requeue(transient: true);
+        return const _AlbumFetchResult(transient: true);
       }
       metrics.recordHardAlbumFailure();
-      return const _AlbumFetchResult.hardFailure();
+      return const _AlbumFetchResult();
     }
   }
 
@@ -6391,8 +6158,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required _SyncRunMetrics metrics,
   }) async {
     final albums = <Album>[];
-    final requeueAlbumIds = <String>[];
-    final hardFailedAlbumIds = <String>[];
+    final pendingAlbumIds = <String>[];
     var offset = 0;
     final maxResponseBytes = _meteredResponseBudgetBytes();
 
@@ -6421,14 +6187,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       for (var index = 0; index < results.length; index++) {
         final result = results[index];
         final albumId = batch[index];
-        switch (result.outcome) {
-          case _AlbumFetchOutcome.success:
-            albums.add(result.album!);
-            successCount++;
-          case _AlbumFetchOutcome.requeue:
-            requeueAlbumIds.add(albumId);
-          case _AlbumFetchOutcome.hardFailure:
-            hardFailedAlbumIds.add(albumId);
+        final album = result.album;
+        if (album != null) {
+          albums.add(album);
+          successCount++;
+        } else {
+          pendingAlbumIds.add(albumId);
         }
       }
 
@@ -6443,11 +6207,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
     }
 
-    return _AlbumBatchFetchResult(
-      albums: albums,
-      requeueAlbumIds: requeueAlbumIds,
-      hardFailedAlbumIds: hardFailedAlbumIds,
-    );
+    return (albums: albums, pendingAlbumIds: pendingAlbumIds);
   }
 
   LibrarySyncState _withMetrics(
@@ -6787,6 +6547,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           ),
         )
         .toList(growable: false);
+  }
+}
+
+Stream<List<T>> _keysetPages<T>({
+  required Future<List<T>> Function(String afterId) fetch,
+  required String Function(T row) id,
+}) async* {
+  var afterId = '';
+  while (true) {
+    final page = await fetch(afterId);
+    if (page.isEmpty) return;
+    afterId = id(page.last);
+    yield page;
   }
 }
 
