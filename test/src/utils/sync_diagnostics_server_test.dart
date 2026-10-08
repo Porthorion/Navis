@@ -1096,6 +1096,11 @@ void main() {
     expect(history['requestId'], request.id);
     expect(history['attemptId'], attempt.id);
     expect(history['startedAt'], isA<String>());
+    expect(history['intent'], 'targetHydration');
+    expect(history['targetKind'], 'album');
+    expect(history['outcome'], 'completed');
+    expect(history['completedAt'], isA<String>());
+    expect(ledger.body, isNot(contains('events')));
     expect(jsonEncode(ledger.body), isNot(contains('private')));
   });
 
@@ -1353,17 +1358,7 @@ void main() {
       token: fixture.token,
     );
     expect(ledger.statusCode, HttpStatus.ok);
-    final events = ledger.body['events'] as List<Object?>;
-    expect(events, hasLength(3));
-    expect(
-      events.map((event) => (event! as Map<String, Object?>)['phase']),
-      <String>['requested', 'started', 'terminal'],
-    );
-    final terminal = events.last! as Map<String, Object?>;
-    expect(terminal['cause'], 'targetHydration');
-    expect(terminal['targetKind'], 'album');
-    expect(terminal['result'], 'succeeded');
-    expect(terminal.containsKey('endpointRequests'), isTrue);
+    expect(ledger.body, isNot(contains('events')));
     expect(ledger.body['durableRuns'], isEmpty);
     expect(ledger.body['durableOperations'], isEmpty);
   });

@@ -152,12 +152,13 @@ class SyncDiagnosticsServer {
   Future<LibrarySyncState>? _activeSync;
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
-  final List<Map<String, Object?>> _syncLedger = <Map<String, Object?>>[];
-  int _nextSyncLedgerId = 1;
   Map<String, Song> _presentationSearchSongs = const <String, Song>{};
   StreamSubscription<Object?>? _playbackFailureSubscription;
   ProviderSubscription<InitialServerSyncState>? _initialSyncSubscription;
   int _playbackFailureCount = 0;
+
+  int? get _activeServerId =>
+      _container.read(serverConfigStateProvider).asData?.value?.id;
 
   bool get allowsMutations => mode == SyncDiagnosticsMode.clone;
 
@@ -1383,11 +1384,6 @@ class SyncDiagnosticsServer {
       }
       if (request.method == 'GET' && path == '/v1/sync/ledger') {
         await _respond(request, HttpStatus.ok, <String, Object?>{
-          // `events` is a one-release compatibility mirror for the isolated
-          // diagnostics fixture. Durable runs are the cross-restart source of
-          // truth; the live mirror is deliberately bounded and never used to
-          // resume or decide sync work.
-          'events': List<Map<String, Object?>>.unmodifiable(_syncLedger),
           'durableRuns': await _durableRunHistoryJson(),
           'durableOperations': await _durableOperationLedgerJson(),
         });
@@ -1658,11 +1654,7 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        final serverId = _container
-            .read(serverConfigStateProvider)
-            .asData
-            ?.value
-            ?.id;
+        final serverId = _activeServerId;
         if (serverId == null) {
           await _respond(request, HttpStatus.conflict, <String, Object?>{
             'error': 'No active server',
@@ -1684,7 +1676,6 @@ class SyncDiagnosticsServer {
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
         await _startControllerSync(
           request,
-          cause: 'automatic',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncIfStale(),
@@ -1722,7 +1713,6 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          cause: 'manualCheck',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncNow(allowMeteredBroadOverride: allowOverride),
@@ -1734,7 +1724,6 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          cause: 'repair',
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .repairLibrary(allowMeteredBroadOverride: allowOverride),
@@ -1759,8 +1748,6 @@ class SyncDiagnosticsServer {
         // isolation and make this endpoint unsuitable for runtime validation.
         await _startControllerSync(
           request,
-          cause: 'targetHydration',
-          targetKind: target.kind.name,
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .requestTarget(target),
@@ -3478,8 +3465,6 @@ class SyncDiagnosticsServer {
   /// beginning a second raw-engine operation with competing progress frames.
   Future<void> _startControllerSync(
     HttpRequest request, {
-    required String cause,
-    String? targetKind,
     required Future<LibrarySyncState> Function() operation,
   }) async {
     if (_activeSync != null) {
@@ -3489,38 +3474,16 @@ class SyncDiagnosticsServer {
       return;
     }
     _lastSyncError = null;
-    _recordSyncLedgerEvent(
-      phase: 'requested',
-      cause: cause,
-      targetKind: targetKind,
-    );
     final future = operation();
     _activeSync = future;
-    _recordSyncLedgerEvent(
-      phase: 'started',
-      cause: cause,
-      targetKind: targetKind,
-    );
     unawaited(
       future
           .then<void>(
             (state) {
               _lastSync = state;
-              _recordSyncLedgerEvent(
-                phase: 'terminal',
-                cause: cause,
-                targetKind: targetKind,
-                state: state,
-              );
             },
             onError: (Object error, StackTrace stackTrace) {
               _lastSyncError = error;
-              _recordSyncLedgerEvent(
-                phase: 'failed',
-                cause: cause,
-                targetKind: targetKind,
-                errorType: error.runtimeType.toString(),
-              );
             },
           )
           .whenComplete(() {
@@ -3530,30 +3493,6 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.accepted, <String, Object?>{
       'status': 'started',
     });
-  }
-
-  void _recordSyncLedgerEvent({
-    required String phase,
-    required String cause,
-    String? targetKind,
-    LibrarySyncState? state,
-    String? errorType,
-  }) {
-    _syncLedger.add(<String, Object?>{
-      'id': _nextSyncLedgerId++,
-      'at': DateTime.now().toUtc().toIso8601String(),
-      'phase': phase,
-      'cause': cause,
-      'targetKind': targetKind,
-      'planKind': state?.planKind?.name,
-      'planReason': state?.planReason,
-      'result': state?.status.name,
-      'endpointRequests': state?.endpointRequests,
-      'errorType': errorType,
-    });
-    if (_syncLedger.length > 50) {
-      _syncLedger.removeRange(0, _syncLedger.length - 50);
-    }
   }
 
   Future<Map<String, Object?>> _equalizerStatus() async {
@@ -4226,11 +4165,7 @@ class SyncDiagnosticsServer {
   /// excludes the opaque profile key, WorkManager input, raw work id, server
   /// identity, and all exception text.
   Future<Map<String, Object?>?> _androidBackgroundSyncJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return null;
     }
@@ -4259,11 +4194,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _durableOperationLedgerJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return const <Map<String, Object?>>[];
     }
@@ -4284,11 +4215,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _durableRunHistoryJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) {
       return const <Map<String, Object?>>[];
     }
@@ -4320,11 +4247,7 @@ class SyncDiagnosticsServer {
     int limit = 20,
     int? attemptId,
   }) async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) return [];
     final rows = await _container
         .read(navisDatabaseProvider)
@@ -4350,11 +4273,7 @@ class SyncDiagnosticsServer {
   }
 
   Future<List<Map<String, Object?>>> _workSummaryJson() async {
-    final serverId = _container
-        .read(serverConfigStateProvider)
-        .asData
-        ?.value
-        ?.id;
+    final serverId = _activeServerId;
     if (serverId == null) return [];
     return await _container
         .read(navisDatabaseProvider)

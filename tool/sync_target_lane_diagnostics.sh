@@ -421,20 +421,20 @@ api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
 
 python3 - "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys
-events = json.load(open(sys.argv[1], encoding="utf-8")).get("events")
-if not isinstance(events, list) or not events:
-    raise SystemExit("sync diagnostics ledger returned no events")
-for event in events:
-    if not isinstance(event, dict):
-        raise SystemExit("sync diagnostics ledger event is not an object")
-    forbidden = {"url", "username", "password", "title", "path"} & set(event)
+runs = json.load(open(sys.argv[1], encoding="utf-8")).get("durableRuns")
+if not isinstance(runs, list) or not runs:
+    raise SystemExit("sync diagnostics ledger returned no durable runs")
+for run in runs:
+    if not isinstance(run, dict):
+        raise SystemExit("sync diagnostics ledger run is not an object")
+    forbidden = {"url", "username", "password", "title", "path", "entityId"} & set(run)
     if forbidden:
         raise SystemExit(f"sync diagnostics ledger exposed sensitive keys: {forbidden}")
-target_events = [event for event in events if event.get("cause") == "targetHydration"]
-if not target_events:
+target_runs = [run for run in runs if run.get("intent") == "targetHydration"]
+if not target_runs:
     raise SystemExit("sync diagnostics ledger omitted target hydration")
-if not any(event.get("phase") == "terminal" for event in target_events):
-    raise SystemExit("sync diagnostics ledger omitted target terminal event")
+if not any(run.get("completedAt") for run in target_runs):
+    raise SystemExit("sync diagnostics ledger omitted target completion")
 PY
 
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \

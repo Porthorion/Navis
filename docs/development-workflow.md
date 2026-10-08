@@ -227,9 +227,9 @@ The same gate reads the bounded redacted `GET /v1/sync/ledger` trace. Its
 `durableRuns` field is the cross-restart typed history (origin, intent, target
 kind, plan kind, terminal outcome/reason, aggregate request/byte counts, and
 timestamps and local request/attempt IDs); it must never contain credentials,
-URLs, media/entity IDs, titles, or paths. The temporary `events` field is a bounded isolated-fixture compatibility
-mirror and is not a scheduler input. Use `durableOperations` for the separate
-atomic destructive-mutation audit.
+URLs, media/entity IDs, titles, or paths. Run history is a diagnostics record,
+not a scheduler input; `library_sync_work` owns the durable queue. Use
+`durableOperations` for the separate atomic destructive-mutation audit.
 
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
@@ -1503,8 +1503,9 @@ cannot unlink primary cache files. Clone mode first drains startup work under
 the host's real network policy before applying scenario overrides, so a
 schema-migrating or mid-repair primary clone cannot leak its startup model
 repair into the metered guardrail scenarios. The cellular automatic,
-manual-check, and metered-Wi-Fi checks correlate each posted action with new
-redacted ledger events, durable requests, and attempt endpoint counts. A
+manual-check, and metered-Wi-Fi checks correlate each posted action with
+new terminal durable runs and attempt endpoint counts, after the controller
+request (including companion auxiliary work) has settled. A
 preceding repair's displayed status is not attributed to a later bounded
 action. After collecting its performance report, clone mode saves the idle
 sync status and captures an app-owned Library screenshot for visual inspection

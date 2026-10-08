@@ -532,6 +532,14 @@ copying a secure token, making mixed local/remote rows available to app-owned
 screenshots. The override never runs in primary-certification mode and neither
 the API response nor runtime evidence exposes the cached username.
 
+Sync diagnostics expose terminal `durableRuns` history through
+`GET /v1/sync/ledger`, with request/attempt IDs, typed origin/intent/target/plan,
+safe outcomes and aggregate counts. `GET /v1/sync/attempts` supplies redacted
+endpoint telemetry. This history is a diagnostics record; `library_sync_work`
+remains the durable scheduling queue. Action diagnostics wait for the controller
+request to settle before correlating newly completed history rows, including
+companion auxiliary work.
+
 Authentication lifecycle diagnostics use bounded `GET /v1/session/status`
 plus clone-only initial-sync retry/mobile/cancel, sign-out, and
 `reset-initial-state` actions. The reset endpoint invokes production

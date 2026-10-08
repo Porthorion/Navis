@@ -333,15 +333,23 @@ wait_for_action() {
   local deadline=$((SECONDS + 14400))
   local interval=2
   while (( SECONDS < deadline )); do
-    api GET /v1/sync/ledger > "$after"
-    if python3 "$PROJECT_DIR/tool/sync_diagnostics_action.py" \
-      complete "$before" "$after" "$cause"; then
-      return
-    else
-      local result=$?
-      if (( result != 1 )); then
-        echo "Could not read the $cause diagnostics action ledger." >&2
-        exit 70
+    api GET /v1/sync/status > "$OUTPUT_ROOT/action-status.json"
+    if python3 - "$OUTPUT_ROOT/action-status.json" <<'PY_STATUS'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if not value.get("requestActive") else 1)
+PY_STATUS
+    then
+      api GET /v1/sync/ledger > "$after"
+      if python3 "$PROJECT_DIR/tool/sync_diagnostics_action.py" \
+        complete "$before" "$after" "$cause"; then
+        return
+      else
+        local result=$?
+        if (( result != 1 )); then
+          echo "Could not read the $cause diagnostics action ledger." >&2
+          exit 70
+        fi
       fi
     fi
     sleep "$interval"
@@ -369,6 +377,7 @@ run_guardrail_action() {
   api GET /v1/sync/attempts > "$attempts"
   python3 "$PROJECT_DIR/tool/sync_diagnostics_action.py" \
     validate "$scenario" "$before" "$after" "$attempts" \
+    "$OUTPUT_ROOT/$prefix-result.json" \
     > "$OUTPUT_ROOT/$prefix-evidence.json"
 }
 

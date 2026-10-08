@@ -183,9 +183,9 @@ one must have scheduled a new one. The clone uses the desktop secure-storage
 password; when that store is locked or unavailable, set
 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH` to a private password file. The gate stops
 with an explicit error if the clone loses its server session.
-It also exports and validates the bounded redacted sync ledger, ensuring target
-hydration is attributable without sensitive server or library fields and reaches
-a recorded terminal transition rather than merely being accepted.
+It also exports and validates the bounded redacted `durableRuns` history, ensuring
+target hydration is attributable without sensitive server or library fields and
+reaches a recorded terminal outcome rather than merely being accepted.
 
 Unchanged-cursor manual album discovery has its own isolated Linux gate:
 
