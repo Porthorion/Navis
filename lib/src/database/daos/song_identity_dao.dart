@@ -243,6 +243,11 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       );
 
       await customStatement(
+        'DELETE FROM download_queue WHERE song_id = ? AND EXISTS ( '
+        'SELECT 1 FROM download_queue WHERE song_id = ?);',
+        <Object?>[oldId, canonicalId],
+      );
+      await customStatement(
         'UPDATE download_queue SET song_id = ? WHERE song_id = ?;',
         <Object?>[canonicalId, oldId],
       );

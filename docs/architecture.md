@@ -3264,8 +3264,8 @@ states without starting audio or modifying a queue.
     album result and shares the outer run’s cancellation and transport state;
     cancellation still terminates the enclosing sync. Album hydration clears
     its active hydration flag on every terminal result, including deferral.
-    Membership in a starred
-    snapshot counts as a favorite even when its optional timestamp is absent.
+    Membership in a starred snapshot counts as a favorite even when its optional
+    timestamp is absent.
     Eligible automatic catalog checks inspect at most two newest-album pages
     each configured due interval, even with an unchanged artist cursor; manual
     checks inspect at most five. A recorded discovery-debt streak
@@ -3374,9 +3374,11 @@ contract.
   they are relinked by the promoting sync rather than the next one. `remapSongIdentity` merges user state
   with local precedence (a carried like keeps its original timestamp and is
   re-queued to the server through `star_sync_queue`), transfers absence
-  evidence, local mutation journals, and writes both the legacy and the typed
-  profile-scoped alias tables (`entity_identity_aliases`). Cache and download
-  ownership validation is storage-kind aware: Android SAF content URIs are
+  evidence and local mutation journals. If the canonical song already has a
+  download-queue entry, remapping discards the old identity’s queue entries and
+  keeps the canonical entry intact; otherwise it moves the old entries. It
+  writes both the legacy and typed profile-scoped alias tables
+  (`entity_identity_aliases`). Cache and download ownership validation is storage-kind aware: Android SAF content URIs are
   validated through the platform bridge, never `File.exists()`. Identity
   remapping preserves every cache-row column, including storage kind; rolling
   cache pruning also recognizes content URIs even on legacy filesystem rows.
@@ -3405,12 +3407,11 @@ contract.
   and Remove from Liked are unchanged. Sync evidence never overwrites a user
   disposition.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
-  Settings and the authenticated diagnostics `/v1/sync/repair` route both
-  enter through `LibrarySyncController.repairLibrary`. The coordinator owns
-  an in-memory repair session whose
-  mobile-data grant is applied at admission — before planning or durable work
-  is joined — and survives retries and reconnects within the run. The grant is
-  never persisted: completion, cancellation, sign-out, account change, and app
+  Settings. The settings action and authenticated diagnostics `/v1/sync/repair`
+  route both enter through `LibrarySyncController.repairLibrary`. The coordinator
+  owns an in-memory repair session whose mobile-data grant is applied at
+  admission — before planning or durable work is joined — and survives retries
+  and reconnects within the run. The grant is never persisted: completion, cancellation, sign-out, account change, and app
   restart all clear it. The blocking rebuild screen remains only for initial
   login, destructive cache reset, cache upgrade, and playback recovery, where
   no usable catalog exists.

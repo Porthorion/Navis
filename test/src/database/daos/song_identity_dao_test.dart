@@ -79,6 +79,42 @@ void main() {
     expect(await database.cacheDao.getCachedTrack('remote-song'), isNull);
   }, skip: !sqliteAvailable);
 
+  test('remap keeps the existing canonical download queue row', () async {
+    final addedAt = DateTime.utc(2026);
+    await database
+        .into(database.downloadQueueTable)
+        .insert(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('remote-song'),
+            status: DownloadStatus.queued,
+            addedAt: addedAt,
+            priority: const Value(3),
+            retryCount: const Value(2),
+          ),
+        );
+    await database
+        .into(database.downloadQueueTable)
+        .insert(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('server-song'),
+            status: DownloadStatus.downloading,
+            addedAt: addedAt,
+            progress: const Value(0.5),
+            quality: const Value('lossless'),
+          ),
+        );
+    final canonical =
+        (await database.select(database.downloadQueueTable).get()).last;
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: 'remote-song',
+      canonicalSongId: 'server-song',
+      matchReason: 'recordingMbid',
+    );
+    expect(await database.select(database.downloadQueueTable).get(), [
+      canonical,
+    ]);
+  }, skip: !sqliteAvailable);
+
   test('notifies playback before deleting a provisional identity', () async {
     var callbackObservedProvisionalRow = false;
     final canonical = await database.libraryDao.getSongById('server-song');

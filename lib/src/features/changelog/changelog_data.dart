@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Song identity repairs keep an existing download-queue entry instead of creating a duplicate',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Album and artist identity recovery recognizes MusicBrainz IDs regardless of letter case',
         type: ChangelogEntryType.fix,
       ),
