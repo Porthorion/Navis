@@ -77,7 +77,8 @@ void main() {
         .readAsStringSync();
     final stripped = _withoutGenreRemovalMigration(source);
     expect(stripped, isNot(contains('from88To89(Migrator')));
-    expect(stripped, contains('await from88To89(migrator);'));
+    // The step stays registered in the ordered migration ladder.
+    expect(stripped, contains('      from88To89,'));
     // The neighbouring v87 and v88 steps are not genre code and stay scanned.
     expect(stripped, contains('Future<void> from86To87('));
     expect(stripped, contains('Future<void> from87To88('));
