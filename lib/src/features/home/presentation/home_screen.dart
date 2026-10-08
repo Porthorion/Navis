@@ -14,6 +14,8 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_card.dart';
+import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -1233,9 +1235,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           SizedBox(height: phoneHeader ? 4 : 10),
         ],
-        // The one-time Integrations notice takes the What's New row's place
-        // while it shows, so the two never stack.
-        if (ref.watch(integrationsNoticeVisibleProvider))
+        // One notice at a time: the setup invitation first, then the
+        // Integrations notice, then the What's New row.
+        if (ref.watch(setupHighlightsCardVisibleProvider))
+          const SetupHighlightsCard()
+        else if (ref.watch(integrationsNoticeVisibleProvider))
           const IntegrationsNoticeCard()
         else
           const ChangelogDiscoveryCard(),

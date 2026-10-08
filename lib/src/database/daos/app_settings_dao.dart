@@ -146,6 +146,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// belong to the targeted writers ([setIntegrationEnabled],
   /// [updateLastFmApiKey], [updateListenBrainzScrobblingState]) so a stale
   /// screen snapshot cannot revert a switch or a token clear.
+  ///
+  /// Setup release markers are also omitted and have targeted writers.
   Future<void> saveSettings({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -459,12 +461,42 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
     // The full-row save leaves the policy columns alone; reset them here.
     await updateIntegrationPolicy(master: true, disabledJson: '[]');
+    await updateSetupHighlightsSeenRelease(null);
+    await updateSetupCardDismissedRelease(null);
     await saveGroupListeningSettings(
       groupListeningEnabled: false,
       voyageServerUrl: null,
       voyageDisplayName: null,
       voyageDeviceLabel: null,
       voyageAutoFollowHost: defaultVoyageAutoFollowHost,
+    );
+  }
+
+  /// Writes only the acknowledged setup release; null clears it.
+  ///
+  /// Deliberately absent from [saveSettings] to preserve newer targeted writes.
+  Future<void> updateSetupHighlightsSeenRelease(String? release) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupHighlightsSeenRelease: Value(release),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Writes only the dismissed Home invitation release; null clears it.
+  ///
+  /// Deliberately absent from [saveSettings] so onboarding drafts cannot revert it.
+  Future<void> updateSetupCardDismissedRelease(String? release) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        setupCardDismissedRelease: Value(release),
+        updatedAt: Value(DateTime.now()),
+      ),
     );
   }
 

@@ -19,6 +19,34 @@ void main() {
     });
 
     test(
+      'setup release writers round trip and preserve other settings',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.setupHighlightsSeenRelease, isNull);
+        expect(initial.setupCardDismissedRelease, isNull);
+        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.updateSetupCardDismissedRelease('1.5.0');
+        var row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, '1.4.3');
+        expect(row.setupCardDismissedRelease, '1.5.0');
+        expect(row.colorStyle, initial.colorStyle);
+        expect(row.onboardingVersion, initial.onboardingVersion);
+        expect(row.updatedAt.isBefore(initial.updatedAt), isFalse);
+        await dao.updateSetupHighlightsSeenRelease(null);
+        row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, isNull);
+        expect(row.setupCardDismissedRelease, '1.5.0');
+        await dao.updateSetupHighlightsSeenRelease('1.4.3');
+        await dao.resetDefaults();
+        row = (await dao.getSettings())!;
+        expect(row.setupHighlightsSeenRelease, isNull);
+        expect(row.setupCardDismissedRelease, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'colour style defaults to neutral and updates independently',
       () async {
         final initial = (await database.appSettingsDao.getSettings())!;

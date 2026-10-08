@@ -562,6 +562,23 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
+          path == '/v1/presentation/setup-highlights/reset') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final database = _container.read(navisDatabaseProvider);
+        await database.transaction(() async {
+          await database.appSettingsDao.updateSetupHighlightsSeenRelease(null);
+          await database.appSettingsDao.updateSetupCardDismissedRelease(null);
+        });
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'setupHighlightsSeenRelease': null,
+          'setupCardDismissedRelease': null,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
           path == '/v1/presentation/onboarding/complete') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -4407,6 +4424,8 @@ class SyncDiagnosticsServer {
         settings.disabledIntegrations,
       ).toList()..sort(),
       'noticeDismissed': settings.integrationsNoticeDismissed,
+      'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
+      'setupCardDismissedRelease': settings.setupCardDismissedRelease,
       'services': <String, Object?>{
         for (final service in IntegrationService.values)
           service.key: <String, Object?>{

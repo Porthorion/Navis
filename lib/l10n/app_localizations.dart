@@ -3066,6 +3066,18 @@ abstract class AppLocalizations {
   /// **'Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.'**
   String get integrationsNoticeBody;
 
+  /// No description provided for @setupHighlightsCardBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Pastel, Immersive and Night styles, Flat Surfaces and a night schedule. Try them in setup.'**
+  String get setupHighlightsCardBody;
+
+  /// No description provided for @newFeatureTagSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'New option'**
+  String get newFeatureTagSemantics;
+
   /// No description provided for @integrationsNoticeDismiss.
   ///
   /// In en, this message translates to:

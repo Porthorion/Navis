@@ -90,3 +90,17 @@ A server-side change must reach Navis's existing artwork revision mechanism
 to invalidate a sampled field. URL-only external cards have no Subsonic cover
 identity and continue to use the caption fallback. Sampling never downloads
 artwork; missing local files use the existing bounded retry path.
+
+### New tags in setup
+
+Updated users see "New" on options introduced by the newest eligible setup
+highlight release. The initial registry groups colour styles, OLED for Auto,
+Night schedule and flat surfaces under 1.4.3; the planned version move to
+1.5.0 renames this together with the changelog entry. A newer release with its
+own highlights replaces the old group. A new major with none clears old tags.
+
+Tags remain until Finish in setup or review mode; Skip keeps them for updated
+users. Fresh installs never see tags while onboarding is required, and their
+first Finish or Skip records the current highlight release as seen. The
+required-at-entry state is captured once the screen hydrates. A Home invitation
+can be dismissed for that release independently, leaving tags pending.

@@ -21,6 +21,30 @@ void main() {
       await database.close();
     });
 
+    test('stale onboarding drafts preserve setup release markers', () async {
+      final stale = await repository.getSettings();
+      await repository.updateSetupHighlightsSeenRelease('1.4.3');
+      await repository.updateSetupCardDismissedRelease('1.4.3');
+      await repository.saveSettings(stale.copyWith(colorStyle: 'night'));
+      final saved = await repository.getSettings();
+      expect(saved.setupHighlightsSeenRelease, '1.4.3');
+      expect(saved.setupCardDismissedRelease, '1.4.3');
+      expect(saved.colorStyle, 'night');
+      final watched = await repository.watchSettings().first;
+      expect(watched.setupHighlightsSeenRelease, '1.4.3');
+      expect(watched.setupCardDismissedRelease, '1.4.3');
+      final cleared = saved.copyWith(
+        clearSetupHighlightsSeenRelease: true,
+        clearSetupCardDismissedRelease: true,
+      );
+      expect(cleared.setupHighlightsSeenRelease, isNull);
+      expect(cleared.setupCardDismissedRelease, isNull);
+      expect(
+        saved.copyWith(themeMode: 'oled').setupHighlightsSeenRelease,
+        '1.4.3',
+      );
+    }, skip: !sqliteAvailable);
+
     test(
       'stale generic saves preserve integration switches and credentials',
       () async {

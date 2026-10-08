@@ -47,16 +47,20 @@ class ChangelogDiscovery {
   String get seenVersion => current.version;
 }
 
-List<int>? _semver(String? version) {
+/// Parses a three-part release version, ignoring a build suffix.
+///
+/// Returns null for a missing or malformed version.
+List<int>? parseSemver(String? version) {
   if (version == null) return null;
-  final parts = version.split('.');
+  final parts = version.split('+').first.split('.');
   if (parts.length != 3) return null;
   final numbers = parts.map(int.tryParse).toList();
   if (numbers.any((n) => n == null)) return null;
   return numbers.cast<int>();
 }
 
-int _compareSemver(List<int> a, List<int> b) {
+/// Compares versions returned by [parseSemver] in release order.
+int compareSemver(List<int> a, List<int> b) {
   for (var i = 0; i < 3; i++) {
     final diff = a[i] - b[i];
     if (diff != 0) return diff;
@@ -77,18 +81,18 @@ ChangelogDiscovery? resolveChangelogDiscovery({
   final current = versions
       .where((v) => v.version == currentVersion)
       .firstOrNull;
-  final currentParts = _semver(currentVersion);
+  final currentParts = parseSemver(currentVersion);
   if (current == null || currentParts == null) return null;
-  final seenParts = _semver(lastSeen);
+  final seenParts = parseSemver(lastSeen);
 
   ChangelogVersion? featured;
   for (final candidate in versions) {
-    final parts = _semver(candidate.version);
+    final parts = parseSemver(candidate.version);
     if (!candidate.isMajor || parts == null) continue;
-    if (_compareSemver(parts, currentParts) > 0) continue;
-    if (seenParts != null && _compareSemver(parts, seenParts) <= 0) continue;
+    if (compareSemver(parts, currentParts) > 0) continue;
+    if (seenParts != null && compareSemver(parts, seenParts) <= 0) continue;
     if (featured == null ||
-        _compareSemver(parts, _semver(featured.version)!) > 0) {
+        compareSemver(parts, parseSemver(featured.version)!) > 0) {
       featured = candidate;
     }
   }

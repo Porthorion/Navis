@@ -32,6 +32,7 @@ import 'package:navis/src/features/home/presentation/trending_detail_screen.dart
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -1179,6 +1180,94 @@ void main() {
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the setup invitation comes before every other Home notice', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+    final changelog = changelogToShowProvider.overrideWith(
+      (ref) async => const ChangelogDiscovery(
+        current: _majorRelease,
+        featured: _majorRelease,
+      ),
+    );
+    final info = packageInfoProvider.overrideWith(
+      (ref) async => PackageInfo(
+        appName: 'Navis',
+        packageName: 'test.navis',
+        version: '1.4.3',
+        buildNumber: '10403',
+      ),
+    );
+    final setup = find.byKey(const ValueKey<String>('setupHighlightsOpen'));
+    final integrations = find.byKey(
+      const ValueKey<String>('integrationsNoticeOpen'),
+    );
+    final whatsNew = find.byKey(
+      const ValueKey<String>('changelogDiscoveryOpen'),
+    );
+
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      overrides: <Override>[
+        changelog,
+        info,
+        onboardingRequiredProvider.overrideWithValue(false),
+      ],
+    );
+    expect(setup, findsOneWidget);
+    expect(integrations, findsNothing);
+    expect(whatsNew, findsNothing);
+
+    // Dismissed or acknowledged: the Integrations notice follows.
+    for (final settings in <AppSettingsModel>[
+      const AppSettingsModel.defaults().copyWith(
+        setupCardDismissedRelease: '1.4.3',
+      ),
+      const AppSettingsModel.defaults().copyWith(
+        setupHighlightsSeenRelease: '1.4.3',
+      ),
+    ]) {
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: settings,
+        overrides: <Override>[
+          changelog,
+          info,
+          onboardingRequiredProvider.overrideWithValue(false),
+        ],
+      );
+      expect(setup, findsNothing);
+      expect(integrations, findsOneWidget);
+      expect(whatsNew, findsNothing);
+    }
+
+    // Everything seen: the release notes row returns.
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      appSettings: const AppSettingsModel.defaults().copyWith(
+        setupHighlightsSeenRelease: '1.4.3',
+        integrationsNoticeDismissed: true,
+      ),
+      overrides: <Override>[
+        changelog,
+        info,
+        onboardingRequiredProvider.overrideWithValue(false),
+      ],
+    );
+    expect(setup, findsNothing);
+    expect(integrations, findsNothing);
+    expect(whatsNew, findsOneWidget);
   });
 
   testWidgets('patch release notes show a compact row on Home', (tester) async {

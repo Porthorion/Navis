@@ -812,6 +812,8 @@
     }
   },
   "integrationsNoticeBody": "Navis can now use Deezer for top songs, artist photos and new releases. Review integrations.",
+  "setupHighlightsCardBody": "Pastel, Immersive and Night styles, Flat Surfaces and a night schedule. Try them in setup.",
+  "newFeatureTagSemantics": "New option",
   "integrationsNoticeDismiss": "Dismiss",
   "listenBrainzConnectedTitle": "ListenBrainz connected",
   "listenBrainzConnectedAs": "Connected as {account}.",

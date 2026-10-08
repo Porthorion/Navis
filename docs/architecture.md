@@ -1131,6 +1131,39 @@ Completion goes directly
 to versioned onboarding when it is required; otherwise it opens Home. Ordinary
 settings updates must not refresh the router.
 
+Setup update highlights live in `features/onboarding/domain/setup_highlights.dart`
+and `presentation/setup_highlights_provider.dart`. The registry selects the
+newest eligible release using the shared changelog semver helpers and package
+metadata, ignoring build suffixes. A later highlight release replaces the old
+group; a later major without highlights clears it. Schema 95 adds nullable
+`setup_highlights_seen_release` and `setup_card_dismissed_release`. Their DAO
+and repository targeted writers are excluded from full settings saves, so an
+onboarding draft cannot revert them; defaults and resets clear both.
+`pendingSetupHighlightsProvider` is empty during loading, required onboarding,
+or after acknowledging that release (or a later one).
+`setupHighlightsCardVisibleProvider` additionally checks independent card
+dismissal. Finish in any mode calls `SetupHighlightsService.markSeen`; Skip
+calls it only for non-review setup that was required at hydration. Fresh
+installs thus suppress tags and acknowledge the release on first completion.
+The authenticated clone-only `POST /v1/presentation/setup-highlights/reset`
+clears both markers in a transaction to simulate an updated user whose
+onboarding is already complete; the integrations settings dump exposes them.
+
+The look step shows every appearance option through the same callback-driven
+widgets as Settings › Appearance (`OledForAutoOption`, `NightScheduleSection`,
+`FlatSurfacesOption` in `settings/presentation/appearance_options.dart`), in
+the order Theme Mode, Use OLED When Dark (Auto only), Color Style, Night
+Schedule, Flat Surfaces, then accent. They write only to the draft that Finish
+saves. The preview theme mirrors `app.dart`: OLED for OLED mode or Auto with
+OLED When Dark at dark platform brightness, and `flat:` from the draft. The
+night schedule never switches the preview by time. Options whose
+`SetupHighlight` is pending carry a `NewFeatureTag` (`common_widgets/`),
+and Home shows `SetupHighlightsCard` (`HomeNoticeCard`, "New in {version}")
+while `setupHighlightsCardVisibleProvider` is true. Tapping it opens the
+onboarding review without acknowledging anything; its close button only calls
+`dismissCard`. Home shows one notice: the setup card, else the Integrations
+notice, else the What's New row.
+
 When a successful required initial-library build or cache renewal immediately
 leads to onboarding, the rebuild route carries only an internal eligibility
 marker. It becomes the route-scoped `homeWarmup=1` handoff only after the
