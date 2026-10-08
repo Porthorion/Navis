@@ -956,7 +956,8 @@ epoch (including newer or legacy 0–3 markers) is routed to
 A never-synced profile adopts the epoch and continues initial setup, using the
 same usable-catalog evidence as initial-login routing. Validated initial
 catalog readiness stamps the epoch in its readiness transaction. Package-info
-errors are logged and skip renewal; unreadable stored markers keep it pending.
+errors or a five-second metadata timeout are logged and skip renewal without
+changing the stored marker; unreadable stored markers keep it pending.
 The rebuild clears only recoverable library and rolling-cache data, preserves
 permanent downloads, performs a full catalog scan, and records the new marker
 only after that scan promotes successfully. A failed or cancelled rebuild, or

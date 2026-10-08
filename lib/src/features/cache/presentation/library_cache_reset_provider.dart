@@ -21,7 +21,9 @@ final libraryCacheResetServiceProvider = Provider<LibraryCacheResetService>((
 
 final libraryCacheEpochProvider = FutureProvider<int?>((ref) async {
   try {
-    final package = await ref.watch(packageInfoProvider.future);
+    final package = await ref
+        .watch(packageInfoProvider.future)
+        .timeout(const Duration(seconds: 5));
     return CacheSystemUpgradeService.epochFromVersion(package.version);
   } on Object catch (error) {
     AppLogger.warning('Library cache epoch unavailable: ${error.runtimeType}.');

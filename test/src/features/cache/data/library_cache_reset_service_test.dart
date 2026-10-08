@@ -222,6 +222,38 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    'stalled package metadata skips renewal without changing its marker',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await _saveProfile(database);
+      await database.cacheSystemStateDao.markVersion(3);
+      final package = Completer<PackageInfo>();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(_profile),
+            ),
+            packageInfoProvider.overrideWith((ref) => package.future),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      expect(
+        await container.read(cacheSystemUpgradeNeededProvider.future),
+        isFalse,
+      );
+      expect(container.read(libraryCacheEpochProvider).requireValue, isNull);
+      expect(container.read(cacheSystemUpgradeRequiredProvider), isFalse);
+      expect(await database.cacheSystemStateDao.getVersion(), 3);
+      package.complete(_package);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('marker read errors keep renewal required', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Library cache renewal stops waiting after five seconds when app version metadata is unavailable',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library repair reduces simultaneous album requests when the server is busy or requests need a transport retry',
         type: ChangelogEntryType.fix,
       ),

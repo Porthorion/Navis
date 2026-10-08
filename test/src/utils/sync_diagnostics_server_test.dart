@@ -46,6 +46,7 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -1137,7 +1138,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 92);
+    expect(authorized.body['schemaVersion'], fixture.database.schemaVersion);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -1164,6 +1165,7 @@ void main() {
       'succeeded',
     );
     expect(engine.forceFullCalls, 1);
+    expect(await fixture.database.cacheSystemStateDao.getVersion(), 1004);
   });
 
   test(
@@ -3519,6 +3521,14 @@ Future<_DiagnosticsFixture> _startFixture(
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
+      packageInfoProvider.overrideWith(
+        (ref) async => PackageInfo(
+          appName: 'Navis',
+          packageName: 'navis',
+          version: '1.4.3',
+          buildNumber: '10403',
+        ),
+      ),
       if (serverConfig != null)
         serverConfigStateProvider.overrideWithValue(AsyncData(serverConfig)),
       libraryCacheResetServiceProvider.overrideWith(
