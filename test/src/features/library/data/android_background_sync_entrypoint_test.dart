@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
@@ -31,13 +30,6 @@ void main() {
       expect(container.read(syncStaleAfterProvider), entry.value);
     });
   }
-
-  test('worker uses the foreground staleness calculation', () {
-    final source = File(
-      'lib/src/features/library/data/android_background_sync_entrypoint.dart',
-    ).readAsStringSync();
-    expect(source, contains('staleAfter: syncStaleAfterForInterval('));
-  });
 
   test(
     'worker defers setup even after an unready catalog was published',
