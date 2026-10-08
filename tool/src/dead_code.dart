@@ -60,10 +60,15 @@ bool _entryPoint(AnnotatedNode node) => node.metadata.any(
           'vm:entry-point',
 );
 
+bool _visibleForTesting(AnnotatedNode node) => node.metadata.any(
+  (annotation) => annotation.name.name.split('.').last == 'visibleForTesting',
+);
+
 Iterable<({Token token, AnnotatedNode node, String? owner})> _declarations(
   CompilationUnit unit,
 ) sync* {
   for (final node in unit.declarations) {
+    if (_visibleForTesting(node)) continue;
     final (name, members) = switch (node) {
       ClassDeclaration() => (node.namePart.typeName, node.body.members),
       EnumDeclaration() => (node.namePart.typeName, node.body.members),
@@ -169,7 +174,7 @@ DeadCodeReport checkDeadCode(
   bool Function(String)? assetExists,
 }) {
   final references = <String, int>{};
-  final outside = <String>{};
+  final testReferences = <String>{};
   final properties = <String>{};
   final literals = <String, ({String path, int line})>{};
   final imports = <String>{};
@@ -179,8 +184,14 @@ DeadCodeReport checkDeadCode(
     final entry = MapEntry(path, sources[path]!);
     final inLib = p.posix.isWithin('lib', entry.key);
     final generated = _generated(entry.key);
-    final appReference =
+    final testReference =
+        p.posix.isWithin('test', entry.key) ||
+        p.posix.isWithin('integration_test', entry.key);
+    final productionReference =
         inLib ||
+        (p.posix.isWithin('tool', entry.key) &&
+            entry.key != 'tool/dead_code_check.dart' &&
+            entry.key != 'tool/src/dead_code.dart') ||
         (p.posix.isWithin('third_party', entry.key) &&
             p.posix.basename(entry.key).startsWith('frb_generated'));
     final parsed = parseString(
@@ -196,7 +207,7 @@ DeadCodeReport checkDeadCode(
     var token = parsed.unit.beginToken;
     while (!token.isEof) {
       if (token.isIdentifier) {
-        if (appReference) {
+        if (productionReference) {
           references.update(
             token.lexeme,
             (count) => count + 1,
@@ -207,8 +218,8 @@ DeadCodeReport checkDeadCode(
               const {'.', '?.', '..', '?..'}.contains(token.previous?.lexeme)) {
             properties.add(token.lexeme);
           }
-        } else {
-          outside.add(token.lexeme);
+        } else if (testReference) {
+          testReferences.add(token.lexeme);
         }
       }
       token = token.next!;
@@ -248,7 +259,11 @@ DeadCodeReport checkDeadCode(
     if (!inLib || generated) continue;
     for (final declaration in _declarations(parsed.unit)) {
       final name = declaration.token.lexeme;
-      if (name.startsWith('_') || _entryPoint(declaration.node)) continue;
+      if (name.startsWith('_') ||
+          _entryPoint(declaration.node) ||
+          _visibleForTesting(declaration.node)) {
+        continue;
+      }
       if (declaration.node case ExtensionDeclaration(:final body)) {
         extensions[name] = [
           for (final member in body.members.whereType<MethodDeclaration>())
@@ -275,7 +290,8 @@ DeadCodeReport checkDeadCode(
     // Extensions are selected implicitly through their members.
     final members = extensions[declaration.identifier] ?? <String>[];
     if (members.any((name) => (references[name] ?? 0) > 1)) continue;
-    (outside.contains(declaration.identifier) || members.any(outside.contains)
+    (testReferences.contains(declaration.identifier) ||
+                members.any(testReferences.contains)
             ? testOnly
             : findings)
         .add(declaration.finding);

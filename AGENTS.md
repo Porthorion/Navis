@@ -101,9 +101,12 @@ and CI-equivalent gates.
 
 The dead-code gate checks public Dart declarations, l10n keys, declared assets
 and font families, missing directory-asset loads, and direct dependencies.
-New findings and stale baseline entries fail; test-only declarations are
-reported without failing. Remove unused code or record a factual, non-empty
-reason in `tool/dead_code_baseline.json`. Use
+New findings (including test-only declarations), stale baseline entries, and
+empty reasons fail. Production code used only by tests must be deleted or marked
+`@visibleForTesting` as a deliberate test seam; annotated declarations are
+excluded from findings. References from release/dev scripts in `tool/` count as
+real use, excluding the checker itself. Record other deliberate exceptions with
+a factual, non-empty reason in `tool/dead_code_baseline.json`. Use
 `dart run tool/dead_code_check.dart --update` to shrink the baseline; new entries
 without reasons go to a pending file and the update is refused.
 

@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../../tool/dead_code_check.dart';
 
 void main() {
-  test('declarations need app references; tests are report-only', () {
+  test('declarations distinguish production and test references', () {
     final report = checkDeadCode({
       'lib/main.dart': '''
 void main() { used(); }
@@ -21,6 +21,63 @@ void _private() {}
     expect(report.findings.map((f) => f.name), ['unused']);
     expect(report.testOnly.map((f) => f.name), ['testHelper']);
   });
+
+  test('tooling counts as production use, excluding the checker itself', () {
+    final report = checkDeadCode({
+      'lib/main.dart': '''
+void releaseTool() {}
+void checkerOnly() {}
+void checkerImplementationOnly() {}
+void integrationOnly() {}
+void unrelatedOnly() {}
+''',
+      'tool/release.dart': 'void main() { releaseTool(); }',
+      'tool/dead_code_check.dart': 'void main() { checkerOnly(); }',
+      'tool/src/dead_code.dart':
+          'void check() { checkerImplementationOnly(); }',
+      'integration_test/example.dart': 'void main() { integrationOnly(); }',
+      'other/example.dart': 'void main() { unrelatedOnly(); }',
+    });
+    expect(report.findings.map((f) => f.name), [
+      'checkerImplementationOnly',
+      'checkerOnly',
+      'unrelatedOnly',
+    ]);
+    expect(report.testOnly.map((f) => f.name), ['integrationOnly']);
+  });
+
+  test(
+    'visibleForTesting excludes declarations with or without test callers',
+    () {
+      final report = checkDeadCode({
+        'lib/main.dart': '''
+@visibleForTesting
+void seam() {}
+@meta.visibleForTesting
+final observation = 0;
+@visibleForTesting
+class TestHarness { void helper() {} }
+class Production {
+  @visibleForTesting
+  Production.fixture();
+  Production();
+  @visibleForTesting
+  void hook() {}
+  @visibleForTesting
+  int get status => 0;
+  @visibleForTesting
+  final marker = 0;
+}
+enum Status { active, @visibleForTesting reserved }
+void main() { Production(); Status.active; }
+''',
+        'test/example.dart':
+            'void main() { seam(); Production.fixture().hook(); }',
+      });
+      expect(report.findings, isEmpty);
+      expect(report.testOnly, isEmpty);
+    },
+  );
 
   test('comments and strings are not references; interpolations are', () {
     final report = checkDeadCode({
@@ -303,14 +360,18 @@ dev_dependencies:
     );
   });
 
-  test('CLI refuses unreasoned updates without modifying the baseline', () async {
+  ({
+    Directory directory,
+    File baseline,
+    Future<ProcessResult> Function(List<String>) run,
+  })
+  cliFixture(String source) {
     final directory = Directory.systemTemp.createTempSync('navis-dead-code-');
     addTearDown(() => directory.deleteSync(recursive: true));
     for (final name in ['tool', 'lib/l10n', 'third_party']) {
       Directory(p.join(directory.path, name)).createSync(recursive: true);
     }
-    File(p.join(directory.path, 'lib', 'main.dart'))
-        .writeAsStringSync('void unused() {}');
+    File(p.join(directory.path, 'lib', 'main.dart')).writeAsStringSync(source);
     File(p.join(directory.path, 'lib', 'l10n', 'app_en.arb'))
         .writeAsStringSync('{}');
     File(p.join(directory.path, 'pubspec.yaml'))
@@ -319,8 +380,7 @@ dev_dependencies:
     final baseline = File(
       p.join(directory.path, 'tool', 'dead_code_baseline.json'),
     );
-    const original = '{"entries":[]}\n';
-    baseline.writeAsStringSync(original);
+    baseline.writeAsStringSync('{"entries":[]}\n');
     // Flutter tests run in flutter_tester, so locate the Dart SDK via Flutter.
     final config = jsonDecode(
       File('.dart_tool/package_config.json').readAsStringSync(),
@@ -347,54 +407,110 @@ dev_dependencies:
       script,
       ...arguments,
     ], workingDirectory: directory.path);
-    final result = await run(['--update']);
-    expect(result.exitCode, 2, reason: '${result.stdout}\n${result.stderr}');
-    expect(baseline.readAsStringSync(), original);
-    final pending = File(
-      p.join(directory.path, 'tool', 'dead_code_baseline.pending.json'),
-    );
-    expect(
-      (jsonDecode(pending.readAsStringSync())
-          as Map<String, dynamic>)['entries'],
-      [
-        {
-          'kind': 'declaration',
-          'path': 'lib/main.dart',
-          'name': 'unused',
-          'reason': '',
-        },
-      ],
-    );
-    final accepted = await run([
-      '--update',
-      '--reason',
-      'dead: candidate for removal',
-    ]);
-    expect(
-      accepted.exitCode,
-      0,
-      reason: '${accepted.stdout}\n${accepted.stderr}',
-    );
-    final check = await run([]);
-    expect(check.exitCode, 0, reason: '${check.stdout}\n${check.stderr}');
-    final app = File(p.join(directory.path, 'lib', 'main.dart'));
-    app.writeAsStringSync('void unused() {}\nvoid newlyUnused() {}');
-    final added = await run([]);
-    expect(added.exitCode, 1);
-    expect(
-      added.stderr,
-      contains('NEW declaration  lib/main.dart:2  newlyUnused'),
-    );
-    app.writeAsStringSync('void main() {}');
-    final stale = await run([]);
-    expect(stale.exitCode, 1);
-    expect(stale.stderr, contains('STALE declaration  lib/main.dart  unused'));
-    final pruned = await run(['--update']);
-    expect(pruned.exitCode, 0);
-    expect(
-      (jsonDecode(baseline.readAsStringSync())
-          as Map<String, dynamic>)['entries'],
-      isEmpty,
-    );
-  });
+    return (directory: directory, baseline: baseline, run: run);
+  }
+
+  test(
+    'CLI refuses unreasoned updates without modifying the baseline',
+    () async {
+      final (:directory, :baseline, :run) = cliFixture('void unused() {}');
+      const original = '{"entries":[]}\n';
+      final result = await run(['--update']);
+      expect(result.exitCode, 2, reason: '${result.stdout}\n${result.stderr}');
+      expect(baseline.readAsStringSync(), original);
+      final pending = File(
+        p.join(directory.path, 'tool', 'dead_code_baseline.pending.json'),
+      );
+      expect(
+        (jsonDecode(pending.readAsStringSync())
+            as Map<String, dynamic>)['entries'],
+        [
+          {
+            'kind': 'declaration',
+            'path': 'lib/main.dart',
+            'name': 'unused',
+            'reason': '',
+          },
+        ],
+      );
+      final accepted = await run([
+        '--update',
+        '--reason',
+        'dead: candidate for removal',
+      ]);
+      expect(
+        accepted.exitCode,
+        0,
+        reason: '${accepted.stdout}\n${accepted.stderr}',
+      );
+      final check = await run([]);
+      expect(check.exitCode, 0, reason: '${check.stdout}\n${check.stderr}');
+      final app = File(p.join(directory.path, 'lib', 'main.dart'));
+      app.writeAsStringSync('void unused() {}\nvoid newlyUnused() {}');
+      final added = await run([]);
+      expect(added.exitCode, 1);
+      expect(
+        added.stderr,
+        contains('NEW declaration  lib/main.dart:2  newlyUnused'),
+      );
+      app.writeAsStringSync('void main() {}');
+      final stale = await run([]);
+      expect(stale.exitCode, 1);
+      expect(
+        stale.stderr,
+        contains('STALE declaration  lib/main.dart  unused'),
+      );
+      final pruned = await run(['--update']);
+      expect(pruned.exitCode, 0);
+      expect(
+        (jsonDecode(baseline.readAsStringSync())
+            as Map<String, dynamic>)['entries'],
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'CLI test-only findings require annotation or a baseline reason',
+    () async {
+      final (:directory, :baseline, :run) = cliFixture('void onlyTests() {}');
+      final app = File(p.join(directory.path, 'lib', 'main.dart'));
+      final tests = Directory(p.join(directory.path, 'test'))..createSync();
+      File(p.join(tests.path, 'example_test.dart'))
+          .writeAsStringSync('void main() { onlyTests(); }');
+      app.writeAsStringSync('void onlyTests() {}');
+      final testOnly = await run([]);
+      expect(testOnly.exitCode, 1);
+      expect(
+        testOnly.stderr,
+        contains('NEW declaration  lib/main.dart:1  onlyTests'),
+      );
+      final unreasonedTestOnly = await run(['--update']);
+      expect(unreasonedTestOnly.exitCode, 2);
+      expect(
+        (jsonDecode(baseline.readAsStringSync())
+            as Map<String, dynamic>)['entries'],
+        isEmpty,
+      );
+      final reasoned = await run([
+        '--update',
+        '--reason',
+        'deliberate: test fixture observation',
+      ]);
+      expect(reasoned.exitCode, 0);
+      final baselined = await run([]);
+      expect(baselined.exitCode, 0);
+      app.writeAsStringSync('@visibleForTesting\nvoid onlyTests() {}');
+      final annotatedStale = await run([]);
+      expect(annotatedStale.exitCode, 1);
+      expect(
+        annotatedStale.stderr,
+        contains('STALE declaration  lib/main.dart  onlyTests'),
+      );
+      final annotatedPrune = await run(['--update']);
+      expect(annotatedPrune.exitCode, 0);
+      final annotated = await run([]);
+      expect(annotated.exitCode, 0);
+    },
+  );
 }

@@ -107,7 +107,7 @@ void main(List<String> args) {
         '${finding.kind}  ${finding.path}:${finding.line}  ${finding.name}',
       );
     }
-    stdout.writeln('test-only (non-blocking):');
+    stdout.writeln('test-only (requires annotation or baseline reason):');
     for (final finding in report.testOnly) {
       stdout.writeln(
         'test-only  ${finding.path}:${finding.line}  ${finding.name}',
@@ -130,8 +130,9 @@ void main(List<String> args) {
     stdout.writeln(
       'Summary: ${counts.entries.map((e) => '${e.key}=${e.value}').join(', ')}; test-only=${report.testOnly.length}; ${timer.elapsedMilliseconds}ms',
     );
+    final findings = [...report.findings, ...report.testOnly];
     if (update) {
-      final updated = updateBaseline(report.findings, entries, reason: reason);
+      final updated = updateBaseline(findings, entries, reason: reason);
       final pending = updated.any((e) => e.reason.trim().isEmpty);
       baseline['entries'] = [
         for (final e in updated)
@@ -150,7 +151,7 @@ void main(List<String> args) {
         exitCode = 2;
       }
     } else {
-      final difference = compareBaseline(report.findings, entries);
+      final difference = compareBaseline(findings, entries);
       for (final f in difference.added) {
         stderr.writeln('NEW ${f.kind}  ${f.path}:${f.line}  ${f.name}');
       }

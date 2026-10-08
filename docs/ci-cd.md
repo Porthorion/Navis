@@ -57,7 +57,9 @@ Checks performed (in order, fail-fast):
 6. `flutter analyze --no-fatal-infos`
 7. `dart run tool/dead_code_check.dart` (public declarations, l10n, assets,
    font families and dependencies; new or stale findings and empty baseline
-   reasons fail, while test-only declarations are report-only). See
+   reasons fail, including test-only declarations unless annotated
+   `@visibleForTesting` or baselined with a reason; release/dev tool callers
+   count as real use). See
    [baseline maintenance](development-workflow.md#quality-gate).
 8. Drift migration tests
 9. Critical routing/provider/playback/library sync test suite

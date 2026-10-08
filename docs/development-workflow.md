@@ -145,10 +145,14 @@ The script fails fast when `/tmp` is critically low to avoid misleading test han
 
 The dead-code gate checks public Dart declarations, l10n keys, declared file
 assets and font families, missing files loaded from declared asset directories,
-and direct dependencies. Generated Dart supplies references but no declarations;
-declarations referenced only by tests or tools are reported without failing.
-New findings, stale baseline entries, and empty reasons fail. Remove the unused
-code or add an entry with a factual, non-empty reason to
+and direct dependencies. Generated Dart supplies references but no declarations.
+References from release/dev scripts in `tool/` count as real use, excluding
+`tool/dead_code_check.dart` and `tool/src/dead_code.dart`. Only `test/` and
+`integration_test/` references classify a declaration as test-only. Production
+code used only by tests must be deleted or marked `@visibleForTesting` as a
+deliberate test seam; annotated declarations are excluded from all findings.
+New findings (including test-only declarations), stale baseline entries, and
+empty reasons fail. Record other deliberate exceptions with factual reasons in
 `tool/dead_code_baseline.json`; `dart run tool/dead_code_check.dart --update`
 preserves reasons and removes stale entries. It refuses unreasoned additions,
 writing `tool/dead_code_baseline.pending.json` for review instead; an explicit

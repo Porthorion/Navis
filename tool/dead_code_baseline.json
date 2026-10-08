@@ -8,6 +8,12 @@
     },
     {
       "kind": "declaration",
+      "path": "lib/src/common_widgets/cover_art_recovery.dart",
+      "name": "CoverArtFailureCategory.decodeFailure",
+      "reason": "suspected missing call: image codec failures are not emitted as decodeFailure"
+    },
+    {
+      "kind": "declaration",
       "path": "lib/src/features/library/domain/library_sync_request.dart",
       "name": "SyncRunOrigin.invariant",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
@@ -17,6 +23,12 @@
       "path": "lib/src/features/library/domain/library_sync_request.dart",
       "name": "SyncRunOrigin.legacyRecovery",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/features/library/domain/library_sync_request.dart",
+      "name": "SyncRunOrigin.startup",
+      "reason": "deliberate: persisted enum index"
     },
     {
       "kind": "declaration",
