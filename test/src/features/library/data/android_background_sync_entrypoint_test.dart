@@ -2,13 +2,11 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
-import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -21,13 +19,8 @@ void main() {
     40: const Duration(seconds: 2280),
     60: const Duration(seconds: 3480),
   }.entries) {
-    test('shared staleness for ${entry.key} minutes matches foreground', () {
+    test('shared staleness for ${entry.key} minutes', () {
       expect(syncStaleAfterForInterval(entry.key), entry.value);
-      final container = ProviderContainer(
-        overrides: [syncIntervalMinutesProvider.overrideWithValue(entry.key)],
-      );
-      addTearDown(container.dispose);
-      expect(container.read(syncStaleAfterProvider), entry.value);
     });
   }
 

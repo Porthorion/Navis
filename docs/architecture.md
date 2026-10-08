@@ -25,10 +25,9 @@ Located in `lib/src/providers/app_providers.dart`:
   interactive vs hard probe eligibility)
 
 - **Android background sync**
-  - `androidBackgroundSyncSchedulerProvider` and
-    `androidBackgroundSyncReconcilerProvider` own only native WorkManager
-    scheduling reconciliation; sync domain logic remains in the library
-    planner/coordinator.
+  - `androidBackgroundSyncReconcilerProvider` owns native WorkManager
+    scheduling reconciliation and constructs its scheduler directly; sync domain
+    logic remains in the library planner/coordinator.
   - Foreground and worker staleness use the same configured interval minus
     a 5% tolerance clamped to 10–120 seconds; manual-only uses 24 hours.
     Worker terminal status records duration, including cancellation and
@@ -132,7 +131,7 @@ Located in `lib/src/providers/app_providers.dart`:
 **library_sync_provider.dart**:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
-- `syncStaleAfterProvider` - Sync staleness threshold
+- `syncStaleAfterForInterval` - Shared foreground/worker staleness function
 - `library_sync_operation_ledger` retains the last 50 safe aggregate catalog
   promotions and confirmed starred-absence removals per server. The entry is
   committed with the mutation and contains only reason, timestamp and
@@ -147,8 +146,9 @@ Located in `lib/src/providers/app_providers.dart`:
   reconnect, resume, and UI reconstruction only ask whether the deadline is
   due. They do not create independent periodic schedules. Manual checks and
   repairs bypass this automatic deadline. Engine progress and results never
-  carry it: the controller keeps it on progress frames and, after every
-  catalog run, reloads both `next_automatic_check_at` and the failure
+  carry it: one controller helper persists schedule changes and updates
+  session-matching status; the controller keeps it on progress frames and,
+  after every catalog run, reloads both `next_automatic_check_at` and the failure
   cooldown (`next_eligible_at`) from the persisted row, so status shows the
   deadlines the timer and circuit will use. A check that stops at its time,
   entity, page, request, or byte budget is a successful bounded check: its
