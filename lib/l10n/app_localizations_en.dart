@@ -5781,10 +5781,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingAppearanceDescription =>
-      'Pick a theme and accent. You can change both later in Appearance settings.';
+      'Pick a theme, style and accent. You can change them later in Appearance settings.';
 
   @override
-  String get onboardingAccentColor => 'Accent color';
+  String get onboardingAccentColor => 'Accent Color';
 
   @override
   String get onboardingAppearanceColorPickerHint =>

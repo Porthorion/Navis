@@ -9272,13 +9272,13 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingAppearanceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Pick a theme and accent. You can change both later in Appearance settings.'**
+  /// **'Pick a theme, style and accent. You can change them later in Appearance settings.'**
   String get onboardingAppearanceDescription;
 
   /// No description provided for @onboardingAccentColor.
   ///
   /// In en, this message translates to:
-  /// **'Accent color'**
+  /// **'Accent Color'**
   String get onboardingAccentColor;
 
   /// No description provided for @onboardingAppearanceColorPickerHint.
