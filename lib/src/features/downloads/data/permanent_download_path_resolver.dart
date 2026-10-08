@@ -146,9 +146,6 @@ class PermanentDownloadPathResolver {
     }
   }
 
-  /// Longest file or folder name Navis writes; see [safeFileNameComponent].
-  static const int maxComponentLength = safeFileNameMaxLength;
-
   static String sanitizePathComponent(String? raw, {required String fallback}) {
     final cleaned = safeFileNameComponent(raw, fallback: fallback);
     return cleaned.isEmpty ? unknownTrackFileName : cleaned;

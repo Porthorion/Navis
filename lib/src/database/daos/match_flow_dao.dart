@@ -63,45 +63,6 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
     return query.watch().map(_mapFlowRows);
   }
 
-  Future<List<MatchFlowWithSongs>> getFlowsWithSongs() async {
-    final flows =
-        await (select(matchFlowsTable)..orderBy([
-              (t) => OrderingTerm.desc(t.createdAt),
-              (t) => OrderingTerm.asc(t.id),
-            ]))
-            .get();
-    if (flows.isEmpty) return const <MatchFlowWithSongs>[];
-    final links =
-        await (select(matchFlowSongsTable)..orderBy([
-              (t) => OrderingTerm.asc(t.sortOrder),
-              (t) => OrderingTerm.asc(t.songId),
-            ]))
-            .get();
-    final songIds = links.map((link) => link.songId).toSet().toList();
-    final songs = songIds.isEmpty
-        ? const <SongsTableData>[]
-        : await (select(songsTable)..where((t) => t.id.isIn(songIds))).get();
-    final songsById = <String, SongsTableData>{
-      for (final song in songs) song.id: song,
-    };
-    final linksByFlow = <String, List<MatchFlowSongEntry>>{};
-    for (final link in links) {
-      (linksByFlow[link.flowId] ??= <MatchFlowSongEntry>[]).add(
-        MatchFlowSongEntry(link: link, song: songsById[link.songId]),
-      );
-    }
-    return flows
-        .map(
-          (flow) => MatchFlowWithSongs(
-            flow: flow,
-            songs: List<MatchFlowSongEntry>.unmodifiable(
-              linksByFlow[flow.id] ?? const <MatchFlowSongEntry>[],
-            ),
-          ),
-        )
-        .toList(growable: false);
-  }
-
   Future<String> createFlow({String? name}) async {
     final now = DateTime.now();
     final id = const Uuid().v4();

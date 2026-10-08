@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 
@@ -85,19 +87,11 @@ class SongIdentityReconciler {
   /// them after it commits.
   final List<String>? deferredFileDeletions;
 
+  @visibleForTesting
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
     required List<SongsTableData> provisionalSongs,
   }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
-
-  Future<SongIdentityReconciliationSummary> reconcileCanonicalSongs(
-    Iterable<SongsTableData> canonicalSongs,
-  ) async {
-    final session = await startSession();
-    await session.reconcile(canonicalSongs);
-    await session.finalize();
-    return session.summary;
-  }
 
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,

@@ -37,8 +37,8 @@ void main() {
     ]);
     expect(entries.first.libraryArtistId, 'lib-mfs');
     expect(entries.first.coverArt, 'c');
-    expect(entries.first.isInLibrary, isTrue);
-    expect(entries[2].isInLibrary, isFalse);
+    expect(entries.first.libraryArtistId, isNotNull);
+    expect(entries[2].libraryArtistId, isNull);
     expect(entries[2].imageUrl, 'https://x/1.jpg');
     expect(entries[3].imageUrl, 'https://x/3.jpg');
   });

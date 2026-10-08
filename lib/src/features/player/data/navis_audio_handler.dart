@@ -7430,6 +7430,7 @@ class NavisAudioHandler extends BaseAudioHandler
         reason: 'remote playback stalled',
       );
 
+  @visibleForTesting
   Future<void> debugFlushQueuePersistence() async {
     await _flushQueueItemsPersistence();
     await _persistTail;

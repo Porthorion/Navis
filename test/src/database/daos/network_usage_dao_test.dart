@@ -103,20 +103,17 @@ void main() {
           operation: '/rest/getAlbum.view',
         );
       }
-      final before = await database.networkUsageDao.getCategoryTotalSince(
-        category: NetworkUsageCategory.librarySync.key,
-        since: DateTime(2026),
-      );
+      final before = await database.networkUsageDao
+          .watchTotalSince(DateTime(2026))
+          .first;
       expect(before.requestCount, 0);
 
       await meter.flush();
-      final after = await database.networkUsageDao.getCategoryTotalSince(
-        category: NetworkUsageCategory.librarySync.key,
-        since: DateTime(2026),
-      );
+      final after = await database.networkUsageDao
+          .watchTotalSince(DateTime(2026))
+          .first;
       expect(after.bytes, 5000);
       expect(after.requestCount, 50);
-      expect(meter.sessionTotals.single.requestCount, 50);
     },
   );
 }

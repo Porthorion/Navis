@@ -536,7 +536,10 @@ void main() {
           isTrue,
         );
         expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
-        expect(await database.libraryDao.watchAllSongs().first, isEmpty);
+        expect(
+          await database.libraryDao.getSongsSorted(SongSortOrder.newest),
+          isEmpty,
+        );
       },
     );
 
@@ -2893,13 +2896,16 @@ void main() {
         await database.libraryDao.replaceArtists(<ArtistsTableCompanion>[
           ArtistsTableCompanion.insert(id: 'existing-artist', name: 'Artist'),
         ]);
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'existing-album',
-            name: 'Existing Album',
-            artistId: const Value('existing-artist'),
-          ),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                AlbumsTableCompanion.insert(
+                  id: 'existing-album',
+                  name: 'Existing Album',
+                  artistId: const Value('existing-artist'),
+                ),
+              ]),
+        );
         api.artists.add(
           const Artist(id: 'artist-1', name: 'Artist 1', albumCount: 1),
         );
@@ -4479,8 +4485,12 @@ void main() {
         growable: false,
       );
       await database.libraryDao.replaceArtists(artists);
-      await database.libraryDao.replaceAlbums(albums);
-      await database.libraryDao.replaceSongs(songs);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, albums),
+      );
+      await database.batch(
+        (batch) => batch.insertAll(database.songsTable, songs),
+      );
 
       api.indexes = Indexes(
         lastModified: changedCursor,
@@ -4866,23 +4876,27 @@ void main() {
       await database.libraryDao.replaceArtists(<ArtistsTableCompanion>[
         ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
       ]);
-      await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-        AlbumsTableCompanion.insert(
-          id: 'album-1',
-          name: 'Album 1',
-          artistId: const Value('artist-1'),
-          artistName: const Value('Artist 1'),
-          songsHydrated: const Value(true),
-          songsVerifiedAt: Value(DateTime.now()),
-        ),
-      ]);
-      await database.libraryDao.replaceSongs(<SongsTableCompanion>[
-        SongsTableCompanion.insert(
-          id: 'song-1',
-          title: 'Song 1',
-          albumId: const Value('album-1'),
-        ),
-      ]);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            songsHydrated: const Value(true),
+            songsVerifiedAt: Value(DateTime.now()),
+          ),
+        ]),
+      );
+      await database.batch(
+        (batch) => batch.insertAll(database.songsTable, <SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: const Value('album-1'),
+          ),
+        ]),
+      );
 
       api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
       api.artistDetails['artist-1'] = const Artist(
@@ -5229,9 +5243,12 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          unhydratedAlbum('album-1', 'Album 1'),
-        ]);
+        await database.batch(
+          (batch) => batch.insertAll(
+            database.albumsTable,
+            <AlbumsTableCompanion>[unhydratedAlbum('album-1', 'Album 1')],
+          ),
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
@@ -5331,9 +5348,11 @@ void main() {
         lastSynced: DateTime.now(),
         lastFullSyncedAt: DateTime.now(),
       );
-      await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-        unhydratedAlbum('album-1', 'Album 1'),
-      ]);
+      await database.batch(
+        (batch) => batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+          unhydratedAlbum('album-1', 'Album 1'),
+        ]),
+      );
       api.albumErrors['album-1'] = const SubsonicAuthException(
         message: 'expired',
       );
@@ -5360,10 +5379,13 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          unhydratedAlbum('album-1', 'Album 1'),
-          unhydratedAlbum('album-stale', 'Stale Album'),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                unhydratedAlbum('album-1', 'Album 1'),
+                unhydratedAlbum('album-stale', 'Stale Album'),
+              ]),
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
@@ -5395,10 +5417,13 @@ void main() {
           lastSynced: DateTime.now(),
           lastFullSyncedAt: DateTime.now(),
         );
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          unhydratedAlbum('album-1', 'Album 1'),
-          unhydratedAlbum('album-2', 'Album 2'),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                unhydratedAlbum('album-1', 'Album 1'),
+                unhydratedAlbum('album-2', 'Album 2'),
+              ]),
+        );
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',

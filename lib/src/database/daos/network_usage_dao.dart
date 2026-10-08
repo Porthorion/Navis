@@ -98,25 +98,6 @@ class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  Future<NetworkUsageTotal> getCategoryTotalSince({
-    required String category,
-    required DateTime since,
-  }) async {
-    final bytes = networkUsageTable.bytes.sum();
-    final requests = networkUsageTable.requestCount.sum();
-    final query = selectOnly(networkUsageTable)
-      ..where(
-        networkUsageTable.occurredAt.isBiggerOrEqualValue(since) &
-            networkUsageTable.category.equals(category),
-      )
-      ..addColumns([bytes, requests]);
-    final row = await query.getSingle();
-    return NetworkUsageTotal(
-      bytes: row.read(bytes) ?? 0,
-      requestCount: row.read(requests) ?? 0,
-    );
-  }
-
   Future<void> pruneOlderThan(DateTime cutoff) {
     return (delete(
       networkUsageTable,

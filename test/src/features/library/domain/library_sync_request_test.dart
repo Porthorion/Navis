@@ -75,7 +75,10 @@ void main() {
   });
 
   test('repair and cache reset retain separate origins and identities', () {
-    const repair = LibrarySyncRequest.repair();
+    const repair = LibrarySyncRequest(
+      origin: SyncRunOrigin.settingsRepair,
+      intent: SyncRunIntent.repairLibrary,
+    );
     const reset = LibrarySyncRequest.cacheReset();
     expect(repair.priority, 80);
     expect(reset.priority, 80);

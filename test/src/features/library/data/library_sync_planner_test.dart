@@ -300,7 +300,9 @@ void main() {
   test('repair override can execute broad work on metered networks', () {
     final plan = planner.plan(
       context(
-        request: const LibrarySyncRequest.repair(
+        request: const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
           grant: SyncNetworkGrant.broadMeteredOnce,
         ),
         networkType: NetworkType.cellular,
@@ -323,7 +325,10 @@ void main() {
   test('explicit repair remains guarded on cellular', () {
     final plan = planner.plan(
       context(
-        request: const LibrarySyncRequest.repair(),
+        request: const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
         networkType: NetworkType.cellular,
       ),
     );

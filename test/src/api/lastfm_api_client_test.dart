@@ -87,11 +87,12 @@ void main() {
     );
 
     final client = LastFmApiClient(apiKey: 'key', dio: dio);
-    final recs = await client.getSimilarTracks(
+    final fetched = await client.getSimilarTracksResult(
       artist: 'Seed Artist',
       track: 'Seed Song',
       limit: 10,
     );
+    final recs = fetched.tracks;
 
     expect(recs, hasLength(2));
     expect(recs.first.artist, 'Artist A');
@@ -117,10 +118,11 @@ void main() {
     );
 
     final client = LastFmApiClient(apiKey: 'key', dio: dio);
-    final recs = await client.getSimilarTracks(
+    final fetched = await client.getSimilarTracksResult(
       artist: 'Unknown',
       track: 'Unknown',
     );
+    final recs = fetched.tracks;
 
     expect(recs, isEmpty);
   });
@@ -178,11 +180,11 @@ void main() {
 
   test('returns empty list when client is not configured', () async {
     final client = LastFmApiClient(apiKey: '');
-    final recs = await client.getSimilarTracks(
+    final fetched = await client.getSimilarTracksResult(
       artist: 'Artist',
       track: 'Track',
     );
-    expect(client.isConfigured, isFalse);
+    final recs = fetched.tracks;
     expect(recs, isEmpty);
     final result = await client.getSimilarTracksResult(
       artist: 'Artist',

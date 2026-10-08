@@ -188,7 +188,12 @@ void main() {
       readHasActivePlayback: () => false,
       now: () => DateTime.utc(2026, 8, 4),
     );
-    final active = serial.requestSync(const LibrarySyncRequest.repair());
+    final active = serial.requestSync(
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    );
     await blocking.entered.future;
     final queued = serial.requestSync(
       const LibrarySyncRequest.checkForUpdates(),
@@ -371,7 +376,12 @@ void main() {
         readHasActivePlayback: () => false,
         now: () => DateTime.utc(2026, 8, 4),
       );
-      final active = serial.requestSync(const LibrarySyncRequest.repair());
+      final active = serial.requestSync(
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
+      );
       await blocking.entered.future;
       final waiting = serial.requestSync(const LibrarySyncRequest.automatic());
       LibrarySyncRunRequestTableData? original;
@@ -539,7 +549,10 @@ void main() {
     'a promoted catalog task completes before remaining album hydration',
     () async {
       final result = await coordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       final work = await database.librarySyncDao.getWork(
         serverId: 1,
@@ -579,7 +592,12 @@ void main() {
         readHasActivePlayback: () => false,
       );
       await expectLater(
-        failing.requestSync(const LibrarySyncRequest.repair()),
+        failing.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        ),
         throwsStateError,
       );
       final history = (await database.librarySyncDao.getRecentSyncRunHistory(1))
@@ -689,7 +707,13 @@ void main() {
     'repair and cache reset keep their admitted and recorded origins',
     () async {
       for (final (request, origin) in [
-        (const LibrarySyncRequest.repair(), SyncRunOrigin.settingsRepair),
+        (
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+          SyncRunOrigin.settingsRepair,
+        ),
         (const LibrarySyncRequest.cacheReset(), SyncRunOrigin.cacheReset),
       ]) {
         await coordinator.requestSync(request);
@@ -1425,7 +1449,12 @@ void main() {
       ),
     );
 
-    await failingCoordinator.requestSync(const LibrarySyncRequest.repair());
+    await failingCoordinator.requestSync(
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    );
 
     final persisted = await database.librarySyncDao.getOrCreateState(1);
     expect(persisted.endpointFailureJson, contains('collectingCandidate'));
@@ -1446,7 +1475,10 @@ void main() {
       );
 
       final result = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
 
       expect(result.status, LibrarySyncStatus.deferred);
@@ -1478,13 +1510,19 @@ void main() {
 
       // A retry-style re-entry without the request-level flag keeps the grant.
       final first = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(first.planReason, isNot('waitingForMobileConsent'));
 
       meteredCoordinator.endRepairSession();
       final afterClear = await meteredCoordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(afterClear.planReason, 'waitingForMobileConsent');
     },

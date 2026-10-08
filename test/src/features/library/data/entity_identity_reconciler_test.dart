@@ -254,10 +254,13 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases = await SongIdentityReconciler(database.songIdentityDao)
-          .reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-new'))!,
-          ]);
+      final session = await SongIdentityReconciler(database.songIdentityDao)
+          .startSession();
+      await session.reconcile([
+        (await database.libraryDao.getSongById('song-new'))!,
+      ]);
+      await session.finalize();
+      final aliases = session.summary;
 
       final summary = await EntityIdentityReconciler(database).reconcile(
         serverId: serverId,
@@ -311,11 +314,14 @@ void main() {
       );
       final provisionalBefore = await database.songIdentityDao
           .getProvisionalSongs();
-      final aliases = await SongIdentityReconciler(database.songIdentityDao)
-          .reconcileCanonicalSongs([
-            (await database.libraryDao.getSongById('song-a'))!,
-            (await database.libraryDao.getSongById('song-b'))!,
-          ]);
+      final session = await SongIdentityReconciler(database.songIdentityDao)
+          .startSession();
+      await session.reconcile([
+        (await database.libraryDao.getSongById('song-a'))!,
+        (await database.libraryDao.getSongById('song-b'))!,
+      ]);
+      await session.finalize();
+      final aliases = session.summary;
 
       final summary = await EntityIdentityReconciler(database).reconcile(
         serverId: serverId,
@@ -358,10 +364,13 @@ void main() {
     );
     final provisionalBefore = await database.songIdentityDao
         .getProvisionalSongs();
-    final aliases = await SongIdentityReconciler(database.songIdentityDao)
-        .reconcileCanonicalSongs([
-          (await database.libraryDao.getSongById('song-new'))!,
-        ]);
+    final session = await SongIdentityReconciler(database.songIdentityDao)
+        .startSession();
+    await session.reconcile([
+      (await database.libraryDao.getSongById('song-new'))!,
+    ]);
+    await session.finalize();
+    final aliases = session.summary;
 
     final summary = await EntityIdentityReconciler(database).reconcile(
       serverId: serverId,
@@ -465,10 +474,13 @@ void main() {
     );
     final provisionalBefore = await database.songIdentityDao
         .getProvisionalSongs();
-    final aliases = await SongIdentityReconciler(database.songIdentityDao)
-        .reconcileCanonicalSongs([
-          (await database.libraryDao.getSongById('song-new'))!,
-        ]);
+    final session = await SongIdentityReconciler(database.songIdentityDao)
+        .startSession();
+    await session.reconcile([
+      (await database.libraryDao.getSongById('song-new'))!,
+    ]);
+    await session.finalize();
+    final aliases = session.summary;
 
     final summary = await EntityIdentityReconciler(database).reconcile(
       serverId: serverId,

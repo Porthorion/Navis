@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
@@ -257,6 +259,7 @@ class CoverArtLoadCoordinator {
 
   int get queuedCount => _queued.length;
 
+  @visibleForTesting
   int interestCount(String key) => _interests[key]?.total ?? 0;
 
   CoverArtLoadInterest trackInterest(

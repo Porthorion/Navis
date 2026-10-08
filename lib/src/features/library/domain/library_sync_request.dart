@@ -128,13 +128,6 @@ class LibrarySyncRequest {
          grant: grant,
        );
 
-  const new repair({SyncNetworkGrant grant = SyncNetworkGrant.none})
-    : this(
-        origin: SyncRunOrigin.settingsRepair,
-        intent: SyncRunIntent.repairLibrary,
-        grant: grant,
-      );
-
   const new cacheReset({SyncNetworkGrant grant = SyncNetworkGrant.none})
     : this(
         origin: SyncRunOrigin.cacheReset,

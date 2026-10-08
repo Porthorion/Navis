@@ -928,10 +928,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.getSingleOrNull();
   }
 
-  Stream<List<SongsTableData>> watchAllSongs() {
-    return watchSongsSorted(SongSortOrder.newest);
-  }
-
   /// Album and artist ids of permanently downloaded songs, for the
   /// "Downloaded only" library filters.
   Stream<({Set<String> albumIds, Set<String> artistIds})>
@@ -1075,12 +1071,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.map((row) => row.read<String>('id')).toSet();
   }
 
-  Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {
-    return _songsSortedQuery(sort).watch();
-  }
-
-  /// One-shot, bounded variant of [watchSongsSorted] for callers that need a
-  /// few rows rather than a live list of the whole catalog.
+  /// Reads catalog songs in the requested order, optionally bounded.
   ///
   /// [onlyIds] restricts the result to those songs, in catalog order.
   Future<List<SongsTableData>> getSongsSorted(
@@ -1305,18 +1296,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<void> replaceAlbums(List<AlbumsTableCompanion> albums) async {
-    final now = DateTime.now();
-    await transaction(() async {
-      await delete(albumsTable).go();
-      await batch((batch) {
-        for (final album in albums) {
-          batch.insert(albumsTable, album.copyWith(syncedAt: Value(now)));
-        }
-      });
-    });
-  }
-
   Future<void> upsertAlbums(
     List<AlbumsTableCompanion> albums, {
     bool preserveHydrationState = true,
@@ -1531,15 +1510,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         isProvisional: Value(true),
       ),
     );
-  }
-
-  Future<void> replaceSongs(List<SongsTableCompanion> songs) async {
-    await transaction(() async {
-      await delete(songsTable).go();
-      await batch((batch) {
-        batch.insertAll(songsTable, songs);
-      });
-    });
   }
 
   /// Oldest complete snapshots first; null is legacy/unverified evidence.

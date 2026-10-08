@@ -45,19 +45,6 @@ class _FakeQueueController extends QueueController {
   }
 
   @override
-  Future<int> appendMixTracks(
-    List<Song> songs, {
-    bool expandMatchFlows = false,
-  }) async {
-    mixTrackBatches.add(List<Song>.from(songs));
-    final error = this.error;
-    if (error != null) {
-      throw error;
-    }
-    return insertedCount ?? songs.length;
-  }
-
-  @override
   Future<RecommendationQueueResult> appendRecommendationTracks(
     List<Song> songs, {
     bool expandMatchFlows = false,
@@ -66,10 +53,12 @@ class _FakeQueueController extends QueueController {
     if (isCurrent != null && !isCurrent()) {
       return const RecommendationQueueResult(<String>[]);
     }
-    final count = await appendMixTracks(
-      songs,
-      expandMatchFlows: expandMatchFlows,
-    );
+    mixTrackBatches.add(List<Song>.from(songs));
+    final error = this.error;
+    if (error != null) {
+      throw error;
+    }
+    final count = insertedCount ?? songs.length;
     return RecommendationQueueResult(
       songs.take(count).map((song) => song.id).toList(),
     );

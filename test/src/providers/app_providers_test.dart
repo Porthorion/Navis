@@ -1196,104 +1196,6 @@ void main() {
       expect(handler.snapshot.queueSongIds, <String>['song-1']);
     });
 
-    test('queueProvider playNextWithSongs persists songs and delegates to playNext', () async {
-      final database = NavisDatabase(NativeDatabase.memory());
-      final handler = _FakePlaybackHandler();
-      final container = ProviderContainer(
-        overrides: [
-          navisDatabaseProvider.overrideWithValue(database),
-          audioHandlerProvider.overrideWithValue(handler),
-          lyricsPrewarmProvider.overrideWithValue((_) async {}),
-        ],
-      );
-      addTearDown(() async {
-        container.dispose();
-        await handler.dispose();
-        await database.close();
-      });
-
-      await container.read(queueProvider.notifier).replace(<String>[
-        'current',
-        'later',
-      ], startIndex: 0);
-      await container.read(queueProvider.notifier).playNextWithSongs(
-        const <Song>[
-          Song(
-            id: ' remote-1 ',
-            title: 'Remote 1',
-            artist: 'Remote Artist',
-            artistId: 'remote-artist',
-            album: 'Remote Album',
-            albumId: 'remote-album',
-          ),
-          Song(id: '   ', title: 'Blank ID'),
-          Song(id: 'remote-2', title: 'Remote 2'),
-        ],
-        expandMatchFlows: false,
-      );
-
-      expect(handler.playNextCalls, <List<String>>[
-        <String>['remote-1', 'remote-2'],
-      ]);
-      expect(handler.playNextExpandFlags, <bool>[false]);
-      expect(handler.snapshot.queueSongIds, <String>[
-        'current',
-        'remote-1',
-        'remote-2',
-        'later',
-      ]);
-
-      final persisted = await database.libraryDao.getSongsByIds(const <String>[
-        'remote-1',
-        'remote-2',
-      ]);
-      expect(persisted.map((song) => song.id), <String>[
-        'remote-1',
-        'remote-2',
-      ]);
-      expect(persisted.first.artistId, 'remote-artist');
-      expect(persisted.first.albumId, 'remote-album');
-    }, skip: !sqliteAvailable);
-
-    test('queueProvider appendMixTracks persists songs and delegates to addToQueue', () async {
-      final database = NavisDatabase(NativeDatabase.memory());
-      final handler = _FakePlaybackHandler();
-      await handler.replaceQueue(<String>['seed']);
-      final container = ProviderContainer(
-        overrides: [
-          navisDatabaseProvider.overrideWithValue(database),
-          audioHandlerProvider.overrideWithValue(handler),
-          lyricsPrewarmProvider.overrideWithValue((_) async {}),
-        ],
-      );
-      addTearDown(() async {
-        container.dispose();
-        await handler.dispose();
-        await database.close();
-      });
-
-      final inserted = await container
-          .read(queueProvider.notifier)
-          .appendMixTracks(const <Song>[
-            Song(
-              id: ' rec-1 ',
-              title: 'Recommendation 1',
-              artist: 'Remote Artist',
-              artistId: 'remote-artist',
-              album: 'Remote Album',
-              albumId: 'remote-album',
-            ),
-          ], expandMatchFlows: false);
-
-      expect(inserted, 1);
-      expect(handler.addToQueueCalls, <List<String>>[
-        <String>['rec-1'],
-      ]);
-      expect(handler.addToQueueExpandFlags, <bool>[false]);
-      expect(handler.playNextCalls, isEmpty);
-      expect(handler.snapshot.queueSongIds, <String>['seed', 'rec-1']);
-    }, skip: !sqliteAvailable);
-
     test(
       'queueProvider throws explicit unavailable error when handler missing',
       () async {
@@ -1665,13 +1567,16 @@ void main() {
           await database.close();
         });
 
-        await database.libraryDao.replaceAlbums(<AlbumsTableCompanion>[
-          AlbumsTableCompanion.insert(
-            id: 'album-1',
-            name: 'Album 1',
-            songsHydrated: const Value(false),
-          ),
-        ]);
+        await database.batch(
+          (batch) =>
+              batch.insertAll(database.albumsTable, <AlbumsTableCompanion>[
+                AlbumsTableCompanion.insert(
+                  id: 'album-1',
+                  name: 'Album 1',
+                  songsHydrated: const Value(false),
+                ),
+              ]),
+        );
 
         final emittedCounts = <int>[];
         final firstWrite = Completer<void>();

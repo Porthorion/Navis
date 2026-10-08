@@ -15,6 +15,7 @@ import 'package:navis/src/features/integrations/data/integration_json_cache.dart
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/library/data/artist_top_track_match_store.dart';
 import 'package:navis/src/features/library/data/artist_top_track_resolver.dart';
+import 'package:navis/src/features/library/data/artist_top_track_sources.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
@@ -307,7 +308,7 @@ void main() {
 
       final result = await seeds(container);
 
-      expect(lastFm.requestedLimit, kArtistTopTracksPlaylistMax);
+      expect(lastFm.requestedLimit, kArtistTopTrackSeedMax);
       expect(lastFm.callCount, 1);
       expect(result, hasLength(12));
       expect(result.first.source, ArtistTopTrackSource.lastFm);

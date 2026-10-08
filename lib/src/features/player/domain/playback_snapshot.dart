@@ -244,29 +244,6 @@ class PlaybackSnapshot {
       lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
     );
   }
-
-  /// Returns a copy with radioStation explicitly set to null.
-  PlaybackSnapshot clearRadioStation() {
-    return PlaybackSnapshot(
-      queueSongIds: queueSongIds,
-      currentSongId: currentSongId,
-      currentIndex: currentIndex,
-      playing: playing,
-      processingState: processingState,
-      position: position,
-      duration: duration,
-      bufferedPosition: bufferedPosition,
-      shuffleMode: shuffleMode,
-      repeatMode: repeatMode,
-      isCurrentSongLiked: isCurrentSongLiked,
-      isLoading: isLoading,
-      hasPendingLogicalQueue: hasPendingLogicalQueue,
-      pendingQueueIndex: pendingQueueIndex,
-      pendingSeekPosition: pendingSeekPosition,
-      loadingSongId: loadingSongId,
-      lastFailedSongId: lastFailedSongId,
-    );
-  }
 }
 
 /// Whether a remote source is actually preventing the active song from playing.

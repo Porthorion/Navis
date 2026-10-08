@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 
 /// Normalized cookbook biquad coefficients, shared by response calculations.
@@ -148,6 +150,7 @@ class EqResponse {
 
   double get effectivePreampDb => configuration.preampDb + headroomDb;
 
+  @visibleForTesting
   double effectiveDbAt(double frequency) =>
       curveDbAt(frequency) + effectivePreampDb;
 }

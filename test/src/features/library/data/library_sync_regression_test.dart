@@ -169,7 +169,14 @@ void main() {
       NetworkType.wifi,
       const LibrarySyncRequest.checkForUpdates(),
     ),
-    ('wifi repair', NetworkType.wifi, const LibrarySyncRequest.repair()),
+    (
+      'wifi repair',
+      NetworkType.wifi,
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
+    ),
     (
       'bounded mobile check',
       NetworkType.cellular,
@@ -185,7 +192,11 @@ void main() {
     (
       'broad mobile repair',
       NetworkType.cellular,
-      const LibrarySyncRequest.repair(grant: SyncNetworkGrant.broadMeteredOnce),
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+        grant: SyncNetworkGrant.broadMeteredOnce,
+      ),
     ),
   ]) {
     test('explicit sync continues after the app is hidden: $name', () async {
@@ -300,7 +311,10 @@ void main() {
     api.albumDetails['a'] = album.copyWith(songs: [song1]);
 
     final first = await coordinator.requestSync(
-      const LibrarySyncRequest.repair(),
+      const LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
+      ),
     );
     expect(first.status, LibrarySyncStatus.partial);
     expect(first.onlyIncompleteAlbumDetails, isTrue);
@@ -1571,7 +1585,10 @@ void main() {
         'fixture offline',
       );
       final result = await coordinator.requestSync(
-        const LibrarySyncRequest.repair(),
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
       );
       expect(result.status, LibrarySyncStatus.failed);
       final work = await db.librarySyncDao.getWork(

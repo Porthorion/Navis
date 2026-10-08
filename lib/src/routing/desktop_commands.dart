@@ -48,6 +48,7 @@ class DesktopShortcutBinding {
   final bool alt;
   final bool shift;
 
+  @visibleForTesting
   ShortcutActivator toActivator(TargetPlatform platform) {
     final isApple = platform == TargetPlatform.macOS;
     return SingleActivator(

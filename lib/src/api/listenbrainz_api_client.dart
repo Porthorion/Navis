@@ -22,10 +22,6 @@ class ListenBrainzApiClient {
 
   final Dio _dio;
 
-  Future<bool> validateToken(String userToken) async {
-    return (await validateTokenDetails(userToken)).valid;
-  }
-
   /// Checks [userToken] with ListenBrainz.
   ///
   /// Pass [userInitiated] when the person asked for the check, such as the

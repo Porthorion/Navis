@@ -1217,6 +1217,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
   yield visible;
 }
 
+@visibleForTesting
 final listenBrainzDiscoverProvider =
     FutureProvider<List<ListenBrainzDiscoverPlaylist>>((ref) async {
       var latest = const <ListenBrainzDiscoverPlaylist>[];

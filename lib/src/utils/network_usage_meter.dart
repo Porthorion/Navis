@@ -26,20 +26,6 @@ enum NetworkUsageCategory {
   final String key;
 }
 
-class NetworkUsageSessionTotal {
-  const new({
-    required this.category,
-    required this.networkType,
-    required this.bytes,
-    required this.requestCount,
-  });
-
-  final String category;
-  final String networkType;
-  final int bytes;
-  final int requestCount;
-}
-
 class NetworkUsageMeter {
   new({
     required this._dao,
@@ -58,28 +44,12 @@ class NetworkUsageMeter {
   final NetworkUsageDao _dao;
   final NetworkType Function() _readNetworkType;
   final DateTime Function() _now;
-  final Map<String, ({int bytes, int requests})> _sessionTotals = {};
   final Map<
     ({String category, String? operation, String networkType}),
     ({int bytes, int requests})
   >
   _buffered = {};
   Timer? _flushTimer;
-
-  List<NetworkUsageSessionTotal> get sessionTotals {
-    return _sessionTotals.entries
-        .map((entry) {
-          final parts = entry.key.split('|');
-          return NetworkUsageSessionTotal(
-            category: parts.first,
-            networkType: parts.length > 1 ? parts[1] : NetworkType.other.name,
-            bytes: entry.value.bytes,
-            requestCount: entry.value.requests,
-          );
-        })
-        .toList(growable: false)
-      ..sort((a, b) => b.bytes.compareTo(a.bytes));
-  }
 
   void record({
     required NetworkUsageCategory category,
@@ -92,12 +62,6 @@ class NetworkUsageMeter {
       return;
     }
     final resolvedNetwork = networkType ?? _readNetworkType();
-    final key = '${category.key}|${resolvedNetwork.name}';
-    final existing = _sessionTotals[key] ?? (bytes: 0, requests: 0);
-    _sessionTotals[key] = (
-      bytes: existing.bytes + (bytes < 0 ? 0 : bytes),
-      requests: existing.requests + (requestCount < 1 ? 1 : requestCount),
-    );
     final bufferKey = (
       category: category.key,
       operation: operation,
@@ -151,7 +115,6 @@ class NetworkUsageMeter {
     _flushTimer?.cancel();
     _flushTimer = null;
     _buffered.clear();
-    _sessionTotals.clear();
     await _dao.clearAll();
   }
 }

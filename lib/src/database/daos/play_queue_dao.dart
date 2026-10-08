@@ -14,13 +14,6 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
 
   static const int primaryQueueId = 1;
 
-  Stream<PlayQueueTableData?> watchQueueState() {
-    final query = select(playQueueTable)
-      ..where((table) => table.id.equals(primaryQueueId))
-      ..limit(1);
-    return query.watchSingleOrNull();
-  }
-
   Future<PlayQueueTableData?> getQueueState() {
     final query = select(playQueueTable)
       ..where((table) => table.id.equals(primaryQueueId))

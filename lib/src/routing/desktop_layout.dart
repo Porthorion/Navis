@@ -369,23 +369,3 @@ AdaptiveContext resolveAdaptiveContextFor(
     safePadding: mediaQuery.padding,
   );
 }
-
-/// Returns the current [AdaptiveInputPolicy] from scope when available.
-///
-/// Falls back to policy resolution from [AdaptiveContext] when the scope is
-/// absent (for example in direct widget tests).
-AdaptiveInputPolicy resolveAdaptiveInputPolicyFor(
-  BuildContext context, {
-  bool? desktopRuntimeOverride,
-}) {
-  final scoped = AdaptiveInputPolicyScope.maybeOf(context);
-  if (scoped != null) {
-    return scoped;
-  }
-
-  final adaptiveContext = resolveAdaptiveContextFor(
-    context,
-    desktopRuntimeOverride: desktopRuntimeOverride,
-  );
-  return resolveAdaptiveInputPolicy(adaptiveContext: adaptiveContext);
-}

@@ -271,7 +271,7 @@ void main() {
     var callbackObservedProvisionalRow = false;
     final canonical = await database.libraryDao.getSongById('server-song');
 
-    final summary = await SongIdentityReconciler(
+    final session = await SongIdentityReconciler(
       database.songIdentityDao,
       onBeforeRemap: (aliases) async {
         expect(aliases, <String, String>{'remote-song': 'server-song'});
@@ -279,7 +279,10 @@ void main() {
             await database.libraryDao.getSongById('remote-song') != null;
       },
       readActiveSongId: () => 'remote-song',
-    ).reconcileCanonicalSongs(<SongsTableData>[canonical!]);
+    ).startSession();
+    await session.reconcile(<SongsTableData>[canonical!]);
+    await session.finalize();
+    final summary = session.summary;
 
     expect(callbackObservedProvisionalRow, isTrue);
     expect(summary.aliases, hasLength(1));
@@ -289,14 +292,13 @@ void main() {
   test('aborts identity deletion when playback handoff fails', () async {
     final canonical = await database.libraryDao.getSongById('server-song');
 
-    await expectLater(
-      SongIdentityReconciler(
-        database.songIdentityDao,
-        onBeforeRemap: (_) =>
-            Future<void>.error(StateError('playback handoff failed')),
-      ).reconcileCanonicalSongs(<SongsTableData>[canonical!]),
-      throwsStateError,
-    );
+    final session = await SongIdentityReconciler(
+      database.songIdentityDao,
+      onBeforeRemap: (_) =>
+          Future<void>.error(StateError('playback handoff failed')),
+    ).startSession();
+    await session.reconcile(<SongsTableData>[canonical!]);
+    await expectLater(session.finalize(), throwsStateError);
 
     expect(await database.libraryDao.getSongById('remote-song'), isNotNull);
     expect(await database.songIdentityDao.getAliases(), isEmpty);

@@ -44,38 +44,9 @@ class _FakeQueueController extends QueueController {
   List<String> build() => const <String>[];
 
   @override
-  Future<void> addWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    throw StateError('Same Vibes should use appendMixTracks');
-  }
-
-  @override
-  Future<void> playNextWithSongs(
-    List<Song> songs, {
-    bool expandMatchFlows = true,
-  }) async {
-    throw StateError('Same Vibes should not use playNext for recommendations');
-  }
-
-  @override
   Future<void> retainCurrentAsQueue(String id) async {
     retainedSongIds.add(id);
     onRetain?.call(id);
-  }
-
-  @override
-  Future<int> appendMixTracks(
-    List<Song> songs, {
-    bool expandMatchFlows = false,
-  }) async {
-    appendedSongBatches.add(List<Song>.from(songs));
-    final error = this.error;
-    if (error != null) {
-      throw error;
-    }
-    return insertedCount ?? songs.length;
   }
 
   @override
@@ -87,10 +58,12 @@ class _FakeQueueController extends QueueController {
     if (isCurrent != null && !isCurrent()) {
       return const RecommendationQueueResult(<String>[]);
     }
-    final count = await appendMixTracks(
-      songs,
-      expandMatchFlows: expandMatchFlows,
-    );
+    appendedSongBatches.add(List<Song>.from(songs));
+    final error = this.error;
+    if (error != null) {
+      throw error;
+    }
+    final count = insertedCount ?? songs.length;
     return RecommendationQueueResult(
       songs.take(count).map((song) => song.id).toList(),
     );

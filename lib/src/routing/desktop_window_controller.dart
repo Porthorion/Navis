@@ -280,7 +280,6 @@ class DesktopWindowController extends ChangeNotifier
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
   static const Size miniDefaultSize = kDesktopMiniPlayerDefaultSize;
-  static const Size miniMinSize = kDesktopMiniPlayerMinimumSize;
   static const Duration resizeSettleInterval = Duration(milliseconds: 400);
   static const Duration _persistDebounceInterval = Duration(milliseconds: 450);
 

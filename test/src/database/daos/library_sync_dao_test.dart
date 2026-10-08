@@ -352,7 +352,10 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test('preserves separate durable origins for repair and cache reset', () {
-    const repair = LibrarySyncRequest.repair();
+    const repair = LibrarySyncRequest(
+      origin: SyncRunOrigin.settingsRepair,
+      intent: SyncRunIntent.repairLibrary,
+    );
     const reset = LibrarySyncRequest.cacheReset();
 
     expect(repair.intent, SyncRunIntent.repairLibrary);
@@ -421,7 +424,9 @@ void main() {
   test(
     'terminal request completion is idempotent and omits dead request inputs',
     () async {
-      const request = LibrarySyncRequest.repair(
+      const request = LibrarySyncRequest(
+        origin: SyncRunOrigin.settingsRepair,
+        intent: SyncRunIntent.repairLibrary,
         grant: SyncNetworkGrant.broadMeteredOnce,
       );
       final queued = await database.librarySyncDao.enqueueSyncRun(

@@ -278,34 +278,4 @@ void main() {
     expect(resolved.desktopRuntime, isDesktopRuntime);
     expect(resolved.useDesktopShell, isTrue);
   });
-
-  testWidgets('resolveAdaptiveInputPolicyFor prefers scoped policy', (
-    tester,
-  ) async {
-    const scopedPolicy = AdaptiveInputPolicy(
-      enableDeterministicTraversal: true,
-      enableEscapeOverlayPriority: true,
-      enableDesktopPointerAffordances: true,
-      enableSecondaryClickMenus: true,
-      enableDesktopCommandShortcuts: true,
-    );
-    late AdaptiveInputPolicy resolved;
-    await tester.pumpWidget(
-      AdaptiveInputPolicyScope(
-        policy: scopedPolicy,
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: Builder(
-            builder: (context) {
-              resolved = resolveAdaptiveInputPolicyFor(context);
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      ),
-    );
-
-    expect(resolved.enableDesktopCommandShortcuts, isTrue);
-    expect(resolved.enableSecondaryClickMenus, isTrue);
-  });
 }
