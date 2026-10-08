@@ -19,6 +19,10 @@ supported platforms when your primary development machine is Linux.
 
 ---
 
+## Release checklist
+
+- A minor (or major) version bump resets every existing committed library on first launch; patch releases do not (legacy cache markers still renew once).
+
 ## Prerequisites
 
 ### 1. Flutter SDK

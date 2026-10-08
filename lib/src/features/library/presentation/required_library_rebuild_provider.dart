@@ -284,6 +284,7 @@ class RequiredLibraryRebuildController
         serverId: serverId,
         result: result,
         syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
+        cacheEpoch: await ref.read(libraryCacheEpochProvider.future),
       );
     }
     if (persisted.currentGeneration <= 0 ||

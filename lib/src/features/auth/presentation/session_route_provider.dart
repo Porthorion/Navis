@@ -65,13 +65,14 @@ bool isUsableIncompleteAlbumSyncRun(LibrarySyncState result) =>
     result.candidateGeneration == null &&
     result.candidateStatus == null;
 
-/// Records validated readiness and its sync model stamp in one transaction.
-/// A null model version leaves the installation stamp unchanged.
+/// Records validated readiness and its model/cache stamps in one transaction.
+/// Null versions leave their installation stamps unchanged.
 Future<bool> recordInitialCatalogReadiness({
   required NavisDatabase database,
   required int serverId,
   required LibrarySyncState result,
   String? syncModelVersion,
+  int? cacheEpoch,
 }) async {
   if (!isCompletedInitialSyncRun(result) &&
       !isUsableIncompleteAlbumSyncRun(result)) {
@@ -107,6 +108,9 @@ Future<bool> recordInitialCatalogReadiness({
     }
     if (syncModelVersion != null) {
       await database.appSettingsDao.setLastFullSyncAppBuild(syncModelVersion);
+    }
+    if (cacheEpoch != null) {
+      await database.cacheSystemStateDao.markVersion(cacheEpoch);
     }
     return true;
   });

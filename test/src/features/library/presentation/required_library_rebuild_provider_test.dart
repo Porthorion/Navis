@@ -210,6 +210,8 @@ ProviderContainer _setupContainer({
           clearCoverArt: () async {},
         ),
         triggerFullLibraryScan: () async => false,
+        currentEpoch: () async => 1004,
+        hasCommittedCatalog: () async => true,
       ),
     ),
   ],

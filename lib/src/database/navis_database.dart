@@ -258,7 +258,6 @@ class NavisDatabase extends _$NavisDatabase {
     await _ensureGroupListeningColumns();
     await _createIndexes();
     await _ensureAppSettingsDefaults();
-    await cacheSystemStateDao.markVersion(3);
   }
 
   Future<void> _resetPreReleaseDatabase(Migrator migrator) async {

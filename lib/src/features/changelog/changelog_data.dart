@@ -129,6 +129,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Library cache renewal runs automatically on major or minor app upgrades; patch releases keep the same cache epoch',
+      ),
+      ChangelogEntry(
         'Upgrading a pre-1.0 test installation starts with a fresh database and setup',
         type: ChangelogEntryType.improvement,
       ),

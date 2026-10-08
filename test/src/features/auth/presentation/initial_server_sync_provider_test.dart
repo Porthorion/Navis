@@ -205,6 +205,7 @@ void main() {
           serverId: server.id,
           result: completed,
           syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
         ),
         isFalse,
       );
@@ -212,6 +213,7 @@ void main() {
         await database.appSettingsDao.getLastFullSyncAppBuild(),
         'old-model',
       );
+      expect(await database.cacheSystemStateDao.getVersion(), isNull);
       await database.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
           serverId: Value(server.id),
@@ -237,6 +239,7 @@ void main() {
           serverId: server.id,
           result: completed,
           syncModelVersion: currentLibrarySyncModelVersion,
+          cacheEpoch: 1004,
         ),
         isTrue,
       );
@@ -244,6 +247,7 @@ void main() {
         await database.appSettingsDao.getLastFullSyncAppBuild(),
         currentLibrarySyncModelVersion,
       );
+      expect(await database.cacheSystemStateDao.getVersion(), 1004);
     },
     skip: !sqliteAvailable,
   );

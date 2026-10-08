@@ -942,10 +942,17 @@ the router: timestamp and catalog-state updates during ordinary sync may
 briefly re-evaluate session readiness, but they must preserve the current
 location.
 
-The cache-renewal gate observes a durable cache-system marker alongside the
-authentication phase. An authenticated profile with an older marker is routed
-to the mandatory full-screen cache rebuild before onboarding or the normal
-shell. It clears only recoverable library and rolling-cache data, preserves
+`CacheSystemUpgradeService` derives the cache epoch from `PackageInfo.version`
+as `major * 1000 + minor` (1.4.3 → 1004), ignoring patch and build numbers.
+The cache-renewal gate waits for package metadata and the durable cache-system
+marker alongside the authentication phase. A committed profile with any different
+epoch (including newer or legacy 0–3 markers) is routed to
+`/library-rebuild?reason=cache-upgrade` before onboarding or the normal shell.
+A never-synced profile adopts the epoch and continues initial setup, using the
+same usable-catalog evidence as initial-login routing. Validated initial
+catalog readiness stamps the epoch in its readiness transaction. Package-info
+errors are logged and skip renewal; unreadable stored markers keep it pending.
+The rebuild clears only recoverable library and rolling-cache data, preserves
 permanent downloads, performs a full catalog scan, and records the new marker
 only after that scan promotes successfully. A failed or cancelled rebuild, or
 an unreadable marker, keeps the renewal pending until it can be resolved.
@@ -3562,10 +3569,12 @@ contract.
    provisional metadata while preserving active partial files and recent
    unowned audio files
 9. Playback prefers permanent → rolling → stream
-10. A profile migrated before library-cache-system version 2 must clear recoverable
-   rolling cache and library metadata once before using the current contract.
-   The upgrade prompt can be dismissed, but returns on the next launch until a
-   successful reset and committed full catalog scan. **Repair Library** is the
+10. Every app major/minor version change renews committed library and recoverable
+   rolling-cache metadata through the mandatory full-screen rebuild. Patch
+   releases keep the same epoch; legacy cache markers also require renewal.
+   Fresh profiles without a committed catalog adopt the current epoch without
+   a reset, and first setup stamps it when catalog readiness is recorded.
+   **Repair Library** is the
    non-destructive server-catalog reconciliation: its candidate remains hidden
    until atomic promotion, and it preserves downloads, rolling cache, artwork,
    and the visible catalog until then. **Reset Caches & Rebuild Library** is

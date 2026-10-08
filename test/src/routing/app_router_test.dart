@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -162,16 +163,26 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
 
 const _testApp = NavisApp(splashFactory: NoSplash.splashFactory);
 
-ProviderContainer _createContainerWithDatabase({
+Future<ProviderContainer> _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
   bool initialSyncRequired = false,
+  String appVersion = '1.4.3',
   int onboardingVersion = currentOnboardingVersion,
-}) {
+}) async {
   final database = createTestDatabase();
+  await database.cacheSystemStateDao.markVersion(1004);
   final container = ProviderContainer(
     overrides: withTestDatabase(
       database,
       overrides: <Override>[
+        packageInfoProvider.overrideWith(
+          (ref) async => PackageInfo(
+            appName: 'Navis',
+            packageName: 'navis',
+            version: appVersion,
+            buildNumber: '10403',
+          ),
+        ),
         initialSyncRequiredProvider.overrideWithValue(
           AsyncData(initialSyncRequired),
         ),
@@ -201,7 +212,7 @@ void main() {
       testWidgets(
         'desktop album route fades without source Hero for $extra, reduced=$reduceMotion',
         (tester) async {
-          final container = _createContainerWithDatabase(
+          final container = await _createContainerWithDatabase(
             overrides: [
               serverConfigStateProvider.overrideWithValue(
                 const AsyncData(null),
@@ -328,7 +339,7 @@ void main() {
     }
   }
   testWidgets('redirects unauthenticated user to /login', (tester) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         librarySyncControllerProvider.overrideWith(
@@ -356,7 +367,7 @@ void main() {
   });
 
   testWidgets('stays on login while auth state is loading', (tester) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncLoading<ServerConfigModel?>(),
@@ -379,7 +390,7 @@ void main() {
   });
 
   testWidgets('shows home shell when authenticated', (tester) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -435,7 +446,7 @@ void main() {
   testWidgets('fresh authenticated profile stays on required library setup', (
     tester,
   ) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       initialSyncRequired: true,
       overrides: [
         serverConfigStateProvider.overrideWithValue(
@@ -486,67 +497,80 @@ void main() {
     expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
   });
 
-  testWidgets('cache renewal has priority over onboarding', (tester) async {
-    final container = _createContainerWithDatabase(
-      onboardingVersion: 0,
-      overrides: [
-        serverConfigStateProvider.overrideWithValue(
-          AsyncData(
-            ServerConfigModel(
-              id: 1,
-              url: 'https://example.com',
-              username: 'alice',
-              password: 'secret',
-              apiVersion: '1.16.1',
-              lastSynced: DateTime(2026, 8, 26),
+  testWidgets(
+    'older app cache epoch routes a committed profile to renewal before onboarding',
+    (tester) async {
+      final container = await _createContainerWithDatabase(
+        onboardingVersion: 0,
+        appVersion: '1.5.0',
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                id: 1,
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+                lastSynced: DateTime(2026, 8, 26),
+              ),
             ),
           ),
-        ),
-        cacheSystemUpgradeRequiredProvider.overrideWithValue(true),
-        requiredLibraryRebuildControllerProvider(
-          RequiredLibraryRebuildReason.cacheUpgrade,
-        ).overrideWith(_StaticCacheUpgradeRebuildController.new),
-        librarySyncControllerProvider.overrideWith(
-          _StaticLibrarySyncController.new,
-        ),
-        serverReachabilityControllerProvider.overrideWith(
-          () => _StaticReachabilityController(
-            const ServerReachabilityState(
-              status: ServerReachabilityStatus.online,
+          requiredLibraryRebuildControllerProvider(
+            RequiredLibraryRebuildReason.cacheUpgrade,
+          ).overrideWith(_StaticCacheUpgradeRebuildController.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: _testApp),
-    );
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
+      await tester.runAsync(() async {
+        await container
+            .read(navisDatabaseProvider)
+            .cacheSystemStateDao
+            .markVersion(1004);
+        expect(
+          await container.read(cacheSystemUpgradeNeededProvider.future),
+          isTrue,
+        );
+      });
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: _testApp),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
 
-    final router = container.read(appRouterProvider);
-    expect(router.state.matchedLocation, '/library-rebuild');
-    expect(
-      router.routeInformationProvider.value.uri.queryParameters['reason'],
-      'cache-upgrade',
-    );
-    expect(
-      router
-          .routeInformationProvider
-          .value
-          .uri
-          .queryParameters['homeWarmupEligible'],
-      '1',
-    );
-    expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
-  });
+      final router = container.read(appRouterProvider);
+      expect(router.state.matchedLocation, '/library-rebuild');
+      expect(
+        router.routeInformationProvider.value.uri.queryParameters['reason'],
+        'cache-upgrade',
+      );
+      expect(
+        router
+            .routeInformationProvider
+            .value
+            .uri
+            .queryParameters['homeWarmupEligible'],
+        '1',
+      );
+      expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
+    },
+  );
 
   testWidgets('initial library build has priority over onboarding', (
     tester,
   ) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       initialSyncRequired: true,
       onboardingVersion: 0,
       overrides: [
@@ -649,7 +673,7 @@ void main() {
   testWidgets('shows offline banner when reachability is offline', (
     tester,
   ) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -712,7 +736,7 @@ void main() {
       final reachability = _StaticReachabilityController(
         const ServerReachabilityState(status: ServerReachabilityStatus.offline),
       );
-      final container = _createContainerWithDatabase(
+      final container = await _createContainerWithDatabase(
         overrides: [
           desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
           serverConfigStateProvider.overrideWithValue(
@@ -808,7 +832,7 @@ void main() {
     final reachability = _StaticReachabilityController(
       const ServerReachabilityState(status: ServerReachabilityStatus.offline),
     );
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         desktopPresentationRuntimeProvider.overrideWithValue(false),
         serverConfigStateProvider.overrideWithValue(
@@ -879,7 +903,7 @@ void main() {
   });
 
   testWidgets('supports route params for detail pages', (tester) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -943,7 +967,7 @@ void main() {
     // hydrated and would show the first one's content.
     Future<GoRouter> openApp(WidgetTester tester) async {
       _RecordingLibrarySyncController.requests.clear();
-      final container = _createContainerWithDatabase(
+      final container = await _createContainerWithDatabase(
         overrides: [
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
@@ -1028,7 +1052,7 @@ void main() {
   testWidgets('retired Settings paths redirect to their new pages', (
     tester,
   ) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -1083,7 +1107,7 @@ void main() {
   testWidgets(
     'a library rebuild route without a known destructive reason opens Home',
     (tester) async {
-      final container = _createContainerWithDatabase(
+      final container = await _createContainerWithDatabase(
         overrides: [
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
@@ -1256,7 +1280,7 @@ void main() {
       password: 'secret',
       apiVersion: '1.16.1',
     );
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigProvider.overrideWith(
           () => _TestServerConfigNotifier(config),
@@ -1339,7 +1363,7 @@ void main() {
   testWidgets('every AppRoutes location resolves to a real route', (
     tester,
   ) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         librarySyncControllerProvider.overrideWith(
@@ -1384,7 +1408,7 @@ void main() {
   });
 
   testWidgets('contains all expected route paths', (tester) async {
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         librarySyncControllerProvider.overrideWith(
@@ -1443,7 +1467,7 @@ void main() {
   ) async {
     late _TestServerConfigNotifier notifier;
 
-    final container = _createContainerWithDatabase(
+    final container = await _createContainerWithDatabase(
       overrides: [
         serverConfigProvider.overrideWith(
           () => notifier = _TestServerConfigNotifier(

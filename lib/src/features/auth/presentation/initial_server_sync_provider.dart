@@ -6,6 +6,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -222,6 +223,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
           serverId: serverId,
           result: result,
           syncModelVersion: ref.read(requiredLibrarySyncModelVersionProvider),
+          cacheEpoch: await ref.read(libraryCacheEpochProvider.future),
         );
     if (!_isCurrent(runEpoch) ||
         state.status == InitialServerSyncStatus.cancelling) {
