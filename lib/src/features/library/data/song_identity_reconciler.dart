@@ -6,6 +6,12 @@ final _identityPunctuation = RegExp(
 );
 final _identityWhitespace = RegExp(r'\s+');
 
+/// Normalizes optional MusicBrainz identifiers across songs, albums and artists.
+String? normalizeMusicBrainzId(String? value) {
+  final normalized = value?.trim().toLowerCase();
+  return normalized == null || normalized.isEmpty ? null : normalized;
+}
+
 enum SongIdentityMatchReason { sameId, recordingMbid, exactMetadata }
 
 sealed class SongIdentityMatchResult {
@@ -93,10 +99,13 @@ class SongIdentityReconciler {
       );
     }
 
-    final canonicalMbid = _normalizeMbid(canonicalSong.recordingMbid);
+    final canonicalMbid = normalizeMusicBrainzId(canonicalSong.recordingMbid);
     if (canonicalMbid != null) {
       final mbidMatches = provisionalSongs
-          .where((song) => _normalizeMbid(song.recordingMbid) == canonicalMbid)
+          .where(
+            (song) =>
+                normalizeMusicBrainzId(song.recordingMbid) == canonicalMbid,
+          )
           .toList(growable: false);
       if (mbidMatches.length == 1) {
         return SongIdentityMatched(
@@ -190,16 +199,11 @@ class SongIdentityReconciler {
     );
   }
 
-  String? _normalizeMbid(String? value) {
-    final normalized = value?.trim().toLowerCase();
-    return normalized == null || normalized.isEmpty ? null : normalized;
-  }
-
   /// Two nonempty but different recording MBIDs are contradictory evidence:
   /// metadata similarity alone must never merge such rows automatically.
   bool _mbidsConflict(String? a, String? b) {
-    final left = _normalizeMbid(a);
-    final right = _normalizeMbid(b);
+    final left = normalizeMusicBrainzId(a);
+    final right = normalizeMusicBrainzId(b);
     return left != null && right != null && left != right;
   }
 
@@ -363,7 +367,7 @@ class _ProvisionalIdentityIndex {
   new(this._reconciler, Iterable<SongsTableData> songs) {
     for (final song in songs) {
       _remaining[song.id] = song;
-      final mbid = _reconciler._normalizeMbid(song.recordingMbid);
+      final mbid = normalizeMusicBrainzId(song.recordingMbid);
       if (mbid != null) {
         (_byMbid[mbid] ??= <SongsTableData>[]).add(song);
       }
@@ -391,7 +395,7 @@ class _ProvisionalIdentityIndex {
         reason: SongIdentityMatchReason.sameId,
       );
     }
-    final mbid = _reconciler._normalizeMbid(canonicalSong.recordingMbid);
+    final mbid = normalizeMusicBrainzId(canonicalSong.recordingMbid);
     if (mbid != null) {
       final matches = _active(_byMbid[mbid]);
       if (matches.length == 1) {

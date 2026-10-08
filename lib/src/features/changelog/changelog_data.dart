@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Album and artist identity recovery recognizes MusicBrainz IDs regardless of letter case',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Cancelling album or liked-item refreshes stops hydration reliably and clears loading status',
         type: ChangelogEntryType.fix,
       ),

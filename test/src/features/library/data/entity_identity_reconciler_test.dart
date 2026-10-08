@@ -147,6 +147,30 @@ void main() {
     ]);
   }
 
+  for (final artist in [false, true]) {
+    test(
+      '${artist ? 'artist' : 'album'} MBID matching ignores case and whitespace',
+      () async {
+        final serverId = await saveServer();
+        if (artist) {
+          await seedProvisionalArtist('old', artistMbid: '  ARTIST-MBID  ');
+          await seedCandidateArtist('new', artistMbid: 'artist-mbid');
+        } else {
+          await seedProvisionalAlbum('old', releaseMbid: '  RELEASE-MBID  ');
+          await seedCandidateAlbum('new', releaseMbid: 'release-mbid');
+        }
+        final summary = await EntityIdentityReconciler(database).reconcile(
+          serverId: serverId,
+          generation: 1,
+          songAliases: const [],
+          provisionalSongs: const [],
+        );
+        expect(artist ? summary.artistAliases : summary.albumAliases, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   test(
     'a unique release MBID on both sides remaps the album and moves its songs',
     () async {

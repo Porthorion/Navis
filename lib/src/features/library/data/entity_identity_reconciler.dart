@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 
 /// Outcome of album/artist identity reconciliation during promotion.
 class EntityIdentityReconciliationSummary {
@@ -264,7 +265,7 @@ class EntityIdentityReconciler {
   }) {
     final index = <String, Set<String>>{};
     for (final entry in candidatesById.entries) {
-      final value = candidateMbid(entry.value)?.trim();
+      final value = normalizeMusicBrainzId(candidateMbid(entry.value));
       if (value == null || value.isEmpty) {
         continue;
       }
@@ -282,7 +283,7 @@ class EntityIdentityReconciler {
     required String Function(C) candidateName,
   }) {
     // 1. Unique stable MusicBrainz identifier on both sides.
-    final normalizedMbid = oldMbid?.trim();
+    final normalizedMbid = normalizeMusicBrainzId(oldMbid);
     if (normalizedMbid != null && normalizedMbid.isNotEmpty) {
       final matchedIds = mbidIndex[normalizedMbid] ?? const <String>{};
       if (matchedIds.length == 1) {

@@ -3386,6 +3386,7 @@ contract.
   promotion transaction after rows are preserved and before stale-row
   deletion, and maps albums/artists only from a unique stable MBID on both
   sides or an unambiguous song-membership mapping with compatible metadata.
+  Song, album and artist MBIDs share whitespace trimming and case normalization.
   `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
   transfer star queue entries, absence evidence, and local mutations, merge
   favorites and ratings with local precedence, and record typed aliases.
