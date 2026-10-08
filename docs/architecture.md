@@ -634,8 +634,14 @@ target-selection rules.
     `flatBandSample` to 16-30 in dark themes or 82-92 in light ones, so a
     light cover never paints a bright block on a dark page) and the title, artist, meta
     and page-dot colours come from the same tint, all gliding together when
-    the cover changes. Elsewhere (desktop pager, tablet card) it is the
-    adapted average of the cover colour field at `1 - artWashVeil` over the
+    the cover changes. On desktop the pager is the same band as one rounded
+    (`NavisRadius.xl`) solid panel (`_ShowcaseFlatBand` with `borderRadius`)
+    flush with the section's content column and wrapping the cover, track
+    list and thumbnail strip with `NavisSpace.md` padding on every side; the
+    pages draw no card of their own inside it and its content is re-themed
+    from the same tint (`_flatPanelTheme`), so text, icons and Play/Shuffle
+    keep at least 4.5 contrast. The tablet card keeps the adapted average of
+    the cover colour field at `1 - artWashVeil` over the
     page background; art-tinted Now Playing is one solid colour (adapted tint
     at `nowPlayingTintAlpha` over `surface`, see
     `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is

@@ -13,7 +13,9 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -39,6 +41,7 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
+import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
@@ -2042,6 +2045,262 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('Flat desktop You Might Like panel', () {
+    const bandKey = ValueKey<String>('home-showcase-flat-band');
+    const albums = <HomeRandomShowcaseItem>[
+      HomeRandomShowcaseAlbum(
+        id: 'flat-a',
+        name: 'Flat Album A',
+        artist: 'Artist A',
+        coverArtId: 'cover-flat-a',
+        source: HomeRandomShowcaseSource.serverRandom,
+      ),
+      HomeRandomShowcaseAlbum(
+        id: 'flat-b',
+        name: 'Flat Album B',
+        artist: 'Artist B',
+        coverArtId: 'cover-flat-b',
+        source: HomeRandomShowcaseSource.serverRandom,
+      ),
+    ];
+
+    List<Override> overridesFor() => <Override>[
+      coverColourFieldProvider.overrideWith(
+        (ref, id) async =>
+            CoverColourField(List<Color>.filled(9, const Color(0xFFD32F2F))),
+      ),
+      albumProvider.overrideWith(
+        (ref, albumId) => Stream.value(
+          _albumWithSongs(albumId, 'Album', <SongsTableData>[
+            for (var i = 1; i <= 4; i++)
+              _songRow(
+                id: '$albumId-song-$i',
+                title: 'Flat Song $i',
+                albumId: albumId,
+                discNumber: 1,
+                track: i,
+              ),
+          ]),
+        ),
+      ),
+      songByIdProvider.overrideWith((ref, songId) => Stream.value(null)),
+      songStarredProvider.overrideWith((ref, songId) => Stream.value(false)),
+    ];
+
+    Color? textColour(WidgetTester tester, String text) =>
+        tester.renderObject<RenderParagraph>(find.text(text)).text.style?.color;
+
+    for (final dark in <bool>[true, false]) {
+      for (final style in <NavisColorStyle>[
+        NavisColorStyle.neutral,
+        NavisColorStyle.pastel,
+      ]) {
+        testWidgets('album page sits inside one solid panel '
+            '(${dark ? 'dark' : 'light'} ${style.name})', (tester) async {
+          setAdaptiveTestViewport(tester, const Size(1366, 900));
+          final theme = dark
+              ? buildDarkTheme(
+                  const Color(0xFF009688),
+                  style: style,
+                  flat: true,
+                )
+              : buildLightTheme(
+                  const Color(0xFF009688),
+                  style: style,
+                  flat: true,
+                );
+          await _pumpRandomSectionHome(
+            tester,
+            database: database,
+            baseTheme: theme,
+            randomAlbums: albums,
+            overrides: overridesFor(),
+          );
+          final panel = find.byKey(bandKey);
+          expect(panel, findsOneWidget);
+          final panelRect = tester.getRect(panel);
+          final coverRect = tester.getRect(
+            find.byKey(const ValueKey('album:flat-a')),
+          );
+          final stripRect = tester.getRect(
+            find.byKey(const ValueKey('home-random-desktop-mini-cover-0')),
+          );
+          final listRect = tester.getRect(
+            find.byKey(const ValueKey('home-random-desktop-song-list-flat-a')),
+          );
+          // Even NavisSpace.md padding around the cover, list and strip.
+          expect(coverRect.left - panelRect.left, NavisSpace.md);
+          expect(coverRect.top - panelRect.top, NavisSpace.md);
+          expect(panelRect.right - listRect.right, NavisSpace.md);
+          expect(
+            panelRect.bottom - stripRect.bottom,
+            greaterThanOrEqualTo(NavisSpace.md),
+          );
+          expect(panelRect.contains(coverRect.topLeft), isTrue);
+          expect(panelRect.contains(coverRect.bottomRight), isTrue);
+          expect(panelRect.contains(stripRect.bottomRight), isTrue);
+          expect(panelRect.contains(listRect.bottomRight), isTrue);
+          // Flush with the section's content column (heading's left edge).
+          expect(
+            panelRect.left,
+            tester.getTopLeft(find.byType(NavisSectionHeader)).dx,
+          );
+          // No bordered tracklist surface inside the panel.
+          expect(
+            find.descendant(
+              of: panel,
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is DecoratedBox &&
+                    w.decoration is BoxDecoration &&
+                    (w.decoration as BoxDecoration).border != null &&
+                    (w.decoration as BoxDecoration).borderRadius ==
+                        NavisRadius.xlAll,
+              ),
+            ),
+            findsNothing,
+          );
+          // Text on the panel stays readable.
+          final fill = tester.widget<ColoredBox>(panel).color;
+          for (final label in <String>['Flat Song 1']) {
+            final colour = textColour(tester, label)!;
+            expect(
+              captionContrast(colour, fill),
+              greaterThanOrEqualTo(kCaptionMinContrast),
+              reason: label,
+            );
+          }
+          if (!dark || style != NavisColorStyle.neutral) {
+            return;
+          }
+          // Neutral Dark never shows a light panel.
+          expect(HSLColor.fromColor(fill).lightness, lessThan(0.5));
+        });
+      }
+    }
+
+    testWidgets('playlist page sits inside the panel with no inner surface', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        baseTheme: buildDarkTheme(
+          const Color(0xFF009688),
+          style: NavisColorStyle.pastel,
+          flat: true,
+        ),
+        overrides: overridesFor(),
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz.loading(
+            sourcePatch: 'weekly-exploration',
+            displayTitle: 'Weekly Exploration',
+          ),
+          HomeRandomShowcaseListenBrainz.loading(
+            sourcePatch: 'weekly-jams',
+            displayTitle: 'Weekly Jams',
+          ),
+        ],
+        settle: false,
+      );
+      final panel = find.byKey(bandKey);
+      expect(panel, findsOneWidget);
+      final panelRect = tester.getRect(panel);
+      final pageRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-random-desktop-pageview')),
+      );
+      final stripRect = tester.getRect(
+        find.byKey(const ValueKey('home-random-desktop-mini-cover-0')),
+      );
+      expect(pageRect.left - panelRect.left, NavisSpace.md);
+      expect(panelRect.right - pageRect.right, NavisSpace.md);
+      expect(panelRect.contains(stripRect.bottomRight), isTrue);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).border != null &&
+                (w.decoration as BoxDecoration).borderRadius ==
+                    NavisRadius.xlAll,
+          ),
+        ),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('non-Flat desktop keeps the mesh wash and bordered card', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: albums,
+        overrides: overridesFor(),
+      );
+      expect(find.byKey(bandKey), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('home-showcase-wash')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).border != null &&
+                (w.decoration as BoxDecoration).borderRadius ==
+                    NavisRadius.xlAll,
+          ),
+        ),
+        findsWidgets,
+      );
+    });
+  });
+
+  testWidgets(
+    'phone Home header is compact; tablet portrait keeps the old one',
+    (tester) async {
+      const header = ValueKey<String>('homeCenteredLogoHeader');
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await _pumpHomeWithAppSettings(tester, database: database);
+      // 32 top + 84 logo + 8 bottom (was 48 + 96 + 14).
+      expect(tester.getSize(find.byKey(header)).height, 124);
+      final logoRect = tester.getRect(
+        find.byKey(const ValueKey<String>('home-sync-logo')),
+      );
+      expect(logoRect.height, 84);
+      final actionRow = find.byKey(
+        const ValueKey<String>('homeMobileActionRow'),
+      );
+      expect(
+        tester.getTopLeft(actionRow).dy,
+        tester.getRect(find.byKey(header)).bottom,
+      );
+      // Filter buttons keep a 48 px tap target.
+      expect(
+        tester
+            .getSize(
+              find.widgetWithIcon(IconButton, Icons.favorite_border_rounded),
+            )
+            .height,
+        greaterThanOrEqualTo(40),
+      );
+
+      tester.view.physicalSize = const Size(700, 1000);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(header)).height, 158);
+    },
+  );
 
   testWidgets('You Might Like fits a landscape phone without overflow', (
     tester,

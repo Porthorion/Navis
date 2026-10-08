@@ -138,6 +138,9 @@ const List<ChangelogVersion> changelogs = [
         'Appearance has a Color Style setting: Pastel, Immersive and Night restyle Light, Dark and OLED, and Neutral keeps the current look',
       ),
       ChangelogEntry(
+        'Home on phones has a slimmer header, so more of You Might Like fits on screen',
+      ),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),

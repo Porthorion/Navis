@@ -1136,6 +1136,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
+    // Phones get a tighter header (about 40 px less than tablets) so more of
+    // You Might Like is visible; tablet portrait keeps the roomier one.
+    final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;
     final useCustomHomePullRefresh = !desktopMode;
     final homeDensity = ref.watch(homeDensityProvider);
     final persistedOrder = ref.watch(homeSectionOrderProvider);
@@ -1213,10 +1216,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         else ...<Widget>[
           Padding(
             key: const ValueKey<String>('homeCenteredLogoHeader'),
-            padding: const EdgeInsets.fromLTRB(0, 48, 0, 14),
+            padding: phoneHeader
+                ? const EdgeInsets.fromLTRB(0, 32, 0, 8)
+                : const EdgeInsets.fromLTRB(0, 48, 0, 14),
             child: Center(
               child: _HomeSyncLogo(
-                size: 96,
+                size: phoneHeader ? 84 : 96,
                 pullProgress: useCustomHomePullRefresh ? _homePullProgress : 0,
                 showImmediateRefreshRing:
                     useCustomHomePullRefresh &&
@@ -1226,7 +1231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
-          const SizedBox(height: 10),
+          SizedBox(height: phoneHeader ? 4 : 10),
         ],
         // The one-time Integrations notice takes the What's New row's place
         // while it shows, so the two never stack.
@@ -2414,6 +2419,7 @@ class _DesktopRandomAlbumsPagerState
 
     final currentItem =
         _displayedAlbums[_currentPage.clamp(0, _displayedAlbums.length - 1)];
+    final flat = NavisColorStyleData.of(context).flat;
     final pager = Column(
       key: const ValueKey<String>('home-random-desktop-pager'),
       children: <Widget>[
@@ -2451,7 +2457,9 @@ class _DesktopRandomAlbumsPagerState
                       },
                       itemBuilder: (context, index) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: flat ? 0 : 2,
+                          ),
                           child: KeyedSubtree(
                             key: ValueKey<String>(
                               _displayedAlbums[index].stableId,
@@ -2516,6 +2524,23 @@ class _DesktopRandomAlbumsPagerState
         ],
       ],
     );
+    // Flat: one rounded solid panel, flush with the section's content column
+    // (the heading's left edge), that contains the cover, the track list and
+    // the thumbnail strip with even NavisSpace.md padding. The pages draw no
+    // surface of their own inside it and read their colours from the panel.
+    if (NavisColorStyleData.of(context).flat) {
+      return _ShowcaseFlatBand(
+        coverArtId: _showcaseWashCoverId(currentItem),
+        borderRadius: NavisRadius.xlAll,
+        builder: (context, tint) => Theme(
+          data: _flatPanelTheme(Theme.of(context), tint),
+          child: Padding(
+            padding: const EdgeInsets.all(NavisSpace.md),
+            child: pager,
+          ),
+        ),
+      );
+    }
     return Stack(
       children: <Widget>[
         Positioned.fill(
@@ -2546,6 +2571,7 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
 
   Widget _albumPage(BuildContext context, HomeRandomShowcaseAlbum album) {
     final colors = Theme.of(context).colorScheme;
+    final flat = NavisColorStyleData.of(context).flat;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -2563,24 +2589,14 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
                 heroContext: heroContext,
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: flat ? NavisSpace.md : 8),
             Expanded(
               child: SizedBox(
                 height: pageHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLowest.withValues(
-                      alpha: 0.28,
-                    ),
-                    borderRadius: NavisRadius.xlAll,
-                    border: Border.all(
-                      color: colors.outlineVariant.withValues(alpha: 0.34),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: _DesktopRandomAlbumSongList(album: album),
-                  ),
+                child: _desktopPageSurface(
+                  flat: flat,
+                  colors: colors,
+                  child: _DesktopRandomAlbumSongList(album: album),
                 ),
               ),
             ),
@@ -2589,6 +2605,28 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
       },
     );
   }
+}
+
+/// The track-list surface beside a desktop hero cover: the translucent bordered
+/// card normally; under Flat nothing, because the pager's solid panel is the
+/// only surface and the list sits directly on it.
+Widget _desktopPageSurface({
+  required bool flat,
+  required ColorScheme colors,
+  required Widget child,
+}) {
+  if (flat) return child;
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      color: colors.surfaceContainerLowest.withValues(alpha: 0.28),
+      borderRadius: NavisRadius.xlAll,
+      border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.34)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: child,
+    ),
+  );
 }
 
 class _DesktopRandomAlbumVisual extends ConsumerWidget {
@@ -2629,7 +2667,9 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
           anchor: details.globalPosition,
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
+          padding: NavisColorStyleData.of(context).flat
+              ? EdgeInsets.zero
+              : const EdgeInsets.fromLTRB(2, 4, 2, 4),
           child: SizedBox.expand(
             child: Card(
               margin: EdgeInsets.zero,
@@ -2733,6 +2773,7 @@ class _DesktopPlaylistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final flat = NavisColorStyleData.of(context).flat;
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageHeight = constraints.maxHeight.isFinite
@@ -2747,35 +2788,25 @@ class _DesktopPlaylistPage extends ConsumerWidget {
               height: pageHeight,
               child: _ShowcasePlaylistVisual(item: item),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: flat ? NavisSpace.md : 8),
             Expanded(
               child: SizedBox(
                 height: pageHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLowest
-                        .withValues(alpha: 0.28),
-                    borderRadius: NavisRadius.xlAll,
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant
-                          .withValues(alpha: 0.34),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: switch (item) {
-                      final HomeRandomShowcaseListenBrainz item =>
-                        _DesktopListenBrainzSongList(
-                          key: ValueKey<String>(item.stableId),
-                          item: item,
-                        ),
-                      final HomeRandomShowcaseTrending item =>
-                        _DesktopTrendingSongList(
-                          key: ValueKey<String>(item.stableId),
-                          item: item,
-                        ),
-                    },
-                  ),
+                child: _desktopPageSurface(
+                  flat: flat,
+                  colors: Theme.of(context).colorScheme,
+                  child: switch (item) {
+                    final HomeRandomShowcaseListenBrainz item =>
+                      _DesktopListenBrainzSongList(
+                        key: ValueKey<String>(item.stableId),
+                        item: item,
+                      ),
+                    final HomeRandomShowcaseTrending item =>
+                      _DesktopTrendingSongList(
+                        key: ValueKey<String>(item.stableId),
+                        item: item,
+                      ),
+                  },
                 ),
               ),
             ),
