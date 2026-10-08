@@ -51,9 +51,15 @@ void main() {
   }) {
     return LibrarySyncPlannerContext(
       request: request,
-      networkType: networkType,
-      restrictsBackgroundSync:
-          restrictsBackgroundSync ?? networkType == NetworkType.cellular,
+      networkPolicy: SyncNetworkPolicy(
+        networkType: networkType,
+        isMetered:
+            restrictsBackgroundSync ?? networkType == NetworkType.cellular,
+        allowsBackgroundSync:
+            !(restrictsBackgroundSync ?? networkType == NetworkType.cellular),
+        allowsHardProbe: networkType != NetworkType.offline,
+        allowsInteractiveHydration: networkType != NetworkType.offline,
+      ),
       hasAuthoritativeBaseline: baseline,
       isCatalogCheckDue: due,
       pendingHydrationCount: pendingHydration,

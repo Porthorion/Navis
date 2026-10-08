@@ -1,4 +1,5 @@
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 /// Consecutive newest-feed checks that hit their page cap without reaching
 /// known content (discovery debt) after which the coordinator escalates deep
@@ -269,4 +270,42 @@ SyncExecutionPlanKind syncExecutionPlanKindFromLegacy(
     LibrarySyncPlanKind.compatibilityAudit =>
       SyncExecutionPlanKind.compatibilityAudit,
   };
+}
+
+/// Admission shared by planning, durable work selection and live execution.
+/// A metered grant changes network permission, never playback or visibility
+/// permission. Full repairs require a fresh explicit repair action.
+bool librarySyncWorkAllowed({
+  required LibrarySyncPlanKind kind,
+  required String workClass,
+  required LibrarySyncIntent intent,
+  required LibrarySyncTrigger trigger,
+  required SyncNetworkPolicy policy,
+  required bool isForeground,
+  required bool hasActivePlayback,
+  required bool isBackgroundExecutor,
+  required SyncNetworkGrant networkGrant,
+  LibrarySyncTargetKind targetKind = LibrarySyncTargetKind.catalog,
+}) {
+  if (policy.isOffline) return false;
+  if (kind == LibrarySyncPlanKind.fullRepair &&
+      intent != LibrarySyncIntent.repair) {
+    return false;
+  }
+  if (kind == LibrarySyncPlanKind.probe) return policy.allowsHardProbe;
+  final interactive =
+      kind == LibrarySyncPlanKind.targetedHydration &&
+      (workClass == 'interactive' ||
+          (targetKind.requiresEntityId &&
+              trigger == LibrarySyncTrigger.interaction));
+  if (interactive) return policy.allowsInteractiveHydration;
+  if (!isForeground && !isBackgroundExecutor) return false;
+  if (intent == LibrarySyncIntent.automatic && hasActivePlayback) return false;
+  if (networkGrant == SyncNetworkGrant.broadMeteredOnce) return true;
+  if (policy.isMetered) {
+    return kind == LibrarySyncPlanKind.deltaReconcile &&
+        intent == LibrarySyncIntent.checkForUpdates &&
+        networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
+  }
+  return policy.allowsBackgroundSync;
 }

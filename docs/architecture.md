@@ -3049,17 +3049,22 @@ states without starting audio or modifying a queue.
    requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
    domains remain independent. The coordinator removes that namespace before
-   passing an entity ID to a hydrator or server endpoint. Automatic broad work
-   defers while Navis is backgrounded or playing; an explicit user refresh may
-   resume queued broad work in the foreground, including during playback.
+   passing an entity ID to a hydrator or server endpoint. Sync work
+   uses one pure `librarySyncWorkAllowed` gate at planning, work selection,
+   admission, and live request boundaries. Automatic broad work defers while
+   Navis is backgrounded or playing, including previously queued manual
+   discovery. The constrained Android background executor may run while hidden
+   when playback is idle. An explicit user refresh may resume queued broad
+   work in the foreground, including during playback. Metered grants never
+   bypass visibility or automatic-playback gates.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
    one terminal result, so setup, startup, user, and reconnect callers cannot
    mistake an in-flight state for a failed sync. Pending durable work resumes
    only through the configured automatic interval or an explicit action; there
    is no short continuation timer. A queued full repair is the exception: it
    remains resumable but dormant until an explicit Repair Library action, never
-   a startup, reconnect, resume, or periodic pass. Resume re-arms the periodic
-   timer and submits at most its one staleness check; it never also schedules a
+   a startup, reconnect, resume, periodic pass, or Check for updates. Resume
+   re-arms the periodic timer and submits at most its one staleness check; it never also schedules a
    startup pass. A startup or
    periodic caller also treats a not-yet-constructed credential-backed engine
    as pending rather than failure, then restarts its startup pass once the

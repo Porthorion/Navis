@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Automatic checks leave queued discovery paused during playback, and Check for updates keeps queued repairs waiting for Repair Library',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Liked items and playlist updates wait for network policy or mobile-data limits without reporting a sync failure',
         type: ChangelogEntryType.fix,
       ),

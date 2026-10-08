@@ -495,10 +495,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         _planner.plan(
           LibrarySyncPlannerContext(
             request: request,
-            networkType: policy.networkType,
-            restrictsBackgroundSync:
-                !policy.allowsBackgroundSync &&
-                !request.allowMeteredBroadOverride,
+            networkPolicy: policy,
             hasAuthoritativeBaseline:
                 persisted.currentGeneration > 0 || config.lastSynced != null,
             isCatalogCheckDue: isDue,
@@ -533,7 +530,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             caller: resumedRequest.caller,
           );
     final targetWorkKey = librarySyncTargetWorkKey(effectiveTarget);
-    final workClass = _workClassFor(request, plan);
+    final workClass =
+        resumedWork?.workClass ?? _workClassFor(effectiveRequest, plan);
     final typedPlan = _typedPlanFor(
       request: syncRunRequestFromLegacy(effectiveRequest),
       plan: plan,
@@ -636,7 +634,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
-    if (!_workAllowed(workClass, policy, request, planKind: plan.kind)) {
+    if (!_workAllowed(
+      workClass,
+      policy,
+      effectiveRequest,
+      planKind: plan.kind,
+    )) {
       final state = LibrarySyncState(
         status: LibrarySyncStatus.deferred,
         stage: LibrarySyncStage.completed,
@@ -821,17 +824,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             maxConcurrency: typedPlan.budget.maxConcurrency,
             maxDuration: typedPlan.budget.maxDuration,
             now: _now,
-            canRequest: () =>
-                _workAllowed(
-                  workClass,
-                  _syncPolicy,
-                  request,
-                  planKind: plan.kind,
-                ) &&
-                (request.intent != LibrarySyncIntent.automatic ||
-                    plan.kind == LibrarySyncPlanKind.probe ||
-                    ((!_readHasActivePlayback()) &&
-                        (_isBackgroundExecution || _readIsForeground()))),
+            canRequest: () => _workAllowed(
+              workClass,
+              _syncPolicy,
+              request,
+              planKind: plan.kind,
+            ),
             onStop: driftExecutor?.cancelSync,
           );
           final recorder = SyncAttemptRecorder(
@@ -1709,27 +1707,19 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     String workClass,
     SyncNetworkPolicy policy,
     LibrarySyncRequest request, {
-    LibrarySyncPlanKind? planKind,
-  }) {
-    if (policy.isOffline) {
-      return false;
-    }
-    if (request.allowMeteredBroadOverride) {
-      return true;
-    }
-    if (planKind == LibrarySyncPlanKind.deltaReconcile &&
-        request.allowMeteredLimitedDiscovery &&
-        policy.isMetered) {
-      return true;
-    }
-    if (planKind == LibrarySyncPlanKind.probe) {
-      return policy.allowsHardProbe;
-    }
-    if (workClass == 'interactive') {
-      return policy.allowsInteractiveHydration;
-    }
-    return policy.allowsBackgroundSync;
-  }
+    required LibrarySyncPlanKind planKind,
+  }) => librarySyncWorkAllowed(
+    kind: planKind,
+    workClass: workClass,
+    intent: request.intent,
+    trigger: request.trigger,
+    targetKind: request.target.kind,
+    policy: policy,
+    isForeground: _readIsForeground(),
+    hasActivePlayback: _readHasActivePlayback(),
+    isBackgroundExecutor: _isBackgroundExecution,
+    networkGrant: syncRunRequestFromLegacy(request).networkGrant,
+  );
 
   LibrarySyncWorkTableData? _firstAllowedWork(
     List<LibrarySyncWorkTableData> runnable,
@@ -1751,27 +1741,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   planKind == LibrarySyncPlanKind.probe))) {
         continue;
       }
-      if (planKind == LibrarySyncPlanKind.fullRepair &&
-          request.intent == LibrarySyncIntent.automatic) {
-        // Repair is an explicit, potentially expensive and destructive
-        // operation. A queued or interrupted user repair stays resumable, but
-        // opening the app or reaching the periodic interval must never restart
-        // it without a new Repair Library action.
-        continue;
-      }
-      if (planKind == LibrarySyncPlanKind.probe) {
-        if (policy.allowsHardProbe) {
-          return work;
-        }
-        continue;
-      }
-      if (work.workClass == 'interactive') {
-        if (policy.allowsInteractiveHydration) {
-          return work;
-        }
-        continue;
-      }
-      if (policy.allowsBackgroundSync) {
+      if (_workAllowed(work.workClass, policy, request, planKind: planKind)) {
         return work;
       }
     }
@@ -1804,23 +1774,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       return null;
     }
     final kind = kinds.first;
-    final isBroad =
-        kind == LibrarySyncPlanKind.catalogSnapshot ||
-        kind == LibrarySyncPlanKind.compatibilityAudit ||
-        kind == LibrarySyncPlanKind.deltaReconcile ||
-        kind == LibrarySyncPlanKind.fullRepair;
-    final isProbe = kind == LibrarySyncPlanKind.probe;
-    final interactive = work.workClass == 'interactive';
-    final mustDefer =
-        policy.isOffline ||
-        (isProbe && !policy.allowsHardProbe) ||
-        (interactive && !policy.allowsInteractiveHydration) ||
-        (!interactive && !isProbe && !policy.allowsBackgroundSync) ||
-        (isBroad &&
-            policy.allowsBackgroundSync &&
-            request.intent == LibrarySyncIntent.automatic &&
-            ((!_readIsForeground() && !_isBackgroundExecution) ||
-                _readHasActivePlayback()));
+    final mustDefer = !_workAllowed(
+      work.workClass,
+      policy,
+      request,
+      planKind: kind,
+    );
     return LibrarySyncPlan(
       kind: kind,
       reason: 'resume${kind.name[0].toUpperCase()}${kind.name.substring(1)}',

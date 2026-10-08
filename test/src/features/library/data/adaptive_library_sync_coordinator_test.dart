@@ -833,7 +833,10 @@ void main() {
         readIsForeground: () => true,
         now: () => DateTime.utc(2026, 8, 4),
       );
-      final resumed = await onlineCoordinator.syncIfStale();
+      final automatic = await onlineCoordinator.syncIfStale();
+      expect(automatic.status, LibrarySyncStatus.deferred);
+      expect(probeEngine.syncNowCalls, 0);
+      final resumed = await onlineCoordinator.syncNow();
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(resumed.planKind, LibrarySyncPlanKind.deltaReconcile);
@@ -999,6 +1002,40 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test('manual discovery leaves a queued full repair dormant', () async {
+    await database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        currentGeneration: Value(1),
+      ),
+    );
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: LibrarySyncPlanKind.fullRepair.name,
+      priority: 80,
+    );
+    final probeEngine = _ProbeLibrarySyncEngine();
+    final guarded = AdaptiveLibrarySyncCoordinator(
+      executor: probeEngine,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.wifi,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+      now: () => DateTime.utc(2026, 8, 4),
+    );
+    final result = await guarded.syncNow();
+    expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+    expect(probeEngine.forceFullSyncCalls, 0);
+    expect(
+      (await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.fullRepair.name,
+      ))?.status,
+      'queued',
+    );
+  }, skip: !sqliteAvailable);
 
   test('interactive album hydration is allowed on metered networks', () async {
     final probeEngine = _ProbeLibrarySyncEngine();

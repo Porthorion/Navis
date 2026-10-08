@@ -1,4 +1,5 @@
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 enum SyncCapabilityMode { unknown, reliable, unsupported }
@@ -6,8 +7,7 @@ enum SyncCapabilityMode { unknown, reliable, unsupported }
 class LibrarySyncPlannerContext {
   const new({
     required this.request,
-    required this.networkType,
-    required this.restrictsBackgroundSync,
+    required this.networkPolicy,
     required this.hasAuthoritativeBaseline,
     required this.isCatalogCheckDue,
     required this.pendingHydrationCount,
@@ -24,8 +24,7 @@ class LibrarySyncPlannerContext {
   });
 
   final LibrarySyncRequest request;
-  final NetworkType networkType;
-  final bool restrictsBackgroundSync;
+  final SyncNetworkPolicy networkPolicy;
   final bool hasAuthoritativeBaseline;
   final bool isCatalogCheckDue;
   final int pendingHydrationCount;
@@ -48,13 +47,45 @@ class LibrarySyncPlanner {
   const new();
 
   LibrarySyncPlan plan(LibrarySyncPlannerContext context) {
+    final plan = _plan(context);
+    final request = context.request;
+    if (!plan.shouldExecute ||
+        librarySyncWorkAllowed(
+          kind: plan.kind,
+          workClass: 'background',
+          intent: request.intent,
+          trigger: request.trigger,
+          targetKind: request.target.kind,
+          policy: context.networkPolicy,
+          isForeground: context.isForeground,
+          hasActivePlayback: context.hasActivePlayback,
+          isBackgroundExecutor: context.isBackgroundExecutor,
+          networkGrant: syncRunRequestFromLegacy(request).networkGrant,
+        )) {
+      return plan;
+    }
+    final suffix = request.target.kind != LibrarySyncTargetKind.catalog
+        ? context.networkPolicy.isOffline
+              ? 'Offline'
+              : context.networkPolicy.isMetered
+              ? 'MeteredDeferred'
+              : 'Deferred'
+        : 'Deferred';
+    return LibrarySyncPlan(
+      kind: plan.kind,
+      reason: '${plan.reason}$suffix',
+      shouldExecute: false,
+      deferred: true,
+    );
+  }
+
+  LibrarySyncPlan _plan(LibrarySyncPlannerContext context) {
     final request = context.request;
     final target = request.target;
     if (target.kind != LibrarySyncTargetKind.catalog) {
       final isAuxiliaryTarget =
           target.kind == LibrarySyncTargetKind.starred ||
           target.kind == LibrarySyncTargetKind.playlistHeaders;
-      final isInteractiveEntity = target.kind.requiresEntityId;
       if (request.intent == LibrarySyncIntent.automatic &&
           isAuxiliaryTarget &&
           !context.auxiliaryDue) {
@@ -64,24 +95,6 @@ class LibrarySyncPlanner {
           shouldExecute: false,
         );
       }
-      if (context.networkType == NetworkType.offline) {
-        return LibrarySyncPlan(
-          kind: LibrarySyncPlanKind.targetedHydration,
-          reason: 'targeted${target.kind.name}Offline',
-          shouldExecute: false,
-          deferred: true,
-        );
-      }
-      if (context.restrictsBackgroundSync &&
-          (!isInteractiveEntity ||
-              request.trigger != LibrarySyncTrigger.interaction)) {
-        return LibrarySyncPlan(
-          kind: LibrarySyncPlanKind.targetedHydration,
-          reason: 'targeted${target.kind.name}MeteredDeferred',
-          shouldExecute: false,
-          deferred: true,
-        );
-      }
       return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.targetedHydration,
         reason: 'targeted${target.kind.name}',
@@ -89,24 +102,21 @@ class LibrarySyncPlanner {
     }
 
     if (request.intent == LibrarySyncIntent.repair) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.fullRepair,
         reason: 'userRequestedRepair',
       );
     }
 
     if (!context.hasAuthoritativeBaseline) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.catalogSnapshot,
         reason: 'initialCatalog',
       );
     }
 
     if (context.repairRequired) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.fullRepair,
         reason: 'catalogInvariantRepair',
       );
@@ -121,7 +131,7 @@ class LibrarySyncPlanner {
       // probe would lose the newest-album check when the queued work resumes:
       // an unchanged getIndexes cursor cannot prove that an existing artist
       // has not received a new album.
-      if (context.networkType == NetworkType.offline) {
+      if (context.networkPolicy.isOffline) {
         return const LibrarySyncPlan(
           kind: LibrarySyncPlanKind.deltaReconcile,
           reason: 'manualCatalogDiscoveryOffline',
@@ -129,7 +139,7 @@ class LibrarySyncPlanner {
           deferred: true,
         );
       }
-      if (context.restrictsBackgroundSync &&
+      if (context.networkPolicy.isMetered &&
           !request.allowMeteredBroadOverride &&
           !request.allowMeteredLimitedDiscovery) {
         return const LibrarySyncPlan(
@@ -140,7 +150,7 @@ class LibrarySyncPlanner {
       return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.deltaReconcile,
         reason:
-            context.restrictsBackgroundSync &&
+            context.networkPolicy.isMetered &&
                 !request.allowMeteredBroadOverride
             ? 'manualMeteredLimitedDiscovery'
             : 'manualCatalogDiscovery',
@@ -150,7 +160,7 @@ class LibrarySyncPlanner {
     // Metered automatic catalog work is a hard probe only — pending hydration
     // must not expand into background artist/album verification on cellular.
     if (request.intent == LibrarySyncIntent.automatic &&
-        context.restrictsBackgroundSync) {
+        context.networkPolicy.isMetered) {
       if (!context.isCatalogCheckDue &&
           !context.auxiliaryDue &&
           context.pendingHydrationCount == 0 &&
@@ -171,15 +181,14 @@ class LibrarySyncPlanner {
     // The bounded delta pass also hydrates pending albums, with new arrivals
     // prioritized by the executor.
     if (context.isCatalogCheckDue && context.pendingHydrationCount > 0) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.deltaReconcile,
         reason: 'automaticDiscoveryBeforeBacklog',
       );
     }
 
     if (context.pendingHydrationCount > 0) {
-      return const LibrarySyncPlan(
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.targetedHydration,
         reason: 'resumePendingWork',
       );
@@ -192,8 +201,7 @@ class LibrarySyncPlanner {
           reason: 'boundedCatalogDelta',
         );
       }
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.catalogSnapshot,
         reason: 'unexplainedCatalogChange',
       );
@@ -201,8 +209,7 @@ class LibrarySyncPlanner {
 
     if (context.indexesMode == SyncCapabilityMode.unsupported &&
         context.auditDue) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.compatibilityAudit,
         reason: 'providerCompatibilityAudit',
       );
@@ -210,8 +217,7 @@ class LibrarySyncPlanner {
 
     if (context.indexesMode == SyncCapabilityMode.reliable &&
         context.auditDue) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.compatibilityAudit,
         reason: 'weeklyRotatingVerification',
       );
@@ -228,8 +234,7 @@ class LibrarySyncPlanner {
     }
 
     if (context.isCatalogCheckDue) {
-      return _broadPlan(
-        context,
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.deltaReconcile,
         reason: 'automaticCatalogDiscovery',
       );
@@ -238,30 +243,5 @@ class LibrarySyncPlanner {
       kind: LibrarySyncPlanKind.probe,
       reason: 'auxiliaryDue',
     );
-  }
-
-  LibrarySyncPlan _broadPlan(
-    LibrarySyncPlannerContext context, {
-    required LibrarySyncPlanKind kind,
-    required String reason,
-  }) {
-    final unavailable =
-        context.networkType == NetworkType.offline ||
-        (context.restrictsBackgroundSync &&
-            !context.request.allowMeteredBroadOverride);
-    final unsafeToAutoRun =
-        unavailable ||
-        (context.request.intent == LibrarySyncIntent.automatic &&
-            ((!context.isForeground && !context.isBackgroundExecutor) ||
-                context.hasActivePlayback));
-    if (unsafeToAutoRun) {
-      return LibrarySyncPlan(
-        kind: kind,
-        reason: '${reason}Deferred',
-        shouldExecute: false,
-        deferred: true,
-      );
-    }
-    return LibrarySyncPlan(kind: kind, reason: reason);
   }
 }
