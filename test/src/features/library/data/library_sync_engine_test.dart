@@ -1,4 +1,5 @@
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/library_sync_plan.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -23,28 +24,10 @@ import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
 
-const _meteredManualDiscoveryPlan = SyncExecutionPlan(
-  request: SyncRunRequest(
-    origin: SyncRunOrigin.libraryPullToRefresh,
-    intent: SyncRunIntent.manualCatalogCheck,
-    target: LibrarySyncTarget.catalog(),
-    networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
-  ),
-  kind: SyncExecutionPlanKind.manualCatalogDiscovery,
-  reason: SyncSafeReason.none,
-  budget: SyncExecutionBudget(
-    allowedEndpoints: <SyncEndpoint>{
-      SyncEndpoint.indexes,
-      SyncEndpoint.newestAlbums,
-      SyncEndpoint.artist,
-      SyncEndpoint.album,
-    },
-    maxNewestPages: 1,
-    maxAlbumHydrations: 3,
-    maxResponseBytes: 16 * 1024 * 1024,
-    maxTotalBytes: null,
-    maxConcurrency: 1,
-  ),
+final _meteredManualDiscoveryPlan = syncPlanForTest(
+  SyncExecutionPlanKind.manualCatalogDiscovery,
+  grant: SyncNetworkGrant.boundedMeteredDiscovery,
+  networkType: NetworkType.cellular,
 );
 
 String _testIndexesFingerprint(Iterable<String> artistIds) {
@@ -643,7 +626,16 @@ void main() {
           Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
         ];
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
+
+        await engine.executeSyncPlan(
+          syncPlanForTest(
+            SyncExecutionPlanKind.auxiliaryRefresh,
+            target: const LibrarySyncTarget.playlistHeaders(),
+          ),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.mode, LibrarySyncMode.forceFull);
@@ -726,7 +718,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, containsAll(<String>['getArtists', 'getIndexes']));
@@ -795,7 +789,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final album = await database.libraryDao.getAlbumById('album-1');
@@ -836,7 +832,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -897,7 +895,9 @@ void main() {
         addTearDown(subscription.cancel);
         await firstEmission.future;
 
-        final sync = engine.forceFullSync();
+        final sync = engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         while (!api.calls.contains('getAlbum:album-1')) {
           await Future<void>.delayed(Duration.zero);
         }
@@ -991,7 +991,9 @@ void main() {
         ],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(await database.libraryDao.getArtistById('artist-1'), isNotNull);
@@ -1852,7 +1854,9 @@ void main() {
           artistId: 'artist-keep',
         );
 
-        final first = await engine.forceFullSync();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
         expect(
           await database.libraryDao.getAlbumById('album-stale'),
@@ -1866,7 +1870,9 @@ void main() {
           locallyStarredAt,
         );
 
-        final second = await engine.forceFullSync();
+        final second = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         expect(second.status, LibrarySyncStatus.succeeded);
         expect(await database.libraryDao.getAlbumById('album-stale'), isNull);
         expect(await database.libraryDao.getArtistById('artist-stale'), isNull);
@@ -1914,7 +1920,9 @@ void main() {
           ],
         );
 
-        final result = await engine.forceFullSync();
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final candidateSongs =
             await (database.select(database.librarySyncCandidateSongsTable)
                   ..where(
@@ -1966,9 +1974,13 @@ void main() {
           writeChunkSize: 4,
         );
 
-        final first = await protectedEngine.forceFullSync();
+        final first = await protectedEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
-        final second = await protectedEngine.forceFullSync();
+        final second = await protectedEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         expect(second.status, LibrarySyncStatus.succeeded);
 
         final song = await database.libraryDao.getSongById('song-playing');
@@ -2050,7 +2062,9 @@ void main() {
           writeChunkSize: 4,
         );
 
-        final result = await aliasEngine.forceFullSync();
+        final result = await aliasEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final aliases = await database.songIdentityDao.getAliases();
 
         expect(result.status, LibrarySyncStatus.succeeded);
@@ -2117,7 +2131,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final album1 = await database.libraryDao.getAlbumById('album-1');
@@ -2191,7 +2207,9 @@ void main() {
           ],
         );
 
-        final result = await engine.forceFullSync();
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(result.status, LibrarySyncStatus.succeeded);
         expect(await database.songIdentityDao.getAliases(), isEmpty);
@@ -2255,7 +2273,9 @@ void main() {
         ],
       );
 
-      final result = await engine.forceFullSync();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       // The old album identity is gone, replaced under the new server ID.
@@ -2330,7 +2350,9 @@ void main() {
         ],
       );
 
-      final result = await engine.forceFullSync();
+      final result = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(result.status, LibrarySyncStatus.succeeded);
       final song = await database.libraryDao.getSongById('song-return');
@@ -2367,7 +2389,9 @@ void main() {
         api.artistDetails[artist.id] = artist;
       }
 
-      final first = await engine.runCompatibilityAudit();
+      final first = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.compatibilityAudit),
+      );
       final firstRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
           .length;
@@ -2379,7 +2403,9 @@ void main() {
       expect(firstState.lastAuditAt, isNotNull);
 
       api.calls.clear();
-      final second = await engine.runCompatibilityAudit();
+      final second = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.compatibilityAudit),
+      );
       final secondRequests = api.calls
           .where((call) => call.startsWith('getArtist:'))
           .length;
@@ -2421,7 +2447,9 @@ void main() {
         ],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       final songRows = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -2495,7 +2523,10 @@ void main() {
         );
 
         final progress = <LibrarySyncState>[];
-        await localEngine.forceFullSync(onProgress: progress.add);
+        await localEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          onProgress: progress.add,
+        );
 
         final albumStageProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingAlbums)
@@ -2546,7 +2577,9 @@ void main() {
           writeChunkSize: 8,
         );
 
-        final state = await cappedPageEngine.forceFullSync();
+        final state = await cappedPageEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -2605,7 +2638,9 @@ void main() {
         await saveSession();
         final localEngine = shiftedCatalogEngine();
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(await albumIds(), {'a', 'b', 'c', 'd'});
@@ -2618,12 +2653,16 @@ void main() {
           final localEngine = shiftedCatalogEngine();
           api.fastPathErrors[4] = const SubsonicConnectionException('offline');
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            )).status,
             LibrarySyncStatus.failed,
           );
 
           api.fastPathErrors.clear();
-          final resumed = await localEngine.forceFullSync();
+          final resumed = await localEngine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          );
 
           expect(resumed.status, LibrarySyncStatus.succeeded);
           expect(await albumIds(), {'a', 'b', 'c', 'd'});
@@ -2650,7 +2689,9 @@ void main() {
           ..[0] = [header('d'), header('c')]
           ..[2] = [header('c'), header('b'), header('a')];
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final ranks = {
@@ -2672,7 +2713,9 @@ void main() {
           ..[0] = [header('d'), header('c')]
           ..[2] = [header('c'), header('d')];
 
-        final state = await localEngine.forceFullSync();
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.failed);
       }, skip: !sqliteAvailable);
@@ -2706,7 +2749,9 @@ void main() {
         writeChunkSize: 4,
       );
 
-      final interrupted = await localEngine.forceFullSync();
+      final interrupted = await localEngine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       expect(interrupted.status, LibrarySyncStatus.failed);
       expect(
         (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
@@ -2717,7 +2762,9 @@ void main() {
       api.fastPathPages[2] = const <Album>[
         Album(id: 'album-3', name: 'Album 3', artistId: 'artist-1'),
       ];
-      final resumed = await localEngine.forceFullSync();
+      final resumed = await localEngine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(resumed.status, LibrarySyncStatus.succeeded);
       expect(
@@ -2755,7 +2802,9 @@ void main() {
             fastPathPageSize: 2,
           );
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            )).status,
             LibrarySyncStatus.failed,
           );
           final removed = api.fastPathPages[boundary]!.first.id;
@@ -2766,7 +2815,9 @@ void main() {
           api.fastPathErrors.clear();
           api.fastPathPages[4] = [header('e')];
           expect(
-            (await localEngine.forceFullSync()).status,
+            (await localEngine.executeSyncPlan(
+              syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+            )).status,
             LibrarySyncStatus.succeeded,
           );
           final ids = (await database.libraryDao.getAllAlbums())
@@ -2820,7 +2871,9 @@ void main() {
           songs: <Song>[],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final albums = await database.libraryDao.getAllAlbums();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -2848,7 +2901,9 @@ void main() {
           const Artist(id: 'artist-1', name: 'Artist 1', albumCount: 1),
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final albums = await database.libraryDao.getAllAlbums();
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -2883,7 +2938,9 @@ void main() {
         songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls, contains('getArtist:artist-1'));
@@ -2912,7 +2969,9 @@ void main() {
         ),
       );
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -2964,7 +3023,9 @@ void main() {
           writeChunkSize: 2,
         );
 
-        final state = await cappedPageEngine.forceFullSync();
+        final state = await cappedPageEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3035,7 +3096,10 @@ void main() {
         );
 
         final progress = <LibrarySyncState>[];
-        await bulkEngine.forceFullSync(onProgress: progress.add);
+        await bulkEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          onProgress: progress.add,
+        );
 
         final hydrationProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
@@ -3115,13 +3179,17 @@ void main() {
           otherAlbumConcurrency: 1,
           writeChunkSize: 1,
         );
-        await tailEngine.forceFullSync();
+        await tailEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         // The compatible bulk index now completes but omits album-1, as a
         // capped global song index does. Its unchanged hydrated local songs
         // should be reused without another getAlbum call.
         api.calls.clear();
-        final result = await tailEngine.forceFullSync();
+        final result = await tailEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.catalogSnapshot),
+        );
 
         expect(result.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('searchSongsPage::0:1000'));
@@ -3129,6 +3197,15 @@ void main() {
         expect(api.calls.where((call) => call == 'getAlbum:album-2'), isEmpty);
         final songs = await database.select(database.songsTable).get();
         expect(songs.map((song) => song.id), contains('song-1'));
+
+        // Explicit repair re-fetches even an unchanged stable tail.
+        api.calls.clear();
+        final repair = await tailEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
+        expect(repair.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbum:album-1'));
+        expect(api.calls, contains('getAlbum:album-2'));
       },
       skip: !sqliteAvailable,
     );
@@ -3200,7 +3277,10 @@ void main() {
         );
 
         final progress = <LibrarySyncState>[];
-        final result = await bulkEngine.forceFullSync(onProgress: progress.add);
+        final result = await bulkEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          onProgress: progress.add,
+        );
 
         final hydrationProgress = progress
             .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
@@ -3255,7 +3335,9 @@ void main() {
         writeChunkSize: 4,
       );
 
-      final state = await bulkEngine.forceFullSync();
+      final state = await bulkEngine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3305,7 +3387,9 @@ void main() {
           writeChunkSize: 4,
         );
 
-        final state = await bulkEngine.forceFullSync();
+        final state = await bulkEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -3347,7 +3431,9 @@ void main() {
           );
         }
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -3409,7 +3495,9 @@ void main() {
             serverConfigRepository: serverConfigRepository,
           );
 
-          final state = await bulkEngine.forceFullSync();
+          final state = await bulkEngine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          );
 
           expect(state.status, LibrarySyncStatus.succeeded);
           final config = await serverConfigRepository.getActiveServer();
@@ -3447,7 +3535,9 @@ void main() {
           child: const [Artist(id: 'artist-2', name: 'Child')],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         final artists = await database.libraryDao.getAllArtists();
@@ -3495,7 +3585,9 @@ void main() {
           ),
         ];
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('searchSongsPage::0:1'));
@@ -3574,7 +3666,9 @@ void main() {
         writeChunkSize: 1,
       );
 
-      final state = await bulkEnabledEngine.forceFullSync();
+      final state = await bulkEnabledEngine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3647,7 +3741,9 @@ void main() {
         ),
       ];
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
       final songs = await database.select(database.songsTable).get();
 
       expect(state.status, LibrarySyncStatus.succeeded);
@@ -3692,7 +3788,9 @@ void main() {
           ],
         );
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -4936,7 +5034,9 @@ void main() {
           writeChunkSize: 18,
         );
 
-        final state = await adaptiveEngine.forceFullSync();
+        final state = await adaptiveEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
@@ -4979,7 +5079,9 @@ void main() {
           writeChunkSize: 12,
         );
 
-        final state = await activePlaybackEngine.forceFullSync();
+        final state = await activePlaybackEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(4));
@@ -5021,7 +5123,9 @@ void main() {
           writeChunkSize: 12,
         );
 
-        final state = await adaptiveEngine.forceFullSync();
+        final state = await adaptiveEngine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
@@ -5086,7 +5190,11 @@ void main() {
           canRequest: () => true,
         );
 
-        final state = await scope.run(batchEngine.forceFullSync);
+        final state = await scope.run(
+          () => batchEngine.executeSyncPlan(
+            syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+          ),
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -5119,7 +5227,9 @@ void main() {
       );
       api.transientAlbumFailures['album-1'] = 2;
 
-      final state = await engine.forceFullSync();
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+      );
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(api.calls.where((call) => call == 'getAlbum:album-1').length, 1);
@@ -5159,7 +5269,9 @@ void main() {
           songs: [Song(id: 'two', title: 'Two', albumId: 'partial')],
         );
 
-        final first = await engine.forceFullSync();
+        final first = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         expect(first.status, LibrarySyncStatus.succeeded);
         expect(first.pendingHydrationCount, 1);
         expect(first.onlyIncompleteAlbumDetails, isTrue);
@@ -5249,7 +5361,9 @@ void main() {
         ];
         // Intentionally omit api.albumDetails['album-1'] so hydration fails.
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final songs = await database.select(database.songsTable).get();
         final pendingAlbums = await database.libraryDao
             .getPendingHydrationAlbumIds();
@@ -5444,7 +5558,9 @@ void main() {
           ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
         ]);
 
-        final state = await engine.forceFullSync();
+        final state = await engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
         final artists = await database.select(database.artistsTable).get();
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -5553,8 +5669,12 @@ void main() {
         final completer = Completer<List<Artist>>();
         api.artistsCompleter = completer;
 
-        final first = engine.forceFullSync();
-        final second = engine.forceFullSync();
+        final first = engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
+        final second = engine.executeSyncPlan(
+          syncPlanForTest(SyncExecutionPlanKind.repairLibrary),
+        );
 
         completer.complete(const <Artist>[]);
         final firstState = await first;

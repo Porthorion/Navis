@@ -1384,21 +1384,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  Future<LibrarySyncState> runCompatibilityAudit({
-    Iterable<String> priorityAlbumIds = const <String>[],
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    return _runWithLock(
-      force: true,
-      forceFull: false,
-      manual: false,
-      verificationContinuation: false,
-      compatibilityAudit: true,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
-  }
-
   /// Executes the plan selected at admission time.
   @override
   Future<LibrarySyncState> executeSyncPlan(
