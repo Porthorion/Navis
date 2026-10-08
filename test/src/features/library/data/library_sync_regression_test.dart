@@ -218,6 +218,74 @@ void main() {
     });
   }
 
+  for (final (name, backgroundAllowed, boundedGrant, broadGrant, queued) in [
+    ('background enabled', true, false, false, false),
+    ('bounded queued delta', false, true, false, true),
+    ('broad grant', false, false, true, false),
+  ]) {
+    test('automatic mobile delta reaches engine checkpoints: $name', () async {
+      final serverId = await session();
+      await seed();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastAuditAt: Value(DateTime.now()),
+          lastAuxiliarySyncedAt: Value(DateTime.now()),
+        ),
+      );
+      if (queued) {
+        await db.librarySyncDao.enqueueWork(
+          serverId: serverId,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 20,
+        );
+      }
+      final policy = resolveSyncNetworkPolicy(
+        networkType: NetworkType.cellular,
+        nativeMetered: true,
+        backgroundSyncUnmeteredOnly: !backgroundAllowed,
+      );
+      final mobileEngine = DriftLibrarySyncEngine(
+        api: api,
+        database: db,
+        serverConfigRepository: repo,
+        readSyncNetworkPolicy: () => policy,
+      );
+      final mobileCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: mobileEngine,
+        database: db,
+        serverConfigRepository: repo,
+        readSyncNetworkPolicy: () => policy,
+        staleAfter: const Duration(hours: 1),
+        readIsForeground: () => true,
+        readHasActivePlayback: () => false,
+      );
+
+      final result = await mobileCoordinator.requestSync(
+        LibrarySyncRequest(
+          trigger: LibrarySyncTrigger.interval,
+          intent: LibrarySyncIntent.automatic,
+          allowMeteredLimitedDiscovery: boundedGrant,
+          allowMeteredBroadOverride: broadGrant,
+        ),
+      );
+
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(result.status, LibrarySyncStatus.succeeded);
+      expect(api.calls, contains('newest:0:100'));
+      if (queued) {
+        expect(
+          (await db.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.deltaReconcile.name,
+          ))?.status,
+          'completed',
+        );
+      }
+    });
+  }
+
   test('incomplete detail survives coordinator as partial and retries incrementally', () async {
     final serverId = await session(initial: true);
     await seed();

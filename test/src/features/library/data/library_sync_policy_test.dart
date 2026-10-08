@@ -186,7 +186,13 @@ void main() {
       false,
       false,
       bounded,
-      {...probe, ...interactive, 'manualDelta', 'queuedManualDelta'},
+      {
+        ...probe,
+        ...interactive,
+        'automaticDelta',
+        'manualDelta',
+        'queuedManualDelta',
+      },
     ),
     (
       'bounded metered playing',
@@ -241,7 +247,13 @@ void main() {
       false,
       true,
       bounded,
-      {...probe, ...interactive, 'manualDelta', 'queuedManualDelta'},
+      {
+        ...probe,
+        ...interactive,
+        'automaticDelta',
+        'manualDelta',
+        'queuedManualDelta',
+      },
     ),
     (
       'broad metered worker',
@@ -289,28 +301,43 @@ void main() {
       });
     }
   }
-  test(
-    'metered automation remains a hard probe when background sync is enabled',
-    () {
-      final policy = resolveSyncNetworkPolicy(
-        networkType: NetworkType.cellular,
-        nativeMetered: true,
-        backgroundSyncUnmeteredOnly: false,
-      );
-      expect(
-        librarySyncWorkAllowed(
-          kind: LibrarySyncPlanKind.deltaReconcile,
-          workClass: 'background',
-          intent: LibrarySyncIntent.automatic,
-          trigger: LibrarySyncTrigger.interval,
-          policy: policy,
-          isForeground: true,
-          hasActivePlayback: false,
-          isBackgroundExecutor: false,
-          networkGrant: none,
-        ),
-        isFalse,
-      );
-    },
-  );
+  for (final network in [NetworkType.cellular, NetworkType.wifi]) {
+    for (final (name, foreground, playing, worker, allowed) in [
+      ('idle', true, false, false, all),
+      ('playing', true, true, false, {...probe, ...interactive, ...explicit}),
+      ('hidden', false, false, false, {...probe, ...explicit}),
+      ('worker', false, false, true, all),
+      ('playing worker', false, true, true, probe),
+    ]) {
+      for (final entry in work.entries) {
+        test(
+          'metered background enabled ${network.name} $name: ${entry.key}',
+          () {
+            final (kind, intent, trigger, target, workClass) = entry.value;
+            final policy = resolveSyncNetworkPolicy(
+              networkType: network,
+              nativeMetered: true,
+              backgroundSyncUnmeteredOnly: false,
+            );
+            expect(policy.allowsBackgroundSync, isTrue);
+            expect(
+              librarySyncWorkAllowed(
+                kind: kind,
+                workClass: workClass,
+                intent: intent,
+                trigger: trigger,
+                targetKind: target,
+                policy: policy,
+                isForeground: foreground,
+                hasActivePlayback: playing,
+                isBackgroundExecutor: worker,
+                networkGrant: none,
+              ),
+              allowed.contains(entry.key),
+            );
+          },
+        );
+      }
+    }
+  }
 }

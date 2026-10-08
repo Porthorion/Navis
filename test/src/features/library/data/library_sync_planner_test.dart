@@ -37,6 +37,7 @@ void main() {
     LibrarySyncRequest request = const LibrarySyncRequest.automatic(),
     NetworkType networkType = NetworkType.wifi,
     bool? restrictsBackgroundSync,
+    bool? allowsBackgroundSync,
     bool baseline = true,
     bool due = true,
     int pendingHydration = 0,
@@ -53,6 +54,7 @@ void main() {
         isMetered:
             restrictsBackgroundSync ?? networkType == NetworkType.cellular,
         allowsBackgroundSync:
+            allowsBackgroundSync ??
             !(restrictsBackgroundSync ?? networkType == NetworkType.cellular),
         allowsHardProbe: networkType != NetworkType.offline,
         allowsInteractiveHydration: networkType != NetworkType.offline,
@@ -241,6 +243,58 @@ void main() {
     expect(plan.kind, LibrarySyncPlanKind.probe);
     expect(plan.reason, 'cellularProbeOnly');
   });
+
+  for (final pending in [0, 4]) {
+    test(
+      'automatic mobile discovery respects enabled background sync: $pending',
+      () {
+        final allowed = context(
+          networkType: NetworkType.cellular,
+          allowsBackgroundSync: true,
+          pendingHydration: pending,
+        );
+        final plan = planner.plan(allowed);
+        expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+        expect(plan.shouldExecute, isTrue);
+        expect(plan.deferred, isFalse);
+        for (final (foreground, playing) in [(false, false), (true, true)]) {
+          final blocked = planner.plan(
+            context(
+              networkType: NetworkType.cellular,
+              allowsBackgroundSync: true,
+              pendingHydration: pending,
+              foreground: foreground,
+              playing: playing,
+            ),
+          );
+          expect(blocked.kind, LibrarySyncPlanKind.deltaReconcile);
+          expect(blocked.shouldExecute, isFalse);
+          expect(blocked.deferred, isTrue);
+        }
+      },
+    );
+  }
+
+  for (final (grant, expected) in [
+    (false, LibrarySyncPlanKind.probe),
+    (true, LibrarySyncPlanKind.deltaReconcile),
+  ]) {
+    test('fresh automatic mobile planning with broad grant: $grant', () {
+      final plan = planner.plan(
+        context(
+          request: LibrarySyncRequest(
+            trigger: LibrarySyncTrigger.interval,
+            intent: LibrarySyncIntent.automatic,
+            allowMeteredLimitedDiscovery: !grant,
+            allowMeteredBroadOverride: grant,
+          ),
+          networkType: NetworkType.cellular,
+        ),
+      );
+      expect(plan.kind, expected);
+      expect(plan.shouldExecute, isTrue);
+    });
+  }
 
   test('repair override can execute broad work on metered networks', () {
     final plan = planner.plan(

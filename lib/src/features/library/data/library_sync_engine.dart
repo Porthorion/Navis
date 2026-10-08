@@ -759,7 +759,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     SyncRequestScope.current?.check();
     final policy = _currentSyncPolicy;
     if (!policy.isOffline &&
-        ((!policy.isMetered && policy.allowsBackgroundSync) ||
+        (policy.allowsBackgroundSync ||
             _activeExecutionPlan?.request.networkGrant ==
                 SyncNetworkGrant.broadMeteredOnce ||
             _allowsLimitedMeteredManualDiscovery(manual: true))) {

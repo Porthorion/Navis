@@ -144,10 +144,12 @@ class LibrarySyncPlanner {
       );
     }
 
-    // Metered automatic catalog work is a hard probe only — pending hydration
-    // must not expand into background artist/album verification on cellular.
+    // Without background-network permission or a broad grant, automatic catalog
+    // checks stay probes; a bounded grant alone does not expand fresh planning.
     if (request.intent == LibrarySyncIntent.automatic &&
-        context.networkPolicy.isMetered) {
+        context.networkPolicy.isMetered &&
+        !context.networkPolicy.allowsBackgroundSync &&
+        !request.allowMeteredBroadOverride) {
       if (!context.isCatalogCheckDue &&
           !context.auxiliaryDue &&
           context.pendingHydrationCount == 0 &&

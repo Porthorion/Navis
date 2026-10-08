@@ -293,9 +293,8 @@ bool librarySyncWorkAllowed({
   if (interactive) return policy.allowsInteractiveHydration;
   if (intent == LibrarySyncIntent.automatic && hasActivePlayback) return false;
   if (networkGrant == SyncNetworkGrant.broadMeteredOnce) return true;
-  if (policy.isMetered) {
+  if (policy.isMetered && !policy.allowsBackgroundSync) {
     return kind == LibrarySyncPlanKind.deltaReconcile &&
-        intent == LibrarySyncIntent.checkForUpdates &&
         networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
   return policy.allowsBackgroundSync;

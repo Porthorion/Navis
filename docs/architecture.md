@@ -3111,9 +3111,9 @@ states without starting audio or modifying a queue.
    ordinary Check for updates inspects one bounded 50-album newest page and
    hydrates at most three changed albums; it never runs an artist sweep or
    bulk-song index. Remaining work
-   waits for an unmetered connection or the user's one-time mobile-data consent
-   for broad discovery. Discrepant on-server albums use ordinary song
-   hydration and identity/cache reconciliation, so a new album does not wait
+   waits for an unmetered connection, the user disabling the unmetered-only
+   setting, or one-time mobile-data consent for broad discovery. Discrepant
+   on-server albums use ordinary song hydration and identity/cache reconciliation, so a new album does not wait
    behind a large rotating artist audit.
    The long-lived engine reads this policy directly from the root provider
    container at operation time; provider-local reads can retain the policy from
@@ -3268,14 +3268,20 @@ states without starting audio or modifying a queue.
    from that row, as Artist Top Tracks does; off, only that song. Before
    1.4.1 Play and Shuffle skipped remote matches and taps always played one
    song (single-song taps came from commit `a8b639af`).
-9. Metered automation is a true hard probe: one conditional `getIndexes`
-   request with retries disabled. Interactive artist/album/playlist hydration
-   remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
+9. With **Background Sync Only on Unmetered Networks** enabled and no broad
+   mobile-data grant, fresh metered automation is a hard probe: one conditional
+   `getIndexes` request with retries disabled. Turning that setting off permits
+   ordinary automatic delta work on cellular or metered Wi-Fi. A current bounded
+   mobile-data grant also permits queued automatic delta work; fresh automatic
+   planning with only that bounded grant still selects a probe. Automatic
+   playback and visibility limits remain in force. Interactive artist/album/playlist
+   hydration remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
    Enumeration, audits, starred and playlist-header sync, pending broad
    hydration, and Repair Library stay deferred unless the user grants an
-   ephemeral one-time mobile-data override. Live network policy is re-checked
-   at page and hydration boundaries; unmetered-to-metered transitions
-   checkpoint and return `deferred`. Cancellation returns work to the queue.
+   ephemeral one-time mobile-data override or disables the unmetered-only
+   setting. Live network policy is re-checked at page and hydration boundaries;
+   a transition to a restricted metered connection without a current grant
+   checkpoints and returns `deferred`. Cancellation returns work to the queue.
 10. Starred content and playlist headers are independent auxiliary targets.
     Typed catalog checks and repairs do not update them as incidental work;
     their user-facing states are **Updating liked items** and
@@ -3325,7 +3331,8 @@ states without starting audio or modifying a queue.
     content is reached; a streak past the escalation threshold
     (`discoveryDebtEscalationStreak`) hands deep discovery to a queued delta
     reconciliation. Automatic discovery defers during playback or
-    hidden foreground execution, and metered automation remains a hard probe.
+    hidden foreground execution; fresh metered automation without background
+    permission or a broad grant remains a hard probe.
     Reliable providers also run a weekly rotating audit;
     incompatible providers use one bounded daily partition, never a periodic
     full scan.
