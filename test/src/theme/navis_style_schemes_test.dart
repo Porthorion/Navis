@@ -200,6 +200,24 @@ void main() {
     }
   });
 
+  test('pastel light paper is visibly tinted for warm seeds', () {
+    for (final seed in <Color>[
+      const Color(0xFFF44336),
+      const Color(0xFFE2581E),
+    ]) {
+      final surface = _scheme(
+        seed,
+        _Mode.light,
+        NavisColorStyle.pastel,
+      ).surface;
+      expect(
+        _hct(surface).chroma,
+        greaterThanOrEqualTo(6),
+        reason: 'surface ${_hct(surface)} for $seed',
+      );
+    }
+  });
+
   test('pastel dark sets warm accents on a plum dusk', () {
     for (final seed in <Color>[
       const Color(0xFFE2581E),

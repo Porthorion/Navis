@@ -162,6 +162,20 @@ double nightHue(double hue) {
   return toLow <= toHigh ? 15 : 95;
 }
 
+/// Light paper hue for Pastel: warm hues (0-75 and 340+) move up to 25°
+/// toward peach (55°), which holds more chroma at high tone than red does.
+double pastelPaperHue(double hue) {
+  final h = _sanitize(hue);
+  if (h > 75 && h < 340) {
+    return h;
+  }
+  var delta = 55 - h;
+  if (delta > 180) {
+    delta -= 360;
+  }
+  return _sanitize(h + delta.clamp(-25.0, 25.0));
+}
+
 double _sanitize(double hue) => ((hue % 360) + 360) % 360;
 
 double _arc(double a, double b) {
@@ -197,6 +211,7 @@ class _Recipe {
     required this.tertiaryChroma,
     required this.neutral,
     this.darkNeutral,
+    this.lightNeutral,
     required this.darkSurfaceChroma,
     required this.lightSurfaceChroma,
     required this.containerChromaDark,
@@ -221,6 +236,9 @@ class _Recipe {
 
   /// Hue of backgrounds on dark schemes, when it differs from [neutral].
   final _Hue? darkNeutral;
+
+  /// Hue of backgrounds on light schemes, when it differs from [neutral].
+  final _Hue? lightNeutral;
   final double darkSurfaceChroma;
   final double lightSurfaceChroma;
 
@@ -304,7 +322,7 @@ class _Recipe {
   }
 
   ColorScheme _light() {
-    final n = neutral;
+    final n = lightNeutral ?? neutral;
     final s = lightSurfaceChroma;
     final c = containerChromaLight;
     const error = _Hue(_errorHue);
@@ -384,14 +402,16 @@ _Recipe _pastelRecipe(Hct source, bool achromatic) {
     tertiaryChroma: chroma * 0.85,
     neutral: _Hue(hue),
     darkNeutral: _Hue(pastelDuskHue(hue)),
+    lightNeutral: _Hue(pastelPaperHue(hue)),
     darkSurfaceChroma: 10,
-    lightSurfaceChroma: 8,
+    // Warm hues are gamut-limited at this tone; the paper takes what fits.
+    lightSurfaceChroma: 12,
     containerChromaDark: 14,
     containerChromaLight: 28,
     // Light accents double as text, so they stay at ink tone; enough chroma
     // keeps warm hues coral or rose instead of brown.
     lightAccentChroma: math.max<double>(chroma, 48),
-    lightSurfaceTone: 96,
+    lightSurfaceTone: 95,
     textHue: _Hue(hue),
     textChroma: 4,
     errorChroma: 40,

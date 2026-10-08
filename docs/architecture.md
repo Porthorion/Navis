@@ -618,7 +618,9 @@ target-selection rules.
     text and control pairs meet contrast minimums.
   - A seed with almost no chroma (the default white) gets the sea-glass hue
     (190°) in Pastel and Immersive. Pastel's dark backgrounds put warm
-    accents on a plum base; Night moves accents into the rose-to-amber range.
+    accents on a plum base, and its light paper (tone 95, chroma up to 12,
+    gamut-capped) shifts warm hues up to 25° toward peach so the tint stays
+    visible; Night moves accents into the rose-to-amber range.
   - `NavisColorStyleData` (a ThemeExtension) adapts colours sampled from
     artwork for the Home cover wash and the Now Playing tint, sets their veil
     and tint opacity, and supplies the `success` colour. Artwork itself and
