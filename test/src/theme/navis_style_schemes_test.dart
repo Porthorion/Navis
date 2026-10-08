@@ -49,9 +49,10 @@ void main() {
     NavisColorStyle.immersive,
     NavisColorStyle.night,
   ];
+  const checked = <NavisColorStyle>[NavisColorStyle.neutral, ...styled];
 
   group('styled schemes', () {
-    for (final style in styled) {
+    for (final style in checked) {
       for (final mode in _Mode.values) {
         for (final entry in _seeds.entries) {
           final label = '${style.name} ${mode.name} ${entry.key}';
@@ -126,12 +127,17 @@ void main() {
             }
           });
 
+          if (style == NavisColorStyle.neutral && mode == _Mode.light) {
+            continue;
+          }
           test('$label keeps fills and surfaces out of the muddy band', () {
             final fills = <String, Color>{
               'primaryContainer': scheme.primaryContainer,
               'secondaryContainer': scheme.secondaryContainer,
               'tertiaryContainer': scheme.tertiaryContainer,
-              'errorContainer': scheme.errorContainer,
+              // Neutral leaves errors alarming on purpose.
+              if (style != NavisColorStyle.neutral)
+                'errorContainer': scheme.errorContainer,
               'surface': scheme.surface,
               'surfaceContainerLow': scheme.surfaceContainerLow,
               'surfaceContainer': scheme.surfaceContainer,
@@ -152,7 +158,7 @@ void main() {
             }
           });
 
-          if (mode == _Mode.oled) {
+          if (mode == _Mode.oled && style != NavisColorStyle.neutral) {
             test('$label keeps OLED backgrounds pure black', () {
               expect(scheme.surface, Colors.black);
               expect(scheme.surfaceContainerLowest, Colors.black);
@@ -231,7 +237,12 @@ void main() {
   group('neutral style', () {
     const seed = Color(0xFF2196F3);
 
-    test('matches the original schemes', () {
+    test('matches the original schemes apart from dark containers', () {
+      ColorScheme fidelity(Color seed) => ColorScheme.fromSeed(
+        seedColor: seed,
+        brightness: Brightness.dark,
+        dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+      );
       expect(
         buildLightTheme(seed).colorScheme,
         ColorScheme.fromSeed(
@@ -240,14 +251,23 @@ void main() {
           dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
         ),
       );
+      expect(buildDarkTheme(Colors.white).colorScheme, fidelity(Colors.white));
+      const saturated = Color(0xFFE2581E);
+      final dark = buildDarkTheme(saturated).colorScheme;
+      final base = fidelity(saturated);
       expect(
-        buildDarkTheme(seed).colorScheme,
-        ColorScheme.fromSeed(
-          seedColor: seed,
-          brightness: Brightness.dark,
-          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        dark,
+        base.copyWith(
+          primaryContainer: dark.primaryContainer,
+          secondaryContainer: dark.secondaryContainer,
+          tertiaryContainer: dark.tertiaryContainer,
         ),
       );
+      expect(dark.errorContainer, base.errorContainer);
+      expect(dark.primary, base.primary);
+      // Fidelity puts the secondary container at tone 30, chroma 40.
+      expect(dark.secondaryContainer, isNot(base.secondaryContainer));
+      expect(_hct(dark.secondaryContainer).chroma, lessThanOrEqualTo(20.5));
       final oled = buildOledTheme(seed);
       expect(oled.colorScheme.surface, Colors.black);
       expect(oled.colorScheme.surfaceContainerLow, const Color(0xFF0A0A0A));

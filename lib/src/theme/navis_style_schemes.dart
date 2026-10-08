@@ -21,7 +21,9 @@ const double _errorHue = 22;
 
 /// Build the [ColorScheme] for [style] from [seed].
 ///
-/// [NavisColorStyle.neutral] reproduces the original Navis schemes exactly.
+/// [NavisColorStyle.neutral] reproduces the original Navis schemes, except
+/// that dark and OLED primary, secondary and tertiary containers in the muddy
+/// band are capped at chroma 20.
 /// The other styles use hand-built role tables over HCT so that every role's
 /// tone and chroma is chosen deliberately:
 ///
@@ -66,10 +68,17 @@ ColorScheme _neutralScheme(
       dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
     );
   }
-  final baseScheme = ColorScheme.fromSeed(
+  final fidelityScheme = ColorScheme.fromSeed(
     seedColor: seed,
     brightness: Brightness.dark,
     dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+  );
+  // Fidelity keeps the seed's full chroma in the containers, which turns
+  // saturated covers into brick-red or olive buttons at tone 25-50.
+  final baseScheme = fidelityScheme.copyWith(
+    primaryContainer: _deMud(fidelityScheme.primaryContainer),
+    secondaryContainer: _deMud(fidelityScheme.secondaryContainer),
+    tertiaryContainer: _deMud(fidelityScheme.tertiaryContainer),
   );
   if (!oled) {
     return baseScheme;
@@ -85,6 +94,17 @@ ColorScheme _neutralScheme(
     // Ensure "on" colors for container variants stay readable
     onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
   );
+}
+
+/// Replace [color] with a low-chroma version of the same hue when it sits in
+/// the muddy band (tone 25-50, chroma above 24); other colours are returned
+/// unchanged.
+Color _deMud(Color color) {
+  final source = Hct.fromInt(color.toARGB32());
+  if (source.tone < 25 || source.tone > 50 || source.chroma <= 24) {
+    return color;
+  }
+  return hct(mudGuardHue(source.hue, source.tone), 20, source.tone);
 }
 
 /// Rotate yellow and yellow-green hues toward warm umber at dark tones.

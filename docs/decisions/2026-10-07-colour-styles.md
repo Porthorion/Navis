@@ -46,8 +46,10 @@ indicator, and a yellow cover produced an olive Home wash.
 
 ## Consequences
 
-- Neutral must stay byte-identical to the original schemes. A test asserts
-  this.
+- Neutral stays identical to the original schemes, except that dark and OLED
+  primary, secondary and tertiary containers at tone 25-50 with chroma above
+  24 are replaced by the same hue at chroma 20 (no brick-red buttons from
+  saturated covers). A test asserts this.
 - Every styled scheme is checked across all styles, modes and a set of seeds
   for contrast, the no-mud rule, khaki-free dark yellows and pure-black OLED
   backgrounds.
