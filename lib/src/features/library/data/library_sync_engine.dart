@@ -448,6 +448,13 @@ const _librarySyncFailureDiagnosticsCapabilityKey =
     'librarySyncFailureDiagnostics';
 const _librarySyncFailureRecordedAtCapabilityKey =
     'librarySyncFailureRecordedAt';
+const _wifiFullCatalogAlbumConcurrency = 8;
+const _wifiFullCatalogMaxAlbumConcurrency = 24;
+const _otherFullCatalogAlbumConcurrency = 4;
+const _otherFullCatalogMaxAlbumConcurrency = 12;
+const _fastPathMaxPages = 200;
+const _bulkSearchMaxPages = 200;
+const _bulkSearchProbeQueries = <String>[''];
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
@@ -736,14 +743,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     this._readSyncNetworkPolicy,
     this._readMeteredResponseBudgetBytes,
     this.staleAfter = const Duration(hours: 1),
-    this.auxiliarySyncStaleAfter = _defaultAuxiliarySyncStaleAfter,
     this.scanSettlePollInterval = const Duration(seconds: 5),
     this.scanSettleMaxPolls = 12,
     this.fastPathPageSize = 500,
-    this.fastPathMaxPages = 200,
     this.bulkSearchPageSize = 1000,
-    this.bulkSearchMaxPages = 200,
-    this.bulkSearchProbeQueries = const <String>[''],
     this.fallbackArtistConcurrency = 4,
     this.wifiAlbumConcurrency = 2,
     this.cellularAlbumConcurrency = 1,
@@ -751,10 +754,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     this.wifiMaxAlbumConcurrency = 8,
     this.cellularMaxAlbumConcurrency = 1,
     this.otherMaxAlbumConcurrency = 4,
-    this.wifiFullCatalogAlbumConcurrency = 8,
-    this.wifiFullCatalogMaxAlbumConcurrency = 24,
-    this.otherFullCatalogAlbumConcurrency = 4,
-    this.otherFullCatalogMaxAlbumConcurrency = 12,
     this.writeChunkSize = 48,
     this.isolateThreshold = 100,
     this.onBeforeSongIdentityRemap,
@@ -769,7 +768,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   final int? Function()? _readMeteredResponseBudgetBytes;
   final NetworkType networkType;
   final Duration staleAfter;
-  final Duration auxiliarySyncStaleAfter;
 
   /// Poll cadence while waiting for a running server scan to finish before
   /// releasing a capped scan-churn deferral. Constructor-injectable so tests
@@ -779,10 +777,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   /// Upper bound on settle polls before a capped deferral stays deferred.
   final int scanSettleMaxPolls;
   final int fastPathPageSize;
-  final int fastPathMaxPages;
   final int bulkSearchPageSize;
-  final int bulkSearchMaxPages;
-  final List<String> bulkSearchProbeQueries;
   final int fallbackArtistConcurrency;
   final int wifiAlbumConcurrency;
   final int cellularAlbumConcurrency;
@@ -790,10 +785,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   final int wifiMaxAlbumConcurrency;
   final int cellularMaxAlbumConcurrency;
   final int otherMaxAlbumConcurrency;
-  final int wifiFullCatalogAlbumConcurrency;
-  final int wifiFullCatalogMaxAlbumConcurrency;
-  final int otherFullCatalogAlbumConcurrency;
-  final int otherFullCatalogMaxAlbumConcurrency;
   final int writeChunkSize;
   final int isolateThreshold;
   final Future<void> Function(Map<String, String> aliases)?
@@ -804,7 +795,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
   SyncExecutionPlan? _activeExecutionPlan;
-  Map<String, int> lastEndpointRequestCounts = const <String, int>{};
 
   /// Cancel any in-progress sync. Durable orchestration retains the work.
   void cancelSync() {
@@ -850,58 +840,32 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         plan?.request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
 
-  int get _albumConcurrency {
-    return switch (networkType) {
-      NetworkType.wifi => wifiAlbumConcurrency,
-      NetworkType.cellular => cellularAlbumConcurrency,
-      NetworkType.offline => 2,
-      NetworkType.other => otherAlbumConcurrency,
-    };
-  }
-
-  int get _maxHydrationConcurrency {
-    if (readActiveSongId?.call() != null) {
-      return 2;
-    }
-    return switch (networkType) {
-      NetworkType.wifi => wifiMaxAlbumConcurrency,
-      NetworkType.cellular => cellularMaxAlbumConcurrency,
-      NetworkType.offline => 2,
-      NetworkType.other => otherMaxAlbumConcurrency,
-    };
-  }
-
-  int get _fullCatalogAlbumConcurrency {
-    if (readActiveSongId?.call() != null) {
-      return switch (networkType) {
-        NetworkType.wifi => 4,
-        NetworkType.cellular => cellularAlbumConcurrency,
-        NetworkType.offline => 2,
-        NetworkType.other => 2,
-      };
-    }
-    return switch (networkType) {
-      NetworkType.wifi => wifiFullCatalogAlbumConcurrency,
-      NetworkType.cellular => cellularAlbumConcurrency,
-      NetworkType.offline => 2,
-      NetworkType.other => otherFullCatalogAlbumConcurrency,
-    };
-  }
-
-  int get _fullCatalogMaxHydrationConcurrency {
-    if (readActiveSongId?.call() != null) {
-      return switch (networkType) {
-        NetworkType.wifi => 8,
-        NetworkType.cellular => cellularMaxAlbumConcurrency,
-        NetworkType.offline => 2,
-        NetworkType.other => 4,
-      };
-    }
-    return switch (networkType) {
-      NetworkType.wifi => wifiFullCatalogMaxAlbumConcurrency,
-      NetworkType.cellular => cellularMaxAlbumConcurrency,
-      NetworkType.offline => 2,
-      NetworkType.other => otherFullCatalogMaxAlbumConcurrency,
+  ({int initial, int max}) _hydrationConcurrency({bool fullCatalog = false}) {
+    final playing = readActiveSongId?.call() != null;
+    return switch ((networkType, fullCatalog, playing)) {
+      (NetworkType.wifi, true, false) => (
+        initial: _wifiFullCatalogAlbumConcurrency,
+        max: _wifiFullCatalogMaxAlbumConcurrency,
+      ),
+      (NetworkType.wifi, true, true) => (initial: 4, max: 8),
+      (NetworkType.other, true, false) => (
+        initial: _otherFullCatalogAlbumConcurrency,
+        max: _otherFullCatalogMaxAlbumConcurrency,
+      ),
+      (NetworkType.other, true, true) => (initial: 2, max: 4),
+      (NetworkType.offline, _, _) => (initial: 2, max: 2),
+      (NetworkType.wifi, false, _) => (
+        initial: wifiAlbumConcurrency,
+        max: playing ? 2 : wifiMaxAlbumConcurrency,
+      ),
+      (NetworkType.other, false, _) => (
+        initial: otherAlbumConcurrency,
+        max: playing ? 2 : otherMaxAlbumConcurrency,
+      ),
+      (NetworkType.cellular, _, _) => (
+        initial: cellularAlbumConcurrency,
+        max: playing && !fullCatalog ? 2 : cellularMaxAlbumConcurrency,
+      ),
     };
   }
 
@@ -1671,7 +1635,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   int get _artistConcurrency {
-    final albumConcurrency = _albumConcurrency;
+    final albumConcurrency = _hydrationConcurrency().initial;
     final tuned = albumConcurrency <= 2
         ? 2
         : albumConcurrency > 6
@@ -2719,7 +2683,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       return true;
     }
     return DateTime.now().difference(lastAuxiliarySync) >=
-        auxiliarySyncStaleAfter;
+        _defaultAuxiliarySyncStaleAfter;
   }
 
   Future<void> _updateStoredIndexesFingerprint(
@@ -5358,15 +5322,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // A user-requested full catalog repair keeps a bounded higher concurrency
     // for its getAlbum fallback while audio is active, rather than collapsing
     // to the ordinary two-request interactive cap near completion.
-    final fullCatalogHydration = candidateMode;
+    final concurrency = _hydrationConcurrency(fullCatalog: candidateMode);
     final concurrencyController = _AdaptiveHydrationConcurrency(
-      initial: fullCatalogHydration
-          ? _fullCatalogAlbumConcurrency
-          : _albumConcurrency,
+      initial: concurrency.initial,
       min: 1,
-      max: fullCatalogHydration
-          ? _fullCatalogMaxHydrationConcurrency
-          : _maxHydrationConcurrency,
+      max: concurrency.max,
     );
     var current = _withMetrics(
       state.copyWith(
@@ -5773,7 +5733,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     if (preferredQuery != null) {
       candidateQueries.add(preferredQuery);
     }
-    for (final query in bulkSearchProbeQueries) {
+    for (final query in _bulkSearchProbeQueries) {
       if (candidateQueries.contains(query)) {
         continue;
       }
@@ -5903,7 +5863,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
     while (pendingAlbumIds.isNotEmpty) {
       pageCount++;
-      if (pageCount > bulkSearchMaxPages) {
+      if (pageCount > _bulkSearchMaxPages) {
         break;
       }
 
@@ -6119,7 +6079,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     while (true) {
       _ensureBackgroundWorkAllowed();
       pageCount++;
-      if (pageCount > fastPathMaxPages) {
+      if (pageCount > _fastPathMaxPages) {
         throw StateError('Album fast path exceeded page limit.');
       }
 
@@ -6494,9 +6454,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     LibrarySyncState state,
     _SyncRunMetrics metrics,
   ) {
-    lastEndpointRequestCounts = Map<String, int>.from(
-      metrics.apiRequestsByEndpoint,
-    );
     return state.copyWith(
       apiRequests: metrics.apiRequests,
       endpointRequests: Map<String, int>.unmodifiable(
