@@ -9,6 +9,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -28,7 +29,9 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../helpers/test_database.dart';
@@ -400,6 +403,179 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 }
 
 void main() {
+  group('appearance providers', () {
+    test('expose persisted preferences and defaults while loading', () async {
+      final settings = StreamController<AppSettingsModel>();
+      final container = ProviderContainer(
+        overrides: [appSettingsProvider.overrideWith((ref) => settings.stream)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await settings.close();
+      });
+      container.listen(oledForAutoProvider, (_, _) {});
+      container.listen(flatSurfacesProvider, (_, _) {});
+      container.listen(nightScheduleProvider, (_, _) {});
+      container.listen(colorStyleProvider, (_, _) {});
+      expect(container.read(oledForAutoProvider), isFalse);
+      expect(container.read(flatSurfacesProvider), isFalse);
+      expect(
+        container.read(nightScheduleProvider),
+        const NightSchedule(
+          enabled: false,
+          startMinutes: 1320,
+          endMinutes: 420,
+        ),
+      );
+      expect(container.read(colorStyleProvider), NavisColorStyle.neutral);
+
+      settings.add(
+        const AppSettingsModel.defaults().copyWith(
+          oledForAuto: true,
+          flatSurfaces: true,
+          nightScheduleEnabled: true,
+          nightScheduleStartMinutes: 1200,
+          nightScheduleEndMinutes: 480,
+          colorStyle: 'immersive',
+        ),
+      );
+      await container.pump();
+      expect(container.read(oledForAutoProvider), isTrue);
+      expect(container.read(flatSurfacesProvider), isTrue);
+      expect(
+        container.read(nightScheduleProvider),
+        const NightSchedule(enabled: true, startMinutes: 1200, endMinutes: 480),
+      );
+      expect(container.read(colorStyleProvider), NavisColorStyle.immersive);
+    });
+  });
+
+  group('effectiveColorStyleProvider', () {
+    const schedule = NightSchedule(
+      enabled: true,
+      startMinutes: 1320,
+      endMinutes: 420,
+    );
+
+    for (final hour in [3, 7, 12, 22]) {
+      test('resolves the colour style at hour $hour', () {
+        final container = ProviderContainer(
+          overrides: [
+            colorStyleProvider.overrideWithValue(NavisColorStyle.pastel),
+            nightScheduleProvider.overrideWithValue(schedule),
+            nowProvider.overrideWithValue(() => DateTime(2026, 10, 8, hour)),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(effectiveColorStyleProvider, (_, _) {});
+        expect(
+          container.read(effectiveColorStyleProvider),
+          hour == 3 || hour == 22
+              ? NavisColorStyle.night
+              : NavisColorStyle.pastel,
+        );
+      });
+    }
+
+    test('follows the user style and cancels timers on recomputation', () {
+      fakeAsync((async) {
+        final container = ProviderContainer(
+          overrides: [
+            colorStyleProvider.overrideWithValue(NavisColorStyle.pastel),
+            nightScheduleProvider.overrideWithValue(schedule),
+            nowProvider.overrideWithValue(() => DateTime(2026, 10, 8, 12)),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(effectiveColorStyleProvider, (_, _) {});
+        expect(
+          container.read(effectiveColorStyleProvider),
+          NavisColorStyle.pastel,
+        );
+        expect(async.nonPeriodicTimerCount, 1);
+        container.updateOverrides([
+          colorStyleProvider.overrideWithValue(NavisColorStyle.immersive),
+          nightScheduleProvider.overrideWithValue(schedule),
+          nowProvider.overrideWithValue(() => DateTime(2026, 10, 8, 12)),
+        ]);
+        // Drain Riverpod's zero-delay scheduler before counting boundary timers.
+        async.elapse(Duration.zero);
+        async.flushMicrotasks();
+        expect(
+          container.read(effectiveColorStyleProvider),
+          NavisColorStyle.immersive,
+        );
+        expect(async.nonPeriodicTimerCount, 1);
+        container.dispose();
+        expect(async.nonPeriodicTimerCount, 0);
+      });
+    });
+
+    test('switches exactly at start and end and rearms the timer', () {
+      fakeAsync((async) {
+        final initial = DateTime(2026, 10, 8, 21, 59, 59);
+        final container = ProviderContainer(
+          overrides: [
+            colorStyleProvider.overrideWithValue(NavisColorStyle.pastel),
+            nightScheduleProvider.overrideWithValue(schedule),
+            nowProvider.overrideWithValue(() => initial.add(async.elapsed)),
+          ],
+        );
+        addTearDown(container.dispose);
+        final styles = <NavisColorStyle>[];
+        container.listen(
+          effectiveColorStyleProvider,
+          (_, next) => styles.add(next),
+        );
+        expect(
+          container.read(effectiveColorStyleProvider),
+          NavisColorStyle.pastel,
+        );
+        async.elapse(const Duration(milliseconds: 999));
+        expect(styles, isEmpty);
+        async.elapse(const Duration(milliseconds: 1));
+        async.flushMicrotasks();
+        expect(styles, [NavisColorStyle.night]);
+        expect(async.nonPeriodicTimerCount, 1);
+        async.elapse(
+          const Duration(hours: 9) - const Duration(milliseconds: 1),
+        );
+        expect(styles, [NavisColorStyle.night]);
+        async.elapse(const Duration(milliseconds: 1));
+        async.flushMicrotasks();
+        expect(styles, [NavisColorStyle.night, NavisColorStyle.pastel]);
+        expect(async.nonPeriodicTimerCount, 1);
+        container.dispose();
+        expect(async.nonPeriodicTimerCount, 0);
+      });
+    });
+
+    test('disabled schedule uses the user style without a timer', () {
+      fakeAsync((async) {
+        final container = ProviderContainer(
+          overrides: [
+            colorStyleProvider.overrideWithValue(NavisColorStyle.immersive),
+            nightScheduleProvider.overrideWithValue(
+              const NightSchedule(
+                enabled: false,
+                startMinutes: 1320,
+                endMinutes: 420,
+              ),
+            ),
+            nowProvider.overrideWithValue(() => DateTime(2026, 10, 8, 22)),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(effectiveColorStyleProvider, (_, _) {});
+        expect(
+          container.read(effectiveColorStyleProvider),
+          NavisColorStyle.immersive,
+        );
+        expect(async.nonPeriodicTimerCount, 0);
+      });
+    });
+  });
+
   setUpAll(() {
     registerFallbackValue(const AppSettingsModel.defaults());
   });
@@ -673,6 +849,11 @@ void main() {
                   customDownloadFolderPath: null,
                   themeMode: 'dark',
                   colorStyle: 'neutral',
+                  oledForAuto: false,
+                  nightScheduleEnabled: false,
+                  nightScheduleStartMinutes: 1320,
+                  nightScheduleEndMinutes: 420,
+                  flatSurfaces: false,
                   colorSchemeSeed: null,
                   appLocale: null,
                   crossfadeEnabled: false,

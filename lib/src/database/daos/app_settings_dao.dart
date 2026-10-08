@@ -167,6 +167,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? customDownloadFolderPath,
     required String themeMode,
     required String colorStyle,
+    required bool oledForAuto,
+    required bool nightScheduleEnabled,
+    required int nightScheduleStartMinutes,
+    required int nightScheduleEndMinutes,
+    required bool flatSurfaces,
     int? colorSchemeSeed,
     String? appLocale,
     required bool crossfadeEnabled,
@@ -236,6 +241,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         customDownloadFolderPath: Value(customDownloadFolderPath),
         themeMode: Value(themeMode),
         colorStyle: Value(colorStyle),
+        oledForAuto: Value(oledForAuto),
+        nightScheduleEnabled: Value(nightScheduleEnabled),
+        nightScheduleStartMinutes: Value(
+          nightScheduleStartMinutes.clamp(0, 1439),
+        ),
+        nightScheduleEndMinutes: Value(nightScheduleEndMinutes.clamp(0, 1439)),
+        flatSurfaces: Value(flatSurfaces),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
@@ -402,6 +414,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       customDownloadFolderPath: null,
       themeMode: 'dark',
       colorStyle: 'neutral',
+      oledForAuto: false,
+      nightScheduleEnabled: false,
+      nightScheduleStartMinutes: 1320,
+      nightScheduleEndMinutes: 420,
+      flatSurfaces: false,
       colorSchemeSeed: null,
       appLocale: null,
       crossfadeEnabled: false,
@@ -772,6 +789,54 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         colorStyle: Value(style),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for OLED in Auto mode.
+  Future<void> updateOledForAuto({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        oledForAuto: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for flat surfaces.
+  Future<void> updateFlatSurfaces({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        flatSurfaces: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for the daily Night schedule.
+  Future<void> updateNightSchedule({
+    bool? enabled,
+    int? startMinutes,
+    int? endMinutes,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        nightScheduleEnabled: enabled == null
+            ? const Value.absent()
+            : Value(enabled),
+        nightScheduleStartMinutes: startMinutes == null
+            ? const Value.absent()
+            : Value(startMinutes.clamp(0, 1439)),
+        nightScheduleEndMinutes: endMinutes == null
+            ? const Value.absent()
+            : Value(endMinutes.clamp(0, 1439)),
         updatedAt: Value(DateTime.now()),
       ),
     );

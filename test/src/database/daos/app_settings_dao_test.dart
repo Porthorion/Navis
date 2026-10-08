@@ -35,6 +35,50 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('appearance settings default and update independently', () async {
+      final initial = (await database.appSettingsDao.getSettings())!;
+      expect(initial.oledForAuto, isFalse);
+      expect(initial.nightScheduleEnabled, isFalse);
+      expect(initial.nightScheduleStartMinutes, 1320);
+      expect(initial.nightScheduleEndMinutes, 420);
+      expect(initial.flatSurfaces, isFalse);
+
+      await database.appSettingsDao.updateColorStyle('pastel');
+      await database.appSettingsDao.updateOledForAuto(enabled: true);
+      await database.appSettingsDao.updateFlatSurfaces(enabled: true);
+      await database.appSettingsDao.updateNightSchedule(enabled: true);
+      var saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.oledForAuto, isTrue);
+      expect(saved.flatSurfaces, isTrue);
+      expect(saved.nightScheduleEnabled, isTrue);
+      expect(saved.nightScheduleStartMinutes, 1320);
+      expect(saved.nightScheduleEndMinutes, 420);
+      expect(saved.colorStyle, 'pastel');
+      expect(saved.themeMode, initial.themeMode);
+      expect(saved.updatedAt.isBefore(initial.updatedAt), isFalse);
+
+      await database.appSettingsDao.updateNightSchedule(startMinutes: -10);
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleStartMinutes, 0);
+      expect(saved.nightScheduleEndMinutes, 420);
+      expect(saved.nightScheduleEnabled, isTrue);
+      await database.appSettingsDao.updateNightSchedule(endMinutes: 1500);
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleStartMinutes, 0);
+      expect(saved.nightScheduleEndMinutes, 1439);
+      await database.appSettingsDao.updateNightSchedule(
+        enabled: false,
+        startMinutes: 1500,
+        endMinutes: -10,
+      );
+      saved = (await database.appSettingsDao.getSettings())!;
+      expect(saved.nightScheduleEnabled, isFalse);
+      expect(saved.nightScheduleStartMinutes, 1439);
+      expect(saved.nightScheduleEndMinutes, 0);
+      expect(saved.oledForAuto, isTrue);
+      expect(saved.flatSurfaces, isTrue);
+    }, skip: !sqliteAvailable);
+
     test('saveSettings writes and overwrites single-row settings', () async {
       await database.appSettingsDao.saveSettings(
         wifiMaxBitRate: 320,
@@ -57,6 +101,11 @@ void main() {
         customDownloadFolderPath: null,
         themeMode: 'dark',
         colorStyle: 'neutral',
+        oledForAuto: true,
+        nightScheduleEnabled: true,
+        nightScheduleStartMinutes: 1200,
+        nightScheduleEndMinutes: 480,
+        flatSurfaces: true,
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -87,6 +136,11 @@ void main() {
       expect(first.cellularMaxBitRate, 128);
       expect(first.cellularFormat, 'aac');
       expect(first.cachedPlaybackFirst, isTrue);
+      expect(first.oledForAuto, isTrue);
+      expect(first.nightScheduleEnabled, isTrue);
+      expect(first.nightScheduleStartMinutes, 1200);
+      expect(first.nightScheduleEndMinutes, 480);
+      expect(first.flatSurfaces, isTrue);
       expect(first.scrobbleEnabled, isFalse);
       expect(first.gaplessEnabled, isFalse);
       expect(first.skipSilenceEnabled, isTrue);
@@ -117,6 +171,11 @@ void main() {
         customDownloadFolderPath: null,
         themeMode: 'dark',
         colorStyle: 'neutral',
+        oledForAuto: false,
+        nightScheduleEnabled: false,
+        nightScheduleStartMinutes: 1320,
+        nightScheduleEndMinutes: 420,
+        flatSurfaces: false,
         colorSchemeSeed: null,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -147,6 +206,11 @@ void main() {
       expect(second.cellularMaxBitRate, 192);
       expect(second.cellularFormat, 'mp3');
       expect(second.cachedPlaybackFirst, isFalse);
+      expect(second.oledForAuto, isFalse);
+      expect(second.nightScheduleEnabled, isFalse);
+      expect(second.nightScheduleStartMinutes, 1320);
+      expect(second.nightScheduleEndMinutes, 420);
+      expect(second.flatSurfaces, isFalse);
       expect(second.scrobbleEnabled, isTrue);
       expect(second.gaplessEnabled, isTrue);
       expect(second.skipSilenceEnabled, isFalse);
@@ -179,6 +243,11 @@ void main() {
         customDownloadFolderPath: null,
         themeMode: 'oled',
         colorStyle: 'night',
+        oledForAuto: true,
+        nightScheduleEnabled: true,
+        nightScheduleStartMinutes: 1200,
+        nightScheduleEndMinutes: 480,
+        flatSurfaces: true,
         colorSchemeSeed: 4283215696,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
@@ -230,6 +299,11 @@ void main() {
       expect(settings.customDownloadFolderPath, isNull);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
       expect(settings.colorStyle, 'neutral');
+      expect(settings.oledForAuto, isFalse);
+      expect(settings.nightScheduleEnabled, isFalse);
+      expect(settings.nightScheduleStartMinutes, 1320);
+      expect(settings.nightScheduleEndMinutes, 420);
+      expect(settings.flatSurfaces, isFalse);
       expect(settings.homeDensity, 'comfortable');
       final groupListening = await database.appSettingsDao
           .getGroupListeningSettings();
@@ -350,6 +424,11 @@ void main() {
         customDownloadFolderEnabled: false,
         themeMode: 'dark',
         colorStyle: 'neutral',
+        oledForAuto: false,
+        nightScheduleEnabled: false,
+        nightScheduleStartMinutes: 1320,
+        nightScheduleEndMinutes: 420,
+        flatSurfaces: false,
         crossfadeEnabled: false,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',

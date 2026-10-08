@@ -76,6 +76,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
@@ -2707,6 +2708,51 @@ final colorStyleProvider = Provider<NavisColorStyle>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return NavisColorStyle.parse(settings.colorStyle);
+});
+
+/// Whether Auto mode uses OLED when the device is dark.
+final oledForAutoProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.oledForAuto;
+});
+
+/// Whether surfaces use flat rendering.
+final flatSurfacesProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.flatSurfaces;
+});
+
+/// Daily window for the Night colour style.
+final nightScheduleProvider = Provider<NightSchedule>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return NightSchedule(
+    enabled: settings.nightScheduleEnabled,
+    startMinutes: settings.nightScheduleStartMinutes,
+    endMinutes: settings.nightScheduleEndMinutes,
+  );
+});
+
+final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Applies the scheduled Night style without changing the saved user style.
+final effectiveColorStyleProvider = Provider<NavisColorStyle>((ref) {
+  final style = ref.watch(colorStyleProvider);
+  final schedule = ref.watch(nightScheduleProvider);
+  final now = ref.watch(nowProvider)();
+  if (schedule.enabled) {
+    final timer = Timer(
+      schedule.nextBoundaryAfter(now).difference(now),
+      ref.invalidateSelf,
+    );
+    ref.onDispose(timer.cancel);
+  }
+  return schedule.isActiveAt(now) ? NavisColorStyle.night : style;
 });
 
 /// Current color scheme seed color value (null = default white).

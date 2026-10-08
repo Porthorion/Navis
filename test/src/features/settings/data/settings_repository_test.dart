@@ -211,6 +211,57 @@ WHERE id = ?;
       expect(reset.cachedPlaybackFirst, isFalse);
     }, skip: !sqliteAvailable);
 
+    test('round trips appearance settings and restores defaults', () async {
+      final defaults = await repository.getSettings();
+      expect(defaults.oledForAuto, isFalse);
+      expect(defaults.nightScheduleEnabled, isFalse);
+      expect(defaults.nightScheduleStartMinutes, 1320);
+      expect(defaults.nightScheduleEndMinutes, 420);
+      expect(defaults.flatSurfaces, isFalse);
+      await repository.saveSettings(
+        defaults.copyWith(
+          oledForAuto: true,
+          nightScheduleEnabled: true,
+          nightScheduleStartMinutes: 1200,
+          nightScheduleEndMinutes: 480,
+          flatSurfaces: true,
+        ),
+      );
+      final saved = await repository.getSettings();
+      expect(saved.oledForAuto, isTrue);
+      expect(saved.nightScheduleEnabled, isTrue);
+      expect(saved.nightScheduleStartMinutes, 1200);
+      expect(saved.nightScheduleEndMinutes, 480);
+      expect(saved.flatSurfaces, isTrue);
+      await repository.saveSettings(saved.copyWith(themeMode: 'system'));
+      final preserved = await repository.getSettings();
+      expect(preserved.oledForAuto, isTrue);
+      expect(preserved.nightScheduleEnabled, isTrue);
+      expect(preserved.nightScheduleStartMinutes, 1200);
+      expect(preserved.nightScheduleEndMinutes, 480);
+      expect(preserved.flatSurfaces, isTrue);
+
+      await repository.resetDefaults();
+      final reset = await repository.getSettings();
+      expect(reset.oledForAuto, isFalse);
+      expect(reset.nightScheduleEnabled, isFalse);
+      expect(reset.nightScheduleStartMinutes, 1320);
+      expect(reset.nightScheduleEndMinutes, 420);
+      expect(reset.flatSurfaces, isFalse);
+    }, skip: !sqliteAvailable);
+
+    test('full-row saves clamp Night schedule minutes', () async {
+      await repository.saveSettings(
+        const AppSettingsModel.defaults().copyWith(
+          nightScheduleStartMinutes: -1,
+          nightScheduleEndMinutes: 1440,
+        ),
+      );
+      final saved = await repository.getSettings();
+      expect(saved.nightScheduleStartMinutes, 0);
+      expect(saved.nightScheduleEndMinutes, 1439);
+    }, skip: !sqliteAvailable);
+
     test('round trips colour style independently of theme mode', () async {
       final defaults = await repository.getSettings();
       expect(defaults.colorStyle, 'neutral');

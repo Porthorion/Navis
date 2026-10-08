@@ -231,7 +231,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 93;
+  int get schemaVersion => 94;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -531,6 +531,37 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 93 && to >= 93) {
       await from92To93(migrator);
+    }
+    if (from < 94 && to >= 94) {
+      await from93To94(migrator);
+    }
+  }
+
+  /// Adds OLED for Auto, the daily Night schedule and flat surfaces.
+  Future<void> from93To94(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'oled_for_auto')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.oledForAuto);
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_start_minutes')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleStartMinutes,
+      );
+    }
+    if (!await _columnExists('app_settings', 'night_schedule_end_minutes')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nightScheduleEndMinutes,
+      );
+    }
+    if (!await _columnExists('app_settings', 'flat_surfaces')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.flatSurfaces);
     }
   }
 
@@ -2331,6 +2362,11 @@ FROM scrobble_queue;
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorStyle: const Value('neutral'),
+        oledForAuto: const Value(false),
+        nightScheduleEnabled: const Value(false),
+        nightScheduleStartMinutes: const Value(1320),
+        nightScheduleEndMinutes: const Value(420),
+        flatSurfaces: const Value(false),
         colorSchemeSeed: const Value(null),
         onboardingVersion: const Value(0),
         albumQueueEnabled: const Value(true),

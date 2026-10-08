@@ -963,6 +963,74 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('neutral'),
   );
+  static const VerificationMeta _oledForAutoMeta = const VerificationMeta(
+    'oledForAuto',
+  );
+  @override
+  late final GeneratedColumn<bool> oledForAuto = GeneratedColumn<bool>(
+    'oled_for_auto',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("oled_for_auto" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _nightScheduleEnabledMeta =
+      const VerificationMeta('nightScheduleEnabled');
+  @override
+  late final GeneratedColumn<bool> nightScheduleEnabled = GeneratedColumn<bool>(
+    'night_schedule_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("night_schedule_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _nightScheduleStartMinutesMeta =
+      const VerificationMeta('nightScheduleStartMinutes');
+  @override
+  late final GeneratedColumn<int> nightScheduleStartMinutes =
+      GeneratedColumn<int>(
+        'night_schedule_start_minutes',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(1320),
+      );
+  static const VerificationMeta _nightScheduleEndMinutesMeta =
+      const VerificationMeta('nightScheduleEndMinutes');
+  @override
+  late final GeneratedColumn<int> nightScheduleEndMinutes =
+      GeneratedColumn<int>(
+        'night_schedule_end_minutes',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(420),
+      );
+  static const VerificationMeta _flatSurfacesMeta = const VerificationMeta(
+    'flatSurfaces',
+  );
+  @override
+  late final GeneratedColumn<bool> flatSurfaces = GeneratedColumn<bool>(
+    'flat_surfaces',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("flat_surfaces" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _colorSchemeSeedMeta = const VerificationMeta(
     'colorSchemeSeed',
   );
@@ -1735,6 +1803,11 @@ class $AppSettingsTableTable extends AppSettingsTable
     downloadsPaused,
     themeMode,
     colorStyle,
+    oledForAuto,
+    nightScheduleEnabled,
+    nightScheduleStartMinutes,
+    nightScheduleEndMinutes,
+    flatSurfaces,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -2050,6 +2123,51 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _colorStyleMeta,
         colorStyle.isAcceptableOrUnknown(data['color_style']!, _colorStyleMeta),
+      );
+    }
+    if (data.containsKey('oled_for_auto')) {
+      context.handle(
+        _oledForAutoMeta,
+        oledForAuto.isAcceptableOrUnknown(
+          data['oled_for_auto']!,
+          _oledForAutoMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_enabled')) {
+      context.handle(
+        _nightScheduleEnabledMeta,
+        nightScheduleEnabled.isAcceptableOrUnknown(
+          data['night_schedule_enabled']!,
+          _nightScheduleEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_start_minutes')) {
+      context.handle(
+        _nightScheduleStartMinutesMeta,
+        nightScheduleStartMinutes.isAcceptableOrUnknown(
+          data['night_schedule_start_minutes']!,
+          _nightScheduleStartMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_schedule_end_minutes')) {
+      context.handle(
+        _nightScheduleEndMinutesMeta,
+        nightScheduleEndMinutes.isAcceptableOrUnknown(
+          data['night_schedule_end_minutes']!,
+          _nightScheduleEndMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('flat_surfaces')) {
+      context.handle(
+        _flatSurfacesMeta,
+        flatSurfaces.isAcceptableOrUnknown(
+          data['flat_surfaces']!,
+          _flatSurfacesMeta,
+        ),
       );
     }
     if (data.containsKey('color_scheme_seed')) {
@@ -2692,6 +2810,26 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}color_style'],
       )!,
+      oledForAuto: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}oled_for_auto'],
+      )!,
+      nightScheduleEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}night_schedule_enabled'],
+      )!,
+      nightScheduleStartMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}night_schedule_start_minutes'],
+      )!,
+      nightScheduleEndMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}night_schedule_end_minutes'],
+      )!,
+      flatSurfaces: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}flat_surfaces'],
+      )!,
       colorSchemeSeed: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}color_scheme_seed'],
@@ -3002,6 +3140,21 @@ class AppSettingsTableData extends DataClass
   /// Orthogonal to [themeMode].
   final String colorStyle;
 
+  /// Uses OLED for the dark theme when the theme mode follows the system.
+  final bool oledForAuto;
+
+  /// Switches to Night colour style during the daily schedule.
+  final bool nightScheduleEnabled;
+
+  /// Daily Night start in minutes after local midnight.
+  final int nightScheduleStartMinutes;
+
+  /// Daily Night end in minutes after local midnight.
+  final int nightScheduleEndMinutes;
+
+  /// Disables surface glows, gradients and shadows when rendered.
+  final bool flatSurfaces;
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   final int? colorSchemeSeed;
 
@@ -3215,6 +3368,11 @@ class AppSettingsTableData extends DataClass
     required this.downloadsPaused,
     required this.themeMode,
     required this.colorStyle,
+    required this.oledForAuto,
+    required this.nightScheduleEnabled,
+    required this.nightScheduleStartMinutes,
+    required this.nightScheduleEndMinutes,
+    required this.flatSurfaces,
     this.colorSchemeSeed,
     this.customColorPresets,
     this.appLocale,
@@ -3324,6 +3482,13 @@ class AppSettingsTableData extends DataClass
     map['downloads_paused'] = Variable<bool>(downloadsPaused);
     map['theme_mode'] = Variable<String>(themeMode);
     map['color_style'] = Variable<String>(colorStyle);
+    map['oled_for_auto'] = Variable<bool>(oledForAuto);
+    map['night_schedule_enabled'] = Variable<bool>(nightScheduleEnabled);
+    map['night_schedule_start_minutes'] = Variable<int>(
+      nightScheduleStartMinutes,
+    );
+    map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
+    map['flat_surfaces'] = Variable<bool>(flatSurfaces);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
     }
@@ -3474,6 +3639,11 @@ class AppSettingsTableData extends DataClass
       downloadsPaused: Value(downloadsPaused),
       themeMode: Value(themeMode),
       colorStyle: Value(colorStyle),
+      oledForAuto: Value(oledForAuto),
+      nightScheduleEnabled: Value(nightScheduleEnabled),
+      nightScheduleStartMinutes: Value(nightScheduleStartMinutes),
+      nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
+      flatSurfaces: Value(flatSurfaces),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
           : Value(colorSchemeSeed),
@@ -3616,6 +3786,17 @@ class AppSettingsTableData extends DataClass
       downloadsPaused: serializer.fromJson<bool>(json['downloadsPaused']),
       themeMode: serializer.fromJson<String>(json['themeMode']),
       colorStyle: serializer.fromJson<String>(json['colorStyle']),
+      oledForAuto: serializer.fromJson<bool>(json['oledForAuto']),
+      nightScheduleEnabled: serializer.fromJson<bool>(
+        json['nightScheduleEnabled'],
+      ),
+      nightScheduleStartMinutes: serializer.fromJson<int>(
+        json['nightScheduleStartMinutes'],
+      ),
+      nightScheduleEndMinutes: serializer.fromJson<int>(
+        json['nightScheduleEndMinutes'],
+      ),
+      flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       customColorPresets: serializer.fromJson<String?>(
         json['customColorPresets'],
@@ -3781,6 +3962,15 @@ class AppSettingsTableData extends DataClass
       'downloadsPaused': serializer.toJson<bool>(downloadsPaused),
       'themeMode': serializer.toJson<String>(themeMode),
       'colorStyle': serializer.toJson<String>(colorStyle),
+      'oledForAuto': serializer.toJson<bool>(oledForAuto),
+      'nightScheduleEnabled': serializer.toJson<bool>(nightScheduleEnabled),
+      'nightScheduleStartMinutes': serializer.toJson<int>(
+        nightScheduleStartMinutes,
+      ),
+      'nightScheduleEndMinutes': serializer.toJson<int>(
+        nightScheduleEndMinutes,
+      ),
+      'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
       'appLocale': serializer.toJson<String?>(appLocale),
@@ -3902,6 +4092,11 @@ class AppSettingsTableData extends DataClass
     bool? downloadsPaused,
     String? themeMode,
     String? colorStyle,
+    bool? oledForAuto,
+    bool? nightScheduleEnabled,
+    int? nightScheduleStartMinutes,
+    int? nightScheduleEndMinutes,
+    bool? flatSurfaces,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
     Value<String?> appLocale = const Value.absent(),
@@ -4003,6 +4198,13 @@ class AppSettingsTableData extends DataClass
     downloadsPaused: downloadsPaused ?? this.downloadsPaused,
     themeMode: themeMode ?? this.themeMode,
     colorStyle: colorStyle ?? this.colorStyle,
+    oledForAuto: oledForAuto ?? this.oledForAuto,
+    nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+    nightScheduleStartMinutes:
+        nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+    nightScheduleEndMinutes:
+        nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+    flatSurfaces: flatSurfaces ?? this.flatSurfaces,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
         : this.colorSchemeSeed,
@@ -4188,6 +4390,21 @@ class AppSettingsTableData extends DataClass
       colorStyle: data.colorStyle.present
           ? data.colorStyle.value
           : this.colorStyle,
+      oledForAuto: data.oledForAuto.present
+          ? data.oledForAuto.value
+          : this.oledForAuto,
+      nightScheduleEnabled: data.nightScheduleEnabled.present
+          ? data.nightScheduleEnabled.value
+          : this.nightScheduleEnabled,
+      nightScheduleStartMinutes: data.nightScheduleStartMinutes.present
+          ? data.nightScheduleStartMinutes.value
+          : this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes: data.nightScheduleEndMinutes.present
+          ? data.nightScheduleEndMinutes.value
+          : this.nightScheduleEndMinutes,
+      flatSurfaces: data.flatSurfaces.present
+          ? data.flatSurfaces.value
+          : this.flatSurfaces,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
           : this.colorSchemeSeed,
@@ -4394,6 +4611,11 @@ class AppSettingsTableData extends DataClass
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorStyle: $colorStyle, ')
+          ..write('oledForAuto: $oledForAuto, ')
+          ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
+          ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
+          ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -4493,6 +4715,11 @@ class AppSettingsTableData extends DataClass
     downloadsPaused,
     themeMode,
     colorStyle,
+    oledForAuto,
+    nightScheduleEnabled,
+    nightScheduleStartMinutes,
+    nightScheduleEndMinutes,
+    flatSurfaces,
     colorSchemeSeed,
     customColorPresets,
     appLocale,
@@ -4587,6 +4814,11 @@ class AppSettingsTableData extends DataClass
           other.downloadsPaused == this.downloadsPaused &&
           other.themeMode == this.themeMode &&
           other.colorStyle == this.colorStyle &&
+          other.oledForAuto == this.oledForAuto &&
+          other.nightScheduleEnabled == this.nightScheduleEnabled &&
+          other.nightScheduleStartMinutes == this.nightScheduleStartMinutes &&
+          other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
+          other.flatSurfaces == this.flatSurfaces &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
           other.appLocale == this.appLocale &&
@@ -4683,6 +4915,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> downloadsPaused;
   final Value<String> themeMode;
   final Value<String> colorStyle;
+  final Value<bool> oledForAuto;
+  final Value<bool> nightScheduleEnabled;
+  final Value<int> nightScheduleStartMinutes;
+  final Value<int> nightScheduleEndMinutes;
+  final Value<bool> flatSurfaces;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
   final Value<String?> appLocale;
@@ -4771,6 +5008,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorStyle = const Value.absent(),
+    this.oledForAuto = const Value.absent(),
+    this.nightScheduleEnabled = const Value.absent(),
+    this.nightScheduleStartMinutes = const Value.absent(),
+    this.nightScheduleEndMinutes = const Value.absent(),
+    this.flatSurfaces = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4860,6 +5102,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.downloadsPaused = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorStyle = const Value.absent(),
+    this.oledForAuto = const Value.absent(),
+    this.nightScheduleEnabled = const Value.absent(),
+    this.nightScheduleStartMinutes = const Value.absent(),
+    this.nightScheduleEndMinutes = const Value.absent(),
+    this.flatSurfaces = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
@@ -4949,6 +5196,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? downloadsPaused,
     Expression<String>? themeMode,
     Expression<String>? colorStyle,
+    Expression<bool>? oledForAuto,
+    Expression<bool>? nightScheduleEnabled,
+    Expression<int>? nightScheduleStartMinutes,
+    Expression<int>? nightScheduleEndMinutes,
+    Expression<bool>? flatSurfaces,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
     Expression<String>? appLocale,
@@ -5050,6 +5302,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (downloadsPaused != null) 'downloads_paused': downloadsPaused,
       if (themeMode != null) 'theme_mode': themeMode,
       if (colorStyle != null) 'color_style': colorStyle,
+      if (oledForAuto != null) 'oled_for_auto': oledForAuto,
+      if (nightScheduleEnabled != null)
+        'night_schedule_enabled': nightScheduleEnabled,
+      if (nightScheduleStartMinutes != null)
+        'night_schedule_start_minutes': nightScheduleStartMinutes,
+      if (nightScheduleEndMinutes != null)
+        'night_schedule_end_minutes': nightScheduleEndMinutes,
+      if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
         'custom_color_presets': customColorPresets,
@@ -5173,6 +5433,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? downloadsPaused,
     Value<String>? themeMode,
     Value<String>? colorStyle,
+    Value<bool>? oledForAuto,
+    Value<bool>? nightScheduleEnabled,
+    Value<int>? nightScheduleStartMinutes,
+    Value<int>? nightScheduleEndMinutes,
+    Value<bool>? flatSurfaces,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
     Value<String?>? appLocale,
@@ -5269,6 +5534,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       downloadsPaused: downloadsPaused ?? this.downloadsPaused,
       themeMode: themeMode ?? this.themeMode,
       colorStyle: colorStyle ?? this.colorStyle,
+      oledForAuto: oledForAuto ?? this.oledForAuto,
+      nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+      nightScheduleStartMinutes:
+          nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes:
+          nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
       appLocale: appLocale ?? this.appLocale,
@@ -5454,6 +5726,27 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (colorStyle.present) {
       map['color_style'] = Variable<String>(colorStyle.value);
+    }
+    if (oledForAuto.present) {
+      map['oled_for_auto'] = Variable<bool>(oledForAuto.value);
+    }
+    if (nightScheduleEnabled.present) {
+      map['night_schedule_enabled'] = Variable<bool>(
+        nightScheduleEnabled.value,
+      );
+    }
+    if (nightScheduleStartMinutes.present) {
+      map['night_schedule_start_minutes'] = Variable<int>(
+        nightScheduleStartMinutes.value,
+      );
+    }
+    if (nightScheduleEndMinutes.present) {
+      map['night_schedule_end_minutes'] = Variable<int>(
+        nightScheduleEndMinutes.value,
+      );
+    }
+    if (flatSurfaces.present) {
+      map['flat_surfaces'] = Variable<bool>(flatSurfaces.value);
     }
     if (colorSchemeSeed.present) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed.value);
@@ -5714,6 +6007,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('downloadsPaused: $downloadsPaused, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorStyle: $colorStyle, ')
+          ..write('oledForAuto: $oledForAuto, ')
+          ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
+          ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
+          ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
@@ -35333,6 +35631,11 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> downloadsPaused,
       Value<String> themeMode,
       Value<String> colorStyle,
+      Value<bool> oledForAuto,
+      Value<bool> nightScheduleEnabled,
+      Value<int> nightScheduleStartMinutes,
+      Value<int> nightScheduleEndMinutes,
+      Value<bool> flatSurfaces,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -35423,6 +35726,11 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> downloadsPaused,
       Value<String> themeMode,
       Value<String> colorStyle,
+      Value<bool> oledForAuto,
+      Value<bool> nightScheduleEnabled,
+      Value<int> nightScheduleStartMinutes,
+      Value<int> nightScheduleEndMinutes,
+      Value<bool> flatSurfaces,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
@@ -35635,6 +35943,31 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get colorStyle => $composableBuilder(
     column: $table.colorStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36084,6 +36417,31 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => ColumnOrderings(column),
@@ -36527,6 +36885,31 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get oledForAuto => $composableBuilder(
+    column: $table.oledForAuto,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get nightScheduleEnabled => $composableBuilder(
+    column: $table.nightScheduleEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nightScheduleStartMinutes => $composableBuilder(
+    column: $table.nightScheduleStartMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nightScheduleEndMinutes => $composableBuilder(
+    column: $table.nightScheduleEndMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get flatSurfaces => $composableBuilder(
+    column: $table.flatSurfaces,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
     builder: (column) => column,
@@ -36880,6 +37263,11 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<String> colorStyle = const Value.absent(),
+                Value<bool> oledForAuto = const Value.absent(),
+                Value<bool> nightScheduleEnabled = const Value.absent(),
+                Value<int> nightScheduleStartMinutes = const Value.absent(),
+                Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<bool> flatSurfaces = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -36972,6 +37360,11 @@ class $$AppSettingsTableTableTableManager
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
                 colorStyle: colorStyle,
+                oledForAuto: oledForAuto,
+                nightScheduleEnabled: nightScheduleEnabled,
+                nightScheduleStartMinutes: nightScheduleStartMinutes,
+                nightScheduleEndMinutes: nightScheduleEndMinutes,
+                flatSurfaces: flatSurfaces,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
@@ -37063,6 +37456,11 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> downloadsPaused = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<String> colorStyle = const Value.absent(),
+                Value<bool> oledForAuto = const Value.absent(),
+                Value<bool> nightScheduleEnabled = const Value.absent(),
+                Value<int> nightScheduleStartMinutes = const Value.absent(),
+                Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<bool> flatSurfaces = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
@@ -37155,6 +37553,11 @@ class $$AppSettingsTableTableTableManager
                 downloadsPaused: downloadsPaused,
                 themeMode: themeMode,
                 colorStyle: colorStyle,
+                oledForAuto: oledForAuto,
+                nightScheduleEnabled: nightScheduleEnabled,
+                nightScheduleStartMinutes: nightScheduleStartMinutes,
+                nightScheduleEndMinutes: nightScheduleEndMinutes,
+                flatSurfaces: flatSurfaces,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,

@@ -100,6 +100,24 @@ class AppSettingsTable extends Table {
   /// Orthogonal to [themeMode].
   TextColumn get colorStyle => text().withDefault(const Constant('neutral'))();
 
+  /// Uses OLED for the dark theme when the theme mode follows the system.
+  BoolColumn get oledForAuto => boolean().withDefault(const Constant(false))();
+
+  /// Switches to Night colour style during the daily schedule.
+  BoolColumn get nightScheduleEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Daily Night start in minutes after local midnight.
+  IntColumn get nightScheduleStartMinutes =>
+      integer().withDefault(const Constant(1320))();
+
+  /// Daily Night end in minutes after local midnight.
+  IntColumn get nightScheduleEndMinutes =>
+      integer().withDefault(const Constant(420))();
+
+  /// Disables surface glows, gradients and shadows when rendered.
+  BoolColumn get flatSurfaces => boolean().withDefault(const Constant(false))();
+
   /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   IntColumn get colorSchemeSeed => integer().nullable()();
 

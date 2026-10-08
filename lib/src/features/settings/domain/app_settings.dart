@@ -63,6 +63,11 @@ class AppSettingsModel {
     required this.customDownloadFolderPath,
     required this.themeMode,
     this.colorStyle = 'neutral',
+    this.oledForAuto = false,
+    this.nightScheduleEnabled = false,
+    this.nightScheduleStartMinutes = 1320,
+    this.nightScheduleEndMinutes = 420,
+    this.flatSurfaces = false,
     required this.colorSchemeSeed,
     required this.appLocale,
     required this.crossfadeEnabled,
@@ -143,6 +148,11 @@ class AppSettingsModel {
       customDownloadFolderPath = null,
       themeMode = 'dark',
       colorStyle = 'neutral',
+      oledForAuto = false,
+      nightScheduleEnabled = false,
+      nightScheduleStartMinutes = 1320,
+      nightScheduleEndMinutes = 420,
+      flatSurfaces = false,
       colorSchemeSeed = null,
       appLocale = null,
       crossfadeEnabled = false,
@@ -223,6 +233,11 @@ class AppSettingsModel {
   final String? customDownloadFolderPath;
   final String themeMode;
   final String colorStyle;
+  final bool oledForAuto;
+  final bool nightScheduleEnabled;
+  final int nightScheduleStartMinutes;
+  final int nightScheduleEndMinutes;
+  final bool flatSurfaces;
   final int? colorSchemeSeed;
   final String? appLocale;
   final bool crossfadeEnabled;
@@ -385,6 +400,11 @@ class AppSettingsModel {
     String? customDownloadFolderPath,
     String? themeMode,
     String? colorStyle,
+    bool? oledForAuto,
+    bool? nightScheduleEnabled,
+    int? nightScheduleStartMinutes,
+    int? nightScheduleEndMinutes,
+    bool? flatSurfaces,
     int? colorSchemeSeed,
     String? appLocale,
     bool? crossfadeEnabled,
@@ -493,6 +513,13 @@ class AppSettingsModel {
           : customDownloadFolderPath ?? this.customDownloadFolderPath,
       themeMode: themeMode ?? this.themeMode,
       colorStyle: colorStyle ?? this.colorStyle,
+      oledForAuto: oledForAuto ?? this.oledForAuto,
+      nightScheduleEnabled: nightScheduleEnabled ?? this.nightScheduleEnabled,
+      nightScheduleStartMinutes:
+          nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
+      nightScheduleEndMinutes:
+          nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,

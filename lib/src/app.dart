@@ -70,7 +70,8 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       ref.listen(navigationHistoryProvider, (_, _) {});
     }
     final themeModeName = ref.watch(themeModeProvider);
-    final colorStyle = ref.watch(colorStyleProvider);
+    final colorStyle = ref.watch(effectiveColorStyleProvider);
+    final oledForAuto = ref.watch(oledForAutoProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
     // accents on every track change, so they ease over a longer transition.
@@ -82,7 +83,8 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final localeCode = ref.watch(appLocaleProvider);
     final seedColor = resolveColorSchemeSeedColor(colorSeed);
     final resolvedThemeMode = resolveThemeMode(themeModeName);
-    final isOled = themeModeName == 'oled';
+    final isOled =
+        themeModeName == 'oled' || (themeModeName == 'system' && oledForAuto);
     final appLocale = localeCode == null || localeCode.trim().isEmpty
         ? null
         : Locale(localeCode);

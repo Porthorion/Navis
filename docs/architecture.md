@@ -605,6 +605,20 @@ target-selection rules.
     `neutral`. `colorStyleProvider` resolves it through
     `NavisColorStyle.parse`, which falls back to Neutral while settings load
     or for unknown values.
+  - Schema 94 also persists `oled_for_auto`, `night_schedule_enabled`,
+    `night_schedule_start_minutes`, `night_schedule_end_minutes` and
+    `flat_surfaces`. Fresh installs, upgrades and resets disable all three
+    switches and use a 22:00–07:00 Night window; DAO writes clamp minutes to
+    0–1439. Targeted updates preserve the other appearance settings.
+    `oledForAutoProvider`, `flatSurfacesProvider` and `nightScheduleProvider`
+    expose these settings with the same defaults while settings load.
+  - `effectiveColorStyleProvider` overrides the user's style with Night inside
+    the enabled local-time window, including windows spanning midnight. The
+    start is inclusive, the end exclusive, and equal times never activate.
+    An overrideable `nowProvider` and a disposable boundary timer keep the
+    effective style current without changing the saved style. `app.dart`
+    uses this effective style and selects OLED for Auto's dark theme when
+    `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
   - Neutral reproduces the original schemes (`tonalSpot` light, `fidelity`
     dark, black OLED overrides) except that dark and OLED primary, secondary
     and tertiary containers in the muddy band are replaced by the same hue at
