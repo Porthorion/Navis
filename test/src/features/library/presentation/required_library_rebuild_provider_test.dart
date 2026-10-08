@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -23,12 +22,8 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
-
-class _OnlineReachability extends ServerReachabilityController {
-  @override
-  ServerReachabilityState build() =>
-      const ServerReachabilityState(status: ServerReachabilityStatus.online);
-}
+import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/async_helpers.dart';
 
 class _ControlledSync extends LibrarySyncController {
   new(this.result, {this.beforeResult});
@@ -197,7 +192,7 @@ ProviderContainer _setupContainer({
     ...extra,
     navisDatabaseProvider.overrideWithValue(database),
     session ?? serverConfigStateProvider.overrideWithValue(AsyncData(server)),
-    serverReachabilityControllerProvider.overrideWith(_OnlineReachability.new),
+    serverReachabilityControllerProvider.overrideWith(OnlineReachability.new),
     syncNetworkPolicyProvider.overrideWithValue(_wifi),
     librarySyncControllerProvider.overrideWith(() => sync),
     libraryCacheResetServiceProvider.overrideWithValue(
@@ -228,12 +223,6 @@ ProviderSubscription<RequiredLibraryRebuildState> _mount(
   requiredLibraryRebuildControllerProvider(reason),
   (_, _) {},
 );
-
-Future<void> _drainMicrotasks() async {
-  for (var i = 0; i < 8; i++) {
-    await Future<void>.delayed(Duration.zero);
-  }
-}
 
 void main() {
   test('only isolated album response gaps qualify for automatic exit', () {
@@ -312,7 +301,7 @@ void main() {
       );
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       _mount(container, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container
             .read(
@@ -402,7 +391,7 @@ void main() {
         );
         addTearDown(container.dispose);
         _mount(container, reason);
-        await _drainMicrotasks();
+        await drainMicrotasks(turns: 8);
         expect(sync.calls, 1);
         expect(
           container
@@ -464,7 +453,7 @@ void main() {
       addTearDown(container.dispose);
       const reason = RequiredLibraryRebuildReason.manualCacheReset;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(requiredLibraryRebuildControllerProvider(reason)).status,
         RequiredLibraryRebuildStatus.failed,
@@ -514,7 +503,7 @@ void main() {
       );
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       _mount(container, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 1);
       expect(
         container
@@ -550,7 +539,7 @@ void main() {
         ),
       );
       _mount(restarted, RequiredLibraryRebuildReason.initialLogin);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         restarted
             .read(
@@ -636,7 +625,7 @@ void main() {
       expect(await container.read(initialSyncRequiredProvider.future), isTrue);
       const reason = RequiredLibraryRebuildReason.initialLogin;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       expect(sync.methods, <String>['forceFullSync']);
       expect(
@@ -692,7 +681,7 @@ void main() {
       addTearDown(container.dispose);
       const reason = RequiredLibraryRebuildReason.initialLogin;
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       expect(sync.methods, <String>['syncNow']);
       expect(
@@ -721,17 +710,17 @@ void main() {
       final provider = requiredLibraryRebuildControllerProvider(reason);
 
       final firstVisit = _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.complete,
       );
       firstVisit.close();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isFalse);
 
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 2);
       expect(
         container.read(provider).status,
@@ -762,7 +751,7 @@ void main() {
     addTearDown(container.dispose);
     const reason = RequiredLibraryRebuildReason.manualCacheReset;
     _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     await container
         .read(requiredLibraryRebuildControllerProvider(reason).notifier)
         .retry();
@@ -793,7 +782,7 @@ void main() {
     const reason = RequiredLibraryRebuildReason.initialLogin;
     final provider = requiredLibraryRebuildControllerProvider(reason);
     final visit = _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(
       container.read(provider).status,
       RequiredLibraryRebuildStatus.failed,
@@ -806,16 +795,16 @@ void main() {
     );
     // Signing out replaces the route while the sign-out is still running.
     visit.close();
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(container.exists(provider), isTrue);
     signOut.gate.complete();
     await cancelling;
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(signOut.calls, 1);
     expect(container.exists(provider), isFalse);
 
     _mount(container, reason);
-    await _drainMicrotasks();
+    await drainMicrotasks(turns: 8);
     expect(sync.calls, 2);
     expect(
       container.read(provider).status,
@@ -842,23 +831,23 @@ void main() {
       const reason = RequiredLibraryRebuildReason.initialLogin;
       final provider = requiredLibraryRebuildControllerProvider(reason);
       final visit = _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.syncing,
       );
 
       visit.close();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isTrue);
       gate.complete();
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       final persisted = await database.librarySyncDao.getOrCreateState(
         server.id!,
       );
       expect(persisted.initialCatalogUsableAt, isNotNull);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(container.exists(provider), isFalse);
     },
     skip: !sqliteAvailable,
@@ -893,14 +882,14 @@ void main() {
       final provider = requiredLibraryRebuildControllerProvider(reason);
       // The route's exit transition is reused, so the screen never unmounts.
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 1);
 
       final cancelling = container.read(provider.notifier).cancelAndSignOut();
       container.read(_sessionProvider.notifier).set(null);
       signOut.gate.complete();
       await cancelling;
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(
         container.read(provider).status,
         RequiredLibraryRebuildStatus.idle,
@@ -908,7 +897,7 @@ void main() {
       expect(sync.calls, 1);
 
       container.read(_sessionProvider.notifier).set(server);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
       expect(sync.calls, 2);
       expect(
         container.read(provider).status,
@@ -942,7 +931,7 @@ void main() {
       const reason = RequiredLibraryRebuildReason.initialLogin;
       final provider = requiredLibraryRebuildControllerProvider(reason);
       _mount(container, reason);
-      await _drainMicrotasks();
+      await drainMicrotasks(turns: 8);
 
       // Teardown steps fail softly, so credentials may survive sign-out.
       await container.read(provider.notifier).cancelAndSignOut();

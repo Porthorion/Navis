@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -14,14 +13,9 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/reachability_fakes.dart';
 
 class _MockDownloadService extends Mock implements DownloadService;
-
-class _OnlineReachability extends ServerReachabilityController {
-  @override
-  ServerReachabilityState build() =>
-      const ServerReachabilityState(status: ServerReachabilityStatus.online);
-}
 
 void main() {
   late NavisDatabase database;
@@ -65,7 +59,7 @@ void main() {
             ),
           ),
           serverReachabilityControllerProvider.overrideWith(
-            _OnlineReachability.new,
+            OnlineReachability.new,
           ),
           networkTypeProvider.overrideWithValue(NetworkType.wifi),
           wifiOnlyDownloadsProvider.overrideWithValue(true),

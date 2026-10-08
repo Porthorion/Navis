@@ -19,6 +19,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/reachability_fakes.dart';
 
 // Test overrides for @visibleForTesting providers.
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
@@ -91,7 +92,7 @@ ProviderContainer _container(
       if (database != null) navisDatabaseProvider.overrideWithValue(database),
       serverConfigStateProvider.overrideWithValue(AsyncData(server)),
       serverReachabilityControllerProvider.overrideWith(
-        () => _StaticReachabilityController(
+        () => StaticReachabilityController(
           ServerReachabilityState(status: reachability),
         ),
       ),
@@ -99,15 +100,6 @@ ProviderContainer _container(
       ...extra,
     ],
   );
-}
-
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
 }
 
 class _MutableReachabilityController extends ServerReachabilityController {
@@ -509,7 +501,7 @@ void main() {
               ),
             ),
             serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
+              () => StaticReachabilityController(
                 const ServerReachabilityState(
                   status: ServerReachabilityStatus.online,
                 ),
@@ -1718,7 +1710,7 @@ void main() {
             navisDatabaseProvider.overrideWithValue(database),
             serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
             serverReachabilityControllerProvider.overrideWith(
-              () => _StaticReachabilityController(
+              () => StaticReachabilityController(
                 const ServerReachabilityState(
                   status: ServerReachabilityStatus.online,
                 ),
@@ -2417,7 +2409,7 @@ void main() {
           syncIntervalMinutesProvider.overrideWithValue(1),
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.checking,
               ),

@@ -24,15 +24,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../helpers/test_database.dart';
-
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
-}
+import '../../../helpers/reachability_fakes.dart';
 
 class _FakeSearchApiClient extends SubsonicApiClient {
   new(this._handler)
@@ -73,7 +65,7 @@ ProviderContainer _createContainerWithDatabase(
       database,
       overrides: <Override>[
         serverReachabilityControllerProvider.overrideWith(
-          () => _StaticReachabilityController(
+          () => StaticReachabilityController(
             const ServerReachabilityState(
               status: ServerReachabilityStatus.online,
             ),

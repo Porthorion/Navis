@@ -17,15 +17,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
-
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this.initial);
-
-  final ServerReachabilityState initial;
-
-  @override
-  ServerReachabilityState build() => initial;
-}
+import '../../../../helpers/reachability_fakes.dart';
+import '../../../../helpers/async_helpers.dart';
 
 class _RecordingLibrarySyncController extends LibrarySyncController {
   new(this.result, {this.gate, this.activeCatalog});
@@ -158,7 +151,7 @@ ProviderContainer _sessionContainer({
       ),
       syncNetworkPolicyProvider.overrideWithValue(_unmetered),
       serverReachabilityControllerProvider.overrideWith(
-        () => _StaticReachabilityController(
+        () => StaticReachabilityController(
           const ServerReachabilityState(
             status: ServerReachabilityStatus.online,
           ),
@@ -186,12 +179,6 @@ const _metered = SyncNetworkPolicy(
   allowsHardProbe: true,
   allowsInteractiveHydration: true,
 );
-
-Future<void> _drainMicrotasks() async {
-  for (var i = 0; i < 6; i += 1) {
-    await Future<void>.delayed(Duration.zero);
-  }
-}
 
 void main() {
   test(
@@ -278,7 +265,7 @@ void main() {
         ),
         syncNetworkPolicyProvider.overrideWithValue(_unmetered),
         serverReachabilityControllerProvider.overrideWith(
-          () => _StaticReachabilityController(
+          () => StaticReachabilityController(
             const ServerReachabilityState(
               status: ServerReachabilityStatus.offline,
             ),
@@ -290,7 +277,7 @@ void main() {
     addTearDown(container.dispose);
 
     container.read(initialServerSyncControllerProvider);
-    await _drainMicrotasks();
+    await drainMicrotasks();
 
     expect(sync.calls, 0);
     expect(
@@ -319,7 +306,7 @@ void main() {
           ),
           syncNetworkPolicyProvider.overrideWithValue(_metered),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -341,7 +328,7 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(initialServerSyncControllerProvider);
-      await _drainMicrotasks();
+      await drainMicrotasks();
       expect(sync.calls, 0);
       expect(
         container.read(initialServerSyncControllerProvider).status,
@@ -393,7 +380,7 @@ void main() {
           ),
           syncNetworkPolicyProvider.overrideWithValue(_unmetered),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -416,14 +403,14 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(initialServerSyncControllerProvider);
-      await _drainMicrotasks();
+      await drainMicrotasks();
       expect(sync.calls, 1);
       expect(
         container.read(initialServerSyncControllerProvider).status,
         InitialServerSyncStatus.running,
       );
       gate.complete();
-      await _drainMicrotasks();
+      await drainMicrotasks();
 
       expect(sync.calls, 1);
       expect(
@@ -472,7 +459,7 @@ void main() {
           ),
           syncNetworkPolicyProvider.overrideWithValue(_unmetered),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -497,7 +484,7 @@ void main() {
       container.read(librarySyncControllerProvider);
       final existing = sync.syncNow();
       container.read(initialServerSyncControllerProvider);
-      await _drainMicrotasks();
+      await drainMicrotasks();
 
       expect(sync.calls, 1);
       expect(
@@ -507,7 +494,7 @@ void main() {
 
       gate.complete();
       await existing;
-      await _drainMicrotasks();
+      await drainMicrotasks();
 
       expect(
         container.read(initialServerSyncControllerProvider).status,
@@ -601,7 +588,7 @@ void main() {
           ),
           syncNetworkPolicyProvider.overrideWithValue(_unmetered),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -624,7 +611,7 @@ void main() {
       addTearDown(container.dispose);
 
       container.listen(initialServerSyncControllerProvider, (_, _) {});
-      await _drainMicrotasks();
+      await drainMicrotasks();
       expect(sync.calls, 0);
       await database.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
@@ -633,7 +620,7 @@ void main() {
         ),
       );
       activeCatalog.complete();
-      await _drainMicrotasks();
+      await drainMicrotasks();
 
       expect(sync.fullScanCalls, 1);
       expect(
@@ -669,11 +656,11 @@ void main() {
 
       // The diagnostics server keeps an active subscription once activated.
       container.listen(initialServerSyncControllerProvider, (_, _) {});
-      await _drainMicrotasks();
+      await drainMicrotasks();
       expect(sync.calls, 0);
 
       container.read(_phaseProvider.notifier).set(SessionRoutePhase.ready);
-      await _drainMicrotasks();
+      await drainMicrotasks();
       expect(sync.calls, 0);
       expect(
         container.read(initialServerSyncControllerProvider).status,
@@ -707,13 +694,13 @@ void main() {
     addTearDown(container.dispose);
     // The diagnostics server keeps an active subscription once activated.
     container.listen(initialServerSyncControllerProvider, (_, _) {});
-    await _drainMicrotasks();
+    await drainMicrotasks();
     expect(sync.calls, 1);
 
     await container
         .read(initialServerSyncControllerProvider.notifier)
         .cancelAndLogOut();
-    await _drainMicrotasks();
+    await drainMicrotasks();
     expect(signOut.calls, 1);
     expect(
       container.read(initialServerSyncControllerProvider).status,
@@ -726,7 +713,7 @@ void main() {
     container
         .read(_phaseProvider.notifier)
         .set(SessionRoutePhase.initialSyncRequired);
-    await _drainMicrotasks();
+    await drainMicrotasks();
     expect(sync.calls, 2);
     expect(
       container.read(initialServerSyncControllerProvider).status,
@@ -751,7 +738,7 @@ void main() {
     addTearDown(container.dispose);
     // The diagnostics server keeps an active subscription once activated.
     container.listen(initialServerSyncControllerProvider, (_, _) {});
-    await _drainMicrotasks();
+    await drainMicrotasks();
     expect(
       container.read(initialServerSyncControllerProvider).status,
       InitialServerSyncStatus.failed,
@@ -762,14 +749,14 @@ void main() {
     container
         .read(_phaseProvider.notifier)
         .set(SessionRoutePhase.unauthenticated);
-    await _drainMicrotasks();
+    await drainMicrotasks();
     container
         .read(_sessionProvider.notifier)
         .set(const AsyncData(_sessionServer));
     container
         .read(_phaseProvider.notifier)
         .set(SessionRoutePhase.initialSyncRequired);
-    await _drainMicrotasks();
+    await drainMicrotasks();
 
     expect(sync.calls, 2);
   });
@@ -793,7 +780,7 @@ void main() {
     addTearDown(container.dispose);
     // The diagnostics server keeps an active subscription once activated.
     container.listen(initialServerSyncControllerProvider, (_, _) {});
-    await _drainMicrotasks();
+    await drainMicrotasks();
 
     await container
         .read(initialServerSyncControllerProvider.notifier)

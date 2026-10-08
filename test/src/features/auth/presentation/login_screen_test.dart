@@ -23,15 +23,7 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
-
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
-}
+import '../../../../helpers/reachability_fakes.dart';
 
 class _FakeServerConnectionService extends ServerConnectionService {
   new({ServerConnectionProbeResult? result, this.error, this.completer})
@@ -304,7 +296,7 @@ void main() {
             () => notifier = _TestServerConfigNotifier(),
           ),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),
@@ -475,7 +467,7 @@ void main() {
             () => notifier = _TestServerConfigNotifier(),
           ),
           serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
+            () => StaticReachabilityController(
               const ServerReachabilityState(
                 status: ServerReachabilityStatus.online,
               ),

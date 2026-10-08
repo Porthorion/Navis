@@ -51,14 +51,7 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
-class _StaticReachabilityController extends ServerReachabilityController {
-  new(this._state);
-
-  final ServerReachabilityState _state;
-
-  @override
-  ServerReachabilityState build() => _state;
-}
+import '../../helpers/reachability_fakes.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -192,7 +185,7 @@ List<Override> _authenticatedShellOverrides({
       ),
     ),
     serverReachabilityControllerProvider.overrideWith(
-      () => _StaticReachabilityController(
+      () => StaticReachabilityController(
         ServerReachabilityState(status: reachability),
       ),
     ),

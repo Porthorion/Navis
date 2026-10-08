@@ -10,7 +10,6 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -23,6 +22,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
+import '../../../../helpers/reachability_fakes.dart';
 
 /// Routes artist targets to the real Drift engine's `getArtist` hydration,
 /// as the adaptive coordinator does, so the test sees the rows it writes.
@@ -80,12 +80,6 @@ class _ArtistHydrationEngine extends LibrarySyncEngine {
   Future<LibrarySyncState> probeCatalog({
     LibrarySyncProgressCallback? onProgress,
   }) async => _skipped;
-}
-
-class _OnlineReachability extends ServerReachabilityController {
-  @override
-  ServerReachabilityState build() =>
-      const ServerReachabilityState(status: ServerReachabilityStatus.online);
 }
 
 class _FakeDeezer extends DeezerApiClient {
@@ -198,7 +192,7 @@ void main() {
         navisDatabaseProvider.overrideWithValue(database),
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         serverReachabilityControllerProvider.overrideWith(
-          _OnlineReachability.new,
+          OnlineReachability.new,
         ),
         librarySyncEngineProvider.overrideWithValue(
           _ArtistHydrationEngine(drift),
