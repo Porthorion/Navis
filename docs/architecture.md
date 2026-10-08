@@ -3281,8 +3281,11 @@ states without starting audio or modifying a queue.
     ordinary library enumeration remains canonical. Best-effort detail
     hydration of incomplete starred songs stops at the first non-successful
     album result and shares the outer run’s cancellation and transport state;
-    cancellation still terminates the enclosing sync. Album hydration clears
-    its active hydration flag on every terminal result, including deferral.
+    cancellation still terminates the enclosing sync. Targeted operations share
+    one terminal-state runner that clears active hydration on every result.
+    Album and playlist budget or incomplete-detail stops retain one pending
+    hydration. Auxiliary policy and response-budget stops report deferred;
+    malformed or incomplete auxiliary snapshots still fail.
     Membership in a starred snapshot counts as a favorite even when its optional
     timestamp is absent.
     Eligible automatic catalog checks inspect at most two newest-album pages

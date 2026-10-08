@@ -98,6 +98,29 @@ class _BulkPageLibrarySyncApi extends FakeLibrarySyncApi {
   }
 }
 
+class _FailingTargetSyncApi extends FakeLibrarySyncApi {
+  _FailingTargetSyncApi(this.error);
+  final Object error;
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async =>
+      throw error;
+  @override
+  Future<Artist> getArtist(String id, {int? maxResponseBytes}) async =>
+      throw error;
+  @override
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) async =>
+      throw error;
+  @override
+  Future<StarredContent> getStarredContent() async => throw error;
+  @override
+  Future<List<Playlist>> getPlaylists() async => throw error;
+  @override
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    bool disableRetry = false,
+  }) async => throw error;
+}
+
 void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
@@ -1657,6 +1680,92 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    for (final (error, entityStatus, auxiliaryStatus) in [
+      (
+        const SyncCancelledException(),
+        LibrarySyncStatus.cancelled,
+        LibrarySyncStatus.cancelled,
+      ),
+      (
+        const SyncNetworkDeferredException(),
+        LibrarySyncStatus.deferred,
+        LibrarySyncStatus.deferred,
+      ),
+      (
+        const SubsonicResponseBudgetExceededException(
+          maxBytes: 1,
+          observedBytes: 2,
+        ),
+        LibrarySyncStatus.deferred,
+        LibrarySyncStatus.deferred,
+      ),
+      (
+        const SubsonicIncompleteResponseException('Incomplete'),
+        LibrarySyncStatus.partial,
+        LibrarySyncStatus.failed,
+      ),
+      (
+        StateError('Failed'),
+        LibrarySyncStatus.failed,
+        LibrarySyncStatus.failed,
+      ),
+    ]) {
+      for (final target in [
+        'album',
+        'artist',
+        'playlist',
+        'starred',
+        'playlistHeaders',
+        'probe',
+      ]) {
+        test('$target terminates ${error.runtimeType} consistently', () async {
+          await saveSession();
+          final targetEngine = DriftLibrarySyncEngine(
+            api: _FailingTargetSyncApi(error),
+            database: database,
+            serverConfigRepository: serverConfigRepository,
+          );
+          final progress = <LibrarySyncState>[];
+          final state = await switch (target) {
+            'album' => targetEngine.hydrateAlbum('a', onProgress: progress.add),
+            'artist' => targetEngine.hydrateArtist(
+              'a',
+              onProgress: progress.add,
+            ),
+            'playlist' => targetEngine.hydratePlaylist(
+              'a',
+              onProgress: progress.add,
+            ),
+            'starred' => targetEngine.syncStarredContent(
+              onProgress: progress.add,
+            ),
+            'playlistHeaders' => targetEngine.syncPlaylistHeaders(
+              onProgress: progress.add,
+            ),
+            _ => targetEngine.probeCatalog(onProgress: progress.add),
+          };
+          final expected = target == 'probe'
+              ? (error is SyncCancelledException
+                    ? LibrarySyncStatus.cancelled
+                    : LibrarySyncStatus.failed)
+              : target == 'starred' || target == 'playlistHeaders'
+              ? auxiliaryStatus
+              : entityStatus;
+          expect(state.status, expected);
+          expect(state.stage, LibrarySyncStage.completed);
+          expect(state.completedAt, isNotNull);
+          expect(state.isHydrating, isFalse);
+          expect(progress.first.status, LibrarySyncStatus.running);
+          expect(progress.last, same(state));
+          if ((target == 'album' || target == 'playlist') &&
+              (error is SubsonicIncompleteResponseException ||
+                  error is SubsonicResponseBudgetExceededException)) {
+            expect(state.pendingHydrationCount, 1);
+          }
+        }, skip: !sqliteAvailable);
+      }
+    }
 
     test('network-deferred album hydration clears its active flag', () async {
       api.albumErrors['album-1'] = const SyncNetworkDeferredException();

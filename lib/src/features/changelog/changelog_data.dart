@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Liked items and playlist updates wait for network policy or mobile-data limits without reporting a sync failure',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library identity repairs keep one current alias per item, preserve existing song replacements during upgrades, and resetting server data clears repaired identities',
         type: ChangelogEntryType.fix,
       ),

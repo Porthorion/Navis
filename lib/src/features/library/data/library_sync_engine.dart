@@ -831,294 +831,221 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     if (normalizedId.isEmpty) {
       return const LibrarySyncState.idle();
     }
-    _cancelled = false;
-    _api.beginRun();
-    return await _hydrateAlbumWithinRun(normalizedId, onProgress: onProgress);
+    return await _hydrateAlbumWithinRun(
+      normalizedId,
+      onProgress: onProgress,
+      beginRun: true,
+    );
   }
 
   Future<LibrarySyncState> _hydrateAlbumWithinRun(
     String normalizedId, {
     LibrarySyncProgressCallback? onProgress,
+    bool beginRun = false,
   }) async {
-    final startedAt = DateTime.now();
-    final metrics = _SyncRunMetrics();
     var failureEndpoint = 'getAlbum';
-    var state = LibrarySyncState(
-      status: LibrarySyncStatus.running,
-      stage: LibrarySyncStage.fetchingSongs,
-      mode: LibrarySyncMode.incremental,
-      startedAt: startedAt,
-      metadataReady: true,
-      isHydrating: true,
-      processed: 0,
-      total: 1,
-      pendingHydrationCount: 1,
-    );
-    onProgress?.call(state);
-    try {
-      // Album detail is content authority, not catalog-membership authority.
-      // Preserve an already-known remote tree before inspecting a detail
-      // response that may omit or contradict its external provenance.
-      final existingAlbum = await _database.libraryDao.getAlbumById(
-        normalizedId,
-      );
-      final preserveExternalTree = existingAlbum?.isExternal ?? false;
-      final maxBytes = _meteredResponseBudgetBytes();
-      final response = await _request(
-        () => _api.getAlbum(normalizedId, maxResponseBytes: maxBytes),
-        metrics: metrics,
-        endpoint: 'getAlbum',
-      );
-      final isExternalDetail =
-          preserveExternalTree ||
-          isExternalCatalogSource(
-            id: response.id,
-            apiIsExternal: response.isExternal,
-          );
-      final detail = isExternalDetail
-          ? response
-          : canonicalAlbumSnapshot(response, requestedId: normalizedId);
-      if (isExternalDetail) {
-        validateAlbumSnapshot(
-          preserveExternalTree ? detail.copyWith(isExternal: true) : detail,
-          requestedId: normalizedId,
+    return await _runTarget(
+      beginRun: beginRun,
+      initial: const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingSongs,
+        mode: LibrarySyncMode.incremental,
+        metadataReady: true,
+        isHydrating: true,
+        total: 1,
+        pendingHydrationCount: 1,
+      ),
+      pendingOnIncomplete: true,
+      onProgress: onProgress,
+      onFailure: (state, metrics, error) async {
+        metrics.recordFailureDiagnostic(
+          stage: state.stage.name,
+          endpoint: failureEndpoint,
+          entityId: normalizedId,
+          error: error,
         );
-      }
-      final externalReferences = isExternalDetail
-          ? <Song>[]
-          : response.songs
-                .where((song) => song.isExternal == true)
-                .toList(growable: false);
-      final existingSongs = await _database.libraryDao
-          .watchSongsByAlbum(normalizedId)
-          .first;
-      final incompleteEmptyResponse =
-          detail.songs.isEmpty &&
-          (((response.songCount ?? 0) > 0 && response.songs.isEmpty) ||
-              (response.songCount == null && existingSongs.isNotEmpty));
-      if (incompleteEmptyResponse) {
-        state = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.partial,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            isHydrating: false,
-            pendingHydrationCount: 1,
-            errorMessage: 'Album details were incomplete; existing tracks were preserved.',
-          ),
+        await _persistFailureDiagnosticsBestEffort(
           metrics,
+          clearWhenEmpty: false,
         );
-        onProgress?.call(state);
-        return state;
-      }
-      final artistId = detail.artistId?.trim();
-      ArtistsTableCompanion? missingArtist;
-      final validArtistIds = await _database.libraryDao.getArtistIds();
-      if (artistId != null && artistId.isNotEmpty) {
-        if (!validArtistIds.contains(artistId)) {
-          missingArtist = ArtistsTableCompanion.insert(
-            id: artistId,
-            name: detail.artist ?? 'Unknown Artist',
-            isExternal: Value(isExternalDetail),
-          );
-          validArtistIds.add(artistId);
-        }
-      }
-      final songs = await _toSongCompanions(
-        detail.songs,
-        defaultAlbumId: normalizedId,
-        validArtistIds: validArtistIds,
-        inheritExternalWhenMissing: isExternalDetail,
-      );
-      final provenanceSafeSongs = preserveExternalTree
-          ? songs
-                .map(
-                  (song) => song.copyWith(
-                    isExternal: const Value(true),
-                    isProvisional: const Value(true),
-                  ),
-                )
-                .toList(growable: false)
-          : songs;
-      final sameIdProvisionalSongs = (await _database.libraryDao.getSongsByIds(
-        songs.map((song) => song.id.value),
-      )).where((song) => song.isProvisional).map((song) => song.id).toSet();
-      var albumMetadata = await _toAlbumCompanions(
-        <Album>[detail],
-        pendingHydrationAlbumIds: <String>[normalizedId],
-        inheritExternalWhenMissing: isExternalDetail,
-      );
-      if (preserveExternalTree && existingAlbum != null) {
-        albumMetadata = albumMetadata
-            .map(
-              (album) => album.copyWith(
-                artistId: existingAlbum.artistId?.trim().isNotEmpty == true
-                    ? Value(existingAlbum.artistId)
-                    : album.artistId,
-                artistName: existingAlbum.artistName?.trim().isNotEmpty == true
-                    ? Value(existingAlbum.artistName)
-                    : album.artistName,
-                artists: existingAlbum.artists.isNotEmpty
-                    ? Value(existingAlbum.artists)
-                    : album.artists,
-                isExternal: const Value(true),
-                isProvisional: const Value(true),
-              ),
-            )
-            .toList(growable: false);
-      }
-      final deferredCacheFiles = <String>[];
-      failureEndpoint = 'writeAlbum';
-      await _database.transaction(() async {
-        if (externalReferences.isNotEmpty) {
-          final referenceArtistIds = await _ensureReferenceParents(
-            songs: externalReferences,
-            snapshotStartedAt: startedAt,
-          );
-          await _database.libraryDao.upsertProvisionalSongs(
-            await _toSongCompanions(
-              externalReferences,
-              validArtistIds: referenceArtistIds,
-            ),
-            snapshotStartedAt: startedAt,
-          );
-        }
-        if (missingArtist != null) {
-          if (isExternalDetail) {
-            await _database.libraryDao.upsertProvisionalArtists([
-              missingArtist,
-            ]);
-          } else {
-            await _database.libraryDao.upsertArtists([missingArtist]);
-          }
-        }
+      },
+      operation: (state, metrics) async {
+        final startedAt = state.startedAt!;
+        // Album detail is content authority, not catalog-membership authority.
+        // Preserve an already-known remote tree before inspecting a detail
+        // response that may omit or contradict its external provenance.
+        final existingAlbum = await _database.libraryDao.getAlbumById(
+          normalizedId,
+        );
+        final preserveExternalTree = existingAlbum?.isExternal ?? false;
+        final maxBytes = _meteredResponseBudgetBytes();
+        final response = await _request(
+          () => _api.getAlbum(normalizedId, maxResponseBytes: maxBytes),
+          metrics: metrics,
+          endpoint: 'getAlbum',
+        );
+        final isExternalDetail =
+            preserveExternalTree ||
+            isExternalCatalogSource(
+              id: response.id,
+              apiIsExternal: response.isExternal,
+            );
+        final detail = isExternalDetail
+            ? response
+            : canonicalAlbumSnapshot(response, requestedId: normalizedId);
         if (isExternalDetail) {
-          if (preserveExternalTree) {
-            await _database.libraryDao.markAlbumsExternalAndProvisional([
-              normalizedId,
-            ]);
-          }
-          await _database.libraryDao.upsertProvisionalAlbums(
-            albumMetadata,
-            snapshotStartedAt: startedAt,
-          );
-          await _database.libraryDao.upsertProvisionalSongs(
-            provenanceSafeSongs,
-            snapshotStartedAt: startedAt,
-          );
-          await _database.libraryDao.markAlbumSongsHydrated(normalizedId);
-        } else {
-          await _database.libraryDao.reconcileSongsForAlbumsChunk(
-            <String, List<SongsTableCompanion>>{normalizedId: songs},
-            markAlbumsHydrated: true,
-            albumMetadata: albumMetadata,
-            snapshotStartedAt: startedAt,
-            deferredCacheFiles: deferredCacheFiles,
-            serverId: (await _serverConfigRepository.getActiveServer())?.id,
-          );
-          failureEndpoint = 'reconcileSongIdentity';
-          await _reconcileHydratedSongIds(
-            canonicalSongIds: songs
-                .where((song) => song.id.present)
-                .map((song) => song.id.value),
-            sameIdProvisionalSongs: sameIdProvisionalSongs,
-            metrics: metrics,
+          validateAlbumSnapshot(
+            preserveExternalTree ? detail.copyWith(isExternal: true) : detail,
+            requestedId: normalizedId,
           );
         }
-      });
-      _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
-        _database.artistsTable,
-        _database.albumsTable,
-        _database.songsTable,
-      ]);
-      await _database.libraryDao.cleanupRemovedCacheFiles(deferredCacheFiles);
-      metrics.addDbWriteBatch();
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          processed: 1,
-          pendingHydrationCount: 0,
-        ),
-        metrics,
-      );
-    } on SyncCancelledException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.cancelled,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync cancelled.',
-        ),
-        metrics,
-      );
-    } on SyncNetworkDeferredException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync deferred by network policy.',
-        ),
-        metrics,
-      );
-    } on SubsonicResponseBudgetExceededException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          pendingHydrationCount: 1,
-          errorMessage:
-              'Sync deferred: response exceeded the mobile-data budget.',
-        ),
-        metrics,
-      );
-    } on SubsonicIncompleteResponseException catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.partial,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          pendingHydrationCount: 1,
-          errorMessage: error.message,
-        ),
-        metrics,
-      );
-    } on Object catch (error) {
-      metrics.recordFailureDiagnostic(
-        stage: state.stage.name,
-        endpoint: failureEndpoint,
-        entityId: normalizedId,
-        error: error,
-      );
-      await _persistFailureDiagnosticsBestEffort(
-        metrics,
-        clearWhenEmpty: false,
-      );
-      state = _withMetrics(
-        state.copyWith(
-          status: _cancelled
-              ? LibrarySyncStatus.cancelled
-              : LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: _cancelled
-              ? 'Sync cancelled.'
-              : _toSafeErrorMessage(error),
-        ),
-        metrics,
-      );
-    }
-    onProgress?.call(state);
-    return state;
+        final externalReferences = isExternalDetail
+            ? <Song>[]
+            : response.songs
+                  .where((song) => song.isExternal == true)
+                  .toList(growable: false);
+        final existingSongs = await _database.libraryDao
+            .watchSongsByAlbum(normalizedId)
+            .first;
+        final incompleteEmptyResponse =
+            detail.songs.isEmpty &&
+            (((response.songCount ?? 0) > 0 && response.songs.isEmpty) ||
+                (response.songCount == null && existingSongs.isNotEmpty));
+        if (incompleteEmptyResponse) {
+          throw const SubsonicIncompleteResponseException(
+            'Album details were incomplete; existing tracks were preserved.',
+          );
+        }
+        final artistId = detail.artistId?.trim();
+        ArtistsTableCompanion? missingArtist;
+        final validArtistIds = await _database.libraryDao.getArtistIds();
+        if (artistId != null && artistId.isNotEmpty) {
+          if (!validArtistIds.contains(artistId)) {
+            missingArtist = ArtistsTableCompanion.insert(
+              id: artistId,
+              name: detail.artist ?? 'Unknown Artist',
+              isExternal: Value(isExternalDetail),
+            );
+            validArtistIds.add(artistId);
+          }
+        }
+        final songs = await _toSongCompanions(
+          detail.songs,
+          defaultAlbumId: normalizedId,
+          validArtistIds: validArtistIds,
+          inheritExternalWhenMissing: isExternalDetail,
+        );
+        final provenanceSafeSongs = preserveExternalTree
+            ? songs
+                  .map(
+                    (song) => song.copyWith(
+                      isExternal: const Value(true),
+                      isProvisional: const Value(true),
+                    ),
+                  )
+                  .toList(growable: false)
+            : songs;
+        final sameIdProvisionalSongs =
+            (await _database.libraryDao.getSongsByIds(
+                  songs.map((song) => song.id.value),
+                ))
+                .where((song) => song.isProvisional)
+                .map((song) => song.id)
+                .toSet();
+        var albumMetadata = await _toAlbumCompanions(
+          <Album>[detail],
+          pendingHydrationAlbumIds: <String>[normalizedId],
+          inheritExternalWhenMissing: isExternalDetail,
+        );
+        if (preserveExternalTree && existingAlbum != null) {
+          albumMetadata = albumMetadata
+              .map(
+                (album) => album.copyWith(
+                  artistId: existingAlbum.artistId?.trim().isNotEmpty == true
+                      ? Value(existingAlbum.artistId)
+                      : album.artistId,
+                  artistName:
+                      existingAlbum.artistName?.trim().isNotEmpty == true
+                      ? Value(existingAlbum.artistName)
+                      : album.artistName,
+                  artists: existingAlbum.artists.isNotEmpty
+                      ? Value(existingAlbum.artists)
+                      : album.artists,
+                  isExternal: const Value(true),
+                  isProvisional: const Value(true),
+                ),
+              )
+              .toList(growable: false);
+        }
+        final deferredCacheFiles = <String>[];
+        failureEndpoint = 'writeAlbum';
+        await _database.transaction(() async {
+          if (externalReferences.isNotEmpty) {
+            final referenceArtistIds = await _ensureReferenceParents(
+              songs: externalReferences,
+              snapshotStartedAt: startedAt,
+            );
+            await _database.libraryDao.upsertProvisionalSongs(
+              await _toSongCompanions(
+                externalReferences,
+                validArtistIds: referenceArtistIds,
+              ),
+              snapshotStartedAt: startedAt,
+            );
+          }
+          if (missingArtist != null) {
+            if (isExternalDetail) {
+              await _database.libraryDao.upsertProvisionalArtists([
+                missingArtist,
+              ]);
+            } else {
+              await _database.libraryDao.upsertArtists([missingArtist]);
+            }
+          }
+          if (isExternalDetail) {
+            if (preserveExternalTree) {
+              await _database.libraryDao.markAlbumsExternalAndProvisional([
+                normalizedId,
+              ]);
+            }
+            await _database.libraryDao.upsertProvisionalAlbums(
+              albumMetadata,
+              snapshotStartedAt: startedAt,
+            );
+            await _database.libraryDao.upsertProvisionalSongs(
+              provenanceSafeSongs,
+              snapshotStartedAt: startedAt,
+            );
+            await _database.libraryDao.markAlbumSongsHydrated(normalizedId);
+          } else {
+            await _database.libraryDao.reconcileSongsForAlbumsChunk(
+              <String, List<SongsTableCompanion>>{normalizedId: songs},
+              markAlbumsHydrated: true,
+              albumMetadata: albumMetadata,
+              snapshotStartedAt: startedAt,
+              deferredCacheFiles: deferredCacheFiles,
+              serverId: (await _serverConfigRepository.getActiveServer())?.id,
+            );
+            failureEndpoint = 'reconcileSongIdentity';
+            await _reconcileHydratedSongIds(
+              canonicalSongIds: songs
+                  .where((song) => song.id.present)
+                  .map((song) => song.id.value),
+              sameIdProvisionalSongs: sameIdProvisionalSongs,
+              metrics: metrics,
+            );
+          }
+        });
+        _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
+          _database.artistsTable,
+          _database.albumsTable,
+          _database.songsTable,
+        ]);
+        await _database.libraryDao.cleanupRemovedCacheFiles(deferredCacheFiles);
+        metrics.addDbWriteBatch();
+        return state.copyWith(processed: 1, pendingHydrationCount: 0);
+      },
+    );
   }
 
   @override
@@ -1130,199 +1057,118 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     if (normalizedId.isEmpty) {
       return const LibrarySyncState.idle();
     }
-    _cancelled = false;
-    _api.beginRun();
-    final startedAt = DateTime.now();
-    final metrics = _SyncRunMetrics();
-    var state = LibrarySyncState(
-      status: LibrarySyncStatus.running,
-      stage: LibrarySyncStage.fetchingAlbums,
-      mode: LibrarySyncMode.incremental,
-      startedAt: startedAt,
-      metadataReady: true,
-      isHydrating: true,
-      total: 1,
-    );
-    onProgress?.call(state);
-    try {
-      final maxBytes = _meteredResponseBudgetBytes();
-      final detail = await _request(
-        () => _api.getArtist(normalizedId, maxResponseBytes: maxBytes),
-        metrics: metrics,
-        endpoint: 'getArtist',
-      );
-      final releaseIds = detail.albums.map((album) => album.id).toSet();
-      if (detail.id != normalizedId ||
-          releaseIds.any((id) => id.trim().isEmpty) ||
-          releaseIds.length != detail.albums.length ||
-          (detail.albumCount != null &&
-              releaseIds.length < detail.albumCount!)) {
-        throw const SubsonicIncompleteResponseException(
-          'Artist detail identity or release count is incomplete.',
+    return await _runTarget(
+      initial: const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingAlbums,
+        mode: LibrarySyncMode.incremental,
+        metadataReady: true,
+        isHydrating: true,
+        total: 1,
+      ),
+      pendingOnIncomplete: false,
+      onProgress: onProgress,
+      operation: (state, metrics) async {
+        final startedAt = state.startedAt!;
+        final maxBytes = _meteredResponseBudgetBytes();
+        final detail = await _request(
+          () => _api.getArtist(normalizedId, maxResponseBytes: maxBytes),
+          metrics: metrics,
+          endpoint: 'getArtist',
         );
-      }
-      final isExternalDetail = isExternalCatalogSource(
-        id: detail.id,
-        apiIsExternal: detail.isExternal,
-      );
-      if (detail.albums.isEmpty && (detail.albumCount ?? 0) > 0) {
-        state = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.partial,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            isHydrating: false,
-            errorMessage: 'Artist details were incomplete; existing albums were preserved.',
-          ),
-          metrics,
-        );
-        onProgress?.call(state);
-        return state;
-      }
-      await _database.transaction(() async {
-        final artistRows = <ArtistsTableCompanion>[
-          ArtistsTableCompanion.insert(
-            id: detail.id,
-            name: detail.name,
-            albumCount: Value(detail.albumCount),
-            coverArt: Value(detail.coverArt),
-            starred: Value(detail.starred),
-            isExternal: Value(isExternalDetail),
-          ),
-        ];
-        final albumRows =
-            (await _toAlbumCompanions(
-                  detail.albums,
-                  pendingHydrationAlbumIds: detail.albums.map(
-                    (album) => album.id,
-                  ),
-                  inheritExternalWhenMissing: isExternalDetail,
-                ))
-                .map(
-                  (album) =>
-                      album.copyWith(songsHydrated: const Value.absent()),
-                )
-                .toList(growable: false);
-        final externalAlbumRows = albumRows
-            .where(
-              (album) => album.isExternal.present && album.isExternal.value,
-            )
-            .toList(growable: false);
-        final localAlbumRows = albumRows
-            .where(
-              (album) => !album.isExternal.present || !album.isExternal.value,
-            )
-            .toList(growable: false);
-        if (isExternalDetail) {
-          await _database.libraryDao.upsertProvisionalArtists(
-            artistRows,
-            snapshotStartedAt: startedAt,
-          );
-          await _database.libraryDao.upsertProvisionalAlbums(
-            albumRows,
-            snapshotStartedAt: startedAt,
-          );
-        } else {
-          await _database.libraryDao.upsertArtists(
-            artistRows,
-            snapshotStartedAt: startedAt,
-          );
-          // An otherwise local artist can contain releases from a remote
-          // catalogue. Keep those rows provisional: artist pages deliberately
-          // show them, while the main Albums library remains server-only.
-          await _database.libraryDao.upsertAlbums(
-            localAlbumRows,
-            snapshotStartedAt: startedAt,
-          );
-          await _database.libraryDao.markAlbumsExternalAndProvisional(
-            externalAlbumRows
-                .where((album) => album.id.present)
-                .map((album) => album.id.value),
-          );
-          await _database.libraryDao.upsertProvisionalAlbums(
-            externalAlbumRows,
-            snapshotStartedAt: startedAt,
+        final releaseIds = detail.albums.map((album) => album.id).toSet();
+        if (detail.id != normalizedId ||
+            releaseIds.any((id) => id.trim().isEmpty) ||
+            releaseIds.length != detail.albums.length ||
+            (detail.albumCount != null &&
+                releaseIds.length < detail.albumCount!)) {
+          throw const SubsonicIncompleteResponseException(
+            'Artist detail identity or release count is incomplete.',
           );
         }
-      });
-      _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
-        _database.artistsTable,
-        _database.albumsTable,
-      ]);
-      metrics.addDbWriteBatch();
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          processed: 1,
-        ),
-        metrics,
-      );
-    } on SyncCancelledException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.cancelled,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync cancelled.',
-        ),
-        metrics,
-      );
-    } on SyncNetworkDeferredException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync deferred by network policy.',
-        ),
-        metrics,
-      );
-    } on SubsonicResponseBudgetExceededException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage:
-              'Sync deferred: response exceeded the mobile-data budget.',
-        ),
-        metrics,
-      );
-    } on SubsonicIncompleteResponseException catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.partial,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: error.message,
-        ),
-        metrics,
-      );
-    } on Object catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: _cancelled
-              ? LibrarySyncStatus.cancelled
-              : LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: _cancelled
-              ? 'Sync cancelled.'
-              : _toSafeErrorMessage(error),
-        ),
-        metrics,
-      );
-    }
-    onProgress?.call(state);
-    return state;
+        final isExternalDetail = isExternalCatalogSource(
+          id: detail.id,
+          apiIsExternal: detail.isExternal,
+        );
+        if (detail.albums.isEmpty && (detail.albumCount ?? 0) > 0) {
+          throw const SubsonicIncompleteResponseException(
+            'Artist details were incomplete; existing albums were preserved.',
+          );
+        }
+        await _database.transaction(() async {
+          final artistRows = <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(
+              id: detail.id,
+              name: detail.name,
+              albumCount: Value(detail.albumCount),
+              coverArt: Value(detail.coverArt),
+              starred: Value(detail.starred),
+              isExternal: Value(isExternalDetail),
+            ),
+          ];
+          final albumRows =
+              (await _toAlbumCompanions(
+                    detail.albums,
+                    pendingHydrationAlbumIds: detail.albums.map(
+                      (album) => album.id,
+                    ),
+                    inheritExternalWhenMissing: isExternalDetail,
+                  ))
+                  .map(
+                    (album) =>
+                        album.copyWith(songsHydrated: const Value.absent()),
+                  )
+                  .toList(growable: false);
+          final externalAlbumRows = albumRows
+              .where(
+                (album) => album.isExternal.present && album.isExternal.value,
+              )
+              .toList(growable: false);
+          final localAlbumRows = albumRows
+              .where(
+                (album) => !album.isExternal.present || !album.isExternal.value,
+              )
+              .toList(growable: false);
+          if (isExternalDetail) {
+            await _database.libraryDao.upsertProvisionalArtists(
+              artistRows,
+              snapshotStartedAt: startedAt,
+            );
+            await _database.libraryDao.upsertProvisionalAlbums(
+              albumRows,
+              snapshotStartedAt: startedAt,
+            );
+          } else {
+            await _database.libraryDao.upsertArtists(
+              artistRows,
+              snapshotStartedAt: startedAt,
+            );
+            // An otherwise local artist can contain releases from a remote
+            // catalogue. Keep those rows provisional: artist pages deliberately
+            // show them, while the main Albums library remains server-only.
+            await _database.libraryDao.upsertAlbums(
+              localAlbumRows,
+              snapshotStartedAt: startedAt,
+            );
+            await _database.libraryDao.markAlbumsExternalAndProvisional(
+              externalAlbumRows
+                  .where((album) => album.id.present)
+                  .map((album) => album.id.value),
+            );
+            await _database.libraryDao.upsertProvisionalAlbums(
+              externalAlbumRows,
+              snapshotStartedAt: startedAt,
+            );
+          }
+        });
+        _notifyCommittedTargetWrites(<TableInfo<Table, Object?>>[
+          _database.artistsTable,
+          _database.albumsTable,
+        ]);
+        metrics.addDbWriteBatch();
+        return state.copyWith(processed: 1);
+      },
+    );
   }
 
   @override
@@ -1334,165 +1180,83 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     if (normalizedId.isEmpty) {
       return const LibrarySyncState.idle();
     }
-    _cancelled = false;
-    _api.beginRun();
-    final startedAt = DateTime.now();
-    final metrics = _SyncRunMetrics();
-    var state = LibrarySyncState(
-      status: LibrarySyncStatus.running,
-      stage: LibrarySyncStage.fetchingSongs,
-      mode: LibrarySyncMode.incremental,
-      startedAt: startedAt,
-      metadataReady: true,
-      isHydrating: true,
-      total: 1,
-    );
-    onProgress?.call(state);
-    try {
-      final maxBytes = _meteredResponseBudgetBytes();
-      final playlist = await _request(
-        () => _api.getPlaylist(normalizedId, maxResponseBytes: maxBytes),
-        metrics: metrics,
-        endpoint: 'getPlaylist',
-      );
-      validatePlaylistSnapshot(playlist, requestedId: normalizedId);
-      final existingSongs = await _database.playlistDao
-          .watchPlaylistSongs(normalizedId)
-          .first;
-      if (playlist.entries.isEmpty &&
-          (playlist.songCount ?? existingSongs.length) > 0) {
-        state = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.partial,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            isHydrating: false,
-            errorMessage: 'Playlist details were incomplete; existing tracks were preserved.',
-          ),
-          metrics,
-        );
-        onProgress?.call(state);
-        return state;
-      }
-      await _database.transaction(() async {
-        final validArtistIds = await _ensureReferenceParents(
-          songs: playlist.entries,
-          snapshotStartedAt: startedAt,
-        );
-        final songs = await _toSongCompanions(
-          playlist.entries,
-          validArtistIds: validArtistIds,
-        );
-        final sameIdProvisionalSongs =
-            (await _database.libraryDao.getSongsByIds(
-                  songs.map((song) => song.id.value),
-                ))
-                .where((song) => song.isProvisional)
-                .map((song) => song.id)
-                .toSet();
-        await _database.playlistDao.replaceHydratedPlaylist(
-          PlaylistsTableCompanion.insert(
-            id: playlist.id,
-            name: playlist.name,
-            songCount: Value(playlist.songCount),
-            duration: Value(playlist.duration),
-            owner: Value(playlist.owner),
-            isPublic: Value(playlist.isPublic),
-            coverArt: Value(playlist.coverArt),
-            comment: Value(playlist.comment),
-          ),
-          songs,
-          <PlaylistSongsTableCompanion>[
-            for (var index = 0; index < playlist.entries.length; index++)
-              PlaylistSongsTableCompanion.insert(
-                playlistId: normalizedId,
-                songId: playlist.entries[index].id,
-                sortOrder: index,
-              ),
-          ],
-          snapshotStartedAt: startedAt,
-        );
-        metrics.addDbWriteBatch();
-        await _reconcileHydratedSongIds(
-          canonicalSongIds: playlist.entries.map((song) => song.id),
-          sameIdProvisionalSongs: sameIdProvisionalSongs,
+    return await _runTarget(
+      initial: const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingSongs,
+        mode: LibrarySyncMode.incremental,
+        metadataReady: true,
+        isHydrating: true,
+        total: 1,
+      ),
+      pendingOnIncomplete: true,
+      onProgress: onProgress,
+      operation: (state, metrics) async {
+        final startedAt = state.startedAt!;
+        final maxBytes = _meteredResponseBudgetBytes();
+        final playlist = await _request(
+          () => _api.getPlaylist(normalizedId, maxResponseBytes: maxBytes),
           metrics: metrics,
+          endpoint: 'getPlaylist',
         );
-      });
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          processed: 1,
-        ),
-        metrics,
-      );
-    } on SyncCancelledException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.cancelled,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync cancelled.',
-        ),
-        metrics,
-      );
-    } on SyncNetworkDeferredException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: 'Sync deferred by network policy.',
-        ),
-        metrics,
-      );
-    } on SubsonicResponseBudgetExceededException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.deferred,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage:
-              'Sync deferred: response exceeded the mobile-data budget.',
-        ),
-        metrics,
-      );
-    } on SubsonicIncompleteResponseException catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.partial,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          pendingHydrationCount: 1,
-          errorMessage: error.message,
-        ),
-        metrics,
-      );
-    } on Object catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: _cancelled
-              ? LibrarySyncStatus.cancelled
-              : LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          isHydrating: false,
-          errorMessage: _cancelled
-              ? 'Sync cancelled.'
-              : _toSafeErrorMessage(error),
-        ),
-        metrics,
-      );
-    }
-    onProgress?.call(state);
-    return state;
+        validatePlaylistSnapshot(playlist, requestedId: normalizedId);
+        final existingSongs = await _database.playlistDao
+            .watchPlaylistSongs(normalizedId)
+            .first;
+        if (playlist.entries.isEmpty &&
+            (playlist.songCount ?? existingSongs.length) > 0) {
+          throw const SubsonicIncompleteResponseException(
+            'Playlist details were incomplete; existing tracks were preserved.',
+          );
+        }
+        await _database.transaction(() async {
+          final validArtistIds = await _ensureReferenceParents(
+            songs: playlist.entries,
+            snapshotStartedAt: startedAt,
+          );
+          final songs = await _toSongCompanions(
+            playlist.entries,
+            validArtistIds: validArtistIds,
+          );
+          final sameIdProvisionalSongs =
+              (await _database.libraryDao.getSongsByIds(
+                    songs.map((song) => song.id.value),
+                  ))
+                  .where((song) => song.isProvisional)
+                  .map((song) => song.id)
+                  .toSet();
+          await _database.playlistDao.replaceHydratedPlaylist(
+            PlaylistsTableCompanion.insert(
+              id: playlist.id,
+              name: playlist.name,
+              songCount: Value(playlist.songCount),
+              duration: Value(playlist.duration),
+              owner: Value(playlist.owner),
+              isPublic: Value(playlist.isPublic),
+              coverArt: Value(playlist.coverArt),
+              comment: Value(playlist.comment),
+            ),
+            songs,
+            <PlaylistSongsTableCompanion>[
+              for (var index = 0; index < playlist.entries.length; index++)
+                PlaylistSongsTableCompanion.insert(
+                  playlistId: normalizedId,
+                  songId: playlist.entries[index].id,
+                  sortOrder: index,
+                ),
+            ],
+            snapshotStartedAt: startedAt,
+          );
+          metrics.addDbWriteBatch();
+          await _reconcileHydratedSongIds(
+            canonicalSongIds: playlist.entries.map((song) => song.id),
+            sameIdProvisionalSongs: sameIdProvisionalSongs,
+            metrics: metrics,
+          );
+        });
+        return state.copyWith(processed: 1);
+      },
+    );
   }
 
   @override
@@ -1521,56 +1285,121 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required LibrarySyncStage stage,
     required Future<void> Function(_SyncRunMetrics metrics) operation,
     LibrarySyncProgressCallback? onProgress,
-  }) async {
-    _cancelled = false;
-    _api.beginRun();
-    final startedAt = DateTime.now();
-    final metrics = _SyncRunMetrics();
-    var state = LibrarySyncState(
+  }) => _runTarget(
+    initial: LibrarySyncState(
       status: LibrarySyncStatus.running,
       stage: stage,
       mode: LibrarySyncMode.incremental,
-      startedAt: startedAt,
       metadataReady: true,
+    ),
+    partialOnIncomplete: false,
+    onProgress: onProgress,
+    operation: (state, metrics) async {
+      await operation(metrics);
+      return state;
+    },
+  );
+
+  Future<LibrarySyncState> _runTarget({
+    required LibrarySyncState initial,
+    required Future<LibrarySyncState> Function(
+      LibrarySyncState state,
+      _SyncRunMetrics metrics,
+    )
+    operation,
+    LibrarySyncProgressCallback? onProgress,
+    Future<void> Function(
+      LibrarySyncState state,
+      _SyncRunMetrics metrics,
+      Object error,
+    )?
+    onFailure,
+    bool beginRun = true,
+    bool deferrable = true,
+    bool partialOnIncomplete = true,
+    bool pendingOnIncomplete = false,
+  }) async {
+    if (beginRun) {
+      _cancelled = false;
+      _api.beginRun();
+    }
+    final metrics = _SyncRunMetrics();
+    var state = initial.copyWith(startedAt: DateTime.now());
+    onProgress?.call(state);
+    Object? failure;
+    try {
+      state = await operation(state, metrics);
+    } on Object catch (error) {
+      failure = error;
+      if (pendingOnIncomplete &&
+          (error is SubsonicIncompleteResponseException ||
+              error is SubsonicResponseBudgetExceededException)) {
+        state = state.copyWith(pendingHydrationCount: 1);
+      }
+      if (error is! SyncCancelledException &&
+          error is! SyncNetworkDeferredException &&
+          error is! SubsonicResponseBudgetExceededException &&
+          error is! SubsonicIncompleteResponseException) {
+        await onFailure?.call(state, metrics, error);
+      }
+    }
+    state = _terminal(
+      state,
+      metrics,
+      failure,
+      deferrable: deferrable,
+      partialOnIncomplete: partialOnIncomplete,
     );
     onProgress?.call(state);
-    try {
-      await operation(metrics);
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-        ),
-        metrics,
-      );
-    } on SyncCancelledException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.cancelled,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          errorMessage: 'Sync cancelled.',
-        ),
-        metrics,
-      );
-    } on Object catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: _cancelled
-              ? LibrarySyncStatus.cancelled
-              : LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          errorMessage: _cancelled
-              ? 'Sync cancelled.'
-              : _toSafeErrorMessage(error),
-        ),
-        metrics,
-      );
-    }
-    onProgress?.call(state);
     return state;
+  }
+
+  LibrarySyncState _terminal(
+    LibrarySyncState state,
+    _SyncRunMetrics metrics,
+    Object? error, {
+    bool deferrable = true,
+    bool partialOnIncomplete = true,
+    LibrarySyncStatus? status,
+    String? errorMessage,
+  }) {
+    final terminalStatus =
+        status ??
+        switch (error) {
+          null =>
+            state.status == LibrarySyncStatus.running
+                ? LibrarySyncStatus.succeeded
+                : state.status,
+          SyncCancelledException() => LibrarySyncStatus.cancelled,
+          SyncNetworkDeferredException() ||
+          SubsonicResponseBudgetExceededException() ||
+          SubsonicSyncLimitException() when deferrable =>
+            LibrarySyncStatus.deferred,
+          SubsonicIncompleteResponseException()
+              when deferrable && partialOnIncomplete =>
+            LibrarySyncStatus.partial,
+          _ =>
+            _cancelled ? LibrarySyncStatus.cancelled : LibrarySyncStatus.failed,
+        };
+    return _withMetrics(
+      state.copyWith(
+        status: terminalStatus,
+        stage: LibrarySyncStage.completed,
+        completedAt: DateTime.now(),
+        isHydrating: false,
+        errorMessage:
+            errorMessage ??
+            (terminalStatus == LibrarySyncStatus.cancelled
+                ? 'Sync cancelled.'
+                : error == null
+                ? null
+                : error is SubsonicIncompleteResponseException &&
+                      partialOnIncomplete
+                ? error.message
+                : _toSafeErrorMessage(error)),
+      ),
+      metrics,
+    );
   }
 
   int get _artistConcurrency {
@@ -1735,36 +1564,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   @override
   Future<LibrarySyncState> probeCatalog({
     LibrarySyncProgressCallback? onProgress,
-  }) async {
-    _cancelled = false;
-    _api.beginRun();
-    final startedAt = DateTime.now();
-    final metrics = _SyncRunMetrics();
-    var state = LibrarySyncState(
+  }) => _runTarget(
+    initial: const LibrarySyncState(
       status: LibrarySyncStatus.running,
       stage: LibrarySyncStage.fetchingArtists,
       mode: LibrarySyncMode.incremental,
       planKind: LibrarySyncPlanKind.probe,
       planReason: 'hardCatalogProbe',
-      startedAt: startedAt,
       metadataReady: true,
-    );
-    onProgress?.call(state);
-
-    try {
+    ),
+    deferrable: false,
+    onProgress: onProgress,
+    operation: (state, metrics) async {
       final serverConfig = await _serverConfigRepository.getActiveServer();
       if (serverConfig == null) {
-        state = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.failed,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            errorMessage: 'No active server.',
-          ),
-          metrics,
+        return state.copyWith(
+          status: LibrarySyncStatus.failed,
+          errorMessage: 'No active server.',
         );
-        onProgress?.call(state);
-        return state;
       }
 
       final committedCursor = _readNavisDateCapability(
@@ -1817,55 +1634,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
       // Never advance the committed cursor from a probe. Evidence is returned
       // so the coordinator can enqueue follow-up background work.
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.succeeded,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          probeIndexChanged: indexChanged,
-          probeEvidenceVersion: indexes == null
-              ? 'indexesUnsupported'
-              : sha256
-                    .convert(
-                      utf8.encode(
-                        '${indexes.lastModified?.toUtc().toIso8601String()}:${_fingerprintIndexes(indexes)}',
-                      ),
-                    )
-                    .toString(),
-          probeIndexesUnsupported: indexesUnsupported,
-          updatesAvailable: indexChanged || indexesUnsupported,
-          lastCheckedAt: DateTime.now(),
-        ),
-        metrics,
+      return state.copyWith(
+        probeIndexChanged: indexChanged,
+        probeEvidenceVersion: indexes == null
+            ? 'indexesUnsupported'
+            : sha256
+                  .convert(
+                    utf8.encode(
+                      '${indexes.lastModified?.toUtc().toIso8601String()}:${_fingerprintIndexes(indexes)}',
+                    ),
+                  )
+                  .toString(),
+        probeIndexesUnsupported: indexesUnsupported,
+        updatesAvailable: indexChanged || indexesUnsupported,
+        lastCheckedAt: DateTime.now(),
       );
-      onProgress?.call(state);
-      return state;
-    } on SyncCancelledException {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.cancelled,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          errorMessage: 'Sync cancelled.',
-        ),
-        metrics,
-      );
-      onProgress?.call(state);
-      return state;
-    } on Object catch (error) {
-      state = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          errorMessage: _toSafeErrorMessage(error),
-        ),
-        metrics,
-      );
-      onProgress?.call(state);
-      return state;
-    }
-  }
+    },
+  );
 
   SyncNetworkPolicy get _currentSyncPolicy {
     final reader = _readSyncNetworkPolicy;
@@ -2142,31 +1927,25 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         final pendingVerification = _readPendingVerification(
           deferredConfig?.capabilitiesJson,
         );
-        final deferred = _withMetrics(
+        final deferred = _terminal(
           state.copyWith(
-            status: LibrarySyncStatus.deferred,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
             pendingHydrationCount: await _database.libraryDao
                 .countPendingHydrationAlbums(),
             remainingVerificationCount: pendingVerification.remaining,
-            errorMessage: _toSafeErrorMessage(error),
           ),
           metrics,
+          error,
         );
         onProgress?.call(deferred);
         _logSyncSummary(state: deferred, metrics: metrics);
         return deferred;
       }
       if (_cancelled) {
-        final cancelled = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.cancelled,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            errorMessage: 'Sync cancelled.',
-          ),
+        final cancelled = _terminal(
+          state,
           metrics,
+          error,
+          status: LibrarySyncStatus.cancelled,
         );
         onProgress?.call(cancelled);
         return cancelled;
@@ -2212,32 +1991,22 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         stackTrace,
       );
 
-      if (_isTransient(error)) {
-        final failed = _withMetrics(
-          state.copyWith(
-            status: LibrarySyncStatus.failed,
-            failureCategory: 'transport',
-            nextRetryAt: error is SubsonicApiException ? error.retryAt : null,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-            errorMessage:
-                'Server temporarily unavailable. Sync will retry later.',
-          ),
-          metrics,
-        );
-        onProgress?.call(failed);
-        _logSyncSummary(state: failed, metrics: metrics);
-        return failed;
-      }
-
-      final failed = _withMetrics(
-        state.copyWith(
-          status: LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          errorMessage: _toSafeErrorMessage(error),
-        ),
+      final transient = _isTransient(error);
+      final failed = _terminal(
+        transient
+            ? state.copyWith(
+                failureCategory: 'transport',
+                nextRetryAt: error is SubsonicApiException
+                    ? error.retryAt
+                    : null,
+              )
+            : state,
         metrics,
+        error,
+        status: LibrarySyncStatus.failed,
+        errorMessage: transient
+            ? 'Server temporarily unavailable. Sync will retry later.'
+            : _toSafeErrorMessage(error),
       );
       onProgress?.call(failed);
       _logSyncSummary(state: failed, metrics: metrics);
