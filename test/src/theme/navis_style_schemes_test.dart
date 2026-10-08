@@ -424,6 +424,25 @@ void main() {
     });
   });
 
+  group('light raised surfaces', () {
+    for (final style in styled) {
+      test('${style.name} sheets, menus and dialogs differ from the paper', () {
+        final scheme = buildLightTheme(
+          const Color(0xFFE2581E),
+          style: style,
+        ).colorScheme;
+        final paper = _hct(scheme.surface).tone;
+        for (final container in <Color>[
+          scheme.surfaceContainerLow, // bottom sheets, cards
+          scheme.surfaceContainer, // popup menus
+          scheme.surfaceContainerHigh, // dialogs
+        ]) {
+          expect(paper - _hct(container).tone, greaterThanOrEqualTo(2.5));
+        }
+      });
+    }
+  });
+
   group('artwork scrim', () {
     test('neutral is pure black', () {
       expect(NavisColorStyleData.neutralDark.artworkScrim, Colors.black);

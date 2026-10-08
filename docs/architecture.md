@@ -631,13 +631,16 @@ target-selection rules.
     `nowPlayingSurfaceDecoration`) and plain `surface` when the art tint is
     off; decorative gradients become their solid end colour; hand-drawn drop
     shadows and the seek-preview blur are dropped for opaque container fills.
+    Exceptions that stay: the Home wash is a rounded panel (`NavisRadius.xl`)
+    inset to the 16 px content margins, and a wash colour with HCT chroma
+    below 6 (grey covers) takes 25% of `secondaryContainer` so it carries the
+    style; OLED + Flat Now Playing is plain `surface` (black), never the solid
+    tint (`NavisColorStyleData.oled`, set by `buildOledTheme`); the legibility
+    gradients behind white text over artwork stay under Flat (see
+    `NavisColorStyleData.artworkScrim` below).
     Kept deliberately: the shimmer animation, the scroll-edge fade mask
     (`quick_panel.dart`; it signals scrollable overflow) and focus/selection
-    styling. Text over artwork is a temporary experiment:
-    `flatArtworkTextVariantProvider` (`flat_artwork_text_variant.dart`) selects
-    `gradient` (keep the black scrims) or `band` (an opaque black 62% caption
-    band, no gradient or text shadow) under Flat; Flat off always uses the
-    gradients. Delete the provider and helpers once one is chosen.
+    styling.
   - Neutral reproduces the original schemes (`tonalSpot` light, `fidelity`
     dark, black OLED overrides) except that dark and OLED primary, secondary
     and tertiary containers in a warm hue (`isWarmHue`, reds through olive)
@@ -659,6 +662,24 @@ target-selection rules.
     artwork for the Home cover wash and the Now Playing tint, sets their veil
     and tint opacity, and supplies the `success` colour. Artwork itself and
     text drawn over artwork are never restyled.
+    - `adaptArtColor` follows each style's no-mud logic on dark and OLED
+      schemes. Pastel rotates warm hues toward its plum dusk
+      (`pastelDuskHue`, 60% blend, up to 85% for yellows) so an orange cover
+      reads rose or plum, not terracotta. Immersive keeps the hue but caps warm
+      chroma at 22 below tone 35 (wine or mahogany, not brown; yellows still go
+      through `mudGuardHue`). Night's umber is intended and unchanged. Neutral
+      returns the raw colour.
+    - `artworkScrim` is the colour of the black gradients behind white text
+      over artwork (artist hero, Home showcase, hero, playlist and album
+      cards, the album title shadow): Neutral `#000000`; Pastel a deep plum
+      (dusk hue, tone 7, chroma 10); Immersive the accent hue (tone 6, chroma
+      12); Night umber (tone 6, chroma 10). Alphas and stops are unchanged and
+      text stays white. `ArtworkScrim` (`artwork_scrim.dart`) draws it. The
+      former Flat caption-band experiment and its provider were removed.
+    - Light styled schemes put `surfaceContainerLow` (bottom sheets, cards),
+      `surfaceContainer` (popup menus) and `surfaceContainerHigh` (dialogs)
+      3, 5 and 7 tone steps below the tinted paper so raised surfaces stay
+      distinct from the page.
   - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
     tiles are painted from each style's real scheme; the accent grid shows
     each swatch as the selected style will use it.

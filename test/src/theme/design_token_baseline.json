@@ -22,14 +22,14 @@
   },
   "lib/src/features/home/presentation/home_screen.dart": {
     "fontSize": 1,
-    "colorLiteral": 5
+    "colorLiteral": 3
   },
   "lib/src/features/library/presentation/album_detail_screen.dart": {
     "fontSize": 2
   },
   "lib/src/features/library/presentation/artist_detail_screen.dart": {
     "fontSize": 3,
-    "colorLiteral": 6
+    "colorLiteral": 3
   },
   "lib/src/features/onboarding/presentation/onboarding_screen.dart": {
     "radius": 1
