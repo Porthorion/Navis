@@ -629,7 +629,6 @@ ThemeData _flatPanelTheme(ThemeData base, CaptionTint tint) {
       bodyColor: tint.text,
       displayColor: tint.text,
     ),
-    iconTheme: base.iconTheme.copyWith(color: tint.text),
   );
 }
 
