@@ -344,7 +344,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           renewalTtl: _executionLeaseTtl,
         ).run(() async {
           if (!_recoveredServers.contains(serverId)) {
-            await _database.librarySyncDao.migrateLegacySyncWork(serverId);
             await _database.librarySyncDao.resetInterruptedWork(serverId);
             await _database.librarySyncDao.recoverInterruptedSyncRuns(serverId);
             final recovered = await _database.librarySyncDao.getOrCreateState(

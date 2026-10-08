@@ -179,6 +179,9 @@ Located in `lib/src/providers/app_providers.dart`:
   counts, and timestamps for 90 days; a target key is cleared on completion,
   so neither diagnostics nor Settings history retains IDs, titles, URLs,
   credentials, or filesystem paths.
+  Pre-v71 work is no longer imported into typed run history. Startup still
+  resumes interrupted work and typed attempts independently; the persisted
+  legacy origin/reason enum indices and planner-version column remain stable.
 - Schema v77 adds nullable, versioned attempt telemetry. Existing attempts retain
   unknown (`null`) evidence. The coordinator checkpoints safe counters and a
   bounded phase/transport timeline every five seconds, on phase changes, and at

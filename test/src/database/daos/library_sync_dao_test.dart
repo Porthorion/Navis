@@ -348,44 +348,6 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  test(
-    'imports legacy running repair work as a recoverable typed request',
-    () async {
-      final now = DateTime.utc(2026, 8, 26, 10);
-      await database.librarySyncDao.enqueueWork(
-        serverId: 1,
-        kind: 'fullRepair',
-        priority: 80,
-        now: now,
-      );
-      final legacy = (await database.librarySyncDao.getRunnableWork(
-        serverId: 1,
-        now: now,
-      )).single;
-      await database.librarySyncDao.markRunning(legacy.id, now: now);
-
-      await database.librarySyncDao.migrateLegacySyncWork(1, now: now);
-
-      final rows = await database
-          .select(database.librarySyncRunRequestTable)
-          .get();
-      expect(rows, hasLength(1));
-      expect(rows.single.origin, SyncRunOrigin.legacyRecovery.index);
-      expect(rows.single.intent, SyncRunIntent.repairLibrary.index);
-      expect(rows.single.status, 0);
-      final attempts = await database
-          .select(database.librarySyncRunAttemptTable)
-          .get();
-      expect(attempts, hasLength(1));
-      expect(attempts.single.status, 1);
-      expect(
-        (await database.librarySyncDao.getOrCreateState(1)).plannerVersion,
-        3,
-      );
-    },
-    skip: !sqliteAvailable,
-  );
-
   test('deduplicates work and upgrades interactive priority', () async {
     final now = DateTime.utc(2026, 8, 4);
     await database.librarySyncDao.enqueueWork(

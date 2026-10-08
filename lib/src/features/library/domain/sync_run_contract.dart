@@ -22,6 +22,7 @@ enum SyncRunOrigin {
   androidWorker,
   migration,
   invariant,
+  // Retained because historical run rows persist this enum index.
   legacyRecovery,
 }
 
@@ -90,6 +91,7 @@ enum SyncSafeReason {
   authenticationFailure,
   responseBudgetExceeded,
   providerUnsupported,
+  // Retained because historical outcome rows persist this enum index.
   legacyAmbiguous,
   unknownFailure,
 }
