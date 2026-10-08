@@ -941,7 +941,7 @@ class _ArtistImageHeader extends ConsumerWidget {
                   children: <Widget>[
                     Expanded(
                       child: ArtworkCaptionBand(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        bandPadding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
