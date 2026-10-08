@@ -22,7 +22,7 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
   int cancelCalls = 0;
   int probeCalls = 0;
   int forceFullSyncCalls = 0;
-  int syncIfStaleCalls = 0;
+  final plans = <SyncExecutionPlan>[];
   int syncNowCalls = 0;
   int hydrateAlbumCalls = 0;
   bool probeIndexChanged = false;
@@ -49,6 +49,7 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
+    plans.add(plan);
     switch (plan.kind) {
       case LibrarySyncPlanKind.probe:
         probeCalls++;
@@ -798,7 +799,7 @@ void main() {
   );
 
   test(
-    'metered automatic catalog runs a hard probe instead of syncIfStale',
+    'metered automatic catalog runs a hard probe without executing broad plans',
     () async {
       await repository.save(
         ServerConfigModel(
@@ -842,7 +843,9 @@ void main() {
 
       expect(result.planKind, LibrarySyncPlanKind.probe);
       expect(probeEngine.probeCalls, 1);
-      expect(probeEngine.syncIfStaleCalls, 0);
+      expect(probeEngine.plans.map((plan) => plan.kind), [
+        LibrarySyncPlanKind.probe,
+      ]);
       expect(probeEngine.syncNowCalls, 0);
       expect(result.updatesAvailable, isTrue);
       final followUp = await database.librarySyncDao.getWork(
