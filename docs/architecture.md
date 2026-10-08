@@ -640,8 +640,9 @@ target-selection rules.
     gradients. Delete the provider and helpers once one is chosen.
   - Neutral reproduces the original schemes (`tonalSpot` light, `fidelity`
     dark, black OLED overrides) except that dark and OLED primary, secondary
-    and tertiary containers in the muddy band are replaced by the same hue at
-    chroma 20 (`errorContainer` is left alone). The other styles use hand-built
+    and tertiary containers in a warm hue (`isWarmHue`, reds through olive)
+    in the muddy band are replaced by the same hue at chroma 20; cool hues
+    and `errorContainer` are left alone. The other styles use hand-built
     role tables over HCT instead of Material's fixed tone table.
   - Rules every styled scheme keeps, enforced by
     `test/src/theme/navis_style_schemes_test.dart`: containers and surfaces
