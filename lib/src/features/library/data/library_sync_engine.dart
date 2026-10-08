@@ -966,6 +966,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
     _cancelled = false;
     _api.beginRun();
+    return await _hydrateAlbumWithinRun(normalizedId, onProgress: onProgress);
+  }
+
+  Future<LibrarySyncState> _hydrateAlbumWithinRun(
+    String normalizedId, {
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
     final startedAt = DateTime.now();
     final metrics = _SyncRunMetrics();
     var failureEndpoint = 'getAlbum';
@@ -1178,6 +1185,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           status: LibrarySyncStatus.cancelled,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
+          isHydrating: false,
           errorMessage: 'Sync cancelled.',
         ),
         metrics,
@@ -1188,6 +1196,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           status: LibrarySyncStatus.deferred,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
+          isHydrating: false,
           errorMessage: 'Sync deferred by network policy.',
         ),
         metrics,
@@ -1236,6 +1245,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               : LibrarySyncStatus.failed,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.now(),
+          isHydrating: false,
           errorMessage: _cancelled
               ? 'Sync cancelled.'
               : _toSafeErrorMessage(error),
@@ -2632,16 +2642,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (_cancelled) {
         break;
       }
-      try {
-        await hydrateAlbum(albumId);
-      } on Object catch (error) {
-        AppLogger.info(
-          'Starred hydration deferred for album $albumId: '
-          '${_toSafeErrorMessage(error)}',
-        );
+      final result = await _hydrateAlbumWithinRun(albumId);
+      if (result.status != LibrarySyncStatus.succeeded) {
         break;
       }
     }
+    _checkCancelled();
   }
 
   /// Referenced favorites and playlist entries may arrive before their parents.

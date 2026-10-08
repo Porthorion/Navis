@@ -3259,7 +3259,12 @@ states without starting audio or modifying a queue.
     header list prunes confirmed server deletions and queues new, count-changed,
     or metadata-changed playlist contents for resumable targeted hydration.
     Explicit favorites include referenced external/provisional identities while
-    ordinary library enumeration remains canonical. Membership in a starred
+    ordinary library enumeration remains canonical. Best-effort detail
+    hydration of incomplete starred songs stops at the first non-successful
+    album result and shares the outer run’s cancellation and transport state;
+    cancellation still terminates the enclosing sync. Album hydration clears
+    its active hydration flag on every terminal result, including deferral.
+    Membership in a starred
     snapshot counts as a favorite even when its optional timestamp is absent.
     Eligible automatic catalog checks inspect at most two newest-album pages
     each configured due interval, even with an unchanged artist cursor; manual

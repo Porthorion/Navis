@@ -1382,6 +1382,79 @@ void main() {
       expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
     }, skip: !sqliteAvailable);
 
+    Future<void> incompleteStarredAlbums() async {
+      await saveSession(lastSynced: DateTime.now());
+      api.starredContent = StarredContent(
+        songs: [
+          Song(
+            id: 'first-song',
+            title: 'First',
+            albumId: 'first',
+            starred: DateTime.utc(2026),
+          ),
+          Song(
+            id: 'second-song',
+            title: 'Second',
+            albumId: 'second',
+            starred: DateTime.utc(2026),
+          ),
+        ],
+      );
+    }
+
+    test('failed first starred hydration stops the album loop', () async {
+      await incompleteStarredAlbums();
+      api.albumErrors['first'] = StateError('album failed');
+      final state = await engine.syncStarredContent();
+      // Annotation reconciliation survives failed detail hydration.
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(api.calls.where((call) => call.startsWith('getAlbum:')), [
+        'getAlbum:first',
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'starred hydration honours cancellation without starting a new run',
+      () async {
+        await incompleteStarredAlbums();
+        final countingApi = _RunCountingSyncApi()
+          ..starredContent = api.starredContent;
+        countingApi.albumCompleter = Completer<Album>();
+        final starredEngine = DriftLibrarySyncEngine(
+          api: countingApi,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+        );
+        final run = starredEngine.syncStarredContent();
+        for (
+          var turn = 0;
+          turn < 5000 && countingApi.currentAlbumRequests == 0;
+          turn++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(countingApi.currentAlbumRequests, 1);
+        starredEngine.cancelSync();
+        final state = await run;
+        expect(state.status, LibrarySyncStatus.cancelled);
+        expect(countingApi.beginRunCalls, 1);
+        expect(countingApi.activeRequestsCancelled, isTrue);
+        expect(
+          countingApi.calls.where((call) => call.startsWith('getAlbum:')),
+          ['getAlbum:first'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('network-deferred album hydration clears its active flag', () async {
+      api.albumErrors['album-1'] = const SyncNetworkDeferredException();
+      final state = await engine.hydrateAlbum('album-1');
+      expect(state.status, LibrarySyncStatus.deferred);
+      expect(state.isHydrating, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('cancellation interrupts an active targeted request', () async {
       await saveSession(lastSynced: DateTime.now());
       api.albumCompleter = Completer<Album>();
@@ -1393,6 +1466,7 @@ void main() {
 
       expect(api.activeRequestsCancelled, isTrue);
       expect(state.status, LibrarySyncStatus.cancelled);
+      expect(state.isHydrating, isFalse);
     }, skip: !sqliteAvailable);
 
     test(
@@ -5012,4 +5086,14 @@ void main() {
       skip: !sqliteAvailable,
     );
   });
+}
+
+class _RunCountingSyncApi extends FakeLibrarySyncApi {
+  int beginRunCalls = 0;
+
+  @override
+  void beginRun() {
+    beginRunCalls++;
+    super.beginRun();
+  }
 }

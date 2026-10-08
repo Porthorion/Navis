@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Cancelling album or liked-item refreshes stops hydration reliably and clears loading status',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android background sync uses the same freshness window as foreground sync, including manual-only settings',
         type: ChangelogEntryType.fix,
       ),
