@@ -3394,8 +3394,10 @@ contract.
   download-queue entry, remapping discards the old identity’s queue entries and
   keeps the canonical entry intact; otherwise it moves the old entries. It
   writes the typed `entity_identity_aliases` table, shared across profiles.
-  Schema 94 keeps the newest alias per entity type and old ID, enforces that
-  key, and removes the legacy song alias table; sign-out and data reset clear
+  Schema 94 imports legacy song aliases as authoritative over typed song
+  conflicts, keeps the newest remaining alias per entity type and old ID,
+  clears song alias profile ownership, enforces that key, and removes the
+  legacy song alias table; sign-out and data reset clear
   typed aliases. Cache and download ownership validation is storage-kind aware: Android SAF content URIs are
   validated through the platform bridge, never `File.exists()`. Identity
   remapping preserves every cache-row column, including storage kind; rolling

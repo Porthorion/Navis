@@ -336,9 +336,25 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   Future<void> from93To94(Migrator _) async {
+    if (await _tableExists('song_identity_aliases')) {
+      // Song readers used the legacy table, so its targets take precedence.
+      await customStatement(
+        "DELETE FROM entity_identity_aliases WHERE entity_type = 'song' "
+        'AND old_id IN (SELECT old_song_id FROM song_identity_aliases)',
+      );
+      await customStatement(
+        'INSERT INTO entity_identity_aliases '
+        '(entity_type, old_id, new_id, match_reason, matched_at, server_id) '
+        "SELECT 'song', old_song_id, canonical_song_id, match_reason, matched_at, NULL "
+        'FROM song_identity_aliases',
+      );
+    }
     await customStatement(
       'DELETE FROM entity_identity_aliases WHERE id NOT IN ( '
       'SELECT MAX(id) FROM entity_identity_aliases GROUP BY entity_type, old_id)',
+    );
+    await customStatement(
+      "UPDATE entity_identity_aliases SET server_id = NULL WHERE entity_type = 'song'",
     );
     await customStatement(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_identity_aliases_kind_old '

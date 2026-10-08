@@ -15,77 +15,142 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
-  test('v94 keeps the newest typed alias and removes legacy songs', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'navis_alias_upgrade_',
-    );
-    addTearDown(() => directory.delete(recursive: true));
-    final file = File(p.join(directory.path, 'fixture.sqlite'));
-    final seed = createTestDatabase(file: file);
-    await seed.customSelect('PRAGMA user_version').getSingle();
-    await seed.close();
-    final raw = sqlite3.open(file.path);
-    raw.execute('DROP INDEX idx_entity_identity_aliases_kind_old');
-    raw.execute(
-      'CREATE TABLE song_identity_aliases ( '
-      'old_song_id TEXT PRIMARY KEY, canonical_song_id TEXT, match_reason TEXT, matched_at INTEGER)',
-    );
-    raw.execute(
-      "INSERT INTO song_identity_aliases VALUES ('old', 'legacy', 'sameId', 1)",
-    );
-    for (final (kind, target) in [
-      ('song', 'earlier'),
-      ('song', 'newest'),
-      ('album', 'album-earlier'),
-      ('album', 'album-newest'),
-      ('artist', 'artist-newest'),
-    ]) {
-      raw.execute(
-        'INSERT INTO entity_identity_aliases '
-        '(entity_type, old_id, new_id, match_reason, matched_at) VALUES (?, ?, ?, ?, ?)',
-        [kind, 'old', target, 'recordingMbid', 1],
+  for (final (scenario, profile) in [
+    ('legacy-only', null),
+    ('conflicting NULL-profile duplicates', null),
+    ('conflicting other-profile alias', 2),
+  ]) {
+    test('v94 preserves $scenario song aliases', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_alias_upgrade_',
       );
-    }
-    raw.execute('PRAGMA user_version = 93');
-    raw.close();
-    final upgraded = createTestDatabase(file: file);
-    addTearDown(upgraded.close);
-    final aliases = await upgraded
-        .select(upgraded.entityIdentityAliasTable)
-        .get();
-    expect(aliases.map((row) => row.newId), [
-      'newest',
-      'album-newest',
-      'artist-newest',
-    ]);
-    expect(aliases.every((row) => row.serverId == null), isTrue);
-    expect(await upgraded.songIdentityDao.resolveCanonicalId('old'), 'newest');
-    expect(
-      (await upgraded.songIdentityDao.getAliases()).single.canonicalSongId,
-      'newest',
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.customSelect('PRAGMA user_version').getSingle();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute('DROP INDEX idx_entity_identity_aliases_kind_old');
+      raw.execute(
+        'CREATE TABLE song_identity_aliases ( '
+        'old_song_id TEXT PRIMARY KEY, canonical_song_id TEXT, match_reason TEXT, matched_at INTEGER)',
+      );
+      raw.execute(
+        "INSERT INTO song_identity_aliases VALUES ('old', 'legacy', 'sameId', 1)",
+      );
+      raw.execute(
+        'INSERT INTO server_config (id, url, username, api_version) '
+        "VALUES (2, 'https://example.invalid', 'test', '1.16.1')",
+      );
+      for (final (kind, target) in [
+        if (scenario != 'legacy-only') ...[
+          ('song', 'earlier'),
+          ('song', 'newest'),
+        ],
+        ('album', 'album-earlier'),
+        ('album', 'album-newest'),
+        ('artist', 'artist-newest'),
+      ]) {
+        final serverId = target.endsWith('earlier') ? null : profile;
+        raw.execute(
+          'INSERT INTO entity_identity_aliases '
+          '(entity_type, old_id, new_id, match_reason, matched_at, server_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [kind, 'old', target, 'recordingMbid', 2, serverId],
+        );
+      }
+      raw.execute('PRAGMA user_version = 93');
+      raw.close();
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      final aliases = await upgraded
+          .select(upgraded.entityIdentityAliasTable)
+          .get();
+      expect(
+        aliases.map((row) => row.newId),
+        unorderedEquals(['legacy', 'album-newest', 'artist-newest']),
+      );
+      final songAlias = aliases.singleWhere((row) => row.entityType == 'song');
+      expect(songAlias.serverId, isNull);
+      expect(songAlias.matchReason, 'sameId');
+      expect(songAlias.matchedAt, DateTime.fromMillisecondsSinceEpoch(1000));
+      expect(
+        aliases
+            .where((row) => row.entityType != 'song')
+            .map((row) => row.serverId),
+        everyElement(profile),
+      );
+      expect(
+        await upgraded.songIdentityDao.resolveCanonicalId('old'),
+        'legacy',
+      );
+      expect(
+        (await upgraded.songIdentityDao.getAliases()).single.canonicalSongId,
+        'legacy',
+      );
+      expect(
+        await upgraded
+            .customSelect(
+              "SELECT name FROM sqlite_master WHERE name = 'song_identity_aliases'",
+            )
+            .get(),
+        isEmpty,
+      );
+      await expectLater(
+        upgraded
+            .into(upgraded.entityIdentityAliasTable)
+            .insert(
+              EntityIdentityAliasTableCompanion.insert(
+                entityType: 'song',
+                oldId: 'old',
+                newId: 'duplicate',
+                matchReason: 'sameId',
+                matchedAt: DateTime.now(),
+              ),
+            ),
+        throwsA(isA<SqliteException>()),
+      );
+    }, skip: !sqliteAvailable);
+  }
+
+  test('v94 normalizes typed songs without a legacy table', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final profile = await database
+        .into(database.serverConfigTable)
+        .insert(
+          ServerConfigTableCompanion.insert(
+            url: 'https://example.invalid',
+            username: 'test',
+            apiVersion: '1.16.1',
+          ),
+        );
+    await database.customStatement(
+      'DROP INDEX idx_entity_identity_aliases_kind_old',
     );
-    expect(
-      await upgraded
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE name = 'song_identity_aliases'",
-          )
-          .get(),
-      isEmpty,
-    );
-    await expectLater(
-      upgraded
-          .into(upgraded.entityIdentityAliasTable)
+    for (final (target, serverId) in [('earlier', null), ('newest', profile)]) {
+      await database
+          .into(database.entityIdentityAliasTable)
           .insert(
             EntityIdentityAliasTableCompanion.insert(
+              serverId: Value(serverId),
               entityType: 'song',
               oldId: 'old',
-              newId: 'duplicate',
+              newId: target,
               matchReason: 'sameId',
-              matchedAt: DateTime.now(),
+              matchedAt: DateTime.fromMillisecondsSinceEpoch(1000),
             ),
-          ),
-      throwsA(isA<SqliteException>()),
-    );
+          );
+    }
+    await database.from93To94(Migrator(database));
+    final alias = await database
+        .select(database.entityIdentityAliasTable)
+        .getSingle();
+    expect(alias.newId, 'newest');
+    expect(alias.serverId, isNull);
+    await (database.delete(
+      database.serverConfigTable,
+    )..where((row) => row.id.equals(profile))).go();
+    expect(await database.songIdentityDao.resolveCanonicalId('old'), 'newest');
   }, skip: !sqliteAvailable);
 
   test('v91 migration can be rerun with existing columns', () async {

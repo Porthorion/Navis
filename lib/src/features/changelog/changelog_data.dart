@@ -129,7 +129,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
-        'Library identity repairs keep one current alias per item, and resetting server data clears repaired identities',
+        'Library identity repairs keep one current alias per item, preserve existing song replacements during upgrades, and resetting server data clears repaired identities',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
