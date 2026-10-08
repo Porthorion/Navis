@@ -72,6 +72,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final themeModeName = ref.watch(themeModeProvider);
     final colorStyle = ref.watch(effectiveColorStyleProvider);
     final oledForAuto = ref.watch(oledForAutoProvider);
+    final flat = ref.watch(flatSurfacesProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
     // accents on every track change, so they ease over a longer transition.
@@ -99,11 +100,12 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       theme: buildLightTheme(
         seedColor,
         style: colorStyle,
+        flat: flat,
       ).copyWith(splashFactory: widget.splashFactory),
       darkTheme:
           (isOled
-                  ? buildOledTheme(seedColor, style: colorStyle)
-                  : buildDarkTheme(seedColor, style: colorStyle))
+                  ? buildOledTheme(seedColor, style: colorStyle, flat: flat)
+                  : buildDarkTheme(seedColor, style: colorStyle, flat: flat))
               .copyWith(splashFactory: widget.splashFactory),
       themeMode: resolvedThemeMode,
       themeAnimationDuration: themeAnimationDuration,

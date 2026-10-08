@@ -110,26 +110,28 @@ ThemeMode resolveThemeMode(String mode) {
 ThemeData buildLightTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.light,
     style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor, style: style);
+  return _buildNavisTheme(colorScheme, seedColor, style: style, flat: flat);
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
 ThemeData buildDarkTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
     brightness: Brightness.dark,
     style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor, style: style);
+  return _buildNavisTheme(colorScheme, seedColor, style: style, flat: flat);
 }
 
 /// Build an OLED (pure black) [ThemeData] from a seed color.
@@ -139,6 +141,7 @@ ThemeData buildDarkTheme(
 ThemeData buildOledTheme(
   Color seedColor, {
   NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
 }) {
   final colorScheme = buildStyledColorScheme(
     seed: seedColor,
@@ -146,7 +149,13 @@ ThemeData buildOledTheme(
     oled: true,
     style: style,
   );
-  return _buildNavisTheme(colorScheme, seedColor, oled: true, style: style);
+  return _buildNavisTheme(
+    colorScheme,
+    seedColor,
+    oled: true,
+    style: style,
+    flat: flat,
+  );
 }
 
 /// Bundled UI typeface (see `assets/fonts/`).
@@ -201,10 +210,12 @@ ThemeData _buildNavisTheme(
   Color seedColor, {
   bool oled = false,
   NavisColorStyle style = NavisColorStyle.neutral,
+  bool flat = false,
 }) {
   final styleData = NavisColorStyleData(
     style: style,
     dark: colorScheme.brightness == Brightness.dark,
+    flat: flat,
   );
   // Light Pastel fills its main buttons with the pastel container colour and
   // keeps the deeper primary for text, which needs the contrast.
@@ -217,10 +228,19 @@ ThemeData _buildNavisTheme(
   final disabledOutline = BorderSide(
     color: colorScheme.onSurface.withValues(alpha: 0.12),
   );
+  // Flat removes drop shadows at the theme level: Material surfaces resolve
+  // their shadow from `ColorScheme.shadow` (and the legacy
+  // `ThemeData.shadowColor`), so making both transparent flattens cards,
+  // buttons, FABs, menus, dialogs, sheets and app bars at once. Elevation
+  // values stay, so surface-tint behaviour is unchanged.
+  final effectiveScheme = flat
+      ? colorScheme.copyWith(shadow: Colors.transparent)
+      : colorScheme;
   return ThemeData(
     useMaterial3: true,
     brightness: colorScheme.brightness,
-    colorScheme: colorScheme,
+    colorScheme: effectiveScheme,
+    shadowColor: flat ? Colors.transparent : null,
     fontFamily: navisFontFamily,
     textTheme: _navisTextTheme,
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -259,7 +279,10 @@ ThemeData _buildNavisTheme(
     scaffoldBackgroundColor: oled ? Colors.black : null,
     cardColor: oled ? colorScheme.surfaceContainerLow : null,
     dialogTheme: oled
-        ? DialogThemeData(backgroundColor: colorScheme.surfaceContainer)
+        ? DialogThemeData(
+            backgroundColor: colorScheme.surfaceContainer,
+            shadowColor: flat ? Colors.transparent : null,
+          )
         : null,
     filledButtonTheme: pastelLight
         ? FilledButtonThemeData(

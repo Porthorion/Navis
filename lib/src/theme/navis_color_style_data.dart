@@ -10,12 +10,16 @@ import 'package:navis/src/theme/navis_style_schemes.dart';
 /// Artwork itself is never recoloured; only the fields drawn from it are.
 @immutable
 class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
-  const new({required this.style, required this.dark});
+  const new({required this.style, required this.dark, this.flat = false});
 
   final NavisColorStyle style;
 
   /// Whether the theme is dark (Dark or OLED).
   final bool dark;
+
+  /// Whether Flat rendering is on: no glows, gradients, shadows or blur,
+  /// solid colour fields instead. Orthogonal to the theme mode and [style].
+  final bool flat;
 
   static const NavisColorStyleData neutralDark = NavisColorStyleData(
     style: NavisColorStyle.neutral,
@@ -30,6 +34,7 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
         NavisColorStyleData(
           style: NavisColorStyle.neutral,
           dark: theme.brightness == Brightness.dark,
+          flat: false,
         );
   }
 
@@ -108,10 +113,15 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   }
 
   @override
-  NavisColorStyleData copyWith({NavisColorStyle? style, bool? dark}) {
+  NavisColorStyleData copyWith({
+    NavisColorStyle? style,
+    bool? dark,
+    bool? flat,
+  }) {
     return NavisColorStyleData(
       style: style ?? this.style,
       dark: dark ?? this.dark,
+      flat: flat ?? this.flat,
     );
   }
 

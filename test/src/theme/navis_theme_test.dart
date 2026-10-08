@@ -1,8 +1,71 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 void main() {
+  group('Flat', () {
+    test('every builder records flat in the colour style extension', () {
+      for (final style in NavisColorStyle.values) {
+        final builders = <ThemeData Function({required bool flat})>[
+          ({required flat}) => buildLightTheme(
+            const Color(0xFF009688),
+            style: style,
+            flat: flat,
+          ),
+          ({required flat}) =>
+              buildDarkTheme(const Color(0xFF009688), style: style, flat: flat),
+          ({required flat}) =>
+              buildOledTheme(const Color(0xFF009688), style: style, flat: flat),
+        ];
+        for (final build in builders) {
+          expect(
+            build(flat: true).extension<NavisColorStyleData>()!.flat,
+            isTrue,
+          );
+          expect(
+            build(flat: false).extension<NavisColorStyleData>()!.flat,
+            isFalse,
+          );
+        }
+      }
+    });
+
+    test('defaults to off and survives copyWith', () {
+      expect(
+        buildDarkTheme(const Color(0xFF009688))
+            .extension<NavisColorStyleData>()!
+            .flat,
+        isFalse,
+      );
+      expect(NavisColorStyleData.neutralDark.flat, isFalse);
+      expect(NavisColorStyleData.neutralDark.copyWith(flat: true).flat, isTrue);
+      expect(
+        NavisColorStyleData.neutralDark
+            .copyWith(flat: true)
+            .copyWith(dark: false)
+            .flat,
+        isTrue,
+      );
+    });
+
+    test('removes theme-level shadows only when on', () {
+      final flat = buildLightTheme(const Color(0xFF009688), flat: true);
+      final depth = buildLightTheme(const Color(0xFF009688));
+      expect(flat.shadowColor, Colors.transparent);
+      expect(flat.colorScheme.shadow, Colors.transparent);
+      expect(depth.colorScheme.shadow, isNot(Colors.transparent));
+      expect(
+        buildOledTheme(
+          const Color(0xFF009688),
+          flat: true,
+        ).dialogTheme.shadowColor,
+        Colors.transparent,
+      );
+    });
+  });
+
   group('NavisAccentColors', () {
     const vividAccent = Color(0xFF009688);
     const dynamicAccent = Color(0xFF008577);
