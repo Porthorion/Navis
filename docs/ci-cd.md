@@ -200,7 +200,8 @@ while the running app is offline. The gate verifies deferred delta discovery in
 the redacted ledger, restores Wi-Fi, and invokes the production automatic entry
 point to prove the queued user work runs before its otherwise-future automatic
 deadline. It observes only a narrow authenticated album-existence contract,
-checks the resumed terminal ledger for `getIndexes`, newest-list, artist-detail,
+checks the resumed durable run and its correlated attempt telemetry for
+`getIndexes`, newest-list, artist-detail,
 and album-detail calls, then opens the discovered album after a clean restart.
 It rejects blank compositor screenshots and never sends data to a real server.
 With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and

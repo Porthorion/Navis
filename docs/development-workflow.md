@@ -237,8 +237,8 @@ loopback fixture before launch, but its acceptance action is the running
 app's authenticated `POST /v1/sync/check` while offline; it then restores
 Wi-Fi and drives the production automatic entry point to resume that queued
 manual discovery. It observes both transitions through authenticated status,
-ledger, and minimal album-existence APIs, renders the production detail route,
-and repeats after clean restart. The fixture must use the standard singular
+durable run history, correlated attempt telemetry, and minimal album-existence
+APIs, renders the production detail route, and repeats after clean restart. The fixture must use the standard singular
 `artist.album` response shape, because the production client is responsible for
 normalizing that protocol shape before sync logic.
 For the narrower partial-detail disappearance regression, run it with
@@ -248,8 +248,8 @@ sibling from `getArtist`, then the running app must add the newest-feed album
 without deleting the retained sibling before or after restart.
 The forced-manual variant also queues an isolated higher-priority album target
 before Wi-Fi reconnect. Its explicit `POST /v1/sync/check` must still record a
-`deltaReconcile` terminal event with catalog endpoint evidence, retain the
-target as durable pending work, and drain that target only through its later
+`manualCatalogDiscovery` durable terminal run with catalog endpoint evidence
+from its correlated attempt, retain the target as durable pending work, and drain that target only through its later
 explicit target request.
 
 `tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
