@@ -202,6 +202,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'Same Vibes and Server Mix stop refilling after five failed refills in a row instead of resuming later; start the mix again to continue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes started from a remote song with no library copy no longer mixes from an unrelated song in the queue',
         type: ChangelogEntryType.fix,
       ),

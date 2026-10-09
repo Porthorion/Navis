@@ -2230,6 +2230,11 @@ queue commits attempt to restore the previous queue and play state. Persisted
 recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
+Background refills retry with backoff. After five consecutive failed refills
+Same Vibes, Server Mix and Personal Radio stop refilling and the session stays
+at `retryExhausted`; later playback snapshots, a cleared error notice or an
+expired backoff never resume it. Only starting the mix again re-arms refills.
+
 ## Data Flow
 
 ### Playback Flow

@@ -65,6 +65,28 @@ class _FakeQueueController extends QueueController {
   }
 }
 
+/// Accepts the first recommendation append, then inserts nothing.
+class _DryingQueueController extends _FakeQueueController {
+  new() : super();
+
+  int appends = 0;
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    appends++;
+    if (appends > 1) return const RecommendationQueueResult(<String>[]);
+    return super.appendRecommendationTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+      isCurrent: isCurrent,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -907,6 +929,95 @@ void main() {
         await pumpEventQueue();
 
         expectSecondMixActive(container);
+      },
+    );
+  });
+
+  group('retry exhaustion', () {
+    var fakeNow = DateTime(2026, 10, 9, 12);
+    setUp(() {
+      fakeNow = DateTime(2026, 10, 9, 12);
+      recommendationNow = () => fakeNow;
+    });
+    tearDown(() => recommendationNow = DateTime.now);
+
+    test(
+      'five failed refills stop the mix until it is started again',
+      () async {
+        final snapshotState =
+            NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+              _SnapshotController.new,
+            );
+        final api = _MockSubsonicApiClient();
+        var fetches = 0;
+        when(
+          () => api.getSimilarSongs2(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async {
+          fetches++;
+          return songs(5);
+        });
+        final container = ProviderContainer(
+          overrides: [
+            playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+            queueProvider.overrideWith(_DryingQueueController.new),
+            audioHandlerProvider.overrideWithValue(null),
+            subsonicApiProvider.overrideWithValue(api),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(instantMixProvider.notifier);
+        void emit(int length) => container
+            .read(snapshotState.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+                currentSongId: 'q-8',
+                currentIndex: 8,
+              ),
+            );
+        // Moves the clock past any backoff and clears the error the app shell
+        // clears after showing it, then lets a due refill run.
+        Future<void> nextSnapshot(int length) async {
+          fakeNow = fakeNow.add(const Duration(minutes: 5));
+          notifier.clearError();
+          emit(length);
+          await pumpEventQueue();
+          while (container.read(instantMixProvider).refilling) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
+
+        emit(5);
+        await notifier.activate('seed-a');
+        expect(fetches, 1);
+
+        for (var failure = 1; failure <= 5; failure++) {
+          await nextSnapshot(10 + failure);
+          expect(fetches, 1 + failure);
+        }
+        final exhausted = container.read(recommendationSessionProvider);
+        expect(exhausted.stage, 'retryExhausted');
+        expect(exhausted.retryCount, 5);
+
+        // Later snapshots no longer resume the exhausted refill.
+        await nextSnapshot(20);
+        await nextSnapshot(21);
+        expect(fetches, 6);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryExhausted',
+        );
+
+        // Starting the mix again re-arms it.
+        await notifier.activate('seed-a');
+        expect(fetches, 7);
       },
     );
   });

@@ -2383,4 +2383,154 @@ void main() {
       expect(queueOf(container).queuedSongs, isEmpty);
     });
   });
+
+  group('retry exhaustion', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    var similarCalls = 0;
+    var fakeNow = DateTime(2026, 10, 9, 12);
+
+    setUp(() {
+      similarCalls = 0;
+      fakeNow = DateTime(2026, 10, 9, 12);
+      recommendationNow = () => fakeNow;
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        ),
+      );
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (_) async => const Song(id: 'q', title: 'Seed', artist: 'Artist'),
+          );
+      // The first (initial) refill succeeds; every later one finds nothing.
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        similarCalls++;
+        return similarCalls == 1
+            ? List<Song>.generate(
+                5,
+                (index) => Song(id: 'rec-$index', title: 'Rec $index'),
+              )
+            : const <Song>[];
+      });
+    });
+
+    tearDown(() => recommendationNow = DateTime.now);
+
+    test(
+      'five failed refills stop the mix until it is started again',
+      () async {
+        final snapshotState =
+            NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+              _SnapshotController.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+            queueProvider.overrideWith(_FakeQueueController.new),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(lastFm),
+            integrationPolicyProvider.overrideWithValue(
+              const IntegrationPolicy(lastFmVerified: true),
+            ),
+            currentMediaItemProvider.overrideWith(
+              (ref) => Stream<MediaItem?>.value(
+                const MediaItem(id: 'seed-a', title: 'Seed', artist: 'Artist'),
+              ),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            cachedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+              (albumIds) async => const <String, int?>{},
+            ),
+            sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+              (songIds) async => const <String>{},
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(currentMediaItemProvider, (_, _) {});
+        final notifier = container.read(sameVibesProvider.notifier);
+        void emit(int length) => container
+            .read(snapshotState.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+                currentSongId: 'q-${length - 1}',
+                currentIndex: length - 1,
+              ),
+            );
+        // Each step plays the last queued song, so a refill is due, and moves
+        // the clock past any backoff.
+        Future<void> playToEnd(int length) async {
+          fakeNow = fakeNow.add(const Duration(minutes: 5));
+          emit(length);
+          await pumpEventQueue();
+          while (container.read(sameVibesProvider).refilling) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
+
+        emit(1);
+        await notifier.activate('seed-a');
+        expect(similarCalls, 1);
+
+        await playToEnd(6);
+        expect(similarCalls, 2);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryPending',
+          reason: 'a failed refill must not overwrite its retry stage',
+        );
+        for (var length = 7; length <= 9; length++) {
+          await playToEnd(length);
+        }
+        expect(similarCalls, 5);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryPending',
+        );
+        await playToEnd(10);
+        expect(similarCalls, 6);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryExhausted',
+        );
+        expect(container.read(recommendationSessionProvider).retryCount, 5);
+
+        // Later snapshots no longer resume the exhausted refill.
+        await playToEnd(11);
+        await playToEnd(12);
+        expect(similarCalls, 6);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryExhausted',
+        );
+        expect(container.read(sameVibesProvider).active, isTrue);
+
+        // Starting the mix again re-arms it.
+        await notifier.activate('seed-a');
+        expect(similarCalls, 7);
+      },
+    );
+  });
 }
