@@ -344,6 +344,13 @@ return the location, Library section, player overlay stack and desktop history,
 so phone and tablet navigation can be driven on an emulator without injected
 OS input.
 
+For reproducible marketing screenshots, `POST /v1/presentation/press
+{"key":"<ValueKey>"}` presses a keyed onstage button through its own callback,
+`POST /v1/presentation/screenshot {"label":…,"pixelRatio":"device"}` captures
+at device resolution, `POST /v1/presentation/appearance` sets every Appearance
+option, and `--dart-define=NAVIS_DIAGNOSTICS_SHOWCASE_SEED=<n>` fixes the Home
+showcase order.
+
 The navigate endpoint accepts only locations that match an app route. Library section
 destinations use the canonical `/library?section=<name>` location, which the
 shell maps to the production `librarySectionProvider` exactly as the sidebar and

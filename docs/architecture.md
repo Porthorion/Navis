@@ -524,13 +524,17 @@ controls remain disabled. `GET /v1/presentation/status` reports the live route a
 viewport plus post-bootstrap app readiness,
 `POST /v1/presentation/navigate` drives the real `GoRouter`, and
 `POST /v1/presentation/screenshot` waits for a completed, animation-settled
-frame before writing a 1.0-ratio PNG below the validated artifact root. The
-server creates filenames,
+frame before writing a 1.0-ratio PNG below the validated artifact root
+(`"pixelRatio":"device"` captures at the device's resolution instead, for
+marketing screenshots). The server creates filenames,
 returns only relative path/dimension/digest metadata, and protects the
 screenshots directory and files with modes `0700` and `0600`. Non-route UI uses
 narrow production-controller actions such as the queue/Now Playing
 `POST /v1/presentation/player-overlay`; the control plane has no generic
-coordinate-click interface.
+coordinate-click interface. Clone-only `POST /v1/presentation/press
+{"key":"<ValueKey>"}` calls the production callback of the onstage button with
+that widget key (or the first enabled button inside it) and reports `pressed`;
+it never synthesises pointer input.
 After a presentation search, clone-only
 `POST /v1/presentation/search/play` can select one of that sanitized result
 set through `QueueController.replaceWithSongs`; it exists only to validate the

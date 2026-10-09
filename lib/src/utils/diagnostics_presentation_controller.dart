@@ -136,7 +136,6 @@ class DiagnosticsPresentationController {
     : _artifactRoot = Directory(p.normalize(p.absolute(artifactRoot.path)));
 
   static final RegExp _validLabel = RegExp(r'^[a-z0-9][a-z0-9_-]{0,47}$');
-  static const double _capturePixelRatio = 1;
   static const tooltipTargets = <String, String>{
     'favorite': 'desktopPlayerFavoriteButton',
     'lyrics': 'desktopPlayerLyricsButton',
@@ -514,6 +513,34 @@ class DiagnosticsPresentationController {
           const ValueKey<String>('desktopAnchoredPopover'),
     );
     return popover == null ? 'sheet' : 'popover';
+  }
+
+  /// Presses the onstage button keyed `ValueKey<String>(key)`, or the first
+  /// enabled button inside that keyed widget, through its production callback.
+  /// Returns false when no such enabled button is on screen.
+  Future<bool> pressKeyedButton(String key) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    VoidCallback? callbackOf(Widget widget) => switch (widget) {
+      IconButton(:final onPressed) => onPressed,
+      InkWell(:final onTap) => onTap,
+      ButtonStyleButton(:final onPressed) => onPressed,
+      _ => null,
+    };
+    final keyed = _findElement(
+      root,
+      (element) =>
+          element.widget.key == ValueKey<String>(key) && _isOnstage(element),
+    );
+    if (keyed == null) return false;
+    final button = callbackOf(keyed.widget) != null
+        ? keyed
+        : _findElement(keyed, (element) => callbackOf(element.widget) != null);
+    final callback = button == null ? null : callbackOf(button.widget);
+    if (callback == null) return false;
+    callback();
+    await waitForFrame();
+    return true;
   }
 
   /// Presses the first visible player Speed (`speed`) or Equalizer
@@ -1281,7 +1308,12 @@ class DiagnosticsPresentationController {
     }
   }
 
-  Future<DiagnosticsScreenshot> capture({required String label}) async {
+  /// Captures the app at one logical pixel per pixel, or at the device's
+  /// resolution when [deviceResolution] is set (marketing screenshots).
+  Future<DiagnosticsScreenshot> capture({
+    required String label,
+    bool deviceResolution = false,
+  }) async {
     if (!isValidLabel(label)) {
       throw const FormatException('label must match [a-z0-9][a-z0-9_-]{0,47}');
     }
@@ -1292,7 +1324,11 @@ class DiagnosticsPresentationController {
       throw const DiagnosticsPresentationUnavailable();
     }
 
-    final image = await boundary.toImage(pixelRatio: _capturePixelRatio);
+    final context = _boundaryKey.currentContext;
+    final pixelRatio = deviceResolution && context != null
+        ? View.of(context).devicePixelRatio
+        : 1.0;
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       if (data == null) {
@@ -1324,7 +1360,7 @@ class DiagnosticsPresentationController {
         logicalHeight: boundary.size.height,
         pixelWidth: image.width,
         pixelHeight: image.height,
-        pixelRatio: _capturePixelRatio,
+        pixelRatio: pixelRatio,
         byteCount: bytes.length,
         sha256Digest: sha256.convert(bytes).toString(),
       );

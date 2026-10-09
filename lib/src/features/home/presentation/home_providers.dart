@@ -518,9 +518,18 @@ class ListenBrainzDiscoverPlaylist {
   return (songs: songs, startIndex: startIndex);
 }
 
+/// A fixed Home showcase order for reproducible screenshots, set with
+/// `--dart-define=NAVIS_DIAGNOSTICS_SHOWCASE_SEED=<n>`; unset in releases.
+const _diagnosticsShowcaseSeed = int.fromEnvironment(
+  'NAVIS_DIAGNOSTICS_SHOWCASE_SEED',
+  defaultValue: -1,
+);
+
 class HomeRandomShowcaseShuffleSeedNotifier extends Notifier<int> {
   @override
-  int build() => Random().nextInt(1 << 31);
+  int build() => _diagnosticsShowcaseSeed >= 0
+      ? _diagnosticsShowcaseSeed
+      : Random().nextInt(1 << 31);
 
   void reshuffle() {
     state = Random().nextInt(1 << 31);

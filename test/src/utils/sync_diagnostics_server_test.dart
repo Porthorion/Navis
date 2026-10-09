@@ -2263,6 +2263,36 @@ void main() {
     expect(screenshot.body['artifact'], 'screenshots/capture.png');
     expect(screenshot.body['sha256'], hasLength(64));
     verify(() => presentation.capture(label: 'target')).called(1);
+
+    final badRatio = await fixture.post(
+      '/v1/presentation/screenshot',
+      const <String, Object?>{'label': 'target', 'pixelRatio': 3},
+    );
+    expect(badRatio.statusCode, HttpStatus.badRequest);
+    when(() => presentation.capture(label: 'sharp', deviceResolution: true))
+        .thenAnswer((_) async => (await presentation.capture(label: 'target')));
+    final sharp = await fixture.post(
+      '/v1/presentation/screenshot',
+      const <String, Object?>{'label': 'sharp', 'pixelRatio': 'device'},
+    );
+    expect(sharp.statusCode, HttpStatus.created);
+    verify(() => presentation.capture(label: 'sharp', deviceResolution: true))
+        .called(1);
+
+    final noKey = await fixture.post(
+      '/v1/presentation/press',
+      const <String, Object?>{'key': ''},
+    );
+    expect(noKey.statusCode, HttpStatus.badRequest);
+    when(() => presentation.pressKeyedButton('homeRadioButton'))
+        .thenAnswer((_) async => true);
+    final press = await fixture.post(
+      '/v1/presentation/press',
+      const <String, Object?>{'key': 'homeRadioButton'},
+    );
+    expect(press.statusCode, HttpStatus.ok);
+    expect(press.body['pressed'], isTrue);
+    verify(() => presentation.pressKeyedButton('homeRadioButton')).called(1);
   });
 
   test(
@@ -2286,6 +2316,7 @@ void main() {
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
+        ('POST', '/v1/presentation/press'),
         ('POST', '/v1/presentation/screenshot'),
       ]) {
         final forbidden = await _request(
@@ -2314,6 +2345,7 @@ void main() {
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
+        ('POST', '/v1/presentation/press'),
         ('POST', '/v1/presentation/screenshot'),
       ]) {
         final unavailable = await _request(

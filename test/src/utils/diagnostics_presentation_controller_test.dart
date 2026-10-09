@@ -765,6 +765,80 @@ void main() {
     }
   });
 
+  testWidgets('captures at device resolution when asked', (tester) async {
+    tester.view
+      ..physicalSize = const Size(640, 480)
+      ..devicePixelRatio = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final root = Directory.systemTemp.createTempSync(
+      'navis_presentation_test_',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    await tester.pumpWidget(
+      controller.wrap(const MaterialApp(home: ColoredBox(color: Colors.blue))),
+    );
+    final capture = (await tester.runAsync<DiagnosticsScreenshot>(
+      () => controller.capture(label: 'sharp', deviceResolution: true),
+    ))!;
+    expect(capture.pixelRatio, 2);
+    expect(capture.pixelWidth, 640);
+    expect(capture.pixelHeight, 480);
+  });
+
+  testWidgets('presses keyed buttons through their own callbacks', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync(
+      'navis_presentation_test_',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    final pressed = <String>[];
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                IconButton(
+                  key: const ValueKey<String>('direct'),
+                  onPressed: () => pressed.add('direct'),
+                  icon: const Icon(Icons.radio),
+                ),
+                Padding(
+                  key: const ValueKey<String>('wrapper'),
+                  padding: EdgeInsets.zero,
+                  child: InkWell(
+                    onTap: () => pressed.add('inner'),
+                    child: const Text('Inner'),
+                  ),
+                ),
+                const IconButton(
+                  key: ValueKey<String>('disabled'),
+                  onPressed: null,
+                  icon: Icon(Icons.block),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(await controller.pressKeyedButton('direct'), isTrue);
+    expect(await controller.pressKeyedButton('wrapper'), isTrue);
+    expect(await controller.pressKeyedButton('disabled'), isFalse);
+    expect(await controller.pressKeyedButton('missing'), isFalse);
+    expect(pressed, ['direct', 'inner']);
+  });
+
   testWidgets('rejects unsafe labels and unavailable render surfaces', (
     tester,
   ) async {

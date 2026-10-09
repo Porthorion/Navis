@@ -1471,8 +1471,17 @@ class SyncDiagnosticsServer {
           });
           return;
         }
+        final pixelRatio = body['pixelRatio'];
+        if (pixelRatio != null && pixelRatio != 'device') {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'pixelRatio must be "device" when given',
+          });
+          return;
+        }
         try {
-          final screenshot = await presentation.capture(label: label);
+          final screenshot = pixelRatio == 'device'
+              ? await presentation.capture(label: label, deviceResolution: true)
+              : await presentation.capture(label: label);
           await _respond(request, HttpStatus.created, screenshot.toJson());
         } on FormatException catch (error) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
@@ -2621,6 +2630,35 @@ class SyncDiagnosticsServer {
           return;
         }
         await _respond(request, HttpStatus.ok, _quickPanelState(presentation));
+        return;
+      }
+      if (path == '/v1/presentation/press' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final key = body['key'];
+        if (key is! String || key.isEmpty || key.length > 128) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'key must be a widget ValueKey string',
+          });
+          return;
+        }
+        try {
+          final pressed = await presentation.pressKeyedButton(key);
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'key': key,
+            'pressed': pressed,
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+        }
         return;
       }
       if (path == '/v1/presentation/system-back' && request.method == 'POST') {
