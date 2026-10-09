@@ -67,8 +67,9 @@ trap 'rm -rf "${WORK_DIR}"' EXIT
 
 # The Ed25519 public key the app trusts (base64 of the raw 32 bytes).
 pinned_public_key() {
-  sed -n "s/.*updateSigningPublicKey *=[^']*'\([^']*\)'.*/\1/p" \
-    "${SCRIPT_DIR}/../lib/src/utils/constants.dart" | head -1
+  # dart format may wrap the value onto the next line.
+  grep -A1 'updateSigningPublicKey *=' "${SCRIPT_DIR}/../lib/src/utils/constants.dart" \
+    | grep -o "'[A-Za-z0-9+/=]*'" | head -1 | tr -d "'"
 }
 
 # Writes a PEM public key for openssl from a base64 raw Ed25519 key.
