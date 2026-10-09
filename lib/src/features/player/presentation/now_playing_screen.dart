@@ -63,6 +63,7 @@ part 'now_playing_transport_controls.dart';
 part 'now_playing_lyrics.dart';
 part 'now_playing_actions.dart';
 part 'now_playing_wide_panels.dart';
+part 'now_playing_settings_items.dart';
 
 /// A single artist entry for [_TrackInfo.artistLinks].
 typedef _ArtistLink = ({String name, VoidCallback? onTap});
@@ -731,8 +732,6 @@ void _showNowPlayingSettingsSheet(
   String? fullscreenLyricsSongId,
   String? fullscreenLyricsTitle,
 }) {
-  final l10n = AppLocalizations.of(context)!;
-
   final action = showModalBottomSheet<_SettingsSheetAction>(
     context: context,
     useRootNavigator: true,
@@ -746,17 +745,7 @@ void _showNowPlayingSettingsSheet(
       snap: true,
       builder: (_, scrollController) => Consumer(
         builder: (_, sheetRef, _) {
-          final currentSongRating = song == null
-              ? null
-              : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
           final sheetVolume = sheetRef.watch(playbackVolumeProvider);
-          final isRemote = song != null && !isServerAddressableSongId(song.id);
-          final songDownloadState = song == null
-              ? SongDownloadState.none
-              : sheetRef.watch(songDownloadStateProvider(song.id));
-          final disabledColor = Theme.of(context).colorScheme.onSurface
-              .withValues(alpha: 0.38);
-          final eqSupported = sheetRef.watch(eqCapabilitiesProvider).supported;
           return SafeArea(
             top: false,
             child: ListView(
@@ -802,200 +791,38 @@ void _showNowPlayingSettingsSheet(
                   ),
                 ),
                 const Divider(height: 1),
-                _NowPlayingSoundSectionLabel(
-                  label: l10n.nowPlayingSoundSection,
-                ),
-                ListTile(
-                  key: const ValueKey('playbackAdjustmentEntryPoint'),
-                  leading: const Icon(Icons.speed),
-                  title: Text(l10n.playbackSpeedPitchTitle),
-                  subtitle: const PlaybackAdjustmentSummary(),
-                  trailing: const Icon(Icons.chevron_right),
+                ..._nowPlayingSettingsItems(
+                  context,
+                  sheetRef,
+                  actionRef: ref,
+                  song: song,
                   // The Speed & Pitch sheet opens once this one has closed,
                   // so two sheets never animate at the same time.
-                  onTap: () =>
+                  onOpenSpeedPitch: (_) =>
                       Navigator.of(sheetContext)
                           .pop(_SettingsSheetAction.speedPitch),
-                ),
-                if (eqSupported)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: EqQuickCard(
-                      onOpenFullPage: () =>
-                          Navigator.of(sheetContext)
-                              .pop(_SettingsSheetAction.openEqualizer),
-                    ),
-                  )
-                else
-                  const EqualizerEntry(),
-                const Divider(height: 1),
-                if (song != null)
-                  ListTile(
-                    iconColor: isRemote ? disabledColor : null,
-                    textColor: isRemote ? disabledColor : null,
-                    leading: const Icon(Icons.star_outline),
-                    title: Text(l10n.ratingTitle),
-                    subtitle: Text(l10n.ratingHint),
-                    trailing: isRemote
-                        ? IgnorePointer(
-                            child: Opacity(
-                              opacity: 0.38,
-                              child: RatingWidget(
-                                rating: currentSongRating,
-                                compact: true,
-                                onChanged: (_) {},
-                              ),
+                  onOpenEqualizerFullPage: () =>
+                      Navigator.of(sheetContext)
+                          .pop(_SettingsSheetAction.openEqualizer),
+                  equalizerCardPadding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  dimRemoteRatingTile: false,
+                  onOpenFullscreenLyrics:
+                      fullscreenLyricsSongId != null &&
+                          fullscreenLyricsTitle != null
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            _openFullscreenLyricsRoute(
+                              context,
+                              fullscreenLyricsSongId,
+                              fullscreenLyricsTitle,
                             ),
-                          )
-                        : RatingWidget(
-                            rating: currentSongRating,
-                            compact: true,
-                            onChanged: (next) {
-                              unawaited(
-                                setSongRating(
-                                  song.id,
-                                  next,
-                                  sheetRef,
-                                ).catchError((_) {
-                                  if (context.mounted) {
-                                    showAppNotice(
-                                      context,
-                                      message: l10n.ratingUpdateFailed,
-                                      level: AppNoticeLevel.error,
-                                    );
-                                  }
-                                }),
-                              );
-                            },
-                          ),
-                    onTap: isRemote
-                        ? () => showAppNotice(
-                            context,
-                            message: l10n.remoteSourceActionUnavailable,
-                            level: AppNoticeLevel.error,
-                          )
-                        : null,
-                  ),
-                if (fullscreenLyricsSongId != null &&
-                    fullscreenLyricsTitle != null)
-                  ListTile(
-                    leading: const Icon(Icons.fullscreen),
-                    title: Text(l10n.nowPlayingLyrics),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        _openFullscreenLyricsRoute(
-                          context,
-                          fullscreenLyricsSongId,
-                          fullscreenLyricsTitle,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    ((song.albumId ?? '').trim().isNotEmpty ||
-                        (song.albumName ?? '').trim().isNotEmpty))
-                  ListTile(
-                    leading: const Icon(Icons.album_outlined),
-                    title: Text(l10n.nowPlayingGoToAlbum),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        NormalPlaybackMetadataNavigator.goToAlbum(
-                          context,
-                          ref,
-                          song: song,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    ((song.artistId ?? '').trim().isNotEmpty ||
-                        (song.artistName ?? '').trim().isNotEmpty))
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: Text(l10n.nowPlayingGoToArtist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        NormalPlaybackMetadataNavigator.goToArtist(
-                          context,
-                          ref,
-                          song: song,
-                        ),
-                      );
-                    },
-                  ),
-                if (song != null)
-                  ListTile(
-                    leading: const Icon(Icons.playlist_add),
-                    title: Text(l10n.librarySongMenuAddToPlaylist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        showAddToPlaylistSheet(context, ref, [song.id]),
-                      );
-                    },
-                  ),
-                if (song != null &&
-                    songDownloadState.status == SongDownloadStatus.downloaded)
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outlined,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    title: Text(
-                      l10n.deleteDownloadAction,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        confirmAndDeleteDownload(context, sheetRef, song.id),
-                      );
-                    },
-                  )
-                else if (song != null &&
-                    songDownloadState.status != SongDownloadStatus.queued &&
-                    songDownloadState.status != SongDownloadStatus.downloading)
-                  ListTile(
-                    iconColor: isRemote ? disabledColor : null,
-                    textColor: isRemote ? disabledColor : null,
-                    leading: const Icon(Icons.download_outlined),
-                    title: Text(l10n.downloadAction),
-                    onTap: () async {
-                      if (isRemote) {
-                        showAppNotice(
-                          context,
-                          message: l10n.remoteSourceActionUnavailable,
-                          level: AppNoticeLevel.error,
-                        );
-                        return;
-                      }
-                      Navigator.of(sheetContext).pop();
-                      final choice = await requestDownloadQuality(context, ref);
-                      if (choice == null || !context.mounted) return;
-                      final service = ref.read(downloadServiceProvider);
-                      await service.enqueueSong(
-                        song.id,
-                        quality: choice.quality,
-                        format: choice.format,
-                      );
-                      if (context.mounted) {
-                        showAppNotice(
-                          context,
-                          message: downloadQueuedNotice(
-                            l10n,
-                            l10n.downloadSongQueued,
-                            choice,
-                          ),
-                          level: AppNoticeLevel.success,
-                        );
-                      }
-                    },
-                  ),
+                          );
+                        }
+                      : null,
+                  beforeNavigate: () => Navigator.of(sheetContext).pop(),
+                  beforeAction: () => Navigator.of(sheetContext).pop(),
+                ),
               ],
             ),
           );

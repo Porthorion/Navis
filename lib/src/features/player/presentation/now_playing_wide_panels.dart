@@ -722,183 +722,26 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final currentSongRating = song == null
-        ? null
-        : ref.watch(songRatingProvider(song!.id)).asData?.value;
-    final isRemote = song != null && !isServerAddressableSongId(song!.id);
-    final songDownloadState = song == null
-        ? SongDownloadState.none
-        : ref.watch(songDownloadStateProvider(song!.id));
-    final disabledColor = Theme.of(context).colorScheme.onSurface
-        .withValues(alpha: 0.38);
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       children: <Widget>[
-        _NowPlayingSoundSectionLabel(label: l10n.nowPlayingSoundSection),
-        Builder(
-          builder: (tileContext) => ListTile(
-            key: const ValueKey('playbackAdjustmentEntryPoint'),
-            leading: const Icon(Icons.speed),
-            title: Text(l10n.playbackSpeedPitchTitle),
-            subtitle: const PlaybackAdjustmentSummary(),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () =>
-                unawaited(showPlaybackAdjustmentQuickPanel(tileContext)),
-          ),
+        ..._nowPlayingSettingsItems(
+          context,
+          ref,
+          actionRef: ref,
+          song: song,
+          onOpenSpeedPitch: (tileContext) =>
+              unawaited(showPlaybackAdjustmentQuickPanel(tileContext)),
+          onOpenEqualizerFullPage: null,
+          equalizerCardPadding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+          dimRemoteRatingTile: true,
+          onOpenFullscreenLyrics:
+              fullscreenLyricsSongId != null && fullscreenLyricsTitle != null
+              ? onOpenFullscreenLyrics
+              : null,
+          beforeNavigate: () => onCollapse?.call(),
+          beforeAction: () {},
         ),
-        if (ref.watch(eqCapabilitiesProvider).supported)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
-            child: EqQuickCard(),
-          )
-        else
-          const EqualizerEntry(),
-        const Divider(height: 1),
-        if (song != null)
-          ListTile(
-            iconColor: isRemote ? disabledColor : null,
-            textColor: isRemote ? disabledColor : null,
-            leading: const Icon(Icons.star_outline),
-            title: Text(l10n.ratingTitle),
-            subtitle: Text(l10n.ratingHint),
-            trailing: isRemote
-                ? IgnorePointer(
-                    child: Opacity(
-                      opacity: 0.38,
-                      child: RatingWidget(
-                        rating: currentSongRating,
-                        compact: true,
-                        onChanged: (_) {},
-                      ),
-                    ),
-                  )
-                : RatingWidget(
-                    rating: currentSongRating,
-                    compact: true,
-                    onChanged: (next) {
-                      unawaited(
-                        setSongRating(song!.id, next, ref).catchError((_) {
-                          if (context.mounted) {
-                            showAppNotice(
-                              context,
-                              message: l10n.ratingUpdateFailed,
-                              level: AppNoticeLevel.error,
-                            );
-                          }
-                        }),
-                      );
-                    },
-                  ),
-            onTap: isRemote
-                ? () => showAppNotice(
-                    context,
-                    message: l10n.remoteSourceActionUnavailable,
-                    level: AppNoticeLevel.error,
-                  )
-                : null,
-          ),
-        if (fullscreenLyricsSongId != null &&
-            fullscreenLyricsTitle != null &&
-            onOpenFullscreenLyrics != null)
-          ListTile(
-            leading: const Icon(Icons.fullscreen),
-            title: Text(l10n.nowPlayingLyrics),
-            onTap: onOpenFullscreenLyrics,
-          ),
-        if (song != null &&
-            ((song!.albumId ?? '').trim().isNotEmpty ||
-                (song!.albumName ?? '').trim().isNotEmpty))
-          ListTile(
-            leading: const Icon(Icons.album_outlined),
-            title: Text(l10n.nowPlayingGoToAlbum),
-            onTap: () {
-              onCollapse?.call();
-              unawaited(
-                NormalPlaybackMetadataNavigator.goToAlbum(
-                  context,
-                  ref,
-                  song: song,
-                ),
-              );
-            },
-          ),
-        if (song != null &&
-            ((song!.artistId ?? '').trim().isNotEmpty ||
-                (song!.artistName ?? '').trim().isNotEmpty))
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(l10n.nowPlayingGoToArtist),
-            onTap: () {
-              onCollapse?.call();
-              unawaited(
-                NormalPlaybackMetadataNavigator.goToArtist(
-                  context,
-                  ref,
-                  song: song,
-                ),
-              );
-            },
-          ),
-        if (song != null)
-          ListTile(
-            leading: const Icon(Icons.playlist_add),
-            title: Text(l10n.librarySongMenuAddToPlaylist),
-            onTap: () => showAddToPlaylistSheet(context, ref, [song!.id]),
-          ),
-        if (song != null &&
-            songDownloadState.status == SongDownloadStatus.downloaded)
-          ListTile(
-            leading: Icon(
-              Icons.delete_outlined,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            title: Text(
-              l10n.deleteDownloadAction,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            onTap: () =>
-                unawaited(confirmAndDeleteDownload(context, ref, song!.id)),
-          )
-        else if (song != null &&
-            songDownloadState.status != SongDownloadStatus.queued &&
-            songDownloadState.status != SongDownloadStatus.downloading)
-          ListTile(
-            iconColor: isRemote ? disabledColor : null,
-            textColor: isRemote ? disabledColor : null,
-            leading: const Icon(Icons.download_outlined),
-            title: Text(l10n.downloadAction),
-            onTap: () async {
-              if (isRemote) {
-                showAppNotice(
-                  context,
-                  message: l10n.remoteSourceActionUnavailable,
-                  level: AppNoticeLevel.error,
-                );
-                return;
-              }
-              final choice = await requestDownloadQuality(context, ref);
-              if (choice == null || !context.mounted) return;
-              final service = ref.read(downloadServiceProvider);
-              await service.enqueueSong(
-                song!.id,
-                quality: choice.quality,
-                format: choice.format,
-              );
-              if (context.mounted) {
-                showAppNotice(
-                  context,
-                  message: downloadQueuedNotice(
-                    l10n,
-                    l10n.downloadSongQueued,
-                    choice,
-                  ),
-                  level: AppNoticeLevel.success,
-                );
-              }
-            },
-          ),
       ],
     );
   }
