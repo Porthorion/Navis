@@ -128,412 +128,419 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             : null,
         title: Text(l10n.appearanceTitle),
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1040),
-          child: ListView(
-            padding: EdgeInsets.symmetric(vertical: isDesktop ? 24 : 8),
-            children: <Widget>[
-              if (languageControlVisible) ...[
-                AppearanceHeading(title: l10n.appearanceLanguageLabel),
-                _LanguageSelector(
-                  appLocale: appLocale,
-                  enabled: languageControlEnabled,
-                  onChanged: (localeCode) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateAppLocale(localeCode);
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-
-              // ── Theme ───────────────────────────────────────────────
-              AppearanceHeading(
-                title: l10n.appearanceSectionTheme,
-                level: AppearanceHeadingLevel.section,
-                topPadding: NavisSpace.xs,
-              ),
-              AppearanceHeading(title: l10n.appearanceThemeModeLabel),
-              ThemeModeSelector(
-                currentMode: currentMode,
-                onChanged: (mode) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateThemeMode(mode);
-                },
-              ),
-              ...options.buildAll(const <AppearanceOptionKind>[
-                AppearanceOptionKind.oledForAuto,
-                AppearanceOptionKind.nightSchedule,
-              ]),
-              const Divider(height: 32),
-
-              // ── Color ───────────────────────────────────────────────
-              AppearanceHeading(
-                title: l10n.appearanceSectionColor,
-                level: AppearanceHeadingLevel.section,
-                topPadding: 0,
-              ),
-              ColorStyleOption(
-                currentStyle: currentStyle,
-                seed: previewSeed,
-                brightness: previewBrightness,
-                oled: previewOled,
-                onChanged: (style) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateColorStyle(style.storageKey);
-                },
-              ),
-              AppearanceHeading(
-                title: l10n.appearanceColorSchemeLabel,
-                topPadding: NavisSpace.md,
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppearanceLayout.gutterOf(context),
-                  vertical: 8,
-                ),
-                child: Text(
-                  l10n.appearanceColorSchemeSub,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              ColorSchemeGrid(
-                currentSeed: currentSeed,
-                style: currentStyle,
-                dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
-                customPresets: customPresets,
-                onSelected: (seed) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateColorSchemeSeed(
-                    _normalizeColorSchemeSeed(seed),
-                  );
-                },
-                onCustomColorPicked: (colorValue) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateColorSchemeSeed(
-                    _normalizeColorSchemeSeed(colorValue),
-                  );
-                },
-                onSavePreset: (colorValue) async {
-                  if (_normalizeColorSchemeSeed(colorValue) == null) return;
-                  final db = ref.read(navisDatabaseProvider);
-                  final updated = {
-                    ...customPresets,
-                    colorValue,
-                  }.toList(growable: false);
-                  await db.appSettingsDao.updateCustomColorPresets(
-                    jsonEncode(updated),
-                  );
-                  if (context.mounted) {
-                    AppNoticeMessenger.of(context).clearSnackBars();
-                    showAppNotice(
-                      context,
-                      message: l10n.appearanceColorPresetSaved,
-                      level: AppNoticeLevel.success,
-                    );
-                  }
-                },
-                onDeletePreset: (colorValue) async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: Text(l10n.appearanceColorDeletePreset),
-                      content: Text(l10n.appearanceColorDeletePresetConfirm),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: Text(l10n.cancelAction),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          child: Text(l10n.appearanceColorDeletePreset),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true || !context.mounted) return;
-                  final db = ref.read(navisDatabaseProvider);
-                  final updated = List<int>.from(customPresets)
-                    ..remove(colorValue);
-                  await db.appSettingsDao.updateCustomColorPresets(
-                    updated.isEmpty ? null : jsonEncode(updated),
-                  );
-                  if (currentSeed == colorValue) {
-                    await db.appSettingsDao.updateColorSchemeSeed(null);
-                  }
-                  if (context.mounted) {
-                    AppNoticeMessenger.of(context).clearSnackBars();
-                    showAppNotice(
-                      context,
-                      message: l10n.appearanceColorPresetDeleted,
-                      level: AppNoticeLevel.success,
-                    );
-                  }
-                },
-              ),
-              SwitchListTile(
-                contentPadding: appearanceSwitchPadding(context),
-                title: Text(l10n.appearanceDynamicAlbumColorLabel),
-                subtitle: Text(l10n.appearanceDynamicAlbumColorSub),
-                value: dynamicAlbumColorEnabled,
-                onChanged: (enabled) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateDynamicAlbumColorEnabled(
-                    enabled: enabled,
-                  );
-                },
-              ),
-              const Divider(height: 32),
-
-              // ── Shape & Layout ──────────────────────────────────────
-              AppearanceHeading(
-                title: l10n.appearanceSectionShapeLayout,
-                level: AppearanceHeadingLevel.section,
-                topPadding: 0,
-              ),
-              ...options.buildAll(const <AppearanceOptionKind>[
-                AppearanceOptionKind.flatSurfaces,
-                AppearanceOptionKind.cornerStyle,
-              ]),
-              AppearanceHeading(
-                title: l10n.appearanceCoverArtShapeLabel,
-                topPadding: NavisSpace.md,
-              ),
-              _ShapeSelector(
-                label: l10n.appearanceCoverArtShapeSubLabel,
-                value: ref.watch(coverArtShapeProvider),
-                includeCircle: false,
-                onChanged: (shape) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateCoverArtShape(shape);
-                },
-              ),
-              _ShapeSelector(
-                label: l10n.appearanceNpArtShapeLabel,
-                value: ref.watch(nowPlayingArtShapeProvider),
-                onChanged: (shape) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateNowPlayingArtShape(shape);
-                },
-              ),
-              _ShapeSelector(
-                label: l10n.appearanceArtistCardShapeLabel,
-                value: ref.watch(artistCardShapeProvider),
-                onChanged: (shape) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateArtistCardShape(shape);
-                },
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppearanceLayout.gutterOf(context),
-                  vertical: NavisSpace.xxs,
-                ),
-                child: Text(
-                  l10n.appearanceCoverArtShapeNote,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              AppearanceHeading(
-                title: l10n.appearanceArtworkSizeLabel,
-                topPadding: NavisSpace.md,
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppearanceLayout.gutterOf(context),
-                  vertical: 4,
-                ),
-                child: Text(
-                  l10n.appearanceArtworkSizeSub,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              _ArtworkSizeSelector(
-                current: ref.watch(gridArtworkSizeProvider),
-                onChanged: (density) async {
-                  final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateGridArtworkSize(density.name);
-                },
-              ),
-              ...options.buildAll(const <AppearanceOptionKind>[
-                AppearanceOptionKind.density,
-              ]),
-              AppearanceHeading(
-                title: l10n.appearanceArtistViewModeLabel,
-                topPadding: NavisSpace.md,
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppearanceLayout.gutterOf(context),
-                  vertical: 8,
-                ),
-                child: SegmentedButton<String>(
-                  segments: <ButtonSegment<String>>[
-                    ButtonSegment<String>(
-                      value: 'list',
-                      label: Text(l10n.appearanceArtistViewModeList),
-                      icon: const Icon(Icons.view_list),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'grid',
-                      label: Text(l10n.appearanceArtistViewModeGrid),
-                      icon: const Icon(Icons.grid_view),
-                    ),
-                  ],
-                  selected: {ref.watch(artistViewModeProvider)},
-                  onSelectionChanged: (selection) async {
-                    if (selection.isNotEmpty) {
+      body: AppearanceVisitScope(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ListView(
+              padding: EdgeInsets.symmetric(vertical: isDesktop ? 24 : 8),
+              children: <Widget>[
+                if (languageControlVisible) ...[
+                  AppearanceHeading(title: l10n.appearanceLanguageLabel),
+                  _LanguageSelector(
+                    appLocale: appLocale,
+                    enabled: languageControlEnabled,
+                    onChanged: (localeCode) async {
                       final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateArtistViewMode(
-                        selection.first,
-                      );
-                    }
-                  },
-                  showSelectedIcon: false,
-                ),
-              ),
-              const Divider(height: 32),
-
-              // ── Now Playing ─────────────────────────────────────────
-              AppearanceHeading(
-                title: l10n.appearanceSectionNowPlaying,
-                level: AppearanceHeadingLevel.section,
-                topPadding: 0,
-              ),
-              ...options.buildAll(const <AppearanceOptionKind>[
-                AppearanceOptionKind.nowPlayingBackground,
-              ]),
-              const Divider(height: 32),
-
-              SettingsCollapsibleGroup(
-                leading: const Icon(Icons.home_outlined),
-                title: l10n.appearanceHomeSectionsLabel,
-                initiallyExpanded: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    if (!resolveAdaptiveContextFor(context).desktopRuntime)
-                      SwitchListTile(
-                        title: Text(l10n.appearanceRecommendationsAutoAdvance),
-                        subtitle: Text(
-                          l10n.appearanceRecommendationsAutoAdvanceSub,
-                        ),
-                        value: ref.watch(
-                          homeRecommendationsAutoAdvanceProvider,
-                        ),
-                        onChanged: (value) async {
-                          await ref
-                              .read(navisDatabaseProvider)
-                              .appSettingsDao
-                              .updateHomeRecommendationsAutoAdvance(
-                                enabled: value,
-                              );
-                        },
-                      ),
-                    _HomeSectionReorder(
-                      order: displayOrder,
-                      hidden: sanitizedHidden,
-                      onReorder: (newOrder) async {
-                        final db = ref.read(navisDatabaseProvider);
-                        await db.appSettingsDao.updateHomeSectionOrder(
-                          jsonEncode(newOrder),
-                        );
-                      },
-                      onToggleVisibility:
-                          (sectionId, {required visible}) async {
-                            final db = ref.read(navisDatabaseProvider);
-                            final current = List<String>.from(sanitizedHidden);
-                            if (visible) {
-                              current.remove(sectionId);
-                            } else {
-                              if (!current.contains(sectionId)) {
-                                current.add(sectionId);
-                              }
-                            }
-                            await db.appSettingsDao.updateHomeSectionsHidden(
-                              current.isEmpty ? null : jsonEncode(current),
-                            );
-                          },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 24),
-
-              SettingsCollapsibleGroup(
-                leading: const _BlinkingEyeIcon(),
-                title: l10n.appearancePagesSectionLabel,
-                initiallyExpanded: false,
-                child: _LibraryPageReorder(
-                  order: libraryPageOrder,
-                  visibleSections: visibleLibrarySections(
-                    orderedSections: libraryPageOrder,
-                    showAlbums: ref.watch(showAlbumsPageProvider),
-                    showLiked: ref.watch(showLikedPageProvider),
-                    showArtists: ref.watch(showArtistsPageProvider),
-                    showPlaylists: ref.watch(showPlaylistsPageProvider),
-                    showRadio: ref.watch(showRadioPageProvider),
-                  ).toSet(),
-                  onReorder: (newOrder) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    await db.appSettingsDao.updateLibraryPageOrder(
-                      jsonEncode(
-                        newOrder.map((section) => section.name).toList(),
-                      ),
-                    );
-                  },
-                  onToggleVisibility: (section, {required visible}) async {
-                    final db = ref.read(navisDatabaseProvider);
-                    switch (section) {
-                      case LibrarySection.albums:
-                        await db.appSettingsDao.updateShowAlbumsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.liked:
-                        await db.appSettingsDao.updateShowLikedPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.artists:
-                        await db.appSettingsDao.updateShowArtistsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.playlists:
-                        await db.appSettingsDao.updateShowPlaylistsPage(
-                          enabled: visible,
-                        );
-                      case LibrarySection.radio:
-                        await db.appSettingsDao.updateShowRadioPage(
-                          enabled: visible,
-                        );
-                    }
-                  },
-                ),
-              ),
-              if (isDesktop) ...[
-                const Divider(height: 24),
-                SettingsCollapsibleGroup(
-                  leading: const Icon(Icons.view_sidebar_outlined),
-                  title: l10n.desktopNavbarSectionLabel,
-                  initiallyExpanded: false,
-                  child: _DesktopNavbarSettings(
-                    currentStyle: ref.watch(desktopNavbarStyleProvider),
-                    autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
-                    onStyleChanged: (style) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                      await db.appSettingsDao.updateAppLocale(localeCode);
                     },
-                    onAutohideChanged: (enabled) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateDesktopNavbarAutohide(
-                        enabled,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
+                // ── Theme ───────────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionTheme,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: NavisSpace.xs,
+                ),
+                AppearanceHeading(title: l10n.appearanceThemeModeLabel),
+                ThemeModeSelector(
+                  currentMode: currentMode,
+                  onChanged: (mode) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateThemeMode(mode);
+                  },
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.oledForAuto,
+                  AppearanceOptionKind.nightSchedule,
+                ]),
+                const Divider(height: 32),
+
+                // ── Color ───────────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionColor,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ColorStyleOption(
+                  currentStyle: currentStyle,
+                  seed: previewSeed,
+                  brightness: previewBrightness,
+                  oled: previewOled,
+                  onChanged: (style) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorStyle(style.storageKey);
+                  },
+                ),
+                AppearanceHeading(
+                  title: l10n.appearanceColorSchemeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    l10n.appearanceColorSchemeSub,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                ColorSchemeGrid(
+                  currentSeed: currentSeed,
+                  style: currentStyle,
+                  dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
+                  customPresets: customPresets,
+                  onSelected: (seed) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorSchemeSeed(
+                      _normalizeColorSchemeSeed(seed),
+                    );
+                  },
+                  onCustomColorPicked: (colorValue) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateColorSchemeSeed(
+                      _normalizeColorSchemeSeed(colorValue),
+                    );
+                  },
+                  onSavePreset: (colorValue) async {
+                    if (_normalizeColorSchemeSeed(colorValue) == null) return;
+                    final db = ref.read(navisDatabaseProvider);
+                    final updated = {
+                      ...customPresets,
+                      colorValue,
+                    }.toList(growable: false);
+                    await db.appSettingsDao.updateCustomColorPresets(
+                      jsonEncode(updated),
+                    );
+                    if (context.mounted) {
+                      AppNoticeMessenger.of(context).clearSnackBars();
+                      showAppNotice(
+                        context,
+                        message: l10n.appearanceColorPresetSaved,
+                        level: AppNoticeLevel.success,
                       );
+                    }
+                  },
+                  onDeletePreset: (colorValue) async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: Text(l10n.appearanceColorDeletePreset),
+                        content: Text(l10n.appearanceColorDeletePresetConfirm),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, false),
+                            child: Text(l10n.cancelAction),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: Text(l10n.appearanceColorDeletePreset),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true || !context.mounted) return;
+                    final db = ref.read(navisDatabaseProvider);
+                    final updated = List<int>.from(customPresets)
+                      ..remove(colorValue);
+                    await db.appSettingsDao.updateCustomColorPresets(
+                      updated.isEmpty ? null : jsonEncode(updated),
+                    );
+                    if (currentSeed == colorValue) {
+                      await db.appSettingsDao.updateColorSchemeSeed(null);
+                    }
+                    if (context.mounted) {
+                      AppNoticeMessenger.of(context).clearSnackBars();
+                      showAppNotice(
+                        context,
+                        message: l10n.appearanceColorPresetDeleted,
+                        level: AppNoticeLevel.success,
+                      );
+                    }
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: appearanceSwitchPadding(context),
+                  title: Text(l10n.appearanceDynamicAlbumColorLabel),
+                  subtitle: Text(l10n.appearanceDynamicAlbumColorSub),
+                  value: dynamicAlbumColorEnabled,
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateDynamicAlbumColorEnabled(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                const Divider(height: 32),
+
+                // ── Shape & Layout ──────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionShapeLayout,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.flatSurfaces,
+                  AppearanceOptionKind.cornerStyle,
+                ]),
+                AppearanceHeading(
+                  title: l10n.appearanceCoverArtShapeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceCoverArtShapeSubLabel,
+                  value: ref.watch(coverArtShapeProvider),
+                  includeCircle: false,
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateCoverArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceNpArtShapeLabel,
+                  value: ref.watch(nowPlayingArtShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateNowPlayingArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceArtistCardShapeLabel,
+                  value: ref.watch(artistCardShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateArtistCardShape(shape);
+                  },
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: NavisSpace.xxs,
+                  ),
+                  child: Text(
+                    l10n.appearanceCoverArtShapeNote,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                AppearanceHeading(
+                  title: l10n.appearanceArtworkSizeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    l10n.appearanceArtworkSizeSub,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                _ArtworkSizeSelector(
+                  current: ref.watch(gridArtworkSizeProvider),
+                  onChanged: (density) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateGridArtworkSize(density.name);
+                  },
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.density,
+                ]),
+                AppearanceHeading(
+                  title: l10n.appearanceArtistViewModeLabel,
+                  topPadding: NavisSpace.md,
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppearanceLayout.gutterOf(context),
+                    vertical: 8,
+                  ),
+                  child: SegmentedButton<String>(
+                    segments: <ButtonSegment<String>>[
+                      ButtonSegment<String>(
+                        value: 'list',
+                        label: Text(l10n.appearanceArtistViewModeList),
+                        icon: const Icon(Icons.view_list),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'grid',
+                        label: Text(l10n.appearanceArtistViewModeGrid),
+                        icon: const Icon(Icons.grid_view),
+                      ),
+                    ],
+                    selected: {ref.watch(artistViewModeProvider)},
+                    onSelectionChanged: (selection) async {
+                      if (selection.isNotEmpty) {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateArtistViewMode(
+                          selection.first,
+                        );
+                      }
+                    },
+                    showSelectedIcon: false,
+                  ),
+                ),
+                const Divider(height: 32),
+
+                // ── Now Playing ─────────────────────────────────────────
+                AppearanceHeading(
+                  title: l10n.appearanceSectionNowPlaying,
+                  level: AppearanceHeadingLevel.section,
+                  topPadding: 0,
+                ),
+                ...options.buildAll(const <AppearanceOptionKind>[
+                  AppearanceOptionKind.nowPlayingBackground,
+                ]),
+                const Divider(height: 32),
+
+                SettingsCollapsibleGroup(
+                  leading: const Icon(Icons.home_outlined),
+                  title: l10n.appearanceHomeSectionsLabel,
+                  initiallyExpanded: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (!resolveAdaptiveContextFor(context).desktopRuntime)
+                        SwitchListTile(
+                          title: Text(
+                            l10n.appearanceRecommendationsAutoAdvance,
+                          ),
+                          subtitle: Text(
+                            l10n.appearanceRecommendationsAutoAdvanceSub,
+                          ),
+                          value: ref.watch(
+                            homeRecommendationsAutoAdvanceProvider,
+                          ),
+                          onChanged: (value) async {
+                            await ref
+                                .read(navisDatabaseProvider)
+                                .appSettingsDao
+                                .updateHomeRecommendationsAutoAdvance(
+                                  enabled: value,
+                                );
+                          },
+                        ),
+                      _HomeSectionReorder(
+                        order: displayOrder,
+                        hidden: sanitizedHidden,
+                        onReorder: (newOrder) async {
+                          final db = ref.read(navisDatabaseProvider);
+                          await db.appSettingsDao.updateHomeSectionOrder(
+                            jsonEncode(newOrder),
+                          );
+                        },
+                        onToggleVisibility:
+                            (sectionId, {required visible}) async {
+                              final db = ref.read(navisDatabaseProvider);
+                              final current = List<String>.from(
+                                sanitizedHidden,
+                              );
+                              if (visible) {
+                                current.remove(sectionId);
+                              } else {
+                                if (!current.contains(sectionId)) {
+                                  current.add(sectionId);
+                                }
+                              }
+                              await db.appSettingsDao.updateHomeSectionsHidden(
+                                current.isEmpty ? null : jsonEncode(current),
+                              );
+                            },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 24),
+
+                SettingsCollapsibleGroup(
+                  leading: const _BlinkingEyeIcon(),
+                  title: l10n.appearancePagesSectionLabel,
+                  initiallyExpanded: false,
+                  child: _LibraryPageReorder(
+                    order: libraryPageOrder,
+                    visibleSections: visibleLibrarySections(
+                      orderedSections: libraryPageOrder,
+                      showAlbums: ref.watch(showAlbumsPageProvider),
+                      showLiked: ref.watch(showLikedPageProvider),
+                      showArtists: ref.watch(showArtistsPageProvider),
+                      showPlaylists: ref.watch(showPlaylistsPageProvider),
+                      showRadio: ref.watch(showRadioPageProvider),
+                    ).toSet(),
+                    onReorder: (newOrder) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateLibraryPageOrder(
+                        jsonEncode(
+                          newOrder.map((section) => section.name).toList(),
+                        ),
+                      );
+                    },
+                    onToggleVisibility: (section, {required visible}) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      switch (section) {
+                        case LibrarySection.albums:
+                          await db.appSettingsDao.updateShowAlbumsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.liked:
+                          await db.appSettingsDao.updateShowLikedPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.artists:
+                          await db.appSettingsDao.updateShowArtistsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.playlists:
+                          await db.appSettingsDao.updateShowPlaylistsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.radio:
+                          await db.appSettingsDao.updateShowRadioPage(
+                            enabled: visible,
+                          );
+                      }
                     },
                   ),
                 ),
+                if (isDesktop) ...[
+                  const Divider(height: 24),
+                  SettingsCollapsibleGroup(
+                    leading: const Icon(Icons.view_sidebar_outlined),
+                    title: l10n.desktopNavbarSectionLabel,
+                    initiallyExpanded: false,
+                    child: _DesktopNavbarSettings(
+                      currentStyle: ref.watch(desktopNavbarStyleProvider),
+                      autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                      onStyleChanged: (style) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                      },
+                      onAutohideChanged: (enabled) async {
+                        final db = ref.read(navisDatabaseProvider);
+                        await db.appSettingsDao.updateDesktopNavbarAutohide(
+                          enabled,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
               ],
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
         ),
       ),
@@ -907,11 +914,8 @@ class ColorSchemeGrid extends StatelessWidget {
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: defaultColorSchemeSeedColor,
-                accentColor: styledSwatchColor(
-                  defaultColorSchemeSeedColor,
-                  style,
-                ),
+                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
+                seedColor: defaultColorSchemeSeedColor,
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
                 onTap: () => onSelected(null),
@@ -920,8 +924,8 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: swatch.color,
-                  accentColor: styledSwatchColor(swatch.color, style),
+                  color: styledSwatchColor(swatch.color, style),
+                  seedColor: swatch.color,
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,
                   onTap: () => onSelected(swatch.colorValue),
@@ -1067,17 +1071,19 @@ class _ColorChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.theme,
-    this.accentColor,
+    this.seedColor,
     this.onLongPress,
     this.showDeleteHint = false,
     this.isCustom = false,
     this.valueKey,
   });
 
+  /// The accent the user gets (the seed under the colour style); fills the chip.
   final Color color;
 
-  /// The accent the colour style derives from [color], shown as an inner dot.
-  final Color? accentColor;
+  /// The raw seed, shown as a small dot so accents that the style makes
+  /// near-identical stay distinguishable.
+  final Color? seedColor;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
@@ -1158,16 +1164,16 @@ class _ColorChip extends StatelessWidget {
                       size: 20,
                     ),
                   ),
-                if (accentColor != null)
+                if (seedColor != null)
                   Positioned(
                     key: valueKey == null
                         ? null
-                        : ValueKey<String>('accentDot-$valueKey'),
+                        : ValueKey<String>('seedDot-$valueKey'),
                     left: 3,
                     bottom: 3,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: accentColor,
+                        color: seedColor,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: theme.colorScheme.surface,

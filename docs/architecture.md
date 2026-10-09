@@ -770,9 +770,9 @@ target-selection rules.
       distinct from the page.
   - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
     tiles are painted from each style's real scheme (their inner radii follow
-    Corner Style); the accent grid fills each swatch with its raw seed, so
-    Night's hues stay distinguishable, and shows the accent the selected style
-    will use as a small inner dot. Light Pastel's `primaryContainer` is about
+    Corner Style); the accent grid fills each swatch with the accent the selected style
+    will use (a pastel box under Pastel) and shows the raw seed as a small inner
+    dot, so Night's near-identical accents stay distinguishable. Light Pastel's `primaryContainer` is about
     1.2:1 against raised surfaces, so the mini player's and Now Playing's main
     Play use `primary`/`onPrimary` there (`NavisColorStyleData.solidPlayButton`);
     other styles are unchanged. Flat also drops the album-card caption fade
@@ -1317,7 +1317,10 @@ night schedule never switches the preview by time. Options whose
 `HighlightedAppearanceOption` wraps each tagged option in Settings and setup:
 once at least half of it has been on screen (a `VisibilityDetector`, once per
 screen visit) it calls `markOptionSeen`, so only options the user actually saw
-lose their tag. Hidden options (OLED outside Auto, a closed expander) never
+lose their tag on the next visit. Tags render from `AppearanceVisitScope`'s
+per-visit snapshot of the pending highlights (taken when the Appearance screen
+or setup step is entered, which also decides whether the setup expander opens),
+so a tag stays visible while the user is on the screen. Hidden options (OLED outside Auto, a closed expander) never
 mark. On Settings home `settingsHasNewOptionsProvider` tags the Appearance and
 Run Quick Customization rows ("Has new options"); OLED does not count while it
 is hidden. Home shows `SetupHighlightsCard` ("New appearance options")

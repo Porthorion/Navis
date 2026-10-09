@@ -61,7 +61,7 @@ void main() {
   });
 
   group('accent grid under Night', () {
-    testWidgets('swatches paint the raw seed with a styled accent dot', (
+    testWidgets('swatches paint the styled accent with a raw seed dot', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -83,6 +83,7 @@ void main() {
       final fills = <int>{};
       for (final seed in <Color>[Colors.red, Colors.blue, Colors.green]) {
         final key = 'preset-${seed.toARGB32()}';
+        final styled = styledSwatchColor(seed, NavisColorStyle.night);
         final chip = find.byKey(ValueKey<String>('colorChip-$key'));
         final fill = find.descendant(
           of: chip,
@@ -90,19 +91,19 @@ void main() {
             (w) =>
                 w is DecoratedBox &&
                 (w.decoration as BoxDecoration).color?.toARGB32() ==
-                    seed.toARGB32(),
+                    styled.toARGB32(),
           ),
         );
-        expect(fill, findsOneWidget, reason: 'raw seed fill for $key');
-        fills.add(seed.toARGB32());
-        final dot = find.byKey(ValueKey<String>('accentDot-$key'));
+        expect(fill, findsOneWidget, reason: 'styled fill for $key');
+        fills.add(styled.toARGB32());
+        final dot = find.byKey(ValueKey<String>('seedDot-$key'));
         expect(dot, findsOneWidget);
         final dotBox = tester.widget<DecoratedBox>(
           find.descendant(of: dot, matching: find.byType(DecoratedBox)),
         );
         expect(
           (dotBox.decoration as BoxDecoration).color,
-          styledSwatchColor(seed, NavisColorStyle.night),
+          Color(seed.toARGB32()),
         );
       }
       expect(fills, hasLength(3));

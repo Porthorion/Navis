@@ -19,9 +19,70 @@ import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-/// Wraps one setup-highlighted option: supplies its "New" tag while pending
-/// and clears it with `markOptionSeen` once the option has actually been on
-/// screen (at least half visible, once per screen visit).
+/// The setup highlights that were pending when the user entered an
+/// Appearance screen (Settings or the setup step).
+///
+/// Tags render from this snapshot for the whole visit, so a tag stays visible
+/// while the user is looking at it even though `markOptionSeen` clears it from
+/// `pendingSetupHighlightsProvider` immediately; the next visit starts from the
+/// cleared set. Highlights that become pending later in the same visit (the
+/// provider loading) join the snapshot; nothing ever leaves it.
+class AppearanceVisitScope extends ConsumerStatefulWidget {
+  const new({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  ConsumerState<AppearanceVisitScope> createState() =>
+      _AppearanceVisitScopeState();
+
+  /// The visit's tagged highlights, or null outside a scope.
+  static Set<SetupHighlight>? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_AppearanceVisitData>()
+      ?.snapshot;
+
+  /// Whether [highlight] is tagged for the current visit. Outside a scope it
+  /// follows the live provider.
+  static bool isTagged(
+    BuildContext context,
+    WidgetRef ref,
+    SetupHighlight highlight,
+  ) {
+    final visit = maybeOf(context);
+    if (visit != null) return visit.contains(highlight);
+    return ref.watch(pendingSetupHighlightsProvider).contains(highlight);
+  }
+}
+
+class _AppearanceVisitScopeState extends ConsumerState<AppearanceVisitScope> {
+  Set<SetupHighlight> _snapshot = const <SetupHighlight>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = ref.watch(pendingSetupHighlightsProvider);
+    if (!_snapshot.containsAll(pending)) {
+      _snapshot = Set<SetupHighlight>.unmodifiable(<SetupHighlight>{
+        ..._snapshot,
+        ...pending,
+      });
+    }
+    return _AppearanceVisitData(snapshot: _snapshot, child: widget.child);
+  }
+}
+
+class _AppearanceVisitData extends InheritedWidget {
+  const new({required this.snapshot, required super.child});
+
+  final Set<SetupHighlight> snapshot;
+
+  @override
+  bool updateShouldNotify(_AppearanceVisitData oldWidget) =>
+      !identical(snapshot, oldWidget.snapshot);
+}
+
+/// Wraps one setup-highlighted option: supplies its "New" tag for the visit
+/// ([AppearanceVisitScope]) and records it with `markOptionSeen` once the
+/// option has actually been on screen (at least half visible, once per visit).
 ///
 /// Untagged options render [builder]'s result untouched, so only options that
 /// can still clear carry a visibility detector.
@@ -60,10 +121,11 @@ class _HighlightedAppearanceOptionState
 
   @override
   Widget build(BuildContext context) {
-    final tagged = ref
-        .watch(pendingSetupHighlightsProvider)
-        .contains(widget.highlight);
-    if (!tagged) _marked = false;
+    final tagged = AppearanceVisitScope.isTagged(
+      context,
+      ref,
+      widget.highlight,
+    );
     final child = widget.builder(
       context,
       tagged ? const NewFeatureTag() : null,

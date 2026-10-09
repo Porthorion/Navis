@@ -16,6 +16,7 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_provider.d
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
@@ -711,101 +712,110 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           setState(() => _draft = draft.copyWith(nowPlayingBackground: value)),
       previewOled: previewOled,
     );
-    return AppearanceLayout(
-      gutter: 0,
-      optionTitleStyle: optionTitleStyle,
-      child: _scrollStep(
-        children: [
-          Text(
-            l10n.onboardingAppearanceTitle,
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(l10n.onboardingAppearanceDescription),
-          const SizedBox(height: 16),
-          ThemeModeSelector(
-            currentMode: draft.themeMode,
-            onChanged: (value) =>
-                setState(() => _draft = draft.copyWith(themeMode: value)),
-          ),
-          const SizedBox(height: 8),
-          ColorStyleOption(
-            currentStyle: colorStyle,
-            seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
-            brightness: theme.brightness,
-            oled: previewOled,
-            onChanged: (style) => setState(
-              () => _draft = draft.copyWith(colorStyle: style.storageKey),
+    return AppearanceVisitScope(
+      child: AppearanceLayout(
+        gutter: 0,
+        optionTitleStyle: optionTitleStyle,
+        child: _scrollStep(
+          children: [
+            Text(
+              l10n.onboardingAppearanceTitle,
+              style: theme.textTheme.titleLarge,
             ),
-          ),
-          AppearanceHeading(
-            title: l10n.onboardingAccentColor,
-            topPadding: NavisSpace.lg,
-          ),
-          ColorSchemeGrid(
-            currentSeed: draft.colorSchemeSeed,
-            style: colorStyle,
-            dynamicAlbumColorEnabled: false,
-            customPresets: customPresets,
-            onSelected: (seed) => setState(
-              () => _draft = draft.copyWith(
-                colorSchemeSeed: seed,
-                clearColorSchemeSeed: seed == null,
+            const SizedBox(height: 8),
+            Text(l10n.onboardingAppearanceDescription),
+            const SizedBox(height: 16),
+            ThemeModeSelector(
+              currentMode: draft.themeMode,
+              onChanged: (value) =>
+                  setState(() => _draft = draft.copyWith(themeMode: value)),
+            ),
+            const SizedBox(height: 8),
+            ColorStyleOption(
+              currentStyle: colorStyle,
+              seed: resolveColorSchemeSeedColor(draft.colorSchemeSeed),
+              brightness: theme.brightness,
+              oled: previewOled,
+              onChanged: (style) => setState(
+                () => _draft = draft.copyWith(colorStyle: style.storageKey),
               ),
             ),
-            onCustomColorPicked: (value) =>
-                setState(() => _draft = draft.copyWith(colorSchemeSeed: value)),
-            onSavePreset: (value) => setState(() {
-              if (!_draftCustomPresets!.contains(value)) {
-                _draftCustomPresets = [..._draftCustomPresets!, value];
-              }
-            }),
-            onDeletePreset: (value) => setState(() {
-              _draftCustomPresets = _draftCustomPresets!
-                  .where((preset) => preset != value)
-                  .toList(growable: false);
-              if (draft.colorSchemeSeed == value) {
-                _draft = draft.copyWith(
-                  clearColorSchemeSeed: true,
-                  colorSchemeSeed: null,
-                );
-              }
-            }),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.onboardingAppearanceColorPickerHint,
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-          SettingsCollapsibleGroup(
-            key: const ValueKey<String>('onboarding-more-appearance-options'),
-            leading: const Icon(Icons.tune),
-            title: l10n.onboardingMoreAppearanceOptions,
-            // Open when something in it still carries a New tag, so updated
-            // users see what changed. It only ever opens by itself: clearing tags
-            // must not close the group while they are looking at it.
-            initiallyExpanded: _hasPendingMoreOptions(draft),
-            outerPadding: EdgeInsets.zero,
-            buildCollapsed: false,
-            child: AppearanceLayout(
-              gutter: 14,
-              optionTitleStyle: optionTitleStyle,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: options.buildAll(AppearanceOptionKind.values),
+            AppearanceHeading(
+              title: l10n.onboardingAccentColor,
+              topPadding: NavisSpace.lg,
+            ),
+            ColorSchemeGrid(
+              currentSeed: draft.colorSchemeSeed,
+              style: colorStyle,
+              dynamicAlbumColorEnabled: false,
+              customPresets: customPresets,
+              onSelected: (seed) => setState(
+                () => _draft = draft.copyWith(
+                  colorSchemeSeed: seed,
+                  clearColorSchemeSeed: seed == null,
+                ),
+              ),
+              onCustomColorPicked: (value) => setState(
+                () => _draft = draft.copyWith(colorSchemeSeed: value),
+              ),
+              onSavePreset: (value) => setState(() {
+                if (!_draftCustomPresets!.contains(value)) {
+                  _draftCustomPresets = [..._draftCustomPresets!, value];
+                }
+              }),
+              onDeletePreset: (value) => setState(() {
+                _draftCustomPresets = _draftCustomPresets!
+                    .where((preset) => preset != value)
+                    .toList(growable: false);
+                if (draft.colorSchemeSeed == value) {
+                  _draft = draft.copyWith(
+                    clearColorSchemeSeed: true,
+                    colorSchemeSeed: null,
+                  );
+                }
+              }),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.onboardingAppearanceColorPickerHint,
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Builder(
+              builder: (context) => SettingsCollapsibleGroup(
+                key: const ValueKey<String>(
+                  'onboarding-more-appearance-options',
+                ),
+                leading: const Icon(Icons.tune),
+                title: l10n.onboardingMoreAppearanceOptions,
+                // Open when something in it carries a New tag this visit, so updated
+                // users see what changed. It only ever opens by itself: clearing tags
+                // must not close the group while they are looking at it.
+                initiallyExpanded: _hasPendingMoreOptions(context, draft),
+                outerPadding: EdgeInsets.zero,
+                buildCollapsed: false,
+                child: AppearanceLayout(
+                  gutter: 14,
+                  optionTitleStyle: optionTitleStyle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: options.buildAll(AppearanceOptionKind.values),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// Whether any option under "More appearance options" is tagged and shown.
   /// Use OLED When Dark only counts in Auto, where it is visible.
-  bool _hasPendingMoreOptions(AppSettingsModel draft) {
-    final pending = ref.watch(pendingSetupHighlightsProvider);
+  bool _hasPendingMoreOptions(BuildContext context, AppSettingsModel draft) {
+    final Set<SetupHighlight> pending;
+    final visit = AppearanceVisitScope.maybeOf(context);
+    pending = visit ?? ref.watch(pendingSetupHighlightsProvider);
     return AppearanceOptionKind.values.any((kind) {
       final highlight = kind.highlight;
       if (highlight == null || !pending.contains(highlight)) return false;

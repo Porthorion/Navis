@@ -21,6 +21,25 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
+/// Pending highlights that really clear when an option is marked seen, like
+/// the production provider does.
+class _LivePending extends Notifier<Set<SetupHighlight>> {
+  _LivePending(this._initial);
+
+  final Set<SetupHighlight> _initial;
+
+  @override
+  Set<SetupHighlight> build() => _initial;
+
+  void clear(SetupHighlight option) =>
+      state = <SetupHighlight>{...state}..remove(option);
+}
+
+final _livePendingProvider =
+    NotifierProvider<_LivePending, Set<SetupHighlight>>(
+      () => _LivePending(const <SetupHighlight>{}),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -45,6 +64,7 @@ void main() {
     int? nightStartMinutes,
     int? nightEndMinutes,
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
+    bool clearWhenSeen = false,
     bool settle = true,
     NowPlayingBackground? nowPlayingBackground,
   }) async {
@@ -74,13 +94,22 @@ void main() {
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
-          pendingSetupHighlightsProvider.overrideWithValue(highlights),
-          setupHighlightsServiceProvider.overrideWithValue(
-            SetupHighlightsService(
-              () async {},
-              () async {},
-              (option) async => seenOptions.add(option),
-            ),
+          if (clearWhenSeen)
+            pendingSetupHighlightsProvider.overrideWith(
+              (ref) => ref.watch(_livePendingProvider),
+            )
+          else
+            pendingSetupHighlightsProvider.overrideWithValue(highlights),
+          if (clearWhenSeen)
+            _livePendingProvider.overrideWith(() => _LivePending(highlights)),
+          setupHighlightsServiceProvider.overrideWith(
+            (ref) => SetupHighlightsService(() async {}, () async {}, (
+              option,
+            ) async {
+              seenOptions.add(option);
+              if (clearWhenSeen)
+                ref.read(_livePendingProvider.notifier).clear(option);
+            }),
           ),
           customColorPresetsProvider.overrideWithValue(
             AsyncData(customPresets),
@@ -939,6 +968,40 @@ void main() {
         );
         await tester.pump();
         expect(seenOptions, isEmpty);
+      });
+
+      testWidgets('stay for the visit once seen, and are gone on the next', (
+        tester,
+      ) async {
+        tallView(tester);
+        final container = await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{
+            SetupHighlight.cornerStyle,
+            SetupHighlight.nowPlayingBackground,
+          },
+          clearWhenSeen: true,
+          settle: false,
+        );
+        await tester.pump();
+        expect(seenOptions, hasLength(2));
+        expect(container.read(pendingSetupHighlightsProvider), isEmpty);
+        expect(find.byType(NewFeatureTag), findsNWidgets(2));
+
+        // A new visit starts from what is still pending: nothing.
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const AppearanceSettingsScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.byType(NewFeatureTag), findsNothing);
       });
 
       testWidgets('absent when nothing is pending', (tester) async {

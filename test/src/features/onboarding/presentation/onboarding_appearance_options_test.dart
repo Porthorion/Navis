@@ -465,24 +465,27 @@ void main() {
       expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
     });
 
-    testWidgets('a cleared tag disappears and Finish still saves everything', (
-      tester,
-    ) async {
-      final h = await _pump(
-        tester,
-        clearTagsWhenShown: true,
-        seed: (d) => d.updateThemeMode('system'),
-      );
+    testWidgets(
+      'cleared tags stay visible for the visit and Finish still saves',
+      (tester) async {
+        final h = await _pump(
+          tester,
+          clearTagsWhenShown: true,
+          seed: (d) => d.updateThemeMode('system'),
+        );
 
-      expect(find.byType(NewFeatureTag), findsNothing);
-      // The group stays open although its tags are gone.
-      expect(find.text('Corner Style'), findsOneWidget);
-      await h.tap(find.text('Flat Surfaces'));
-      await h.tap(find.text('Square'));
-      await h.finish();
-      final row = await h.row();
-      expect(row.flatSurfaces, isTrue);
-      expect(row.cornerStyle, 'square');
-    });
+        // The tags were recorded as seen, yet stay for this visit.
+        expect(_shownOptions, isNotEmpty);
+        expect(find.byType(NewFeatureTag), findsWidgets);
+        // The group is open because the visit snapshot had tagged options.
+        expect(find.text('Corner Style'), findsOneWidget);
+        await h.tap(find.text('Flat Surfaces'));
+        await h.tap(find.text('Square'));
+        await h.finish();
+        final row = await h.row();
+        expect(row.flatSurfaces, isTrue);
+        expect(row.cornerStyle, 'square');
+      },
+    );
   });
 }
