@@ -1811,6 +1811,87 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final mediaArtUrl = currentMediaItem?.artUri?.toString();
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
     final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
+
+    // Local factories for the pieces the three layouts (compact-wide,
+    // standard and split) construct identically. Each layout still supplies
+    // its own keys, geometry and animation wrappers.
+    Widget buildCurrentArt(double radioArtMaxSize) => hasCoverArtId
+        ? _CoverArt(
+            coverArtId: coverArtId,
+            semanticLabel: title,
+            isExternalSource: song?.isExternal ?? false,
+          )
+        : (hasMediaArtUrl
+              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: radioArtMaxSize)
+              : _CoverArt(
+                  coverArtId: null,
+                  semanticLabel: title,
+                  isExternalSource: song?.isExternal ?? false,
+                ));
+
+    Widget buildTrackInfo({required Key key, required bool compact}) =>
+        _TrackInfo(
+          key: key,
+          title: title,
+          artist: artist,
+          album: album,
+          compact: compact,
+          isExternalSource: !isRadio && (song?.isExternal ?? false),
+          onTitleTap: isRadio
+              ? (radioMeta?.nowPlayingTitle != null &&
+                        radioMeta!.nowPlayingTitle!.isNotEmpty
+                    ? () {
+                        NavService.openSearch(
+                          context,
+                          ref,
+                          radioMeta.nowPlayingTitle!,
+                          filter: SearchResultType.songs,
+                        );
+                      }
+                    : null)
+              : normalTitleTap,
+          artistLinks: isRadio
+              ? (radioMeta?.nowPlayingArtist != null &&
+                        radioMeta!.nowPlayingArtist!.isNotEmpty
+                    ? splitArtistNames(radioMeta.nowPlayingArtist!)
+                          .map(
+                            (name) => (
+                              name: name,
+                              onTap: () {
+                                NavService.openSearch(
+                                  context,
+                                  ref,
+                                  name,
+                                  filter: SearchResultType.artists,
+                                );
+                              },
+                            ),
+                          )
+                          .toList()
+                    : null)
+              : null,
+          onArtistTap: isRadio ? null : normalArtistTap,
+          onAlbumTap: isRadio ? null : normalAlbumTap,
+        );
+
+    VoidCallback? settingsSheetAction({required bool splitPanelOverlay}) =>
+        splitPanelOverlay
+        ? null
+        : () => _showNowPlayingSettingsSheet(
+            context,
+            ref,
+            song,
+            fullscreenLyricsSongId: playback.currentSongId,
+            fullscreenLyricsTitle: playback.currentSongId == null
+                ? null
+                : title,
+          );
+
+    VoidCallback openWidePanelAction(_WideNowPlayingPanel panel) =>
+        () => _updateWideOverlayState(() {
+          _showWideFullscreenLyrics = false;
+          _widePanel = panel;
+        });
     final nowPlayingVisualKey = isRadio
         ? 'radio:${radioMeta?.nowPlayingTitle ?? ''}:${radioMeta?.nowPlayingArtist ?? ''}:${radioMeta?.nowPlayingArtUrl ?? ''}'
         : 'song:${playback.currentSongId ?? currentMediaItem?.id ?? 'none'}';
@@ -1915,22 +1996,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             child: _buildInteractiveSwipeableArt(
               key: ValueKey<String>('compact-wide-cover-$artVisualKey'),
               swipeEnabled: !isRadio,
-              currentArt: hasCoverArtId
-                  ? _CoverArt(
-                      coverArtId: coverArtId,
-                      semanticLabel: title,
-                      isExternalSource: song?.isExternal ?? false,
-                    )
-                  : (hasMediaArtUrl
-                        ? _RadioCoverArt(
-                            artUrl: mediaArtUrl,
-                            maxSize: artMaxSize,
-                          )
-                        : _CoverArt(
-                            coverArtId: null,
-                            semanticLabel: title,
-                            isExternalSource: song?.isExternal ?? false,
-                          )),
+              currentArt: buildCurrentArt(artMaxSize),
             ),
           );
 
@@ -1984,50 +2050,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     transitionBuilder: songSwapTransitionBuilder,
-                    child: _TrackInfo(
+                    child: buildTrackInfo(
                       key: ValueKey<String>(
                         'compact-wide-track-$nowPlayingVisualKey',
                       ),
-                      title: title,
-                      artist: artist,
-                      album: album,
                       compact: true,
-                      isExternalSource: !isRadio && (song?.isExternal ?? false),
-                      onTitleTap: isRadio
-                          ? (radioMeta?.nowPlayingTitle != null &&
-                                    radioMeta!.nowPlayingTitle!.isNotEmpty
-                                ? () {
-                                    NavService.openSearch(
-                                      context,
-                                      ref,
-                                      radioMeta.nowPlayingTitle!,
-                                      filter: SearchResultType.songs,
-                                    );
-                                  }
-                                : null)
-                          : normalTitleTap,
-                      artistLinks: isRadio
-                          ? (radioMeta?.nowPlayingArtist != null &&
-                                    radioMeta!.nowPlayingArtist!.isNotEmpty
-                                ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                                      .map(
-                                        (name) => (
-                                          name: name,
-                                          onTap: () {
-                                            NavService.openSearch(
-                                              context,
-                                              ref,
-                                              name,
-                                              filter: SearchResultType.artists,
-                                            );
-                                          },
-                                        ),
-                                      )
-                                      .toList()
-                                : null)
-                          : null,
-                      onArtistTap: isRadio ? null : normalArtistTap,
-                      onAlbumTap: isRadio ? null : normalAlbumTap,
                     ),
                   ),
                   if (!isRadio) ...<Widget>[
@@ -2070,10 +2097,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             }),
                       wideEmbeddedMode: true,
                       onOpenQueuePanel: _showQueuePanel,
-                      onOpenSettingsPanel: () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      }),
+                      onOpenSettingsPanel: openWidePanelAction(
+                        _WideNowPlayingPanel.settings,
+                      ),
                     ),
                   ],
                   if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
@@ -2319,19 +2345,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           child: _buildInteractiveSwipeableArt(
             key: ValueKey<String>('cover-$artVisualKey'),
             swipeEnabled: !isRadio,
-            currentArt: hasCoverArtId
-                ? _CoverArt(
-                    coverArtId: coverArtId,
-                    semanticLabel: title,
-                    isExternalSource: song?.isExternal ?? false,
-                  )
-                : (hasMediaArtUrl
-                      ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: artMaxSize)
-                      : _CoverArt(
-                          coverArtId: null,
-                          semanticLabel: title,
-                          isExternalSource: song?.isExternal ?? false,
-                        )),
+            currentArt: buildCurrentArt(artMaxSize),
           ),
         );
 
@@ -2379,48 +2393,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
             transitionBuilder: songSwapTransitionBuilder,
-            child: _TrackInfo(
+            child: buildTrackInfo(
               key: ValueKey<String>('track-info-$nowPlayingVisualKey'),
-              title: title,
-              artist: artist,
-              album: album,
               compact: compactSpacing,
-              isExternalSource: !isRadio && (song?.isExternal ?? false),
-              onTitleTap: isRadio
-                  ? (radioMeta?.nowPlayingTitle != null &&
-                            radioMeta!.nowPlayingTitle!.isNotEmpty
-                        ? () {
-                            NavService.openSearch(
-                              context,
-                              ref,
-                              radioMeta.nowPlayingTitle!,
-                              filter: SearchResultType.songs,
-                            );
-                          }
-                        : null)
-                  : normalTitleTap,
-              artistLinks: isRadio
-                  ? (radioMeta?.nowPlayingArtist != null &&
-                            radioMeta!.nowPlayingArtist!.isNotEmpty
-                        ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                              .map(
-                                (name) => (
-                                  name: name,
-                                  onTap: () {
-                                    NavService.openSearch(
-                                      context,
-                                      ref,
-                                      name,
-                                      filter: SearchResultType.artists,
-                                    );
-                                  },
-                                ),
-                              )
-                              .toList()
-                        : null)
-                  : null,
-              onArtistTap: isRadio ? null : normalArtistTap,
-              onAlbumTap: isRadio ? null : normalAlbumTap,
             ),
           ),
           if (!isRadio) ...[
@@ -2460,17 +2435,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
                 showLyrics: _showLyrics || _showWideFullscreenLyrics,
-                onOpenSettingsSheet: !supportsSplitPanelOverlay
-                    ? () => _showNowPlayingSettingsSheet(
-                        context,
-                        ref,
-                        song,
-                        fullscreenLyricsSongId: playback.currentSongId,
-                        fullscreenLyricsTitle: playback.currentSongId == null
-                            ? null
-                            : title,
-                      )
-                    : null,
+                onOpenSettingsSheet: settingsSheetAction(
+                  splitPanelOverlay: supportsSplitPanelOverlay,
+                ),
                 onLyricsToggle: playback.currentSongId == null
                     ? null
                     : () {
@@ -2500,16 +2467,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       },
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.queue;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.queue)
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.settings)
                     : null,
               ),
             if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
@@ -2656,22 +2617,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               : _buildInteractiveSwipeableArt(
                   key: ValueKey<String>('split-cover-$artVisualKey'),
                   swipeEnabled: !isRadio,
-                  currentArt: hasCoverArtId
-                      ? _CoverArt(
-                          coverArtId: coverArtId,
-                          semanticLabel: title,
-                          isExternalSource: song?.isExternal ?? false,
-                        )
-                      : (hasMediaArtUrl
-                            ? _RadioCoverArt(
-                                artUrl: mediaArtUrl,
-                                maxSize: splitCoverArtMaxSize,
-                              )
-                            : _CoverArt(
-                                coverArtId: null,
-                                semanticLabel: title,
-                                isExternalSource: song?.isExternal ?? false,
-                              )),
+                  currentArt: buildCurrentArt(splitCoverArtMaxSize),
                 ),
         );
         final splitBottomStack = Column(
@@ -2684,48 +2630,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
               transitionBuilder: songSwapTransitionBuilder,
-              child: _TrackInfo(
+              child: buildTrackInfo(
                 key: ValueKey<String>('split-track-info-$nowPlayingVisualKey'),
-                title: title,
-                artist: artist,
-                album: album,
                 compact: true,
-                isExternalSource: !isRadio && (song?.isExternal ?? false),
-                onTitleTap: isRadio
-                    ? (radioMeta?.nowPlayingTitle != null &&
-                              radioMeta!.nowPlayingTitle!.isNotEmpty
-                          ? () {
-                              NavService.openSearch(
-                                context,
-                                ref,
-                                radioMeta.nowPlayingTitle!,
-                                filter: SearchResultType.songs,
-                              );
-                            }
-                          : null)
-                    : normalTitleTap,
-                artistLinks: isRadio
-                    ? (radioMeta?.nowPlayingArtist != null &&
-                              radioMeta!.nowPlayingArtist!.isNotEmpty
-                          ? splitArtistNames(radioMeta.nowPlayingArtist!)
-                                .map(
-                                  (name) => (
-                                    name: name,
-                                    onTap: () {
-                                      NavService.openSearch(
-                                        context,
-                                        ref,
-                                        name,
-                                        filter: SearchResultType.artists,
-                                      );
-                                    },
-                                  ),
-                                )
-                                .toList()
-                          : null)
-                    : null,
-                onArtistTap: isRadio ? null : normalArtistTap,
-                onAlbumTap: isRadio ? null : normalAlbumTap,
               ),
             ),
             if (!isRadio) ...<Widget>[
@@ -2749,17 +2656,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
                 showLyrics: false,
-                onOpenSettingsSheet: !supportsSplitPanelOverlay
-                    ? () => _showNowPlayingSettingsSheet(
-                        context,
-                        ref,
-                        song,
-                        fullscreenLyricsSongId: playback.currentSongId,
-                        fullscreenLyricsTitle: playback.currentSongId == null
-                            ? null
-                            : title,
-                      )
-                    : null,
+                onOpenSettingsSheet: settingsSheetAction(
+                  splitPanelOverlay: supportsSplitPanelOverlay,
+                ),
                 onLyricsToggle: playback.currentSongId == null
                     ? null
                     : () => unawaited(
@@ -2771,16 +2670,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       ),
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.queue;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.queue)
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(() {
-                        _showWideFullscreenLyrics = false;
-                        _widePanel = _WideNowPlayingPanel.settings;
-                      })
+                    ? openWidePanelAction(_WideNowPlayingPanel.settings)
                     : null,
               ),
           ],
