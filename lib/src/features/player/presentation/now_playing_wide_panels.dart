@@ -66,7 +66,10 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                 }
               },
               child: Material(
-                color: colorScheme.surfaceContainerHigh,
+                color: nowPlayingArtworkPanelFill(
+                  context,
+                  colorScheme.surfaceContainerHigh,
+                ),
                 elevation: 14,
                 shape: RoundedRectangleBorder(
                   borderRadius: NavisShapeData.of(context).sheetTop,

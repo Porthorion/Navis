@@ -161,6 +161,20 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
       nowPlayingArtworkVeilBase(surface)
           .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.68);
 
+  /// Whether the main Play buttons use the solid `primary`/`onPrimary` pair
+  /// instead of the container pair. Light Pastel's `primaryContainer` sits
+  /// about 1.2:1 against the raised surfaces the mini player and Now Playing
+  /// use, so Play takes the deeper primary there; other styles are unchanged.
+  bool get solidPlayButton => style == NavisColorStyle.pastel && !dark;
+
+  /// Fill of the mini player's and Now Playing's main Play button.
+  Color playButtonFill(ColorScheme scheme) =>
+      solidPlayButton ? scheme.primary : scheme.primaryContainer;
+
+  /// Icon colour on [playButtonFill].
+  Color onPlayButtonFill(ColorScheme scheme) =>
+      solidPlayButton ? scheme.onPrimary : scheme.onPrimaryContainer;
+
   /// Opaque colour of the Artwork veil.
   Color nowPlayingArtworkVeilBase(Color surface) =>
       dark ? artworkScrim : surface;

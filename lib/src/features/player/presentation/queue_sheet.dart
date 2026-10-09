@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -135,7 +136,10 @@ class QueueSheet extends ConsumerWidget {
 
     if (embeddedMode) {
       return Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: nowPlayingArtworkPanelFill(
+          context,
+          Theme.of(context).colorScheme.surface,
+        ),
         child: body,
       );
     }
@@ -144,12 +148,13 @@ class QueueSheet extends ConsumerWidget {
       top: true,
       bottom: false,
       child: Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: nowPlayingArtworkPanelFill(
+          context,
+          Theme.of(context).colorScheme.surface,
+        ),
         elevation: 12,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(NavisShapeData.of(context).lg),
-          ),
+          borderRadius: NavisShapeData.of(context).sheetTop,
         ),
         clipBehavior: Clip.antiAlias,
         child: body,

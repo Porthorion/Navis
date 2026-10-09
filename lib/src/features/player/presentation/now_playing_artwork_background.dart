@@ -23,8 +23,9 @@ const double kNowPlayingArtworkTargetContrast = kCaptionMinContrast + 0.5;
 /// Extra veil alpha over the bottom fifth, calming the controls area.
 const double kNowPlayingArtworkBottomVeilAlpha = 0.15;
 
-/// The lightest veil that keeps [onSurface] and [accent] (the accent-coloured
-/// title) readable over a cover averaging [average], within [colorStyle]'s
+/// The lightest veil that keeps [onSurface], [onSurfaceVariant] (secondary
+/// lines such as the format line) and [accent] (the accent-coloured title)
+/// readable over a cover averaging [average], within [colorStyle]'s
 /// alpha range. With no [average] it is the fixed veil.
 Color nowPlayingAdaptiveVeil({
   required NavisColorStyleData colorStyle,
@@ -32,6 +33,7 @@ Color nowPlayingAdaptiveVeil({
   required Color onSurface,
   required Color? average,
   Color? accent,
+  Color? onSurfaceVariant,
 }) {
   if (average == null) return colorStyle.nowPlayingArtworkVeil(surface);
   final base = colorStyle.nowPlayingArtworkVeilBase(surface);
@@ -40,6 +42,9 @@ Color nowPlayingAdaptiveVeil({
     final veiled = Color.alphaBlend(base.withValues(alpha: alpha), average);
     if (captionContrast(onSurface, veiled) >=
             kNowPlayingArtworkTargetContrast &&
+        (onSurfaceVariant == null ||
+            captionContrast(onSurfaceVariant, veiled) >=
+                kNowPlayingArtworkTargetContrast) &&
         (accent == null ||
             captionContrast(accent, veiled) >=
                 kNowPlayingArtworkTargetContrast)) {
@@ -79,6 +84,7 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     required this.onSurfaceColor,
     required this.fadeDuration,
     this.accentColor,
+    this.onSurfaceVariantColor,
     super.key,
   });
 
@@ -96,6 +102,10 @@ class NowPlayingArtworkBackground extends StatefulWidget {
 
   /// Text colour the veil must keep readable.
   final Color onSurfaceColor;
+
+  /// Secondary text colour (artist, format line) the veil must also keep
+  /// readable.
+  final Color? onSurfaceVariantColor;
 
   /// Accent text colour (the track title) the veil must also keep readable.
   final Color? accentColor;
@@ -195,6 +205,7 @@ class _NowPlayingArtworkBackgroundState
       surface: widget.surfaceColor,
       onSurface: widget.onSurfaceColor,
       accent: widget.accentColor,
+      onSurfaceVariant: widget.onSurfaceVariantColor,
       average: _shownAverage,
     );
     final bottom = widget.colorStyle.nowPlayingArtworkVeilBase(
