@@ -159,6 +159,15 @@ void main() {
     },
   );
 
+  test(
+    'manifest served without a JSON content type is still verified',
+    () async {
+      envelope = jsonEncode(envelope);
+      final result = await repository().checkForUpdate();
+      expect(result?.tagName, 'v1.5.1');
+    },
+  );
+
   test('iOS never fetches an update', () async {
     final repo = repository(isIOS: true);
     expect(await repo.checkForUpdate(forceCheck: true), isNull);

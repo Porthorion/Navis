@@ -145,7 +145,10 @@ class UpdateRepository {
       await _updateCheckStore.recordCheck();
 
       signatureValid = false;
-      final envelope = response.data;
+      // Dio decodes JSON only when the response is labelled as JSON; accept
+      // the same document when the host serves it with another content type.
+      final data = response.data;
+      final envelope = data is String ? jsonDecode(data) : data;
       if (envelope is! Map ||
           envelope['payload'] is! String ||
           envelope['signature'] is! String) {
