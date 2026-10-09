@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Playback actions for an album, playlist, artist or song collection.
@@ -54,6 +55,7 @@ class EntityActionBar extends StatelessWidget {
         if (showPlay && compact)
           IconButton.filled(
             key: playKey,
+            style: NavisShapeData.circularIconButtonStyle,
             tooltip: l10n.albumDetailPlayAction,
             constraints: iconConstraints,
             onPressed: onPlay,
@@ -69,6 +71,7 @@ class EntityActionBar extends StatelessWidget {
         if (showShuffle && compact)
           IconButton.filledTonal(
             key: shuffleKey,
+            style: NavisShapeData.circularIconButtonStyle,
             tooltip: l10n.albumDetailShuffleAction,
             constraints: iconConstraints,
             onPressed: onShuffle,

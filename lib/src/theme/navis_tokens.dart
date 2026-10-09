@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Spacing scale shared by every layout.
 ///
@@ -52,7 +53,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     required this.frameMaxWidthUltraWide,
     required this.sidebarWidth,
     required this.panelRadius,
-    required this.cardRadius,
     required this.panelElevation,
     required this.hoverOpacity,
     required this.focusOpacity,
@@ -71,12 +71,8 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     NavisColorStyleData? style,
     NavisCornerStyle corners = NavisCornerStyle.rounded,
   }) {
-    // Panels and cards follow the corner style's xl and lg steps.
-    final (panelRadius, cardRadius) = switch (corners) {
-      NavisCornerStyle.rounded => (defaults.panelRadius, defaults.cardRadius),
-      NavisCornerStyle.soft => (28.0, 24.0),
-      NavisCornerStyle.square => (6.0, 4.0),
-    };
+    // Panels follow the corner style's xl step.
+    final panelRadius = NavisShapeData.forStyle(corners).xl;
     final warningBase = oled
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHigh;
@@ -86,7 +82,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       frameMaxWidthUltraWide: defaults.frameMaxWidthUltraWide,
       sidebarWidth: defaults.sidebarWidth,
       panelRadius: panelRadius,
-      cardRadius: cardRadius,
       panelElevation: defaults.panelElevation,
       hoverOpacity: defaults.hoverOpacity,
       focusOpacity: defaults.focusOpacity,
@@ -111,7 +106,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
   final double frameMaxWidthUltraWide;
   final double sidebarWidth;
   final double panelRadius;
-  final double cardRadius;
   final double panelElevation;
   final double hoverOpacity;
   final double focusOpacity;
@@ -135,7 +129,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     frameMaxWidthUltraWide: 1720,
     sidebarWidth: 300,
     panelRadius: NavisRadius.xl,
-    cardRadius: NavisRadius.lg,
     panelElevation: 0,
     hoverOpacity: 0.09,
     focusOpacity: 0.14,
@@ -160,7 +153,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
     double? frameMaxWidthUltraWide,
     double? sidebarWidth,
     double? panelRadius,
-    double? cardRadius,
     double? panelElevation,
     double? hoverOpacity,
     double? focusOpacity,
@@ -177,7 +169,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
           frameMaxWidthUltraWide ?? this.frameMaxWidthUltraWide,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       panelRadius: panelRadius ?? this.panelRadius,
-      cardRadius: cardRadius ?? this.cardRadius,
       panelElevation: panelElevation ?? this.panelElevation,
       hoverOpacity: hoverOpacity ?? this.hoverOpacity,
       focusOpacity: focusOpacity ?? this.focusOpacity,
@@ -212,7 +203,6 @@ class NavisTokens extends ThemeExtension<NavisTokens> {
       ),
       sidebarWidth: lerp(sidebarWidth, other.sidebarWidth),
       panelRadius: lerp(panelRadius, other.panelRadius),
-      cardRadius: lerp(cardRadius, other.cardRadius),
       panelElevation: lerp(panelElevation, other.panelElevation),
       hoverOpacity: lerp(hoverOpacity, other.hoverOpacity),
       focusOpacity: lerp(focusOpacity, other.focusOpacity),

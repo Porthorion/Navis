@@ -34,13 +34,19 @@ void main() {
       expect(NavisTokens.defaults.panelRadius, NavisRadius.xl);
     });
 
-    test('soft is roughly 1.5x with pill controls', () {
+    test('soft is larger and softer with 14 px rectangular controls', () {
       final data = NavisShapeData.forStyle(NavisCornerStyle.soft);
       expect(
         <double>[data.xs, data.sm, data.md, data.lg, data.xl],
-        <double>[6, 12, 18, 24, 28],
+        <double>[6, 12, 18, 24, 32],
       );
-      expect(data.controlShape, isA<StadiumBorder>());
+      expect(data.control, 14);
+      expect(data.controlShape, isNot(isA<StadiumBorder>()));
+      expect(
+        data.controlShape,
+        isNot(NavisShapeData.rounded.controlShape),
+        reason: 'Soft must read differently from Rounded',
+      );
     });
 
     test('square is crisp with 4 px controls', () {
@@ -75,6 +81,12 @@ void main() {
       expect(radiusOf(theme.cardTheme.shape), NavisRadius.mdAll);
       expect(theme.chipTheme.shape, isA<StadiumBorder>());
       expect(theme.extension<NavisTokens>()!.panelRadius, 20);
+      expect(theme.iconButtonTheme.style, isNull);
+      // Menus keep the 4 px shape Material renders today.
+      expect(
+        radiusOf(theme.menuTheme.style!.shape!.resolve(<WidgetState>{})),
+        NavisRadius.xsAll,
+      );
     });
 
     test('soft and square thread the table into component themes', () {
@@ -112,9 +124,73 @@ void main() {
             data.controlShape,
           );
           expect(theme.extension<NavisTokens>()!.panelRadius, data.xl);
-          expect(theme.extension<NavisTokens>()!.cardRadius, data.lg);
+          expect(
+            theme.iconButtonTheme.style!.shape!.resolve(<WidgetState>{}),
+            data.controlShape,
+          );
+          expect(
+            radiusOf(theme.menuTheme.style!.shape!.resolve(<WidgetState>{})),
+            data.mdAll,
+          );
         }
       }
+    });
+  });
+
+  group('icon buttons', () {
+    Future<void> pump(WidgetTester tester, NavisCornerStyle corners) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildDarkTheme(_seed, corners: corners),
+          home: Scaffold(
+            body: Row(
+              children: <Widget>[
+                IconButton.filledTonal(
+                  key: const ValueKey<String>('plain'),
+                  onPressed: () {},
+                  icon: const Icon(Icons.favorite),
+                ),
+                IconButton.filled(
+                  key: const ValueKey<String>('round'),
+                  style: NavisShapeData.circularIconButtonStyle,
+                  onPressed: () {},
+                  icon: const Icon(Icons.play_arrow),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    ShapeBorder? shapeOf(WidgetTester tester, String key) {
+      final material = tester.widget<Material>(
+        find
+            .descendant(
+              of: find.byKey(ValueKey<String>(key)),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      return material.shape;
+    }
+
+    testWidgets('plain icon buttons follow the style, play stays circular', (
+      tester,
+    ) async {
+      await pump(tester, NavisCornerStyle.rounded);
+      expect(shapeOf(tester, 'plain'), isA<StadiumBorder>());
+      expect(shapeOf(tester, 'round'), isA<CircleBorder>());
+
+      await pump(tester, NavisCornerStyle.soft);
+      expect(shapeOf(tester, 'plain'), NavisShapeData.soft.controlShape);
+      expect(shapeOf(tester, 'plain'), isNot(isA<StadiumBorder>()));
+      expect(shapeOf(tester, 'round'), isA<CircleBorder>());
+
+      await pump(tester, NavisCornerStyle.square);
+      expect(shapeOf(tester, 'plain'), NavisShapeData.square.controlShape);
+      expect(shapeOf(tester, 'round'), isA<CircleBorder>());
     });
   });
 
