@@ -29,6 +29,8 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
@@ -199,6 +201,16 @@ String? nowPlayingVisualCacheKeyFor({
   return null;
 }
 
+/// Whether the Artwork background draws its blurred cover. Flat has no blur
+/// (it falls back to the solid art colour) and a missing cover falls back to
+/// the tinted look.
+@visibleForTesting
+bool nowPlayingShowsArtworkLayer({
+  required NowPlayingBackground background,
+  required bool flat,
+  required bool hasImage,
+}) => background == NowPlayingBackground.artwork && !flat && hasImage;
+
 /// Background of the Now Playing surface.
 ///
 /// No [tintColor] (art tint off or no art yet): plain [surfaceColor]. With a
@@ -252,6 +264,7 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
   required WidgetRef ref,
   String? coverArtId,
   String? artUrl,
+  int size = 768,
 }) {
   final cacheManager = ref.read(coverArtCacheManagerProvider);
   final trimmedCoverArtId = coverArtId?.trim() ?? '';
@@ -260,11 +273,11 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
     if (api == null) {
       return null;
     }
-    final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
+    final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: size);
     return CachedNetworkImageProvider(
       coverUrl.toString(),
       cacheManager: cacheManager,
-      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
+      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, size),
     );
   }
 
@@ -401,6 +414,38 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   /// The cover art ID that [_artTintColor] was extracted from.
   String? _extractedCoverArtId;
 
+  /// Small cover for the Artwork background, memoised per cover identity.
+  String? _artworkBackdropKey;
+  ImageProvider<Object>? _artworkBackdropImage;
+
+  /// Decodes the standard 600 px cover (the one [CoverArtImage] already
+  /// caches, so no second fetch) at a thumbnail width.
+  ImageProvider<Object>? _artworkBackdropFor({
+    required String? coverArtId,
+    required String? artUrl,
+  }) {
+    final trimmedId = coverArtId?.trim() ?? '';
+    final trimmedUrl = artUrl?.trim() ?? '';
+    final key = trimmedId.isNotEmpty
+        ? 'id:$trimmedId'
+        : (trimmedUrl.isNotEmpty ? 'url:$trimmedUrl' : null);
+    // A transient metadata gap keeps the previous cover, like the tint does.
+    if (key == null) return _artworkBackdropImage;
+    if (key == _artworkBackdropKey && _artworkBackdropImage != null) {
+      return _artworkBackdropImage;
+    }
+    final base = _resolveNowPlayingImageProvider(
+      ref: ref,
+      coverArtId: trimmedId,
+      artUrl: trimmedId.isEmpty ? trimmedUrl : null,
+      size: kCoverArtStandardSize,
+    );
+    _artworkBackdropKey = key;
+    return _artworkBackdropImage = base == null
+        ? null
+        : ResizeImage(base, width: kNowPlayingArtworkDecodeWidth);
+  }
+
   Future<void> _extractArtColor(String? coverArtId) async {
     final brightness = Theme.of(context).brightness;
     final cacheKey = nowPlayingVisualCacheKeyFor(
@@ -485,6 +530,33 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
   }
 
+  Widget _withArtworkBackground({
+    required bool showArtworkLayer,
+    required ImageProvider<Object>? image,
+    required NavisColorStyleData colorStyle,
+    required Color surfaceColor,
+    required Duration fadeDuration,
+    required Widget child,
+  }) {
+    if (!showArtworkLayer) return child;
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Positioned.fill(
+          child: NowPlayingArtworkBackground(
+            key: const ValueKey<String>('nowPlayingArtworkBackground'),
+            imageKey: _artworkBackdropKey,
+            image: image,
+            veil: colorStyle.nowPlayingArtworkVeil(surfaceColor),
+            surfaceColor: surfaceColor,
+            fadeDuration: fadeDuration,
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final motion = MotionPolicy.of(context);
@@ -503,11 +575,33 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         : ref.watch(songByIdProvider(currentSongId));
     final song = songAsync.asData?.value;
     final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
-    final artTinted = ref.watch(artTintedNowPlayingProvider);
+    final background = ref.watch(nowPlayingBackgroundProvider);
     final brightness = Theme.of(context).brightness;
     final activeArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : currentMediaItem?.artUri?.toString();
+    final colorStyle = NavisColorStyleData.of(context);
+    // Artwork draws a blurred cover; Flat has no blur, and a cover that
+    // cannot load falls back to the tinted look, so both still need a tint.
+    ImageProvider<Object>? artworkImage;
+    if (background == NowPlayingBackground.artwork &&
+        playback.hasActivePlayback) {
+      artworkImage = _artworkBackdropFor(
+        coverArtId: playback.isRadioMode ? null : song?.coverArt,
+        artUrl: activeArtUrl,
+      );
+    } else {
+      _artworkBackdropKey = null;
+      _artworkBackdropImage = null;
+    }
+    final showArtworkLayer = nowPlayingShowsArtworkLayer(
+      background: background,
+      flat: colorStyle.flat,
+      hasImage: artworkImage != null,
+    );
+    final artTinted =
+        background == NowPlayingBackground.tinted ||
+        (background == NowPlayingBackground.artwork && !showArtworkLayer);
     final cachedTintColor = artTinted
         ? nowPlayingCachedTintColor(
             brightness: brightness,
@@ -563,7 +657,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
-    final colorStyle = NavisColorStyleData.of(context);
     final extractedTintColor = cachedTintColor ?? _artTintColor;
     if (artTinted &&
         playback.hasActivePlayback &&
@@ -619,72 +712,81 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         // outer SafeArea here.  The body's compactPlayerPage applies the
         // insets itself via MediaQuery.paddingOf so content stays clear of
         // camera cutouts and the status bar.
-        child: Builder(
-          builder: (context) {
-            final nowPlayingBody = _NowPlayingBody(
-              playback: playback,
-              song: playback.isRadioMode ? null : song,
-              diagnosticsTransportCue: transportPresentationFixture?.cue,
-              wideEmbeddedMode:
-                  widget.compactWideLandscapeMode || effectiveWideMode,
-              compactWideLandscapeMode: widget.compactWideLandscapeMode,
-              showEmbeddedVolumeBelowActions:
-                  widget.showEmbeddedVolumeBelowActions,
-              onCollapse: widget.onCollapse,
-              onBackInterceptorChanged: widget.onBackInterceptorChanged,
-              onCompactWideOverlayActiveChanged:
-                  widget.onCompactWideOverlayActiveChanged,
-              onCompactWideQueueRequestChanged:
-                  widget.onCompactWideQueueRequestChanged,
-            );
+        child: _withArtworkBackground(
+          showArtworkLayer: showArtworkLayer,
+          image: artworkImage,
+          colorStyle: colorStyle,
+          surfaceColor: surfaceColor,
+          fadeDuration: motion.surface,
+          child: Builder(
+            builder: (context) {
+              final nowPlayingBody = _NowPlayingBody(
+                playback: playback,
+                song: playback.isRadioMode ? null : song,
+                diagnosticsTransportCue: transportPresentationFixture?.cue,
+                wideEmbeddedMode:
+                    widget.compactWideLandscapeMode || effectiveWideMode,
+                compactWideLandscapeMode: widget.compactWideLandscapeMode,
+                showEmbeddedVolumeBelowActions:
+                    widget.showEmbeddedVolumeBelowActions,
+                onCollapse: widget.onCollapse,
+                onBackInterceptorChanged: widget.onBackInterceptorChanged,
+                onCompactWideOverlayActiveChanged:
+                    widget.onCompactWideOverlayActiveChanged,
+                onCompactWideQueueRequestChanged:
+                    widget.onCompactWideQueueRequestChanged,
+              );
 
-            final surface = widget.compactWideLandscapeMode
-                ? nowPlayingBody
-                : SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
-                      child: effectiveWideMode
-                          ? Column(
-                              children: <Widget>[
-                                Expanded(child: nowPlayingBody),
-                              ],
-                            )
-                          : Column(
-                              children: <Widget>[
-                                const _NowPlayingHandle(),
-                                Expanded(child: nowPlayingBody),
-                              ],
-                            ),
-                    ),
-                  );
+              final surface = widget.compactWideLandscapeMode
+                  ? nowPlayingBody
+                  : SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          bottom: resolvedBottomSafeInset,
+                        ),
+                        child: effectiveWideMode
+                            ? Column(
+                                children: <Widget>[
+                                  Expanded(child: nowPlayingBody),
+                                ],
+                              )
+                            : Column(
+                                children: <Widget>[
+                                  const _NowPlayingHandle(),
+                                  Expanded(child: nowPlayingBody),
+                                ],
+                              ),
+                      ),
+                    );
 
-            final platform = Theme.of(context).platform;
-            final showCollapseButton =
-                widget.onCollapse != null &&
-                platform != TargetPlatform.android &&
-                platform != TargetPlatform.iOS;
+              final platform = Theme.of(context).platform;
+              final showCollapseButton =
+                  widget.onCollapse != null &&
+                  platform != TargetPlatform.android &&
+                  platform != TargetPlatform.iOS;
 
-            if (!showCollapseButton) {
-              return surface;
-            }
+              if (!showCollapseButton) {
+                return surface;
+              }
 
-            return Stack(
-              children: <Widget>[
-                Positioned.fill(child: surface),
-                Positioned(
-                  top: 6,
-                  right: 8,
-                  child: SafeArea(
-                    bottom: false,
-                    child: _NowPlayingCollapseButton(
-                      onPressed: widget.onCollapse!,
+              return Stack(
+                children: <Widget>[
+                  Positioned.fill(child: surface),
+                  Positioned(
+                    top: 6,
+                    right: 8,
+                    child: SafeArea(
+                      bottom: false,
+                      child: _NowPlayingCollapseButton(
+                        onPressed: widget.onCollapse!,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
