@@ -8427,7 +8427,6 @@ class NavisAudioHandler extends BaseAudioHandler
     required OperationToken token,
     required int transportGeneration,
     _PendingSeek? seekRequest,
-    String reason = 'seek recovery — switched to direct stream',
     _PreparedQueueItem? preparedStart,
   }) async {
     final metadata = _resolveCurrentQueueMetadata();
@@ -8849,9 +8848,6 @@ class NavisAudioHandler extends BaseAudioHandler
     required String reason,
     Object? error,
     StackTrace? stackTrace,
-    Duration? intendedPosition,
-    String? expectedSongId,
-    int? expectedTransportGeneration,
   }) async {
     if (_pendingSeek != null ||
         _seekFailureBlocksRecovery ||
@@ -8869,20 +8865,11 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    if (expectedTransportGeneration != null &&
-        !_isCurrentTransportIntent(expectedTransportGeneration)) {
-      return;
-    }
-
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
     final songId = _queueItems[currentIndex].id;
-    if (expectedSongId != null && songId != expectedSongId) {
-      _remotePlaybackRecoveryInProgress = false;
-      return;
-    }
     final autoPlay = _player.playing;
-    final position = intendedPosition ?? _player.position;
+    final position = _player.position;
     final transportGeneration = _transportGeneration;
     final attemptKey = '$transportGeneration:$songId';
     final isRetry = navisShouldRetryRemotePlayback(
@@ -8919,7 +8906,6 @@ class NavisAudioHandler extends BaseAudioHandler
             autoPlay: autoPlay,
             token: recoveryToken,
             transportGeneration: transportGeneration,
-            reason: '$reason — switched to direct stream',
           );
           _recordSeekDiagnosticsEvent(<String, Object?>{
             'at': DateTime.now().toUtc().toIso8601String(),
