@@ -81,7 +81,7 @@ void main() {
   test('50 SMTC permission checks stay pure without fetching', () {
     policy = const IntegrationPolicy(masterEnabled: false);
     for (var i = 0; i < 50; i++) {
-      expect(loader.checkAllowed(radio), isFalse);
+      expect(loader.isAllowed(radio), isFalse);
     }
     expect(recorder.recentCalls(), isEmpty);
     verifyZeroInteractions(cache);
