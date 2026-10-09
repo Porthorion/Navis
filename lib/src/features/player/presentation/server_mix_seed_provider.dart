@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
@@ -18,13 +18,8 @@ final serverMixSeedAvailableProvider = FutureProvider.autoDispose
       if (api == null) {
         return false;
       }
-      try {
-        final song = await api.getSong(seedSongId);
-        final id = song.id.trim();
-        return id != seedSongId && isServerAddressableSongId(id);
-      } on SubsonicException {
-        return false;
-      }
+      final service = ref.read(recommendationServiceProvider);
+      return await service.libraryCopyId(api, seedSongId) != null;
     });
 
 /// The synchronous form widgets gate the control on.

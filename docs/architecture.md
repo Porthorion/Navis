@@ -2197,10 +2197,11 @@ songs even when the player already holds only the seed, so the first refill
 treats only the seed as already queued; songs from an earlier mix still behind
 it are fair recommendations again. Similarity endpoints know only server ids, so a remote
 seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
-to, when the server has one: Server Mix asks for that copy before reporting
-unsupported, and Same Vibes looks it up (even while the remote seed plays) for
-its server fallback. Neither mode queues the copy or the remote original right
-behind the seed. A remote seed
+to, when the server has one. `RecommendationService.libraryCopyId` owns that
+lookup for both recommendations and the Server Mix seed-availability provider.
+Server Mix asks for that copy before reporting unsupported, and Same Vibes looks
+it up (even while the remote seed plays) for its server fallback. Neither mode
+queues the copy or the remote original right behind the seed. A remote seed
 without a library copy never borrows the similar songs of an unrelated queue
 neighbour. Same Vibes tells queued and merged songs apart by one identity,
 `sameVibesCanonicalSongKey` (`normalizeMetadata` artist and
