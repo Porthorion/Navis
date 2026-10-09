@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_eq_controller.dart';
 import '../../../../helpers/library_copy_api.dart';
+import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
 
 const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
@@ -57,35 +58,8 @@ double _contrastRatio(Color a, Color b) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-class _TestPlaybackNotifier extends Notifier<PlaybackSnapshot> {
-  @override
-  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
-}
-
-final _testPlaybackProvider =
-    NotifierProvider<_TestPlaybackNotifier, PlaybackSnapshot>(
-      _TestPlaybackNotifier.new,
-    );
-
-ProviderContainer _createContainer({List<Override> overrides = const []}) {
-  final database = createTestDatabase();
-  final container = ProviderContainer(
-    overrides: withTestDatabase(
-      database,
-      overrides: <Override>[
-        playerStateProvider.overrideWith(
-          (ref) => ref.watch(_testPlaybackProvider),
-        ),
-        ...overrides,
-      ],
-    ),
-  );
-  addTearDown(() async {
-    container.dispose();
-    await database.close();
-  });
-  return container;
-}
+ProviderContainer _createContainer({List<Override> overrides = const []}) =>
+    createNowPlayingContainer(overrides: overrides);
 
 Finder _findNowPlayingHandle() {
   return find.byWidgetPredicate((widget) {
@@ -171,11 +145,12 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          queueSongIds: const <String>['ext-remote-1'],
-          currentSongId: 'ext-remote-1',
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['ext-remote-1'],
+      currentSongId: 'ext-remote-1',
+    );
     await _pumpNowPlaying(tester, container);
     await tester.pumpAndSettle();
 
@@ -203,11 +178,12 @@ void main() {
         subsonicApiProvider.overrideWithValue(LibraryCopyApiClient(const {})),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          queueSongIds: const <String>['ext-remote-1'],
-          currentSongId: 'ext-remote-1',
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['ext-remote-1'],
+      currentSongId: 'ext-remote-1',
+    );
     final notices = AppNoticeController();
     addTearDown(notices.dispose);
     await _pumpNowPlaying(tester, container, notices: notices);
@@ -248,7 +224,8 @@ void main() {
   testWidgets('the cover follows Now Playing Art Shape', (tester) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await container
         .read(navisDatabaseProvider)
         .appSettingsDao
@@ -275,7 +252,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(1000, 900));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(find.text('Lyrics'), findsNothing);
@@ -300,18 +278,20 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
     await tester.tap(find.byTooltip('Lyrics').first);
     await tester.pumpAndSettle();
     expect(find.text('Words of song-1'), findsOneWidget);
 
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          queueSongIds: const <String>['song-1', 'song-2'],
-          currentSongId: 'song-2',
-          currentIndex: 1,
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['song-1', 'song-2'],
+      currentSongId: 'song-2',
+      currentIndex: 1,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Words of song-2'), findsOneWidget);
@@ -324,7 +304,8 @@ void main() {
     (tester) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
       await _pumpNowPlaying(tester, container, reduceMotion: true);
 
       expect(
@@ -396,7 +377,8 @@ void main() {
           ),
         ],
       );
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await _pumpNowPlaying(tester, container);
 
@@ -437,7 +419,8 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -468,7 +451,8 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -483,7 +467,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(tester, container);
 
@@ -498,7 +483,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(
@@ -516,7 +502,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await _pumpNowPlaying(tester, container);
 
     expect(find.byTooltip('Queue'), findsOneWidget);
@@ -546,12 +533,13 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          isLoading: true,
-          loadingSongId: 'song-1',
-          processingState: AudioProcessingState.loading,
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      isLoading: true,
+      loadingSongId: 'song-1',
+      processingState: AudioProcessingState.loading,
+    );
 
     final indicatorFinder = find.byKey(
       const ValueKey<String>('remote-playback-loading-indicator'),
@@ -583,7 +571,8 @@ void main() {
       expect(indicatorFinder, findsOneWidget);
     }
 
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
     await tester.pump();
     expect(indicatorFinder, findsNothing);
     expect(tester.takeException(), isNull);
@@ -607,12 +596,13 @@ void main() {
         ),
       ],
     );
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(
-          isLoading: true,
-          loadingSongId: 'song-1',
-          processingState: AudioProcessingState.loading,
-        );
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      isLoading: true,
+      loadingSongId: 'song-1',
+      processingState: AudioProcessingState.loading,
+    );
     await _pumpNowPlaying(
       tester,
       container,
@@ -639,7 +629,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(
       tester,
@@ -661,7 +652,8 @@ void main() {
     (tester) async {
       setAdaptiveTestViewport(tester, const Size(560, 360));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -702,7 +694,8 @@ void main() {
     (tester) async {
       setAdaptiveTestViewport(tester, const Size(560, 360));
       final container = _createContainer();
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
 
       await _pumpNowPlaying(
         tester,
@@ -743,7 +736,8 @@ void main() {
   ) async {
     setAdaptiveTestViewport(tester, const Size(560, 360));
     final container = _createContainer();
-    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
 
     await _pumpNowPlaying(
       tester,
@@ -795,7 +789,8 @@ void main() {
             ),
         ],
       );
-      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
       await _pumpNowPlaying(
         tester,
         container,
@@ -898,7 +893,8 @@ void main() {
                 equalizerProvider.overrideWith(FakeEqController.new),
             ],
           );
-          container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+          container.read(nowPlayingTestPlaybackProvider.notifier).state =
+              _songPlayback;
           await _pumpNowPlaying(
             tester,
             container,

@@ -4,15 +4,12 @@ import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
-import '../../../../helpers/test_theme.dart';
 
 const PlaybackSnapshot _song1Playback = PlaybackSnapshot(
   queueSongIds: <String>['song-1', 'song-2'],
@@ -40,41 +37,15 @@ const PlaybackSnapshot _song2Playback = PlaybackSnapshot(
   repeatMode: AudioServiceRepeatMode.none,
 );
 
-class _TestPlaybackNotifier extends Notifier<PlaybackSnapshot> {
-  @override
-  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
-}
-
-final _testPlaybackProvider =
-    NotifierProvider<_TestPlaybackNotifier, PlaybackSnapshot>(
-      _TestPlaybackNotifier.new,
-    );
-
 ProviderContainer _createContainer({
   required Stream<TransportVisualCue> cueStream,
   PlaybackBufferState bufferState = const PlaybackBufferState.idle(),
-}) {
-  final database = createTestDatabase();
-  final container = ProviderContainer(
-    overrides: withTestDatabase(
-      database,
-      overrides: <Override>[
-        playerStateProvider.overrideWith(
-          (ref) => ref.watch(_testPlaybackProvider),
-        ),
-        transportVisualCueProvider.overrideWith((ref) => cueStream),
-        playbackBufferStateProvider.overrideWithValue(AsyncData(bufferState)),
-      ],
-    ),
-  );
-
-  addTearDown(() async {
-    container.dispose();
-    await database.close();
-  });
-
-  return container;
-}
+}) => createNowPlayingContainer(
+  overrides: <Override>[
+    transportVisualCueProvider.overrideWith((ref) => cueStream),
+    playbackBufferStateProvider.overrideWithValue(AsyncData(bufferState)),
+  ],
+);
 
 Finder _findValueKeyPrefix(String prefix) {
   return find.byWidgetPredicate((widget) {
@@ -110,13 +81,6 @@ void main() {
   testWidgets('seek bar shows buffered audio as a secondary track', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(880, 1200);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
     final container = _createContainer(
       cueStream: const Stream<TransportVisualCue>.empty(),
       bufferState: const PlaybackBufferState(
@@ -125,19 +89,9 @@ void main() {
       ),
     );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: NowPlayingScreen()),
-        ),
-      ),
-    );
+    await pumpPlainNowPlayingScreen(tester, container);
 
-    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    emitNowPlayingPlayback(container, _song1Playback);
     await tester.pumpAndSettle();
 
     final seekSlider = tester.widget<Slider>(find.byType(Slider).first);
@@ -149,31 +103,14 @@ void main() {
   testWidgets('manual song changes swap to the new cover-art child', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(880, 1200);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
     final cueController = StreamController<TransportVisualCue>.broadcast();
     addTearDown(cueController.close);
 
     final container = _createContainer(cueStream: cueController.stream);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: NowPlayingScreen()),
-        ),
-      ),
-    );
+    await pumpPlainNowPlayingScreen(tester, container);
 
-    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    emitNowPlayingPlayback(container, _song1Playback);
     await tester.pumpAndSettle();
 
     cueController.add(
@@ -184,7 +121,7 @@ void main() {
       ),
     );
     await tester.pump();
-    container.read(_testPlaybackProvider.notifier).state = _song2Playback;
+    emitNowPlayingPlayback(container, _song2Playback);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
@@ -196,29 +133,13 @@ void main() {
   testWidgets('automatic advances avoid directional artwork travel', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(880, 1200);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
     final container = _createContainer(
       cueStream: const Stream<TransportVisualCue>.empty(),
     );
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: NowPlayingScreen()),
-        ),
-      ),
-    );
-    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    await pumpPlainNowPlayingScreen(tester, container);
+    emitNowPlayingPlayback(container, _song1Playback);
     await tester.pumpAndSettle();
-    container.read(_testPlaybackProvider.notifier).state = _song2Playback;
+    emitNowPlayingPlayback(container, _song2Playback);
     await tester.pump(const Duration(milliseconds: 16));
 
     expect(_findActiveHorizontalSlideTransitions(), findsNothing);
@@ -227,31 +148,14 @@ void main() {
   testWidgets(
     'lyrics close stays neutral even after manual direction was latched',
     (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(880, 1200);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final cueController = StreamController<TransportVisualCue>.broadcast();
       addTearDown(cueController.close);
 
       final container = _createContainer(cueStream: cueController.stream);
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            theme: testTheme(),
-            localizationsDelegates: navisLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const Scaffold(body: NowPlayingScreen()),
-          ),
-        ),
-      );
+      await pumpPlainNowPlayingScreen(tester, container);
 
-      container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+      emitNowPlayingPlayback(container, _song1Playback);
       await tester.pumpAndSettle();
 
       cueController.add(
@@ -262,7 +166,7 @@ void main() {
         ),
       );
       await tester.pump();
-      container.read(_testPlaybackProvider.notifier).state = _song2Playback;
+      emitNowPlayingPlayback(container, _song2Playback);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(Icons.lyrics_outlined));
@@ -282,30 +186,13 @@ void main() {
   testWidgets('transport outcomes use quiet rewind and edge feedback', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(880, 1200);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
     final cueController = StreamController<TransportVisualCue>.broadcast();
     addTearDown(cueController.close);
     final container = _createContainer(cueStream: cueController.stream);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: testTheme(),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: NowPlayingScreen()),
-        ),
-      ),
-    );
+    await pumpPlainNowPlayingScreen(tester, container);
 
-    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    emitNowPlayingPlayback(container, _song1Playback);
     await tester.pumpAndSettle();
 
     cueController.add(
