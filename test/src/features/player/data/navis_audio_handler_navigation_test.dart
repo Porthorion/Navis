@@ -22,6 +22,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -1745,6 +1746,51 @@ void main() {
       expect(condition(), isTrue);
     }
 
+    test(
+      'system projection composes its window offset with the deferred head',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-system-',
+        );
+        final (handler, player, database) = await createHandler(
+          directory,
+          300,
+          queueWindow: const NavisQueueWindow(
+            deferThreshold: 16,
+            ahead: 40,
+            behind: 100,
+          ),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(
+          ids(300),
+          startIndex: 180,
+          expandMatchFlows: false,
+        );
+        final system = RealTimeProjectionAudioHandler(handler);
+        await until(() => system.queue.valueOrNull?.first.id == 'song-160');
+        expect(handler.queue.value.first.id, 'song-80');
+        expect(system.queue.value.first.id, 'song-160');
+
+        await system.removeQueueItem(system.queue.value[1]);
+        expect(handler.snapshot.queueSongIds, ids(300)..remove('song-161'));
+        expect(player.sourceIds, isNot(contains('song-161')));
+        await system.skipToQueueItem(0);
+        await until(
+          () =>
+              handler.snapshot.currentIndex == 160 &&
+              !handler.snapshot.isLoading,
+        );
+
+        expect(handler.snapshot.currentIndex, 160);
+        expect(player.sourceIds[player.index!], 'song-160');
+      },
+    );
+
     test('a long queue hands only a window to the player', () async {
       final (handler, player, database) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
@@ -1902,6 +1948,53 @@ void main() {
 
       int head(NavisAudioHandler handler) =>
           handler.collectPlaybackDiagnostics()['deferredHeadLength'] as int;
+
+      for (final projected in [false, true]) {
+        test(
+          'system skip selects the published occurrence with a deferred head '
+          '(projected=$projected)',
+          () async {
+            final (handler, player, _) = await trimmed();
+            final system = projected
+                ? RealTimeProjectionAudioHandler(handler)
+                : handler;
+            await until(() => system.queue.valueOrNull?.isNotEmpty ?? false);
+            final selected = system.queue.value.first.id;
+            expect(selected, 'song-6');
+
+            await system.skipToQueueItem(0);
+            await until(
+              () =>
+                  handler.snapshot.currentSongId == selected &&
+                  !handler.snapshot.isLoading,
+            );
+
+            expect(handler.snapshot.currentSongId, selected);
+            expect(handler.snapshot.currentIndex, 6);
+            expect(player.sourceIds[player.index!], selected);
+          },
+        );
+
+        test(
+          'system remove edits the published occurrence with a deferred head '
+          '(projected=$projected)',
+          () async {
+            final (handler, player, _) = await trimmed();
+            final system = projected
+                ? RealTimeProjectionAudioHandler(handler)
+                : handler;
+            await until(() => system.queue.valueOrNull?.isNotEmpty ?? false);
+            final removed = system.queue.value.first;
+            expect(removed.id, 'song-6');
+
+            await system.removeQueueItem(removed);
+
+            expect(handler.snapshot.queueSongIds, ids(60)..remove('song-6'));
+            expect(handler.snapshot.currentSongId, 'song-10');
+            expect(player.sourceIds, isNot(contains('song-6')));
+          },
+        );
+      }
 
       test('beyond the window leave the player in batches', () async {
         final (handler, player, database) = await trimmed();

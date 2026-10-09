@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'System queue controls select and remove the correct song after played tracks leave the player window',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Automatic library checks look further back when recent additions exceed the discovery window',
         type: ChangelogEntryType.fix,
       ),

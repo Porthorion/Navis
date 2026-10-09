@@ -2583,9 +2583,11 @@ head + materialised + tail, so a logical index is the native index plus the
 head's length; snapshots, persistence and every index-based API (jumps,
 remove, reorder, insert runs, merges) use logical indices, while
 `playbackState.queueIndex` stays native, paired with the materialised `queue`
-that MPRIS, SMTC and Android media sessions see. Replacing, restoring, or
-rebuilding a queue longer than 256 songs materialises 32 songs before and 32
-after the start song; earlier songs go to the head and later ones to the
+that MPRIS, SMTC and Android media sessions see. System queue skips and
+item removals convert materialised positions to logical positions at the
+handler boundary, after the projection wrapper adds its queue-window offset.
+Replacing, restoring, or rebuilding a queue longer than 256 songs materialises
+32 songs before and 32 after the start song; earlier songs go to the head and later ones to the
 tail. When fewer than 12 materialised songs remain after the current one, one
 page of 32 is released with a single `addAudioSources` append; once more than
 48 played songs (`behind` 32 + `trimSlack` 16) pile up in a long queue, the

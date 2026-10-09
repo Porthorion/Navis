@@ -5898,11 +5898,15 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> removeQueueItem(MediaItem mediaItem) async {
     final index = _queueItems.indexWhere((item) => item.id == mediaItem.id);
-    await removeAt(index);
+    if (index < 0) return;
+    await removeAt(index + _deferredHead.length);
   }
 
   @override
-  Future<void> skipToQueueItem(int index) => playFromIndex(index);
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= _queueItems.length) return;
+    await playFromIndex(index + _deferredHead.length);
+  }
 
   @override
   Future<void> play() async {
