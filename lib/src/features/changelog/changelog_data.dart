@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Pausing during an audio interruption keeps playback paused when the interruption ends',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A stalled crossfade preparation falls back to normal playback instead of blocking future fades',
         type: ChangelogEntryType.fix,
       ),

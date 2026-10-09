@@ -374,7 +374,7 @@ class NavisAudioHandler extends BaseAudioHandler
   // for ducking and crossfade restoration so track changes never override the
   // user's chosen volume.
   double _userVolume;
-  bool _resumeAfterInterruption = false;
+  int? _interruptedTransportGeneration;
   bool _gaplessEnabled = true;
   MediaItem? _activeScrobbleItem;
   int? _activeScrobbleIndex;
@@ -1165,6 +1165,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // "[error] lavf: Failed to create file cache" log noise. Subsonic auth
     // is embedded in URL query params so no custom headers are needed.
     return AudioPlayer(
+      handleInterruptions: false,
       audioPipeline: audioPipeline,
       equalizerConfiguration: _equalizerPipelineEnabled
           ? _equalizerMessage(_desiredEqualizer)
@@ -2189,7 +2190,10 @@ class NavisAudioHandler extends BaseAudioHandler
           }
           return;
         }
-        _resumeAfterInterruption = _player.playing;
+        _interruptedTransportGeneration = _player.playing
+            ? _transportGeneration
+            : null;
+        _cancelCrossfade();
         unawaited(_player.pause());
         return;
       }
@@ -2202,14 +2206,17 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final shouldResume = _resumeAfterInterruption && !_player.playing;
-      _resumeAfterInterruption = false;
+      final shouldResume =
+          _interruptedTransportGeneration == _transportGeneration &&
+          !_player.playing;
+      _interruptedTransportGeneration = null;
       if (shouldResume) {
         unawaited(_player.play());
       }
     });
 
     _becomingNoisySubscription = session.becomingNoisyEventStream.listen((_) {
+      _cancelCrossfade();
       if (_player.playing) {
         unawaited(_player.pause());
       }
@@ -7547,6 +7554,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   /// Whether no queue work, including idle releases and trims, is running
   /// or waiting.
+  @visibleForTesting
+  void debugWireAudioSession(AudioSession session) =>
+      _wireAudioSession(session);
+
   @visibleForTesting
   bool get debugQueueLaneIdle => _queueLane.isIdle;
 

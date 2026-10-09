@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
 import 'dart:io';
@@ -86,6 +87,23 @@ class _TeardownHttpClient extends Fake implements HttpClient {
   }
 }
 
+class _TestAudioSession extends Fake implements AudioSession {
+  final interruptions = StreamController<AudioInterruptionEvent>.broadcast();
+  final noisy = StreamController<void>.broadcast();
+
+  @override
+  Stream<AudioInterruptionEvent> get interruptionEventStream =>
+      interruptions.stream;
+
+  @override
+  Stream<void> get becomingNoisyEventStream => noisy.stream;
+
+  Future<void> close() async {
+    await interruptions.close();
+    await noisy.close();
+  }
+}
+
 class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   final StreamController<int?> _indices = StreamController<int?>.broadcast();
   List<AudioSource> _sources = <AudioSource>[];
@@ -115,6 +133,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   int seekCalls = 0;
   int stopCalls = 0;
   int? index;
+  final List<double> appliedVolumes = [];
   double appliedSpeed = 1;
   double appliedPitch = 1;
   bool failPitchOnce = false;
@@ -239,7 +258,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   ];
 
   @override
-  Future<void> setVolume(double value) async {}
+  Future<void> setVolume(double value) async {
+    appliedVolumes.add(value);
+  }
 
   @override
   Future<void> setSpeed(double value) async {
@@ -600,6 +621,106 @@ void main() {
     );
     if (waitForReady) await handler.waitUntilReady();
     return (handler, player, database);
+  }
+
+  for (final noisy in [false, true]) {
+    test('session pause stops both crossfade decks (noisy=$noisy)', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-interrupted-fade-',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        crossfade: true,
+      );
+      final session = _TestAudioSession();
+      handler.debugWireAudioSession(session);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await session.close();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue([
+        'song-0',
+        'song-1',
+        'song-2',
+      ], expandMatchFlows: false);
+      await handler.debugStartCrossfade();
+      final deck = handler.debugInactiveDeck!;
+      expect(deck.playing, isTrue);
+      if (noisy) {
+        session.noisy.add(null);
+      } else {
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+      }
+      await Future<void>.delayed(Duration.zero);
+      expect(player.playing, isFalse);
+      expect(deck.playing, isFalse);
+      expect(
+        (handler.collectPlaybackDiagnostics()['crossfade']! as Map)['active'],
+        isFalse,
+      );
+      if (!noisy) {
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.playing, isTrue);
+        expect(deck.playing, isFalse);
+      }
+    });
+  }
+
+  for (final pauseDuring in [false, true]) {
+    test(
+      'interruption resume respects explicit Pause ($pauseDuring)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-interruption-',
+        );
+        final (handler, player, database) = await createHandler(directory, 1);
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          expect(session.interruptions.hasListener, isFalse);
+          expect(session.noisy.hasListener, isFalse);
+          await session.close();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.playing, isFalse);
+        if (pauseDuring) {
+          await handler.pause();
+        }
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.playing, !pauseDuring);
+        await handler.setVolume(0.8);
+        player.appliedVolumes.clear();
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.duck),
+        );
+        await Future<void>.delayed(Duration.zero);
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.duck),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.appliedVolumes, [closeTo(0.32, 0.0001), 0.8]);
+        handler.beginTeardown();
+        await handler.disposeHandler();
+      },
+    );
   }
 
   test(

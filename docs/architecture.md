@@ -2852,6 +2852,12 @@ and the first advancing position. `GET /v1/playback/status` exposes the latest
 16 attempts as `startupAttempts` for authenticated diagnostics; those entries
 contain elapsed milliseconds and source kind but no song ID, title, or URL.
 
+The handler owns audio-session interruptions and noisy-route pauses; all native
+players disable just_audio automatic interruption handling. An interruption
+resumes only if its captured transport generation is still current, so a user
+Pause or new selection during it is retained. Ducking and volume restoration
+have the same handler owner.
+
 Playback commands use prioritized intent. Play and pause bypass seek and queue
 fill work, seeks are last-write-wins, and later seeks, skips, selections, or
 pauses invalidate stale recovery so it cannot resume playback afterward.
