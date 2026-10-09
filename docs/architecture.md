@@ -2268,6 +2268,7 @@ private extensions on the handler within the same library:
 | Android Auto loading and browse refresh | `navis_audio_handler_android_auto.dart` |
 | Persistence and restore | `navis_audio_handler_persistence.dart` |
 | Released queue window | `navis_audio_handler_queue_window.dart` |
+| Queue loading and source preparation | `navis_audio_handler_queue_loading.dart` |
 
 Helpers that directly reference class static members remain in the class, as do
 source-guarded player construction and initialization.
