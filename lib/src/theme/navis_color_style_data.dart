@@ -154,12 +154,20 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
   ///
   /// Dark themes darken with [artworkScrim] (OLED heavier, so it still reads
   /// as OLED); light themes wash the cover out with [surface].
-  Color nowPlayingArtworkVeil(Color surface) {
-    if (dark) {
-      return artworkScrim.withValues(alpha: oled ? 0.8 : 0.68);
-    }
-    return surface.withValues(alpha: 0.68);
-  }
+  ///
+  /// This is the fixed veil, used until the cover's average colour is known;
+  /// [nowPlayingArtworkVeilRange] bounds the adaptive one.
+  Color nowPlayingArtworkVeil(Color surface) =>
+      nowPlayingArtworkVeilBase(surface)
+          .withValues(alpha: dark ? (oled ? 0.8 : 0.68) : 0.68);
+
+  /// Opaque colour of the Artwork veil.
+  Color nowPlayingArtworkVeilBase(Color surface) =>
+      dark ? artworkScrim : surface;
+
+  /// Smallest and largest veil alpha the adaptive Artwork veil may use.
+  (double, double) get nowPlayingArtworkVeilRange =>
+      dark ? (oled ? (0.55, 0.9) : (0.30, 0.80)) : (0.40, 0.85);
 
   /// Colour for confirmed, positive states (a completed download, a
   /// successful connection test). Neutral keeps the original greens; the

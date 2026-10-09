@@ -535,6 +535,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     required ImageProvider<Object>? image,
     required NavisColorStyleData colorStyle,
     required Color surfaceColor,
+    required Color onSurfaceColor,
     required Duration fadeDuration,
     required Widget child,
   }) {
@@ -547,8 +548,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             key: const ValueKey<String>('nowPlayingArtworkBackground'),
             imageKey: _artworkBackdropKey,
             image: image,
-            veil: colorStyle.nowPlayingArtworkVeil(surfaceColor),
+            colorStyle: colorStyle,
             surfaceColor: surfaceColor,
+            onSurfaceColor: onSurfaceColor,
             fadeDuration: fadeDuration,
           ),
         ),
@@ -717,6 +719,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           image: artworkImage,
           colorStyle: colorStyle,
           surfaceColor: surfaceColor,
+          onSurfaceColor: Theme.of(context).colorScheme.onSurface,
           fadeDuration: motion.surface,
           child: Builder(
             builder: (context) {

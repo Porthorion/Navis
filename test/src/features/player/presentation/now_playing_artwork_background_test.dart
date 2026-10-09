@@ -28,7 +28,7 @@ Future<ImageProvider> _solid(Color color) async {
 }
 
 void main() {
-  group('Artwork veil keeps on-surface text readable', () {
+  group('Adaptive Artwork veil keeps on-surface text readable', () {
     for (final style in NavisColorStyle.values) {
       for (final mode in <String>['light', 'dark', 'oled']) {
         final dark = mode != 'light';
@@ -40,35 +40,85 @@ void main() {
         final surface = oled ? Colors.black : scheme.surface;
         final onSurface = oled ? Colors.white : scheme.onSurface;
         final data = NavisColorStyleData(style: style, dark: dark, oled: oled);
+        final (min, max) = data.nowPlayingArtworkVeilRange;
         _covers.forEach((name, cover) {
           test('${style.name} $mode over $name', () {
-            final veiled = Color.alphaBlend(
-              data.nowPlayingArtworkVeil(surface),
-              cover,
+            final veil = nowPlayingAdaptiveVeil(
+              colorStyle: data,
+              surface: surface,
+              onSurface: onSurface,
+              average: cover,
             );
+            expect(veil.a, inInclusiveRange(min, max + 0.001));
             expect(
-              captionContrast(onSurface, veiled),
+              captionContrast(onSurface, Color.alphaBlend(veil, cover)),
               greaterThanOrEqualTo(kCaptionMinContrast),
             );
           });
         });
+        test('${style.name} $mode: black cover gets the minimum veil', () {
+          final veil = nowPlayingAdaptiveVeil(
+            colorStyle: data,
+            surface: surface,
+            onSurface: onSurface,
+            average: Colors.black,
+          );
+          // Dark covers need little veil; a light theme's black cover needs
+          // the most, so only dark modes sit at the floor.
+          if (dark) expect(veil.a, closeTo(min, 0.0001));
+        });
+        test('${style.name} $mode: unknown average uses the fixed veil', () {
+          expect(
+            nowPlayingAdaptiveVeil(
+              colorStyle: data,
+              surface: surface,
+              onSurface: onSurface,
+              average: null,
+            ),
+            data.nowPlayingArtworkVeil(surface),
+          );
+        });
       }
     }
 
-    test('OLED veil stays heavier than the dark veil', () {
-      const dark = NavisColorStyleData(
-        style: NavisColorStyle.neutral,
-        dark: true,
-      );
-      const oled = NavisColorStyleData(
-        style: NavisColorStyle.neutral,
-        dark: true,
-        oled: true,
+    test('ranges: dark 0.30-0.80, OLED 0.55-0.90, light 0.40-0.85', () {
+      const style = NavisColorStyle.neutral;
+      expect(
+        const NavisColorStyleData(
+          style: style,
+          dark: true,
+        ).nowPlayingArtworkVeilRange,
+        (0.30, 0.80),
       );
       expect(
-        oled.nowPlayingArtworkVeil(Colors.black).a,
-        greaterThan(dark.nowPlayingArtworkVeil(Colors.black).a),
+        const NavisColorStyleData(
+          style: style,
+          dark: true,
+          oled: true,
+        ).nowPlayingArtworkVeilRange,
+        (0.55, 0.9),
       );
+      expect(
+        const NavisColorStyleData(
+          style: style,
+          dark: false,
+        ).nowPlayingArtworkVeilRange,
+        (0.40, 0.85),
+      );
+    });
+
+    test('a dark cover shows more art than a bright one', () {
+      const data = NavisColorStyleData(
+        style: NavisColorStyle.neutral,
+        dark: true,
+      );
+      double alpha(Color c) => nowPlayingAdaptiveVeil(
+        colorStyle: data,
+        surface: const Color(0xFF141218),
+        onSurface: const Color(0xFFE6E0E9),
+        average: c,
+      ).a;
+      expect(alpha(const Color(0xFF301000)), lessThan(alpha(Colors.white)));
     });
   });
 
@@ -126,8 +176,12 @@ void main() {
         child: NowPlayingArtworkBackground(
           imageKey: key,
           image: image,
-          veil: const Color(0x99000000),
+          colorStyle: const NavisColorStyleData(
+            style: NavisColorStyle.neutral,
+            dark: true,
+          ),
           surfaceColor: const Color(0xFF101418),
+          onSurfaceColor: Colors.white,
           fadeDuration: fade,
         ),
       ),
