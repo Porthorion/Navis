@@ -230,13 +230,13 @@ The updater script:
 ## Publishing Both Formats
 
 `release.sh` builds one Linux package per run (`--linux-package=bundle|deb`) and
-publishes it to R2 in that run. `tool/r2_publish.sh` writes `SHA256SUMS` and the
-channel manifest once per tag and refuses to change them afterwards, so uploading the
-second format later with a second publish for the same tag fails. Until `release.sh`
-can build both formats in one run, pass both files to a single
-`r2_publish.sh publish --tag=<tag> --channel=<channel> <files…>` call to ship them
-together. Each install type reads only its own key (`linuxDeb-<arch>` or
-`linuxPortable`), and an install whose key is missing sees no update.
+publishes it to R2 in that run. To ship the other format for the same version, run
+`release.sh` again with `--allow-existing-version` and the other `--linux-package`, or
+pass the file to `tool/r2_publish.sh publish --tag=<tag> --channel=<channel> <file>`.
+When the channel already points at that tag, the publish adds the new asset to the
+signed manifest and rewrites `SHA256SUMS`; existing assets are kept. Each install
+type reads only its own key (`linuxDeb-<arch>` or `linuxPortable`), and an install
+whose key is missing sees no update.
 
 ---
 

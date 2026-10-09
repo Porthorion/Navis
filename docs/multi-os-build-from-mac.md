@@ -103,8 +103,10 @@ Before relying on remote builders for a release:
    ssh linux-builder "flutter --version"
    ssh windows-builder "flutter --version"
    ```
-3. Run a remote-only release build with an unpublished dev tag or with upload
-   disabled in a disposable test branch.
+3. Run the remote builds from a disposable test branch. `release.sh` always
+   publishes, so to exercise publishing use
+   `./tool/r2_publish.sh publish --channel=staging …` with the built files and
+   delete the staging objects afterwards (see `docs/release-r2.md`).
 4. Confirm copied artifacts exist at the repository root and match the expected
    asset names.
 5. Confirm the published R2 assets and manifest match the active channel

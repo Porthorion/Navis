@@ -10,8 +10,10 @@
 #   ./tool/r2_publish.sh check   --tag=<vX.Y.Z> --channel=<stable|dev|staging>
 #
 # publish uploads each FILE to navis/releases/<tag>/ (never overwriting a different
-# file), uploads SHA256SUMS, then signs and uploads the channel manifest last, and
+# file), rewrites SHA256SUMS, then signs and uploads the channel manifest last, and
 # finally runs verify. Re-running the same publish is safe: identical files are skipped.
+# Publishing more files for the tag the channel already points at (for example the
+# Windows installer after the Linux run) adds them to that manifest.
 # verify downloads the public manifest, checks its signature against the key pinned in
 # lib/src/utils/constants.dart, and checks every asset's size and SHA-256.
 # check runs publish's preconditions only (settings, signing key, channel order);
@@ -225,8 +227,19 @@ if [[ "${MODE}" == "check" ]]; then
   exit 0
 fi
 
+# A release is often published in several runs (one per package or host). When
+# the channel already points at this tag, keep its assets and add the new ones.
 ASSETS_JSON='{}'
-: > "${WORK_DIR}/SHA256SUMS"
+if [[ "${current_status}" == "200" && "$(jq -r '.payload' "${WORK_DIR}/current.json" | base64 -d | jq -r '.tag')" == "${TAG}" ]]; then
+  write_public_pem "$(pinned_public_key)" "${WORK_DIR}/pinned.pem"
+  jq -r '.payload' "${WORK_DIR}/current.json" | base64 -d > "${WORK_DIR}/current-payload.json"
+  jq -r '.signature' "${WORK_DIR}/current.json" | base64 -d > "${WORK_DIR}/current-sig.bin"
+  openssl pkeyutl -verify -pubin -inkey "${WORK_DIR}/pinned.pem" -rawin \
+    -in "${WORK_DIR}/current-payload.json" -sigfile "${WORK_DIR}/current-sig.bin" >/dev/null \
+    || { echo "Error: the current ${CHANNEL} manifest is not signed by the pinned key." >&2; exit 1; }
+  ASSETS_JSON="$(jq -c '.assets' "${WORK_DIR}/current-payload.json")"
+  echo "==> Adding to the existing ${TAG} manifest ($(jq -r 'keys | join(", ")' <<< "${ASSETS_JSON}"))"
+fi
 for file in "${FILES[@]}"; do
   name="$(basename "${file}")"
   key="$(asset_key_for "${name}")"
@@ -247,20 +260,18 @@ for file in "${FILES[@]}"; do
     echo "Error: ${object} already exists with different content; release files are never overwritten." >&2
     exit 1
   fi
-  echo "${sha}  ${name}" >> "${WORK_DIR}/SHA256SUMS"
   ASSETS_JSON="$(jq -c --arg k "${key}" --arg url "${PUBLIC_ROOT}/${object}" --arg sha "${sha}" --argjson size "${size}" \
     '. + {($k): {url: $url, sha256: $sha, size: $size}}' <<< "${ASSETS_JSON}")"
 done
 [[ "${ASSETS_JSON}" != '{}' ]] || { echo "Error: no updater assets among the given files." >&2; exit 1; }
 
-sums_sha="$(sha256sum "${WORK_DIR}/SHA256SUMS" | awk '{print $1}')"
-existing="$(remote_sha256 "releases/${TAG}/SHA256SUMS")"
-if [[ "${existing}" == "none" ]]; then
-  upload "${WORK_DIR}/SHA256SUMS" "releases/${TAG}/SHA256SUMS" "text/plain; charset=utf-8" "public, max-age=31536000, immutable" "${sums_sha}"
-elif [[ "${existing}" != "${sums_sha}" ]]; then
-  echo "Error: releases/${TAG}/SHA256SUMS already exists with different content." >&2
-  exit 1
-fi
+# SHA256SUMS lists every asset of the tag, so it changes as runs add assets.
+jq -r '.assets | to_entries[] | "\(.value.sha256)  \(.value.url | split("/") | last)"' \
+  <<< "{\"assets\": ${ASSETS_JSON}}" | sort -k2 > "${WORK_DIR}/SHA256SUMS"
+SUMS_NAME="SHA256SUMS"
+[[ "${CHANNEL}" == "stable" ]] || SUMS_NAME="SHA256SUMS.${CHANNEL}"
+upload "${WORK_DIR}/SHA256SUMS" "releases/${TAG}/${SUMS_NAME}" "text/plain; charset=utf-8" "no-cache" \
+  "$(sha256sum "${WORK_DIR}/SHA256SUMS" | awk '{print $1}')"
 
 NOTES=""
 [[ -n "${NOTES_FILE}" ]] && NOTES="$(cat "${NOTES_FILE}")"

@@ -17,10 +17,10 @@ navis/channels/stable/manifest.json   Cache-Control: no-cache
 navis/channels/dev/manifest.json      Cache-Control: no-cache
 navis/channels/staging/manifest.json  test channel; no shipped build reads it
 navis/releases/<tag>/<asset>          Cache-Control: public, max-age=31536000, immutable
-navis/releases/<tag>/SHA256SUMS
+navis/releases/<tag>/SHA256SUMS      Cache-Control: no-cache (SHA256SUMS.<channel> off stable)
 ```
 
-Release files are immutable: `tool/r2_publish.sh` refuses to replace an object
+Release files (everything except `SHA256SUMS`) are immutable: `tool/r2_publish.sh` refuses to replace an object
 whose content differs, and Cloudflare's edge keeps serving a cached copy for a
 year anyway. Fix a bad release by publishing a newer version. Channels never
 move to an older version.
@@ -71,6 +71,11 @@ in `constants.dart`, or if the channel already holds a newer version.
 - 1.5.0 only: `./tool/release.sh v1.5.0 --forgejo …` also creates the Forgejo
   release that 1.4.x installs look for.
 - Later releases: `./tool/release.sh v1.5.1 …`.
+- More files for the same version (the other Linux or Windows package, or the
+  macOS zip built on a Mac): run `release.sh` again with `--allow-existing-version`,
+  or `tool/r2_publish.sh publish` with just those files. When the channel already
+  points at that tag, the new assets are added to its manifest (after checking the
+  current manifest's signature) and `SHA256SUMS` is rewritten.
 - Retry a failed upload: the artifacts stay in `build/` until every publish
   step succeeds, so run
   `./tool/r2_publish.sh publish --tag=v1.5.1 --channel=stable --notes-file=<md> <files…>`

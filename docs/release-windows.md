@@ -304,12 +304,11 @@ The updater script:
 ## Publishing Both Formats
 
 `release.sh` builds one Windows package per run (`--windows-package=zip|exe`) and
-publishes it to R2 in that run. `tool/r2_publish.sh` writes `SHA256SUMS` and the
-channel manifest once per tag and refuses to change them afterwards, so uploading the
-second format later with a second publish for the same tag fails. Ship one Windows
-format per tag with `release.sh` (the installer is recommended). Publishing both
-formats needs the two files passed to a single `r2_publish.sh publish` call, which
-`release.sh` does not do yet.
+publishes it to R2 in that run. To ship the other format for the same version, run
+`release.sh` again with `--allow-existing-version` and the other `--windows-package`,
+or pass the file to `tool/r2_publish.sh publish --tag=<tag> --channel=<channel> <file>`.
+When the channel already points at that tag, the publish adds the new asset to the
+signed manifest and rewrites `SHA256SUMS`; existing assets are kept.
 
 Windows installs pick their asset by detected install mode: installer installs read
 `windowsInstaller` and portable installs read `windowsPortable`. A manifest that lacks the
