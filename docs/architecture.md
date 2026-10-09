@@ -609,7 +609,7 @@ target-selection rules.
   backdrop filter), lays `NavisColorStyleData.nowPlayingArtworkVeil` over it
   (adaptive: the smallest alpha keeping 5.0:1 against the 96 px average, dark 0.30-0.80, OLED 0.55-0.90, light 0.40-0.85, fixed 0.68/0.8/0.68 until known; tuned so
   `onSurface` keeps WCAG 4.5 on yellow, white, black and red covers) and adds a 0.15 veil over the bottom fifth
-  the bottom into `surface`. The previous cover stays until the next one
+  (the bottom fifth only). The previous cover stays until the next one
   decodes, then crossfades over `MotionPolicy.surface`. Flat has no blur, so
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
   external art uses the same allowed-artwork path as the tint, and with no
