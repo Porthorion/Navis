@@ -360,6 +360,11 @@ build their own containers keep Riverpod's default unless they pass it.
 
 ### Authentication, initial catalog, and teardown
 
+Credential redaction treats URL user info as a credential: request logging and
+free-text error redaction strip it, and OS media URL guards reject it. Server URL
+storage and transport still retain user info pending migration to an Authorization
+header.
+
 Connection probes always start with token authentication, regardless of the
 reported API version. Only Subsonic code 41 (token authentication unsupported)
 permits a legacy retry. That retry is blocked for non-loopback HTTP servers and

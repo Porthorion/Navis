@@ -4,7 +4,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
+  test('URL user info is a credential even without query authentication', () {
+    expect(
+      uriCarriesCredentials(
+        Uri.parse('https://user:pass@example.com/cover?id=7'),
+      ),
+      isTrue,
+    );
+    expect(
+      uriCarriesCredentials(Uri.parse('https://example.com/cover?id=7')),
+      isFalse,
+    );
+    expect(
+      uriCarriesCredentials(Uri.parse('https://example.com/cover?T=token')),
+      isTrue,
+    );
+  });
+
   group('redactCredentialQueryParameters', () {
+    test('strips user info from multiple URLs and keeps path parameters', () {
+      expect(
+        redactCredentialQueryParameters(
+          'GET https://user:pass%40word@example.com/rest?id=7&t=token then //name:secret@other.test/path',
+        ),
+        'GET https://example.com/rest?id=7&t=REDACTED then //other.test/path',
+      );
+      expect(
+        redactCredentialQueryParameters(
+          'https://example.com/path/user@name?id=7',
+        ),
+        'https://example.com/path/user@name?id=7',
+      );
+    });
+
     test('redacts HTML-escaped and double-encoded separators', () {
       expect(
         redactCredentialQueryParameters(

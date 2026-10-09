@@ -77,6 +77,6 @@ class SubsonicLoggingInterceptor extends Interceptor {
           ? 'REDACTED'
           : entry.value;
     }
-    return uri.replace(queryParameters: redacted);
+    return uri.replace(userInfo: '', queryParameters: redacted);
   }
 }

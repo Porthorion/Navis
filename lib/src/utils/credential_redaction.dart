@@ -6,9 +6,10 @@ import 'dart:async';
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
 const subsonicCredentialQueryParameters = {'u', 't', 's', 'p', 'apiKey'};
 
-/// Whether [uri] carries a Subsonic credential query parameter, and so must
+/// Whether [uri] carries URL user info or a Subsonic credential parameter and must
 /// not be handed to another process (media sessions, MPRIS, SMTC).
 bool uriCarriesCredentials(Uri uri) {
+  if (uri.userInfo.isNotEmpty) return true;
   final keys = uri.queryParameters.keys.map((key) => key.toLowerCase());
   return keys.any(
     (key) => subsonicCredentialQueryParameters.any(
@@ -27,11 +28,19 @@ final _credentialQueryParameter = RegExp(
   caseSensitive: false,
 );
 
-/// Replaces the value of every Subsonic credential query parameter in [text]
+// Strip user info from URL authorities in logs, including multiple URLs and
+// percent-encoded credentials. Do not consume paths, queries or HTML delimiters.
+final _credentialUserInfo = RegExp(
+  r'''((?:[a-z][a-z0-9+.-]*:)?//)[^/\s?#"'<>]*@''',
+  caseSensitive: false,
+);
+
+/// Strips URL user info and replaces the value of every Subsonic credential query parameter in [text]
 /// with `REDACTED`, leaving the rest of the text, including other parameters
 /// such as the song `id`, unchanged.
-String redactCredentialQueryParameters(String text) =>
-    text.replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED');
+String redactCredentialQueryParameters(String text) => text
+    .replaceAllMapped(_credentialUserInfo, (m) => m[1]!)
+    .replaceAllMapped(_credentialQueryParameter, (m) => '${m[1]}REDACTED');
 
 /// Runs [body] in a zone whose `print` passes every line through
 /// [redactCredentialQueryParameters] before the parent zone writes it.
