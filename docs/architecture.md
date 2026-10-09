@@ -360,6 +360,11 @@ build their own containers keep Riverpod's default unless they pass it.
 
 ### Authentication, initial catalog, and teardown
 
+Connection probes always start with token authentication, regardless of the
+reported API version. Only Subsonic code 41 (token authentication unsupported)
+permits a legacy retry. That retry is blocked for non-loopback HTTP servers and
+asks the user to connect over HTTPS; code 40 never sends a reversible password.
+
 Navis retains one local server/account profile. Its stable identity is the
 normalized server base URL plus trimmed username. Schema v61 stores
 `server_config.is_authenticated` separately from the non-secret profile:

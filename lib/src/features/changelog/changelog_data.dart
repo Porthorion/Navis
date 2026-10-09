@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Login retries legacy authentication only when the server explicitly requires it, and requires HTTPS outside loopback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Radio requires HTTP or HTTPS streams and discovers AzuraCast metadata only from stream addresses',
         type: ChangelogEntryType.fix,
       ),

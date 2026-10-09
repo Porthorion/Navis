@@ -27,6 +27,7 @@
   "loginValidationPasswordRequired": "Password is required.",
   "loginErrorAuthentication": "Authentication failed. Check your credentials.",
   "loginErrorConnection": "Could not reach server. Check URL and network.",
+  "loginErrorInsecureLegacyAuth": "This server requires legacy authentication. Use HTTPS to protect your password.",
   "loginErrorUnknown": "Unexpected error while connecting.",
   "loginTestConnectionSuccess": "Connection successful (API {apiVersion}).",
   "@loginTestConnectionSuccess": {

@@ -22,6 +22,20 @@ class SubsonicAuthException extends SubsonicApiException {
   const new({required super.message}) : super(code: 40);
 }
 
+/// Token authentication is unsupported (`error.code == 41`).
+class SubsonicTokenAuthUnsupportedException extends SubsonicApiException {
+  const new({required super.message}) : super(code: 41);
+}
+
+/// Legacy authentication would expose a reversible password over HTTP.
+class SubsonicInsecureLegacyAuthException extends SubsonicApiException {
+  const new()
+    : super(
+        code: 41,
+        message: 'This server requires legacy authentication. Use HTTPS to protect your password.',
+      );
+}
+
 /// Authenticated user has insufficient permissions (`error.code == 50`).
 class SubsonicForbiddenException extends SubsonicApiException {
   const new({required super.message}) : super(code: 50);
@@ -91,6 +105,7 @@ SubsonicApiException mapSubsonicApiError({int? code, String? message}) {
 
   return switch (code) {
     40 => SubsonicAuthException(message: resolvedMessage),
+    41 => SubsonicTokenAuthUnsupportedException(message: resolvedMessage),
     50 => SubsonicForbiddenException(message: resolvedMessage),
     70 => SubsonicNotFoundException(message: resolvedMessage),
     _ => SubsonicGenericException(code: code, message: resolvedMessage),

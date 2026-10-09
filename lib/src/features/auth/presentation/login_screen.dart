@@ -518,6 +518,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   String _toUserMessage(Object error, AppLocalizations l10n) {
     return switch (error) {
+      SubsonicInsecureLegacyAuthException() =>
+        l10n.loginErrorInsecureLegacyAuth,
       SubsonicAuthException() => l10n.loginErrorAuthentication,
       SubsonicConnectionException() => l10n.loginErrorConnection,
       SubsonicApiException(:final message) => message,

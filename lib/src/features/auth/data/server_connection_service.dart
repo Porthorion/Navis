@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -34,7 +37,9 @@ abstract class ServerConnectionService {
 }
 
 class SubsonicServerConnectionService extends ServerConnectionService {
-  const new();
+  const new({this._createDio});
+
+  final Dio Function(String url)? _createDio;
 
   static const _defaultApiVersion = '1.16.1';
 
@@ -51,7 +56,15 @@ class SubsonicServerConnectionService extends ServerConnectionService {
         password: password,
         authType: SubsonicAuthType.token,
       );
-    } on SubsonicAuthException {
+    } on SubsonicTokenAuthUnsupportedException {
+      final uri = Uri.parse(url);
+      final address = InternetAddress.tryParse(uri.host);
+      final loopback =
+          uri.host.toLowerCase() == 'localhost' ||
+          (address?.isLoopback ?? false);
+      if (uri.scheme == 'http' && !loopback) {
+        throw const SubsonicInsecureLegacyAuthException();
+      }
       final fallback = await _probeWithAuthType(
         url: url,
         username: username,
@@ -70,6 +83,7 @@ class SubsonicServerConnectionService extends ServerConnectionService {
   }) async {
     final client = SubsonicApiClient(
       baseUrl: url,
+      dio: _createDio?.call(url),
       authConfig: SubsonicAuthConfig(
         username: username,
         password: password,
@@ -79,28 +93,17 @@ class SubsonicServerConnectionService extends ServerConnectionService {
     );
 
     final apiVersion = await client.ping();
-    final useLegacyAuth =
-        authType == SubsonicAuthType.legacyPassword ||
-        _requiresLegacyAuth(apiVersion);
-    final capabilitiesClient = useLegacyAuth
-        ? SubsonicApiClient(
-            baseUrl: url,
-            authConfig: SubsonicAuthConfig(
-              username: username,
-              password: password,
-              apiVersion: apiVersion,
-              authType: SubsonicAuthType.legacyPassword,
-            ),
-          )
-        : SubsonicApiClient(
-            baseUrl: url,
-            authConfig: SubsonicAuthConfig(
-              username: username,
-              password: password,
-              apiVersion: apiVersion,
-              authType: authType,
-            ),
-          );
+    final useLegacyAuth = authType == SubsonicAuthType.legacyPassword;
+    final capabilitiesClient = SubsonicApiClient(
+      baseUrl: url,
+      dio: _createDio?.call(url),
+      authConfig: SubsonicAuthConfig(
+        username: username,
+        password: password,
+        apiVersion: apiVersion,
+        authType: authType,
+      ),
+    );
 
     final capabilities = await _getCapabilitiesOrDefault(capabilitiesClient);
     return ServerConnectionProbeResult(
@@ -123,21 +126,5 @@ class SubsonicServerConnectionService extends ServerConnectionService {
       }
       rethrow;
     }
-  }
-
-  bool _requiresLegacyAuth(String version) {
-    final parts = version
-        .split('.')
-        .map((part) => int.tryParse(part) ?? 0)
-        .toList(growable: false);
-    if (parts.length < 2) {
-      return false;
-    }
-    final major = parts[0];
-    final minor = parts[1];
-    if (major < 1) {
-      return true;
-    }
-    return major == 1 && minor < 13;
   }
 }

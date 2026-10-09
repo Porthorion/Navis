@@ -97,6 +97,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not reach server. Check URL and network.';
 
   @override
+  String get loginErrorInsecureLegacyAuth =>
+      'This server requires legacy authentication. Use HTTPS to protect your password.';
+
+  @override
   String get loginErrorUnknown => 'Unexpected error while connecting.';
 
   @override

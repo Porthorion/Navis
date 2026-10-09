@@ -262,6 +262,12 @@ abstract class AppLocalizations {
   /// **'Could not reach server. Check URL and network.'**
   String get loginErrorConnection;
 
+  /// No description provided for @loginErrorInsecureLegacyAuth.
+  ///
+  /// In en, this message translates to:
+  /// **'This server requires legacy authentication. Use HTTPS to protect your password.'**
+  String get loginErrorInsecureLegacyAuth;
+
   /// No description provided for @loginErrorUnknown.
   ///
   /// In en, this message translates to:
