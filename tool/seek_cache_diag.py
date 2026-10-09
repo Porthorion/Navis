@@ -15,6 +15,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from diagnostics_profile import primary_database
+
 
 def api(port: int, token: str, method: str, path: str, body: dict | None = None):
     data = None if body is None else json.dumps(body).encode()
@@ -78,12 +80,7 @@ def main() -> int:
     clone_db = root / "navis-diagnostics.sqlite"
     handshake = root / "handshake.json"
     app_log = root / "navis.log"
-    source_db = Path(
-        os.environ.get(
-            "NAVIS_DIAGNOSTICS_PRIMARY_DB",
-            str(Path.home() / "Documents" / "navis.sqlite.sqlite"),
-        )
-    ).expanduser()
+    source_db = primary_database()
 
     source = sqlite3.connect(f"file:{source_db}?mode=ro", uri=True)
     target = sqlite3.connect(clone_db)

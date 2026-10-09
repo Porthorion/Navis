@@ -141,6 +141,8 @@ class LyricsResolver {
       );
       AppLogger.info('Lyrics source resolved: ${source.name} for song=$songId');
       return LyricsResolution(lyrics: resolvedLyrics, source: source);
+    } on LrclibRateLimitedException {
+      return null;
     } on DioException catch (error) {
       AppLogger.warning(
         'Lyrics: LRCLIB lookup failed for $songId: ${error.message}',

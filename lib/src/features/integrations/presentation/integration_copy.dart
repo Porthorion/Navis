@@ -24,14 +24,14 @@ String integrationServiceDescription(
   IntegrationService service,
   AppLocalizations l10n,
 ) {
-  final host = service.host ?? '';
+  final host = service.displayHost ?? '';
   return switch (service) {
     IntegrationService.deezer => l10n.integrationsDeezerSends(host),
     IntegrationService.lastFm => l10n.integrationsLastFmSends(host),
     IntegrationService.listenBrainz => l10n.integrationsListenBrainzSends(host),
     IntegrationService.lrclib => l10n.integrationsLrclibSends(host),
     IntegrationService.updates => l10n.integrationsUpdatesSends(host),
-    IntegrationService.autoEq => l10n.integrationsAutoEqSends,
+    IntegrationService.autoEq => l10n.integrationsAutoEqSends(host),
     IntegrationService.radioMetadata => l10n.integrationsRadioSends,
     IntegrationService.serverLinkedArtwork => l10n.integrationsArtworkSends,
   };

@@ -934,6 +934,12 @@ abstract class AppLocalizations {
   /// **'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.'**
   String get privacySummary;
 
+  /// Link at the end of the in-app Privacy page that opens the full policy on the Navis website.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the full privacy policy'**
+  String get privacyReadFullPolicy;
+
   /// No description provided for @syncSettingsTitle.
   ///
   /// In en, this message translates to:
@@ -2409,7 +2415,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyOnlineServicesBody.
   ///
   /// In en, this message translates to:
-  /// **'Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
+  /// **'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.'**
   String get privacyOnlineServicesBody;
 
   /// No description provided for @privacyOpenIntegrations.
@@ -2493,13 +2499,13 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsDeezerSends.
   ///
   /// In en, this message translates to:
-  /// **'Sends artist and track names to {host}.'**
+  /// **'Sends artist, album and track names to {host} and loads images from Deezer\'s image servers.'**
   String integrationsDeezerSends(String host);
 
   /// No description provided for @integrationsLastFmSends.
   ///
   /// In en, this message translates to:
-  /// **'Sends track and artist names to {host}.'**
+  /// **'Sends track and artist names to {host}, using the API key included with Navis or your own.'**
   String integrationsLastFmSends(String host);
 
   /// No description provided for @integrationsListenBrainzSends.
@@ -2520,11 +2526,11 @@ abstract class AppLocalizations {
   /// **'Sends an app version check to {host}.'**
   String integrationsUpdatesSends(String host);
 
-  /// No description provided for @integrationsAutoEqSends.
+  /// AutoEQ network hosts disclosed to the user.
   ///
   /// In en, this message translates to:
-  /// **'Downloads headphone profiles from GitHub, only when you ask.'**
-  String get integrationsAutoEqSends;
+  /// **'Downloads headphone profiles from {host}, only when you ask.'**
+  String integrationsAutoEqSends(String host);
 
   /// No description provided for @integrationsRadioSends.
   ///
@@ -3320,8 +3326,26 @@ abstract class AppLocalizations {
   /// Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 fan} other{{count} fans}}'**
+  /// **'{count, plural, =1{1 fan on Deezer} other{{count} fans on Deezer}}'**
   String artistDetailFanCount(int count);
+
+  /// Small credit under a section title whose content comes from Deezer, such as similar artists or new releases. Deezer is a product name.
+  ///
+  /// In en, this message translates to:
+  /// **'From Deezer'**
+  String get sourceFromDeezer;
+
+  /// Small credit under a section title whose content comes from Last.fm; tapping it opens the artist on Last.fm. Last.fm is a product name.
+  ///
+  /// In en, this message translates to:
+  /// **'From Last.fm'**
+  String get sourceFromLastFm;
+
+  /// Small credit under the artist page's top songs when the list combines Deezer and Last.fm; tapping it opens the artist on Last.fm.
+  ///
+  /// In en, this message translates to:
+  /// **'From Deezer and Last.fm'**
+  String get sourceFromDeezerAndLastFm;
 
   /// No description provided for @deezerReleaseTypeAlbum.
   ///
@@ -3365,7 +3389,7 @@ abstract class AppLocalizations {
   /// **'Loading Artist Details'**
   String get artistDetailLoadingLabel;
 
-  /// Shown while an artist from the server's remote catalogue (such as Deezer through Octo-Fiesta) is fetched before its page can show.
+  /// Shown while an artist from the server's remote catalogue (such as a Deezer-backed server) is fetched before its page can show.
   ///
   /// In en, this message translates to:
   /// **'Loading Remote Artist…'**
@@ -3521,7 +3545,7 @@ abstract class AppLocalizations {
   /// **'Could not refresh this album. Check your connection and try again.'**
   String get albumDetailRefreshError;
 
-  /// Shown while an album from the server's remote catalogue (such as Deezer through Octo-Fiesta) and its tracks are fetched before its page can show.
+  /// Shown while an album from the server's remote catalogue (such as a Deezer-backed server) and its tracks are fetched before its page can show.
   ///
   /// In en, this message translates to:
   /// **'Loading Remote Album…'**
@@ -3986,7 +4010,7 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingSameVibesStarted.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}'**
+  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}'**
   String nowPlayingSameVibesStarted(int count);
 
   /// No description provided for @nowPlayingSameVibesUnsupported.
@@ -5351,6 +5375,48 @@ abstract class AppLocalizations {
   /// **'See every version\'s changes and bug fixes.'**
   String get aboutChangelogSub;
 
+  /// About tile that opens the Navis website in the browser.
+  ///
+  /// In en, this message translates to:
+  /// **'Website'**
+  String get aboutWebsite;
+
+  /// About tile that opens the full Navis app privacy policy on the website.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get aboutPrivacyPolicy;
+
+  /// No description provided for @aboutPrivacyPolicySub.
+  ///
+  /// In en, this message translates to:
+  /// **'The full policy on the Navis website.'**
+  String get aboutPrivacyPolicySub;
+
+  /// About tile that opens the Navis End User Licence Agreement on the website.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of use'**
+  String get aboutTerms;
+
+  /// No description provided for @aboutTermsSub.
+  ///
+  /// In en, this message translates to:
+  /// **'The licence agreement for using Navis.'**
+  String get aboutTermsSub;
+
+  /// About tile that starts an email to Navis support.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact support'**
+  String get aboutContact;
+
+  /// Notice shown when the system can't open a link or start an email from About or Privacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open {target}.'**
+  String aboutLinkOpenFailed(String target);
+
   /// No description provided for @changelogSpecialThanks.
   ///
   /// In en, this message translates to:
@@ -5758,6 +5824,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download failed. Please try again.'**
   String get updateDownloadFailed;
+
+  /// Shown when a downloaded update fails the signed manifest size or SHA-256 integrity check.
+  ///
+  /// In en, this message translates to:
+  /// **'The update download was damaged. Try again.'**
+  String get updateDownloadDamaged;
 
   /// No description provided for @updateApplyFailed.
   ///
@@ -8105,6 +8177,12 @@ abstract class AppLocalizations {
   /// **'Your current settings will be kept. You can reopen this from Settings at any time.'**
   String get onboardingSkipDialogMessage;
 
+  /// Body of the Skip setup dialog before the last step: skipping still shows the Integrations step so the user sees every online service before Navis uses it.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.'**
+  String get onboardingSkipToIntegrationsDialogMessage;
+
   /// No description provided for @onboardingKeepCustomizing.
   ///
   /// In en, this message translates to:
@@ -8458,6 +8536,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Go to the next page after going back; the mouse Forward button does the same'**
   String get desktopShortcutsNavigateForwardDescription;
+
+  /// Explains why an external radio station cannot play with the master online services switch off.
+  ///
+  /// In en, this message translates to:
+  /// **'Online services are off. Turn them on in Integrations to play stations outside your server.'**
+  String get radioPlaybackBlockedOnlineServicesOff;
+
+  /// Error when secure storage cannot delete the ListenBrainz credential; connection remains unchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t remove the ListenBrainz token. Try again.'**
+  String get integrationsListenBrainzDisconnectFailed;
 }
 
 class _AppLocalizationsDelegate

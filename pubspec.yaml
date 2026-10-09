@@ -17,7 +17,6 @@ dependencies:
   cached_network_image: ^4.0.2
   cupertino_ui: ^1.1.1
   cupertino_icons: ^1.0.9
-  colornames: ^0.2.0
   connectivity_plus: ^7.3.1
   crypto: ^3.0.7
   dio: ^5.11.1
@@ -66,6 +65,7 @@ dependencies:
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
   media_kit_libs_macos_audio: ^1.1.4
+  cryptography: ^2.9.0
 
 dev_dependencies:
   build_runner: ^2.16.1
@@ -91,6 +91,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/licenses/
     - assets/autoeq/
     - assets/changelog/
     - lib/src/icon/Navis_App_Icon.png

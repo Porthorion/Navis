@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart' show BaseOptions;
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart'
     show mapEquals, setEquals, visibleForTesting;
@@ -667,6 +668,7 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   }
   return LastFmApiClient(
     apiKey: apiKey,
+    cache: ref.watch(integrationJsonCacheProvider),
     dio: ref.watch(externalDioFactoryProvider)(
       IntegrationService.lastFm,
       options: LastFmApiClient.baseOptions,
@@ -777,6 +779,7 @@ final lastFmApiClientFactoryProvider =
       final createDio = ref.watch(externalDioFactoryProvider);
       return (apiKey) => LastFmApiClient(
         apiKey: apiKey,
+        cache: ref.read(integrationJsonCacheProvider),
         dio: createDio(
           IntegrationService.lastFm,
           options: LastFmApiClient.baseOptions,
@@ -1161,6 +1164,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readRadioMetadataAllowed: () => ref
           .read(integrationPolicyProvider)
           .allows(IntegrationFeature.radioNowPlaying),
+      readRadioPlaybackAllowed: (stream) =>
+          ref.read(integrationPolicyProvider).masterEnabled ||
+          stream.host.toLowerCase() ==
+              ref.read(serverHostProvider)?.toLowerCase(),
       readRadioArtworkAllowed: (uri) => integrationAllowsRadioArtworkUri(
         ref.read(integrationPolicyProvider),
         uri,
@@ -1168,6 +1175,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       ),
       createRadioMetadataDio: () => ref.read(externalDioFactoryProvider)(
         IntegrationService.radioMetadata,
+        options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
       ),
       startPreferredMix: (seedId) async {
         final settings = await ref
@@ -2786,12 +2794,27 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
   return UpdateService(
-    dio: ref.watch(externalDioFactoryProvider)(IntegrationService.updates),
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.updates,
+      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
+    ),
     networkUsageReporter: meter.record,
   );
 });
 
-/// Checks whether a newer Navis release is available on Forgejo.
+/// Retains the updater's last manifest check for diagnostics.
+final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
+  return UpdateRepository(
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.updates,
+      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
+    ),
+    installSourceService: ref.watch(installSourceServiceProvider),
+    updateCheckStore: ref.watch(updateCheckStoreProvider),
+  );
+});
+
+/// Checks whether a newer signed Navis release is available.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   final isLoading = ref.watch(
@@ -2821,14 +2844,9 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
     return null;
   }
 
-  return await UpdateRepository(
-    dio: ref.read(externalDioFactoryProvider)(IntegrationService.updates),
-    installSourceService: ref.read(installSourceServiceProvider),
-    updateCheckStore: ref.read(updateCheckStoreProvider),
-  ).checkForUpdate(
-    includePrerelease: AppConstants.updateChannel == 'dev',
-    forceCheck: forceCheck,
-  );
+  return await ref
+      .read(updateRepositoryProvider)
+      .checkForUpdate(forceCheck: forceCheck);
 });
 
 List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {

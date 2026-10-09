@@ -12,6 +12,7 @@ import 'dart:math';
 
 import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
@@ -59,6 +60,10 @@ import 'package:navis/src/features/player/presentation/recommendation_session_co
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/settings/data/update_repository.dart';
+import 'package:navis/src/features/settings/data/update_install_mode.dart';
+import 'package:navis/src/features/settings/data/update_service.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -3034,6 +3039,58 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, await _localSearchTiming(query));
         return;
       }
+      if (request.method == 'GET' && path == '/v1/diagnostics/update') {
+        await _respond(request, HttpStatus.ok, _updateDiagnosticsJson());
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/diagnostics/update/check') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _forceUpdateCheck();
+        await _respond(request, HttpStatus.ok, _updateDiagnosticsJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/diagnostics/update/download') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Runs the forced check, then the production download and integrity
+        // check. Only {"apply": true} on desktop goes on to the production
+        // apply, which replaces this build and exits after the response.
+        final body = await _readJson(request);
+        final apply = body['apply'] == true;
+        final info = await _forceUpdateCheck();
+        String? artifactPath;
+        String? downloadError;
+        if (info != null) {
+          try {
+            artifactPath = await _container
+                .read(updateServiceProvider)
+                .downloadArtifact(info);
+          } on UpdateIntegrityException {
+            downloadError = 'integrity_mismatch';
+          } on Object catch (error) {
+            downloadError = error.runtimeType.toString();
+          }
+        }
+        await _respond(request, HttpStatus.ok, {
+          ..._updateDiagnosticsJson(),
+          'downloaded': artifactPath != null,
+          'artifactPath': artifactPath,
+          'downloadError': downloadError,
+          'applying': apply && artifactPath != null,
+        });
+        if (apply && artifactPath != null) {
+          await _container
+              .read(updateServiceProvider)
+              .applyDesktopUpdate(artifactPath, detectInstallMode());
+        }
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/diagnostics/integrations') {
         // Read-only and available in every mode: per-service counters, the
         // last 100 calls and the last 50 spans. Paths only, never query
@@ -3068,6 +3125,49 @@ class SyncDiagnosticsServer {
         'error': error.runtimeType.toString(),
       });
     }
+  }
+
+  /// Forces an update check through the same providers as About's Check now.
+  Future<UpdateInfo?> _forceUpdateCheck() async {
+    final settingsSubscription = _container.listen(
+      appSettingsProvider,
+      (_, _) {},
+    );
+    try {
+      await _container.read(appSettingsProvider.future);
+      _container.read(updateForceCheckProvider.notifier).requestForceCheck();
+      _container.invalidate(updateProvider);
+      final updateSubscription = _container.listen(updateProvider, (_, _) {});
+      try {
+        return await _container.read(updateProvider.future);
+      } on DioException {
+        // The repository records transport failures; diagnostics returns that
+        // record while the UI retains its existing provider error semantics.
+        return null;
+      } finally {
+        updateSubscription.close();
+      }
+    } finally {
+      settingsSubscription.close();
+    }
+  }
+
+  Map<String, Object?> _updateDiagnosticsJson() {
+    final record = _container.read(updateRepositoryProvider).lastCheck;
+    return {
+      'manifestUrl': UpdateRepository.manifestUrlFor(),
+      'channel': UpdateRepository.channelFor(),
+      ...record?.toJson() ??
+          {
+            'url': null,
+            'timestamp': null,
+            'signatureValid': null,
+            'payloadVersion': null,
+            'assetKey': null,
+            'rejectReason': null,
+            'tag': null,
+          },
+    };
   }
 
   /// Observes or retries the full-screen rebuild controller that the mounted

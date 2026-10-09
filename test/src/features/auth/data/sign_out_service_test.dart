@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+
 import 'package:drift/drift.dart' show InsertMode, Value;
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -30,6 +31,18 @@ class _FakeCredentialStore implements SecureCredentialStore {
   }
 }
 
+class _ListenBrainzStore
+    extends CloneDiagnosticsExternalScrobbleCredentialStore {
+  bool failDelete = false;
+  int deletes = 0;
+  @override
+  Future<void> clearListenBrainzToken() async {
+    deletes++;
+    if (failDelete) throw StateError('fixture storage failure');
+    await super.clearListenBrainzToken();
+  }
+}
+
 void main() {
   group('SignOutService', () {
     late NavisDatabase database;
@@ -39,10 +52,11 @@ void main() {
     late Directory tmpDir;
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
       service = SessionLifecycleService(
+        credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
         serverConfigRepository: repository,
         database: database,
       );
@@ -55,6 +69,36 @@ void main() {
         tmpDir.deleteSync(recursive: true);
       }
     });
+
+    for (final fails in [false, true]) {
+      for (final wipe in [false, true]) {
+        test('ListenBrainz cleanup wipe=$wipe deletionFails=$fails', () async {
+          final tokenStore = _ListenBrainzStore()..failDelete = fails;
+          await tokenStore.saveListenBrainzToken('fixture-token');
+          await database.appSettingsDao.updateListenBrainzScrobblingState(
+            tokenValid: true,
+            enabled: true,
+            userName: 'fixture-user',
+          );
+          service = SessionLifecycleService(
+            serverConfigRepository: repository,
+            database: database,
+            credentials: tokenStore,
+          );
+          await service.signOut(wipeLocalData: wipe);
+          expect(tokenStore.deletes, 1);
+          expect(
+            await tokenStore.readListenBrainzToken(),
+            fails ? 'fixture-token' : null,
+          );
+          final settings = await database.appSettingsDao.getSettings();
+          expect(settings!.listenBrainzTokenValid, isFalse);
+          expect(settings.listenBrainzScrobblingEnabled, isFalse);
+          expect(settings.listenBrainzUserName, isNull);
+          expect(await database.serverDao.getActiveServer(), isNull);
+        }, skip: !sqliteAvailable);
+      }
+    }
 
     test('credentials-only sign out keeps local data', () async {
       final cacheFile = File('${tmpDir.path}/track.mp3');
@@ -219,6 +263,7 @@ void main() {
         var invalidationCalls = 0;
         final transitions = <SessionTransition>[];
         service = SessionLifecycleService(
+          credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
           serverConfigRepository: repository,
           database: database,
           cancelApiRequests: () async {

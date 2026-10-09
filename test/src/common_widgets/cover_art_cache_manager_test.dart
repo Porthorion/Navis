@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:navis/src/utils/constants.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -44,6 +47,7 @@ void main() {
     late HttpServer server;
     late IntegrationCallRecorder recorder;
     var requests = 0;
+    String? userAgent;
     var status = HttpStatus.ok;
     var imageBody = true;
     List<int>? payload;
@@ -57,6 +61,7 @@ void main() {
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((request) async {
         requests++;
+        userAgent = request.headers.value(HttpHeaders.userAgentHeader);
         await Future<void>.delayed(const Duration(milliseconds: 10));
         request.response
           ..statusCode = status
@@ -89,6 +94,7 @@ void main() {
       () async {
         final response = await build().get(url());
         await response.content.drain<void>();
+        expect(userAgent, AppConstants.userAgent);
         final call = recorder.recentCalls().single;
         expect(call.service, IntegrationFeature.artworkServerLinked.service);
         expect(call.method, 'GET');

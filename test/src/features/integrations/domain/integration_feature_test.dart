@@ -22,6 +22,14 @@ IntegrationPolicy _policy({
 );
 
 void main() {
+  test('AutoEQ discloses both hosts without changing host identity', () {
+    expect(IntegrationService.autoEq.host, 'raw.githubusercontent.com');
+    expect(
+      IntegrationService.autoEq.displayHost,
+      'raw.githubusercontent.com and api.github.com',
+    );
+  });
+
   group('integration keys', () {
     test('every feature key is unique, prefixed by its service key', () {
       final keys = IntegrationFeature.values.map((f) => f.key).toList();

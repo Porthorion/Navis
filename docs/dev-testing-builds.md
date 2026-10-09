@@ -22,6 +22,11 @@ Or build a dev APK:
 ./tool/dev_app.sh apk
 ```
 
+`apk` and `dhu` allow debug signing of local dev release-mode APKs when
+`android/key.properties` is absent, using `NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1`.
+Set that variable to `0` to require real keys. Published Android releases via
+`tool/release.sh` always require the properties file and signer verification.
+
 Defaults used by `tool/dev_app.sh`:
 
 - `NAVIS_APP_ID_SUFFIX=.dev`
@@ -75,8 +80,10 @@ restore or change the simulated network, or repair the fixture response:
 Presets run a **profile-mode** Linux app because they use the clone-only
 authenticated diagnostics controls; ordinary `dev_app.sh run` retains its
 debug/hot-reload behavior. They snapshot the default local database at
-`~/Documents/navis.sqlite.sqlite` into `build/dev-sync-scenarios/`, never reset
-that source, and remove copied download/cache references and outbound queues.
+`~/.local/share/com.navis.app.navis/navis.sqlite.sqlite` into
+`build/dev-sync-scenarios/`, falling back to the old Documents database only
+when the new file is absent and the old file exists. They never reset that
+source, and remove copied download/cache references and outbound queues.
 The app keeps its app-support, cache and temporary files in the run directory
 (`support/` and `cache/`), so window geometry, update-check state, image caches
 and the What's New marker never touch `~/.local/share/com.navis.app.navis/`;
@@ -84,7 +91,8 @@ copied credentials stay in memory. Presets other than `--fresh-login` mark the
 running version's What's New as seen. An already authenticated local profile is required except for
 `--fresh-login`, and the onboarding/repair/cache presets require a usable
 catalog. Use `--scenario-source /absolute/path/to/navis.sqlite.sqlite` to
-choose another source. Each invocation creates a new copy; its directory can be
+choose another source, or set `NAVIS_DIAGNOSTICS_PRIMARY_DB`; the explicit
+flag takes precedence. Each invocation creates a new copy; its directory can be
 deleted after the app exits.
 
 The presets use the production 600-second sync lease duration. This keeps a
@@ -96,11 +104,11 @@ For desktop targets, use channel-aware release assets and run from extracted bun
 Example:
 
 ```bash
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=macos
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=windows
+./tool/release.sh v0.3.1 --channel=dev --targets=linux
+./tool/release.sh v0.3.2 --channel=dev --targets=macos
+./tool/release.sh v0.3.3 --channel=dev --targets=windows
 # macOS orchestration with remote desktop builders
-./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
+./tool/release.sh v0.3.4 --channel=dev --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ```
 
 Asset naming:
@@ -130,11 +138,17 @@ For Linux target builds, choose output mode:
 Updater behavior is controlled by compile-time channel:
 
 - `NAVIS_UPDATE_CHANNEL=stable` (default)
-  - checks stable releases
-  - prefers assets `navis-<tag>.apk`
+  - reads `https://downloads.porthorion.com/navis/channels/stable/manifest.json`
 - `NAVIS_UPDATE_CHANNEL=dev`
-  - allows prereleases
-  - prefers assets `navis-dev-<tag>.apk`
+  - reads `https://downloads.porthorion.com/navis/channels/dev/manifest.json`
+- `NAVIS_UPDATE_CHANNEL=staging`
+  - reads `.../channels/staging/manifest.json`; no shipped build uses it, so it is
+    the channel for testing the updater end to end (see [release-r2.md](release-r2.md))
+
+Each manifest is signed and names its channel; a build rejects a manifest for another
+channel. Assets are picked by manifest key (`androidApk`, `windowsInstaller`,
+`windowsPortable`, `macosBundle`, `linuxDeb-<arch>`, `linuxPortable`), not by file name.
+Release tags must be plain `vX.Y.Z`, and a channel never moves to an older version.
 
 ## iOS Note
 

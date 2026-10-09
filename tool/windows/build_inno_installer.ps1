@@ -55,7 +55,7 @@ $escapedSetupIconPath = $setupIconPath.Replace('\', '\\')
 $issBody = @"
 #define MyAppName "$appName"
 #define MyAppVersion "$semver"
-#define MyAppPublisher "Khalifa"
+#define MyAppPublisher "Porthorion"
 #define MyAppExeName "navis.exe"
 #define MySourceDir "$escapedReleaseDir"
 #define MyOutputDir "$escapedOutputDir"
@@ -66,6 +66,9 @@ AppId=$appId
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL=https://navis.porthorion.com
+AppSupportURL=https://navis.porthorion.com
+AppCopyright=Copyright (C) 2026 Porthorion
 DefaultDirName=$defaultDir
 DisableProgramGroupPage=yes
 OutputDir={#MyOutputDir}
@@ -96,7 +99,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 ; Automatically relaunch Navis after a silent in-app update (the Finish wizard
 ; page is not shown in silent mode so postinstall entries are never executed).
-Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent runasoriginaluser
 "@
 
 $tempIssPath = Join-Path ([System.IO.Path]::GetTempPath()) ("navis-installer-{0}.iss" -f [Guid]::NewGuid().ToString("N"))

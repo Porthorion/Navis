@@ -1,8 +1,8 @@
 # Navis agent guide
 
-Navis is a GPL-3.0 Flutter client for Subsonic/OpenSubsonic servers. It targets
-Android, iOS, macOS, Linux, and Windows. The current version and supported SDK
-constraints live in `pubspec.yaml`.
+Navis is a proprietary (closed-source, free) Flutter client for
+Subsonic/OpenSubsonic servers. It targets Android, iOS, macOS, Linux, and Windows.
+The current version and supported SDK constraints live in `pubspec.yaml`.
 
 ## Start here
 

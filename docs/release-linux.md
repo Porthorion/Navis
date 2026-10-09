@@ -7,8 +7,9 @@ Navis for Linux is distributed in two formats:
 | Debian package | `navis-v0.x.y-linux-amd64.deb` | Debian, Ubuntu, Mint, Pop!\_OS, Kali, Raspberry Pi OS, etc. |
 | Portable bundle | `navis-v0.x.y-linux.tar.gz` | Fedora, Arch, Gentoo, NixOS, openSUSE, Alpine, any distro |
 
-Both formats are supported by the built-in auto-updater. **Ship both formats per release**
-to cover the full Linux user base.
+Both formats are supported by the built-in auto-updater. Ideally ship both formats per
+release to cover the full Linux user base; see "Publishing Both Formats" for the current
+limit.
 
 ---
 
@@ -47,7 +48,7 @@ built on newer distros may fail with `GLIBC_X.XX not found` on users' older syst
 sudo apt-get update
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
-  libgtk-3-dev libmpv-dev \
+  libgtk-3-dev \
   dpkg-dev jq curl git
 ```
 
@@ -60,15 +61,22 @@ flutter --version          # Flutter 3.x stable
 flutter doctor -v
 ```
 
-### 3. Forgejo token
+### 3. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -82,6 +90,10 @@ FORGEJO_TOKEN="<personal-access-token-with-write:release>"
 | `/usr/bin/navis` | Launcher wrapper script |
 | `/usr/share/applications/navis.desktop` | Desktop entry (application menu) |
 | `/usr/share/icons/hicolor/512x512/apps/navis.png` | App icon |
+
+Debian packages default to `Porthorion <support@porthorion.com>` as maintainer
+and `https://navis.porthorion.com` as homepage. `NAVIS_DEB_MAINTAINER` remains
+available for custom maintainer metadata in local and remote packaging.
 
 ### Building
 
@@ -108,26 +120,63 @@ sudo dpkg -i navis-v0.x.y-linux-amd64.deb
 After installation, `navis` is available as a system command and appears in the
 application menu.
 
-### Runtime dependency: `libmpv`
+### Bundled LGPL libmpv
 
-Playback and the equalizer use the system libmpv, which media_kit loads as
-`libmpv.so`, `libmpv.so.2` or `libmpv.so.1`. The Debian control file declares
-`Depends: libgtk-3-0, libmpv2 | libmpv1`, so `apt` installs it with the
-package: Debian 12 and Ubuntu 23.04+ ship `libmpv2`, Ubuntu 22.04 ships
-`libmpv1`.
+Linux x86_64 packages ship LGPL-2.1+ libmpv/FFmpeg as `lib/libmpv.so.2`.
+Startup selects that file relative to `Platform.resolvedExecutable`; if absent,
+development runs use system libmpv. `NAVIS_BUNDLE_LIBMPV` defaults ON in
+`linux/CMakeLists.txt`; developers can set `-DNAVIS_BUNDLE_LIBMPV=OFF` in their
+CMake configuration/cache to use system mpv. Other architectures must opt out
+until a matching LGPL artefact is published; never package the x86_64 binary
+for them. Custom packages without the bundle need their own system-mpv dependency.
+
+The current archive is `libmpv-linux-x86_64-lgpl-20261007.tar.gz`, SHA-256
+`759bb6586b4d772bb78a565609dcccc5205741c8b1163c1d47ed3493bf227f6e`.
+CMake tries the matching navis-third-party release, then
+`https://downloads.porthorion.com/third-party/libmpv-linux-x86_64-lgpl-20261007.tar.gz`.
+Every attempt is verified, failures are deleted, and the archive is cached in
+the CMake build directory. A verified cached archive supports offline builds;
+extraction is once per pin, retried if incomplete. The library is installed
+into the standard bundle `lib/` directory alongside Flutter's libraries.
+
+To update, use [the build recipe](../tool/libmpv/README.md), check the embedded
+mpv `-Dgpl=false` and absence of FFmpeg `--enable-gpl`/`--enable-nonfree`,
+and review `BUILDINFO.txt`'s ELF dependencies. Package the library, headers and
+recipe under `libmpv-linux-x86_64-lgpl/`, then publish the dated tarball in
+navis-third-party with `SOURCES.md` and the corresponding source archives.
+Copy the identical tarball to the R2 fallback path. Update the filename,
+ordered URLs and SHA-256 in CMake and the in-app source-location notice.
+
+The Debian package no longer depends on system `libmpv2 | libmpv1`. Its minimal
+runtime dependencies are `libgtk-3-0, libpulse0, libasound2`: the recipe enables
+both PulseAudio and ALSA, so both shared libraries must load even when only one
+output is used. An alternative (`libpulse0 | libasound2`) would be insufficient.
+GnuTLS is already supplied by GTK's dependency on CUPS on the Ubuntu 22.04
+baseline ([GTK dependencies](https://packages.ubuntu.com/jammy/libgtk-3-0),
+[CUPS dependencies](https://packages.ubuntu.com/jammy/libcups2)), so no redundant
+`libgnutls30` dependency is added. GTK also supplies the font libraries; inspect
+ELF dependencies again for every new pin. Portable bundles still require these
+system desktop libraries.
 
 ### Auto-updater behavior
 
 The auto-updater detects `.deb` mode when the running executable path starts with
 `/opt/navis` — which is always the case for a `dpkg`-installed app.
 
-Update flow:
-1. Downloads `navis-vX.Y.Z-linux-amd64.deb`.
-2. Runs `pkexec dpkg -i <path>` — the user sees a polkit authentication dialog.
-3. After `dpkg` exits cleanly, the app relaunches from `Platform.resolvedExecutable`.
+The manifest key is `linuxDeb-<arch>` (`linuxDeb-amd64` or `linuxDeb-arm64`). An install
+only ever uses the key for its own architecture; if the manifest has none, no update is
+offered (there is no cross-architecture fallback).
 
-If `pkexec` is unavailable on the user's system, the auto-updater surfaces a
-"Download Manually" prompt instead of failing silently.
+Update flow:
+1. Downloads `navis-vX.Y.Z-linux-amd64.deb` (or `-arm64`).
+2. Checks its size and SHA-256 against the signed manifest; a mismatch deletes the file
+   and shows "The update download was damaged".
+3. Runs `pkexec dpkg -i <path>` — the user sees a polkit authentication dialog.
+4. After `dpkg` exits cleanly, the app relaunches from `Platform.resolvedExecutable`.
+
+If `pkexec` is missing, or `pkexec`/`dpkg` exits non-zero (including a cancelled
+authentication dialog), the update dialog shows "Could not apply the update
+automatically." with a "Download Manually" button and no Retry.
 
 ---
 
@@ -163,7 +212,8 @@ To create a desktop shortcut, copy the included `.desktop` file template and adj
 The auto-updater uses portable mode when the executable is **not** under `/opt/navis`.
 
 Update flow:
-1. Downloads `navis-vX.Y.Z-linux.tar.gz`.
+1. Downloads `navis-vX.Y.Z-linux.tar.gz` (manifest key `linuxPortable`) and checks its
+   size and SHA-256 against the signed manifest.
 2. Extracts to a temp staging directory using `tar -xzf`.
 3. Writes a bash updater script to temp and launches it detached, then exits.
 
@@ -177,41 +227,16 @@ The updater script:
 
 ---
 
-## Publishing Both Formats in One Release
+## Publishing Both Formats
 
-The release script creates the Forgejo release on its first run. Running it a second time
-for the same tag will error because the release already exists. Use this two-step approach:
-
-### Step 1 — Full release with the `.deb`
-
-```bash
-./tool/release.sh v0.x.y --targets=linux --linux-package=deb
-```
-
-This creates the Forgejo release, uploads the `.deb`, bumps pubspec, tags, and pushes.
-
-### Step 2 — Build `.tar.gz` and upload separately
-
-```bash
-# Build the portable bundle (no publish)
-flutter build linux --release --dart-define=NAVIS_UPDATE_CHANNEL=stable
-
-BUNDLE_DIR=$(find build/linux -type d -path "*/release/bundle" | head -1)
-tar -czf navis-v0.x.y-linux.tar.gz -C "${BUNDLE_DIR}" .
-
-# Upload to the existing release via Forgejo API
-source tool/release.env
-RELEASE_ID=$(curl -sf \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/tags/v0.x.y" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" | jq -r '.id')
-
-curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=navis-v0.x.y-linux.tar.gz" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" \
-  -F "attachment=@navis-v0.x.y-linux.tar.gz"
-
-rm navis-v0.x.y-linux.tar.gz
-```
+`release.sh` builds one Linux package per run (`--linux-package=bundle|deb`) and
+publishes it to R2 in that run. To ship the other format for the same version, run
+`release.sh` again with `--allow-existing-version` and the other `--linux-package`, or
+pass the file to `tool/r2_publish.sh publish --tag=<tag> --channel=<channel> <file>`.
+When the channel already points at that tag, the publish adds the new asset to the
+signed manifest and rewrites `SHA256SUMS`; existing assets are kept. Each install
+type reads only its own key (`linuxDeb-<arch>` or `linuxPortable`), and an install
+whose key is missing sees no update.
 
 ---
 
@@ -270,12 +295,10 @@ does. Use `sudo dpkg -i` or `sudo apt install ./file.deb`.
 
 ### Users report audio not working after installing the `.deb`
 
-Packages built before 1.4.0 did not list `libmpv` in `Depends`. Install it
-manually, or install the current package with `apt` so it is pulled in:
-
-```bash
-sudo apt install libmpv2    # Debian 12, Ubuntu 23.04+ (libmpv1 on 22.04)
-```
+Current packages include `lib/libmpv.so.2`; keep the complete bundle intact.
+Inspect missing system dependencies with `ldd /opt/navis/lib/libmpv.so.2` and
+install the package with `apt`. Older releases and opt-out development builds
+still need system mpv (`libmpv2` on Debian 12/Ubuntu 23.04+, `libmpv1` on 22.04).
 
 ### Auto-updater: `pkexec` not found
 
@@ -285,8 +308,10 @@ sudo apt install libmpv2    # Debian 12, Ubuntu 23.04+ (libmpv1 on 22.04)
 sudo apt-get install -y policykit-1
 ```
 
-If `pkexec` is unavailable, the auto-updater will fail at the apply stage and show the
-"Download Manually" option directing the user to the releases page.
+If `pkexec` is unavailable, `Process.run('pkexec', ...)` throws at the apply stage and
+the update dialog shows "Could not apply the update automatically." with a "Download
+Manually" button that opens the release notes link (or the download page on the Navis
+website). There is no separate prompt before the download, and no Retry button.
 
 ### `dpkg-deb: error: failed to open package info file`
 

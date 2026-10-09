@@ -71,6 +71,7 @@ class ResolvedArtistTopTrack {
     this.listeners,
     this.resolvedSong,
     this.isMatching = false,
+    this.source,
   });
 
   new fromSeed(ArtistTopTrackSeed seed, {Song? song, bool isMatching = false})
@@ -81,6 +82,7 @@ class ResolvedArtistTopTrack {
         listeners: seed.listeners,
         resolvedSong: song,
         isMatching: isMatching,
+        source: seed.source,
       );
 
   /// 1-based chart position.
@@ -97,6 +99,9 @@ class ResolvedArtistTopTrack {
 
   /// The server is still being searched for this song, which has none yet.
   final bool isMatching;
+
+  /// The service this song's chart position came from, for the source credit.
+  final ArtistTopTrackSource? source;
 
   bool get isLocallyResolved => resolvedSong != null;
 }

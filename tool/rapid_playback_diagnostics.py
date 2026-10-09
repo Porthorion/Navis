@@ -14,9 +14,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from diagnostics_profile import primary_database
+
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = Path(os.environ.get("NAVIS_DIAGNOSTICS_PRIMARY_DB", "~/Documents/navis.sqlite.sqlite")).expanduser()
+SOURCE = primary_database()
 OUTPUT = ROOT / "build" / "rapid-playback" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 HANDSHAKE = OUTPUT / "handshake.json"
 DATABASE = OUTPUT / "navis-diagnostics.sqlite"

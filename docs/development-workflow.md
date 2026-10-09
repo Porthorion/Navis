@@ -15,6 +15,40 @@ What it does:
 - checks the Flutter 3.47.5 minimum and active 3.47.x baseline
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
+## Bundled licence notices
+
+`registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
+non-Dart assets and native libraries. Its tests cover platform filtering and
+the enabled Windows/Linux LGPL notices and optional system-library flag
+without starting the application. Regenerate Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
+locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
+The generator matches licence filenames case-insensitively and uses tracked
+`tool/data/spdx/` full-text fallbacks when a crate has no licence file. No text
+is fetched at generation or app runtime; unknown fallback identifiers fail.
+See `release-windows.md` for the packaging procedure.
+
+Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
+remote builds no longer seed the obsolete media_kit archive. Run
+`cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
+checks (downloads are simulated). Linux uses the same verified cache/fallback
+approach; check it with
+`cmake -DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt" -P tool/libmpv_download_test.cmake`.
+Run `cmake -P tool/libmpv_bundle_test.cmake` for offline extraction/installation
+and opt-out checks. See the Windows/Linux release guides for pin updates.
+The Linux LGPL recipe under `tool/libmpv/` builds separately; normal app builds
+consume the published archive and do not invoke Docker.
+
+## Colour-name data
+
+After updating the pinned MIT colour-name input, run
+`dart run tool/generate_color_names.dart` and commit the generated table.
+Provenance and input regeneration are in `tool/data/color_names/README.md`.
+
+Desktop publisher metadata is Porthorion: Windows resource/Inno fields and
+macOS copyright configuration. Local and remote Debian packaging share the
+Porthorion maintainer default and Navis homepage; keep `tool/release.env.example`
+in sync when changing that default.
+
 ## Branding Assets
 
 `lib/src/icon/Navis_Logo.svg` is the canonical in-app mark. After changing it,
@@ -69,6 +103,17 @@ and sideload/dev manifests. Keep that ID aligned across launcher generation,
 the manifest contract test, and Android Auto manifest verification. Its
 adaptive background remains transparent; the foreground owns the complete
 circular badge.
+
+## Android signing for local builds
+
+Debug and profile builds retain debug signing when `android/key.properties`
+is absent. Release tasks require that file, including aggregate Gradle builds
+that select a release variant. For a deliberate local release-mode test only,
+set `NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1`. `tool/dev_app.sh apk` and `dhu`
+set this opt-in for their dev APK builds; set it to `0` to enforce real keys.
+`tool/release.sh` always requires the properties file and verifies the signer.
+Keep signing files, `.env` files and service-account JSON outside version
+control; `.gitignore` covers their common names and extensions.
 
 ## Multi-OS Host Preflight
 
@@ -441,7 +486,15 @@ go to `build/stream-open-diagnostics/<timestamp>/report.json`, with exit status
 1 on any failed check. Last, it starts a second station whose stream is
 served over HTTPS with a throw-away self-signed certificate and requires that
 the TLS server sees the connection, that no request completes (libmpv refuses
-the certificate) and that the station never plays. The radio stream needs
+the certificate) and that the station never plays. It then turns Online
+services off (`POST /v1/presentation/integrations {"master": false}`) and
+starts a third station whose stream host is `localhost` rather than the
+server's `127.0.0.1`: the fixture must see no request from it, radio mode must
+stay off, and the `radio-blocked-online-services-off` screenshot should show
+the notice explaining why. The station on the server's own host must still
+play with Online services off. On Linux it also reads the app's
+`/proc/<pid>/maps` and requires that the only libmpv loaded is the bundle's
+LGPL `lib/libmpv.so.2`. The radio stream needs
 `ffmpeg` with an MP3 encoder and the certificate needs `openssl`.
 
 While an internet radio station is active, authenticated
@@ -1364,7 +1417,14 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 ./tool/release.sh v0.2.0
 ```
 
-This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
+This runs the full quality gate, builds a release APK, tags the commit, and publishes the APK to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
+
+Optional Forgejo publishing requires curl 7.55+ and reads its Authorization header
+from a mode-600 file, cleaned by the release EXIT trap, rather than passing the
+token in curl's command-line arguments.
+
+Windows Inno Setup silent updates relaunch Navis as the original user via
+`runasoriginaluser`; installation elevation is not carried into the app.
 
 For Android releases, `tool/release.sh` cleans stale APK build outputs before
 building, removes an existing same-name root release asset before copying, and
@@ -1395,10 +1455,13 @@ Advanced release packaging options:
 Pre-release builds (from `dev` branch when needed):
 
 ```bash
-./tool/release.sh v0.3.0-beta.1
+./tool/release.sh v0.3.1 --channel=dev
 ```
 
-Tags containing `-alpha`, `-beta`, `-rc`, or `-dev` are automatically marked as pre-release on Forgejo.
+The `dev` channel publishes to `navis/channels/dev/manifest.json`, which only dev
+builds read. Tags must be plain `vX.Y.Z`: `tool/r2_publish.sh` rejects `-beta`, `-rc`
+and similar suffixes. `--prerelease` and the dev channel only mark the Forgejo
+release (`--forgejo`) as a pre-release.
 
 ## Dependency Health
 
@@ -1511,6 +1574,17 @@ flutter run -d linux
 This is a local workaround and does not replace Android runtime validation.
 
 ### Linux Sync Diagnostics
+
+Linux diagnostics and interactive scenario presets share the path resolver in
+`tool/diagnostics_profile.py`. The default source is
+`~/.local/share/com.navis.app.navis/navis.sqlite.sqlite`. It falls back to
+`~/Documents/navis.sqlite.sqlite` only if that legacy file exists and the new
+file does not. `NAVIS_DIAGNOSTICS_PRIMARY_DB` overrides clone sources;
+`--scenario-source` takes precedence for scenario presets. Primary
+certification still requires the normal resolved path, regardless of an override.
+Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
+for fixture-only preparation/path checks, including the shell launchers, without
+starting Navis.
 
 After `./tool/check.sh` passes, exercise catalog promotion against a consistent
 clone of the configured library and the real server:

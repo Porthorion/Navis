@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/api/retry_after.dart';
 import 'package:navis/src/utils/constants.dart';
 
 class LrclibLyrics {
@@ -33,10 +34,17 @@ class LrclibLyrics {
   bool get hasPlain => plainLyrics != null && plainLyrics!.trim().isNotEmpty;
 }
 
+/// LRCLIB is temporarily unavailable until its shared cooldown expires.
+class LrclibRateLimitedException implements Exception {
+  const new();
+}
+
 class LrclibClient {
   /// Production code passes a [dio] from `externalDioFactoryProvider`, built
   /// with [baseOptions], so the integration guard applies.
-  new({Dio? dio}) : _dio = dio ?? Dio(baseOptions);
+  new({Dio? dio, DateTime Function()? now})
+    : _dio = dio ?? Dio(baseOptions),
+      _now = now ?? DateTime.now;
 
   static final baseOptions = BaseOptions(
     baseUrl: 'https://lrclib.net',
@@ -46,6 +54,26 @@ class LrclibClient {
   );
 
   final Dio _dio;
+  final DateTime Function() _now;
+  DateTime? _blockedUntil;
+
+  bool get isRateLimited =>
+      _blockedUntil != null && _now().isBefore(_blockedUntil!);
+
+  void _checkRateLimit() {
+    if (isRateLimited) throw const LrclibRateLimitedException();
+  }
+
+  void _recordRateLimit(Response<dynamic>? response) {
+    if (response?.statusCode != 429 && response?.statusCode != 503) return;
+    final deadline =
+        parseRetryAfter(response?.headers.value('retry-after'), now: _now) ??
+        _now().add(const Duration(seconds: 60));
+    if (_blockedUntil == null || deadline.isAfter(_blockedUntil!)) {
+      _blockedUntil = deadline;
+    }
+    throw const LrclibRateLimitedException();
+  }
 
   Future<LrclibLyrics?> getLyrics({
     required String artist,
@@ -53,6 +81,7 @@ class LrclibClient {
     String? album,
     int? duration,
   }) async {
+    _checkRateLimit();
     final Response<Map<String, dynamic>> response;
     try {
       response = await _dio.get<Map<String, dynamic>>(
@@ -65,11 +94,13 @@ class LrclibClient {
         },
       );
     } on DioException catch (error) {
+      _recordRateLimit(error.response);
       if (error.response?.statusCode == 404) {
         return null;
       }
       rethrow;
     }
+    _recordRateLimit(response);
     final data = response.data;
     if (data == null || data.isEmpty) {
       return null;
@@ -81,10 +112,19 @@ class LrclibClient {
     required String artist,
     required String title,
   }) async {
-    final response = await _dio.get<List<dynamic>>(
-      '/api/search',
-      queryParameters: {'artist_name': artist, 'track_name': title},
-    );
+    _checkRateLimit();
+    final Response<List<dynamic>> response;
+    try {
+      response = await _dio.get<List<dynamic>>(
+        '/api/search',
+        queryParameters: {'artist_name': artist, 'track_name': title},
+      );
+    } on DioException catch (error) {
+      _recordRateLimit(error.response);
+      if (error.response?.statusCode == 404) return const <LrclibLyrics>[];
+      rethrow;
+    }
+    _recordRateLimit(response);
     final data = response.data;
     if (data == null) {
       return const <LrclibLyrics>[];

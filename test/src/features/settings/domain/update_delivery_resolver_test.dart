@@ -55,7 +55,7 @@ void main() {
           selfUpdateBuildEnabled: true,
           installerPackage: 'com.android.shell',
         ),
-        UpdateDelivery.forgejoSelfUpdate,
+        UpdateDelivery.selfUpdate,
       );
     });
 
@@ -66,7 +66,7 @@ void main() {
           selfUpdateBuildEnabled: true,
           installerPackage: null,
         ),
-        UpdateDelivery.forgejoSelfUpdate,
+        UpdateDelivery.selfUpdate,
       );
     });
   });

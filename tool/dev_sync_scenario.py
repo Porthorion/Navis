@@ -14,9 +14,14 @@ import time
 from urllib import request
 
 
+if __package__:
+    from .diagnostics_profile import primary_database
+else:
+    from diagnostics_profile import primary_database
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNS_ROOT = PROJECT_ROOT / "build" / "dev-sync-scenarios"
-DEFAULT_SOURCE = Path.home() / "Documents" / "navis.sqlite.sqlite"
 SCENARIOS = {
     "first-setup": None,
     "bad-cache": None,
@@ -269,7 +274,7 @@ def _scenario_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     network = parser.add_mutually_exclusive_group()
     network.add_argument("--offline", action="store_true")
     network.add_argument("--metered", action="store_true")
-    parser.add_argument("--scenario-source", type=Path, default=DEFAULT_SOURCE)
+    parser.add_argument("--scenario-source", type=Path, default=primary_database())
     options, flutter_args = parser.parse_known_args(argv)
     options.scenario = next(name for name in SCENARIOS if getattr(options, name.replace("-", "_")))
     if options.device_id != "linux":

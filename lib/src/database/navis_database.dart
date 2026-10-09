@@ -69,8 +69,7 @@ import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:navis/src/database/database_location.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 part 'navis_database.g.dart';
@@ -207,10 +206,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   static QueryExecutor _openConnection() => LazyDatabase(() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return _openFileConnection(
-      File(p.join(directory.path, 'navis.sqlite.sqlite')),
-    );
+    return _openFileConnection(await resolveDatabaseFile());
   });
 
   static QueryExecutor _openFileConnection(File file) {

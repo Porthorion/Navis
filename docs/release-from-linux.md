@@ -38,7 +38,7 @@ flutter doctor -v
 sudo apt-get update
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
-  libgtk-3-dev libmpv-dev \
+  libgtk-3-dev \
   dpkg-dev jq curl git
 ```
 
@@ -53,15 +53,22 @@ yes | flutter doctor --android-licenses
 Keystore and `android/key.properties` must be provisioned locally. See
 [release-secrets.md](release-secrets.md).
 
-### 4. Forgejo token
+### 4. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -120,6 +127,17 @@ You need a Windows machine (physical, VM, or cloud) with:
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 Start-Service sshd
 Set-Service -Name sshd -StartupType Automatic
+```
+
+Harden it before it receives release builds. Allow key logins only, allow
+only the build account, and keep the port reachable from the LAN only:
+
+```powershell
+$cfg = "$env:ProgramData\ssh\sshd_config"
+# Prepend: the default file ends in a Match block, and sshd keeps the first value.
+Set-Content $cfg (@('PasswordAuthentication no', 'AllowUsers <build-user>') + (Get-Content $cfg))
+Restart-Service sshd
+Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -RemoteAddress LocalSubnet
 ```
 
 ### Configure SSH alias on Linux (`~/.ssh/config`)
@@ -188,18 +206,21 @@ instructions.
 
 ### Adding macOS
 
-Run the macOS portion separately on the Mac after the Forgejo release exists, then upload
-the `.zip` asset via the Forgejo API or web UI. See [release-macos.md](release-macos.md).
+Run the macOS portion on the Mac. `tool/r2_publish.sh` writes `SHA256SUMS` and the
+channel manifest once per tag and refuses to change them, so a macOS zip cannot be added
+to a tag that `release.sh` already published from this host. Pass every artifact for the
+tag, including the macOS zip, to a single `r2_publish.sh publish` call. See
+[release-macos.md](release-macos.md) and [release-r2.md](release-r2.md).
 
 ---
 
 ## Dev Channel Releases
 
 ```bash
-./tool/release.sh v0.9.0-dev.1 --channel=dev --targets=android,linux
+./tool/release.sh v0.9.1 --channel=dev --targets=android,linux
 ```
 
-Assets will be named `navis-dev-v0.9.0-dev.1.*`. The `dev` channel also sets the Android
+Assets will be named `navis-dev-v0.9.1.*` and are listed in `navis/channels/dev/manifest.json`. The `dev` channel also sets the Android
 sidecar identity (`com.navis.app.navis.dev`) so both channels coexist on the same device.
 
 ---
@@ -216,8 +237,11 @@ export CC=clang
 
 ### `flutter build linux` fails in CI / Docker
 
-Flutter Linux builds need `libmpv-dev` and a GTK display environment. For headless
-environments, set up Xvfb or use a Gtk-capable Docker image.
+Linux x86_64 releases bundle pinned LGPL libmpv (see
+[release-linux.md](release-linux.md#bundled-lgpl-libmpv)); a verified cached
+archive permits offline builds. Flutter Linux builds need GTK development
+libraries and a GTK display environment. For headless environments, set up
+Xvfb or use a Gtk-capable Docker image.
 
 ### Windows remote build times out
 

@@ -87,6 +87,7 @@ REMOTE_DEFINES="${REMOTE_DIR}/lastfm-defines.json"
 REMOTE_DEFINES_PUSHED=false
 cleanup() {
   rm -f "${SOURCE_ARCHIVE}" "${REMOTE_SCRIPT}"
+  ssh "${SSH_TARGET}" "rm -f '${REMOTE_DIR}/source.tgz'" >/dev/null 2>&1 || true
   if [[ "${REMOTE_DEFINES_PUSHED}" == "true" ]]; then
     # The remote script removes the file itself; this covers a dropped session.
     ssh "${SSH_TARGET}" "rm -f '${REMOTE_DEFINES}'" >/dev/null 2>&1 || true
@@ -100,15 +101,10 @@ if [[ -n "${LASTFM_DEFINES_FILE}" && ! -f "${LASTFM_DEFINES_FILE}" ]]; then
 fi
 
 printf '[remote-linux] Packaging local source archive...\n'
-tar \
-  --exclude='.git' \
-  --exclude='.dart_tool' \
-  --exclude='build' \
-  --exclude='ios/Pods' \
-  --exclude='android/.gradle' \
-  --exclude='tool/release.env' \
-  -czf "${SOURCE_ARCHIVE}" \
-  -C "${REPO_ROOT}" .
+# Package tracked files only. Ignored files such as android/key.properties,
+# the release keystore and tool/release.env must never reach a build host.
+git -C "${REPO_ROOT}" ls-files -z |
+  tar -czf "${SOURCE_ARCHIVE}" -C "${REPO_ROOT}" --null -T -
 
 cat > "${REMOTE_SCRIPT}" <<'REMOTE_EOF'
 #!/usr/bin/env bash
@@ -137,9 +133,10 @@ rm -rf "${workspace_dir}"
 mkdir -p "${workspace_dir}"
 
 tar -xzf "${archive_path}" -C "${workspace_dir}"
+rm -f "${archive_path}"
 cd "${workspace_dir}"
 
-flutter pub get
+flutter pub get --enforce-lockfile
 build_args=("--dart-define=NAVIS_UPDATE_CHANNEL=${update_channel}")
 if [[ -n "${lastfm_defines_file}" ]]; then
   build_args+=("--dart-define-from-file=${lastfm_defines_file}")
@@ -172,7 +169,7 @@ if [[ "${package_mode}" == "deb" ]]; then
   if [[ "${update_channel}" == "dev" ]]; then
     deb_app_name="Navis Dev"
   fi
-  deb_maintainer="${NAVIS_DEB_MAINTAINER:-Navis Team <noreply@example.com>}"
+  deb_maintainer="${NAVIS_DEB_MAINTAINER:-Porthorion <support@porthorion.com>}"
   deb_stage_dir="${workspace_dir}/build/linux/deb_stage"
 
   rm -rf "${deb_stage_dir}"
@@ -223,8 +220,8 @@ Section: sound
 Priority: optional
 Architecture: ${deb_arch}
 Maintainer: ${deb_maintainer}
-Depends: libgtk-3-0, libmpv2 | libmpv1
-Homepage: https://git.porthorion.com/khalifa/Navis
+Depends: libgtk-3-0, libpulse0, libasound2
+Homepage: https://navis.porthorion.com
 Description: Navis music player
  Subsonic/OpenSubsonic music player built with Flutter.
 CONTROL
@@ -270,6 +267,10 @@ if [[ -z "${asset_name}" ]]; then
   exit 1
 fi
 
+if [[ ! "${asset_name}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "[remote-linux] Refusing unexpected remote asset name: ${asset_name}" >&2
+  exit 1
+fi
 printf '[remote-linux] Fetching %s...\n' "${asset_name}"
 scp "${SSH_TARGET}:${REMOTE_DIR}/${asset_name}" "${REPO_ROOT}/${asset_name}" >/dev/null
 

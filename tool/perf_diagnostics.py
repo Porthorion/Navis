@@ -39,7 +39,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from diagnostics_profile import disable_external_integrations
+from diagnostics_profile import disable_external_integrations, primary_database
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASE = ROOT / 'build' / 'perf-diagnostics'
@@ -172,9 +172,7 @@ def prepare_profile(credentials: dict, fresh: bool) -> None:
         return
     if fresh:
         return
-    source = pathlib.Path(os.environ.get(
-        'NAVIS_DIAGNOSTICS_PRIMARY_DB',
-        str(pathlib.Path.home() / 'Documents' / 'navis.sqlite.sqlite')))
+    source = primary_database()
     with sqlite3.connect(f'file:{source}?mode=ro', uri=True) as original, \
             sqlite3.connect(database) as clone:
         original.backup(clone)

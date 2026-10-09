@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,7 +219,9 @@ class RadioTabContent extends ConsumerWidget {
             final l10n = AppLocalizations.of(context)!;
             showAppNotice(
               context,
-              message: l10n.radioPlaybackError,
+              message: error is RadioPlaybackBlockedException
+                  ? _radioErrorMessage(l10n, error)
+                  : l10n.radioPlaybackError,
               level: AppNoticeLevel.error,
             );
           }),
@@ -225,6 +229,9 @@ class RadioTabContent extends ConsumerWidget {
   }
 
   String _radioErrorMessage(AppLocalizations l10n, Object error) {
+    if (error is RadioPlaybackBlockedException) {
+      return l10n.radioPlaybackBlockedOnlineServicesOff;
+    }
     if (error is SubsonicNotFoundException) {
       return l10n.radioUnsupportedMessage;
     }

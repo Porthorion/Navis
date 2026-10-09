@@ -33,7 +33,7 @@ UpdateDelivery resolveUpdateDelivery({
     return UpdateDelivery.storeRedirect;
   }
 
-  return UpdateDelivery.forgejoSelfUpdate;
+  return UpdateDelivery.selfUpdate;
 }
 
 /// Whether the compile-time self-update capability is enabled for this build.

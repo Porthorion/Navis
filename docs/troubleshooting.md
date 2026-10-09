@@ -1,5 +1,16 @@
 # Troubleshooting
 
+## Diagnostics cannot find the Linux database
+
+The desktop database now lives at
+`~/.local/share/com.navis.app.navis/navis.sqlite.sqlite`. Diagnostics tools
+prefer it and use `~/Documents/navis.sqlite.sqlite` only when the new file is
+absent and the legacy file exists. For an isolated clone of another profile,
+set `NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite`.
+Interactive sync presets also accept `--scenario-source`; that flag takes
+precedence over the environment override. Do not move or reset the primary
+database to make diagnostics find it.
+
 ## Linux desktop entry does nothing / "Could not find the program 'navis'"
 
 Symptom:

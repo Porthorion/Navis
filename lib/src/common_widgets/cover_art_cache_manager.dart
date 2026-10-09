@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:navis/src/utils/constants.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -744,6 +747,7 @@ class CoverArtHttpFileService implements FileService {
 
   HttpClient _createClient() {
     return HttpClient()
+      ..userAgent = AppConstants.userAgent
       ..maxConnectionsPerHost = _coverArtMaxConnectionsPerHost
       ..connectionTimeout = _connectionTimeout;
   }

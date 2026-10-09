@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
 import 'package:file/memory.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +24,10 @@ import '../../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements BaseCacheManager;
 
-class _MockLrclibClient extends Mock implements LrclibClient;
+class _MockLrclibClient extends Mock implements LrclibClient {
+  @override
+  bool get isRateLimited => false;
+}
 
 class _MockDio extends Mock implements Dio;
 
@@ -74,7 +76,7 @@ void main() {
     });
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
       service = DownloadService(
         appSettingsDao: database.appSettingsDao,
         cacheDao: database.cacheDao,
@@ -458,6 +460,114 @@ void main() {
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
+
+    test('lyrics backfill stops its pass after LRCLIB rate limiting', () async {
+      final root = await Directory.systemTemp.createTemp('lyrics-backfill-');
+      addTearDown(() async {
+        await root.delete(recursive: true);
+      });
+      var externalRequests = 0;
+      final external = Dio();
+      addTearDown(external.close);
+      external.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            externalRequests++;
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                response: Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 429,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      final lrclib = LrclibClient(dio: external);
+      var serverRequests = 0;
+      final firstServerRequest = Completer<void>();
+      final server = Dio();
+      server.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            serverRequests++;
+            if (!firstServerRequest.isCompleted) firstServerRequest.complete();
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'subsonic-response': {'status': 'ok'},
+                },
+              ),
+            );
+          },
+        ),
+      );
+      final api = SubsonicApiClient(
+        baseUrl: 'https://server.example',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+        dio: server,
+        enableLogging: false,
+      );
+      addTearDown(() => api.close(force: true));
+      final songs = ['one', 'two', 'three'];
+      for (final id in songs) {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            artistName: const Value('Fixture'),
+          ),
+        ]);
+        final file = await File(p.join(root.path, '$id.mp3'))
+            .writeAsString('audio');
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: id,
+            filePath: file.path,
+            fileSize: 5,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+      }
+      final backfill = DownloadService(
+        appSettingsDao: database.appSettingsDao,
+        cacheDao: database.cacheDao,
+        downloadQueueDao: database.downloadQueueDao,
+        libraryDao: database.libraryDao,
+        readApiClient: () => api,
+        readWifiOnly: () => false,
+        readIsWifi: () => true,
+        readCustomDownloadFolderEnabled: () => true,
+        readCustomDownloadFolderPath: () => root.path,
+        readApplicationSupportDirectory: () async => root,
+        lrclibClient: lrclib,
+        readCoverArtCacheManager: _MockCacheManager.new,
+        artworkStore: _OfflineArtworkStore(),
+      );
+      addTearDown(backfill.stopAndWait);
+      await backfill.start();
+      await firstServerRequest.future;
+      await Future<void>.delayed(const Duration(milliseconds: 750));
+      expect(lrclib.isRateLimited, isTrue);
+      expect(externalRequests, 1);
+      expect(
+        serverRequests,
+        2,
+        reason:
+            'only the first song may use structured and legacy server fallback',
+      );
+    }, skip: !sqliteAvailable);
 
     test('start() backfill never contacts LRCLIB when lyrics lookups are not allowed', () async {
       final lrclib = _MockLrclibClient();

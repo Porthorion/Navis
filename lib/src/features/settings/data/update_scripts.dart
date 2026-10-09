@@ -5,45 +5,57 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/utils/app_logger.dart';
 
 /// Generates lightweight platform-specific updater scripts that are written
-/// to a temp file, launched detached, and self-delete after finishing.
+/// inside a private update work directory, launched detached, and self-delete
+/// after finishing.
 ///
 /// All path arguments are shell-escaped to prevent command injection.
 class UpdateScripts {
   /// Creates a Windows batch script that:
   /// 1. Waits 2 s for the app to exit
   /// 2. Renames the old install dir to `.backup`
-  /// 3. Moves the staging dir into place
+  /// 3. Copies staging into place, restoring `.backup` if copying fails
   /// 4. Relaunches the app
   /// 5. Removes `.backup`, staging dir, and the script itself
   ///
   /// Returns the absolute path to the written `.bat` file.
   static Future<String> writeWindowsPortableScript({
+    required String workDir,
     required String targetDir,
     required String stagingDir,
     required String appExeName,
   }) async {
-    final scriptPath = p.join(
-      Directory.systemTemp.path,
-      'navis_update_${DateTime.now().millisecondsSinceEpoch}.bat',
-    );
+    final scriptPath = p.join(workDir, 'navis_update.bat');
 
     final backupDir = '$targetDir.backup';
     final tdEsc = _winEsc(targetDir);
     final sdEsc = _winEsc(stagingDir);
     final bdEsc = _winEsc(backupDir);
     final relaunchEsc = _winEsc(p.join(targetDir, appExeName));
+    final backupNameEsc = _winEsc(p.basename(backupDir));
+    final targetNameEsc = _winEsc(p.basename(targetDir));
 
     // robocopy exit codes 0–7 indicate various degrees of success; 8+ are
-    // errors. We do not gate the rest of the script on the exit code because
-    // robocopy itself signals partial success with non-zero codes. If it truly
-    // fails the relaunch will simply not find the binary (visible to the user).
+    // errors. Keep the backup until copying succeeds, and never relaunch a
+    // partially copied installation.
     final script =
         '''
 @echo off
 timeout /t 2 /nobreak >nul
 if exist $bdEsc rd /s /q $bdEsc
-ren $tdEsc "${p.basename(backupDir)}"
+ren $tdEsc $backupNameEsc
+if errorlevel 1 (
+  rd /s /q $sdEsc 2>nul
+  del "%~f0"
+  exit /b 1
+)
 robocopy $sdEsc $tdEsc /E /NFL /NDL /NJH /NJS >nul
+if errorlevel 8 (
+  rd /s /q $tdEsc 2>nul
+  ren $bdEsc $targetNameEsc
+  rd /s /q $sdEsc 2>nul
+  del "%~f0"
+  exit /b 1
+)
 rd /s /q $sdEsc 2>nul
 start "" $relaunchEsc
 rd /s /q $bdEsc 2>nul
@@ -63,15 +75,13 @@ del "%~f0"
   ///
   /// Returns the absolute path to the written `.sh` file.
   static Future<String> writeUnixScript({
+    required String workDir,
     required String targetPath,
     required String stagingPath,
     required bool isMacos,
     required String relaunchCommand,
   }) async {
-    final scriptPath = p.join(
-      Directory.systemTemp.path,
-      'navis_update_${DateTime.now().millisecondsSinceEpoch}.sh',
-    );
+    final scriptPath = p.join(workDir, 'navis_update.sh');
 
     final backupPath = '$targetPath.backup';
     final tEsc = _shEsc(targetPath);
@@ -114,6 +124,8 @@ rm -- "\$0" 2>/dev/null || true
 ''';
 
     final file = File(scriptPath);
+    // The enclosing work directory is already private (0700 on POSIX),
+    // protecting the script while it is written and before chmod.
     await file.writeAsString(script);
     // Make executable. We still invoke the script as `bash scriptPath` so
     // this is defensive; log a warning if it somehow fails.
@@ -132,9 +144,9 @@ rm -- "\$0" 2>/dev/null || true
   // ---------------------------------------------------------------------------
 
   /// Wraps a Windows path in double-quotes; internal double-quotes are escaped
-  /// with a caret (^) which is the cmd.exe escape character.
+  /// with a caret (^); percent signs are doubled to suppress batch expansion.
   static String _winEsc(String path) {
-    return '"${path.replaceAll('"', '^"')}"';
+    return '"${path.replaceAll('%', '%%').replaceAll('"', '^"')}"';
   }
 
   /// Wraps a Unix path in single quotes; internal single quotes are closed,

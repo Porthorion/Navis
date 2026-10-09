@@ -1,7 +1,7 @@
 import 'dart:io';
 
 /// Describes how the running Navis binary was installed, which determines
-/// which Forgejo release asset to download and how to apply the update.
+/// which release asset to download and how to apply the update.
 enum UpdateInstallMode {
   /// Android APK, installed via system package manager.
   androidApk,

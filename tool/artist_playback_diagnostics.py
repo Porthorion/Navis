@@ -15,7 +15,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import auth_lifecycle_fixture_server as fixture
-from diagnostics_profile import disable_external_integrations
+from diagnostics_profile import disable_external_integrations, primary_database
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARTIST_ID = 'artist-playback-fixture'
@@ -98,7 +98,7 @@ def wait_until(check, timeout=90):
 
 
 def main():
-    source = pathlib.Path(os.environ.get('NAVIS_DIAGNOSTICS_PRIMARY_DB', str(pathlib.Path.home() / 'Documents/navis.sqlite.sqlite')))
+    source = primary_database()
     output = ROOT / 'build/artist-playback-diagnostics' / time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
     output.mkdir(parents=True, mode=0o700)
     os.chmod(output, 0o700)

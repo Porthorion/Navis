@@ -67,6 +67,11 @@ Duration resolveEffectivePlaybackDuration({
   return validMediaDuration ?? validPlayerDuration ?? Duration.zero;
 }
 
+/// A station outside the server cannot play while online services are off.
+class RadioPlaybackBlockedException implements Exception {
+  const new();
+}
+
 /// Metadata for the currently playing radio station.
 @immutable
 class RadioStationMetadata {

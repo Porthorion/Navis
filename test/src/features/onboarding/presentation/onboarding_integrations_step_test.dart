@@ -126,6 +126,7 @@ Future<_Harness> _pump(
   Future<void> Function(AppSettingsDao dao)? seed,
   ListenBrainzApiClient? listenBrainzClient,
   LastFmApiClient Function(String)? lastFmClientFactory,
+  bool openIntegrationsStep = true,
 }) async {
   // Tall enough to build every row of the lazy step list.
   setAdaptiveTestViewport(tester, const Size(500, 2400));
@@ -178,7 +179,7 @@ Future<_Harness> _pump(
   );
   final harness = _Harness(tester, database, credentials);
   await harness.settle();
-  await harness.openIntegrationsStep();
+  if (openIntegrationsStep) await harness.openIntegrationsStep();
   return harness;
 }
 
@@ -192,27 +193,21 @@ void main() {
       'Integrations',
       'Online services',
       'Off: Navis only talks to your server.',
-      'Sends artist and track names to api.deezer.com.',
-      'Sends track and artist names to ws.audioscrobbler.com.',
+      "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
+      'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
-      'Sends an app version check to git.porthorion.com.',
+      'Sends an app version check to downloads.porthorion.com.',
+      'Internet radio',
       'Fine-tune per feature in Settings › Integrations.',
     ]) {
       expect(find.text(line), findsOneWidget, reason: line);
     }
-    // Feature-level and other services stay in Settings › Integrations.
-    expect(find.text('Internet radio'), findsNothing);
+    // Feature-level switches stay in Settings › Integrations.
     expect(find.text('Same Vibes mixes'), findsNothing);
 
     expect(tester.widget<SwitchListTile>(h.master).value, isTrue);
-    for (final service in const [
-      IntegrationService.deezer,
-      IntegrationService.lastFm,
-      IntegrationService.listenBrainz,
-      IntegrationService.lrclib,
-      IntegrationService.updates,
-    ]) {
+    for (final service in IntegrationService.values) {
       final tile = h.serviceTile(service);
       expect(tile.value, isTrue, reason: service.key);
       expect(tile.onChanged, isNotNull, reason: service.key);
@@ -254,15 +249,13 @@ void main() {
 
     await h.tap(h.master);
 
-    for (final service in const [
-      IntegrationService.deezer,
-      IntegrationService.lastFm,
-      IntegrationService.listenBrainz,
-      IntegrationService.lrclib,
-    ]) {
+    for (final service in IntegrationService.values) {
       expect(h.serviceTile(service).onChanged, isNull, reason: service.key);
     }
-    expect(find.text('Online services are off.'), findsNWidgets(5));
+    expect(
+      find.text('Online services are off.'),
+      findsNWidgets(IntegrationService.values.length),
+    );
     expect(h.token, findsNothing);
     expect(h.lastFmKey, findsNothing);
   });
@@ -454,6 +447,38 @@ void main() {
     final row = await h.row();
     expect(row.externalIntegrationsEnabled, isFalse);
     expect(row.disabledIntegrations, '[]');
+    expect(row.integrationsNoticeDismissed, isTrue);
+  });
+
+  testWidgets('Skip on an earlier step still shows every online service', (
+    tester,
+  ) async {
+    final h = await _pump(tester, openIntegrationsStep: false);
+
+    await h.tap(find.text('Skip setup'));
+    expect(
+      find.text(
+        'Your current settings will be kept. Before you start, choose which '
+        'online services Navis may use. You can reopen setup from Settings at '
+        'any time.',
+      ),
+      findsOneWidget,
+    );
+    await h.tap(find.widgetWithText(FilledButton, 'Skip setup'));
+
+    expect(find.text('Step 4 of 4'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Back'), findsNothing);
+    for (final service in IntegrationService.values) {
+      expect(h.service(service), findsOneWidget, reason: service.key);
+    }
+
+    await h.tap(h.service(IntegrationService.deezer));
+    await h.finish();
+
+    final row = await h.row();
+    expect(find.text('Home stub'), findsOneWidget);
+    expect(row.onboardingVersion, currentOnboardingVersion);
+    expect(parseDisabledIntegrationKeys(row.disabledIntegrations), {'deezer'});
     expect(row.integrationsNoticeDismissed, isTrue);
   });
 

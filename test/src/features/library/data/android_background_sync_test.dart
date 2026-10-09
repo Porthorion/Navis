@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -62,6 +63,7 @@ void main() {
       final completed = expectLater(cancellation, completes);
       await entered.future;
       await SessionLifecycleService(
+        credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
         serverConfigRepository: ServerConfigRepository(
           database,
           credentials: FakeSyncCredentialStore(),

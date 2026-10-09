@@ -4,7 +4,14 @@ import 'dart:async';
 ///
 /// A token and salt pair (`t`, `s`) can be replayed, `p` carries the password,
 /// `apiKey` is OpenSubsonic API-key authentication, and `u` names the account.
-const subsonicCredentialQueryParameters = {'u', 't', 's', 'p', 'apiKey'};
+const subsonicCredentialQueryParameters = {
+  'u',
+  't',
+  's',
+  'p',
+  'apiKey',
+  'api_key',
+};
 
 /// Whether [uri] carries a Subsonic credential query parameter, and so must
 /// not be handed to another process (media sessions, MPRIS, SMTC).

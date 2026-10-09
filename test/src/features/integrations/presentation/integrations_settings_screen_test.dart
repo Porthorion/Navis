@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,9 +56,13 @@ class _MemoryCredentialStore implements ExternalScrobbleCredentialStore {
   new([this.listenBrainzToken]);
 
   String? listenBrainzToken;
+  bool failDelete = false;
 
   @override
-  Future<void> clearListenBrainzToken() async => listenBrainzToken = null;
+  Future<void> clearListenBrainzToken() async {
+    if (failDelete) throw StateError('fixture deletion failure');
+    listenBrainzToken = null;
+  }
 
   @override
   Future<String?> readListenBrainzToken() async => listenBrainzToken;
@@ -111,6 +116,7 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   Future<void> Function(AppSettingsDao dao)? seed,
+  AppNoticeController? notices,
   bool lastFmBundled = true,
   String lastFmApiKey = 'bundled-key',
   ExternalScrobbleCredentialStore? credentialStore,
@@ -150,27 +156,30 @@ Future<_Harness> _pump(
   });
   const screen = IntegrationsSettingsScreen();
   await tester.pumpWidget(
-    UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp(
-        theme: theme ?? testTheme(),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(textScale)),
-          child: child!,
+    AppNoticeScope(
+      notifier: notices,
+      child: UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: theme ?? testTheme(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: desktop
+              ? AdaptiveContextScope(
+                  adaptiveContext: resolveAdaptiveContext(
+                    desktopRuntime: true,
+                    viewportSize: size,
+                    safePadding: EdgeInsets.zero,
+                  ),
+                  child: screen,
+                )
+              : screen,
         ),
-        localizationsDelegates: navisLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: desktop
-            ? AdaptiveContextScope(
-                adaptiveContext: resolveAdaptiveContext(
-                  desktopRuntime: true,
-                  viewportSize: size,
-                  safePadding: EdgeInsets.zero,
-                ),
-                child: screen,
-              )
-            : screen,
       ),
     ),
   );
@@ -225,13 +234,13 @@ void main() {
     for (final line in <String>[
       'Online services',
       'Off: Navis only talks to your server.',
-      'Sends artist and track names to api.deezer.com.',
-      'Sends track and artist names to ws.audioscrobbler.com.',
+      "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
+      'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Key included with this build',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
-      'Sends an app version check to git.porthorion.com.',
-      'Downloads headphone profiles from GitHub, only when you ask.',
+      'Sends an app version check to downloads.porthorion.com.',
+      'Downloads headphone profiles from raw.githubusercontent.com and api.github.com, only when you ask.',
       "Reads now-playing info from the station's server.",
       'Loads images your server links from other sites, such as artist photos.',
     ]) {
@@ -635,6 +644,32 @@ void main() {
     expect(
       h.featureTile(IntegrationFeature.listenBrainzFeedback).onChanged,
       isNotNull,
+    );
+  });
+
+  testWidgets('failed token deletion retains the ListenBrainz connection', (
+    tester,
+  ) async {
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    final store = _MemoryCredentialStore('fixture-token')..failDelete = true;
+    final h = await _pump(
+      tester,
+      credentialStore: store,
+      notices: notices,
+      seed: (dao) => dao.updateListenBrainzScrobblingState(
+        enabled: true,
+        tokenValid: true,
+        userName: 'fixture-user',
+      ),
+    );
+    await h.tap(find.byTooltip('Clear').last);
+    expect((await h.row()).listenBrainzTokenValid, isTrue);
+    expect((await h.row()).listenBrainzScrobblingEnabled, isTrue);
+    expect(store.listenBrainzToken, 'fixture-token');
+    expect(
+      notices.notice?.message,
+      "Couldn't remove the ListenBrainz token. Try again.",
     );
   });
 

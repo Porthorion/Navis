@@ -493,7 +493,8 @@ class _IntegrationsSettingsScreenState
       if (!mounted) return;
       showAppNotice(
         context,
-        message: AppLocalizations.of(context)!.integrationsSaveError,
+        message: AppLocalizations.of(context)!
+            .integrationsListenBrainzDisconnectFailed,
         level: AppNoticeLevel.error,
       );
     }

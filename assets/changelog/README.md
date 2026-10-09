@@ -26,3 +26,10 @@ ChangelogVersion(
   cover instead: its version ("1.4") set large on the accent colour.
 - `test/src/features/changelog/changelog_data_test.dart` fails if a referenced
   file does not exist.
+
+## Provenance
+
+- `navi.svg` (1.4 "Navi"): original artwork drawn for Navis by Porthorion in
+  2026, replacing an earlier glyph traced from third-party fan art. A glowing
+  orb in a halo with two pairs of wings and a sparkle trail; hand-written SVG,
+  no external source.

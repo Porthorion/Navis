@@ -28,9 +28,17 @@ export 'package:navis/src/features/library/domain/similar_artist_entry.dart';
 /// server's remote artist page (search for their name when it has no Deezer
 /// id), never a missing artist page.
 class SimilarArtistsSection extends ConsumerWidget {
-  const new({required this.title, required this.artists, super.key});
+  const new({
+    required this.title,
+    required this.artists,
+    this.caption,
+    super.key,
+  });
 
   final String title;
+
+  /// Credit for the online service the list comes from, if any.
+  final String? caption;
   final List<SimilarArtistEntry> artists;
 
   @override
@@ -52,7 +60,7 @@ class SimilarArtistsSection extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xxs),
-            child: NavisSectionHeader(title: title),
+            child: NavisSectionHeader(title: title, caption: caption),
           ),
           const SizedBox(height: NavisSpace.xs),
           LayoutBuilder(

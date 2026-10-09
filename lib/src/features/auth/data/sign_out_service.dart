@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
 
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
+
 import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -50,6 +52,7 @@ final serverDataResetServiceProvider = Provider<ServerDataResetService>((ref) {
 
 final signOutServiceProvider = Provider<SignOutService>((ref) {
   return SessionLifecycleService(
+    credentials: ref.watch(externalScrobbleCredentialStoreProvider),
     serverConfigRepository: ref.watch(serverConfigRepositoryProvider),
     database: ref.watch(navisDatabaseProvider),
     cancelApiRequests: () async {
@@ -98,6 +101,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
 class SessionLifecycleService implements SignOutService {
   new({
     required this._serverConfigRepository,
+    required this._credentials,
     required NavisDatabase database,
     this._cancelApiRequests,
     this._cancelSync,
@@ -113,6 +117,7 @@ class SessionLifecycleService implements SignOutService {
            wipeServerData ??
            (() => ServerDataResetService(database: database).reset());
 
+  final ExternalScrobbleCredentialStore _credentials;
   final ServerConfigRepository _serverConfigRepository;
   final NavisDatabase _database;
   final Future<void> Function()? _cancelApiRequests;
@@ -178,6 +183,18 @@ class SessionLifecycleService implements SignOutService {
       await attempt('clear pending star actions', () async {
         await _database.starSyncDao.clearAll();
       });
+      await attempt(
+        'delete ListenBrainz token',
+        _credentials.clearListenBrainzToken,
+      );
+      await attempt(
+        'reset ListenBrainz connection',
+        () => _database.appSettingsDao.updateListenBrainzScrobblingState(
+          tokenValid: false,
+          enabled: false,
+          clearUserName: true,
+        ),
+      );
       await attempt('clear pending scrobbles', () {
         return _database.scrobbleDao.clearAll();
       });

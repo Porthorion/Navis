@@ -19,6 +19,13 @@ app/API runtime loop, and this repository gate. Clone launchers seed
 app-support state such as the What's New marker under `<root>/support/`, where
 desktop clone builds keep it (see `docs/development-workflow.md`).
 
+Diagnostics database defaults are shared through `tool/diagnostics_profile.py`:
+Linux application support first, the Documents file only as an existing legacy
+fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
+Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
+for path selection, shell-launcher defaults and scenario preparation without
+launching the app. Primary certification keeps its normal-path restriction.
+
 Artist queue changes additionally verify early playback and background queue
 growth without a modal using `python3 tool/artist_playback_diagnostics.py`.
 This bounded Linux fixture gate verifies a three-release artist starting with
@@ -35,6 +42,45 @@ Linux fixture gate requires that a 404 stream never reaches a yt-dlp on `PATH`
 Azuracast-style ICY radio station plays and stops through its station card,
 and that a stream served with an untrusted certificate is refused
 (`tls-verify`).
+
+Regenerate Windows SMTC licence notices after Rust dependency changes with
+`python3 tool/generate_rust_notices.py` (see `release-windows.md`). The script
+uses the locked Windows graph and locally fetched Cargo registry sources. Licence
+file matching ignores case. A crate without a licence file gets full text for
+every SPDX identifier from tracked `tool/data/spdx/` templates; unsupported
+fallbacks fail generation. Identical texts share a notice reference.
+
+The colour-name table is generated separately with
+`dart run tool/generate_color_names.dart`; `build_runner` does not own it.
+Keep its pinned CSV and output together (see `tool/data/color_names/README.md`).
+
+Android Gradle release tasks require `android/key.properties` unless
+`NAVIS_ALLOW_DEBUG_SIGNED_RELEASE=1` explicitly permits local debug signing.
+Named release tasks fail during configuration; aggregate tasks selecting release
+variants fail before task execution. Debug/profile tasks keep their fallback.
+`tool/dev_app.sh apk` and `dhu` opt in for local dev APKs (an explicit `0`
+retains the strict check). `tool/check.sh` builds no release APKs.
+`test/tool/android_release_signing_test.dart` exercises the publication
+preflight and local dev opt-in in temporary fixtures with a fake Flutter
+executable, without builds, launches or credentials.
+
+Windows libmpv uses an LGPL pin with verified Forgejo/R2/upstream fallbacks;
+remote builds no longer seed the obsolete media_kit archive. Run
+`cmake -P tool/libmpv_download_test.cmake` for offline cache, retry and cleanup
+checks (downloads are simulated). Also run with
+`-DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt"` for the Linux downloader and
+`cmake -P tool/libmpv_bundle_test.cmake` for extraction, install and opt-out.
+Linux release packaging uses the bundled LGPL libmpv rather than a system-mpv
+Debian dependency; both packaging paths keep PulseAudio and ALSA loader
+dependencies. The separate `tool/libmpv/` recipe publishes binaries and source
+archives; see the Windows/Linux release guides for pin updates.
+
+Release notes are generated from `changelog_data.dart`. Write pending entries
+as short descriptions of what users notice, merge overlapping changes and
+keep their entry types consistent. Historical service announcements can carry
+later-removal notes so they do not imply current support. Validate the data,
+screen/provider and release-notes CLI with the focused files in
+`test/src/features/changelog/`.
 
 ## Quality Gate (`tool/check.sh`)
 
@@ -443,7 +489,7 @@ required:
 
 ## Release (`tool/release.sh`)
 
-Builds selected release artifacts, tags the commit, creates a Forgejo release, and uploads all assets — all from the local machine.
+Builds selected release artifacts, tags the commit, and publishes the assets plus a signed update manifest to Cloudflare R2 (`tool/r2_publish.sh`) — all from the local machine. A Forgejo release is created only with `--forgejo` (the 1.5.0 bridge for 1.4.x installs). See [release-r2.md](release-r2.md).
 
 ### Setup (one-time)
 
@@ -455,12 +501,18 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
    sudo apt install jq
    ```
 
-2. Create `tool/release.env` with your Forgejo credentials (this file is git-ignored):
+2. Copy `tool/release.env.example` to `tool/release.env` (git-ignored) and fill in
+   the R2 settings and the update signing key path:
    ```bash
-   FORGEJO_URL="https://your-forgejo-instance.com"
-   FORGEJO_REPO="your-user/Navis"
-   FORGEJO_TOKEN="your-api-token"
+   R2_ACCOUNT_ID="<cloudflare-account-id>"
+   R2_BUCKET="downloads"
+   R2_PREFIX="navis"
+   R2_ACCESS_KEY_ID="<r2-access-key-id>"
+   R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+   NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
    ```
+   Add `FORGEJO_URL`, `FORGEJO_REPO` and `FORGEJO_TOKEN` only if you pass `--forgejo`.
+   Key handling is in [release-secrets.md](release-secrets.md).
 
 3. Ensure the script is executable:
    ```bash
@@ -498,7 +550,10 @@ make release VERSION=v0.2.0
    script reports it and continues. It also fails when it cannot read origin's
    tags. `tool/release_tag_guard_test.sh` covers these cases in
    `tool/check.sh`.
-2. Runs `./tool/check.sh` unless `--skip-checks` is passed.
+2. Requires `android/key.properties` when Android is selected, before loading
+   secrets or running gates. Publication never accepts the local debug-signing
+   opt-in, and signer validation fails if the properties file disappears.
+   Runs `./tool/check.sh` unless `--skip-checks` is passed.
 3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
    Android release builds clean stale Flutter/Gradle APK outputs before
    building and remove any same-name root release asset before copying the new
@@ -507,7 +562,9 @@ make release VERSION=v0.2.0
    (`--linux-package=deb`). Debian package output is architecture-aware
    (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
    Windows target can output `.zip` (default) or Inno Setup `.exe` installer
-   (`--windows-package=exe`). macOS target can optionally sign + notarize +
+   (`--windows-package=exe`). The installer's silent update relaunch uses
+   `runasoriginaluser` to avoid restarting Navis with installer elevation.
+   macOS target can optionally sign + notarize +
    staple before packaging (`--macos-notarize`). On non-Linux/non-Windows
    hosts, Linux/Windows desktop builds can be delegated to remote SSH builders
    (`--linux-ssh`, `--windows-ssh`).
@@ -519,8 +576,25 @@ make release VERSION=v0.2.0
    not as a plain define.
 6. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
 7. Creates an annotated git tag and pushes main/current branch/tag.
-8. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
-9. Uploads all built assets to the release.
+8. Publishes to R2 with `tool/r2_publish.sh publish`: uploads each updater asset to
+   `navis/releases/<tag>/`, writes `SHA256SUMS`, signs and uploads the channel manifest
+   last, then verifies it against the pinned key and the uploaded files. Assets with no
+   updater install mode (such as the `.ipa`) are skipped.
+9. With `--forgejo` only, creates a Forgejo release (`prerelease=true` for the dev
+   channel or when `--prerelease` is passed) and uploads the same assets to it.
+   Both calls load Authorization from a mode-600 header file in the private
+   release secrets directory (`curl -H @file`, curl 7.55+), which the EXIT trap
+   removes. The token stays out of curl's command-line arguments.
+
+Before building anything (after the version checks), `release.sh` runs
+`tool/r2_publish.sh check`, which fails early if an R2 setting or the signing key is
+missing, the signing key does not match `updateSigningPublicKey` in
+`lib/src/utils/constants.dart`, or the channel already holds a newer version. The
+built files stay on disk until every publish step succeeds, so a failed upload is
+retried with `./tool/r2_publish.sh publish --tag=<tag> --channel=<channel> --notes-file=<md> <files…>`.
+Release tags must be plain `vX.Y.Z`; `r2_publish.sh` rejects prerelease suffixes such
+as `-beta.1`. `r2_publish.sh` refuses to replace a release file whose content differs,
+so a given tag is published once with all its files.
 
 After each artifact is built, `release.sh` searches it for the plaintext
 Last.fm key and fails the release before anything is tagged or uploaded if it
@@ -550,9 +624,22 @@ needed this flag; it no longer does.
 - `stable` channel assets are named `navis-<tag>.*`
 - `dev` channel assets are named `navis-dev-<tag>.*`
 
-The app updater uses `NAVIS_UPDATE_CHANNEL` to prefer channel-matching assets.
+The app updater uses `NAVIS_UPDATE_CHANNEL` to pick the manifest
+(`navis/channels/<channel>/manifest.json`) and rejects a manifest whose signed
+`channel` differs. It selects the asset by manifest key, not by file name; see
+"Signed manifest and download verification" in [architecture.md](architecture.md).
 
 ### Required environment variables
+
+| Variable | Description |
+|---|---|
+| `R2_ACCOUNT_ID` | Cloudflare account ID that owns the bucket |
+| `R2_BUCKET` | R2 bucket name (`downloads`) |
+| `R2_ACCESS_KEY_ID` | R2 API token key ID with Object Read & Write on the bucket |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `NAVIS_UPDATE_SIGNING_KEY` | Path to the Ed25519 PEM private key that signs update manifests; must match `updateSigningPublicKey` |
+
+Needed only with `--forgejo` (the 1.5.0 bridge release for 1.4.x installs):
 
 | Variable | Description |
 |---|---|
@@ -564,7 +651,9 @@ Optional variables:
 
 | Variable | Description |
 |---|---|
-| `NAVIS_DEB_MAINTAINER` | Maintainer string for Linux Debian package metadata |
+| `R2_PREFIX` | Key prefix inside the bucket (default `navis`) |
+| `NAVIS_RELEASE_NOTES_URL` | HTTPS link on `navis.porthorion.com` shown as the release notes link in the update dialog |
+| `NAVIS_DEB_MAINTAINER` | Linux Debian maintainer override (default `Porthorion <support@porthorion.com>`) |
 | `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
 | `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
 | `NAVIS_LINUX_SSH` | Default SSH target for remote Linux builder |
@@ -680,7 +769,7 @@ The intended flow for shipping a feature or fix:
 3. Commit with Conventional Commits format.
 4. When ready to release: merge `dev` → `main`.
 5. Run `./tool/release.sh v0.x.0` from `main`.
-6. The script handles everything: checks, build, tag, Forgejo release, APK upload.
+6. The script handles everything: checks, build, tag, R2 upload and signed manifest.
 
 The manual discovery gate also calls `GET /v1/library/album?verifySongs=true`
 (with the fixture album `id`) and requires `persistedSongCount` before and after

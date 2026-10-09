@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -77,7 +80,7 @@ class LastFmApiKeyValidationResult {
 class LastFmApiClient {
   /// Production code passes a [dio] from `externalDioFactoryProvider`, built
   /// with [baseOptions], so the integration guard applies.
-  new({required String apiKey, Dio? dio})
+  new({required String apiKey, Dio? dio, this._cache})
     : _apiKey = apiKey.trim(),
       _dio = dio ?? Dio(baseOptions);
 
@@ -91,6 +94,20 @@ class LastFmApiClient {
 
   final Dio _dio;
   final String _apiKey;
+  final IntegrationJsonCache? _cache;
+  static const similarTracksNamespace = 'lastfm.similar-tracks';
+  static const similarTracksTtl = Duration(hours: 24);
+
+  Future<void> _storeSimilarTracks(
+    String key,
+    Map<String, dynamic> data,
+    int limit,
+  ) async {
+    await _cache?.write(similarTracksNamespace, key, <String, Object?>{
+      'limit': limit,
+      'data': data,
+    }, ttl: similarTracksTtl);
+  }
 
   Future<LastFmApiKeyValidationResult> validateApiKey() async {
     if (_apiKey.isEmpty) {
@@ -177,19 +194,38 @@ class LastFmApiClient {
       );
     }
 
+    final key = jsonEncode([
+      normalizedArtist.toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
+      normalizedTrack.toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
+    ]);
+    final hit = await _cache?.read(similarTracksNamespace, key);
+    final cached = hit?.value;
+    final cachedData =
+        cached is Map<String, dynamic> &&
+            cached['limit'] is int &&
+            (cached['limit'] as int) >= limit &&
+            cached['data'] is Map<String, dynamic>
+        ? cached['data'] as Map<String, dynamic>
+        : null;
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '',
-        queryParameters: <String, dynamic>{
-          'method': 'track.getsimilar',
-          'artist': normalizedArtist,
-          'track': normalizedTrack,
-          'api_key': _apiKey,
-          'format': 'json',
-          'autocorrect': 1,
-          'limit': limit,
-        },
-      );
+      final response = cachedData != null
+          ? Response<Map<String, dynamic>>(
+              requestOptions: RequestOptions(),
+              data: cachedData,
+              statusCode: 200,
+            )
+          : await _dio.get<Map<String, dynamic>>(
+              '',
+              queryParameters: <String, dynamic>{
+                'method': 'track.getsimilar',
+                'artist': normalizedArtist,
+                'track': normalizedTrack,
+                'api_key': _apiKey,
+                'format': 'json',
+                'autocorrect': 1,
+                'limit': limit,
+              },
+            );
       final data = response.data;
       if (data == null || data.isEmpty) {
         AppLogger.debug(
@@ -229,6 +265,9 @@ class LastFmApiClient {
       final similarRoot = _asMap(data['similartracks']);
       final tracks = _asMapList(similarRoot['track']);
       if (tracks.isEmpty) {
+        if (cachedData == null && data['similartracks'] is Map) {
+          await _storeSimilarTracks(key, data, limit);
+        }
         AppLogger.debug(
           'LastFm diagnostics: no similar tracks artist="$normalizedArtist" '
           'track="$normalizedTrack"',
@@ -245,13 +284,14 @@ class LastFmApiClient {
           .whereType<LastFmTrackRecommendation>()
           .where((rec) => rec.isUsable)
           .toList(growable: false);
+      if (cachedData == null) await _storeSimilarTracks(key, data, limit);
       AppLogger.debug(
         'LastFm diagnostics: recommendations=${recommendations.length} '
         'artist="$normalizedArtist" track="$normalizedTrack"',
       );
       return LastFmTrackFetchResult(
         outcome: LastFmFetchOutcome.success,
-        tracks: recommendations,
+        tracks: recommendations.take(limit).toList(growable: false),
         statusCode: response.statusCode,
       );
     } on DioException catch (error) {

@@ -646,9 +646,22 @@ target-selection rules.
   zero values.
 - `dynamic_accent_provider.dart`: samples the current artwork to reseed the
   scheme when dynamic album colour is enabled.
+- Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
+  colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
+  values. The MIT meodai/color-names table is generated from the pinned
+  filtered CSV; see `tool/data/color_names/README.md` for regeneration.
 - Fonts: the bundled Inter variable font (`assets/fonts/`, SIL OFL 1.1,
-  licence registered in `main.dart`). Scripts Inter lacks use the platform's
-  per-glyph fallback.
+  licence registered in `app_licenses.dart`). Scripts Inter lacks use the
+  platform's per-glyph fallback.
+- Bundled licence registration: `main.dart` calls `registerBundledLicenses`
+  from `app_licenses.dart`. Inter, AutoEq and color-names appear on every
+  platform; mimalloc appears on Linux and Rust crate notices on Windows. The
+  Rust notice generator matches upstream licence files without case sensitivity
+  and supplies tracked SPDX full-text templates for missing files, preserving
+  Cargo authors for MIT attribution. Every crate references full licence text.
+  Windows and Linux register the bundled libmpv/FFmpeg source offer and full
+  LGPL-2.1 text. Both release bundles use LGPL builds. About supplies the
+  Porthorion copyright line.
 - Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
   font sizes and colours per file outside `lib/src/theme/`.
 - Decision record:
@@ -699,7 +712,7 @@ Trending Now are described in "Deezer on Home".
 
 **Data.** `changelog_data.dart` is a `const` list of `ChangelogVersion`s,
 newest first. It has no imports, so it is the single source for the app and
-for `tool/generate_release_notes.dart`, which renders a Forgejo release body
+for `tool/generate_release_notes.dart`, which renders the release notes (the manifest `notes` field, and the Forgejo release body with `--forgejo`)
 through `release_notes_markdown.dart`.
 - Every `x.y.0` release is major (`isMajor`) and shows as `1.4`
   (`displayVersion`).
@@ -1369,7 +1382,23 @@ keeps that action's default. Playback speed up/down/reset (`speedUp`,
 `,` and `0`, because Shift changes the logical key of punctuation on many
 layouts.
 
+## Database file location
+
+Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
+directory; Android and iOS use application documents. `database_location.dart`
+resolves both through path_provider, preserving clone diagnostics overrides.
+Before opening on desktop, a missing support database is migrated from documents
+along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
+verified before originals are deleted. Failure restores transferred files and
+falls back to documents; a rollback failure preserves the remaining copy and
+fails opening rather than choosing an incomplete database. An existing support
+database wins and leaves legacy files untouched. No schema changes are involved.
+
 ## External integration policy
+
+External HTTP clients use a shared ASCII User-Agent containing the current
+Navis version, `https://navis.porthorion.com` and `support@porthorion.com`,
+including radio metadata, AutoEQ, cover-art fetching and update requests.
 
 Navis talks to its own Subsonic server and, optionally, to external services:
 Deezer, Last.fm, ListenBrainz, LRCLIB, the update feed, AutoEQ, radio station
@@ -1377,6 +1406,31 @@ streams and artwork the server links to. The user decides which, per service
 and per feature. Everything is on by default, and a master "Online services"
 switch means "Navis only talks to your server" when off. See
 [the decision record](decisions/2026-10-04-external-integrations-policy.md).
+
+ListenBrainz credentials are deleted on every server sign-out, with the
+connection reset even if deletion fails. Teardown logs failures and continues.
+Disconnect in Integrations instead retains the connection when deletion fails
+and shows a retry notice.
+
+The provider-held LRCLIB client shares a Retry-After cooldown across exact
+lookups, search and downloads. HTTP 429/503 pauses requests until the supplied
+seconds or HTTP-date (60 seconds without valid guidance). Lyrics use cached
+or server alternatives without warning spam; backfill stops the current pass
+after a rate limit. Subsonic shares the HTTP Retry-After parser.
+
+Last.fm `track.getsimilar` responses are cached for 24 hours in
+`IntegrationJsonCache` under `lastfm.similar-tracks`, keyed by normalized artist
+and track (case and whitespace). The client is the shared layer for Same Vibes
+and Instant Radio. Successful empty responses are cached; request errors are
+not. Each entry records its request limit, so a larger request refreshes an
+undersized entry and smaller reads return only the requested number of tracks.
+Cache I/O uses the existing asynchronous read and atomic-write path.
+
+ListenBrainz listen submissions observe `X-RateLimit-Remaining: 0` and
+`X-RateLimit-Reset-In`, holding subsequent dispatches for the stated seconds
+(up to five minutes). Malformed headers are ignored. Client and dispatcher
+retain the deadline; deferred events stay queued without retry penalties,
+and Subsonic delivery continues independently.
 
 - **Model** (`features/integrations/domain/integration_feature.dart`):
   `IntegrationService` (key, host, display name, verification requirement),
@@ -1469,7 +1523,11 @@ switch means "Navis only talks to your server" when off. See
   caller passes `userInitiated: true` (Integrations and onboarding), so the
   weekly stream's automatic revalidation obeys the service switch. The policy is
   read per request, so clients that already exist obey later changes.
-  `NavisAudioHandler` receives `readRadioMetadataAllowed`, which
+  `NavisAudioHandler` receives `readRadioPlaybackAllowed`, checked before any
+  transport or queue changes: the master switch permits external streams, and
+  the configured server host remains allowed when it is off. Host matching is
+  case-insensitive. A missing callback preserves standalone handler compatibility.
+  It also receives `readRadioMetadataAllowed`, which
   `RadioMetadataService` checks before every Azuracast poll and which stops the
   polling while it is false (ICY metadata, carried by the stream
   itself, is unaffected). Policy changes refresh the current station immediately:
@@ -2120,23 +2178,31 @@ Settings › Integrations › Updates holds the automatic check
 (`updates.automatic`); About keeps "Check now", which only the master and
 `updates` service switches block.
 
-- `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
-  channel, parses semver, and selects the correct platform artifact using
-  `detectInstallMode()`. Returns `UpdateInfo` (with `downloadUrl` and `assetFileName`)
-  when a newer version is available.
-- `data/update_service.dart` — downloads the release artifact into the system temp
-  directory and applies the update. Distribution is resolved at runtime:
-  - **Forgejo/sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
+- `data/update_repository.dart` — fetches the channel's signed manifest from
+  `AppConstants.updateBaseUrl` (R2, see [release-r2.md](release-r2.md)), verifies it,
+  and selects the platform asset by manifest key using `detectInstallMode()`. Returns
+  `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
+  version is available. A manifest that fails any check is dropped (the reason is kept
+  for diagnostics) and reads as "no update".
+- `data/update_service.dart` — downloads each desktop artifact into a fresh private
+  `navis_update_*` work directory under `getTemporaryDirectory()`. POSIX downloads
+  require `chmod 700` on that directory before writing any contents. Navis then
+  verifies the artifact and applies the update. Diagnostics overrides of the temp base are
+  preserved. Android retains `<cache>/navis_updates/` for its FileProvider.
+  Distribution is resolved at runtime:
+  - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
   - **Desktop** runs a platform-appropriate apply strategy:
   - **Linux deb:** `pkexec dpkg -i` + relaunch.
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
-    directory, writes a self-deleting shell/batch script with rollback logic, launches it
+    subdirectory of the downloaded artifact's private work directory, writes a
+    self-deleting shell/batch script inside that same work directory, launches it
     detached, and exits. The script replaces the running bundle, relaunches the app, and
     cleans up automatically.
   - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
+    Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
   function. Detects the current install type from filesystem heuristics (e.g. presence of
   `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
@@ -2144,32 +2210,93 @@ Settings › Integrations › Updates holds the automatic check
   `Expand-Archive`).
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
   Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
-  after successful update.
+  after successful update. Unix scripts retain `chmod 700`; their enclosing private
+  directory protects them before chmod as well. Windows batch paths escape percent
+  signs; `robocopy` codes 0–7 succeed, while codes 8+ remove the partial target, restore
+  the backup, clean staging and the script, and exit without relaunching. The current
+  backup is deleted only after a successful copy. A failed initial backup rename also
+  aborts before copying.
 - `domain/update_info.dart` — immutable value object with an `UpdateDelivery` mode.
-  `downloadUrl` holds the direct asset URL for self-update paths; Play redirects omit it.
+  `downloadUrl`, `sha256` and `size` hold the direct asset URL and its manifest digest for
+  self-update paths; Play redirects omit them.
 - `domain/update_delivery_resolver.dart` — maps platform, build capability, and Android
-  install source to `UpdateDelivery`.
+  install source to `UpdateDelivery` (`selfUpdate`, `storeRedirect`, ...).
+
+### Signed manifest and download verification
+
+`UpdateRepository.checkForUpdate` reads
+`https://downloads.porthorion.com/navis/channels/<channel>/manifest.json`, a signed
+envelope (`payload` and `signature`, both base64). It accepts the manifest only if all of
+these hold; each failure is recorded as a reject reason and nothing is offered:
+
+- the Ed25519 signature verifies against `AppConstants.updateSigningPublicKey`
+  (`invalid_signature`, `malformed_envelope`);
+- `schema` is 1 and `channel` equals the build's channel (`unsupported_schema`,
+  `wrong_channel`);
+- `version` is newer than the installed version (`version_not_newer`);
+- the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages. There is no
+  fallback to another architecture or another install mode;
+- the asset URL is HTTPS under `AppConstants.updateBaseUrl`, and its `sha256` and `size`
+  are well formed (`invalid_asset_url`, `invalid_asset_sha256`, `invalid_asset_size`).
+
+A transport failure is not a reject: it surfaces through the provider's error state, and
+a successful fetch keeps the 24-hour check throttle. The release notes link comes from
+the manifest's `notes_url` only when it is an HTTPS URL on `navis.porthorion.com`;
+otherwise "Download Manually" opens `AppConstants.updateManualDownloadUrl`.
+
+`UpdateService.downloadArtifact` refuses a URL outside the update host or a missing
+digest, then checks the downloaded file's size and SHA-256 against the manifest before
+returning its path. A mismatch deletes the file and throws `UpdateIntegrityException`;
+the dialog shows "The update download was damaged. Try again." Nothing is installed or
+extracted before that check passes, which replaces the old "smaller than 10 KB" guard.
+
+`GET /v1/diagnostics/update` returns the last manifest check (URL, time,
+`signatureValid`, `payloadVersion`, `assetKey`, `rejectReason`, `tag`) and
+`POST /v1/diagnostics/update/check` forces a check through the same providers as
+About's Check now. `POST /v1/diagnostics/update/download` forces a check and then runs
+the production download and integrity check without installing anything; it adds
+`downloaded`, `artifactPath` and `downloadError` (`integrity_mismatch` for a size or
+SHA-256 mismatch). With the body `{"apply": true}` on desktop it then runs the production
+apply (`applyDesktopUpdate`) after responding, which replaces the running build and exits;
+this is how a clone proves the whole R2-to-installed path. The GET route is available in every diagnostics mode; the POST
+routes are clone-only. See [release-r2.md](release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 
 Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
 directory for write access. If the directory is not writable (e.g. app installed to
 `/Applications` by an admin user, or a read-only portable location), the update dialog
-shows a "Download Manually" prompt linking to the release page instead of attempting
+shows a "Download Manually" prompt linking to the release notes page (or the website
+download page) instead of attempting
 a doomed automatic update.
 
 ### Startup cleanup
 
 `UpdateService.cleanupStaledUpdates()` is called on every desktop app launch. It removes
-any `.backup` directories and orphaned staging dirs left behind by a previous update
-script, preventing accumulation of stale files.
+`.backup` directories next to the bundle and leftover `navis_update_*` directories
+under the same `getTemporaryDirectory()` base, including legacy staging directories.
+POSIX cleanup checks the directory owner against the current UID; Windows uses its
+per-user temp base. Cleanup skips symlinks, does not follow nested symlinks, and
+ignores individual deletion errors. Updater scripts may leave the private work
+directory for this startup cleanup.
+
+### Release transport credentials
+
+The optional Forgejo bridge in `tool/release.sh` supplies its Authorization header
+from a mode-600 file in the private release secrets directory via curl `-H @file`
+(requires curl 7.55 or newer). Release creation and asset uploads share that file;
+the existing EXIT trap removes the directory on success or failure. The token is
+not passed in curl's command-line arguments.
 
 ### Update channel
 
 The update channel (`stable` or `dev`) is baked in at compile time via
-`--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The `dev` channel matches release assets prefixed
-with `navis-dev-`, while the `stable` channel matches assets prefixed with `navis-`. This
-ensures sidecar/dev builds never suggest a stable release as an upgrade.
+`--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The channel selects the manifest
+(`channels/dev/manifest.json` or `channels/stable/manifest.json`), and a manifest whose
+signed `channel` differs is rejected. This ensures sidecar/dev builds never suggest a
+stable release as an upgrade. Builds with another channel name (for example `staging`)
+read that channel's manifest; see [release-r2.md](release-r2.md).
 
 The Last.fm API key used by "Same Vibes" instant mix mode is injected at build
 time as a masked pair, `NAVIS_LASTFM_API_KEY_MASKED` (key XOR a per-build random
@@ -2381,7 +2508,12 @@ hydrates EQ before audio creation; general settings saves omit its fields.
 The handler applies typed configurations to both decks and reports desired
 versus applied status. Android uses the vendored just_audio Media3 PCM processor;
 Linux's and Windows' tracked media-kit adapter owns a combined EQ/tempo chain
-(Windows on the pinned full libmpv, see [release-windows.md](release-windows.md#bundled-libmpv)).
+(both on pinned LGPL libmpv; see [release-windows.md](release-windows.md#bundled-libmpv)
+and [release-linux.md](release-linux.md#bundled-lgpl-libmpv)).
+Linux startup uses `bootstrap/bundled_libmpv.dart` to select
+`lib/libmpv.so.2` beside the resolved executable when present, otherwise it
+leaves media_kit system lookup in place. CMake bundles the verified x86_64 pin
+by default; `NAVIS_BUNDLE_LIBMPV=OFF` supports system-mpv development builds.
 `navisEqualizerSupported()` decides availability for both the controller and the
 handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in

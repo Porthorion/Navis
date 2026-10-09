@@ -45,7 +45,7 @@ enum IntegrationService {
   updates(
     key: 'updates',
     displayName: 'Update checks',
-    host: 'git.porthorion.com',
+    host: 'downloads.porthorion.com',
     verification: IntegrationVerification.none,
   ),
   autoEq(
@@ -81,6 +81,10 @@ enum IntegrationService {
   /// The host Navis contacts, or null when it varies (radio stream hosts,
   /// artwork URLs the user's server links to).
   final String? host;
+
+  /// Network destinations shown in disclosure copy, separate from host identity.
+  String? get displayHost =>
+      this == autoEq ? 'raw.githubusercontent.com and api.github.com' : host;
 
   final IntegrationVerification verification;
 

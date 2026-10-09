@@ -90,6 +90,9 @@ REMOTE_SCRIPT="$(mktemp -t navis_windows_remote_script.XXXXXX.ps1)"
 _remote_defines_pushed=false
 cleanup() {
   rm -f "${SOURCE_ARCHIVE}" "${PUB_CACHE_ARCHIVE}" "${REMOTE_SCRIPT}" "${_sqlite3_dll_tmp:-}"
+  ssh "${SSH_TARGET}" \
+    "powershell -NoProfile -Command \"Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'source.tgz')\"" \
+    >/dev/null 2>&1 || true
   if [[ "${_remote_defines_pushed}" == "true" ]]; then
     ssh "${SSH_TARGET}" \
       "powershell -NoProfile -Command \"Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'lastfm-defines.json')\"" \
@@ -104,15 +107,10 @@ if [[ -n "${LASTFM_DEFINES_FILE}" && ! -f "${LASTFM_DEFINES_FILE}" ]]; then
 fi
 
 printf '[remote-windows] Packaging local source archive...\n'
-tar \
-  --exclude='.git' \
-  --exclude='.dart_tool' \
-  --exclude='build' \
-  --exclude='ios/Pods' \
-  --exclude='android/.gradle' \
-  --exclude='tool/release.env' \
-  -czf "${SOURCE_ARCHIVE}" \
-  -C "${REPO_ROOT}" .
+# Package tracked files only. Ignored files such as android/key.properties,
+# the release keystore and tool/release.env must never reach a build host.
+git -C "${REPO_ROOT}" ls-files -z |
+  tar -czf "${SOURCE_ARCHIVE}" -C "${REPO_ROOT}" --null -T -
 
 # Bundle the pub packages required by pubspec.lock so the Windows VM can run
 # flutter pub get --offline even without internet access. Also include the
@@ -238,6 +236,7 @@ if (Test-Path $workspaceDir) {
 New-Item -ItemType Directory -Force -Path $workspaceDir | Out-Null
 
 tar -xzf $archivePath -C $workspaceDir
+Remove-Item -Force $archivePath
 Set-Location $workspaceDir
 
 # Set up offline pub cache. We always use the system-default PUB_CACHE
@@ -274,33 +273,6 @@ $ErrorActionPreference = 'Continue'
 flutter pub get --offline
 if ($LASTEXITCODE -ne 0) { throw "flutter pub get --offline failed with exit code $LASTEXITCODE" }
 $ErrorActionPreference = 'Stop'
-
-# Pre-seed cmake download cache with pre-built native assets so the build works
-# without internet access. media_kit_libs_windows_audio downloads libmpv from
-# GitHub releases; if a valid copy is already on this machine, reuse it.
-$_cmakeBuildDir = Join-Path $workspaceDir 'build\windows\x64'
-New-Item -ItemType Directory -Force -Path $_cmakeBuildDir | Out-Null
-$_libmpvName = 'mpv-dev-x86_64-20230924-git-652a1dd.7z'
-$_libmpvMd5  = 'cd738e16e2a19626d7cfa48801524f8c'
-$_libmpvDest = Join-Path $_cmakeBuildDir $_libmpvName
-if (-not (Test-Path $_libmpvDest)) {
-  # Search common locations where a prior local build may have cached the file.
-  $_libmpvSourceDirs = @(
-    (Join-Path $HOME 'Documents\forgejo_projects\Navis\build\windows\x64'),
-    (Join-Path $HOME 'My Documents\forgejo_projects\Navis\build\windows\x64')
-  )
-  foreach ($_srcDir in $_libmpvSourceDirs) {
-    $_src = Join-Path $_srcDir $_libmpvName
-    if (Test-Path $_src) {
-      $_srcMd5 = (Get-FileHash $_src -Algorithm MD5).Hash.ToLower()
-      if ($_srcMd5 -eq $_libmpvMd5) {
-        Copy-Item $_src $_libmpvDest
-        Write-Host "[remote-windows] Pre-seeded libmpv from $_src"
-        break
-      }
-    }
-  }
-}
 
 # Locate VsDevCmd.bat — used later to run flutter build in a VS developer shell
 # so that all subprocesses (cmake, MSBuild, cargokit, cargo) inherit link.exe.
@@ -530,6 +502,10 @@ if [[ -z "${asset_name}" ]]; then
   exit 1
 fi
 
+if [[ ! "${asset_name}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "[remote-windows] Refusing unexpected remote asset name: ${asset_name}" >&2
+  exit 1
+fi
 printf '[remote-windows] Fetching %s...\n' "${asset_name}"
 scp "${SSH_TARGET}:${REMOTE_DIR}/${asset_name}" "${REPO_ROOT}/${asset_name}" >/dev/null
 

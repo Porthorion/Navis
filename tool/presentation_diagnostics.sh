@@ -58,7 +58,7 @@ fi
 FILTER_QUERY="${LIBRARY_FILTER_QUERY:-$RADIO_FILTER_QUERY}"
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
+SOURCE_DB="$(python3 "$PROJECT_DIR/tool/diagnostics_profile.py" primary-db)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_ROOT="$PROJECT_DIR/build/presentation-diagnostics/$STAMP-clone"
 CLONE_DB="$OUTPUT_ROOT/navis-diagnostics.sqlite"

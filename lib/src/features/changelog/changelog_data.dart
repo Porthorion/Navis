@@ -312,6 +312,82 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Windows updates restore the previous installation if copying fails and restart Navis without administrator privileges',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop updates keep downloads and installer scripts in private temporary folders',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Updates now come from downloads.porthorion.com, and every update is checked against a signed release list before it installs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A damaged update download is discarded with a clear message instead of being installed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Linux playback and the equalizer now work without installing a separate audio library',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'ListenBrainz scrobbles resume after the service asks Navis to wait',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes and Instant Radio remember recommendations for a day, reducing repeated online requests',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Lyrics searches and downloads wait before retrying when the lyrics service is busy',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Setup, Integrations and Privacy explain which online services Navis uses, including when you skip setup',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        "Desktop library data moves out of Documents into Navis's app data folder without losing your library or settings",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android keeps Navis data out of system backups and device transfers',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Contact Support can now open your email app on Android',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Signing out also disconnects ListenBrainz, and disconnecting warns if your saved sign-in could not be cleared',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist pages and New Releases say when their details come from Deezer or Last.fm, and Last.fm songs link to the artist on Last.fm',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'About links to the Navis website, privacy policy, terms of use and support, and Privacy links to the full policy',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Skipping setup still shows which online services Navis may use, and setup now lists every one of them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Stations outside your server now need Online services turned on, and explain how to enable it',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'About includes complete third-party licence notices, and desktop packages credit Porthorion',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis is now proprietary freeware by Porthorion under the Navis End User Licence Agreement; earlier releases retain their GPL licence',
+      ),
+      ChangelogEntry('Custom accent colours have more accurate names'),
+      ChangelogEntry(
         'First setup no longer stops at an error when some albums on the server have incomplete details',
         type: ChangelogEntryType.fix,
       ),
@@ -452,15 +528,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server\'s remote catalogue',
+        "Missing Albums on artist pages lists the albums and EPs on Deezer that your server lacks, with language editions such as Japanese versions kept apart; tap one to open it like any album and play it through your server's remote catalogue",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'New Releases on Home, right under You Might Like, shows the last month\'s releases from the artists you play most, or from your library\'s main artists while you have played little; tap one to open it like any album, from your library or your server\'s remote catalogue',
+        "New Releases on Home, right under You Might Like, shows the last month's releases from the artists you play most, or from your library's main artists while you have played little; tap one to open it like any album, from your library or your server's remote catalogue",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer\'s chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button',
+        "Trending Now joins You Might Like and Library › Playlists, right under the weekly playlists: Deezer's chart, matched to your library and your server (remote sources included) like the weekly playlists, with songs your server lacks kept in place and a Search button",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -2386,7 +2462,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Listen Together upgrades to Voyage voyage-sync.v4alpha1 for tighter multi-device sync — connection.ready handshake, explicit command frames, member.status telemetry, and playback phase tracking',
+        'Listen Together upgrades to Voyage voyage-sync.v4alpha1 for tighter multi-device sync — connection.ready handshake, explicit command frames, member status updates, and playback phase tracking',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2478,7 +2554,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries',
+        'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries (Last.fm scrobbling was later removed.)',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

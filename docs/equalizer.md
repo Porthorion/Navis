@@ -252,7 +252,11 @@ offline, with recommended-only filtering by default. Explicit refresh downloads
 and validates both index files at one immutable revision, replacing the cached
 index atomically. Existing saved presets never update automatically.
 
-Downloading a selection obtains its `ParametricEQ.txt` export.
+Downloading a selection obtains its `ParametricEQ.txt` export. Explicit refresh
+and downloads contact `raw.githubusercontent.com` for content and
+`api.github.com` for revision metadata. Both hosts are disclosed in Integrations
+and Privacy; the bundled catalogue remains available offline. AutoEQ HTTP
+requests include the shared Navis User-Agent with project and support contacts.
 
 ## Importing presets
 

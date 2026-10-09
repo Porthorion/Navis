@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'package:navis/src/utils/constants.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +13,12 @@ import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
 class _Dio extends Mock implements Dio;
 
 void main() {
+  test('AutoEQ identifies Navis and its support contact', () {
+    expect(
+      AutoEqCatalogue.baseOptions.headers['User-Agent'],
+      AppConstants.userAgent,
+    );
+  });
   setUpAll(() => registerFallbackValue(Options()));
   test('official download uses space-separated filenames and preserves provenance', () async {
     final index = AutoEqIndex.decode(

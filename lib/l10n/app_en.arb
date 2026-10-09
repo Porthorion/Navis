@@ -144,6 +144,10 @@
   "privacyDiagnosticsTitle": "Diagnostics",
   "privacyDiagnosticsBody": "Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.",
   "privacySummary": "Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.",
+  "privacyReadFullPolicy": "Read the full privacy policy",
+  "@privacyReadFullPolicy": {
+    "description": "Link at the end of the in-app Privacy page that opens the full policy on the Navis website."
+  },
   "syncSettingsTitle": "Sync Settings",
   "syncSettingsStatusLabel": "Current Sync Status",
   "syncSettingsNeverSynced": "Never synced",
@@ -647,7 +651,7 @@
   "configurationListenBrainzValidateAndSave": "Validate and save",
   "configurationListenBrainzGetToken": "Get Token",
   "privacyOnlineServicesTitle": "Online Services",
-  "privacyOnlineServicesBody": "Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.",
+  "privacyOnlineServicesBody": "Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer's image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.",
   "privacyOpenIntegrations": "Open Integrations",
   "integrationsTitle": "Integrations",
   "integrationsSubtitle": "Deezer, Last.fm, ListenBrainz and other online services.",
@@ -666,13 +670,13 @@
       "service": { "type": "String" }
     }
   },
-  "integrationsDeezerSends": "Sends artist and track names to {host}.",
+  "integrationsDeezerSends": "Sends artist, album and track names to {host} and loads images from Deezer's image servers.",
   "@integrationsDeezerSends": {
     "placeholders": {
       "host": { "type": "String" }
     }
   },
-  "integrationsLastFmSends": "Sends track and artist names to {host}.",
+  "integrationsLastFmSends": "Sends track and artist names to {host}, using the API key included with Navis or your own.",
   "@integrationsLastFmSends": {
     "placeholders": {
       "host": { "type": "String" }
@@ -696,7 +700,11 @@
       "host": { "type": "String" }
     }
   },
-  "integrationsAutoEqSends": "Downloads headphone profiles from GitHub, only when you ask.",
+  "integrationsAutoEqSends": "Downloads headphone profiles from {host}, only when you ask.",
+  "@integrationsAutoEqSends": {
+    "description": "AutoEQ network hosts disclosed to the user.",
+    "placeholders": {"host": {"type": "String"}}
+  },
   "integrationsRadioSends": "Reads now-playing info from the station's server.",
   "integrationsArtworkSends": "Loads images your server links from other sites, such as artist photos.",
   "integrationsFeatureDeezerTopSongsTitle": "Top songs",
@@ -942,7 +950,7 @@
   "artistDetailSimilarSection": "Similar Artists",
   "artistDetailFansAlsoLikeSection": "Fans Also Like",
   "artistDetailMissingAlbumsSection": "Missing Albums",
-  "artistDetailFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
+  "artistDetailFanCount": "{count, plural, =1{1 fan on Deezer} other{{count} fans on Deezer}}",
   "@artistDetailFanCount": {
     "description": "Deezer fans of the artist, after the album count in the artist page header. The number is compact, such as 4.1M.",
     "placeholders": {
@@ -951,6 +959,18 @@
         "format": "compact"
       }
     }
+  },
+  "sourceFromDeezer": "From Deezer",
+  "@sourceFromDeezer": {
+    "description": "Small credit under a section title whose content comes from Deezer, such as similar artists or new releases. Deezer is a product name."
+  },
+  "sourceFromLastFm": "From Last.fm",
+  "@sourceFromLastFm": {
+    "description": "Small credit under a section title whose content comes from Last.fm; tapping it opens the artist on Last.fm. Last.fm is a product name."
+  },
+  "sourceFromDeezerAndLastFm": "From Deezer and Last.fm",
+  "@sourceFromDeezerAndLastFm": {
+    "description": "Small credit under the artist page's top songs when the list combines Deezer and Last.fm; tapping it opens the artist on Last.fm."
   },
   "deezerReleaseTypeAlbum": "Album",
   "deezerReleaseTypeEp": "EP",
@@ -961,7 +981,7 @@
   "artistDetailLoadingLabel": "Loading Artist Details",
   "artistDetailLoadingRemote": "Loading Remote Artist…",
   "@artistDetailLoadingRemote": {
-    "description": "Shown while an artist from the server's remote catalogue (such as Deezer through Octo-Fiesta) is fetched before its page can show."
+    "description": "Shown while an artist from the server's remote catalogue (such as a Deezer-backed server) is fetched before its page can show."
   },
   "artistDetailLoadingServer": "Loading Artist…",
   "@artistDetailLoadingServer": {
@@ -1020,7 +1040,7 @@
   "albumDetailRefreshError": "Could not refresh this album. Check your connection and try again.",
   "albumDetailLoadingRemote": "Loading Remote Album…",
   "@albumDetailLoadingRemote": {
-    "description": "Shown while an album from the server's remote catalogue (such as Deezer through Octo-Fiesta) and its tracks are fetched before its page can show."
+    "description": "Shown while an album from the server's remote catalogue (such as a Deezer-backed server) and its tracks are fetched before its page can show."
   },
   "albumDetailLoadingServer": "Loading Album…",
   "@albumDetailLoadingServer": {
@@ -1126,7 +1146,7 @@
   "nowPlayingInstantMixUnsupported": "Your server doesn\u0027t support Instant Mix.",
   "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
   "nowPlayingSameVibesLabel": "Same Vibes",
-  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}",
+  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track from Last.fm queued.} other{Same Vibes started — {count} similar tracks from Last.fm queued.}}",
   "@nowPlayingSameVibesStarted": {
     "placeholders": {
       "count": {
@@ -1558,6 +1578,34 @@
   "aboutVersion": "Version",
   "aboutChangelog": "Changelog",
   "aboutChangelogSub": "See every version's changes and bug fixes.",
+  "aboutWebsite": "Website",
+  "@aboutWebsite": {
+    "description": "About tile that opens the Navis website in the browser."
+  },
+  "aboutPrivacyPolicy": "Privacy policy",
+  "@aboutPrivacyPolicy": {
+    "description": "About tile that opens the full Navis app privacy policy on the website."
+  },
+  "aboutPrivacyPolicySub": "The full policy on the Navis website.",
+  "aboutTerms": "Terms of use",
+  "@aboutTerms": {
+    "description": "About tile that opens the Navis End User Licence Agreement on the website."
+  },
+  "aboutTermsSub": "The licence agreement for using Navis.",
+  "aboutContact": "Contact support",
+  "@aboutContact": {
+    "description": "About tile that starts an email to Navis support."
+  },
+  "aboutLinkOpenFailed": "Couldn't open {target}.",
+  "@aboutLinkOpenFailed": {
+    "description": "Notice shown when the system can't open a link or start an email from About or Privacy.",
+    "placeholders": {
+      "target": {
+        "type": "String",
+        "example": "navis.porthorion.com"
+      }
+    }
+  },
   "changelogSpecialThanks": "Special Thanks",
   "changelogDiscoveryDismiss": "Dismiss update notes",
   "changelogDiscoverySemanticLabel": "What’s new in version {version}",
@@ -1695,6 +1743,10 @@
   },
   "updateReadyToInstall": "Download complete. Ready to install.",
   "updateDownloadFailed": "Download failed. Please try again.",
+  "updateDownloadDamaged": "The update download was damaged. Try again.",
+  "@updateDownloadDamaged": {
+    "description": "Shown when a downloaded update fails the signed manifest size or SHA-256 integrity check."
+  },
   "updateApplyFailed": "Could not apply the update automatically.",
   "updateReadyToRestart": "Download complete. Restart the app to apply the update.",
   "updateRestartAndUpdate": "Restart & Update",
@@ -2285,6 +2337,10 @@
   "onboardingSaveFailed": "Could not save setup. Try again.",
   "onboardingSkipDialogTitle": "Skip Customization?",
   "onboardingSkipDialogMessage": "Your current settings will be kept. You can reopen this from Settings at any time.",
+  "onboardingSkipToIntegrationsDialogMessage": "Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.",
+  "@onboardingSkipToIntegrationsDialogMessage": {
+    "description": "Body of the Skip setup dialog before the last step: skipping still shows the Integrations step so the user sees every online service before Navis uses it."
+  },
   "onboardingKeepCustomizing": "Keep customizing",
   "onboardingSkipSetup": "Skip setup",
   "onboardingTitle": "Make Navis Yours",
@@ -2377,5 +2433,13 @@
   "desktopShortcutsNavigateBackTitle": "Go back",
   "desktopShortcutsNavigateBackDescription": "Return to the previous page; the mouse Back button does the same",
   "desktopShortcutsNavigateForwardTitle": "Go forward",
-  "desktopShortcutsNavigateForwardDescription": "Go to the next page after going back; the mouse Forward button does the same"
+  "desktopShortcutsNavigateForwardDescription": "Go to the next page after going back; the mouse Forward button does the same",
+  "radioPlaybackBlockedOnlineServicesOff": "Online services are off. Turn them on in Integrations to play stations outside your server.",
+  "@radioPlaybackBlockedOnlineServicesOff": {
+    "description": "Explains why an external radio station cannot play with the master online services switch off."
+  },
+  "integrationsListenBrainzDisconnectFailed": "Couldn't remove the ListenBrainz token. Try again.",
+  "@integrationsListenBrainzDisconnectFailed": {
+    "description": "Error when secure storage cannot delete the ListenBrainz credential; connection remains unchanged."
+  }
 }

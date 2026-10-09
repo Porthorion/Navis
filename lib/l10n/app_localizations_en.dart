@@ -470,6 +470,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis does not operate a central account service for your music library. Data is exchanged with your servers and with the online services you leave on in Settings › Integrations.';
 
   @override
+  String get privacyReadFullPolicy => 'Read the full privacy policy';
+
+  @override
   String get syncSettingsTitle => 'Sync Settings';
 
   @override
@@ -1575,7 +1578,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyOnlineServicesBody =>
-      'Besides your server, Navis can contact Deezer (artist and track names), Last.fm (track and artist names), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), git.porthorion.com (update checks), GitHub (AutoEQ headphone profiles, only when you ask), internet radio stations (now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.';
+      'Besides your server, Navis can contact Deezer (artist, album and track names, plus images from Deezer\'s image servers), Last.fm (track and artist names, using the API key included with Navis or your own), ListenBrainz (your listens and likes), LRCLIB (track details, to find lyrics), downloads.porthorion.com (update checks), GitHub (raw.githubusercontent.com and api.github.com for AutoEQ headphone profiles, only when you ask), internet radio stations (streams and now-playing info) and the sites your server links images from. You can turn each one off in Settings › Integrations. With Online services off, Navis only talks to your server.';
 
   @override
   String get privacyOpenIntegrations => 'Open Integrations';
@@ -1622,12 +1625,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String integrationsDeezerSends(String host) {
-    return 'Sends artist and track names to $host.';
+    return 'Sends artist, album and track names to $host and loads images from Deezer\'s image servers.';
   }
 
   @override
   String integrationsLastFmSends(String host) {
-    return 'Sends track and artist names to $host.';
+    return 'Sends track and artist names to $host, using the API key included with Navis or your own.';
   }
 
   @override
@@ -1646,8 +1649,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get integrationsAutoEqSends =>
-      'Downloads headphone profiles from GitHub, only when you ask.';
+  String integrationsAutoEqSends(String host) {
+    return 'Downloads headphone profiles from $host, only when you ask.';
+  }
 
   @override
   String get integrationsRadioSends =>
@@ -2159,11 +2163,20 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$countString fans',
-      one: '1 fan',
+      other: '$countString fans on Deezer',
+      one: '1 fan on Deezer',
     );
     return '$_temp0';
   }
+
+  @override
+  String get sourceFromDeezer => 'From Deezer';
+
+  @override
+  String get sourceFromLastFm => 'From Last.fm';
+
+  @override
+  String get sourceFromDeezerAndLastFm => 'From Deezer and Last.fm';
 
   @override
   String get deezerReleaseTypeAlbum => 'Album';
@@ -2545,8 +2558,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Same Vibes started — $count similar tracks queued.',
-      one: 'Same Vibes started — 1 similar track queued.',
+      other: 'Same Vibes started — $count similar tracks from Last.fm queued.',
+      one: 'Same Vibes started — 1 similar track from Last.fm queued.',
       zero: 'No similar tracks found.',
     );
     return '$_temp0';
@@ -3418,6 +3431,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutChangelogSub => 'See every version\'s changes and bug fixes.';
 
   @override
+  String get aboutWebsite => 'Website';
+
+  @override
+  String get aboutPrivacyPolicy => 'Privacy policy';
+
+  @override
+  String get aboutPrivacyPolicySub => 'The full policy on the Navis website.';
+
+  @override
+  String get aboutTerms => 'Terms of use';
+
+  @override
+  String get aboutTermsSub => 'The licence agreement for using Navis.';
+
+  @override
+  String get aboutContact => 'Contact support';
+
+  @override
+  String aboutLinkOpenFailed(String target) {
+    return 'Couldn\'t open $target.';
+  }
+
+  @override
   String get changelogSpecialThanks => 'Special Thanks';
 
   @override
@@ -3668,6 +3704,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateDownloadFailed => 'Download failed. Please try again.';
+
+  @override
+  String get updateDownloadDamaged =>
+      'The update download was damaged. Try again.';
 
   @override
   String get updateApplyFailed => 'Could not apply the update automatically.';
@@ -5085,6 +5125,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your current settings will be kept. You can reopen this from Settings at any time.';
 
   @override
+  String get onboardingSkipToIntegrationsDialogMessage =>
+      'Your current settings will be kept. Before you start, choose which online services Navis may use. You can reopen setup from Settings at any time.';
+
+  @override
   String get onboardingKeepCustomizing => 'Keep customizing';
 
   @override
@@ -5294,4 +5338,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get desktopShortcutsNavigateForwardDescription =>
       'Go to the next page after going back; the mouse Forward button does the same';
+
+  @override
+  String get radioPlaybackBlockedOnlineServicesOff =>
+      'Online services are off. Turn them on in Integrations to play stations outside your server.';
+
+  @override
+  String get integrationsListenBrainzDisconnectFailed =>
+      'Couldn\'t remove the ListenBrainz token. Try again.';
 }

@@ -63,6 +63,15 @@ unlinked_spec.ds
 **/android/**/GeneratedPluginRegistrant.java
 **/android/key.properties
 *.jks
+*.keystore
+*.p12
+*.pfx
+*.p8
+.env
+*.env
+google-services.json
+credentials.json
+*service-account*.json
 
 # iOS/XCode related
 **/ios/**/*.mode1v3

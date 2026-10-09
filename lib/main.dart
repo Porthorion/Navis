@@ -7,7 +7,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/app_licenses.dart';
 import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
+import 'package:navis/src/bootstrap/bundled_libmpv.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
@@ -37,13 +39,6 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 Future<void> navisBackgroundSyncEntrypoint() =>
     android_background_sync.navisBackgroundSyncEntrypoint();
 
-/// Bundled fonts are not Dart packages, so their licences must be registered
-/// explicitly to appear on the licence page.
-Stream<LicenseEntry> _bundledFontLicenses() async* {
-  final text = await rootBundle.loadString('assets/fonts/OFL.txt');
-  yield LicenseEntryWithLineBreaks(const <String>['Inter font'], text);
-}
-
 // mpv's error lines, among other dependency output, quote full stream URLs
 // whose token and salt are replayable credentials.
 Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
@@ -53,7 +48,7 @@ Future<void> _runNavis() async {
   // Errors nothing handled would otherwise be printed by the engine itself,
   // outside the redacting zone.
   PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
-  LicenseRegistry.addLicense(_bundledFontLicenses);
+  registerBundledLicenses();
   // Before anything resolves a directory: a desktop clone runs as the same OS
   // user as the real app, so its platform directories would be the real
   // profile's. (An Android sidecar is its own package with its own storage.)
@@ -74,8 +69,7 @@ Future<void> _runNavis() async {
   if (_syncDiagnosticsRuntimeEnabled &&
       _isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
-    final sidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>('isSidecar');
+    final sidecar = await _androidDiagnosticsIsSidecar();
     if (sidecar != true) {
       throw StateError('Android clone diagnostics require a sidecar package.');
     }
@@ -240,7 +234,7 @@ void _initializeDesktopAudioBackend() {
   try {
     JustAudioMediaKit.title = 'Navis';
     // libmpv up to 0.41 opens https streams without checking the server
-    // certificate. The Linux system mpv and the pinned Windows build use the
+    // certificate. The Linux and Windows LGPL bundles use the
     // system certificate store; macOS's bundled mpv 0.36 (Mbed TLS) is not
     // verified to find it yet, so it stays as before until that build is
     // replaced.
@@ -259,6 +253,7 @@ void _initializeDesktopAudioBackend() {
       linux: true,
       windows: true,
       macOS: true,
+      libmpv: bundledLibmpvPath(),
     );
     AppLogger.info('Desktop media_kit backend initialized.');
   } on Object catch (error, stackTrace) {
@@ -346,8 +341,7 @@ Future<void> _startSyncDiagnostics({
     throw StateError('Sync diagnostics mode and handshake path are required.');
   }
   if (_isAndroidRuntime && mode == SyncDiagnosticsMode.clone) {
-    final isSidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>('isSidecar');
+    final isSidecar = await _androidDiagnosticsIsSidecar();
     if (isSidecar != true) {
       throw StateError(
         'Android clone diagnostics require a non-empty sidecar app-id suffix.',
@@ -390,6 +384,22 @@ Future<void> _startSyncDiagnostics({
 const MethodChannel _androidDiagnosticsHandshakeChannel = MethodChannel(
   'com.navis.app/diagnostics_handshake',
 );
+
+/// audio_service warms the Flutter engine, and so runs `main`, before
+/// MainActivity attaches it and registers the diagnostics channel. Wait for
+/// the registration instead of failing clone startup on that race.
+Future<bool?> _androidDiagnosticsIsSidecar() async {
+  for (var attempt = 0; ; attempt++) {
+    try {
+      return await _androidDiagnosticsHandshakeChannel.invokeMethod<bool>(
+        'isSidecar',
+      );
+    } on MissingPluginException {
+      if (attempt >= 100) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+}
 
 Future<void> _publishAndroidDiagnosticsHandshake(
   Map<String, Object?> handshake,

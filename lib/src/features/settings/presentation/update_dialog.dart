@@ -56,6 +56,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   // True when the error occurred while *applying* the downloaded artifact
   // (as opposed to during the download itself). Used to tailor the error UI.
   bool _isApplyError = false;
+  bool _isIntegrityError = false;
   String? _apkPath;
   CancelToken? _cancelToken;
   late final UpdateInstallMode _installMode;
@@ -76,8 +77,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   bool get _isStoreRedirect =>
       widget.info.delivery == UpdateDelivery.storeRedirect;
 
-  bool get _isForgejoSelfUpdate =>
-      widget.info.delivery == UpdateDelivery.forgejoSelfUpdate;
+  bool get _isSelfUpdate => widget.info.delivery == UpdateDelivery.selfUpdate;
 
   Future<void> _openPlayStore() async {
     final launched = await _service.openPlayStoreListing(
@@ -115,6 +115,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       _phase = _DownloadPhase.downloading;
       _progress = 0;
       _isApplyError = false;
+      _isIntegrityError = false;
     });
 
     _cancelToken = CancelToken();
@@ -135,8 +136,16 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         _apkPath = path;
       });
 
-      if (_isForgejoSelfUpdate) {
+      if (_isSelfUpdate) {
         await _service.installApk(path);
+      }
+    } on UpdateIntegrityException catch (e) {
+      AppLogger.error('Update integrity verification failed', e);
+      if (mounted) {
+        setState(() {
+          _isIntegrityError = true;
+          _phase = _DownloadPhase.error;
+        });
       }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -299,7 +308,9 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _isApplyError
+                    _isIntegrityError
+                        ? l10n.updateDownloadDamaged
+                        : _isApplyError
                         ? l10n.updateApplyFailed
                         : l10n.updateDownloadFailed,
                   ),
@@ -369,7 +380,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             ),
           ];
         }
-        if (_isForgejoSelfUpdate) {
+        if (_isSelfUpdate) {
           return [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),

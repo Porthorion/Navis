@@ -20,41 +20,67 @@ Windows playback runs on libmpv, which Navis bundles as `libmpv-2.dll`. The
 `third_party/media_kit_libs_windows_audio/` (see its `NAVIS.md`): upstream's
 build is a minimal 2023-09-24 libmpv from an archived repository, without the
 FFmpeg `volume` and `biquad` filters the equalizer needs and without FFmpeg
-fixes since. Navis pins a full build from
-[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake)
-instead. It is GPL, like Navis.
+fixes since. Navis pins the LGPL-2.1+ variant from
+[zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild):
+`mpv-dev-lgpl-x86_64-20261006-git-eb0ee10315.7z`, mpv
+v0.41.0-1104-geb0ee1031 (`-Dgpl=false`) and FFmpeg N-127222-g151814650
+(without `--enable-gpl`), with the `volume` and `biquad` filters present.
 
-The full build costs size: at 1.4.0 the release bundle is 168.1 MB installed
-(`libmpv-2.dll` 120.9 MB, against 15.5 MB for media_kit's build) and the
-portable zip is 66.2 MB. It also verifies TLS certificates (mpv's newer
-default), using the Windows certificate store, so streaming accepts exactly
-the servers Navis's API client accepts.
-
-The build downloads the pinned archive from a release of the separate
-[`khalifa/navis-third-party`](https://git.porthorion.com/khalifa/navis-third-party)
-repository, verifies its SHA-256, and extracts it into a folder named after
-the archive. Upstream prunes old daily releases, so the mirror keeps old Navis
-versions buildable. The mirror must not be a release of the Navis repository:
-the app's update check reads that repository's releases.
+CMake tries the navis-third-party Forgejo mirror, then
+`https://downloads.porthorion.com/third-party/`, then the pinned upstream
+release. Each attempt is SHA-256 verified; failed or mismatched downloads are
+deleted before trying the next URL. A verified build-directory cache works
+offline. Extraction is per archive pin. The mirror keeps old Navis versions
+buildable when upstream prunes daily releases and stays separate from the
+Navis releases read by the app's update check.
 
 To update the pin:
 
-1. Download the newest `mpv-dev-x86_64-<date>-git-<rev>.7z` from the upstream
-   releases. Use the plain x86_64 build, not `-v3` (that one needs AVX2).
-2. Check that its SHA-256 matches the digest GitHub shows for the asset, and
-   that it contains `libmpv-2.dll` and `include/mpv/*.h`.
-3. Create a release named after it in `khalifa/navis-third-party` (tag
-   `libmpv-windows-x86_64-<date>`) and attach the archive with a `SOURCES.md`
-   giving its upstream URL, release, SHA-256, mpv and FFmpeg versions and
-   license. Upload through the API: the web form rejects `.7z` files. Keep the
-   older releases for older Navis versions.
-4. Set `LIBMPV`, `LIBMPV_URL` and `LIBMPV_SHA256` in
-   `third_party/media_kit_libs_windows_audio/windows/CMakeLists.txt`.
-5. Build a profile bundle and check that the EQ page is available and that
-   EQ, speed and pitch, gapless playback and seeking work. Look for `af`
-   errors in the mpv log.
+1. Download an LGPL `mpv-dev-lgpl-x86_64-<date>-git-<rev>.7z` archive from
+   upstream; use plain x86_64, not `-v3` (requires AVX2).
+2. Verify the published SHA-256, `libmpv-2.dll` and `include/mpv/*.h`.
+   `strings libmpv-2.dll | grep -c -- --enable-gpl` must report `0` (grep
+   exits 1 for zero matches). Inspect the embedded meson configuration for
+   `-Dgpl=false`; confirm the FFmpeg configuration also lacks `--enable-nonfree`
+   and that `volume` and `biquad` are available.
+3. Create a `libmpv-windows-x86_64-lgpl-<date>` release in
+   [navis-third-party](https://git.porthorion.com/khalifa/navis-third-party).
+   Attach the binary, `SOURCES.md` (upstream URL, SHA-256, versions, licence
+   and build configuration), and the corresponding mpv/FFmpeg source tarballs.
+   Use the API for `.7z` uploads. Preserve older releases.
+4. Copy the identical archive to R2 at
+   `https://downloads.porthorion.com/third-party/<archive-name>` and verify
+   its SHA-256 there. Update `LIBMPV`, ordered `LIBMPV_URLS` and
+   `LIBMPV_SHA256` in the vendored CMake file.
+5. Build a profile bundle and verify EQ, speed/pitch, gapless playback,
+   seeking and TLS certificate validation; inspect mpv logs for `af` errors.
+
+The remote Windows builder no longer pre-seeds the obsolete 2023 media_kit
+archive; only the current CMake pin/cache is used.
 
 ---
+
+Windows executable metadata and the Inno installer identify Porthorion as the
+publisher. The installer links support and publisher information to
+`https://navis.porthorion.com` and includes the 2026 Porthorion copyright.
+
+## Rust crate licence notices
+
+Before packaging after a Rust dependency update, fetch the locked dependencies
+(including the Windows target), then regenerate the in-app notice from the
+repository root:
+
+```bash
+python3 tool/generate_rust_notices.py
+```
+
+The script runs `cargo metadata --format-version 1 --filter-platform
+x86_64-pc-windows-msvc --locked --offline` in the SMTC Rust directory. It
+includes every resolved registry crate, reads its bundled licence files, and
+prints each distinct text once with its users. Commit
+`assets/licenses/windows-smtc-crates.txt` with dependency changes. A missing
+licence file is explicitly reported in the notice inventory and must be
+reviewed before distribution. The app registers this notice on Windows only.
 
 ## Platform Constraint
 
@@ -125,15 +151,22 @@ choco install jq
 # Or: download the binary from https://jqlang.github.io/jq/download/ and add to PATH
 ```
 
-### 5. Forgejo token
+### 5. R2 publishing settings
 
-Create `tool/release.env` (git-ignored):
+Create `tool/release.env` (git-ignored) from `tool/release.env.example`:
 
 ```bash
-FORGEJO_URL="https://git.porthorion.com"
-FORGEJO_REPO="khalifa/Navis"
-FORGEJO_TOKEN="<personal-access-token-with-write:release>"
+R2_ACCOUNT_ID="<cloudflare-account-id>"
+R2_BUCKET="downloads"
+R2_PREFIX="navis"
+R2_ACCESS_KEY_ID="<r2-access-key-id>"
+R2_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+NAVIS_UPDATE_SIGNING_KEY="$HOME/.config/navis/update-signing-ed25519.pem"
 ```
+
+Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
+`FORGEJO_REPO` and `FORGEJO_TOKEN` only for the 1.5.0 `--forgejo` bridge release. See
+[release-r2.md](release-r2.md) and [release-secrets.md](release-secrets.md).
 
 ---
 
@@ -210,9 +243,11 @@ Inno Setup always places this file there during installation.
 
 ### Auto-update flow
 
-1. Downloads `navis-vX.Y.Z-windows-installer.exe`.
-2. Launches it with `/SILENT /CLOSEAPPLICATIONS`.
-3. Exits the app immediately.
+1. Downloads `navis-vX.Y.Z-windows-installer.exe` (manifest key `windowsInstaller`).
+2. Checks its size and SHA-256 against the signed manifest; a mismatch deletes the file
+   and shows "The update download was damaged".
+3. Launches it with `/SILENT /CLOSEAPPLICATIONS`.
+4. Exits the app immediately.
 
 Inno Setup closes any running Navis instance, installs new files over the existing
 installation, and launches the app on completion — all without any user interaction.
@@ -250,7 +285,8 @@ The auto-updater uses portable mode when `unins000.exe` does **not** exist next 
 
 ### Auto-update flow
 
-1. Downloads `navis-vX.Y.Z-windows.zip`.
+1. Downloads `navis-vX.Y.Z-windows.zip` (manifest key `windowsPortable`) and checks its
+   size and SHA-256 against the signed manifest.
 2. Extracts using PowerShell `Expand-Archive` to a temp staging directory.
 3. Writes a batch updater script to temp and launches it with `cmd /c` (detached), then
    exits the app.
@@ -265,40 +301,18 @@ The updater script:
 
 ---
 
-## Publishing Both Formats in One Release
+## Publishing Both Formats
 
-The release script creates the Forgejo release on its first run. To publish both formats,
-build one with the script then manually build and upload the second.
+`release.sh` builds one Windows package per run (`--windows-package=zip|exe`) and
+publishes it to R2 in that run. To ship the other format for the same version, run
+`release.sh` again with `--allow-existing-version` and the other `--windows-package`,
+or pass the file to `tool/r2_publish.sh publish --tag=<tag> --channel=<channel> <file>`.
+When the channel already points at that tag, the publish adds the new asset to the
+signed manifest and rewrites `SHA256SUMS`; existing assets are kept.
 
-### Step 1 — Full release with the installer
-
-```bash
-./tool/release.sh v0.x.y --targets=windows --windows-package=exe
-```
-
-### Step 2 — Build portable zip and upload separately (Git Bash)
-
-```bash
-# Build
-flutter build windows --release --dart-define=NAVIS_UPDATE_CHANNEL=stable
-RELEASE_DIR="build/windows/x64/runner/Release"
-
-powershell.exe -NoProfile -Command \
-  "Compress-Archive -Path '${RELEASE_DIR//\//\\}\\*' -DestinationPath 'navis-v0.x.y-windows.zip' -Force"
-
-# Upload to the existing release
-source tool/release.env
-RELEASE_ID=$(curl -sf \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/tags/v0.x.y" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" | jq -r '.id')
-
-curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=navis-v0.x.y-windows.zip" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" \
-  -F "attachment=@navis-v0.x.y-windows.zip"
-
-rm navis-v0.x.y-windows.zip
-```
+Windows installs pick their asset by detected install mode: installer installs read
+`windowsInstaller` and portable installs read `windowsPortable`. A manifest that lacks the
+key for an install reports no update for that install (reject reason `missing_asset`).
 
 ---
 
@@ -341,6 +355,17 @@ after the installer is built.
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 Start-Service sshd
 Set-Service -Name sshd -StartupType Automatic
+```
+
+Harden it before it receives release builds. Allow key logins only, allow
+only the build account, and keep the port reachable from the LAN only:
+
+```powershell
+$cfg = "$env:ProgramData\ssh\sshd_config"
+# Prepend: the default file ends in a Match block, and sshd keeps the first value.
+Set-Content $cfg (@('PasswordAuthentication no', 'AllowUsers <build-user>') + (Get-Content $cfg))
+Restart-Service sshd
+Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -RemoteAddress LocalSubnet
 ```
 
 3. Add your public key:

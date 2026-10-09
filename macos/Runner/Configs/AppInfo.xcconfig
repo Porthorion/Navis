@@ -11,4 +11,4 @@ PRODUCT_NAME = Navis
 PRODUCT_BUNDLE_IDENTIFIER = com.navis.app.navis
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.navis.app. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Porthorion. All rights reserved.

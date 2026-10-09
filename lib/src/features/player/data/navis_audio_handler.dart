@@ -111,6 +111,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required Future<void> Function(String) startPreferredMix,
     required Future<void> Function(String) togglePreferredMix,
     this._readRadioMetadataAllowed,
+    this._readRadioPlaybackAllowed,
     this._readRadioArtworkAllowed,
     this._createRadioMetadataDio,
     AudioPlayer? player,
@@ -440,6 +441,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// refuses all. AudioService fetches whatever `artUri` it is given with its
   /// own unguarded cache, so only URLs this accepts are ever published.
   final bool Function(Uri uri)? _readRadioArtworkAllowed;
+
+  /// Missing callbacks allow playback for standalone handlers.
+  final bool Function(Uri stream)? _readRadioPlaybackAllowed;
 
   final bool Function()? _readRadioMetadataAllowed;
   final Dio Function()? _createRadioMetadataDio;
@@ -2641,6 +2645,9 @@ class NavisAudioHandler extends BaseAudioHandler
     required String streamUrl,
     String? homePageUrl,
   }) {
+    if (!(_readRadioPlaybackAllowed?.call(Uri.parse(streamUrl)) ?? true)) {
+      return Future<void>.error(const RadioPlaybackBlockedException());
+    }
     _supersedeTransportIntent();
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {

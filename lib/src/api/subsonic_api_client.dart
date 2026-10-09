@@ -12,6 +12,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/api/subsonic_logging_interceptor.dart';
 import 'package:navis/src/api/subsonic_retry_interceptor.dart';
+import 'package:navis/src/api/retry_after.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:uuid/uuid.dart';
@@ -915,7 +916,7 @@ class SubsonicApiClient {
       return SubsonicGenericException(
         code: statusCode,
         message: message,
-        retryAt: subsonicRetryAt(err.response?.headers.value('retry-after')),
+        retryAt: parseRetryAfter(err.response?.headers.value('retry-after')),
       );
     }
 

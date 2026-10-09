@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +63,7 @@ class _RadioHandler implements NavisPlaybackHandler {
   String? startedUrl;
   String? startedId;
   int stops = 0;
+  Exception? error;
   final loads = <String, Completer<void>>{};
   @override
   Future<void> playRadioStream({
@@ -69,6 +72,7 @@ class _RadioHandler implements NavisPlaybackHandler {
     required String streamUrl,
     String? homePageUrl,
   }) async {
+    if (error != null) throw error!;
     startedId = stationId;
     startedUrl = streamUrl;
     await loads[stationId]?.future;
@@ -81,6 +85,30 @@ class _RadioHandler implements NavisPlaybackHandler {
 }
 
 void main() {
+  testWidgets('blocked radio explains the online services switch', (
+    tester,
+  ) async {
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    final handler = _RadioHandler()
+      ..error = const RadioPlaybackBlockedException();
+    await _pumpRadio(
+      tester,
+      stations: const [_station],
+      query: '',
+      onClearTypeFilter: null,
+      handler: handler,
+      notices: notices,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+    expect(
+      notices.notice?.message,
+      'Online services are off. Turn them on in Integrations to play stations outside your server.',
+    );
+  });
+
   const nextStation = InternetRadioStation(
     id: 'next',
     name: 'Next Station',

@@ -440,10 +440,10 @@ void main() {
 
   group('fans line', () {
     for (final (fans, line) in <(int, String)>[
-      (4100000, '12 albums • 4.1M fans'),
-      (12345, '12 albums • 12.3K fans'),
-      (950, '12 albums • 950 fans'),
-      (1, '12 albums • 1 fan'),
+      (4100000, '12 albums • 4.1M fans on Deezer'),
+      (12345, '12 albums • 12.3K fans on Deezer'),
+      (950, '12 albums • 950 fans on Deezer'),
+      (1, '12 albums • 1 fan on Deezer'),
     ]) {
       testWidgets('$fans fans read "$line"', (tester) async {
         await tester.pumpWidget(
