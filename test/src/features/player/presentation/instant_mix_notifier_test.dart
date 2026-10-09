@@ -76,9 +76,11 @@ class _DryingQueueController extends _FakeQueueController {
     List<Song> songs, {
     bool expandMatchFlows = false,
     bool Function()? isCurrent,
-  }) async {
+  }) {
     appends++;
-    if (appends > 1) return const RecommendationQueueResult(<String>[]);
+    if (appends > 1) {
+      return Future.value(const RecommendationQueueResult(<String>[]));
+    }
     return super.appendRecommendationTracks(
       songs,
       expandMatchFlows: expandMatchFlows,
