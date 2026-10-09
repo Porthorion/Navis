@@ -202,6 +202,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'The full Queue page no longer lets you reorder, remove or play tracks while a new queue is still loading',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

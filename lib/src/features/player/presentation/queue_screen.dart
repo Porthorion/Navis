@@ -23,6 +23,9 @@ class QueueScreen extends ConsumerWidget {
     final queueIds = ref.watch(queueProvider);
     final retained = ref.watch(retainedArtistQueueProvider);
     final playback = ref.watch(playerStateProvider);
+    // Same guard as QueueSheet: the logical queue is still being replaced.
+    final actionsDisabled =
+        playback.isLoading && playback.hasPendingLogicalQueue;
 
     return Scaffold(
       appBar: AppBar(
@@ -76,6 +79,7 @@ class QueueScreen extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 80),
               itemCount: queueIds.length,
               onReorderItem: (oldIndex, newIndex) async {
+                if (actionsDisabled) return;
                 // The handler retains the insertion index before removal.
                 await ref.read(reorderQueueProvider)(
                   oldIndex,
@@ -99,10 +103,13 @@ class QueueScreen extends ConsumerWidget {
                   songId: songId,
                   index: index,
                   indicatorState: indicatorState,
+                  actionsDisabled: actionsDisabled,
                   onRemove: () async {
+                    if (actionsDisabled) return;
                     await ref.read(queueProvider.notifier).removeAt(index);
                   },
                   onTap: () async {
+                    if (actionsDisabled) return;
                     await ref.read(queueProvider.notifier).playFromIndex(index);
                   },
                 );
@@ -191,6 +198,7 @@ class _QueueItem extends ConsumerWidget {
     required this.songId,
     required this.index,
     required this.indicatorState,
+    required this.actionsDisabled,
     required this.onRemove,
     required this.onTap,
   });
@@ -198,6 +206,7 @@ class _QueueItem extends ConsumerWidget {
   final String songId;
   final int index;
   final SongPlaybackIndicatorState indicatorState;
+  final bool actionsDisabled;
   final VoidCallback onRemove;
   final VoidCallback onTap;
 
@@ -219,7 +228,9 @@ class _QueueItem extends ConsumerWidget {
 
         return Dismissible(
           key: key!,
-          direction: DismissDirection.endToStart,
+          direction: actionsDisabled
+              ? DismissDirection.none
+              : DismissDirection.endToStart,
           background: Container(
             color: Theme.of(context).colorScheme.errorContainer,
             alignment: Alignment.centerRight,
@@ -272,14 +283,21 @@ class _QueueItem extends ConsumerWidget {
                 isRemote: song.isExternal,
                 spacing: 8,
               ),
-              trailing: ReorderableDragStartListener(
-                index: index,
-                child: Icon(
-                  Icons.drag_handle,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              onTap: onTap,
+              trailing: actionsDisabled
+                  ? Icon(
+                      Icons.drag_handle,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.38),
+                    )
+                  : ReorderableDragStartListener(
+                      index: index,
+                      child: Icon(
+                        Icons.drag_handle,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+              enabled: !actionsDisabled,
+              onTap: actionsDisabled ? null : onTap,
             ),
           ),
         );
@@ -299,7 +317,7 @@ class _QueueItem extends ConsumerWidget {
         subtitle: Text(l10n.queueTrackLoadErrorDescription),
         trailing: IconButton(
           tooltip: l10n.commonRemove,
-          onPressed: onRemove,
+          onPressed: actionsDisabled ? null : onRemove,
           icon: const Icon(Icons.delete_outline),
         ),
       ),
