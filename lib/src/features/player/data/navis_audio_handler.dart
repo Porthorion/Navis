@@ -7209,6 +7209,20 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  Future<T> _applyToStableDecks<T>(
+    Future<T> Function(AudioPlayer player) apply,
+  ) async {
+    while (true) {
+      final active = _player;
+      final inactive = _crossfadePlayer;
+      final result = await apply(active);
+      if (inactive != null) await apply(inactive);
+      if (identical(active, _player) && identical(inactive, _crossfadePlayer)) {
+        return result;
+      }
+    }
+  }
+
   Future<void> _setEqualizer(EqConfiguration values) {
     final work = _equalizerLane.then((_) async {
       if (!values.isValid || !equalizerCapabilities.supported) {
@@ -7217,16 +7231,9 @@ class NavisAudioHandler extends BaseAudioHandler
       final previous = _desiredEqualizer;
       final message = _equalizerMessage(values);
       try {
-        AudioPlayer active;
-        AudioPlayer? inactive;
-        EqualizerStateMessage native;
-        do {
-          active = _player;
-          inactive = _crossfadePlayer;
-          native = await active.setEqualizer(message);
-          if (inactive != null) await inactive.setEqualizer(message);
-        } while (!identical(active, _player) ||
-            !identical(inactive, _crossfadePlayer));
+        final native = await _applyToStableDecks(
+          (player) => player.setEqualizer(message),
+        );
         _desiredEqualizer = values;
         _emitEqualizerState(native);
       } on Object {
@@ -7310,17 +7317,9 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       final previous = _appliedAdjustments;
       try {
-        AudioPlayer active;
-        AudioPlayer? inactive;
-        do {
-          active = _player;
-          inactive = _crossfadePlayer;
-          await _applyAdjustmentsToPlayer(active, values);
-          if (inactive != null) {
-            await _applyAdjustmentsToPlayer(inactive, values);
-          }
-        } while (!identical(active, _player) ||
-            !identical(inactive, _crossfadePlayer));
+        await _applyToStableDecks(
+          (player) => _applyAdjustmentsToPlayer(player, values),
+        );
         _appliedAdjustments = values;
         if (!_adjustmentController.isClosed) _adjustmentController.add(values);
         _broadcastPlaybackState();
