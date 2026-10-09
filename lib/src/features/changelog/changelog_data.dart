@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Permanent downloads keep their offline status when streaming cache writes finish concurrently',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Remote songs start promptly when the server ignores range requests',
         type: ChangelogEntryType.fix,
       ),

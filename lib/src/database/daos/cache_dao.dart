@@ -54,17 +54,17 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
   /// Like [upsertCachedTrack] but never downgrades a [CacheType.permanent]
   /// entry to [CacheType.rolling]. Use this when the rolling cache registers a
   /// playback write so that already-downloaded tracks keep their status.
-  Future<void> upsertRollingCachedTrack(
-    CachedTracksTableCompanion companion,
-  ) async {
-    final existing = await getCachedTrack(companion.songId.value);
-    if (existing != null && existing.cacheType == CacheType.permanent) {
-      // Already permanently downloaded — just update the access time.
-      await touchTrack(companion.songId.value);
-      return;
-    }
-    await into(cachedTracksTable).insertOnConflictUpdate(companion);
-  }
+  Future<void> upsertRollingCachedTrack(CachedTracksTableCompanion companion) =>
+      transaction(() async {
+        // Keep the eligibility read and write under the same writer lock.
+        final existing = await getCachedTrack(companion.songId.value);
+        if (existing != null && existing.cacheType == CacheType.permanent) {
+          // Already permanently downloaded — just update the access time.
+          await touchTrack(companion.songId.value);
+          return;
+        }
+        await into(cachedTracksTable).insertOnConflictUpdate(companion);
+      });
 
   Future<List<CachedTracksTableData>> getCachedTracks() {
     final query = select(cachedTracksTable);

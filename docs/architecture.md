@@ -3602,7 +3602,9 @@ contract.
    the song until eviction. Startup pruning removes such entries left by older
    builds, and the desktop sidecar refuses HTML, JSON and XML responses before
    writing anything.
-3. Cache manager reads the current budget and enforces it via LRU eviction
+3. Rolling registration checks and writes under one database transaction,
+   so a concurrent permanent download cannot be downgraded to rolling.
+   Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache (see **Download quality,
    concurrency and artwork** below)
 5. Permanent download completion and rolling→permanent promotion pre-cache
