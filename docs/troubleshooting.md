@@ -206,12 +206,15 @@ Use this quick matrix to classify failures:
 2. Source fallback failure:
 - Symptoms: queue restore/play action fails around lock-cached source setup.
 - Expected: resolver should fall back from lock-cached stream to direct stream.
-- Desktop support: Linux, Windows, and macOS all support the lock-cached path.
-  A completed stream should appear in Cache & Storage and replay locally. The
-  direct HTTPS fallback is expected only when lock-cache setup or runtime
-  playback fails; it does not register a rolling-cache file.
+- Desktop caching: Linux, Windows, and macOS play direct HTTPS streams while
+  a sidecar download fills the rolling cache. A completed sidecar file should
+  appear in Cache & Storage and replay locally. Desktop recovery streams keep
+  the sidecar cache path. Android uses `LockCachingAudioSource` for single-pass
+  streaming and caching, with direct-stream fallback if lock-cache setup or
+  playback fails.
 - Checks:
-  - inspect logs for source kind transitions (`lockCachedStream -> directStream`)
+  - on Android, inspect source transitions (`lockCachedStream -> directStream`);
+    on desktop, check sidecar activity and completed-file registration.
   - verify authenticated session is present and stream URL resolves.
 3. Android DSP initialization failure:
 - Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
