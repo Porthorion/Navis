@@ -995,6 +995,50 @@ void main() {
     );
   }
 
+  for (final mediaClick in [false, true]) {
+    test(
+      'system pause during interruption sticks (click: $mediaClick)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-system-interruption-',
+        );
+        final (handler, player, database) = await createHandler(directory, 1);
+        final system = RealTimeProjectionAudioHandler(handler);
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await session.close();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.playing, isFalse);
+
+        if (mediaClick) {
+          await system.click();
+        } else {
+          await system.pause();
+        }
+        expect(player.playing, isFalse);
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(player.playing, isFalse);
+
+        await system.click();
+        expect(player.playing, isTrue);
+        await system.click();
+        expect(player.playing, isFalse);
+      },
+    );
+  }
+
   test(
     'begin then dispose closes all handler streams and browse parents',
     () async {

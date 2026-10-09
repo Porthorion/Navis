@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'System media buttons keep playback paused when a phone call ends',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A timed-out queue selection advances to the next song when library entries are missing',
         type: ChangelogEntryType.fix,
       ),

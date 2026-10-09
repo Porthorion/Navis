@@ -1928,7 +1928,9 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> click([MediaButton button = MediaButton.media]) async {
     switch (button) {
       case MediaButton.media:
-        if (_visiblePlaying) {
+        // Android maps media-key Pause to a toggle even during focus loss.
+        if (_visiblePlaying ||
+            _interruptedTransportGeneration == _transportGeneration) {
           await pause();
         } else {
           await play();
