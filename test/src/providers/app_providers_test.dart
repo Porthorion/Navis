@@ -73,6 +73,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   final List<String> retainCurrentSongCalls = <String>[];
   final List<bool> addToQueueExpandFlags = <bool>[];
   final List<bool> playNextExpandFlags = <bool>[];
+  final List<bool> replaceQueueExpandFlags = <bool>[];
   final List<double> volumeCalls = <double>[];
   int resetSessionCalls = 0;
   double volume = 1;
@@ -256,6 +257,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     bool autoPlay = true,
     bool expandMatchFlows = true,
   }) async {
+    replaceQueueExpandFlags.add(expandMatchFlows);
     final current = songIds.isEmpty
         ? null
         : songIds[startIndex.clamp(0, songIds.length - 1)];
@@ -282,7 +284,12 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     bool expandMatchFlows = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
-    await replaceQueue(ids, startIndex: startIndex, autoPlay: autoPlay);
+    await replaceQueue(
+      ids,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+    );
   }
 
   @override
@@ -404,6 +411,27 @@ void main() {
   });
 
   group('app providers', () {
+    test(
+      'the playback fake records the expandMatchFlows it is given',
+      () async {
+        final handler = _FakePlaybackHandler();
+        addTearDown(handler.dispose);
+
+        await handler.replaceQueue(<String>['a']);
+        await handler.replaceQueue(<String>['a'], expandMatchFlows: false);
+        await handler.replaceQueueWithData(<SongsTableData>[
+          const SongsTableData(
+            id: 'b',
+            title: 'B',
+            isProvisional: false,
+            isExternal: false,
+          ),
+        ], expandMatchFlows: false);
+
+        expect(handler.replaceQueueExpandFlags, <bool>[true, false, false]);
+      },
+    );
+
     test(
       'desktop volume hydrates, persists mute, and restores audible level',
       () async {
