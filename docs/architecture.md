@@ -2170,6 +2170,7 @@ Settings › Integrations › Updates holds the automatic check
     detached, and exits. The script replaces the running bundle, relaunches the app, and
     cleans up automatically.
   - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
+    Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
   function. Detects the current install type from filesystem heuristics (e.g. presence of
   `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
@@ -2178,7 +2179,11 @@ Settings › Integrations › Updates holds the automatic check
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
   Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
   after successful update. Unix scripts retain `chmod 700`; their enclosing private
-  directory protects them before chmod as well.
+  directory protects them before chmod as well. Windows batch paths escape percent
+  signs; `robocopy` codes 0–7 succeed, while codes 8+ remove the partial target, restore
+  the backup, clean staging and the script, and exit without relaunching. The current
+  backup is deleted only after a successful copy. A failed initial backup rename also
+  aborts before copying.
 - `domain/update_info.dart` — immutable value object with an `UpdateDelivery` mode.
   `downloadUrl`, `sha256` and `size` hold the direct asset URL and its manifest digest for
   self-update paths; Play redirects omit them.

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Windows updates restore the previous installation if copying fails and restart Navis without administrator privileges',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop updates keep downloads and installer scripts in private temporary folders',
         type: ChangelogEntryType.fix,
       ),

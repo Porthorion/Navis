@@ -1395,6 +1395,9 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 
 This runs the full quality gate, builds a release APK, tags the commit, and publishes the APK to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
 
+Windows Inno Setup silent updates relaunch Navis as the original user via
+`runasoriginaluser`; installation elevation is not carried into the app.
+
 For Android releases, `tool/release.sh` cleans stale APK build outputs before
 building, removes an existing same-name root release asset before copying, and
 fails publication if the final APK metadata/signature or release string

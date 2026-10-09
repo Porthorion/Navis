@@ -552,7 +552,9 @@ make release VERSION=v0.2.0
    (`--linux-package=deb`). Debian package output is architecture-aware
    (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
    Windows target can output `.zip` (default) or Inno Setup `.exe` installer
-   (`--windows-package=exe`). macOS target can optionally sign + notarize +
+   (`--windows-package=exe`). The installer's silent update relaunch uses
+   `runasoriginaluser` to avoid restarting Navis with installer elevation.
+   macOS target can optionally sign + notarize +
    staple before packaging (`--macos-notarize`). On non-Linux/non-Windows
    hosts, Linux/Windows desktop builds can be delegated to remote SSH builders
    (`--linux-ssh`, `--windows-ssh`).
