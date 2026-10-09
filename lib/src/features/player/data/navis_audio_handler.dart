@@ -3075,10 +3075,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _radioMetadataService.dispose();
     _radioMetadataService = _newRadioMetadataService();
     if (_radioStation != null) {
-      final azuraInfo = _tryExtractAzuracast(
-        _radioStation!.streamUrl,
-        _radioStation!.homePageUrl,
-      );
+      final azuraInfo = _tryExtractAzuracast(_radioStation!.streamUrl);
       _radioMetadataService.startListening(
         stationId: _radioStation!.stationId,
         initialMetadataSource: metadataSource,
@@ -9305,6 +9302,10 @@ class NavisAudioHandler extends BaseAudioHandler
       try {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
+        final streamUri = Uri.tryParse(streamUrl);
+        if (streamUri == null || !isHostedHttpUri(streamUri)) {
+          throw ArgumentError('Radio streams require a hosted HTTP(S) URL.');
+        }
 
         // If a stream is already active, stop the current player cleanly
         // before loading the new source.
@@ -9335,7 +9336,7 @@ class NavisAudioHandler extends BaseAudioHandler
           id: 'radio:$stationId',
           title: stationName,
           artist: stationName,
-          extras: <String, Object?>{'isRadio': true, 'streamUrl': streamUrl},
+          extras: <String, Object?>{'isRadio': true},
         );
 
         try {
@@ -9343,7 +9344,7 @@ class NavisAudioHandler extends BaseAudioHandler
             generation: generation,
             operation: 'radio source apply',
             action: () => _player.setAudioSource(
-              AudioSource.uri(Uri.parse(streamUrl), tag: radioMediaItem),
+              AudioSource.uri(streamUri, tag: radioMediaItem),
             ),
             timeout: _playerLoadTimeout,
           );
@@ -9367,7 +9368,7 @@ class NavisAudioHandler extends BaseAudioHandler
         queue.add(<MediaItem>[radioMediaItem]);
         _setCurrentMediaItem(radioMediaItem);
 
-        final azuraInfo = _tryExtractAzuracast(streamUrl, homePageUrl);
+        final azuraInfo = _tryExtractAzuracast(streamUrl);
         _radioMetadataService.startListening(
           stationId: stationId,
           azuracastApiUrl: azuraInfo?.$1,
@@ -9524,10 +9525,7 @@ class NavisAudioHandler extends BaseAudioHandler
       title: nextTitle ?? current.stationName,
       artist: nextArtist ?? current.stationName,
       artUri: nextArtUrl != null ? candidateUri : null,
-      extras: <String, Object?>{
-        'isRadio': true,
-        'streamUrl': current.streamUrl,
-      },
+      extras: <String, Object?>{'isRadio': true},
     );
     _setCurrentMediaItem(updatedItem);
     _broadcastPlaybackState();
@@ -9637,20 +9635,17 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   /// Attempt to extract an Azuracast base URL and station short name from the
-  /// stream URL or the homePageUrl.
+  /// stream URL.
   ///
   /// Azuracast stream URLs follow the pattern:
   ///   `https://<host>/listen/<station_short_name>/<format>`
   ///
   /// Returns `(baseUrl, stationShortName)` or `null` if detection fails.
-  static (String, String)? _tryExtractAzuracast(
-    String streamUrl,
-    String? homePageUrl,
-  ) {
+  static (String, String)? _tryExtractAzuracast(String streamUrl) {
     // Try parsing the stream URL for /listen/{station}/ or /hls/{station}/
     // pattern (both are valid Azuracast stream URL formats).
     final uri = Uri.tryParse(streamUrl);
-    if (uri != null && uri.pathSegments.length >= 2) {
+    if (uri != null && isHostedHttpUri(uri) && uri.pathSegments.length >= 2) {
       for (final prefix in <String>['listen', 'hls']) {
         final prefixIndex = uri.pathSegments.indexOf(prefix);
         if (prefixIndex >= 0 && prefixIndex + 1 < uri.pathSegments.length) {
@@ -9659,28 +9654,6 @@ class NavisAudioHandler extends BaseAudioHandler
               '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
           return (baseUrl, stationName);
         }
-      }
-    }
-
-    // Fall back to homePageUrl as Azuracast base + station name heuristic.
-    if (homePageUrl != null && homePageUrl.isNotEmpty) {
-      final homeUri = Uri.tryParse(homePageUrl);
-      if (homeUri != null) {
-        // If the homePageUrl has a path like /public/station_name
-        final segments = homeUri.pathSegments
-            .where((s) => s.isNotEmpty)
-            .toList();
-        final baseUrl =
-            '${homeUri.scheme}://${homeUri.host}${homeUri.hasPort ? ':${homeUri.port}' : ''}';
-        if (segments.length >= 2 && segments.first == 'public') {
-          return (baseUrl, segments[1]);
-        }
-        // Try last non-empty segment as station name.
-        if (segments.isNotEmpty) {
-          return (baseUrl, segments.last);
-        }
-        // Use the base URL with a generic station name.
-        return (baseUrl, '1');
       }
     }
 

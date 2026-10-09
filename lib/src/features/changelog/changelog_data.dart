@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Radio requires HTTP or HTTPS streams and discovers AzuraCast metadata only from stream addresses',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'External links from servers and integrations open only valid HTTP or HTTPS addresses',
         type: ChangelogEntryType.fix,
       ),

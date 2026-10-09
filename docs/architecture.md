@@ -2212,6 +2212,10 @@ restarting refills.
 
 ### Playback Flow
 
+Radio accepts only hosted HTTP(S) stream URLs and keeps them in handler memory,
+never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
+`/hls/` stream paths; station homepages do not create polling endpoints.
+
 1. User taps album/track → `QueueController.replace()`
 2. Queue controller calls `NavisAudioHandler.replaceQueue()`
 3. Audio handler resolves sources via `PlaybackSourceResolver`

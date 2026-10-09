@@ -565,6 +565,94 @@ void main() {
     return (handler, player, database);
   }
 
+  test(
+    'radio refuses non-HTTP schemes before loading a player source',
+    () async {
+      final directory = Directory.systemTemp.createTempSync('radio-schemes-');
+      final (handler, player, database) = await createHandler(directory, 0);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      for (final url in [
+        'file:///tmp/audio',
+        'lavfi://test',
+        'edl://test',
+        'intent://test',
+        'https:///missing-host',
+      ]) {
+        await expectLater(
+          handler.playRadioStream(
+            stationId: 'fixture',
+            stationName: 'Fixture',
+            streamUrl: url,
+          ),
+          throwsArgumentError,
+        );
+        expect(player._sources, isEmpty);
+        expect(handler.mediaItem.value, isNull);
+      }
+    },
+    skip: !sqliteAvailable,
+  );
+
+  for (final path in [
+    'stream',
+    'listen/fixture/stream',
+    'hls/fixture/live.m3u8',
+  ]) {
+    test('radio polling uses only AzuraCast stream shape: $path', () async {
+      final dio = _MockRadioDio();
+      final requested = <String>[];
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          any(),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((invocation) async {
+        requested.add(invocation.positionalArguments.first as String);
+        return Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(),
+          statusCode: 200,
+          data: {
+            'now_playing': {
+              'song': {'title': 'Track'},
+            },
+          },
+        );
+      });
+      final directory = Directory.systemTemp.createTempSync('radio-url-');
+      final (handler, _, database) = await createHandler(
+        directory,
+        0,
+        readRadioMetadataAllowed: () => true,
+        createRadioMetadataDio: () => dio,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/$path',
+        homePageUrl: 'http://192.168.1.2/public/secret',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        requested,
+        path == 'stream'
+            ? isEmpty
+            : equals(['https://radio.example.invalid/api/nowplaying/fixture']),
+      );
+      expect(handler.mediaItem.value!.extras, {'isRadio': true});
+      handler.updateRadioMetadata(title: 'Changed');
+      expect(handler.mediaItem.value!.extras, {'isRadio': true});
+    }, skip: !sqliteAvailable);
+  }
+
   for (final initiallyAllowed in [true, false]) {
     test(
       'radio policy refresh resumes polling (initially $initiallyAllowed)',
