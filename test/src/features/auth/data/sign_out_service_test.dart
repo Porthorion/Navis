@@ -12,6 +12,7 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -32,6 +33,20 @@ class _FakeCredentialStore implements SecureCredentialStore {
   }
 }
 
+class _ExternalCredentials extends Fake
+    implements ExternalScrobbleCredentialStore {
+  String? token;
+  int clears = 0;
+  bool failDelete = false;
+
+  @override
+  Future<void> clearListenBrainzToken() async {
+    clears++;
+    if (failDelete) throw StateError('delete failed');
+    token = null;
+  }
+}
+
 class _ArtworkCacheManager extends Fake implements CacheManager {
   new(this.onClear);
   final void Function() onClear;
@@ -46,6 +61,7 @@ void main() {
     late _FakeCredentialStore credentials;
     late ServerConfigRepository repository;
     late SignOutService service;
+    late _ExternalCredentials externalCredentials;
     late Directory tmpDir;
     var coverClears = 0;
     var systemArtworkClears = 0;
@@ -67,9 +83,11 @@ void main() {
       );
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
+      externalCredentials = _ExternalCredentials()..token = 'fixture-token';
       service = SessionLifecycleService(
         serverConfigRepository: repository,
         database: database,
+        externalScrobbleCredentials: externalCredentials,
         clearCoverArt: container.read(clearCoverArtCachesProvider),
       );
       tmpDir = Directory.systemTemp.createTempSync('navis_sign_out_test_');
@@ -119,6 +137,41 @@ void main() {
         isEmpty,
       );
       expect(cacheFile.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
+
+    for (final wipe in [false, true]) {
+      test('ListenBrainz account clears only on wipe (wipe: $wipe)', () async {
+        await database.appSettingsDao.getSettings();
+        await database.appSettingsDao.updateListenBrainzScrobblingState(
+          enabled: true,
+          tokenValid: true,
+          userName: 'fixture-user',
+        );
+        await service.signOut(wipeLocalData: wipe);
+        final settings = await database.appSettingsDao.getSettings();
+        expect(externalCredentials.token, wipe ? isNull : 'fixture-token');
+        expect(externalCredentials.clears, wipe ? 1 : 0);
+        expect(settings?.listenBrainzUserName, wipe ? isNull : 'fixture-user');
+        expect(settings?.listenBrainzTokenValid, !wipe);
+        expect(settings?.listenBrainzScrobblingEnabled, !wipe);
+      }, skip: !sqliteAvailable);
+    }
+
+    test('failed token deletion still clears account metadata and server authentication', () async {
+      externalCredentials.failDelete = true;
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.updateListenBrainzScrobblingState(
+        userName: 'fixture-user',
+        tokenValid: true,
+      );
+      await service.signOut(wipeLocalData: true);
+      expect(externalCredentials.clears, 1);
+      expect(externalCredentials.token, 'fixture-token');
+      expect(
+        (await database.appSettingsDao.getSettings())?.listenBrainzUserName,
+        isNull,
+      );
+      expect(await database.serverDao.getRetainedServer(), isNull);
     }, skip: !sqliteAvailable);
 
     test('full wipe clears local data and deletes cached files', () async {

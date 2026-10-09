@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/presentation/sleep_timer_provider.dart
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
@@ -54,6 +55,9 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
   return SessionLifecycleService(
     serverConfigRepository: ref.watch(serverConfigRepositoryProvider),
     database: ref.watch(navisDatabaseProvider),
+    externalScrobbleCredentials: ref.watch(
+      externalScrobbleCredentialStoreProvider,
+    ),
     cancelApiRequests: () async {
       ref.read(subsonicApiProvider)?.close(force: true);
     },
@@ -104,6 +108,8 @@ class SessionLifecycleService implements SignOutService {
   new({
     required this._serverConfigRepository,
     required NavisDatabase database,
+    this._externalScrobbleCredentials =
+        const FlutterExternalScrobbleCredentialStore(),
     this._cancelApiRequests,
     this._cancelSync,
     this._cancelAndroidBackgroundSync,
@@ -121,6 +127,7 @@ class SessionLifecycleService implements SignOutService {
 
   final ServerConfigRepository _serverConfigRepository;
   final NavisDatabase _database;
+  final ExternalScrobbleCredentialStore _externalScrobbleCredentials;
   final Future<void> Function()? _cancelApiRequests;
   final Future<void> Function()? _cancelSync;
   final Future<void> Function()? _cancelAndroidBackgroundSync;
@@ -210,6 +217,18 @@ class SessionLifecycleService implements SignOutService {
       });
 
       if (wipeLocalData) {
+        await attempt(
+          'clear ListenBrainz token',
+          _externalScrobbleCredentials.clearListenBrainzToken,
+        );
+        await attempt(
+          'clear ListenBrainz account',
+          () => _database.appSettingsDao.updateListenBrainzScrobblingState(
+            enabled: false,
+            tokenValid: false,
+            clearUserName: true,
+          ),
+        );
         await attempt('clear server-scoped data', _wipeServerData);
       }
     } finally {

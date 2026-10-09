@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Sign out and wipe local data also removes the ListenBrainz token and account name',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android system artwork uses private per-install keys to prevent other apps from probing album IDs',
         type: ChangelogEntryType.fix,
       ),

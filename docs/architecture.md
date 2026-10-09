@@ -366,7 +366,11 @@ credential store, with a memory-only fallback when platform storage is unavailab
 Drift stores the credential-free URL; active configs merge user info back in memory
 for HTTP and media Basic authentication, including Android background sync. Loads
 scrub legacy URLs once; signed-out profiles are scrubbed without restoring secrets.
-Both sign-out modes delete both keys. Profile identity excludes URL credentials.
+Both sign-out modes delete both keys. A full wipe also clears the ListenBrainz
+secure token, username, token-valid flag and scrobbling enablement through the
+existing store and targeted settings writer; keep-data sign-out retains them.
+Credential deletion failures reach teardown warning reporting. Profile identity
+excludes URL credentials.
 
 Connection probes always start with token authentication, regardless of the
 reported API version. Only Subsonic code 41 (token authentication unsupported)
