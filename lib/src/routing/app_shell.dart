@@ -62,6 +62,7 @@ import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/player/presentation/deferred_queue_restore_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dispatch_provider.dart';
+import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';

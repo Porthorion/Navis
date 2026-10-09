@@ -36,6 +36,7 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
+import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';

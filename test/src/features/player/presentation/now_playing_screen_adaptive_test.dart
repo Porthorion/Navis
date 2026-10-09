@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
@@ -23,6 +24,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_eq_controller.dart';
+import '../../../../helpers/library_copy_api.dart';
 import '../../../../helpers/test_database.dart';
 
 const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
@@ -114,6 +116,7 @@ Future<void> _pumpNowPlaying(
   TargetPlatform platform = TargetPlatform.linux,
   ThemeData? theme,
   bool settle = true,
+  AppNoticeController? notices,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -128,7 +131,9 @@ Future<void> _pumpNowPlaying(
           data: MediaQuery.of(
             context,
           ).copyWith(disableAnimations: reduceMotion, textScaler: textScaler),
-          child: child!,
+          child: notices == null
+              ? child!
+              : AppNoticeScope(notifier: notices, child: child!),
         ),
         home: Scaffold(
           body: NowPlayingScreen(
@@ -150,8 +155,9 @@ Future<void> _pumpNowPlaying(
 void _noopCollapse() {}
 
 void main() {
-  testWidgets('Server Mix starts from a remote song and leaves the rest to the '
-      'recommendation service', (tester) async {
+  testWidgets('Server Mix starts from a remote song with a library copy', (
+    tester,
+  ) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final spy = _SpyInstantMixNotifier();
     final container = _createContainer(
@@ -160,6 +166,9 @@ void main() {
           PreferredMixMode.legacyInstantMix,
         ),
         instantMixProvider.overrideWith(() => spy),
+        subsonicApiProvider.overrideWithValue(
+          LibraryCopyApiClient(const {'ext-remote-1': 'copy-1'}),
+        ),
       ],
     );
     container.read(_testPlaybackProvider.notifier).state = _songPlayback
@@ -168,6 +177,7 @@ void main() {
           currentSongId: 'ext-remote-1',
         );
     await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey<String>('nowPlayingMixButton')));
     await tester.pump();
@@ -176,6 +186,40 @@ void main() {
     expect(
       find.text('Instant Mix requires a locally scanned track.'),
       findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('Server Mix stays unavailable for a remote song without a '
+      'library copy', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final spy = _SpyInstantMixNotifier();
+    final container = _createContainer(
+      overrides: <Override>[
+        preferredMixModeProvider.overrideWithValue(
+          PreferredMixMode.legacyInstantMix,
+        ),
+        instantMixProvider.overrideWith(() => spy),
+        subsonicApiProvider.overrideWithValue(LibraryCopyApiClient(const {})),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback
+        .copyWith(
+          queueSongIds: const <String>['ext-remote-1'],
+          currentSongId: 'ext-remote-1',
+        );
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    await _pumpNowPlaying(tester, container, notices: notices);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey<String>('nowPlayingMixButton')));
+    await tester.pump();
+
+    expect(spy.activations, isEmpty);
+    expect(
+      notices.notice?.message,
+      'Instant Mix requires a locally scanned track.',
     );
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);

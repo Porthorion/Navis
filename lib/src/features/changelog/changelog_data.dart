@@ -218,7 +218,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Server Mix can start from a remote song when the server has a library copy of it; the Instant Mix button is no longer greyed out for remote songs',
+        'Server Mix can start from a remote song when the server has a library copy of it; without one the Instant Mix button stays greyed out with an explanation',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

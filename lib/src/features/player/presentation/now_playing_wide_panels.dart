@@ -926,9 +926,15 @@ class _EmbeddedMixPanel extends ConsumerWidget {
     final subtitle = useLegacy
         ? l10n.nowPlayingInstantMixDescription
         : l10n.nowPlayingSameVibesDescription;
+    final legacyMixUnavailable =
+        useLegacy && !serverMixSeedAvailable(ref, seedSongId);
+    final disabledColor = Theme.of(context).colorScheme.onSurface
+        .withValues(alpha: 0.38);
     final cards = <Widget>[
       Card(
         child: ListTile(
+          iconColor: legacyMixUnavailable ? disabledColor : null,
+          textColor: legacyMixUnavailable ? disabledColor : null,
           leading: loading
               ? const SizedBox(
                   width: 22,
@@ -939,9 +945,15 @@ class _EmbeddedMixPanel extends ConsumerWidget {
           title: Text(title),
           subtitle: Text(subtitle),
           trailing: active ? const Icon(Icons.check_circle) : null,
-          onTap: () async {
-            await togglePreferredMixMode(ref, seedSongId: seedSongId);
-          },
+          onTap: legacyMixUnavailable
+              ? () => showAppNotice(
+                  context,
+                  message: l10n.remoteSourceInstantMixUnavailable,
+                  level: AppNoticeLevel.error,
+                )
+              : () async {
+                  await togglePreferredMixMode(ref, seedSongId: seedSongId);
+                },
         ),
       ),
     ];
