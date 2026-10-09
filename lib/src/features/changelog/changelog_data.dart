@@ -129,6 +129,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Updates now come from downloads.porthorion.com, and every update is checked against a signed release list before it installs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A damaged update download is discarded with a clear message instead of being installed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Linux playback and the equalizer now work without installing a separate audio library',
         type: ChangelogEntryType.fix,
       ),
