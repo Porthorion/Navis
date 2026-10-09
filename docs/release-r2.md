@@ -114,7 +114,10 @@ diagnostics routes `GET /v1/diagnostics/update`,
 (download plus size and SHA-256 check, no install) to see what the app decided.
 `tool/r2_update_diagnostics.sh` automates this on Linux: it launches a profile clone on
 `staging`, then checks a missing manifest, a signed offer, a verified download, a corrupt
-asset, a forged manifest, and a full apply, swap and relaunch. Delete the
+asset, a forged manifest, and a full apply, swap and relaunch.
+`tool/r2_update_diagnostics_android.sh` builds a `.r2test` profile sideload APK and runs the
+same offer, download, corrupt and forged checks on a booted emulator (installing the APK
+needs the system prompt, so it stops before install). Delete the
 staging objects afterwards.
 
 ## Forgejo during the transition

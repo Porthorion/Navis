@@ -69,8 +69,7 @@ Future<void> _runNavis() async {
   if (_syncDiagnosticsRuntimeEnabled &&
       _isAndroidRuntime &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
-    final sidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>('isSidecar');
+    final sidecar = await _androidDiagnosticsIsSidecar();
     if (sidecar != true) {
       throw StateError('Android clone diagnostics require a sidecar package.');
     }
@@ -342,8 +341,7 @@ Future<void> _startSyncDiagnostics({
     throw StateError('Sync diagnostics mode and handshake path are required.');
   }
   if (_isAndroidRuntime && mode == SyncDiagnosticsMode.clone) {
-    final isSidecar = await _androidDiagnosticsHandshakeChannel
-        .invokeMethod<bool>('isSidecar');
+    final isSidecar = await _androidDiagnosticsIsSidecar();
     if (isSidecar != true) {
       throw StateError(
         'Android clone diagnostics require a non-empty sidecar app-id suffix.',
@@ -386,6 +384,22 @@ Future<void> _startSyncDiagnostics({
 const MethodChannel _androidDiagnosticsHandshakeChannel = MethodChannel(
   'com.navis.app/diagnostics_handshake',
 );
+
+/// audio_service warms the Flutter engine, and so runs `main`, before
+/// MainActivity attaches it and registers the diagnostics channel. Wait for
+/// the registration instead of failing clone startup on that race.
+Future<bool?> _androidDiagnosticsIsSidecar() async {
+  for (var attempt = 0; ; attempt++) {
+    try {
+      return await _androidDiagnosticsHandshakeChannel.invokeMethod<bool>(
+        'isSidecar',
+      );
+    } on MissingPluginException {
+      if (attempt >= 100) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+}
 
 Future<void> _publishAndroidDiagnosticsHandshake(
   Map<String, Object?> handshake,
