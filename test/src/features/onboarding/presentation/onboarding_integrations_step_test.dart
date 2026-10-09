@@ -201,13 +201,19 @@ void main() {
     tester,
   ) async {
     final h = await _pump(tester);
-    await tester.runAsync(() async {
-      await h.database.appSettingsDao.updateDesktopPlaybackVolume(
+    await tester.runAsync(
+      () => h.database.appSettingsDao.updateDesktopPlaybackVolume(
         volume: 0.35,
         lastAudibleVolume: 0.35,
-      );
-      await h.database.appSettingsDao.updateColorStyle('immersive');
-    });
+      ),
+    );
+    // Drift refreshes watched queries in the fake async zone. Drain them
+    // before another runAsync write waits on their database opening lock.
+    await h.settle();
+    await tester.runAsync(
+      () => h.database.appSettingsDao.updateColorStyle('immersive'),
+    );
+    await h.settle();
     await h.finish();
     final row = await h.row();
     expect(row.desktopPlaybackVolume, 0.35);
