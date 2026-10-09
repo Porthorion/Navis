@@ -2288,14 +2288,10 @@ class NavisAudioHandler extends BaseAudioHandler
           );
           unawaited(
             _queueLane.run((token) async {
-              if (_queueItems.isNotEmpty || _radioStation != null) return;
-              try {
-                await _restoreSavedQueue(token: token);
-              } on Object catch (e, st) {
-                AppLogger.warning(
-                  'Queue restore after radio stream error failed: $e\n$st',
-                );
-              }
+              await _restorePreviousQueueAfterRadio(
+                token,
+                context: 'radio stream error',
+              );
             }),
           );
         } else {
@@ -9331,6 +9327,20 @@ class NavisAudioHandler extends BaseAudioHandler
     });
   }
 
+  Future<void> _restorePreviousQueueAfterRadio(
+    OperationToken token, {
+    required String context,
+  }) async {
+    if (_queueItems.isNotEmpty || _radioStation != null) return;
+    try {
+      await _restoreSavedQueue(token: token);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Queue restore after $context failed: $error\n$stackTrace',
+      );
+    }
+  }
+
   @override
   Future<void> stopRadio() {
     final generation = _supersedeQueueWork();
@@ -9377,14 +9387,10 @@ class NavisAudioHandler extends BaseAudioHandler
           .then(
             (_) => _queueLane.run((token) async {
               _checkQueueWorkCurrent(token, generation);
-              if (_queueItems.isNotEmpty || _radioStation != null) return;
-              try {
-                await _restoreSavedQueue(token: token);
-              } on Object catch (error, stackTrace) {
-                AppLogger.warning(
-                  'Queue restore after radio stop failed: $error\n$stackTrace',
-                );
-              }
+              await _restorePreviousQueueAfterRadio(
+                token,
+                context: 'radio stop',
+              );
             }),
           )
           .catchError((_) {}),
