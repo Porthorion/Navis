@@ -9,6 +9,14 @@ abstract class SecureCredentialStore {
   Future<void> clearPassword();
 }
 
+/// URL credentials are an optional capability for password-only store adapters.
+abstract interface class ServerUrlCredentialStore
+    implements SecureCredentialStore {
+  Future<void> saveUserInfo(String userInfo);
+  Future<String?> readUserInfo();
+  Future<void> clearUserInfo();
+}
+
 class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
   new(this._backing, {this._credentialPath = ''});
 
@@ -53,10 +61,12 @@ class CloneDiagnosticsCredentialStore implements SecureCredentialStore {
   }
 }
 
-class FlutterSecureCredentialStore implements SecureCredentialStore {
+class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   const new({this._storage = const FlutterSecureStorage()});
 
   static const _passwordKey = 'navis.auth.active_server.password';
+  static const _userInfoKey = 'navis.auth.active_server.user_info';
+  static String? _sessionUserInfoFallback;
   static String? _sessionPasswordFallback;
   static bool _didLogSaveFallbackWarning = false;
   static bool _didLogReadFallbackWarning = false;
@@ -105,6 +115,58 @@ class FlutterSecureCredentialStore implements SecureCredentialStore {
     _sessionPasswordFallback = null;
     try {
       await _storage.delete(key: _passwordKey);
+    } on Object catch (error) {
+      if (!_didLogClearFallbackWarning) {
+        _didLogClearFallbackWarning = true;
+        AppLogger.warning(
+          'Secure credential clear failed: ${error.runtimeType}.',
+        );
+      }
+    }
+  }
+
+  @override
+  Future<void> saveUserInfo(String userInfo) async {
+    try {
+      await _storage.write(key: _userInfoKey, value: userInfo);
+      _sessionUserInfoFallback = null;
+    } on Object catch (error) {
+      // Keep desktop/macOS local dev usable when keychain entitlements are
+      // unavailable by falling back to in-memory session storage.
+      _sessionUserInfoFallback = userInfo;
+      if (!_didLogSaveFallbackWarning) {
+        _didLogSaveFallbackWarning = true;
+        AppLogger.warning(
+          'Secure credential save failed; using session fallback: '
+          '${error.runtimeType}.',
+        );
+      }
+    }
+  }
+
+  @override
+  Future<String?> readUserInfo() async {
+    if (_sessionUserInfoFallback != null) return _sessionUserInfoFallback;
+    try {
+      final value = await _storage.read(key: _userInfoKey);
+      return value ?? _sessionUserInfoFallback;
+    } on Object catch (error) {
+      if (!_didLogReadFallbackWarning) {
+        _didLogReadFallbackWarning = true;
+        AppLogger.warning(
+          'Secure credential read failed; using session fallback: '
+          '${error.runtimeType}.',
+        );
+      }
+      return _sessionUserInfoFallback;
+    }
+  }
+
+  @override
+  Future<void> clearUserInfo() async {
+    _sessionUserInfoFallback = null;
+    try {
+      await _storage.delete(key: _userInfoKey);
     } on Object catch (error) {
       if (!_didLogClearFallbackWarning) {
         _didLogClearFallbackWarning = true;

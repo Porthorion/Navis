@@ -361,9 +361,12 @@ build their own containers keep Riverpod's default unless they pass it.
 ### Authentication, initial catalog, and teardown
 
 Credential redaction treats URL user info as a credential: request logging and
-free-text error redaction strip it, and OS media URL guards reject it. Server URL
-storage and transport still retain user info pending migration to an Authorization
-header.
+free-text error redaction strip it, and OS media URL guards reject it. The server password and URL user info use separate keys in the existing secure
+credential store, with a memory-only fallback when platform storage is unavailable.
+Drift stores the credential-free URL; active configs merge user info back in memory
+for HTTP and media Basic authentication, including Android background sync. Loads
+scrub legacy URLs once; signed-out profiles are scrubbed without restoring secrets.
+Both sign-out modes delete both keys. Profile identity excludes URL credentials.
 
 Connection probes always start with token authentication, regardless of the
 reported API version. Only Subsonic code 41 (token authentication unsupported)

@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Reverse-proxy URL credentials are kept in secure storage instead of the library database',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Artwork responses have a size limit, external images respect memory limits in both dimensions, and radio artwork displays immediately after prewarming',
         type: ChangelogEntryType.fix,
       ),
