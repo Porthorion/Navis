@@ -651,7 +651,12 @@ target-selection rules.
   `buildOledTheme` take the user's seed (or the dynamic album colour) and a
   colour style, get a `ColorScheme` from `buildStyledColorScheme`, and
   delegate to one shared builder. Typography, component themes and theme
-  extensions are defined only in that builder. OLED cards, dialogs and sheets
+  extensions are defined only in that builder. `NavisApp` constructs only the
+  active brightness/OLED variant and reuses a per-app eight-entry LRU cache
+  (`NavisThemeCache`) keyed by seed, brightness, OLED, style, Flat and corners.
+  Unrelated settings rebuilds reuse complete themes; new album seeds build
+  only the visible variant, and switching back can reuse a cached theme.
+  OLED cards, dialogs and sheets
   take their colours from the scheme's container roles, whose chroma styled
   schemes cap at 2 so they read black-ish. OLED chrome is true black: the
   phone mini player, desktop sidebar and desktop player bar are `surface`
@@ -845,6 +850,14 @@ target-selection rules.
   font sizes and colours per file outside `lib/src/theme/`.
 - Decision record:
   [decisions/2026-09-30-design-foundation.md](decisions/2026-09-30-design-foundation.md).
+
+Shared utility ownership: `utils/semver.dart` parses and compares release cores
+for changelog/setup discovery and update selection, accepting leading `v`,
+build and label suffixes. `captionContrast` owns WCAG contrast maths for
+captions, veils and theme brand roles (the latter compare raw RGB as before).
+`NightSchedule` owns Dart schedule defaults; Drift table defaults retain their
+SQL literals. `NavisShapeData.xl` owns panel radii, including desktop panels and
+anchored popovers; `NavisTokens` no longer duplicates that shape value.
 
 ### Home: You Might Like
 

@@ -45,6 +45,7 @@ class NavisApp extends ConsumerStatefulWidget {
 class _NavisAppState extends ConsumerState<NavisApp>
     with WidgetsBindingObserver {
   bool _didScheduleBootstrap = false;
+  final _themeCache = NavisThemeCache();
   final ShortcutManager _desktopActivationShortcutManager =
       _DesktopActivationShortcutManager();
 
@@ -70,6 +71,11 @@ class _NavisAppState extends ConsumerState<NavisApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    setState(() {});
   }
 
   @override
@@ -110,6 +116,24 @@ class _NavisAppState extends ConsumerState<NavisApp>
         ? null
         : Locale(localeCode);
 
+    final brightness = switch (resolvedThemeMode) {
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.system =>
+        MediaQuery.maybePlatformBrightnessOf(context) ??
+            WidgetsBinding.instance.platformDispatcher.platformBrightness,
+    };
+    final theme = _themeCache
+        .resolve(
+          seed: seedColor,
+          brightness: brightness,
+          oled: brightness == Brightness.dark && isOled,
+          style: colorStyle,
+          flat: flat,
+          corners: corners,
+        )
+        .copyWith(splashFactory: widget.splashFactory);
+
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (context) =>
@@ -117,27 +141,8 @@ class _NavisAppState extends ConsumerState<NavisApp>
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
-      theme: buildLightTheme(
-        seedColor,
-        style: colorStyle,
-        flat: flat,
-        corners: corners,
-      ).copyWith(splashFactory: widget.splashFactory),
-      darkTheme:
-          (isOled
-                  ? buildOledTheme(
-                      seedColor,
-                      style: colorStyle,
-                      flat: flat,
-                      corners: corners,
-                    )
-                  : buildDarkTheme(
-                      seedColor,
-                      style: colorStyle,
-                      flat: flat,
-                      corners: corners,
-                    ))
-              .copyWith(splashFactory: widget.splashFactory),
+      theme: brightness == Brightness.light ? theme : null,
+      darkTheme: brightness == Brightness.dark ? theme : null,
       themeMode: resolvedThemeMode,
       themeAnimationDuration: themeAnimationDuration,
       builder: (context, child) {

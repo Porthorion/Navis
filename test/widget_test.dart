@@ -11,6 +11,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'helpers/test_theme.dart';
@@ -65,6 +66,44 @@ class _FakePlaybackRecoveryService implements PlaybackRecoveryService {
 }
 
 void main() {
+  testWidgets(
+    'Auto switches cached light and OLED themes with system brightness',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              themeModeProvider.overrideWithValue('system'),
+              oledForAutoProvider.overrideWithValue(true),
+            ],
+          ),
+          child: testNavisApp,
+        ),
+      );
+      await tester.pump();
+      MaterialApp app() => tester.widget<MaterialApp>(find.byType(MaterialApp));
+      final light = app().theme!.colorScheme;
+      expect(light, buildLightTheme(defaultColorSchemeSeedColor).colorScheme);
+      expect(app().darkTheme, isNull);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      final oled = app().darkTheme!.colorScheme;
+      expect(oled, buildOledTheme(defaultColorSchemeSeedColor).colorScheme);
+      expect(app().theme, isNull);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pump();
+      expect(app().theme!.colorScheme, light);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(app().darkTheme!.colorScheme, oled);
+    },
+  );
+
   testWidgets('resuming re-checks the scheduled Night style', (tester) async {
     var clock = DateTime(2026, 10, 8, 12);
     await tester.pumpWidget(

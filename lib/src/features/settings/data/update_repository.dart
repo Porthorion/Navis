@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/utils/semver.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
@@ -47,7 +48,7 @@ class UpdateRepository {
 
     final packageInfo = await PackageInfo.fromPlatform();
     final currentVersion = packageInfo.version; // e.g. "0.1.0"
-    final currentSemver = _parseSemverCore(currentVersion);
+    final currentSemver = parseSemver(currentVersion, allowExtraParts: true);
     final resolvedChannel = (updateChannel ?? AppConstants.updateChannel)
         .trim()
         .toLowerCase();
@@ -80,13 +81,13 @@ class UpdateRepository {
         }).toList()..sort((a, b) {
           final aRawTag = (a['tag_name'] as String?) ?? '';
           final bRawTag = (b['tag_name'] as String?) ?? '';
-          final aSemver = _parseSemverCore(aRawTag);
-          final bSemver = _parseSemverCore(bRawTag);
+          final aSemver = parseSemver(aRawTag, allowExtraParts: true);
+          final bSemver = parseSemver(bRawTag, allowExtraParts: true);
           if (aSemver == null && bSemver == null) return 0;
           if (aSemver == null) return 1;
           if (bSemver == null) return -1;
           // Descending, newest first.
-          final semverOrder = _compareSemverCore(bSemver, aSemver);
+          final semverOrder = compareSemver(bSemver, aSemver);
           if (semverOrder != 0) {
             return semverOrder;
           }
@@ -104,7 +105,7 @@ class UpdateRepository {
     final candidate = filtered.firstWhereOrNull((r) {
       final rawTag = (r['tag_name'] as String?) ?? '';
       final tagVersion = rawTag.startsWith('v') ? rawTag.substring(1) : rawTag;
-      final tagSemver = _parseSemverCore(tagVersion);
+      final tagSemver = parseSemver(tagVersion, allowExtraParts: true);
 
       // Only versioned releases are app updates; the repository also holds
       // releases such as mirrored build inputs (`third-party-binaries`).
@@ -113,7 +114,7 @@ class UpdateRepository {
         // Fallback when the installed version format is unexpected.
         return tagVersion != currentVersion;
       }
-      return _compareSemverCore(tagSemver, currentSemver) > 0;
+      return compareSemver(tagSemver, currentSemver) > 0;
     });
 
     if (candidate == null) return null;
@@ -248,31 +249,6 @@ String _linuxDebArch() {
     }
   } on Object catch (_) {}
   return 'amd64'; // safe default
-}
-
-List<int>? _parseSemverCore(String raw) {
-  var value = raw.trim();
-  if (value.startsWith('v')) value = value.substring(1);
-  final plusIndex = value.indexOf('+');
-  if (plusIndex >= 0) value = value.substring(0, plusIndex);
-  final dashIndex = value.indexOf('-');
-  if (dashIndex >= 0) value = value.substring(0, dashIndex);
-
-  final parts = value.split('.');
-  if (parts.length < 3) return null;
-
-  final major = int.tryParse(parts[0]);
-  final minor = int.tryParse(parts[1]);
-  final patch = int.tryParse(parts[2]);
-  if (major == null || minor == null || patch == null) return null;
-  return <int>[major, minor, patch];
-}
-
-int _compareSemverCore(List<int> a, List<int> b) {
-  for (var i = 0; i < 3; i++) {
-    if (a[i] != b[i]) return a[i].compareTo(b[i]);
-  }
-  return 0;
 }
 
 // ---------------------------------------------------------------------------
