@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -15,7 +16,15 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
-/// Handles downloading a Forgejo release artifact and applying it.
+/// A downloaded artifact differs from the signed manifest's size or digest.
+class UpdateIntegrityException implements Exception {
+  const new();
+
+  @override
+  String toString() => 'Update download failed integrity verification';
+}
+
+/// Handles downloading a verified release artifact and applying it.
 class UpdateService {
   new({Dio? dio, this._networkUsageReporter}) : _dio = dio ?? Dio();
 
@@ -42,13 +51,23 @@ class UpdateService {
       throw StateError('No download URL available for ${info.tagName}');
     }
 
+    if (!url.startsWith(AppConstants.updateBaseUrl)) {
+      throw StateError('Update download URL is outside the update host');
+    }
+    if (info.sha256 == null || info.size == null) {
+      throw StateError('Update download has no manifest integrity metadata');
+    }
+
     final cacheDir = await getTemporaryDirectory();
     final updatesDir = Directory(p.join(cacheDir.path, 'navis_updates'));
     if (!updatesDir.existsSync()) {
       updatesDir.createSync(recursive: true);
     }
 
-    final fileName = info.assetFileName ?? 'navis-${info.tagName}';
+    final fileName = p.basename(info.assetFileName ?? 'navis-${info.tagName}');
+    if (fileName.isEmpty || fileName == '.' || fileName == '..') {
+      throw StateError('Invalid update artifact filename');
+    }
     final filePath = p.join(updatesDir.path, fileName);
 
     AppLogger.info('Downloading update artifact from $url → $filePath');
@@ -76,8 +95,28 @@ class UpdateService {
       bytes: downloadedBytes,
     );
 
-    AppLogger.info('Artifact downloaded to $filePath');
+    await verifyArtifact(filePath, info);
+    AppLogger.info('Verified artifact downloaded to $filePath');
     return filePath;
+  }
+
+  /// Verifies the file against the signed manifest before any install or apply.
+  ///
+  /// Deletes mismatched downloads so retries cannot reuse a damaged artifact.
+  Future<void> verifyArtifact(String filePath, UpdateInfo info) async {
+    final file = File(filePath);
+    final sizeMatches = info.size != null && await file.length() == info.size;
+    final hashMatches =
+        sizeMatches &&
+        info.sha256 != null &&
+        (await crypto.sha256.bind(file.openRead()).first)
+                .toString()
+                .toLowerCase() ==
+            info.sha256!.toLowerCase();
+    if (!hashMatches) {
+      await file.delete();
+      throw const UpdateIntegrityException();
+    }
   }
 
   /// Backward-compatible alias used by Android callers.
@@ -179,27 +218,13 @@ class UpdateService {
   /// [UpdateInstallMode.linuxDeb], no extraction is needed — the artifact is
   /// launched/applied directly.
   ///
-  /// Throws a [StateError] if the downloaded artifact is missing or appears
-  /// truncated (< 10 KB), allowing the caller to surface an error to the user
-  /// before any filesystem changes are made.
+  /// [downloadedPath] must come from [downloadArtifact], which verifies the
+  /// artifact against the manifest before returning it.
   Future<void> applyDesktopUpdate(
     String downloadedPath,
     UpdateInstallMode mode,
   ) async {
     AppLogger.info('Applying desktop update: mode=$mode path=$downloadedPath');
-
-    // Guard: confirm the downloaded file exists and is a plausible size.
-    final artifact = File(downloadedPath);
-    if (!artifact.existsSync()) {
-      throw StateError('Downloaded artifact not found: $downloadedPath');
-    }
-    final fileSize = artifact.lengthSync();
-    if (fileSize < 10 * 1024) {
-      throw StateError(
-        'Downloaded artifact appears truncated: '
-        '${(fileSize / 1024).toStringAsFixed(1)} KB',
-      );
-    }
 
     switch (mode) {
       case UpdateInstallMode.windowsInstaller:

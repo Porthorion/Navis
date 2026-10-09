@@ -130,7 +130,7 @@ void main() {
       'Last.fm',
       'ListenBrainz',
       'LRCLIB',
-      'git.porthorion.com',
+      'downloads.porthorion.com',
       'GitHub',
       'raw.githubusercontent.com',
       'api.github.com',

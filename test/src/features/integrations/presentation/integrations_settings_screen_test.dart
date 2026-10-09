@@ -239,7 +239,7 @@ void main() {
       'Key included with this build',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
-      'Sends an app version check to git.porthorion.com.',
+      'Sends an app version check to downloads.porthorion.com.',
       'Downloads headphone profiles from raw.githubusercontent.com and api.github.com, only when you ask.',
       "Reads now-playing info from the station's server.",
       'Loads images your server links from other sites, such as artist photos.',

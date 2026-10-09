@@ -197,7 +197,7 @@ void main() {
       'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Sends your listens and likes to api.listenbrainz.org.',
       'Sends track title, artist, album and duration to lrclib.net.',
-      'Sends an app version check to git.porthorion.com.',
+      'Sends an app version check to downloads.porthorion.com.',
       'Internet radio',
       'Fine-tune per feature in Settings › Integrations.',
     ]) {

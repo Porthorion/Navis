@@ -311,8 +311,8 @@ void main() {
         await pumpAbout(
           tester,
           updateInfo: const UpdateInfo(
-            sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            size: 123,
+            sha256: null,
+            size: null,
             tagName: 'v2.0.0',
             htmlUrl: 'https://example.com/release',
             delivery: UpdateDelivery.storeRedirect,

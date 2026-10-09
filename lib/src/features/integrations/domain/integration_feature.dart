@@ -45,7 +45,7 @@ enum IntegrationService {
   updates(
     key: 'updates',
     displayName: 'Update checks',
-    host: 'git.porthorion.com',
+    host: 'downloads.porthorion.com',
     verification: IntegrationVerification.none,
   ),
   autoEq(
