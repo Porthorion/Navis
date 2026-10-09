@@ -85,7 +85,9 @@ Located in `lib/src/providers/app_providers.dart`:
     component during playback bootstrap, then delegates browse requests to the
     shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
-    four root tabs are Liked, Recent, Playlists, and Library. Liked exposes
+    four root tabs are Liked, Recent, Playlists, and Library, stored once per
+    service instance. Collection projections cap browse lists and liked songs
+    at 500 items; album and playlist tracks remain uncapped. Liked exposes
     quick-play actions plus liked songs/albums; Library contains Downloads
     when available, followed by Albums and Artists.
   - Song browse IDs are opaque and retain album, playlist, liked, recent,

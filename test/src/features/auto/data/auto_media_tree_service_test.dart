@@ -117,7 +117,7 @@ void main() {
       }
     }, skip: !sqliteAvailable);
 
-    test('root cache returns same list within TTL', () async {
+    test('root returns the same list on repeated reads', () async {
       final first = await service.getChildren(AutoMediaRoot.root);
       final second = await service.getChildren(AutoMediaRoot.root);
       expect(identical(first, second), isTrue);
