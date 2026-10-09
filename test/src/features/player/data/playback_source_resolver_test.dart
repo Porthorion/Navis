@@ -46,6 +46,58 @@ void main() {
       }
     });
 
+    PlaybackSourceResolver resolverFor({
+      StreamingQuality Function()? quality,
+      bool offlineApi = false,
+      bool withLibrary = false,
+      bool Function()? canStream,
+      bool Function()? cachedFirst,
+      bool Function()? supportsLockCaching,
+      bool Function()? usesSidecar,
+    }) => PlaybackSourceResolver(
+      cacheDao: database.cacheDao,
+      libraryDao: withLibrary ? database.libraryDao : null,
+      rollingCacheManager: DriftRollingCacheManager(
+        cacheDao: database.cacheDao,
+      ),
+      readApiClient: () => offlineApi ? null : apiClient,
+      readStreamingQuality:
+          quality ?? () => const StreamingQuality(label: 'wifi'),
+      readRollingCacheDirectory: () async => rollingDir,
+      readCanStream: canStream,
+      readCachedPlaybackFirst: cachedFirst,
+      readSupportsLockCaching: supportsLockCaching,
+      readUsesSidecarRollingCache: usesSidecar,
+    );
+
+    /// Writes a [size]-byte file under [rollingDir] and registers it as the
+    /// completed cached track of [song].
+    Future<File> seedCached(
+      SongsTableData song,
+      String fileName, {
+      required String format,
+      int? bitRate,
+      CacheType cacheType = CacheType.rolling,
+      int size = 3,
+      Duration age = Duration.zero,
+    }) async {
+      final file = File(p.join(rollingDir.path, fileName));
+      await file.writeAsBytes(List<int>.filled(size, 1));
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: song.id,
+          filePath: file.path,
+          fileSize: size,
+          format: format,
+          bitRate: Value(bitRate),
+          cacheType: cacheType,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now().subtract(age),
+        ),
+      );
+      return file;
+    }
+
     test('prefers local cached file when present', () async {
       final song = await _insertSong(
         database,
@@ -55,31 +107,17 @@ void main() {
         contentType: 'audio/mpeg',
         bitRate: 320,
       );
-      final localFile = File(p.join(rollingDir.path, 'song-1.mp3'));
-      await localFile.writeAsBytes(<int>[1, 2, 3]);
-
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: song.id,
-          filePath: localFile.path,
-          fileSize: 3,
-          format: 'mp3',
-          bitRate: const Value(320),
-          cacheType: CacheType.permanent,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now().subtract(const Duration(days: 1)),
-        ),
+      final localFile = await seedCached(
+        song,
+        'song-1.mp3',
+        format: 'mp3',
+        bitRate: 320,
+        cacheType: CacheType.permanent,
+        age: const Duration(days: 1),
       );
-
-      final resolver = PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        rollingCacheManager: DriftRollingCacheManager(
-          cacheDao: database.cacheDao,
-        ),
-        readApiClient: () => apiClient,
-        readStreamingQuality: () =>
+      final resolver = resolverFor(
+        quality: () =>
             const StreamingQuality(label: 'wifi-320-mp3', maxBitRate: 320),
-        readRollingCacheDirectory: () async => rollingDir,
       );
 
       final resolved = await resolver.resolveForSong(song);
@@ -108,33 +146,19 @@ void main() {
           contentType: 'audio/flac',
           bitRate: 900,
         );
-        final file = File(p.join(rollingDir.path, 'permanent.mp3'));
-        await file.writeAsBytes(<int>[1, 2, 3]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: file.path,
-            fileSize: 3,
-            format: 'mp3',
-            bitRate: const Value(192),
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
+        final file = await seedCached(
+          song,
+          'permanent.mp3',
+          format: 'mp3',
+          bitRate: 192,
+          cacheType: CacheType.permanent,
         );
         for (final canStream in <bool>[true, false]) {
           for (final cachedFirst in <bool>[true, false]) {
-            final resolver = PlaybackSourceResolver(
-              cacheDao: database.cacheDao,
-              rollingCacheManager: DriftRollingCacheManager(
-                cacheDao: database.cacheDao,
-              ),
-              readApiClient: () => apiClient,
-              readStreamingQuality: () =>
-                  const StreamingQuality(label: 'Original'),
-              readRollingCacheDirectory: () async => rollingDir,
-              readCanStream: () => canStream,
-              readCachedPlaybackFirst: () => cachedFirst,
+            final resolver = resolverFor(
+              quality: () => const StreamingQuality(label: 'Original'),
+              canStream: () => canStream,
+              cachedFirst: () => cachedFirst,
             );
             final resolved = await resolver.resolveForSong(song);
             expect(resolved.kind, PlaybackSourceKind.file);
@@ -178,14 +202,8 @@ void main() {
           lastAccessedAt: DateTime.now(),
         ),
       );
-      final resolver = PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        rollingCacheManager: DriftRollingCacheManager(
-          cacheDao: database.cacheDao,
-        ),
-        readApiClient: () => apiClient,
-        readStreamingQuality: () => const StreamingQuality(label: 'original'),
-        readRollingCacheDirectory: () async => rollingDir,
+      final resolver = resolverFor(
+        quality: () => const StreamingQuality(label: 'original'),
       );
 
       final resolved = await resolver.resolveForSong(song);
@@ -204,30 +222,16 @@ void main() {
           title: 'Local Only Song',
           serverDeletedAt: DateTime.now(),
         );
-        final localFile = File(p.join(rollingDir.path, 'song-local-only.mp3'));
-        await localFile.writeAsBytes(<int>[1, 2, 3]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 3,
-            format: 'mp3',
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
+        final localFile = await seedCached(
+          song,
+          'song-local-only.mp3',
+          format: 'mp3',
+          cacheType: CacheType.permanent,
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          libraryDao: database.libraryDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => null,
-          readStreamingQuality: () =>
-              const StreamingQuality(label: 'wifi', maxBitRate: 320),
-          readRollingCacheDirectory: () async => rollingDir,
+        final resolver = resolverFor(
+          quality: () => const StreamingQuality(label: 'wifi', maxBitRate: 320),
+          offlineApi: true,
+          withLibrary: true,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -258,17 +262,7 @@ void main() {
             lastAccessedAt: DateTime.now(),
           ),
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          libraryDao: database.libraryDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
+        final resolver = resolverFor(withLibrary: true);
 
         await expectLater(
           resolver.resolveForSong(song),
@@ -295,16 +289,9 @@ void main() {
             lastAccessedAt: DateTime.now(),
           ),
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () =>
+        final resolver = resolverFor(
+          quality: () =>
               const StreamingQuality(label: 'cellular', maxBitRate: 128),
-          readRollingCacheDirectory: () async => rollingDir,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -346,16 +333,7 @@ void main() {
           id: 'song-no-native-cache',
           title: 'No Native Cache',
         );
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-          readRollingCacheDirectory: () async => rollingDir,
-          readSupportsLockCaching: () => false,
-        );
+        final resolver = resolverFor(supportsLockCaching: () => false);
 
         final resolved = await resolver.resolveForSong(song);
 
@@ -375,16 +353,7 @@ void main() {
           suffix: 'mp3',
           contentType: 'audio/mpeg',
         );
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-          readRollingCacheDirectory: () async => rollingDir,
-          readUsesSidecarRollingCache: () => true,
-        );
+        final resolver = resolverFor(usesSidecar: () => true);
 
         final resolved = await resolver.resolveForSong(song);
 
@@ -413,16 +382,7 @@ void main() {
           suffix: 'mp3',
           contentType: 'audio/mpeg',
         );
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-          readRollingCacheDirectory: () async => rollingDir,
-          readUsesSidecarRollingCache: () => true,
-        );
+        final resolver = resolverFor(usesSidecar: () => true);
 
         final preferred = await resolver.resolveForSong(song);
         final direct = await resolver.resolveForSong(
@@ -441,15 +401,8 @@ void main() {
       'builds deterministic cache path per song and quality profile',
       () async {
         final song = await _insertSong(database, id: 'song-3', title: 'Song 3');
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () =>
-              const StreamingQuality(label: 'wifi', maxBitRate: 320),
-          readRollingCacheDirectory: () async => rollingDir,
+        final resolver = resolverFor(
+          quality: () => const StreamingQuality(label: 'wifi', maxBitRate: 320),
         );
 
         final first = await resolver.resolveForSong(song);
@@ -474,15 +427,7 @@ void main() {
           maxBitRate: 192,
           format: 'mp3',
         );
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => quality,
-          readRollingCacheDirectory: () async => rollingDir,
-        );
+        final resolver = resolverFor(quality: () => quality);
 
         final first = await resolver.resolveForSong(song);
         quality = const StreamingQuality(
@@ -501,78 +446,20 @@ void main() {
     test(
       'codec matrix resolves expected source wiring for major formats',
       () async {
-        const cases =
-            <
-              ({
-                String id,
-                String suffix,
-                String contentType,
-                String expectedExtension,
-              })
-            >[
-              (
-                id: 'codec-flac',
-                suffix: 'flac',
-                contentType: 'audio/flac',
-                expectedExtension: '.flac',
-              ),
-              (
-                id: 'codec-alac',
-                suffix: 'm4a',
-                contentType: 'audio/alac',
-                expectedExtension: '.m4a',
-              ),
-              (
-                id: 'codec-mp3',
-                suffix: 'mp3',
-                contentType: 'audio/mpeg',
-                expectedExtension: '.mp3',
-              ),
-              (
-                id: 'codec-aac',
-                suffix: 'aac',
-                contentType: 'audio/aac',
-                expectedExtension: '.aac',
-              ),
-              (
-                id: 'codec-opus',
-                suffix: 'opus',
-                contentType: 'audio/opus',
-                expectedExtension: '.opus',
-              ),
-              (
-                id: 'codec-vorbis',
-                suffix: 'ogg',
-                contentType: 'audio/vorbis',
-                expectedExtension: '.ogg',
-              ),
-            ];
+        final resolver = resolverFor();
 
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
-
-        for (final testCase in cases) {
+        for (final codec in _codecs) {
           final song = await _insertSong(
             database,
-            id: testCase.id,
-            title: testCase.id,
-            suffix: testCase.suffix,
-            contentType: testCase.contentType,
+            id: 'codec-${codec.name}',
+            title: codec.name,
+            suffix: codec.suffix,
+            contentType: codec.contentType,
           );
 
           final lockCached = await resolver.resolveForSong(song);
           expect(lockCached.kind, PlaybackSourceKind.lockCachedStream);
-          expect(
-            p.extension(lockCached.cachedFilePath!),
-            testCase.expectedExtension,
-          );
+          expect(p.extension(lockCached.cachedFilePath!), codec.extension);
 
           final direct = await resolver.resolveForSong(
             song,
@@ -580,445 +467,88 @@ void main() {
           );
           expect(direct.kind, PlaybackSourceKind.directStream);
           expect(direct.uri?.path, '/rest/stream.view');
-          expect(direct.uri?.queryParameters['id'], testCase.id);
+          expect(direct.uri?.queryParameters['id'], song.id);
         }
       },
       skip: !lockCachingAvailable,
     );
 
     test('codec matrix prefers local file source for major formats when cache exists', () async {
-      const cases =
-          <
-            ({
-              String id,
-              String suffix,
-              String contentType,
-              String expectedExtension,
-            })
-          >[
-            (
-              id: 'codec-local-flac',
-              suffix: 'flac',
-              contentType: 'audio/flac',
-              expectedExtension: '.flac',
-            ),
-            (
-              id: 'codec-local-alac',
-              suffix: 'm4a',
-              contentType: 'audio/alac',
-              expectedExtension: '.m4a',
-            ),
-            (
-              id: 'codec-local-mp3',
-              suffix: 'mp3',
-              contentType: 'audio/mpeg',
-              expectedExtension: '.mp3',
-            ),
-            (
-              id: 'codec-local-aac',
-              suffix: 'aac',
-              contentType: 'audio/aac',
-              expectedExtension: '.aac',
-            ),
-            (
-              id: 'codec-local-opus',
-              suffix: 'opus',
-              contentType: 'audio/opus',
-              expectedExtension: '.opus',
-            ),
-            (
-              id: 'codec-local-vorbis',
-              suffix: 'ogg',
-              contentType: 'audio/vorbis',
-              expectedExtension: '.ogg',
-            ),
-          ];
+      final resolver = resolverFor();
 
-      final resolver = PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        rollingCacheManager: DriftRollingCacheManager(
-          cacheDao: database.cacheDao,
-        ),
-        readApiClient: () => apiClient,
-        readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
-        readRollingCacheDirectory: () async => rollingDir,
-      );
-
-      for (final testCase in cases) {
+      for (final codec in _codecs) {
         final song = await _insertSong(
           database,
-          id: testCase.id,
-          title: testCase.id,
-          suffix: testCase.suffix,
-          contentType: testCase.contentType,
+          id: 'codec-local-${codec.name}',
+          title: codec.name,
+          suffix: codec.suffix,
+          contentType: codec.contentType,
         );
-        final localFile = File(
-          p.join(
-            rollingDir.path,
-            '${testCase.id}${testCase.expectedExtension}',
-          ),
-        );
-        await localFile.writeAsBytes(const <int>[1, 2, 3, 4]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 4,
-            format: testCase.suffix,
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now().subtract(const Duration(days: 1)),
-          ),
+        final localFile = await seedCached(
+          song,
+          '${song.id}${codec.extension}',
+          format: codec.suffix,
+          cacheType: CacheType.permanent,
+          size: 4,
+          age: const Duration(days: 1),
         );
 
         final resolved = await resolver.resolveForSong(song);
         expect(resolved.kind, PlaybackSourceKind.file);
         expect(resolved.cachedFilePath, localFile.path);
-        expect(
-          p.extension(resolved.cachedFilePath!),
-          testCase.expectedExtension,
-        );
+        expect(p.extension(resolved.cachedFilePath!), codec.extension);
         expect(resolved.uri?.scheme, 'file');
       }
     }, skip: !sqliteAvailable);
 
-    test(
-      'skips higher-quality cached file for lower active transcoding profile',
-      () async {
+    // Rolling-cache policy: permanent downloads always win elsewhere; here a
+    // rolling file is used only when it matches the active profile, Cached
+    // First is on, or the server is unreachable.
+    for (final (index, c) in _rollingCacheCases.indexed) {
+      test(c.name, () async {
         final song = await _insertSong(
           database,
-          id: 'song-hq-cache',
-          title: 'Song HQ',
-          suffix: 'flac',
-          contentType: 'audio/flac',
+          id: 'rolling-case-$index',
+          title: c.name,
+          suffix: c.songSuffix,
+          contentType: c.songContentType,
+          bitRate: c.songBitRate,
         );
-        final localFile = File(p.join(rollingDir.path, 'song-hq-cache.flac'));
-        await localFile.writeAsBytes(const <int>[9, 8, 7, 6]);
-
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 4,
-            format: 'flac',
-            bitRate: const Value(900),
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
+        final file = await seedCached(
+          song,
+          '$index-cached.${c.cachedFormat}',
+          format: c.cachedFormat,
+          bitRate: c.cachedBitRate,
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
-            label: 'wifi-192-mp3',
-            maxBitRate: 192,
-            format: 'mp3',
-          ),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
-
-        final resolved = await resolver.resolveForSong(song);
-
-        expect(resolved.kind, isNot(PlaybackSourceKind.file));
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'does not use mismatched lossy rolling cache for transcode format',
-      () async {
-        final song = await _insertSong(
-          database,
-          id: 'song-lossy-mismatch',
-          title: 'Song Mismatch',
-          suffix: 'aac',
-          contentType: 'audio/aac',
-        );
-        final localFile = File(
-          p.join(rollingDir.path, 'song-lossy-mismatch.aac'),
-        );
-        await localFile.writeAsBytes(const <int>[5, 5, 5]);
-
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 3,
-            format: 'aac',
-            bitRate: const Value(256),
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
-            label: 'wifi-192-mp3',
-            maxBitRate: 192,
-            format: 'mp3',
-          ),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
-
-        final resolved = await resolver.resolveForSong(song);
-
-        expect(resolved.kind, isNot(PlaybackSourceKind.file));
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'skips same-format rolling cache when bitrate differs from request',
-      () async {
-        final song = await _insertSong(
-          database,
-          id: 'song-same-format-bitrate',
-          title: 'Song Same Format',
-          suffix: 'mp3',
-          contentType: 'audio/mpeg',
-        );
-        final localFile = File(
-          p.join(rollingDir.path, 'song-same-format-bitrate.mp3'),
-        );
-        await localFile.writeAsBytes(const <int>[1, 3, 3, 7]);
-
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 4,
-            format: 'mp3',
-            bitRate: const Value(320),
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
-            label: 'wifi-192-mp3',
-            maxBitRate: 192,
-            format: 'mp3',
-          ),
-          readRollingCacheDirectory: () async => rollingDir,
+        final resolver = resolverFor(
+          quality: () => c.quality,
+          offlineApi: c.offline,
+          cachedFirst: c.cachedFirst == null ? null : () => c.cachedFirst!,
+          canStream: c.offline ? () => false : null,
         );
 
         final resolved = await resolver.resolveForSong(
           song,
-          preferLockCaching: false,
+          preferLockCaching: !c.direct,
         );
 
-        expect(resolved.kind, PlaybackSourceKind.directStream);
-        expect(resolved.uri?.queryParameters['maxBitRate'], '192');
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test('Wi-Fi original skips existing transcoded rolling cache', () async {
-      final song = await _insertSong(
-        database,
-        id: 'song-wifi-original',
-        title: 'Song Wi-Fi Original',
-        suffix: 'flac',
-        contentType: 'audio/flac',
-        bitRate: 900,
-      );
-      final localFile = File(p.join(rollingDir.path, 'song-wifi.mp3'));
-      await localFile.writeAsBytes(const <int>[1, 2, 3]);
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: song.id,
-          filePath: localFile.path,
-          fileSize: 3,
-          format: 'mp3',
-          bitRate: const Value(192),
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now(),
-        ),
-      );
-
-      final resolver = PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        rollingCacheManager: DriftRollingCacheManager(
-          cacheDao: database.cacheDao,
-        ),
-        readApiClient: () => apiClient,
-        readStreamingQuality: () =>
-            const StreamingQuality(label: 'wifi-original'),
-        readRollingCacheDirectory: () async => rollingDir,
-      );
-
-      final resolved = await resolver.resolveForSong(
-        song,
-        preferLockCaching: false,
-      );
-
-      expect(resolved.kind, PlaybackSourceKind.directStream);
-      expect(resolved.uri?.queryParameters.containsKey('maxBitRate'), isFalse);
-      expect(resolved.uri?.queryParameters.containsKey('format'), isFalse);
-    }, skip: !sqliteAvailable);
-
-    test(
-      'changed bitrate and format skips older cache and requests new params',
-      () async {
-        final song = await _insertSong(
-          database,
-          id: 'song-changed-profile',
-          title: 'Song Changed Profile',
-          suffix: 'flac',
-          contentType: 'audio/flac',
-          bitRate: 900,
-        );
-        final localFile = File(p.join(rollingDir.path, 'song-old-opus.opus'));
-        await localFile.writeAsBytes(const <int>[4, 5, 6]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 3,
-            format: 'opus',
-            bitRate: const Value(128),
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
-            label: 'cellular-profile',
-            maxBitRate: 192,
-            format: 'mp3',
-          ),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
-
-        final resolved = await resolver.resolveForSong(
-          song,
-          preferLockCaching: false,
-        );
-
-        expect(resolved.kind, PlaybackSourceKind.directStream);
-        expect(resolved.uri?.queryParameters['maxBitRate'], '192');
-        expect(resolved.uri?.queryParameters['format'], 'mp3');
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test('Cached First uses mismatched cached file', () async {
-      final song = await _insertSong(
-        database,
-        id: 'song-cached-first',
-        title: 'Song Cached First',
-        suffix: 'flac',
-        contentType: 'audio/flac',
-        bitRate: 900,
-      );
-      final localFile = File(p.join(rollingDir.path, 'cached-first.aac'));
-      await localFile.writeAsBytes(const <int>[7, 8, 9]);
-      await database.cacheDao.upsertCachedTrack(
-        CachedTracksTableCompanion.insert(
-          songId: song.id,
-          filePath: localFile.path,
-          fileSize: 3,
-          format: 'aac',
-          bitRate: const Value(256),
-          cacheType: CacheType.rolling,
-          downloadStatus: DownloadStatus.complete,
-          lastAccessedAt: DateTime.now(),
-        ),
-      );
-
-      final resolver = PlaybackSourceResolver(
-        cacheDao: database.cacheDao,
-        rollingCacheManager: DriftRollingCacheManager(
-          cacheDao: database.cacheDao,
-        ),
-        readApiClient: () => apiClient,
-        readStreamingQuality: () => const StreamingQuality(
-          label: 'wifi-192-mp3',
-          maxBitRate: 192,
-          format: 'mp3',
-        ),
-        readRollingCacheDirectory: () async => rollingDir,
-        readCachedPlaybackFirst: () => true,
-      );
-
-      final resolved = await resolver.resolveForSong(song);
-
-      expect(resolved.kind, PlaybackSourceKind.file);
-      expect(resolved.cachedFilePath, localFile.path);
-    }, skip: !sqliteAvailable);
-
-    test(
-      'offline fallback uses existing cache with Cached First off',
-      () async {
-        final song = await _insertSong(
-          database,
-          id: 'song-offline-cache',
-          title: 'Song Offline Cache',
-          suffix: 'flac',
-          contentType: 'audio/flac',
-          bitRate: 900,
-        );
-        final localFile = File(p.join(rollingDir.path, 'offline-cache.mp3'));
-        await localFile.writeAsBytes(const <int>[3, 2, 1]);
-        await database.cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: song.id,
-            filePath: localFile.path,
-            fileSize: 3,
-            format: 'mp3',
-            bitRate: const Value(128),
-            cacheType: CacheType.rolling,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => null,
-          readStreamingQuality: () =>
-              const StreamingQuality(label: 'wifi-original'),
-          readRollingCacheDirectory: () async => rollingDir,
-          readCachedPlaybackFirst: () => false,
-          readCanStream: () => false,
-        );
-
-        final resolved = await resolver.resolveForSong(song);
-
-        expect(resolved.kind, PlaybackSourceKind.file);
-        expect(resolved.cachedFilePath, localFile.path);
-      },
-      skip: !sqliteAvailable,
-    );
+        if (c.expectedKind == null) {
+          expect(resolved.kind, isNot(PlaybackSourceKind.file));
+        } else {
+          expect(resolved.kind, c.expectedKind);
+        }
+        if (c.expectedKind == PlaybackSourceKind.file) {
+          expect(resolved.cachedFilePath, file.path);
+        }
+        for (final entry in c.params.entries) {
+          expect(
+            resolved.uri?.queryParameters[entry.key],
+            entry.value,
+            reason: 'query parameter ${entry.key}',
+          );
+        }
+      }, skip: !sqliteAvailable);
+    }
 
     test(
       'omits transcode parameters when source already satisfies profile',
@@ -1031,19 +561,12 @@ void main() {
           contentType: 'audio/mpeg',
           bitRate: 192,
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
+        final resolver = resolverFor(
+          quality: () => const StreamingQuality(
             label: 'wifi-320-mp3',
             maxBitRate: 320,
             format: 'mp3',
           ),
-          readRollingCacheDirectory: () async => rollingDir,
         );
 
         final resolved = await resolver.resolveForSong(
@@ -1072,20 +595,7 @@ void main() {
           contentType: 'audio/flac',
           bitRate: 900,
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
-            label: 'wifi-192-mp3',
-            maxBitRate: 192,
-            format: 'mp3',
-          ),
-          readRollingCacheDirectory: () async => rollingDir,
-        );
+        final resolver = resolverFor(quality: () => _wifi192Mp3);
 
         final resolved = await resolver.resolveForSong(
           song,
@@ -1113,18 +623,11 @@ void main() {
           contentType: 'audio/flac',
           bitRate: 900,
         );
-
-        final resolver = PlaybackSourceResolver(
-          cacheDao: database.cacheDao,
-          rollingCacheManager: DriftRollingCacheManager(
-            cacheDao: database.cacheDao,
-          ),
-          readApiClient: () => apiClient,
-          readStreamingQuality: () => const StreamingQuality(
+        final resolver = resolverFor(
+          quality: () => const StreamingQuality(
             label: 'wifi-192-original',
             maxBitRate: 192,
           ),
-          readRollingCacheDirectory: () async => rollingDir,
         );
 
         final resolved = await resolver.resolveForSong(
@@ -1143,6 +646,157 @@ void main() {
     );
   });
 }
+
+const _wifi192Mp3 = StreamingQuality(
+  label: 'wifi-192-mp3',
+  maxBitRate: 192,
+  format: 'mp3',
+);
+
+typedef _Codec = ({
+  String name,
+  String suffix,
+  String contentType,
+  String extension,
+});
+
+const List<_Codec> _codecs = <_Codec>[
+  (name: 'flac', suffix: 'flac', contentType: 'audio/flac', extension: '.flac'),
+  (name: 'alac', suffix: 'm4a', contentType: 'audio/alac', extension: '.m4a'),
+  (name: 'mp3', suffix: 'mp3', contentType: 'audio/mpeg', extension: '.mp3'),
+  (name: 'aac', suffix: 'aac', contentType: 'audio/aac', extension: '.aac'),
+  (name: 'opus', suffix: 'opus', contentType: 'audio/opus', extension: '.opus'),
+  (
+    name: 'vorbis',
+    suffix: 'ogg',
+    contentType: 'audio/vorbis',
+    extension: '.ogg',
+  ),
+];
+
+typedef _RollingCase = ({
+  String name,
+  String songSuffix,
+  String songContentType,
+  int? songBitRate,
+  String cachedFormat,
+  int cachedBitRate,
+  StreamingQuality quality,
+  bool direct,
+  bool? cachedFirst,
+  bool offline,
+  // Null means "anything but the cached file".
+  PlaybackSourceKind? expectedKind,
+  // Expected stream query parameters; a null value means absent.
+  Map<String, String?> params,
+});
+
+const List<_RollingCase> _rollingCacheCases = <_RollingCase>[
+  (
+    name:
+        'skips higher-quality cached file for lower active transcoding profile',
+    songSuffix: 'flac',
+    songContentType: 'audio/flac',
+    songBitRate: null,
+    cachedFormat: 'flac',
+    cachedBitRate: 900,
+    quality: _wifi192Mp3,
+    direct: false,
+    cachedFirst: null,
+    offline: false,
+    expectedKind: null,
+    params: <String, String?>{},
+  ),
+  (
+    name: 'does not use mismatched lossy rolling cache for transcode format',
+    songSuffix: 'aac',
+    songContentType: 'audio/aac',
+    songBitRate: null,
+    cachedFormat: 'aac',
+    cachedBitRate: 256,
+    quality: _wifi192Mp3,
+    direct: false,
+    cachedFirst: null,
+    offline: false,
+    expectedKind: null,
+    params: <String, String?>{},
+  ),
+  (
+    name: 'skips same-format rolling cache when bitrate differs from request',
+    songSuffix: 'mp3',
+    songContentType: 'audio/mpeg',
+    songBitRate: null,
+    cachedFormat: 'mp3',
+    cachedBitRate: 320,
+    quality: _wifi192Mp3,
+    direct: true,
+    cachedFirst: null,
+    offline: false,
+    expectedKind: PlaybackSourceKind.directStream,
+    params: <String, String?>{'maxBitRate': '192'},
+  ),
+  (
+    name: 'Wi-Fi original skips existing transcoded rolling cache',
+    songSuffix: 'flac',
+    songContentType: 'audio/flac',
+    songBitRate: 900,
+    cachedFormat: 'mp3',
+    cachedBitRate: 192,
+    quality: StreamingQuality(label: 'wifi-original'),
+    direct: true,
+    cachedFirst: null,
+    offline: false,
+    expectedKind: PlaybackSourceKind.directStream,
+    params: <String, String?>{'maxBitRate': null, 'format': null},
+  ),
+  (
+    name:
+        'changed bitrate and format skips older cache and requests new params',
+    songSuffix: 'flac',
+    songContentType: 'audio/flac',
+    songBitRate: 900,
+    cachedFormat: 'opus',
+    cachedBitRate: 128,
+    quality: StreamingQuality(
+      label: 'cellular-profile',
+      maxBitRate: 192,
+      format: 'mp3',
+    ),
+    direct: true,
+    cachedFirst: null,
+    offline: false,
+    expectedKind: PlaybackSourceKind.directStream,
+    params: <String, String?>{'maxBitRate': '192', 'format': 'mp3'},
+  ),
+  (
+    name: 'Cached First uses mismatched cached file',
+    songSuffix: 'flac',
+    songContentType: 'audio/flac',
+    songBitRate: 900,
+    cachedFormat: 'aac',
+    cachedBitRate: 256,
+    quality: _wifi192Mp3,
+    direct: false,
+    cachedFirst: true,
+    offline: false,
+    expectedKind: PlaybackSourceKind.file,
+    params: <String, String?>{},
+  ),
+  (
+    name: 'offline fallback uses existing cache with Cached First off',
+    songSuffix: 'flac',
+    songContentType: 'audio/flac',
+    songBitRate: 900,
+    cachedFormat: 'mp3',
+    cachedBitRate: 128,
+    quality: StreamingQuality(label: 'wifi-original'),
+    direct: false,
+    cachedFirst: false,
+    offline: true,
+    expectedKind: PlaybackSourceKind.file,
+    params: <String, String?>{},
+  ),
+];
 
 Future<SongsTableData> _insertSong(
   NavisDatabase database, {
