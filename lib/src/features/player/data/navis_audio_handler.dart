@@ -4565,7 +4565,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final request = await client.getUrl(uri);
       request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1');
       final response = await request.close();
-      await response.drain<void>();
+      await response.firstWhere((chunk) => chunk.isNotEmpty);
     }();
     final elapsed = Stopwatch()..start();
     var done = false;

@@ -961,6 +961,71 @@ void main() {
     );
   }
 
+  test('remote warm-up stops after bytes when Range is ignored', () async {
+    final previousHttp = HttpOverrides.current;
+    HttpOverrides.global = null;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final firstBytes = Completer<void>();
+    final release = Completer<void>();
+    server.listen((request) async {
+      try {
+        request.response
+          ..bufferOutput = false
+          ..contentLength = 100 * 1024
+          ..add(List<int>.filled(40 * 1024, 1));
+        await request.response.flush();
+        if (request.headers.value(HttpHeaders.rangeHeader) == 'bytes=0-1' &&
+            !firstBytes.isCompleted) {
+          firstBytes.complete();
+        }
+        await release.future;
+        request.response.add(List<int>.filled(60 * 1024, 1));
+        await request.response.close();
+      } on HttpException {
+        // The probe closes the ignored-range response after its first chunk.
+      }
+    });
+    final api = SubsonicApiClient(
+      baseUrl: 'http://127.0.0.1:${server.port}',
+      authConfig: const SubsonicAuthConfig(
+        username: 'fixture',
+        password: 'synthetic',
+        apiVersion: '1.16.1',
+      ),
+      enableLogging: false,
+    );
+    final directory = await Directory.systemTemp.createTemp('navis-warmup-');
+    final (handler, player, database) = await createHandler(
+      directory,
+      1,
+      sidecarStreams: true,
+      readApiClient: () => api,
+    );
+    final song = (await database.libraryDao.getSongsByIds(['song-0'])).single;
+    final replacing = handler.replaceQueueWithData([
+      song.copyWith(isExternal: true),
+    ], expandMatchFlows: false);
+    addTearDown(() async {
+      release.complete();
+      await replacing;
+      await handler.disposeHandler();
+      await database.close();
+      await server.close(force: true);
+      await directory.delete(recursive: true);
+      HttpOverrides.global = previousHttp;
+    });
+    await firstBytes.future.timeout(const Duration(seconds: 2));
+    for (
+      var attempt = 0;
+      attempt < 100 && player.sourceIds.isEmpty;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(player.sourceIds, ['song-0']);
+    expect(release.isCompleted, isFalse);
+  });
+
   test('begin then dispose cancels an in-flight sidecar client', () async {
     final directory = await Directory.systemTemp.createTemp(
       'navis-teardown-sidecar-',

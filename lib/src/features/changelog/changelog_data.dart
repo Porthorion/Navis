@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Remote songs start promptly when the server ignores range requests',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop cache activity clears when a transfer is cancelled or fails',
         type: ChangelogEntryType.fix,
       ),

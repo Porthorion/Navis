@@ -2557,7 +2557,9 @@ than the 12 s load deadline: the server fetches the whole file before it sends
 the first byte, which on a first play routinely took longer, and the abandoned
 load left the song idle even after its sidecar download finished. Before the
 player opens such a song, the handler warms the stream with a two-byte request
-and waits (cancelled by any newer command) until the server answers, because
+and waits (cancelled by any newer command) until the first response bytes
+arrive. It then cancels the probe body even when the server ignores Range,
+rather than downloading the whole song before playback. This is needed because
 the players give up on a silent connection long before the server has the file
 (ExoPlayer after 8 s, also through the lock-cache proxy) and the server answers
 at once afterwards.
