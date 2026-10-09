@@ -572,6 +572,9 @@ make release VERSION=v0.2.0
    updater install mode (such as the `.ipa`) are skipped.
 9. With `--forgejo` only, creates a Forgejo release (`prerelease=true` for the dev
    channel or when `--prerelease` is passed) and uploads the same assets to it.
+   Both calls load Authorization from a mode-600 header file in the private
+   release secrets directory (`curl -H @file`, curl 7.55+), which the EXIT trap
+   removes. The token stays out of curl's command-line arguments.
 
 Before building anything (after the version checks), `release.sh` runs
 `tool/r2_publish.sh check`, which fails early if an R2 setting or the signing key is

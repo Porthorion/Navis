@@ -2249,6 +2249,14 @@ per-user temp base. Cleanup skips symlinks, does not follow nested symlinks, and
 ignores individual deletion errors. Updater scripts may leave the private work
 directory for this startup cleanup.
 
+### Release transport credentials
+
+The optional Forgejo bridge in `tool/release.sh` supplies its Authorization header
+from a mode-600 file in the private release secrets directory via curl `-H @file`
+(requires curl 7.55 or newer). Release creation and asset uploads share that file;
+the existing EXIT trap removes the directory on success or failure. The token is
+not passed in curl's command-line arguments.
+
 ### Update channel
 
 The update channel (`stable` or `dev`) is baked in at compile time via

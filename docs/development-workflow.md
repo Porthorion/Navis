@@ -1395,6 +1395,10 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 
 This runs the full quality gate, builds a release APK, tags the commit, and publishes the APK to R2 with a signed update manifest (a Forgejo release only with `--forgejo`). See [ci-cd.md](ci-cd.md) for setup details.
 
+Optional Forgejo publishing requires curl 7.55+ and reads its Authorization header
+from a mode-600 file, cleaned by the release EXIT trap, rather than passing the
+token in curl's command-line arguments.
+
 Windows Inno Setup silent updates relaunch Navis as the original user via
 `runasoriginaluser`; installation elevation is not carried into the app.
 

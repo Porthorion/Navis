@@ -888,10 +888,19 @@ rm -f "${NOTES_FILE}"
 
 # ─── Create Forgejo release (1.5.0 bridge only) ─────────────────────────────
 if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
+  # Keep the token out of curl's argv. The existing EXIT trap removes this
+  # header together with the other release secrets, even on upload failure.
+  if [[ -z "${SECRET_TMP_DIR}" ]]; then
+    SECRET_TMP_DIR="$(mktemp -d)"
+  fi
+  FORGEJO_AUTH_HEADER_FILE="$(mktemp "${SECRET_TMP_DIR}/forgejo-header.XXXXXX")"
+  chmod 600 "${FORGEJO_AUTH_HEADER_FILE}"
+  printf 'Authorization: token %s\n' "${FORGEJO_TOKEN}" > "${FORGEJO_AUTH_HEADER_FILE}"
+
   echo "==> Creating Forgejo release ${VERSION} (channel=${UPDATE_CHANNEL}, prerelease=${RELEASE_PRERELEASE})..."
   RELEASE_RESPONSE=$(curl -sf -X POST \
     "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases" \
-    -H "Authorization: token ${FORGEJO_TOKEN}" \
+    -H "@${FORGEJO_AUTH_HEADER_FILE}" \
     -H "Content-Type: application/json" \
     -d "$(jq -n \
       --arg tag "${VERSION}" \
@@ -914,7 +923,7 @@ if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
     echo "==> Uploading ${asset_name} to Forgejo..."
     curl -sf -X POST \
       "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${asset_name}" \
-      -H "Authorization: token ${FORGEJO_TOKEN}" \
+      -H "@${FORGEJO_AUTH_HEADER_FILE}" \
       -F "attachment=@${asset_file}" >/dev/null
     echo "    Uploaded ${asset_name}"
   done
