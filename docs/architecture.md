@@ -2210,8 +2210,12 @@ extracted before that check passes, which replaces the old "smaller than 10 KB" 
 
 `GET /v1/diagnostics/update` returns the last manifest check (URL, time,
 `signatureValid`, `payloadVersion`, `assetKey`, `rejectReason`, `tag`) and
-`POST /v1/diagnostics/update/check` forces a check. Both exist only in clone
-profiles. See [release-r2.md](release-r2.md) for publishing and key handling.
+`POST /v1/diagnostics/update/check` forces a check through the same providers as
+About's Check now. `POST /v1/diagnostics/update/download` forces a check and then runs
+the production download and integrity check without installing anything; it adds
+`downloaded`, `artifactPath` and `downloadError` (`integrity_mismatch` for a size or
+SHA-256 mismatch). The GET route is available in every diagnostics mode; the POST
+routes are clone-only. See [release-r2.md](release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 

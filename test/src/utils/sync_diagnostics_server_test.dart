@@ -813,6 +813,7 @@ void main() {
         for (final (method, path) in [
           ('GET', '/v1/diagnostics/update'),
           ('POST', '/v1/diagnostics/update/check'),
+          ('POST', '/v1/diagnostics/update/download'),
         ]) {
           final unauthorized = await _request(
             fixture.port,
@@ -847,6 +848,13 @@ void main() {
         );
         if (mode == SyncDiagnosticsMode.primaryCertification) {
           expect(checked.statusCode, HttpStatus.forbidden);
+          final download = await _request(
+            fixture.port,
+            '/v1/diagnostics/update/download',
+            method: 'POST',
+            token: fixture.token,
+          );
+          expect(download.statusCode, HttpStatus.forbidden);
           expect(requests, 0);
           return;
         }
@@ -870,6 +878,19 @@ void main() {
               .consumeForceCheck(),
           isFalse,
         );
+        // A rejected manifest offers nothing to download.
+        final download = await _request(
+          fixture.port,
+          '/v1/diagnostics/update/download',
+          method: 'POST',
+          token: fixture.token,
+        );
+        expect(download.statusCode, HttpStatus.ok);
+        expect(requests, 2);
+        expect(download.body['rejectReason'], 'malformed_envelope');
+        expect(download.body['downloaded'], isFalse);
+        expect(download.body['artifactPath'], isNull);
+        expect(download.body['downloadError'], isNull);
       },
     );
   }

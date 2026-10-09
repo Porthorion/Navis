@@ -109,8 +109,9 @@ retire the old one.
 Shipped builds only read `stable` or `dev`. To test end to end, build with
 `--dart-define=NAVIS_UPDATE_CHANNEL=staging`, publish a newer version to
 `staging` with `tool/r2_publish.sh publish --channel=staging …`, and use the
-diagnostics routes `GET /v1/diagnostics/update` and
-`POST /v1/diagnostics/update/check` to see what the app decided. Delete the
+diagnostics routes `GET /v1/diagnostics/update`,
+`POST /v1/diagnostics/update/check` and `POST /v1/diagnostics/update/download`
+(download plus size and SHA-256 check, no install) to see what the app decided. Delete the
 staging objects afterwards.
 
 ## Forgejo during the transition

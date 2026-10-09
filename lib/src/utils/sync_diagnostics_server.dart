@@ -62,6 +62,8 @@ import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart'
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
+import 'package:navis/src/features/settings/data/update_service.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -3071,32 +3073,38 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        final settingsSubscription = _container.listen(
-          appSettingsProvider,
-          (_, _) {},
-        );
-        try {
-          await _container.read(appSettingsProvider.future);
-          _container
-              .read(updateForceCheckProvider.notifier)
-              .requestForceCheck();
-          _container.invalidate(updateProvider);
-          final updateSubscription = _container.listen(
-            updateProvider,
-            (_, _) {},
-          );
-          try {
-            await _container.read(updateProvider.future);
-          } on DioException {
-            // The repository records transport failures; diagnostics returns that
-            // record while the UI retains its existing provider error semantics.
-          } finally {
-            updateSubscription.close();
-          }
-        } finally {
-          settingsSubscription.close();
-        }
+        await _forceUpdateCheck();
         await _respond(request, HttpStatus.ok, _updateDiagnosticsJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/diagnostics/update/download') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Runs the forced check, then the production download and integrity
+        // check. Nothing is installed or applied.
+        final info = await _forceUpdateCheck();
+        String? artifactPath;
+        String? downloadError;
+        if (info != null) {
+          try {
+            artifactPath = await _container
+                .read(updateServiceProvider)
+                .downloadArtifact(info);
+          } on UpdateIntegrityException {
+            downloadError = 'integrity_mismatch';
+          } on Object catch (error) {
+            downloadError = error.runtimeType.toString();
+          }
+        }
+        await _respond(request, HttpStatus.ok, {
+          ..._updateDiagnosticsJson(),
+          'downloaded': artifactPath != null,
+          'artifactPath': artifactPath,
+          'downloadError': downloadError,
+        });
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/integrations') {
@@ -3132,6 +3140,31 @@ class SyncDiagnosticsServer {
       await _respond(request, HttpStatus.internalServerError, <String, Object?>{
         'error': error.runtimeType.toString(),
       });
+    }
+  }
+
+  /// Forces an update check through the same providers as About's Check now.
+  Future<UpdateInfo?> _forceUpdateCheck() async {
+    final settingsSubscription = _container.listen(
+      appSettingsProvider,
+      (_, _) {},
+    );
+    try {
+      await _container.read(appSettingsProvider.future);
+      _container.read(updateForceCheckProvider.notifier).requestForceCheck();
+      _container.invalidate(updateProvider);
+      final updateSubscription = _container.listen(updateProvider, (_, _) {});
+      try {
+        return await _container.read(updateProvider.future);
+      } on DioException {
+        // The repository records transport failures; diagnostics returns that
+        // record while the UI retains its existing provider error semantics.
+        return null;
+      } finally {
+        updateSubscription.close();
+      }
+    } finally {
+      settingsSubscription.close();
     }
   }
 
