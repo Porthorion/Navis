@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
 double sanitizeDesktopPlaybackVolume(double? value) {
@@ -73,7 +75,8 @@ class AppSettingsModel {
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
-    required this.artTintedNowPlaying,
+    bool artTintedNowPlaying = true,
+    NowPlayingBackground? nowPlayingBackground,
     required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
@@ -127,7 +130,11 @@ class AppSettingsModel {
     this.voyageDisplayName,
     this.voyageDeviceLabel,
     this.voyageAutoFollowHost = true,
-  });
+  }) : nowPlayingBackground =
+           nowPlayingBackground ??
+           (artTintedNowPlaying
+               ? NowPlayingBackground.tinted
+               : NowPlayingBackground.plain);
 
   const new defaults()
     : wifiMaxBitRate = null,
@@ -160,7 +167,7 @@ class AppSettingsModel {
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      artTintedNowPlaying = true,
+      nowPlayingBackground = NowPlayingBackground.tinted,
       dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
@@ -247,7 +254,11 @@ class AppSettingsModel {
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
-  final bool artTintedNowPlaying;
+  final NowPlayingBackground nowPlayingBackground;
+
+  /// Compatibility view of the background choice for existing callers.
+  bool get artTintedNowPlaying =>
+      nowPlayingBackground != NowPlayingBackground.plain;
   final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
@@ -303,8 +314,10 @@ class AppSettingsModel {
   /// Last non-muted desktop volume restored by the mute toggle.
   final double desktopLastAudibleVolume;
 
-  /// Home layout density: 'comfortable' or 'compact'.
+  /// Density now covers Home and lists; the legacy storage name is retained.
   final String homeDensity;
+
+  NavisDensity get density => NavisDensity.parse(homeDensity);
 
   /// Ordered list of home section IDs, or null for default order.
   final List<String>? homeSectionOrder;
@@ -425,6 +438,7 @@ class AppSettingsModel {
     int? crossfadeDurationSeconds,
     String? crossfadeType,
     bool? artTintedNowPlaying,
+    NowPlayingBackground? nowPlayingBackground,
     bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
@@ -454,6 +468,7 @@ class AppSettingsModel {
     double? desktopPlaybackVolume,
     double? desktopLastAudibleVolume,
     String? homeDensity,
+    NavisDensity? density,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
     List<String>? libraryPageOrder,
@@ -546,7 +561,13 @@ class AppSettingsModel {
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
-      artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      nowPlayingBackground:
+          nowPlayingBackground ??
+          (artTintedNowPlaying == null
+              ? this.nowPlayingBackground
+              : artTintedNowPlaying
+              ? NowPlayingBackground.tinted
+              : NowPlayingBackground.plain),
       dynamicAlbumColorEnabled:
           dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
@@ -590,7 +611,7 @@ class AppSettingsModel {
           desktopPlaybackVolume ?? this.desktopPlaybackVolume,
       desktopLastAudibleVolume:
           desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
-      homeDensity: homeDensity ?? this.homeDensity,
+      homeDensity: density?.storageKey ?? homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null
           : homeSectionOrder ?? this.homeSectionOrder,

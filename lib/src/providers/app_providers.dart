@@ -76,7 +76,9 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
@@ -2771,12 +2773,17 @@ final appLocaleProvider = Provider<String?>((ref) {
   return settings.appLocale;
 });
 
-/// Whether the Now Playing screen background should be tinted with album art.
-final artTintedNowPlayingProvider = Provider<bool>((ref) {
+/// Current Now Playing background, defaulting to tinted while settings load.
+final nowPlayingBackgroundProvider = Provider<NowPlayingBackground>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
-  return settings.artTintedNowPlaying;
+  return settings.nowPlayingBackground;
+});
+
+/// Compatibility view of whether Now Playing uses an artwork-based background.
+final artTintedNowPlayingProvider = Provider<bool>((ref) {
+  return ref.watch(nowPlayingBackgroundProvider) != NowPlayingBackground.plain;
 });
 
 /// Whether lyrics should open in fullscreen mode by default.
@@ -2865,12 +2872,17 @@ final artistViewModeProvider = Provider<String>((ref) {
   return settings.artistViewMode;
 });
 
-/// Home layout density: 'comfortable' or 'compact'.
-final homeDensityProvider = Provider<String>((ref) {
+/// App-wide Density covers Home and lists, using the existing homeDensity column.
+final densityProvider = Provider<NavisDensity>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
-  return settings.homeDensity == 'compact' ? 'compact' : 'comfortable';
+  return settings.density;
+});
+
+/// Compatibility alias reading the same app-wide Density value.
+final homeDensityProvider = Provider<String>((ref) {
+  return ref.watch(densityProvider).storageKey;
 });
 
 /// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.

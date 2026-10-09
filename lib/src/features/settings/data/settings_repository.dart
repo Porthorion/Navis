@@ -1,10 +1,11 @@
 import 'dart:convert';
 
-import 'package:navis/src/features/player/domain/playback_adjustments.dart';
-
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
 class SettingsRepository {
@@ -58,6 +59,7 @@ class SettingsRepository {
       crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
       crossfadeType: settings.crossfadeType,
       artTintedNowPlaying: settings.artTintedNowPlaying,
+      nowPlayingBackground: settings.nowPlayingBackground.storageKey,
       dynamicAlbumColorEnabled: settings.dynamicAlbumColorEnabled,
       updateChannel: settings.updateChannel,
       audioMuseServerUrl: settings.audioMuseServerUrl,
@@ -107,6 +109,12 @@ class SettingsRepository {
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
+
+  Future<void> updateNowPlayingBackground(NowPlayingBackground background) =>
+      _dao.updateNowPlayingBackground(background.storageKey);
+
+  Future<void> updateDensity(NavisDensity density) =>
+      _dao.updateDensity(density);
 
   /// Writes only the custom Last.fm API key; null clears it. The full-row
   /// [saveSettings] leaves the key alone.
@@ -230,7 +238,9 @@ class SettingsRepository {
       crossfadeEnabled: row.crossfadeEnabled,
       crossfadeDurationSeconds: row.crossfadeDurationSeconds,
       crossfadeType: row.crossfadeType,
-      artTintedNowPlaying: row.artTintedNowPlaying,
+      nowPlayingBackground: NowPlayingBackground.parse(
+        row.nowPlayingBackground,
+      ),
       dynamicAlbumColorEnabled: row.dynamicAlbumColorEnabled,
       updateCheckEnabled: row.updateCheckEnabled,
       updateChannel: row.updateChannel,
@@ -262,7 +272,7 @@ class SettingsRepository {
       desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
         row.desktopLastAudibleVolume,
       ),
-      homeDensity: row.homeDensity,
+      homeDensity: NavisDensity.parse(row.homeDensity).storageKey,
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
       libraryPageOrder: _decodeStringList(row.libraryPageOrder),

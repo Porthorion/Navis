@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -20,6 +22,55 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test('background and density map, save, watch and reset', () async {
+      final defaults = await repository.getSettings();
+      expect(defaults.nowPlayingBackground, NowPlayingBackground.tinted);
+      expect(defaults.density, NavisDensity.comfortable);
+      await repository.updateNowPlayingBackground(NowPlayingBackground.artwork);
+      await repository.updateDensity(NavisDensity.compact);
+      final targeted = await repository.getSettings();
+      expect(targeted.nowPlayingBackground, NowPlayingBackground.artwork);
+      expect(targeted.artTintedNowPlaying, isTrue);
+      expect(targeted.homeDensity, 'compact');
+      await repository.saveSettings(targeted.copyWith(themeMode: 'light'));
+      expect(
+        (await repository.getSettings()).nowPlayingBackground,
+        NowPlayingBackground.artwork,
+      );
+      for (final background in NowPlayingBackground.values) {
+        await repository.saveSettings(
+          defaults.copyWith(
+            nowPlayingBackground: background,
+            density: NavisDensity.compact,
+          ),
+        );
+        final watched = await repository.watchSettings().first;
+        expect(watched.nowPlayingBackground, background);
+        expect(
+          watched.artTintedNowPlaying,
+          background != NowPlayingBackground.plain,
+        );
+        expect(watched.density, NavisDensity.compact);
+        final row = (await database.appSettingsDao.getSettings())!;
+        expect(row.nowPlayingBackground, background.storageKey);
+        expect(
+          row.artTintedNowPlaying,
+          background != NowPlayingBackground.plain,
+        );
+      }
+      await database.customStatement(
+        "UPDATE app_settings SET now_playing_background = 'unknown', art_tinted_now_playing = 0, home_density = 'unknown'",
+      );
+      final unknown = await repository.getSettings();
+      expect(unknown.nowPlayingBackground, NowPlayingBackground.tinted);
+      expect(unknown.artTintedNowPlaying, isTrue);
+      expect(unknown.density, NavisDensity.comfortable);
+      await repository.resetDefaults();
+      final reset = await repository.getSettings();
+      expect(reset.nowPlayingBackground, NowPlayingBackground.tinted);
+      expect(reset.density, NavisDensity.comfortable);
+    }, skip: !sqliteAvailable);
 
     test('stale onboarding drafts preserve setup release markers', () async {
       final stale = await repository.getSettings();

@@ -23,6 +23,8 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -847,6 +849,10 @@ class SyncDiagnosticsServer {
               settings?.homeRecommendationsAutoAdvance ?? false,
           'coverArtShape': settings?.coverArtShape ?? 'square',
           'nowPlayingArtShape': settings?.nowPlayingArtShape ?? 'rounded',
+          'nowPlayingBackground': NowPlayingBackground.parse(
+            settings?.nowPlayingBackground,
+          ).storageKey,
+          'density': NavisDensity.parse(settings?.homeDensity).storageKey,
           'artistCardShape': settings?.artistCardShape ?? 'circle',
         });
         return;
@@ -4426,6 +4432,8 @@ class SyncDiagnosticsServer {
       'noticeDismissed': settings.integrationsNoticeDismissed,
       'setupHighlightsSeenRelease': settings.setupHighlightsSeenRelease,
       'setupCardDismissedRelease': settings.setupCardDismissedRelease,
+      'nowPlayingBackground': settings.nowPlayingBackground.storageKey,
+      'density': settings.density.storageKey,
       'services': <String, Object?>{
         for (final service in IntegrationService.values)
           service.key: <String, Object?>{

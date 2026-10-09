@@ -590,6 +590,18 @@ target-selection rules.
 
 ### Theme and design tokens (`lib/src/theme/`)
 
+- Schema 96 adds `app_settings.now_playing_background`: `tinted` (default),
+  `artwork` or `plain`. The guarded 95→96 migration maps the retained legacy
+  `art_tinted_now_playing` boolean to `tinted`/`plain`. The enum model field and
+  `nowPlayingBackgroundProvider` are authoritative; the legacy model getter,
+  DAO watch and `artTintedNowPlayingProvider` derive `background != plain`.
+  Targeted writes, full saves and resets keep the compatibility bool in sync.
+- App-wide Density covers Home and lists using the existing `home_density`
+  column, with `comfortable` (default) or `compact`. `densityProvider` exposes
+  `NavisDensity`; `homeDensityProvider` remains a string compatibility alias.
+  Unknown stored values and unloaded settings use the defaults. Both options
+  join the setup highlights registry for 1.4.3 and the diagnostics settings dump.
+
 - `navis_theme.dart`: `buildLightTheme`, `buildDarkTheme` and
   `buildOledTheme` take the user's seed (or the dynamic album colour) and a
   colour style, get a `ColorScheme` from `buildStyledColorScheme`, and

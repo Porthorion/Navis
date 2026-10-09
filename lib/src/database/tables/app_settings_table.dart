@@ -143,9 +143,13 @@ class AppSettingsTable extends Table {
   IntColumn get coverArtCacheMaxObjects =>
       integer().withDefault(const Constant(5000))();
 
-  /// When true, the Now Playing background is tinted with album art colors.
+  /// Legacy compatibility flag; nowPlayingBackground is authoritative.
   BoolColumn get artTintedNowPlaying =>
       boolean().withDefault(const Constant(true))();
+
+  /// Now Playing background: tinted, artwork or plain.
+  TextColumn get nowPlayingBackground =>
+      text().withDefault(const Constant('tinted'))();
 
   /// When true, app accent color follows the currently playing album art.
   BoolColumn get dynamicAlbumColorEnabled =>
