@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'A cancelled queue selection no longer clears the current or saved queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Linux media controls update their seek position when you seek while paused',
         type: ChangelogEntryType.fix,
       ),

@@ -19,6 +19,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -35,6 +36,28 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import '../../../../helpers/test_database.dart';
 
 class _MockRadioDio extends Mock implements Dio;
+
+class _GatedLibraryDao extends LibraryDao {
+  new(super.attachedDatabase);
+
+  final entered = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<List<SongsTableData>> getSongsByIds(
+    Iterable<String> songIds, {
+    bool includeLocalOnly = true,
+  }) async {
+    if (songIds.length == 1 && songIds.single == 'missing') {
+      entered.complete();
+      await release.future;
+    }
+    return await super.getSongsByIds(
+      songIds,
+      includeLocalOnly: includeLocalOnly,
+    );
+  }
+}
 
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   @override
@@ -145,6 +168,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// A load whose first song is this one fails, as a broken source would.
   String? failLoadSongId;
+  Completer<void>? stopGate;
+  Completer<void>? stopEntered;
   Completer<void>? seekGate;
   Completer<void>? seekEntered;
   bool gateNonEmptyLoadsOnly = false;
@@ -339,6 +364,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> stop() => _mutate(() async {
     stopCalls++;
     await _hangIf('stop');
+    final gate = stopGate;
+    stopGate = null;
+    if (gate != null) {
+      stopEntered?.complete();
+      await gate.future;
+    }
     isPlaying = false;
     state = ProcessingState.idle;
   });
@@ -513,6 +544,7 @@ void main() {
     List<_ControllableAudioPlayer>? rebuiltPlayers,
     _ControllableAudioPlayer? initialPlayer,
     bool waitForReady = true,
+    LibraryDao Function(NavisDatabase)? createLibraryDao,
     // Songs stream from a server, with desktop sidecar caching.
     bool sidecarStreams = false,
     Future<void> Function(NavisDatabase database)? seed,
@@ -577,7 +609,7 @@ void main() {
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,
       readRadioArtworkAllowed: readRadioArtworkAllowed,
-      libraryDao: database.libraryDao,
+      libraryDao: createLibraryDao?.call(database) ?? database.libraryDao,
       playlistDao: database.playlistDao,
       playQueueDao: database.playQueueDao,
       matchFlowDao: database.matchFlowDao,
@@ -2407,6 +2439,100 @@ void main() {
   }
 
   group('queue replacement input contracts', () {
+    for (final newerReplacement in [false, true]) {
+      test('cancelled empty ID resolution preserves the newer queue command '
+          '(replacement=$newerReplacement)', () async {
+        final directory = await Directory.systemTemp.createTemp('navis-empty-');
+        late _GatedLibraryDao dao;
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          createLibraryDao: (database) => dao = _GatedLibraryDao(database),
+        );
+        addTearDown(() async {
+          if (!dao.release.isCompleted) dao.release.complete();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final ids = ['song-0', 'song-1', 'song-2'];
+        await handler.replaceQueue(ids, expandMatchFlows: false);
+        final obsolete = handler.replaceQueue([
+          'missing',
+        ], expandMatchFlows: false);
+        await dao.entered.future;
+        final newer = newerReplacement
+            ? handler.replaceQueue(ids, startIndex: 1, expandMatchFlows: false)
+            : handler.skipToNext();
+        final settled = handler.snapshotStream.firstWhere(
+          (snapshot) =>
+              !snapshot.isLoading && snapshot.pendingQueueIndex == null,
+        );
+        dao.release.complete();
+        await obsolete;
+        await newer;
+        await settled;
+        await handler.debugFlushQueuePersistence();
+
+        expect(handler.snapshot.queueSongIds, ids);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.sourceIds, ids);
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ids,
+        );
+        expect(await database.playQueueDao.getQueueState(), isNotNull);
+      });
+    }
+
+    for (final suppliedRows in [false, true]) {
+      test('superseded empty clear keeps the saved queue across native awaits '
+          '(rows=$suppliedRows)', () async {
+        final directory = await Directory.systemTemp.createTemp('navis-clear-');
+        final (handler, player, database) = await createHandler(directory, 3);
+        final stopping = Completer<void>();
+        final releaseStop = Completer<void>();
+        final loading = Completer<void>();
+        final releaseLoad = Completer<void>();
+        addTearDown(() async {
+          if (!releaseStop.isCompleted) releaseStop.complete();
+          if (!releaseLoad.isCompleted) releaseLoad.complete();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final ids = ['song-0', 'song-1', 'song-2'];
+        await handler.replaceQueue(ids, expandMatchFlows: false);
+        player
+          ..stopEntered = stopping
+          ..stopGate = releaseStop;
+        final obsolete = suppliedRows
+            ? handler.replaceQueueWithData([])
+            : handler.replaceQueue(['missing'], expandMatchFlows: false);
+        await stopping.future;
+        player
+          ..gateNonEmptyLoadsOnly = true
+          ..loadEntered = loading
+          ..loadGate = releaseLoad;
+        final newer = handler.replaceQueue(
+          ids,
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        releaseStop.complete();
+        await obsolete;
+        await loading.future;
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ids,
+        );
+        releaseLoad.complete();
+        await newer;
+        expect(handler.snapshot.queueSongIds, ids);
+        expect(handler.snapshot.currentSongId, 'song-1');
+      });
+    }
+
     for (final suppliedRows in [false, true]) {
       test('admits and saves the logical selection before fill '
           '(rows=$suppliedRows)', () async {

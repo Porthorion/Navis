@@ -4688,7 +4688,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return _queueLane.run((token) async {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
-        await _clearQueueInternal(persist: true);
+        await _clearQueueInternal(persist: true, generation: generation);
         _completeQueueLoad(generation);
       });
     }
@@ -4701,16 +4701,16 @@ class NavisAudioHandler extends BaseAudioHandler
         _radioStation = null;
 
         final (songs, selectedOccurrence) = await resolve();
+        _checkQueueWorkCurrent(token, generation);
         final resolvedStartIndex = songs.isEmpty
             ? 0
             : selectedOccurrence.clamp(0, songs.length - 1);
         if (songs.isEmpty) {
           _clearPendingLogicalQueue();
-          await _clearQueueInternal(persist: true);
+          await _clearQueueInternal(persist: true, generation: generation);
           _completeQueueLoad(generation);
           return;
         }
-        _checkQueueWorkCurrent(token, generation);
         _navigationIntent.select(resolvedStartIndex);
         _pendingLogicalQueueSongIds = songs.length > 1
             ? songs.map((song) => song.id).toList(growable: false)
@@ -9295,11 +9295,19 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool persist,
     int generation = 0,
   }) async {
+    void checkCurrent() {
+      if (generation > 0 && !_isActiveLoadGeneration(generation)) {
+        throw OperationCancelledException();
+      }
+    }
+
+    checkCurrent();
     _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
     // Shuffle stays on for the next queue, which records its own order.
     _originalOrder = _shuffleEnabled ? const <String>[] : null;
     await _clearDeferredTail();
+    checkCurrent();
     if (generation > 0) {
       await _runTimedPlayerOperation(
         generation: generation,
@@ -9337,14 +9345,18 @@ class NavisAudioHandler extends BaseAudioHandler
         await inactiveDeck.setAudioSources(const <AudioSource>[]);
       }
       await _applyAdjustmentsToPlayer(inactiveDeck, _appliedAdjustments);
+      checkCurrent();
       await _setVolumeIfChanged(inactiveDeck, 0);
+      checkCurrent();
     }
     await _applyAdjustmentsToPlayer(_player, _appliedAdjustments);
+    checkCurrent();
     _updateScrobbleSession(null);
     queue.add(const <MediaItem>[]);
     _setCurrentMediaItem(null);
     if (persist) {
       await _playQueueDao.clearQueue();
+      checkCurrent();
     }
     _broadcastPlaybackState();
     _emitSnapshot();

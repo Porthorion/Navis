@@ -2594,6 +2594,8 @@ persistence, fill, completion and timeout advance. The ID adapter canonicalizes
 identities before Match Flow expansion and reads rows inside the lane. The row
 adapter rereads local retired identities and local Match Flow expansions; mixed
 queues containing external rows retain every supplied row and bypass expansion.
+Replacement row resolution checks cancellation before either loading or clearing
+the queue; empty-result clears retain generation ownership across native awaits.
 Timeout recovery retains the adapter's IDs or rows in play order without reshuffling.
 Eager queue loading and saved-queue restoration keep their separate contracts.
 If library rows are missing during ID resolution, Match Flow expansion, or a canonical
