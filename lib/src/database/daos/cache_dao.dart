@@ -162,17 +162,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
           row.songId,
     ];
     if (outside.isEmpty) return 0;
-    await transaction(() async {
-      for (var start = 0; start < outside.length; start += 500) {
-        final batch = outside.sublist(
-          start,
-          start + 500 < outside.length ? start + 500 : outside.length,
-        );
-        await (delete(
-          cachedTracksTable,
-        )..where((t) => t.songId.isIn(batch))).go();
-      }
-    });
+    await deleteCachedTracksBySongIds(outside);
     return outside.length;
   }
 
