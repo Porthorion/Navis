@@ -253,9 +253,8 @@ class _StylePreview extends StatelessWidget {
                     padding: EdgeInsets.symmetric(horizontal: unit * 0.6),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(unit * 0.8),
-                      ),
+                      borderRadius: NavisShapeData.of(context)
+                          .scaledAll(unit * 0.8),
                     ),
                     child: Row(
                       children: <Widget>[
@@ -336,7 +335,7 @@ class _Bar extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.all(Radius.circular(height / 2)),
+        borderRadius: NavisShapeData.of(context).scaledAll(height / 2),
       ),
     );
   }

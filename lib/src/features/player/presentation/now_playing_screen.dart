@@ -7,9 +7,13 @@ export 'now_playing_artwork_background.dart'
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 
 import 'dart:async';
 import 'dart:math' as math;
+
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
@@ -514,6 +518,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     required Color surfaceColor,
     required Color onSurfaceColor,
     required Color accentColor,
+    required Color onSurfaceVariantColor,
     required Duration fadeDuration,
     required Widget child,
   }) {
@@ -540,10 +545,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             surfaceColor: surfaceColor,
             onSurfaceColor: onSurfaceColor,
             accentColor: accentColor,
+            onSurfaceVariantColor: onSurfaceVariantColor,
             fadeDuration: fadeDuration,
           ),
         ),
-        child,
+        NowPlayingArtworkLayerScope(active: true, child: child),
       ],
     );
   }
@@ -713,6 +719,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           surfaceColor: surfaceColor,
           onSurfaceColor: Theme.of(context).colorScheme.onSurface,
           accentColor: Theme.of(context).colorScheme.primary,
+          onSurfaceVariantColor: Theme.of(context).colorScheme.onSurfaceVariant,
           fadeDuration: motion.surface,
           child: Builder(
             builder: (context) {
@@ -2938,6 +2945,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         final splitCoverArtMaxSize = math
             .min(rightPaneWidth - 56, constraints.maxHeight * 0.36)
             .clamp(170.0, 340.0);
+        final artworkLyricsFill = nowPlayingArtworkPanelFill(
+          context,
+          Colors.transparent,
+        );
+        final artworkPanelsActive = NowPlayingArtworkLayerScope.of(context);
         final lyricsPane = DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: NavisShapeData.of(context).xlAll,
@@ -2945,10 +2957,13 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               color: colorScheme.outlineVariant.withValues(alpha: 0.4),
             ),
             // Flat: the gradient's end colour as a solid fill.
-            color: NavisColorStyleData.of(context).flat
-                ? colorScheme.surfaceContainerLow
-                : null,
-            gradient: NavisColorStyleData.of(context).flat
+            color: artworkPanelsActive
+                ? artworkLyricsFill
+                : (NavisColorStyleData.of(context).flat
+                      ? colorScheme.surfaceContainerLow
+                      : null),
+            gradient:
+                artworkPanelsActive || NavisColorStyleData.of(context).flat
                 ? null
                 : LinearGradient(
                     begin: Alignment.topCenter,
@@ -3260,7 +3275,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
+                          color: nowPlayingArtworkPanelFill(
+                            context,
+                            colorScheme.surfaceContainerLow,
+                          ),
                           borderRadius: NavisShapeData.of(context).xlAll,
                           border: Border.all(
                             color: colorScheme.outlineVariant.withValues(

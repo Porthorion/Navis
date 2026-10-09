@@ -42,6 +42,7 @@ import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
 /// An album's page. An album the library does not hold yet, or a remote
@@ -2820,6 +2821,13 @@ class _RatingButtonState extends State<_RatingButton>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    // The pill follows Corner Style: a stadium in Rounded, a rounded
+    // rectangle in Soft and Square.
+    final pillRadius = min(
+      NavisShapeData.of(context).control,
+      _kRatingHeight / 2,
+    );
+    final pillInnerRadius = pillRadius - 1;
     final hasRating = (widget.rating ?? 0) > 0;
     final effective = widget.rating ?? 0;
     // The collapsed label is helpful at ordinary text sizes, but forcing it
@@ -2852,15 +2860,11 @@ class _RatingButtonState extends State<_RatingButton>
           height: _kRatingHeight,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(
-                Radius.circular(_kRatingHeight / 2),
-              ),
+              borderRadius: BorderRadius.circular(pillRadius),
               border: Border.all(color: borderColor),
             ),
             child: ClipRRect(
-              borderRadius: const BorderRadius.all(
-                Radius.circular(_kRatingHeight / 2 - 1),
-              ),
+              borderRadius: BorderRadius.circular(pillInnerRadius),
               child: Material(
                 color: Colors.transparent,
                 child: Stack(
@@ -2961,8 +2965,8 @@ class _RatingButtonState extends State<_RatingButton>
                             message: l10n.ratingTitle,
                             child: InkWell(
                               onTap: widget.loading ? null : _expand,
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(_kRatingHeight / 2 - 1),
+                              borderRadius: BorderRadius.circular(
+                                pillInnerRadius,
                               ),
                               child: SizedBox(
                                 width: collapsedWidth,

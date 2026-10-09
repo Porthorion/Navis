@@ -29,7 +29,12 @@ class _TransportControls extends ConsumerWidget {
       playback: playback,
       currentIsExternal: isExternalSource,
     );
-    final loadingColor = Theme.of(context).colorScheme.onPrimary;
+    final colorStyle = NavisColorStyleData.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    // Light Pastel plays with the solid primary (see solidPlayButton).
+    final playFill = colorStyle.solidPlayButton ? scheme.primary : null;
+    final onPlayFill = colorStyle.solidPlayButton ? scheme.onPrimary : null;
+    final loadingColor = scheme.onPrimary;
 
     if (isRadio) {
       // Simplified radio transport: just play/pause and stop.
@@ -40,6 +45,8 @@ class _TransportControls extends ConsumerWidget {
             message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
             child: FilledButton(
               style: FilledButton.styleFrom(
+                backgroundColor: playFill,
+                foregroundColor: onPlayFill,
                 shape: const CircleBorder(),
                 padding: EdgeInsets.all(compact ? 12 : 16),
               ),
@@ -181,6 +188,8 @@ class _TransportControls extends ConsumerWidget {
               message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
               child: FilledButton(
                 style: FilledButton.styleFrom(
+                  backgroundColor: playFill,
+                  foregroundColor: onPlayFill,
                   shape: const CircleBorder(),
                   padding: EdgeInsets.all(compact ? 12 : 16),
                 ),

@@ -4,8 +4,13 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart' show SynchronousFuture;
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
+import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
+import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
@@ -141,6 +146,110 @@ void main() {
         captionContrast(accent, Color.alphaBlend(veil, salmon)),
         greaterThanOrEqualTo(kCaptionMinContrast),
       );
+    });
+  });
+
+  group('secondary text and OLED gradient', () {
+    test('the veil also keeps onSurfaceVariant at the target contrast', () {
+      const data = NavisColorStyleData(
+        style: NavisColorStyle.neutral,
+        dark: false,
+      );
+      const surface = Color(0xFFFFFBFE);
+      const onSurface = Color(0xFF1C1B1F);
+      const variant = Color(0xFF6B6872);
+      var raised = 0;
+      for (var v = 0x60; v <= 0xF0; v += 0x10) {
+        final cover = Color.fromARGB(255, v, v - 8, v);
+        final without = nowPlayingAdaptiveVeil(
+          colorStyle: data,
+          surface: surface,
+          onSurface: onSurface,
+          average: cover,
+        );
+        final withVariant = nowPlayingAdaptiveVeil(
+          colorStyle: data,
+          surface: surface,
+          onSurface: onSurface,
+          onSurfaceVariant: variant,
+          average: cover,
+        );
+        expect(withVariant.a, greaterThanOrEqualTo(without.a));
+        if (withVariant.a > without.a) raised++;
+        if (withVariant.a < data.nowPlayingArtworkVeilRange.$2 - 0.001) {
+          expect(
+            captionContrast(variant, Color.alphaBlend(withVariant, cover)),
+            greaterThanOrEqualTo(kNowPlayingArtworkTargetContrast),
+          );
+        }
+      }
+      expect(raised, greaterThan(0));
+    });
+
+    test('OLED art-tinted gradient tops out at tone 10', () {
+      const data = NavisColorStyleData(
+        style: NavisColorStyle.pastel,
+        dark: true,
+        oled: true,
+      );
+      for (final cover in <Color>[
+        const Color(0xFFFFEB3B),
+        const Color(0xFFE53935),
+        Colors.white,
+      ]) {
+        final decoration = nowPlayingSurfaceDecoration(
+          tintColor: cover,
+          colorStyle: data,
+          surfaceColor: Colors.black,
+        );
+        final top = (decoration.gradient! as LinearGradient).colors.first;
+        expect(
+          Hct.fromInt(top.withValues(alpha: 1).toARGB32()).tone,
+          lessThanOrEqualTo(kNowPlayingOledMaxTintTone + 0.5),
+        );
+      }
+    });
+  });
+
+  group('Now Playing panels over the Artwork layer', () {
+    Future<Color> fill(
+      WidgetTester tester, {
+      required bool scoped,
+      bool flat = false,
+    }) async {
+      late Color result;
+      Widget probe() => Builder(
+        builder: (context) {
+          result = nowPlayingArtworkPanelFill(context, Colors.red);
+          return const SizedBox.shrink();
+        },
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildDarkTheme(
+            const Color(0xFF3F7F6F),
+            style: NavisColorStyle.pastel,
+            flat: flat,
+          ),
+          home: scoped
+              ? NowPlayingArtworkLayerScope(active: true, child: probe())
+              : probe(),
+        ),
+      );
+      return result;
+    }
+
+    testWidgets('are translucent only while the Artwork layer is active', (
+      tester,
+    ) async {
+      final veiled = await fill(tester, scoped: true);
+      expect(veiled, isNot(Colors.red));
+      expect(veiled.a, closeTo(kNowPlayingArtworkPanelAlpha, 0.001));
+      expect(await fill(tester, scoped: false), Colors.red);
+    });
+
+    testWidgets('stay opaque under Flat', (tester) async {
+      expect(await fill(tester, scoped: true, flat: true), Colors.red);
     });
   });
 

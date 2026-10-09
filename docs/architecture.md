@@ -623,8 +623,16 @@ target-selection rules.
   Artwork falls back to the Flat solid tint (OLED + Flat stays black); radio or
   external art uses the same allowed-artwork path as the tint, and with no
   image Artwork falls back to the tinted look. Tint extraction only runs when a
-  tint is drawn. Queue sheet, side panels and the lyrics pane keep their own
-  surfaces.
+  tint is drawn. While the Artwork layer is shown, the split-layout lyrics
+  and right panes, the embedded queue sheet and the wide side-panel sheets
+  paint a translucent veil (`nowPlayingArtworkVeilBase` at 0.45) instead of
+  an opaque surface so the art stays visible: `NowPlayingArtworkLayerScope`
+  (`now_playing_artwork_scope.dart`) is set around the Now Playing body and
+  panels read it through `nowPlayingArtworkPanelFill`. Without the layer, and
+  under Flat, they stay opaque. The adaptive veil keeps `onSurface`,
+  `onSurfaceVariant` and the accent title at 5.0:1. In OLED the Art-Tinted
+  gradient's top colour is capped at HCT tone 10, and with OLED + Flat the
+  Now Playing Background selector notes that Now Playing stays black.
 - Density is provided by `NavisDensityScope` (`navis_density_scope.dart`,
   placed in `MaterialApp.builder` from `densityProvider`). List rows read
   `NavisDensityScope.of(context)`; without a scope they are Comfortable.
@@ -640,7 +648,11 @@ target-selection rules.
   colour style, get a `ColorScheme` from `buildStyledColorScheme`, and
   delegate to one shared builder. Typography, component themes and theme
   extensions are defined only in that builder. OLED cards, dialogs and sheets
-  take their colours from the scheme's container roles.
+  take their colours from the scheme's container roles, whose chroma styled
+  schemes cap at 2 so they read black-ish. OLED chrome is true black: the
+  phone mini player, desktop sidebar and desktop player bar are `surface`
+  (`#000000`) with a hairline `outlineVariant` separator like the navigation
+  bar, never a tinted container.
 - Colour styles (`navis_color_style.dart`, `navis_style_schemes.dart`,
   `navis_color_style_data.dart`) are a second axis next to the theme mode:
   Neutral, Pastel, Immersive and Night each work with Light, Dark, OLED and
@@ -677,7 +689,8 @@ target-selection rules.
     so its height follows the content; its fill is
     `captionTintFor(average, style).fill` (the adapted cover average, with the
     grey chroma floor applied to the sample first and its HCT tone clamped by
-    `flatBandSample` to 16-30 in dark themes or 82-92 in light ones, so a
+    `flatBandSample` to 16-30 in dark themes, 6-10 in OLED (still tinted,
+    near black; `NavisColorStyleData.oled`) or 82-92 in light ones, so a
     light cover never paints a bright block on a dark page) and the title, artist, meta
     and page-dot colours come from the same tint, all gliding together when
     the cover changes. On desktop the pager is the same band as one rounded
@@ -743,8 +756,15 @@ target-selection rules.
       3, 5 and 7 tone steps below the tinted paper so raised surfaces stay
       distinct from the page.
   - Appearance and onboarding pick a style with `ColorStyleSelector`, whose
-    tiles are painted from each style's real scheme; the accent grid shows
-    each swatch as the selected style will use it.
+    tiles are painted from each style's real scheme (their inner radii follow
+    Corner Style); the accent grid fills each swatch with its raw seed, so
+    Night's hues stay distinguishable, and shows the accent the selected style
+    will use as a small inner dot. Light Pastel's `primaryContainer` is about
+    1.2:1 against raised surfaces, so the mini player's and Now Playing's main
+    Play use `primary`/`onPrimary` there (`NavisColorStyleData.solidPlayButton`);
+    other styles are unchanged. Flat also drops the album-card caption fade
+    for a solid `CaptionTint.fill` block, the selected-swatch glow and the
+    anchored popover's black shadow.
   - Decision record:
     [decisions/2026-10-07-colour-styles.md](decisions/2026-10-07-colour-styles.md).
   - The Use OLED When Dark (Auto only, indented under Theme Mode), Night
@@ -763,8 +783,14 @@ target-selection rules.
     to the three theme builders. `NavisShapeData` (a ThemeExtension,
     `NavisShapeData.of(context)`) carries the xs..xl radii and the control
     (button/chip/indicator) corner; component themes and
-    `NavisTokens.panelRadius`/`cardRadius` are built from it, and `rounded`
-    leaves Material defaults unset. Artwork keeps following Cover Art Shape. Users choose it in Settings > Appearance (after Flat Surfaces, via
+    `NavisTokens.panelRadius` (the style's `xl`) are built from it, and
+    `rounded` leaves Material defaults unset except `menuTheme`, which encodes
+    the 4 px shape Material renders today. Soft is distinct from Rounded: 14 px
+    rounded-rectangle controls (not pills), `xl` 32 for dialogs and sheets and
+    1.5x steps elsewhere; Square uses 4 px controls. Soft and Square add an
+    `iconButtonTheme` shaped by `controlShape`, `menuTheme` (md) and
+    `snackBarTheme` (sm); play, shuffle, transport and mini-player buttons pass
+    `NavisShapeData.circularIconButtonStyle` (or `CircleBorder`) to stay round. Artwork keeps following Cover Art Shape. Users choose it in Settings > Appearance (after Flat Surfaces, via
     `CornerStyleOption`) and on the setup Appearance step, whose preview theme
     uses the draft style.
     Screens read radii through `NavisShapeData.of(context)` (named steps,

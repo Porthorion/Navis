@@ -46,8 +46,9 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
     sm: 12,
     md: 18,
     lg: 24,
-    xl: 28,
-    control: NavisRadius.pill,
+    xl: 32,
+    // A rounded rectangle, distinct from Rounded's pills.
+    control: 14,
   );
 
   static const NavisShapeData square = NavisShapeData(
@@ -68,7 +69,7 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
   final double xl;
 
   /// Corner of buttons, chips, segmented buttons and navigation indicators:
-  /// a pill in `rounded` and `soft`, 4 px in `square`.
+  /// a pill in `rounded`, 14 px in `soft`, 4 px in `square`.
   final double control;
 
   BorderRadius get xsAll => BorderRadius.circular(xs);
@@ -106,10 +107,17 @@ class NavisShapeData extends ThemeExtension<NavisShapeData> {
   RoundedRectangleBorder get lgShape => shapeOf(lgAll);
   RoundedRectangleBorder get xlShape => shapeOf(xlAll);
 
-  /// Shape for buttons, chips and indicators: stadium unless [style] is
-  /// square.
+  /// Shape for buttons, chips and indicators: a stadium only when [control]
+  /// is a pill (Rounded), otherwise a rounded rectangle.
   OutlinedBorder get controlShape =>
       control >= NavisRadius.pill ? const StadiumBorder() : shapeOf(controlAll);
+
+  /// Keeps an icon button circular under every Corner Style. Square and Soft
+  /// give plain icon buttons the control corner (see `iconButtonTheme`); play,
+  /// shuffle, transport and mini-player buttons pass this style to stay round.
+  static const ButtonStyle circularIconButtonStyle = ButtonStyle(
+    shape: WidgetStatePropertyAll<OutlinedBorder>(CircleBorder()),
+  );
 
   // Matches Flutter's Theme.of(context) lookup convention for extensions.
   static NavisShapeData of(BuildContext context) {

@@ -393,6 +393,8 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(home);
+      await tester.pump();
       await tester.tap(home);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -408,6 +410,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<SwitchListTile>(control).value, isFalse);
+      await tester.ensureVisible(control);
+      await tester.pump();
       await tester.tap(control);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -726,7 +730,7 @@ void main() {
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(7));
+        expect(find.byType(NewFeatureTag), findsNWidgets(6));
         for (final label in <String>[
           l10n.appearanceColorStyleLabel,
           l10n.appearanceOledForAutoLabel,
@@ -734,7 +738,6 @@ void main() {
           l10n.appearanceFlatSurfacesLabel,
           l10n.appearanceCornerStyleLabel,
           l10n.appearanceNowPlayingBackgroundLabel,
-          l10n.appearanceDensityLabel,
         ]) {
           final row = find.ancestor(
             of: find.text(label),
@@ -756,7 +759,7 @@ void main() {
         await pumpAppearance(
           tester,
           highlights: <SetupHighlight>{
-            SetupHighlight.density,
+            SetupHighlight.cornerStyle,
             SetupHighlight.nowPlayingBackground,
           },
           settle: false,

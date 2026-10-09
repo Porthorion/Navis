@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
@@ -73,7 +74,10 @@ Future<T?> showDesktopAnchoredPopover<T>({
               key: const ValueKey<String>('desktopAnchoredPopover'),
               color: colors.surfaceContainerHigh,
               elevation: 12,
-              shadowColor: Colors.black.withValues(alpha: 0.5),
+              // Flat drops the hand-set black shadow.
+              shadowColor: NavisColorStyleData.of(context).flat
+                  ? Colors.transparent
+                  : Colors.black.withValues(alpha: 0.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radius),
                 side: BorderSide(color: border),

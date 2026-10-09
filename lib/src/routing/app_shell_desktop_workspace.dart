@@ -175,8 +175,10 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
         ? _collapsedWidth
         : widget.sidebarWidth;
 
+    final oled = NavisColorStyleData.of(context).oled;
     final sidebarContent = Material(
-      color: colors.surfaceContainerLow,
+      // OLED chrome is true black; the separator below carries the edge.
+      color: oled ? colors.surface : colors.surfaceContainerLow,
       child: SafeArea(
         child: SizedBox(
           key: const ValueKey<String>('desktopSidebarRegion'),

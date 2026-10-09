@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:material_color_utilities/material_color_utilities.dart'
+    show Hct;
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -24,8 +26,9 @@ const double kNowPlayingArtworkTargetContrast = kCaptionMinContrast + 0.5;
 /// Extra veil alpha over the bottom fifth, calming the controls area.
 const double kNowPlayingArtworkBottomVeilAlpha = 0.15;
 
-/// The lightest veil that keeps [onSurface] and [accent] (the accent-coloured
-/// title) readable over a cover averaging [average], within [colorStyle]'s
+/// The lightest veil that keeps [onSurface], [onSurfaceVariant] (secondary
+/// lines such as the format line) and [accent] (the accent-coloured title)
+/// readable over a cover averaging [average], within [colorStyle]'s
 /// alpha range. With no [average] it is the fixed veil.
 Color nowPlayingAdaptiveVeil({
   required NavisColorStyleData colorStyle,
@@ -33,6 +36,7 @@ Color nowPlayingAdaptiveVeil({
   required Color onSurface,
   required Color? average,
   Color? accent,
+  Color? onSurfaceVariant,
 }) {
   if (average == null) return colorStyle.nowPlayingArtworkVeil(surface);
   final base = colorStyle.nowPlayingArtworkVeilBase(surface);
@@ -41,6 +45,9 @@ Color nowPlayingAdaptiveVeil({
     final veiled = Color.alphaBlend(base.withValues(alpha: alpha), average);
     if (captionContrast(onSurface, veiled) >=
             kNowPlayingArtworkTargetContrast &&
+        (onSurfaceVariant == null ||
+            captionContrast(onSurfaceVariant, veiled) >=
+                kNowPlayingArtworkTargetContrast) &&
         (accent == null ||
             captionContrast(accent, veiled) >=
                 kNowPlayingArtworkTargetContrast)) {
@@ -75,6 +82,9 @@ bool nowPlayingShowsArtworkLayer({
   required bool hasImage,
 }) => background == NowPlayingBackground.artwork && !flat && hasImage;
 
+/// Highest HCT tone of the art-tinted gradient's top colour in OLED.
+const double kNowPlayingOledMaxTintTone = 10;
+
 /// Background of the Now Playing surface.
 ///
 /// No [tintColor] (art tint off or no art yet): plain [surfaceColor]. With a
@@ -91,9 +101,21 @@ BoxDecoration nowPlayingSurfaceDecoration({
   if (tintColor == null || (colorStyle.flat && colorStyle.oled)) {
     return BoxDecoration(color: surfaceColor);
   }
-  final tint = colorStyle
-      .adaptArtColor(tintColor)
-      .withValues(alpha: colorStyle.nowPlayingTintAlpha);
+  var adaptedTint = colorStyle.adaptArtColor(tintColor);
+  if (colorStyle.oled) {
+    // OLED keeps the gradient's top near black: cap its HCT tone.
+    final hctTint = Hct.fromInt(adaptedTint.toARGB32());
+    if (hctTint.tone > kNowPlayingOledMaxTintTone) {
+      adaptedTint = Color(
+        Hct.from(
+          hctTint.hue,
+          hctTint.chroma,
+          kNowPlayingOledMaxTintTone,
+        ).toInt(),
+      );
+    }
+  }
+  final tint = adaptedTint.withValues(alpha: colorStyle.nowPlayingTintAlpha);
   if (colorStyle.flat) {
     return BoxDecoration(color: Color.alphaBlend(tint, surfaceColor));
   }
@@ -124,6 +146,7 @@ class NowPlayingArtworkBackground extends StatefulWidget {
     required this.fadeDuration,
     this.accentColor,
     this.onAvailabilityChanged,
+    this.onSurfaceVariantColor,
     super.key,
   });
 
@@ -145,6 +168,10 @@ class NowPlayingArtworkBackground extends StatefulWidget {
 
   /// Text colour the veil must keep readable.
   final Color onSurfaceColor;
+
+  /// Secondary text colour (artist, format line) the veil must also keep
+  /// readable.
+  final Color? onSurfaceVariantColor;
 
   /// Accent text colour (the track title) the veil must also keep readable.
   final Color? accentColor;
@@ -269,6 +296,7 @@ class _NowPlayingArtworkBackgroundState
       surface: widget.surfaceColor,
       onSurface: widget.onSurfaceColor,
       accent: widget.accentColor,
+      onSurfaceVariant: widget.onSurfaceVariantColor,
       average: _shownAverage,
     );
     final bottom = widget.colorStyle.nowPlayingArtworkVeilBase(

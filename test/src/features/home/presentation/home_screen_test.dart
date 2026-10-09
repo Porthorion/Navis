@@ -2230,6 +2230,14 @@ void main() {
           expect(panelRect.contains(coverRect.bottomRight), isTrue);
           expect(panelRect.contains(stripRect.bottomRight), isTrue);
           expect(panelRect.contains(listRect.bottomRight), isTrue);
+          // The track list only shows whole 56 px rows (plus 4 px gaps).
+          final firstRow = find.byWidgetPredicate((w) {
+            final key = w.key;
+            return key is ValueKey<String> &&
+                key.value.startsWith('home-random-desktop-song-row-');
+          }).first;
+          expect(tester.getSize(firstRow).height, 56);
+          expect((listRect.height + 4) % 60, anyOf(0, lessThan(0.01)));
           // Flush with the section's content column (heading's left edge).
           expect(
             panelRect.left,

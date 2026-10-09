@@ -22,6 +22,7 @@ import 'package:navis/src/features/settings/presentation/color_style_selector.da
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
+import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -306,6 +307,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               // ── Now Playing Background ──────────────────────────────
               NowPlayingBackgroundOption(
                 value: ref.watch(nowPlayingBackgroundProvider),
+                oled: previewOled,
+                flat: ref.watch(flatSurfacesProvider),
                 adornment: tagFor(SetupHighlight.nowPlayingBackground),
                 onChanged: (background) async {
                   final db = ref.read(navisDatabaseProvider);
@@ -360,7 +363,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               ),
               DensityOption(
                 value: ref.watch(densityProvider),
-                adornment: tagFor(SetupHighlight.density),
                 onChanged: (density) async {
                   final db = ref.read(navisDatabaseProvider);
                   await db.appSettingsDao.updateDensity(density);
@@ -916,8 +918,9 @@ class ColorSchemeGrid extends StatelessWidget {
 
   final int? currentSeed;
 
-  /// Colour style the swatches preview: each one shows the accent the style
-  /// will make from it, so under Pastel the grid becomes a set of pastels.
+  /// Colour style the swatches preview: each swatch is filled with its raw
+  /// seed (so Night's many hues stay distinguishable) and carries a small dot
+  /// with the accent the style will make from it.
   final NavisColorStyle style;
   final bool dynamicAlbumColorEnabled;
   final List<int> customPresets;
@@ -955,7 +958,11 @@ class ColorSchemeGrid extends StatelessWidget {
             runSpacing: 12,
             children: <Widget>[
               _ColorChip(
-                color: styledSwatchColor(defaultColorSchemeSeedColor, style),
+                color: defaultColorSchemeSeedColor,
+                accentColor: styledSwatchColor(
+                  defaultColorSchemeSeedColor,
+                  style,
+                ),
                 label: l10n.appearanceColorDefault,
                 isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
                 onTap: () => onSelected(null),
@@ -964,7 +971,8 @@ class ColorSchemeGrid extends StatelessWidget {
               ),
               for (final swatch in swatches)
                 _ColorChip(
-                  color: styledSwatchColor(swatch.color, style),
+                  color: swatch.color,
+                  accentColor: styledSwatchColor(swatch.color, style),
                   label: swatch.label,
                   isSelected: currentSeed == swatch.colorValue,
                   onTap: () => onSelected(swatch.colorValue),
@@ -1110,6 +1118,7 @@ class _ColorChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.theme,
+    this.accentColor,
     this.onLongPress,
     this.showDeleteHint = false,
     this.isCustom = false,
@@ -1117,6 +1126,9 @@ class _ColorChip extends StatelessWidget {
   });
 
   final Color color;
+
+  /// The accent the colour style derives from [color], shown as an inner dot.
+  final Color? accentColor;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
@@ -1157,7 +1169,7 @@ class _ColorChip extends StatelessWidget {
                   : theme.colorScheme.outlineVariant,
               width: isSelected ? 3 : 1,
             ),
-            boxShadow: isSelected
+            boxShadow: isSelected && !NavisColorStyleData.of(context).flat
                 ? <BoxShadow>[
                     BoxShadow(
                       color: theme.colorScheme.primary.withAlpha(72),
@@ -1195,6 +1207,25 @@ class _ColorChip extends StatelessWidget {
                       Icons.check_rounded,
                       color: checkColor,
                       size: 20,
+                    ),
+                  ),
+                if (accentColor != null)
+                  Positioned(
+                    key: valueKey == null
+                        ? null
+                        : ValueKey<String>('accentDot-$valueKey'),
+                    left: 3,
+                    bottom: 3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surface,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const SizedBox(width: 14, height: 14),
                     ),
                   ),
                 if (isCustom)

@@ -63,6 +63,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final colorStyle = NavisColorStyleData.of(context);
+    final playFill = colorStyle.playButtonFill(cs);
+    final onPlayFill = colorStyle.onPlayButtonFill(cs);
     final playback = widget.playback;
     // Position and buffer ticks arrive 5-10 times a second. Only the slider
     // and progress leaves below watch them, so the rest of the player is not
@@ -334,8 +337,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         : l10n.miniPlayerPlay,
                                     constraints: compactButtonConstraints,
                                     style: IconButton.styleFrom(
-                                      backgroundColor: cs.primaryContainer,
-                                      foregroundColor: cs.onPrimaryContainer,
+                                      backgroundColor: playFill,
+                                      foregroundColor: onPlayFill,
+                                      shape: const CircleBorder(),
                                       padding: EdgeInsets.zero,
                                       minimumSize: const Size(46, 46),
                                       tapTargetSize:
@@ -649,6 +653,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
 
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final oled = NavisColorStyleData.of(context).oled;
+    final colorStyle = NavisColorStyleData.of(context);
+    final playFill = colorStyle.playButtonFill(cs);
+    final onPlayFill = colorStyle.onPlayButtonFill(cs);
+    final miniPlayerColor = oled ? cs.surface : cs.surfaceContainerHigh;
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
@@ -687,7 +696,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
           : null,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: (flattenWideStyle && !compactWideLandscapeMode)
+          border: (flattenWideStyle && !compactWideLandscapeMode && !oled)
               ? null
               : Border(
                   top: BorderSide(
@@ -698,10 +707,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
         ),
         child: Material(
           color: compactWideLandscapeMode
-              ? cs.surfaceContainerHigh
-              : (flattenWideStyle
-                    ? Colors.transparent
-                    : cs.surfaceContainerHigh),
+              ? miniPlayerColor
+              : (flattenWideStyle ? Colors.transparent : miniPlayerColor),
           child: InkWell(
             onTap: onTap,
             child: compactWideLandscapeMode
@@ -784,8 +791,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               ? l10n.miniPlayerPause
                               : l10n.miniPlayerPlay,
                           style: IconButton.styleFrom(
-                            backgroundColor: cs.primaryContainer,
-                            foregroundColor: cs.onPrimaryContainer,
+                            backgroundColor: playFill,
+                            foregroundColor: onPlayFill,
+                            shape: const CircleBorder(),
                             minimumSize: const Size(52, 52),
                             padding: const EdgeInsets.all(8),
                           ),
@@ -961,8 +969,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   ? l10n.miniPlayerPause
                                   : l10n.miniPlayerPlay,
                               style: IconButton.styleFrom(
-                                backgroundColor: cs.primaryContainer,
-                                foregroundColor: cs.onPrimaryContainer,
+                                backgroundColor: playFill,
+                                foregroundColor: onPlayFill,
+                                shape: const CircleBorder(),
                                 minimumSize: Size(
                                   compactControls ? 40 : 46,
                                   compactControls ? 40 : 46,

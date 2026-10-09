@@ -92,4 +92,28 @@ void main() {
       greaterThanOrEqualTo(15.5),
     );
   });
+
+  for (final style in NavisColorStyle.values) {
+    test(
+      '${style.name}: OLED band is tone 6-10 and captions stay readable',
+      () {
+        final oled = NavisColorStyleData(style: style, dark: true, oled: true);
+        for (final cover in <Color>[light, yellow, Colors.white, dark]) {
+          final sample = flatBandSample(cover, oled);
+          expect(_tone(sample), inInclusiveRange(6 - _eps, 10 + _eps));
+          final tint = captionTintFor(sample, oled, adapted: true);
+          // Still near black, never the 16-30 dusk of ordinary dark.
+          expect(_tone(tint.fill), lessThan(16));
+          expect(
+            captionContrast(tint.text, tint.fill),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            captionContrast(tint.subtext, tint.fill),
+            greaterThanOrEqualTo(4.5),
+          );
+        }
+      },
+    );
+  }
 }

@@ -156,13 +156,11 @@ Future<_Harness> _pump(
 }
 
 void main() {
-  testWidgets('marks all seven options New for an updated user', (
-    tester,
-  ) async {
+  testWidgets('marks all six options New for an updated user', (tester) async {
     await _pump(tester, seed: (d) => d.updateThemeMode('system'));
 
-    expect(find.byType(NewFeatureTag), findsNWidgets(7));
-    expect(find.text('New'), findsNWidgets(7));
+    expect(find.byType(NewFeatureTag), findsNWidgets(6));
+    expect(find.text('New'), findsNWidgets(6));
     expect(
       find.descendant(
         of: find.byType(NewFeatureTag),
@@ -171,7 +169,7 @@ void main() {
               widget is Semantics && widget.properties.label == 'New option',
         ),
       ),
-      findsNWidgets(7),
+      findsNWidgets(6),
     );
   });
 
@@ -181,7 +179,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('Use OLED When Dark'), findsNothing);
-    expect(find.byType(NewFeatureTag), findsNWidgets(6));
+    expect(find.byType(NewFeatureTag), findsNWidgets(5));
   });
 
   testWidgets('shows no tags on a fresh install', (tester) async {

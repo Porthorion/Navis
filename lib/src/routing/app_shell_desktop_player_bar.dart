@@ -106,10 +106,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         repeatIcon = Icons.repeat;
     }
     final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
-    final barColor = Color.alphaBlend(
-      colors.primary.withValues(alpha: 0.024),
-      colors.surfaceContainerLow,
-    );
+    final barColor = NavisColorStyleData.of(context).oled
+        ? colors.surface
+        : Color.alphaBlend(
+            colors.primary.withValues(alpha: 0.024),
+            colors.surfaceContainerLow,
+          );
 
     return DecoratedBox(
       decoration: BoxDecoration(

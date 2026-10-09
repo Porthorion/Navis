@@ -34,21 +34,22 @@ BorderRadius _decorationRadius(WidgetTester tester, Finder within) {
 }
 
 void main() {
-  testWidgets('NewFeatureTag badge is a pill, then a 4 px rectangle', (
-    tester,
-  ) async {
-    final radii = <NavisCornerStyle, double>{};
-    for (final style in NavisCornerStyle.values) {
-      await _pump(tester, style, const NewFeatureTag());
-      radii[style] = _decorationRadius(
-        tester,
-        find.byType(NewFeatureTag),
-      ).topLeft.x;
-    }
-    expect(radii[NavisCornerStyle.rounded], 999);
-    expect(radii[NavisCornerStyle.soft], 999);
-    expect(radii[NavisCornerStyle.square], 4);
-  });
+  testWidgets(
+    'NewFeatureTag badge is a pill, then a 14 px, then a 4 px rectangle',
+    (tester) async {
+      final radii = <NavisCornerStyle, double>{};
+      for (final style in NavisCornerStyle.values) {
+        await _pump(tester, style, const NewFeatureTag());
+        radii[style] = _decorationRadius(
+          tester,
+          find.byType(NewFeatureTag),
+        ).topLeft.x;
+      }
+      expect(radii[NavisCornerStyle.rounded], 999);
+      expect(radii[NavisCornerStyle.soft], 14);
+      expect(radii[NavisCornerStyle.square], 4);
+    },
+  );
 
   testWidgets('error notice radius follows the corner style', (tester) async {
     final radii = <NavisCornerStyle, double>{};
@@ -75,33 +76,36 @@ void main() {
     expect(radii[NavisCornerStyle.square], lessThan(8));
   });
 
-  testWidgets('info notice stays a pill except under square', (tester) async {
-    final radii = <NavisCornerStyle, double>{};
-    for (final style in NavisCornerStyle.values) {
-      final controller = AppNoticeController()..show(message: 'Saved');
-      addTearDown(controller.dispose);
-      await _pump(tester, style, AppNoticeHost(controller: controller));
-      await tester.pump(const Duration(seconds: 1));
-      final material = tester.widget<Material>(
-        find
-            .descendant(
-              of: find.byType(AppNoticeHost),
-              matching: find.byType(Material),
-            )
-            .first,
-      );
-      radii[style] =
-          ((material.shape! as RoundedRectangleBorder).borderRadius
-                  as BorderRadius)
-              .topLeft
-              .x;
-      controller.dismiss();
-      await tester.pump(const Duration(seconds: 1));
-    }
-    expect(radii[NavisCornerStyle.rounded], 999);
-    expect(radii[NavisCornerStyle.soft], 999);
-    expect(radii[NavisCornerStyle.square], 4);
-  });
+  testWidgets(
+    'info notice is a pill, a 14 px rectangle under soft, 4 px under square',
+    (tester) async {
+      final radii = <NavisCornerStyle, double>{};
+      for (final style in NavisCornerStyle.values) {
+        final controller = AppNoticeController()..show(message: 'Saved');
+        addTearDown(controller.dispose);
+        await _pump(tester, style, AppNoticeHost(controller: controller));
+        await tester.pump(const Duration(seconds: 1));
+        final material = tester.widget<Material>(
+          find
+              .descendant(
+                of: find.byType(AppNoticeHost),
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        radii[style] =
+            ((material.shape! as RoundedRectangleBorder).borderRadius
+                    as BorderRadius)
+                .topLeft
+                .x;
+        controller.dismiss();
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(radii[NavisCornerStyle.rounded], 999);
+      expect(radii[NavisCornerStyle.soft], 14);
+      expect(radii[NavisCornerStyle.square], 4);
+    },
+  );
 
   testWidgets('circles stay circles under every corner style', (tester) async {
     for (final style in NavisCornerStyle.values) {

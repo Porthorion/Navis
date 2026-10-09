@@ -336,16 +336,27 @@ ThemeData _buildNavisTheme(
     segmentedButtonTheme: roundedCorners
         ? null
         : SegmentedButtonThemeData(style: ButtonStyle(shape: controlShape)),
-    menuTheme: roundedCorners
+    // Plain icon buttons take the control corner; play, shuffle, transport
+    // and mini-player buttons pass `NavisShapeData.circularIconButtonStyle`.
+    iconButtonTheme: roundedCorners
         ? null
-        : MenuThemeData(
-            style: MenuStyle(
-              shape: WidgetStatePropertyAll<OutlinedBorder>(shape.mdShape),
-            ),
-          ),
+        : IconButtonThemeData(style: ButtonStyle(shape: controlShape)),
+    // MenuAnchor menus: Rounded encodes the 4 px shape Material's M3 menu
+    // renders today (so it does not move); Soft and Square match popup menus.
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        shape: WidgetStatePropertyAll<OutlinedBorder>(
+          roundedCorners
+              ? RoundedRectangleBorder(borderRadius: NavisRadius.xsAll)
+              : shape.mdShape,
+        ),
+      ),
+    ),
     floatingActionButtonTheme: roundedCorners
         ? null
         : FloatingActionButtonThemeData(shape: shape.lgShape),
+    // Fixed snackbars render no shape and floating ones Material's 4 px, so
+    // Rounded stays unset; Soft and Square theme both.
     snackBarTheme: roundedCorners
         ? null
         : SnackBarThemeData(shape: shape.smShape),

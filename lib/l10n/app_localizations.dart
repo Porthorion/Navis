@@ -5885,6 +5885,12 @@ abstract class AppLocalizations {
   /// **'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid colour instead.'**
   String get appearanceNowPlayingBackgroundArtworkSub;
 
+  /// No description provided for @appearanceNowPlayingBackgroundOledFlatNote.
+  ///
+  /// In en, this message translates to:
+  /// **'With OLED and Flat Surfaces, Now Playing stays black.'**
+  String get appearanceNowPlayingBackgroundOledFlatNote;
+
   /// No description provided for @appearanceNowPlayingBackgroundPlainSub.
   ///
   /// In en, this message translates to:
@@ -5978,13 +5984,13 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCornerStyleRoundedSub.
   ///
   /// In en, this message translates to:
-  /// **'Gently rounded cards and buttons.'**
+  /// **'Gently rounded cards and pill buttons.'**
   String get appearanceCornerStyleRoundedSub;
 
   /// No description provided for @appearanceCornerStyleSoftSub.
   ///
   /// In en, this message translates to:
-  /// **'Rounder, softer cards and pill buttons.'**
+  /// **'Larger, softer corners on cards, buttons and sheets.'**
   String get appearanceCornerStyleSoftSub;
 
   /// No description provided for @appearanceCornerStyleSquareSub.

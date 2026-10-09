@@ -276,7 +276,7 @@ void main() {
       final gradient =
           (textFade.decoration as BoxDecoration).gradient! as LinearGradient;
       expect(gradient.colors.last, expected.fill);
-      expect(gradient.colors.first.a, closeTo(0.85, 0.01));
+      expect(gradient.colors.first.a, closeTo(1, 0.01));
       final title = tester.widget<Text>(find.text('Tinted'));
       expect(title.style!.color, expected.text);
       final subtitle = tester.widget<Text>(find.text('Artist'));
@@ -288,6 +288,68 @@ void main() {
       );
     });
   }
+
+  testWidgets('Flat coverTint caption is a solid fill block, not a fade', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const sampled = Color(0xFFE53935);
+    final field = CoverColourField.uniform(sampled);
+    sharedCoverColourFieldCache.put('cover-1', field);
+    addTearDown(sharedCoverColourFieldCache.clear);
+    final theme = buildDarkTheme(Colors.teal, flat: true);
+    final expected = captionTintFor(
+      sampled,
+      theme.extension<NavisColorStyleData>()!,
+    );
+    final album = AlbumsTableData(
+      id: 'tinted',
+      name: 'Tinted',
+      artistName: 'Artist',
+      artists: const [],
+      songsHydrated: true,
+      isProvisional: false,
+      isExternal: false,
+      coverArt: 'cover-1',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subsonicApiProvider.overrideWithValue(null),
+          coverArtShapeProvider.overrideWithValue('rounded'),
+          coverColourWorkerProvider.overrideWithValue(
+            InlineCoverColourWorker(),
+          ),
+          coverColourFieldProvider.overrideWith((ref, id) async => field),
+        ],
+        child: MaterialApp(
+          theme: theme,
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Center(child: AlbumCard(album: album, extent: 160)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final solid = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey<String>('albumCardTintSolid')),
+    );
+    final decoration = solid.decoration as BoxDecoration;
+    expect(decoration.gradient, isNull);
+    expect(decoration.color, expected.fill);
+    expect(
+      find.byKey(const ValueKey<String>('albumCardTintFade')),
+      findsNothing,
+    );
+  });
 }
 
 class _GatedTintWorker extends InlineCoverColourWorker {

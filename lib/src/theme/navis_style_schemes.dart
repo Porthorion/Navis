@@ -283,7 +283,9 @@ class _Recipe {
     const black = Colors.black;
     // OLED keeps pure black backgrounds; cards and sheets step up through
     // near-black tones that still carry the style's hue.
-    final oledStep = math.min<double>(s, 8);
+    // OLED containers stay near-black: chroma capped at 2 so cards and sheets
+    // never read as tinted panels.
+    final oledStep = math.min<double>(s, 2);
     return ColorScheme(
       brightness: Brightness.dark,
       primary: accent.at(accentChroma, 82),

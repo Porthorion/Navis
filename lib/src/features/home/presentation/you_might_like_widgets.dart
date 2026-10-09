@@ -221,6 +221,7 @@ class _ShowcaseCoverCard extends ConsumerWidget {
                               : motion.surface,
                           child: IconButton.filled(
                             key: focused ? playKey : null,
+                            style: NavisShapeData.circularIconButtonStyle,
                             tooltip: l10n.homeShowcasePlayTooltip(
                               playName ?? '',
                             ),
