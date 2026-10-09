@@ -3801,6 +3801,13 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       sourceResponse =
           await source.request(rangeRequest?.start, rangeRequest?.endEx);
       stream = sourceResponse.stream;
+      // Navis: an open-ended range on a chunked source has no end byte.
+      if (rangeRequest != null &&
+          sourceResponse.offset != null &&
+          sourceResponse.contentLength == null) {
+        await stream.listen((_) {}, onError: (Object _) {}).cancel();
+        throw StateError('Cannot serve a byte range with an unknown length');
+      }
     } catch (e, st) {
       // ignore: avoid_print
       print('Proxy request failed: $e\n$st');

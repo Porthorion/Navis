@@ -27,5 +27,10 @@ request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
 
+The stream proxy closes range requests whose response has no known content
+length with HTTP 500 instead of dereferencing null while constructing
+`Content-Range`. Navis can then recover the remote source; completed cache reads
+still provide sized ranges.
+
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.

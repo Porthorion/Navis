@@ -2610,6 +2610,12 @@ songs other than the current and next ones are cancelled
 just_audio) and their partial files discarded; desktop already keeps a single
 sidecar download.
 
+The mobile lock-cache proxy rejects a ranged response with an unknown content
+length with HTTP 500 and closes it. It cannot construct a valid `Content-Range`
+without the end byte; returning an error lets ordinary remote-source recovery
+retry with direct streaming instead of leaving the native request unanswered.
+Sized ranges and reads from the completed cache file keep their normal responses.
+
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. ID and supplied-row
 inputs share one replacement lifecycle for admission, lane execution, early logical

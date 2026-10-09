@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Mobile playback can recover when a streamed byte range has no known length',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Playback works after signing out and reconnecting without restarting Navis',
         type: ChangelogEntryType.fix,
       ),
