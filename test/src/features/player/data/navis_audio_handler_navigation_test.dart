@@ -1791,6 +1791,18 @@ void main() {
       },
     );
 
+    test('system insert starts an empty queue', () async {
+      final (handler, player, _) = await windowed(2);
+
+      await handler.insertQueueItem(
+        0,
+        const MediaItem(id: 'song-1', title: 'Song 1'),
+      );
+
+      expect(handler.snapshot.queueSongIds, ['song-1']);
+      expect(player.sourceIds, ['song-1']);
+    });
+
     test('a long queue hands only a window to the player', () async {
       final (handler, player, database) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
@@ -1994,6 +2006,41 @@ void main() {
             expect(player.sourceIds, isNot(contains('song-6')));
           },
         );
+      }
+
+      for (final projected in [false, true]) {
+        test('system remove-at edits the native occurrence '
+            '(projected=$projected)', () async {
+          final (handler, player, _) = await trimmed();
+          final system = projected
+              ? RealTimeProjectionAudioHandler(handler)
+              : handler;
+          await until(() => system.queue.valueOrNull?.isNotEmpty ?? false);
+
+          await system.removeQueueItemAt(0);
+
+          expect(handler.snapshot.queueSongIds, ids(60)..remove('song-6'));
+          expect(handler.snapshot.currentSongId, 'song-10');
+          expect(player.sourceIds, isNot(contains('song-6')));
+        });
+
+        test('system insert edits the native position '
+            '(projected=$projected)', () async {
+          final (handler, player, _) = await trimmed();
+          final system = projected
+              ? RealTimeProjectionAudioHandler(handler)
+              : handler;
+          await until(() => system.queue.valueOrNull?.isNotEmpty ?? false);
+
+          await system.insertQueueItem(
+            1,
+            const MediaItem(id: 'song-0', title: 'Song 0'),
+          );
+
+          expect(handler.snapshot.queueSongIds, ids(60)..insert(7, 'song-0'));
+          expect(handler.snapshot.currentSongId, 'song-10');
+          expect(player.sourceIds.take(3), ['song-6', 'song-0', 'song-7']);
+        });
       }
 
       test('beyond the window leave the player in batches', () async {

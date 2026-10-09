@@ -5903,6 +5903,28 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Future<void> removeQueueItemAt(int index) async {
+    if (index < 0 || index >= _queueItems.length) return;
+    await removeAt(index + _deferredHead.length);
+  }
+
+  @override
+  Future<void> insertQueueItem(int index, MediaItem mediaItem) async {
+    if (index < 0 || index > _queueItems.length) return;
+    if (_queueItems.isEmpty) {
+      await addToQueue(<String>[mediaItem.id]);
+      return;
+    }
+    final logicalIndex = index + _deferredHead.length;
+    final songs = await _libraryDao.getSongsByIds(<String>[
+      _canonicalSongId(mediaItem.id),
+    ]);
+    await insertQueueRuns(<QueueInsertRun>[
+      QueueInsertRun(logicalIndex, songs),
+    ]);
+  }
+
+  @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= _queueItems.length) return;
     await playFromIndex(index + _deferredHead.length);
