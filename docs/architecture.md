@@ -3586,7 +3586,10 @@ contract.
    sidecar download fills the rolling cache: each uncached track is fetched
    twice (a FLAC is typically 25–50 MB, and transcoding runs twice on the
    server). This is a deliberate cost of seekable desktop playback.
-2. On completion → `RollingCacheManager.registerTrack()`. A small file that
+2. After flushing and publishing the complete file →
+   `RollingCacheManager.registerTrack()`. The mobile lock-cache source emits
+   100% only after closing its write sink and renaming `.part` into place.
+   A small file that
    holds a Subsonic error document is deleted instead of registered: Navidrome
    answers a stream it cannot serve with HTTP 200 and that document, and
    playback prefers the rolling cache over streaming, so keeping it would fail

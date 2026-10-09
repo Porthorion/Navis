@@ -42,6 +42,43 @@ void main() {
   });
   tearDown(() => directory.delete(recursive: true));
 
+  for (final knownLength in [true, false]) {
+    test(
+      '100% means flushed and published (known length: $knownLength)',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        final body = List<int>.filled(128 * 1024, 7);
+        server.listen((request) async {
+          if (knownLength) request.response.contentLength = body.length;
+          request.response.add(body);
+          await request.response.close();
+        });
+        final cacheFile = File('${directory.path}/published.mp3');
+        // ignore: experimental_member_use, reason: tests publication ordering in the vendored source.
+        final source = LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/song'),
+          cacheFile: cacheFile,
+        );
+        final published = Completer<bool>();
+        final subscription = source.downloadProgressStream.listen((progress) {
+          if (progress == 1 && !published.isCompleted) {
+            published.complete(
+              cacheFile.existsSync() && cacheFile.lengthSync() == body.length,
+            );
+          }
+        });
+        addTearDown(subscription.cancel);
+        final response = await source.request();
+        await response.stream.drain<void>();
+        expect(
+          await published.future.timeout(const Duration(seconds: 2)),
+          isTrue,
+        );
+      },
+    );
+  }
+
   for (final ranges in [true, false]) {
     test('reports whether the origin supports ranges ($ranges)', () async {
       final (server, _) = await _serve(

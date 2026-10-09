@@ -3531,7 +3531,8 @@ class LockCachingAudioSource extends StreamAudioSource {
           : (sourceLength == 0)
               ? 100
               : (100 * _progress ~/ sourceLength);
-      updateProgress(newPercentProgress);
+      // Navis: 100% means the cache file has been flushed and published.
+      updateProgress(min(newPercentProgress, 99));
       sink.add(data);
       final readyRequests = _requests
           .where((request) =>
@@ -3638,15 +3639,15 @@ class LockCachingAudioSource extends StreamAudioSource {
       }
     }, onDone: () async {
       _abortDownload = null;
-      if (sourceLength == null) {
-        updateProgress(100);
-      }
       for (var cacheResponse in inProgressResponses) {
         if (!cacheResponse.controller.isClosed) {
           cacheResponse.controller.close();
         }
       }
+      await sink.flush();
+      await sink.close();
       (await _partialCacheFile).renameSync(cacheFile.path);
+      updateProgress(100);
       await subscription.cancel();
       httpClient.close();
       _downloading = false;
