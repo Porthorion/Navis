@@ -10,6 +10,10 @@ import 'package:navis/src/theme/navis_style_schemes.dart';
 const double kFlatBandDarkMinTone = 16;
 const double kFlatBandDarkMaxTone = 30;
 
+/// Tone range of the Flat Home band in OLED: still tinted, near black.
+const double kFlatBandOledMinTone = 6;
+const double kFlatBandOledMaxTone = 10;
+
 /// Tone range of the Flat Home band in light themes (soft, light).
 const double kFlatBandLightMinTone = 82;
 const double kFlatBandLightMaxTone = 92;
@@ -19,7 +23,8 @@ const double kFlatBandLightMaxTone = 92;
 const double _warmDarkMaxChroma = 22;
 
 /// Moves the Flat band's [sampled] cover colour to a tone that sits with the
-/// page: dusky in dark themes, soft in light ones.
+/// page: dusky in dark themes (near black in OLED, tone 6-10), soft in light
+/// ones.
 ///
 /// The colour is adapted to [style] first, then only its HCT tone is clamped
 /// (hue and chroma are kept). In dark themes yellows are rotated with
@@ -34,7 +39,9 @@ Color flatBandSample(Color sampled, NavisColorStyleData style) {
       adapted.tone.clamp(kFlatBandLightMinTone, kFlatBandLightMaxTone),
     );
   }
-  final tone = adapted.tone.clamp(kFlatBandDarkMinTone, kFlatBandDarkMaxTone);
+  final tone = style.oled
+      ? adapted.tone.clamp(kFlatBandOledMinTone, kFlatBandOledMaxTone)
+      : adapted.tone.clamp(kFlatBandDarkMinTone, kFlatBandDarkMaxTone);
   final chroma = isWarmHue(adapted.hue)
       ? math.min(adapted.chroma, _warmDarkMaxChroma)
       : adapted.chroma;

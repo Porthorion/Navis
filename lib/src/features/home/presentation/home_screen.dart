@@ -3145,6 +3145,24 @@ class _ListenBrainzLoadingArtwork extends StatelessWidget {
   }
 }
 
+/// Height of one Home hero track row (48 px minimum plus 4 px padding above
+/// and below) and the gap between rows.
+const double _kDesktopSongRowHeight = 56;
+const double _kDesktopSongRowGap = 4;
+
+/// The tallest height at most [available] that shows only whole rows of
+/// [count] tracks (the full list height when it all fits).
+@visibleForTesting
+double snapDesktopSongListHeight(double available, int count) {
+  const step = _kDesktopSongRowHeight + _kDesktopSongRowGap;
+  if (count <= 0) return 0;
+  final full = count * step - _kDesktopSongRowGap;
+  if (full <= available) return full;
+  final rows = ((available + _kDesktopSongRowGap) / step).floor();
+  if (rows < 1) return available;
+  return rows * step - _kDesktopSongRowGap;
+}
+
 class _DesktopRandomAlbumSongList extends ConsumerWidget {
   const new({required this.album});
 
@@ -3239,18 +3257,39 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
-            padding: EdgeInsets.zero,
-            itemCount: allSongs.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 4),
-            itemBuilder: (context, index) {
-              final song = allSongs[index];
-              return _DesktopRandomAlbumSongRow(
-                song: song,
-                albumTracks: allSongs,
-                queueStartIndex: index,
-                displayIndex: index + 1,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final list = ListView.separated(
+                key: ValueKey<String>(
+                  'home-random-desktop-song-list-${album.id}',
+                ),
+                padding: EdgeInsets.zero,
+                itemCount: allSongs.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: _kDesktopSongRowGap),
+                itemBuilder: (context, index) {
+                  final song = allSongs[index];
+                  return _DesktopRandomAlbumSongRow(
+                    song: song,
+                    albumTracks: allSongs,
+                    queueStartIndex: index,
+                    displayIndex: index + 1,
+                  );
+                },
+              );
+              // Flat has no card edge to clip against, so a half-cut last row
+              // reads as a glitch: show only whole rows.
+              final height = constraints.maxHeight;
+              if (!NavisColorStyleData.of(context).flat || !height.isFinite) {
+                return list;
+              }
+              final snapped = snapDesktopSongListHeight(
+                height,
+                allSongs.length,
+              );
+              return Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(height: snapped, child: list),
               );
             },
           ),

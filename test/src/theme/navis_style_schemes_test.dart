@@ -174,6 +174,28 @@ void main() {
     }
   });
 
+  test('OLED containers stay near-black (chroma <= 2) in every style', () {
+    for (final style in checked) {
+      for (final entry in _seeds.entries) {
+        final scheme = _scheme(entry.value, _Mode.oled, style);
+        final containers = <String, Color>{
+          'low': scheme.surfaceContainerLow,
+          'container': scheme.surfaceContainer,
+          'high': scheme.surfaceContainerHigh,
+          'highest': scheme.surfaceContainerHighest,
+        };
+        containers.forEach((name, color) {
+          expect(
+            _hct(color).chroma,
+            // Capped at 2; 8-bit rounding of near-black tones adds under 1.
+            lessThanOrEqualTo(3),
+            reason: '${style.name} ${entry.key} $name',
+          );
+        });
+      }
+    }
+  });
+
   test('dark yellows turn warm umber instead of khaki', () {
     for (final style in styled) {
       final scheme = _scheme(const Color(0xFFFFEB3B), _Mode.dark, style);
