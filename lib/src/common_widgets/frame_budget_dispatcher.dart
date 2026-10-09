@@ -46,7 +46,17 @@ class FrameBudgetDispatcher {
     _armed = false;
     _batchSize = _queue.length < perFrame ? _queue.length : perFrame;
     for (var i = 0; i < _batchSize; i++) {
-      _queue.removeFirst()();
+      var completed = false;
+      try {
+        _queue.removeFirst()();
+        completed = true;
+      } finally {
+        // SchedulerBinding reports the error. Rearm before it escapes.
+        if (!completed) {
+          _batchSize = 0;
+          _arm();
+        }
+      }
     }
     _batchSize = 0;
     _arm();

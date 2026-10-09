@@ -4,12 +4,14 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file/local.dart';
+import 'package:fake_async/fake_async.dart';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_sampler.dart';
@@ -81,6 +83,91 @@ CoverColourSampler _sampler(
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
 void main() {
+  test('missing-art retries reset when the account sampler is replaced', () {
+    fakeAsync((async) {
+      var aDecodes = 0;
+      var bDecodes = 0;
+      CoverColourSampler makeSampler(CoverColourDecoder decode) =>
+          CoverColourSampler(
+            decode: decode,
+            cache: CoverColourFieldCache(),
+            coordinator: CoverArtLoadCoordinator(
+              maxActiveDownloads: 2,
+              criticalReserve: 0,
+            ),
+          );
+      final a = makeSampler((id, {revision = 0}) async {
+        aDecodes++;
+        return null;
+      });
+      final b = makeSampler((id, {revision = 0}) async {
+        bDecodes++;
+        return null;
+      });
+      final container = ProviderContainer(
+        overrides: [coverColourSamplerProvider.overrideWithValue(a)],
+      );
+      container.listen(coverColourFieldProvider(('same-id', 0)), (_, _) {});
+      async.flushMicrotasks();
+      expect(aDecodes, 1);
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(aDecodes, 2);
+      container.updateOverrides([
+        coverColourSamplerProvider.overrideWithValue(b),
+      ]);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(bDecodes, 1);
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(bDecodes, 2);
+      expect(aDecodes, 2);
+      container.dispose();
+      a.dispose();
+      b.dispose();
+      expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
+  test('missing-art retry state clears when its last listener goes away', () {
+    fakeAsync((async) {
+      var decodes = 0;
+      final sampler = CoverColourSampler(
+        decode: (id, {revision = 0}) async {
+          decodes++;
+          return null;
+        },
+        cache: CoverColourFieldCache(),
+        coordinator: CoverArtLoadCoordinator(
+          maxActiveDownloads: 2,
+          criticalReserve: 0,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [coverColourSamplerProvider.overrideWithValue(sampler)],
+      );
+      final provider = coverColourFieldProvider(('cover', 0));
+      final subscription = container.listen(provider, (_, _) {});
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(decodes, 2);
+      subscription.close();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      container.listen(provider, (_, _) {});
+      async.flushMicrotasks();
+      expect(decodes, 3);
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(decodes, 4);
+      container.dispose();
+      sampler.dispose();
+      expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
   group('CoverColourSampler queue', () {
     test('runs at most two decodes at once', () async {
       final decoder = _GatedDecoder();
@@ -408,6 +495,62 @@ void main() {
     });
   });
 
+  test('one shared worker does not move entries into a new account', () async {
+    final dir = Directory.systemTemp.createTempSync('colour_account');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final core = CoverColourWorkerCore();
+    final a = p.join(dir.path, 'a.bin');
+    final b = p.join(dir.path, 'b.bin');
+    final colors = List<int>.filled(9, 0xFF123456);
+    await core.openStore(a, 'a', 5);
+    core.add('a-cover', colors);
+    await core.openStore(b, 'b', 5);
+    expect(core.lookup('a-cover'), isNull);
+    await core.flush();
+    expect(File(b).existsSync(), isFalse);
+    core.add('b-cover', colors);
+    await core.flush();
+    expect(
+      decodeColourStoreEntries(File(b).readAsBytesSync(), scope: 'b').keys,
+      ['b-cover'],
+    );
+    // Opening the same scope still retains fresh, unflushed entries.
+    core.add('fresh-b', colors);
+    await core.openStore(b, 'b', 5);
+    expect(core.lookup('fresh-b'), colors);
+    await core.flush();
+    await core.openStore(a, 'a', 5);
+    expect(core.lookup('b-cover'), isNull);
+  });
+
+  test('caption tint memo ignores accent hue, flat and OLED', () async {
+    clearCaptionTintMemo();
+    addTearDown(clearCaptionTintMemo);
+    final worker = _CountingTintWorker();
+    const sampled = Color(0xFFCC4433);
+    const initial = NavisColorStyleData(
+      style: NavisColorStyle.pastel,
+      dark: true,
+    );
+    final first = await resolveCaptionTint(worker, sampled, initial);
+    const changed = NavisColorStyleData(
+      style: NavisColorStyle.pastel,
+      dark: true,
+      accentHue: 180,
+      flat: true,
+      oled: true,
+    );
+    expect(peekCaptionTint(sampled, changed), same(first));
+    expect(await resolveCaptionTint(worker, sampled, changed), same(first));
+    expect(worker.derivations, 1);
+    await resolveCaptionTint(
+      worker,
+      sampled,
+      const NavisColorStyleData(style: NavisColorStyle.pastel, dark: false),
+    );
+    expect(worker.derivations, 2);
+  });
+
   group('worker isolate', () {
     test('computes averages, tints and persistence off this isolate', () async {
       final worker = IsolateCoverColourWorker();
@@ -637,5 +780,14 @@ class _SentinelWorker extends InlineCoverColourWorker {
     calls++;
     lastBytes = rgba.length;
     return List<int>.filled(9, 0xFF0A0B0C);
+  }
+}
+
+class _CountingTintWorker extends InlineCoverColourWorker {
+  int derivations = 0;
+  @override
+  Future<List<double>> captionTint(Color sampled, NavisColorStyleData style) {
+    derivations++;
+    return super.captionTint(sampled, style);
   }
 }

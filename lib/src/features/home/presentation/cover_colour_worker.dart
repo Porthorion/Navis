@@ -183,22 +183,12 @@ class CoverColourWorkerCore {
   List<int> averageGrid(Uint8List rgba, int width, int height) =>
       averageArgbGrid(rgba, width, height);
 
-  List<double> captionTint(
-    int sampled,
-    int styleIndex,
-    bool dark,
-    bool flat,
-    bool oled,
-    double accentHue,
-  ) {
+  List<double> captionTint(int sampled, int styleIndex, bool dark) {
     final tint = captionTintFor(
       Color(sampled),
       NavisColorStyleData(
         style: NavisColorStyle.values[styleIndex],
         dark: dark,
-        flat: flat,
-        oled: oled,
-        accentHue: accentHue,
       ),
     );
     return <double>[
@@ -216,6 +206,12 @@ class CoverColourWorkerCore {
     String scope,
     int warm,
   ) async {
+    if (_path != null && scope != _scope) {
+      _entries.clear();
+      _dirty = false;
+      _timer?.cancel();
+      _timer = null;
+    }
     _path = path;
     _scope = scope;
     try {
@@ -227,7 +223,8 @@ class CoverColourWorkerCore {
           await file.readAsBytes(),
           scope: scope,
         );
-        // Anything added while loading is newer than the file.
+        if (_scope != scope || _path != path) return const [];
+        // Anything added under this scope while loading is newer than the file.
         final fresh = Map<String, List<int>>.of(_entries);
         _entries
           ..clear()
@@ -293,9 +290,6 @@ class CoverColourWorkerCore {
 List<Object> _styleArgs(NavisColorStyleData style) => <Object>[
   style.style.index,
   style.dark,
-  style.flat,
-  style.oled,
-  style.accentHue,
 ];
 
 /// Runs the work in this isolate. For tests and as a fallback; the app uses
@@ -315,14 +309,7 @@ class InlineCoverColourWorker implements CoverColourWorker {
     NavisColorStyleData style,
   ) async {
     final a = _styleArgs(style);
-    return core.captionTint(
-      sampled.toARGB32(),
-      a[0] as int,
-      a[1] as bool,
-      a[2] as bool,
-      a[3] as bool,
-      a[4] as double,
-    );
+    return core.captionTint(sampled.toARGB32(), a[0] as int, a[1] as bool);
   }
 
   @override
@@ -399,9 +386,6 @@ class IsolateCoverColourWorker implements CoverColourWorker {
               args[0] as int,
               args[1] as int,
               args[2] as bool,
-              args[3] as bool,
-              args[4] as bool,
-              args[5] as double,
             );
           case 'open':
             result = await core.openStore(
