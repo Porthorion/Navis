@@ -1,6 +1,3 @@
-import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
-import 'package:navis/src/features/player/domain/playback_adjustments.dart';
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -30,6 +27,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../helpers/fake_playback_handler.dart';
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
@@ -48,22 +46,7 @@ class _MutableServerConfigState
   }
 }
 
-class _FakePlaybackHandler implements NavisPlaybackHandler {
-  @override
-  EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
-  @override
-  EqApplicationState get equalizerState => EqApplicationState(
-    desired: EqConfiguration.flat(),
-    applied: EqConfiguration.flat(),
-  );
-  @override
-  Stream<EqApplicationState> get equalizerStateStream => const Stream.empty();
-  @override
-  Future<void> setEqualizer(EqConfiguration values) async =>
-      throw UnsupportedError('This fake has no EQ backend');
-  @override
-  Future<void> refreshEqualizerState() async {}
-
+class _FakePlaybackHandler extends InertPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
       StreamController<PlaybackSnapshot>.broadcast();
   final StreamController<PlaybackBufferState> _bufferController =
@@ -87,9 +70,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _controller.stream;
 
   @override
-  Stream<Duration> get positionStream => Stream<Duration>.empty();
-
-  @override
   PlaybackBufferState get bufferState => _bufferState;
 
   @override
@@ -100,36 +80,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _bufferController.add(value);
   }
 
-  @override
-  MediaItem? get currentMediaItem => null;
-
-  @override
-  Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
-
-  @override
-  Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
-
-  @override
-  Stream<PlaybackLoadFailure> get loadFailureStream =>
-      const Stream<PlaybackLoadFailure>.empty();
-
-  @override
-  Stream<QueueSongsDropped> get droppedSongsStream =>
-      const Stream<QueueSongsDropped>.empty();
-
-  @override
-  Stream<TransportVisualCue> get transportVisualCueStream =>
-      const Stream<TransportVisualCue>.empty();
-
-  @override
-  Future<void> waitUntilReady() async {}
-
   int retryDeferredQueueRestoreCalls = 0;
-
-  @override
-  Future<void> retryDeferredQueueRestore() async {
-    retryDeferredQueueRestoreCalls++;
-  }
 
   @override
   Future<void> addToQueue(
@@ -166,12 +117,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> stop() async {
     await pause();
   }
-
-  @override
-  Future<void> applyRuntimeSettings() async {}
-
-  @override
-  Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
 
   @override
   Future<void> playNext(
@@ -299,14 +244,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
-  Map<String, Object?> collectPlaybackDiagnostics() => <String, Object?>{
-    'songId': _snapshot.currentSongId,
-    'positionMs': _snapshot.position.inMilliseconds,
-    'userVolume': volume,
-    'effectivePlayerVolume': volume,
-  };
-
-  @override
   Future<void> skipToNext() async {
     final idx = (_snapshot.currentIndex ?? -1) + 1;
     if (idx < _snapshot.queueSongIds.length) {
@@ -341,24 +278,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
-  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
-
-  @override
-  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
-      const Stream.empty();
-
-  @override
-  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
-      PlaybackAdjustmentCapabilities.android;
-
-  @override
-  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
-      setPlaybackSpeed(values.speed);
-
-  @override
-  Future<void> setPlaybackSpeed(double speed) async {}
-
-  @override
   Future<void> toggleLike() async {
     final liked = !_snapshot.isCurrentSongLiked;
     _snapshot = _snapshot.copyWith(isCurrentSongLiked: liked);
@@ -370,34 +289,6 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _snapshot = _snapshot.copyWith(isCurrentSongLiked: liked);
     _controller.add(_snapshot);
   }
-
-  @override
-  Future<void> playRadioStream({
-    required String stationId,
-    required String stationName,
-    required String streamUrl,
-    String? homePageUrl,
-  }) async {}
-
-  @override
-  Future<void> stopRadio() async {}
-
-  @override
-  void updateRadioMetadata({
-    String? title,
-    String? artist,
-    String? artUrl,
-    bool replaceMetadata = false,
-  }) {}
-
-  @override
-  void registerPreferredMixCallback(
-    Future<void> Function(String seedSongId) callback,
-  ) {}
-  @override
-  void registerPreferredMixToggleCallback(
-    Future<void> Function(String seedSongId) callback,
-  ) {}
 
   Future<void> dispose() async {
     await _controller.close();
