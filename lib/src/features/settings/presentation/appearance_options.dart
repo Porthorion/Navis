@@ -7,9 +7,10 @@ import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Left inset that marks an option as depending on the control above it.
-const double appearanceSubOptionInset = 32;
+const double appearanceSubOptionInset = NavisSpace.xxl;
 
 /// A switch title with an optional [adornment] (such as a "New" tag) beside
 /// it. Without an adornment it is the plain title, so rows keep their height.
@@ -19,7 +20,7 @@ Widget _titleWithAdornment(String text, Widget? adornment) {
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
       Flexible(child: Text(text)),
-      const SizedBox(width: 8),
+      const SizedBox(width: NavisSpace.xs),
       adornment,
     ],
   );
@@ -70,7 +71,7 @@ class OledForAutoOption extends StatelessWidget {
       child: SwitchListTile(
         contentPadding: const EdgeInsetsDirectional.only(
           start: appearanceSubOptionInset,
-          end: 16,
+          end: NavisSpace.md,
         ),
         title: _titleWithAdornment(l10n.appearanceOledForAutoLabel, adornment),
         subtitle: Text(l10n.appearanceOledForAutoSub),
@@ -167,8 +168,8 @@ class NightScheduleSection extends StatelessWidget {
       padding: const EdgeInsetsDirectional.fromSTEB(
         appearanceSubOptionInset,
         0,
-        16,
-        8,
+        NavisSpace.md,
+        NavisSpace.xs,
       ),
       child: Text(text, style: theme.textTheme.bodySmall),
     );
@@ -266,14 +267,14 @@ class _ScheduleWindowRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         appearanceSubOptionInset,
-        4,
-        16,
-        8,
+        NavisSpace.xxs,
+        NavisSpace.md,
+        NavisSpace.xs,
       ),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        runSpacing: 4,
+        spacing: NavisSpace.xs,
+        runSpacing: NavisSpace.xxs,
         children: <Widget>[
           Icon(
             Icons.bedtime_outlined,
@@ -299,6 +300,8 @@ class _AppearanceChoiceSection extends StatelessWidget {
     required this.selector,
     required this.adornment,
     required this.titleStyle,
+    this.topPadding = NavisSpace.xs,
+    this.note,
   });
 
   final String title;
@@ -307,6 +310,12 @@ class _AppearanceChoiceSection extends StatelessWidget {
   final Widget? adornment;
   final TextStyle? titleStyle;
 
+  /// Space above the title; Corner Style sits below a switch and needs more.
+  final double topPadding;
+
+  /// Optional line under the selector.
+  final String? note;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -314,7 +323,12 @@ class _AppearanceChoiceSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          padding: EdgeInsets.fromLTRB(
+            NavisSpace.md,
+            topPadding,
+            NavisSpace.md,
+            NavisSpace.xxs,
+          ),
           child: Row(
             children: <Widget>[
               Flexible(
@@ -328,14 +342,17 @@ class _AppearanceChoiceSection extends StatelessWidget {
                 ),
               ),
               if (adornment != null) ...<Widget>[
-                const SizedBox(width: 8),
+                const SizedBox(width: NavisSpace.xs),
                 adornment!,
               ],
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NavisSpace.md,
+            vertical: NavisSpace.xxs,
+          ),
           child: AnimatedSize(
             duration: MotionPolicy.of(context).surface,
             alignment: Alignment.topLeft,
@@ -343,9 +360,22 @@ class _AppearanceChoiceSection extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: selector,
+          padding: const EdgeInsets.symmetric(
+            horizontal: NavisSpace.md,
+            vertical: NavisSpace.xs,
+          ),
+          child: SizedBox(width: double.infinity, child: selector),
         ),
+        if (note != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NavisSpace.md,
+              0,
+              NavisSpace.md,
+              NavisSpace.xs,
+            ),
+            child: Text(note!, style: theme.textTheme.bodySmall),
+          ),
       ],
     );
   }
@@ -359,11 +389,18 @@ class NowPlayingBackgroundOption extends StatelessWidget {
     required this.onChanged,
     this.adornment,
     this.titleStyle,
+    this.oled = false,
+    this.flat = false,
     super.key,
   });
 
   final NowPlayingBackground value;
   final ValueChanged<NowPlayingBackground> onChanged;
+
+  /// Whether OLED is the active dark theme. With [flat] it shows a note that
+  /// Now Playing stays black for every background.
+  final bool oled;
+  final bool flat;
 
   /// Shown beside the title, for example a "New" tag.
   final Widget? adornment;
@@ -376,6 +413,9 @@ class NowPlayingBackgroundOption extends StatelessWidget {
       title: l10n.appearanceNowPlayingBackgroundLabel,
       adornment: adornment,
       titleStyle: titleStyle,
+      note: oled && flat
+          ? l10n.appearanceNowPlayingBackgroundOledFlatNote
+          : null,
       description: switch (value) {
         NowPlayingBackground.tinted =>
           l10n.appearanceNowPlayingBackgroundTintedSub,
@@ -387,6 +427,7 @@ class NowPlayingBackgroundOption extends StatelessWidget {
       selector: SegmentedButton<NowPlayingBackground>(
         key: const ValueKey<String>('nowPlayingBackgroundSelector'),
         showSelectedIcon: false,
+        expandedInsets: EdgeInsets.zero,
         segments: <ButtonSegment<NowPlayingBackground>>[
           ButtonSegment<NowPlayingBackground>(
             value: NowPlayingBackground.tinted,
@@ -449,6 +490,7 @@ class DensityOption extends StatelessWidget {
       selector: SegmentedButton<NavisDensity>(
         key: const ValueKey<String>('densitySelector'),
         showSelectedIcon: false,
+        expandedInsets: EdgeInsets.zero,
         segments: <ButtonSegment<NavisDensity>>[
           ButtonSegment<NavisDensity>(
             value: NavisDensity.comfortable,
@@ -518,6 +560,7 @@ class CornerStyleOption extends StatelessWidget {
       title: l10n.appearanceCornerStyleLabel,
       adornment: adornment,
       titleStyle: titleStyle,
+      topPadding: NavisSpace.md,
       description:
           '${switch (value) {
             NavisCornerStyle.rounded => l10n.appearanceCornerStyleRoundedSub,
@@ -527,6 +570,7 @@ class CornerStyleOption extends StatelessWidget {
       selector: SegmentedButton<NavisCornerStyle>(
         key: const ValueKey<String>('cornerStyleSelector'),
         showSelectedIcon: false,
+        expandedInsets: EdgeInsets.zero,
         segments: <ButtonSegment<NavisCornerStyle>>[
           for (final style in NavisCornerStyle.values)
             ButtonSegment<NavisCornerStyle>(

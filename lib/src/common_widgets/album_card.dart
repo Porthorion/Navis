@@ -19,6 +19,7 @@ import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/theme/caption_tint.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// Size presets for [AlbumCard].
@@ -180,7 +181,10 @@ class _AlbumCardState extends ConsumerState<AlbumCard> {
 
 const double _captionLineGap = 2;
 const double _captionFadeHeight = 24;
-const double _tintFadeMidAlpha = 0.85;
+
+/// The fade is fully opaque where the text starts, so cover lettering never
+/// shows behind the title.
+const double _tintFadeMidAlpha = 1;
 
 TextStyle _titleStyle(Color color) =>
     TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600);
@@ -495,8 +499,9 @@ class _CaptionTintTween extends Tween<CaptionTint> {
 }
 
 /// A caption fading from transparent into [CaptionTint.fill]. With
-/// [stagedFade] the fade reaches 85% opacity where the text starts and is
-/// solid behind it; otherwise it is the fallback app-surface gradient.
+/// [stagedFade] the fade is fully opaque where the text starts; otherwise it
+/// is the fallback app-surface gradient. Under Flat there is no fade: the text
+/// sits on a solid [CaptionTint.fill] block.
 class _OverlayFadeLabel extends StatelessWidget {
   const new({
     required this.tint,
@@ -527,6 +532,19 @@ class _OverlayFadeLabel extends StatelessWidget {
       end: Alignment.bottomCenter,
       colors: <Color>[from, to],
     );
+    if (NavisColorStyleData.of(context).flat) {
+      return DecoratedBox(
+        key: const ValueKey<String>('albumCardTintSolid'),
+        decoration: BoxDecoration(color: fill),
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: texts,
+          ),
+        ),
+      );
+    }
     return stagedFade
         ? Column(
             mainAxisSize: MainAxisSize.min,
@@ -643,6 +661,7 @@ class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
                       excludeSemantics: true,
                       child: IconButton.filled(
                         key: const ValueKey<String>('albumCardHoverPlay'),
+                        style: NavisShapeData.circularIconButtonStyle,
                         iconSize: 28,
                         constraints: const BoxConstraints(
                           minWidth: 52,

@@ -28,20 +28,22 @@ void main() {
       return tester.widget<SvgPicture>(find.byType(SvgPicture));
     }
 
-    var picture = await pumpIcon(theme: buildLightTheme(Colors.blue));
+    final light = buildLightTheme(Colors.blue);
+    final dark = buildDarkTheme(Colors.blue);
+    var picture = await pumpIcon(theme: light);
     expect(
       (picture.bytesLoader as SvgAssetLoader).assetName,
       NavisIcon.assetPath,
     );
     expect(
       picture.colorFilter,
-      const ColorFilter.mode(Color(0xFF242424), BlendMode.srcIn),
+      ColorFilter.mode(light.colorScheme.onSurface, BlendMode.srcIn),
     );
 
-    picture = await pumpIcon(theme: buildDarkTheme(Colors.blue));
+    picture = await pumpIcon(theme: dark);
     expect(
       picture.colorFilter,
-      const ColorFilter.mode(Color(0xFFEFEFEF), BlendMode.srcIn),
+      ColorFilter.mode(dark.colorScheme.onSurface, BlendMode.srcIn),
     );
 
     picture = await pumpIcon(

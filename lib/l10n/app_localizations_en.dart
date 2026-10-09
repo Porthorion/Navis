@@ -3717,6 +3717,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The album art, blurred and veiled so text stays easy to read. Flat Surfaces uses one solid colour instead.';
 
   @override
+  String get appearanceNowPlayingBackgroundOledFlatNote =>
+      'With OLED and Flat Surfaces, Now Playing stays black.';
+
+  @override
   String get appearanceNowPlayingBackgroundPlainSub =>
       'The plain background of your theme, with no album colour.';
 
@@ -3775,11 +3779,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceCornerStyleRoundedSub =>
-      'Gently rounded cards and buttons.';
+      'Gently rounded cards and pill buttons.';
 
   @override
   String get appearanceCornerStyleSoftSub =>
-      'Rounder, softer cards and pill buttons.';
+      'Larger, softer corners on cards, buttons and sheets.';
 
   @override
   String get appearanceCornerStyleSquareSub =>

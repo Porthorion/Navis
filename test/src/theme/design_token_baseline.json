@@ -2,12 +2,6 @@
   "lib/src/common_widgets/album_card.dart": {
     "fontSize": 1
   },
-  "lib/src/common_widgets/album_download_badge.dart": {
-    "colorLiteral": 1
-  },
-  "lib/src/common_widgets/navis_icon.dart": {
-    "colorLiteral": 2
-  },
   "lib/src/common_widgets/navis_tooltip.dart": {
     "colorLiteral": 1
   },

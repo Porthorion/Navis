@@ -733,6 +733,8 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
         NowPlayingBackgroundOption(
           value: draft.nowPlayingBackground,
+          oled: _previewOled(context, draft),
+          flat: draft.flatSurfaces,
           adornment: tagFor(SetupHighlight.nowPlayingBackground),
           titleStyle: Theme.of(context).textTheme.titleMedium,
           onChanged: (value) => setState(

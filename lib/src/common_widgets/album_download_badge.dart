@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class AlbumDownloadBadge extends ConsumerWidget {
   const new({required this.albumId, super.key});
@@ -68,7 +69,7 @@ class _CompletedAlbumBadge extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.58),
+        color: theme.colorScheme.scrim.withValues(alpha: 0.58),
         shape: BoxShape.circle,
       ),
       child: Padding(
@@ -91,6 +92,7 @@ class _PartialAlbumBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final digitCount = totalTrackCount < 100
         ? 2
         : totalTrackCount.toString().length;
@@ -100,15 +102,20 @@ class _PartialAlbumBadge extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.62),
+        // Sits over cover art: the scheme's scrim with its fixed (brightness-
+        // independent) tertiary tone keeps the count readable in every style.
+        color: scheme.scrim.withValues(alpha: 0.62),
         borderRadius: NavisShapeData.of(context).controlAll,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.symmetric(
+          horizontal: NavisSpace.xs,
+          vertical: 3,
+        ),
         child: Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFFFFB84D),
+            color: scheme.tertiaryFixedDim,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
           ),

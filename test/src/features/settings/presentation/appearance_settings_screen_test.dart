@@ -393,6 +393,8 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(home);
+      await tester.pump();
       await tester.tap(home);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -408,6 +410,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<SwitchListTile>(control).value, isFalse);
+      await tester.ensureVisible(control);
+      await tester.pump();
       await tester.tap(control);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
