@@ -21,52 +21,29 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
     return query.getSingleOrNull();
   }
 
-  Stream<List<SongsTableData>> watchQueueItems() {
-    final query =
-        select(songsTable).join([
-            innerJoin(
-              playQueueItemsTable,
-              playQueueItemsTable.songId.equalsExp(songsTable.id),
-            ),
-          ])
-          ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
-          ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
+  JoinedSelectStatement<HasResultSet, dynamic> _queueRowsQuery() =>
+      select(songsTable).join([
+          innerJoin(
+            playQueueItemsTable,
+            playQueueItemsTable.songId.equalsExp(songsTable.id),
+          ),
+        ])
+        ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
+        ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
 
-    return query.watch().map(
-      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
-    );
-  }
+  List<SongsTableData> _queueSongs(List<TypedResult> rows) =>
+      rows.map((row) => row.readTable(songsTable)).toList();
 
-  Future<List<SongsTableData>> getQueueItems() {
-    final query =
-        select(songsTable).join([
-            innerJoin(
-              playQueueItemsTable,
-              playQueueItemsTable.songId.equalsExp(songsTable.id),
-            ),
-          ])
-          ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
-          ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
+  Stream<List<SongsTableData>> watchQueueItems() =>
+      _queueRowsQuery().watch().map(_queueSongs);
 
-    return query.get().then(
-      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
-    );
-  }
+  Future<List<SongsTableData>> getQueueItems() =>
+      _queueRowsQuery().get().then(_queueSongs);
 
   /// Saved queue rows in play order, each with its unshuffled position
   /// (null when shuffle was off or the queue predates schema v88).
   Future<List<({SongsTableData song, int? originalOrder})>> getQueueEntries() {
-    final query =
-        select(songsTable).join([
-            innerJoin(
-              playQueueItemsTable,
-              playQueueItemsTable.songId.equalsExp(songsTable.id),
-            ),
-          ])
-          ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
-          ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
-
-    return query.get().then(
+    return _queueRowsQuery().get().then(
       (rows) => rows
           .map(
             (row) => (
