@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Radio stream URLs stay private instead of being shared with system media controls',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Failed stream recovery respects Pause and newer song selections',
         type: ChangelogEntryType.fix,
       ),

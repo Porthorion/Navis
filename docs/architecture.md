@@ -2954,6 +2954,9 @@ off for embedding clients.
 Other processes never receive a credential-bearing URL either. The stream URL
 is not a `MediaItem` extra (audio_service copies every String extra into the
 Android session metadata); the desktop sidecar cache keeps it in the handler.
+Radio URLs likewise remain in handler-owned station state, including after
+now-playing metadata refreshes; radio startup failure messages contain only
+the stream host.
 Cover art reaches the system as a local file: `PlaybackArtCache` caches the
 current cover on Android, Linux and Windows (`artCacheFile` extra), MPRIS
 publishes it as `file://` and SMTC loads it with `StorageFile`. The Windows

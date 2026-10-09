@@ -814,6 +814,48 @@ void main() {
     });
   }
 
+  test(
+    'published radio items keep the stream URL in handler state only',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-radio-url-',
+      );
+      final (handler, _, database) = await createHandler(directory, 0);
+      final projection = RealTimeProjectionAudioHandler(handler);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      const url = 'https://radio.example.invalid/listen?token=fixture-token';
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: url,
+      );
+      for (final update in [false, true]) {
+        if (update) {
+          handler.updateRadioMetadata(title: 'Track', artist: 'Artist');
+        }
+        await Future<void>.delayed(Duration.zero);
+        expect(handler.snapshot.radioStation!.streamUrl, url);
+        for (final item in [
+          handler.mediaItem.value!,
+          ...handler.queue.value,
+          projection.mediaItem.value!,
+          ...projection.queue.value,
+        ]) {
+          expect(item.extras, {'isRadio': true});
+          expect(item.toString(), isNot(contains('fixture-token')));
+        }
+        expect(
+          handler.collectPlaybackDiagnostics().toString(),
+          isNot(contains('fixture-token')),
+        );
+      }
+    },
+  );
+
   group('radio metadata lifecycle', () {
     Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
       Dio? dio,

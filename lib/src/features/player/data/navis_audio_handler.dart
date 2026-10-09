@@ -2026,10 +2026,13 @@ class NavisAudioHandler extends BaseAudioHandler
             if (!timedOut && _isActiveLoadGeneration(generation)) {
               return;
             }
+            final loggedError = operation == 'radio source apply'
+                ? error.runtimeType
+                : error;
             AppLogger.debug(
               'Ignoring late player operation failure for "$operation" '
               '(song=${songId ?? 'n/a'} generation=$generation): '
-              '$error\n$stackTrace',
+              '$loggedError\n$stackTrace',
             );
           },
         ),
@@ -2255,7 +2258,11 @@ class NavisAudioHandler extends BaseAudioHandler
       },
       onError: (Object error, StackTrace stackTrace) {
         if (!identical(_player, wiredPlayer)) return;
-        AppLogger.error('Playback event stream error.', error, stackTrace);
+        AppLogger.error(
+          'Playback event stream error.',
+          _radioStation == null ? error : error.runtimeType,
+          stackTrace,
+        );
         // If a radio stream is active, stop it and notify the UI.
         if (_radioStation != null) {
           // Tear down radio state synchronously so that no further metadata
@@ -9449,7 +9456,7 @@ class NavisAudioHandler extends BaseAudioHandler
           id: 'radio:$stationId',
           title: stationName,
           artist: stationName,
-          extras: <String, Object?>{'isRadio': true, 'streamUrl': streamUrl},
+          extras: <String, Object?>{'isRadio': true},
         );
 
         try {
@@ -9464,8 +9471,8 @@ class NavisAudioHandler extends BaseAudioHandler
         } on Object catch (error, stackTrace) {
           _checkQueueWorkCurrent(token, generation);
           AppLogger.error(
-            'Failed to start radio stream: $streamUrl',
-            error,
+            'Failed to start radio stream on host=${Uri.tryParse(streamUrl)?.host}',
+            error.runtimeType,
             stackTrace,
           );
           _radioMetadataService.stop();
@@ -9638,10 +9645,7 @@ class NavisAudioHandler extends BaseAudioHandler
       title: nextTitle ?? current.stationName,
       artist: nextArtist ?? current.stationName,
       artUri: nextArtUrl != null ? candidateUri : null,
-      extras: <String, Object?>{
-        'isRadio': true,
-        'streamUrl': current.streamUrl,
-      },
+      extras: <String, Object?>{'isRadio': true},
     );
     _setCurrentMediaItem(updatedItem);
     _broadcastPlaybackState();
