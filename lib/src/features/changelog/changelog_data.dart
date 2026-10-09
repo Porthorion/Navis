@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Cover caches no longer store server credentials, old cache metadata is removed on startup, and every sign-out clears cached covers',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Login retries legacy authentication only when the server explicitly requires it, and requires HTTPS outside loopback',
         type: ChangelogEntryType.fix,
       ),

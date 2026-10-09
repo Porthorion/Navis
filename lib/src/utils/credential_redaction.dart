@@ -18,6 +18,18 @@ bool uriCarriesCredentials(Uri uri) {
   );
 }
 
+/// Removes credentials from a URI before it enters a persistent cache.
+Uri credentialFreeUri(Uri uri) => uri.replace(
+  userInfo: '',
+  queryParameters: {
+    for (final entry in uri.queryParametersAll.entries)
+      if (!subsonicCredentialQueryParameters.any(
+        (key) => key.toLowerCase() == entry.key.toLowerCase(),
+      ))
+        entry.key: entry.value,
+  },
+);
+
 /// A credential parameter anywhere in free text, after a literal, HTML-escaped
 /// (`&amp;`), percent-encoded or double percent-encoded `?` or `&`, up to the
 /// next parameter, fragment, whitespace, or quote.

@@ -221,6 +221,9 @@ final artworkCallRecorderProvider = Provider<ArtworkCallRecorder>((ref) {
 @visibleForTesting
 CoverArtHttpFileService createPlaybackArtworkFileService(Ref ref) {
   final service = CoverArtHttpFileService(
+    authenticateUri: (uri) => ref.mounted
+        ? ref.read(subsonicApiProvider)?.authenticateCoverArtUri(uri) ?? uri
+        : uri,
     connectionTimeout: const Duration(seconds: 10),
     responseTimeout: const Duration(seconds: 15),
     bodyReadTimeout: const Duration(seconds: 30),
@@ -254,6 +257,9 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
   final service = CoverArtHttpFileService(
+    authenticateUri: (uri) => ref.mounted
+        ? ref.read(subsonicApiProvider)?.authenticateCoverArtUri(uri) ?? uri
+        : uri,
     recorder: ref.read(integrationCallRecorderProvider),
     loadCoordinator: coordinator,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),

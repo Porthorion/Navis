@@ -37,14 +37,19 @@ void main() {
     late ServerConfigRepository repository;
     late SignOutService service;
     late Directory tmpDir;
+    var coverClears = 0;
 
     setUp(() {
+      coverClears = 0;
       database = NavisDatabase(NativeDatabase.memory());
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
       service = SessionLifecycleService(
         serverConfigRepository: repository,
         database: database,
+        clearCoverArt: () async {
+          coverClears++;
+        },
       );
       tmpDir = Directory.systemTemp.createTempSync('navis_sign_out_test_');
     });
@@ -62,6 +67,7 @@ void main() {
       await _seedAuthenticatedData(database, repository, cacheFile.path);
 
       await service.signOut(wipeLocalData: false);
+      expect(coverClears, 1);
 
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(await database.serverDao.getRetainedServer(), isNotNull);
@@ -98,6 +104,7 @@ void main() {
       await _seedAuthenticatedData(database, repository, cacheFile.path);
 
       await service.signOut(wipeLocalData: true);
+      expect(coverClears, 1);
 
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(credentials.password, isNull);

@@ -4,6 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 void main() {
+  test('credential-free cache URIs remove all credential keys and keep repeated metadata', () {
+    final uri = credentialFreeUri(
+      Uri.parse(
+        'https://user:pass@example.com/rest?id=1&id=2&U=user&T=token&S=salt&P=enc:password&APIKEY=key&size=600',
+      ),
+    );
+    expect(uriCarriesCredentials(uri), isFalse);
+    expect(uri.queryParametersAll['id'], ['1', '2']);
+    expect(uri.queryParameters['size'], '600');
+  });
+
   test('URL user info is a credential even without query authentication', () {
     expect(
       uriCarriesCredentials(

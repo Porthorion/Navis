@@ -2,16 +2,21 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file/file.dart' as files;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
-const String coverArtCacheKey = 'navis_cover_art_cache';
+const String coverArtCacheKey = 'navis_cover_art_cache_v2';
 
 /// Standard cover art size used for all album/artist cover displays outside of
 /// the full-screen viewer. Using a single size ensures that navigating from any
@@ -80,7 +85,7 @@ Map<String, String> coverArtFeatureHeaders(String featureKey) =>
 /// a tagged download would inherit its refusal. Always pass it together with
 /// [coverArtFeatureHeaders].
 String coverArtFeatureCacheKey(String featureKey, String url) =>
-    'feature:$featureKey:$url';
+    'feature:$featureKey:${credentialFreeUri(Uri.parse(url))}';
 
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO, TIFF, AVIF and HEIC/HEIF). Content types are untrusted:
@@ -490,6 +495,8 @@ class CoverArtHttpFileService implements FileService {
     this._allowUri,
     this._allowFeatureUri,
     this._isServerUri,
+    this._authenticateUri,
+    this._createHttpClient,
     this.recorder,
     this._connectionTimeout = const Duration(seconds: 15),
     this._responseTimeout = const Duration(seconds: 20),
@@ -499,6 +506,9 @@ class CoverArtHttpFileService implements FileService {
   late HttpClient _client = _createClient();
   final CoverArtLoadCoordinator _loadCoordinator;
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  final Uri Function(Uri uri)? _authenticateUri;
+  final HttpClient Function()? _createHttpClient;
 
   /// Invoked when the server answers that a cover-art reference does not
   /// exist so the caller can schedule one coalesced entity-metadata refresh
@@ -560,6 +570,7 @@ class CoverArtHttpFileService implements FileService {
         ? headers
         : (<String, String>{...headers}..remove(coverArtFeatureHeader));
     bool allowed() =>
+        !_closed &&
         (_allowUri?.call(uri) ?? true) &&
         (featureKey == null ||
             (_allowFeatureUri?.call(uri, featureKey) ?? true));
@@ -599,6 +610,8 @@ class CoverArtHttpFileService implements FileService {
         started = Stopwatch()..start();
         recorded = false;
         statusCode = null;
+        uri = _authenticateUri?.call(uri) ?? uri;
+        checkAllowed();
         final request = await _client.getUrl(uri).timeout(_connectionTimeout);
         request.followRedirects = false;
         // Caller headers never travel to a different origin.
@@ -619,7 +632,11 @@ class CoverArtHttpFileService implements FileService {
           throw const HttpException('Cover art redirect refused');
         }
         finish(IntegrationCallOutcome.ok);
-        uri = uri.resolve(location);
+        final redirectUri = uri.resolve(location);
+        if (uri.scheme == 'https' && redirectUri.scheme == 'http') {
+          throw const HttpException('Cover art HTTPS downgrade refused');
+        }
+        uri = redirectUri;
         diagnosticUri = _diagnosticUri(uri);
       }
       final missingCoverHook = (_isServerUri?.call(uri) ?? true)
@@ -740,7 +757,7 @@ class CoverArtHttpFileService implements FileService {
   }
 
   HttpClient _createClient() {
-    return HttpClient()
+    return (_createHttpClient?.call() ?? HttpClient())
       ..maxConnectionsPerHost = _coverArtMaxConnectionsPerHost
       ..connectionTimeout = _connectionTimeout;
   }
@@ -1002,21 +1019,133 @@ CacheManager createCoverArtCacheManager({
   CoverArtHttpFileService? fileService,
   CoverArtLoadCoordinator? loadCoordinator,
   NetworkUsageReporter? reportNetworkUsage,
+  Config? config,
 }) {
   final cap = maxNrOfCacheObjects <= 0
       ? _coverArtCacheUnlimited
       : maxNrOfCacheObjects;
-  return CacheManager(
-    Config(
-      cacheKey,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: cap,
-      fileService:
-          fileService ??
-          CoverArtHttpFileService(
-            loadCoordinator: loadCoordinator,
-            reportNetworkUsage: reportNetworkUsage,
-          ),
-    ),
+  return _CredentialFreeCoverArtCacheManager(
+    config ??
+        Config(
+          cacheKey,
+          stalePeriod: const Duration(days: 30),
+          maxNrOfCacheObjects: cap,
+          fileService:
+              fileService ??
+              CoverArtHttpFileService(
+                loadCoordinator: loadCoordinator,
+                reportNetworkUsage: reportNetworkUsage,
+              ),
+        ),
   );
+}
+
+// CacheManager persists its input URL, not the URL the FileService requests.
+// Keep every insertion boundary credential-free, including default URL keys.
+class _CredentialFreeCoverArtCacheManager extends CacheManager {
+  new(super.config);
+
+  String _url(String url) => credentialFreeUri(Uri.parse(url)).toString();
+  String _key(String url, String? key) {
+    if (key == null) return _url(url);
+    final uri = Uri.tryParse(key);
+    return uri != null && isHostedHttpUri(uri)
+        ? credentialFreeUri(uri).toString()
+        : redactCredentialQueryParameters(key);
+  }
+
+  @override
+  Future<files.File> getSingleFile(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+  }) => super.getSingleFile(_url(url), key: _key(url, key), headers: headers);
+
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) => super.getFileStream(
+    _url(url),
+    key: _key(url, key),
+    headers: headers,
+    withProgress: withProgress,
+  );
+
+  @override
+  Future<FileInfo> downloadFile(
+    String url, {
+    String? key,
+    Map<String, String>? authHeaders,
+    bool force = false,
+  }) => super.downloadFile(
+    _url(url),
+    key: _key(url, key),
+    authHeaders: authHeaders,
+    force: force,
+  );
+
+  @override
+  Future<files.File> putFile(
+    String url,
+    Uint8List fileBytes, {
+    String? key,
+    String? eTag,
+    Duration maxAge = const Duration(days: 30),
+    String fileExtension = 'file',
+  }) => super.putFile(
+    _url(url),
+    fileBytes,
+    key: _key(url, key),
+    eTag: eTag,
+    maxAge: maxAge,
+    fileExtension: fileExtension,
+  );
+
+  @override
+  Future<files.File> putFileStream(
+    String url,
+    Stream<List<int>> source, {
+    String? key,
+    String? eTag,
+    Duration maxAge = const Duration(days: 30),
+    String fileExtension = 'file',
+  }) => super.putFileStream(
+    _url(url),
+    source,
+    key: _key(url, key),
+    eTag: eTag,
+    maxAge: maxAge,
+    fileExtension: fileExtension,
+  );
+}
+
+/// Deletes the previous cache repositories once, before a manager can open them.
+/// Artwork bytes are disposable; durable download artwork is a separate store.
+Future<void> purgeLegacyCoverArtCredentials({
+  Directory? supportDirectory,
+}) async {
+  final support = supportDirectory ?? await getApplicationSupportDirectory();
+  final marker = File(
+    p.join(support.path, '.navis-cover-art-credentials-purged-v2'),
+  );
+  // ignore: avoid_slow_async_io, reason: Startup must not block on filesystem metadata.
+  if (await marker.exists()) return;
+  await support.create(recursive: true);
+  // CacheObjectProvider moves pre-v2 mobile/macOS databases to support on lookup.
+  if (supportDirectory == null &&
+      (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+    await CacheObjectProvider(databaseName: 'navis_cover_art_cache').exists();
+  }
+  final legacyName = RegExp(
+    r'^navis_cover_art_cache(?:_[a-f0-9]{16})?\.(?:json(?:\.tmp)?|db(?:-wal|-shm|-journal)?)$',
+  );
+  await for (final entry in support.list(followLinks: false)) {
+    if (entry is File && legacyName.hasMatch(p.basename(entry.path))) {
+      await entry.delete();
+    }
+  }
+  await marker.writeAsString('2', flush: true);
 }
