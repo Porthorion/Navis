@@ -32,6 +32,11 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
+  /// [now] lets tests step the refill backoff without waiting.
+  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
   /// The session whose refill is running. It prevents overlapping refills of
   /// one session even before the Riverpod state update is observed, while a
   /// new activation (a new session) starts its own refill at once.
@@ -158,7 +163,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
     if (remaining <= _kRefillThreshold) {
       final nextAllowed = _nextRefillAllowedAt;
-      if (nextAllowed != null && recommendationNow().isBefore(nextAllowed)) {
+      if (nextAllowed != null && _now().isBefore(nextAllowed)) {
         return;
       }
       final seedSongId = next.currentSongId ?? state.seedSongId;
@@ -349,7 +354,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     final delay = Duration(
       seconds: 3 * (1 << (_transientFailures - 1).clamp(0, 4)),
     );
-    _nextRefillAllowedAt = recommendationNow().add(delay);
+    _nextRefillAllowedAt = _now().add(delay);
     state = exhausted
         ? state.copyWith(refilling: false, error: InstantMixError.networkError)
         : state.copyWith(refilling: false, clearError: true);
@@ -416,7 +421,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       final queuedCount = result.count;
       if (queuedCount > 0) {
         _mixSegmentEndIndex = queueLengthBeforeAppend + queuedCount;
-        _nextRefillAllowedAt = recommendationNow().add(_kMinimumRefillInterval);
+        _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
       }
       return queuedCount;
     } on Object catch (error, stackTrace) {

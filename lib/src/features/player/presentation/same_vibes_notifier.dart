@@ -50,6 +50,11 @@ const _kMinimumMappingScore = 0.62;
 
 /// Auto-refill notifier for Last.fm-backed Same Vibes mode.
 class SameVibesNotifier extends Notifier<SameVibesState> {
+  /// [now] lets tests step the refill backoff without waiting.
+  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
   final math.Random _random = math.Random();
   Timer? _retryTimer;
   DateTime? _nextRefillAllowedAt;
@@ -205,7 +210,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   Future<void> _refill({bool isInitial = false}) async {
     if (state.refilling) return;
     if (!isInitial && _retryExhausted) return;
-    final now = recommendationNow();
+    final now = _now();
     final nextAllowed = _nextRefillAllowedAt;
     if (!isInitial && nextAllowed != null && now.isBefore(nextAllowed)) {
       AppLogger.debug(
@@ -579,7 +584,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         if (isInitial) {
           _retryTimer?.cancel();
           _retryTimer = null;
-          _nextRefillAllowedAt = recommendationNow().add(_kRetryBackoffBase);
+          _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
           state = const SameVibesState(error: SameVibesError.networkError);
           _reportFailed(session, SameVibesError.networkError);
           return;
@@ -588,7 +593,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       } else {
         AppLogger.debug('SameVibes diagnostics: queuedTracks=$totalQueued');
         _consecutiveTransientFailures = 0;
-        _nextRefillAllowedAt = recommendationNow().add(_kMinimumRefillInterval);
+        _nextRefillAllowedAt = _now().add(_kMinimumRefillInterval);
       }
 
       state = state.copyWith(
@@ -615,7 +620,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
-        _nextRefillAllowedAt = recommendationNow().add(_kRetryBackoffBase);
+        _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
         _reportFailed(session, SameVibesError.networkError);
         return;
@@ -634,7 +639,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (isInitial) {
         _retryTimer?.cancel();
         _retryTimer = null;
-        _nextRefillAllowedAt = recommendationNow().add(_kRetryBackoffBase);
+        _nextRefillAllowedAt = _now().add(_kRetryBackoffBase);
         state = const SameVibesState(error: SameVibesError.networkError);
         _reportFailed(session, SameVibesError.networkError);
         return;
@@ -917,7 +922,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     final delay = _computeRetryDelay();
-    final nextAt = recommendationNow().add(delay);
+    final nextAt = _now().add(delay);
     _nextRefillAllowedAt = nextAt;
     _retryTimer?.cancel();
     _retryTimer = Timer(delay, () {

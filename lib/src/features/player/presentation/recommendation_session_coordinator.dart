@@ -4,10 +4,6 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-/// The clock the Same Vibes and Server Mix refill backoff reads. Tests replace
-/// it to step past a backoff without waiting; production never changes it.
-DateTime Function() recommendationNow = DateTime.now;
-
 enum RecommendationMode { serverMix, sameVibes, personalRadio }
 
 class RecommendationSession {

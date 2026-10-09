@@ -2414,7 +2414,6 @@ void main() {
     setUp(() {
       similarCalls = 0;
       fakeNow = DateTime(2026, 10, 9, 12);
-      recommendationNow = () => fakeNow;
       api = _MockSubsonicApiClient();
       lastFm = _MockLastFmApiClient();
       when(
@@ -2451,8 +2450,6 @@ void main() {
       });
     });
 
-    tearDown(() => recommendationNow = DateTime.now);
-
     test(
       'five failed refills stop the mix until it is started again',
       () async {
@@ -2464,6 +2461,9 @@ void main() {
           overrides: [
             playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
             queueProvider.overrideWith(_FakeQueueController.new),
+            sameVibesProvider.overrideWith(
+              () => SameVibesNotifier(now: () => fakeNow),
+            ),
             subsonicApiProvider.overrideWithValue(api),
             lastFmApiClientProvider.overrideWithValue(lastFm),
             integrationPolicyProvider.overrideWithValue(

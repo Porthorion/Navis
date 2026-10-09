@@ -939,9 +939,7 @@ void main() {
     var fakeNow = DateTime(2026, 10, 9, 12);
     setUp(() {
       fakeNow = DateTime(2026, 10, 9, 12);
-      recommendationNow = () => fakeNow;
     });
-    tearDown(() => recommendationNow = DateTime.now);
 
     test(
       'five failed refills stop the mix until it is started again',
@@ -967,6 +965,9 @@ void main() {
             playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
             queueProvider.overrideWith(_DryingQueueController.new),
             audioHandlerProvider.overrideWithValue(null),
+            instantMixProvider.overrideWith(
+              () => InstantMixNotifier(now: () => fakeNow),
+            ),
             subsonicApiProvider.overrideWithValue(api),
             appSettingsProvider.overrideWithValue(
               const AsyncData(AppSettingsModel.defaults()),
