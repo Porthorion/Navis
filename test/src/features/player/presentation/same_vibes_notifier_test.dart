@@ -467,6 +467,16 @@ void main() {
             title: 'SongA',
             match: 1,
           ),
+          LastFmTrackRecommendation(
+            artist: 'ArtistB',
+            title: 'SongB',
+            match: 0.9,
+          ),
+          LastFmTrackRecommendation(
+            artist: 'ArtistC',
+            title: 'SongC',
+            match: 0.8,
+          ),
         ],
       ),
     );
@@ -482,7 +492,11 @@ void main() {
       ),
     ).thenAnswer(
       (_) async => const SearchResult3(
-        songs: <Song>[Song(id: 'mapped-1', title: 'SongA', artist: 'ArtistA')],
+        songs: <Song>[
+          Song(id: 'mapped-1', title: 'SongA', artist: 'ArtistA'),
+          Song(id: 'mapped-2', title: 'SongB', artist: 'ArtistB'),
+          Song(id: 'mapped-3', title: 'SongC', artist: 'ArtistC'),
+        ],
       ),
     );
     when(
@@ -553,10 +567,17 @@ void main() {
         container.read(queueProvider.notifier) as _FakeQueueController;
     final state = container.read(sameVibesProvider);
     expect(queued.retainedSongIds, <String>['seed']);
+    // Three songs were offered but only one was inserted: that still counts
+    // as success, and the reported count is the inserted one.
     expect(queued.appendedSongBatches, hasLength(1));
+    expect(queued.appendedSongBatches.single.length, greaterThan(1));
     expect(state.active, isTrue);
     expect(state.error, isNull);
     expect(state.pendingSnackbar, '1');
+    final session = container.read(recommendationSessionProvider);
+    expect(session.stage, 'active');
+    expect(session.insertedCount, 1);
+    expect(session.candidateCount, queued.appendedSongBatches.single.length);
   });
 
   test(
