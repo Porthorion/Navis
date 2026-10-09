@@ -279,7 +279,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   int _automaticScheduleEpoch = 0;
-  final Set<Future<void>> _automaticTimerArms = {};
+  final Set<Future<void>> _syncStateTasks = {};
   StreamSubscription<int>? _pendingWorkCountSub;
   StreamSubscription<int>? _pendingHydrationCountSub;
 
@@ -313,8 +313,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
     if (serverConfig != null) {
       _sessionFingerprint = _toSessionFingerprint(serverConfig);
-      unawaited(_loadPersistedSyncState(serverConfig));
-      unawaited(_reconcileAndroidBackgroundSchedule(config: serverConfig));
+      _trackSyncStateTask(_loadPersistedSyncState(serverConfig));
+      _trackSyncStateTask(
+        _reconcileAndroidBackgroundSchedule(config: serverConfig),
+      );
     }
     _lastReachabilityStatus = ref
         .read(serverReachabilityControllerProvider)
@@ -331,7 +333,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.listen<AsyncValue<bool>>(initialSyncRequiredProvider, (previous, next) {
       if (previous?.value == true && next.asData?.value == false) {
         final epoch = _startupSyncEpoch;
-        unawaited(() async {
+        _trackSyncStateTask(() async {
           await _resetAutomaticCheckSchedule(
             ref.read(syncIntervalMinutesProvider),
           );
@@ -357,7 +359,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (ref.read(androidBackgroundSyncAvailableProvider)) {
       ref.listen<bool>(backgroundSyncUnmeteredOnlyProvider, (previous, next) {
         if (previous != null && previous != next) {
-          unawaited(_reconcileAndroidBackgroundSchedule(enqueueCatchup: true));
+          _trackSyncStateTask(
+            _reconcileAndroidBackgroundSchedule(enqueueCatchup: true),
+          );
         }
       });
     }
@@ -546,8 +550,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (catalogSync != null) {
       await catalogSync;
     }
-    await Future.wait(_automaticTimerArms.toList());
+    while (_syncStateTasks.isNotEmpty) {
+      await Future.wait(_syncStateTasks.toList());
+    }
+    // The session service cancels native work before wiping the profile.
+    // Its later config-null notification must not launch another status write.
+    _androidScheduledConfig = null;
     _cancelPeriodicSync();
+    _cancelBacklogWatchers();
     if (ref.mounted) {
       state = state.copyWith(
         status: LibrarySyncStatus.cancelled,
@@ -754,9 +764,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverConfig = next.asData?.value;
     if (serverConfig == null) {
+      _cancelPeriodicSync();
+      _cancelBacklogWatchers();
       final scheduled = _androidScheduledConfig;
       if (scheduled != null) {
-        unawaited(
+        _trackSyncStateTask(
           ref
               .read(androidBackgroundSyncReconcilerProvider)
               .cancelFor(scheduled),
@@ -787,9 +799,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         lastSyncedAt: serverConfig.lastSynced,
         freshness: _readPersistedFreshness(serverConfig.capabilitiesJson),
       );
-      unawaited(_loadPersistedSyncState(serverConfig));
+      _trackSyncStateTask(_loadPersistedSyncState(serverConfig));
     }
-    unawaited(_reconcileAndroidBackgroundSchedule(config: serverConfig));
+    _trackSyncStateTask(
+      _reconcileAndroidBackgroundSchedule(config: serverConfig),
+    );
     _scheduleStartupSync();
   }
 
@@ -797,7 +811,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ServerConfigModel? config,
     bool enqueueCatchup = false,
   }) async {
-    if (!ref.read(androidBackgroundSyncAvailableProvider)) {
+    if (_startupSyncSuppressed ||
+        !ref.read(androidBackgroundSyncAvailableProvider)) {
       return;
     }
     final active = config ?? ref.read(serverConfigStateProvider).asData?.value;
@@ -827,7 +842,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         enabled: _enableAndroidBackgroundSync,
       );
     }
-    if (!ref.mounted || _sessionFingerprint != _toSessionFingerprint(active)) {
+    if (!ref.mounted ||
+        _startupSyncSuppressed ||
+        _sessionFingerprint != _toSessionFingerprint(active)) {
       return;
     }
     await ref
@@ -908,6 +925,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     final pending = await database.librarySyncDao.countPendingWork(serverId);
     if (!ref.mounted ||
+        _startupSyncSuppressed ||
         _sessionFingerprint != _toSessionFingerprint(config) ||
         state.isRunning) {
       return;
@@ -1066,7 +1084,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverId == null) {
       return await _runSync(force: false, tolerateUnavailableEngine: true);
     }
-    if (await _setupPending() || !ref.mounted || _startupSyncSuppressed) {
+    if (!ref.mounted || _startupSyncSuppressed || await _setupPending()) {
       return state;
     }
     final interval = ref.read(syncIntervalDurationProvider);
@@ -1560,19 +1578,25 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   // ---------------------------------------------------------------------------
 
   void _onSyncIntervalChanged(int minutes) {
-    unawaited(_resetAutomaticCheckSchedule(minutes));
-    unawaited(_reconcileAndroidBackgroundSchedule(enqueueCatchup: true));
+    _trackSyncStateTask(_resetAutomaticCheckSchedule(minutes));
+    _trackSyncStateTask(
+      _reconcileAndroidBackgroundSchedule(enqueueCatchup: true),
+    );
   }
 
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
     if (_startupSyncSuppressed) return;
     final epoch = _automaticScheduleEpoch;
+    _trackSyncStateTask(_armAutomaticCheckTimer(minutes, epoch));
+  }
+
+  void _trackSyncStateTask(Future<void> action) {
     late final Future<void> task;
-    task = _armAutomaticCheckTimer(minutes, epoch).whenComplete(() {
-      _automaticTimerArms.remove(task);
+    task = action.whenComplete(() {
+      _syncStateTasks.remove(task);
     });
-    _automaticTimerArms.add(task);
+    _syncStateTasks.add(task);
     unawaited(task);
   }
 
@@ -1621,7 +1645,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _schedulePeriodicSync(minutes);
       return;
     }
-    if (await _setupPending() || !ref.mounted || _startupSyncSuppressed) {
+    if (!ref.mounted || _startupSyncSuppressed || await _setupPending()) {
       return;
     }
     final next = interval == null ? null : DateTime.now().toUtc().add(interval);

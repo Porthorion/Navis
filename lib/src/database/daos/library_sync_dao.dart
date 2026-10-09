@@ -529,11 +529,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required bool enabled,
     DateTime? now,
   }) async {
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    await writeState(
       LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
         androidBackgroundSyncEnabled: Value(enabled),
         androidScheduleReconciledAt: Value((now ?? DateTime.now()).toUtc()),
       ),
@@ -558,11 +556,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String? workerResult,
     String? workerStopReason,
   }) async {
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    await writeState(
       LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
         androidScheduleReconciledAt: Value.absentIfNull(
           scheduleReconciledAt?.toUtc(),
         ),
@@ -833,32 +829,52 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return result;
   }
 
-  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) async {
-    await into(librarySyncStateTable).insert(
-      LibrarySyncStateTableCompanion.insert(serverId: Value(serverId)),
-      mode: InsertMode.insertOrIgnore,
-    );
-    return await (select(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).getSingle();
+  /// Reads state for an existing profile without racing its deletion between
+  /// row creation and selection.
+  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) {
+    return transaction(() async {
+      final servers = attachedDatabase.serverConfigTable;
+      await into(librarySyncStateTable).insertFromSelect(
+        selectOnly(servers)
+          ..addColumns([servers.id])
+          ..where(servers.id.equals(serverId)),
+        columns: {librarySyncStateTable.serverId: servers.id},
+        mode: InsertMode.insertOrIgnore,
+      );
+      return await (select(
+        librarySyncStateTable,
+      )..where((table) => table.serverId.equals(serverId))).getSingle();
+    });
   }
 
+  /// Ignores state writes arriving after their server profile was deleted.
   Future<void> writeState(LibrarySyncStateTableCompanion state) {
-    return into(librarySyncStateTable).insertOnConflictUpdate(state);
+    final values = state.toColumns(true);
+    final servers = attachedDatabase.serverConfigTable;
+    final source = selectOnly(servers)
+      ..addColumns(values.values)
+      ..where(servers.id.equals(state.serverId.value));
+    // The parent check and upsert share one SQL statement, including across
+    // foreground and headless connections racing a profile deletion.
+    return into(librarySyncStateTable).insertFromSelect(
+      source,
+      columns: {
+        for (final column in librarySyncStateTable.$columns)
+          if (values[column.$name] != null) column: values[column.$name]!,
+      },
+      onConflict: DoUpdate((_) => state),
+    );
   }
 
   Future<void> setNextAutomaticCheckAt({
     required int serverId,
     required DateTime? nextAutomaticCheckAt,
   }) async {
-    // A newly authenticated server may not have run a sync yet. Persist the
-    // per-server row first so configuring its schedule is never a silent
-    // zero-row update.
-    await getOrCreateState(serverId);
-    await (update(
-      librarySyncStateTable,
-    )..where((table) => table.serverId.equals(serverId))).write(
+    // A newly authenticated server may not have run a sync yet. Upsert its
+    // deadline without recreating a profile deleted during teardown.
+    await writeState(
       LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
         nextAutomaticCheckAt: Value(nextAutomaticCheckAt),
       ),
     );

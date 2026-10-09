@@ -4196,11 +4196,18 @@ age-based verification still covers song-only metadata changes.
 ### Sync cancellation drain
 
 `LibrarySyncController.cancelAndWait` drains startup work, the engine, automatic
-check completion (including its durable next-deadline write), and timer-arm tasks
-before returning. Cancellation suppresses automatic rearming until the session's
-existing restart path enables it again. Diagnostics shutdown and sign-out use
-this barrier before database disposal; synchronous provider disposal alone
-cannot await these owners.
+check completion (including its durable next-deadline write), timer-arm and
+schedule-reset tasks, persisted-state loading, and Android schedule reconciliation
+before returning. Cancellation suppresses automatic rearming and Android
+reconciliation until the session's existing restart path enables them again.
+Sign-out then cancels native Android work before clearing server data and
+credentials. The drained controller forgets its scheduled profile, so the later
+config-null notification does not launch a second cancellation status write.
+Sync-state upserts, including automatic deadlines and Android worker/scheduler
+observations, select an existing server parent in the same SQL statement; a late
+write for a deleted server is a no-op. Diagnostics shutdown and sign-out use this
+barrier before database disposal or profile deletion; synchronous provider
+disposal alone cannot await these owners.
 
 ### Android SAF availability during service-first playback
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
@@ -25,6 +26,57 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test('in-flight sync state write queued behind a wipe is a no-op', () async {
+    await database.librarySyncDao.getOrCreateState(1);
+    final wiping = Completer<void>();
+    final release = Completer<void>();
+    final wipe = database.transaction(() async {
+      await database.serverDao.clearServer();
+      wiping.complete();
+      await release.future;
+    });
+    await wiping.future;
+    final write = database.librarySyncDao.setNextAutomaticCheckAt(
+      serverId: 1,
+      nextAutomaticCheckAt: DateTime.utc(2026, 10, 10),
+    );
+    final completed = expectLater(write, completes);
+    release.complete();
+    await wipe;
+    await completed;
+    expect(
+      await database.select(database.librarySyncStateTable).get(),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
+
+  for (final write in <String, Future<void> Function()>{
+    'state upsert': () => database.librarySyncDao.writeState(
+      const LibrarySyncStateTableCompanion(
+        serverId: Value(1),
+        currentGeneration: Value(2),
+      ),
+    ),
+    'Android capability': () => database.librarySyncDao
+        .setAndroidBackgroundSyncEnabled(serverId: 1, enabled: true),
+    'Android worker outcome': () => database.librarySyncDao
+        .writeAndroidBackgroundStatus(serverId: 1, workerResult: 'succeeded'),
+    'automatic deadline': () => database.librarySyncDao.setNextAutomaticCheckAt(
+      serverId: 1,
+      nextAutomaticCheckAt: DateTime.utc(2026, 10, 10),
+    ),
+  }.entries) {
+    test('late ${write.key} is a no-op for a deleted server', () async {
+      await database.librarySyncDao.getOrCreateState(1);
+      await database.serverDao.clearServer();
+      await write.value();
+      expect(
+        await database.select(database.librarySyncStateTable).get(),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+  }
 
   test('cancelled work reopens only for changed evidence', () async {
     Future<void> observe(String evidence) =>

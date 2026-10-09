@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -11,6 +12,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -701,6 +703,11 @@ void main() {
           interval: _hourlyInterval,
         );
         addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
 
         final result = await container
             .read(librarySyncControllerProvider.notifier)
@@ -1033,6 +1040,85 @@ void main() {
         isTrue,
       );
     });
+
+    test('cancelAndWait drains Android reconciliation before a wipe', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      const channel = MethodChannel('com.navis.app/background_sync');
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final methods = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            methods.add(call.method);
+            if (call.method == 'configurePeriodic') {
+              entered.complete();
+              await release.future;
+            }
+            return <String, Object>{
+              'available': true,
+              'state': call.method == 'cancel' ? 'cancelled' : 'scheduled',
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final reconciler = AndroidBackgroundSyncReconciler(
+        database: database,
+        scheduler: AndroidBackgroundSyncScheduler(
+          channel: channel,
+          supported: true,
+        ),
+      );
+      final engine = StubLibrarySyncEngine(
+        (request, {onProgress}) async => _succeeded,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          librarySyncEngineProvider.overrideWithValue(engine),
+          serverReachabilityControllerProvider.overrideWith(
+            () => StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.offline,
+              ),
+            ),
+          ),
+          ..._hourlyInterval,
+          serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+          androidBackgroundSyncAvailableProvider.overrideWithValue(true),
+          androidBackgroundSyncReconcilerProvider.overrideWithValue(reconciler),
+          backgroundSyncUnmeteredOnlyProvider.overrideWithValue(true),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(_serverConfigSource.notifier).set(AsyncData(config));
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      await entered.future;
+      var drained = false;
+      final cancellation = controller.cancelAndWait().then(
+        (_) => drained = true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      final drainedBeforeRelease = drained;
+      release.complete();
+      await cancellation;
+      expect(drainedBeforeRelease, isFalse);
+      await reconciler.cancelFor(config);
+      await database.serverDao.clearServer();
+      container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+      await container.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(methods.where((method) => method == 'cancel'), hasLength(1));
+      expect(
+        await database.select(database.librarySyncStateTable).get(),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
 
     test('cancelAndWait drains an active automatic check and its durable completion', () async {
       final database = createTestDatabase();
