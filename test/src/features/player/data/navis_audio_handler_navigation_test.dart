@@ -519,6 +519,7 @@ void main() {
     bool Function()? readRadioMetadataAllowed,
     Dio Function()? createRadioMetadataDio,
     CoverArtHttpFileService? artworkFileService,
+    Future<bool> Function({required bool autoPlay})? startPersonalRadio,
   }) async {
     final database = createTestDatabase();
     final apiClient = sidecarStreams
@@ -564,7 +565,8 @@ void main() {
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
     final player = initialPlayer ?? _ControllableAudioPlayer();
     final handler = NavisAudioHandler(
-      startPersonalRadio: (_) async => false,
+      startPersonalRadio: (autoPlay) async =>
+          await startPersonalRadio?.call(autoPlay: autoPlay) ?? false,
       startPreferredMix: (_) async {},
       togglePreferredMix: (_) async {},
       artworkFileService: artworkFileService,
@@ -629,6 +631,134 @@ void main() {
     if (waitForReady) await handler.waitUntilReady();
     return (handler, player, database);
   }
+
+  group('Android Auto resume precedence', () {
+    for (final (name, active, saved, recent, liked, unavailable, expected) in [
+      (
+        'active before saved and fallbacks',
+        true,
+        true,
+        true,
+        true,
+        null,
+        'song-0',
+      ),
+      (
+        'saved before recent and liked',
+        false,
+        true,
+        true,
+        true,
+        null,
+        'song-1',
+      ),
+      ('recent before liked', false, false, true, true, null, 'song-2'),
+      ('liked before radio', false, false, false, true, null, 'song-3'),
+      ('radio fallback', false, false, false, false, null, 'song-4'),
+      ('no available source', false, false, false, false, null, null),
+      (
+        'failed saved restore tries recent',
+        false,
+        true,
+        true,
+        true,
+        'song-1',
+        'song-2',
+      ),
+      (
+        'unavailable recent stops fallback',
+        false,
+        false,
+        true,
+        true,
+        'song-2',
+        null,
+      ),
+      (
+        'unavailable liked stops fallback',
+        false,
+        false,
+        false,
+        true,
+        'song-3',
+        null,
+      ),
+    ]) {
+      test(name, () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-resume-',
+        );
+        final radioRequests = <bool>[];
+        late NavisAudioHandler radioHandler;
+        final (handler, player, database) = await createHandler(
+          directory,
+          5,
+          readCanStream: () => false,
+          startPersonalRadio: ({required autoPlay}) async {
+            radioRequests.add(autoPlay);
+            if (expected != 'song-4') return false;
+            await radioHandler.replaceQueue(
+              ['song-4'],
+              autoPlay: autoPlay,
+              expandMatchFlows: false,
+            );
+            expect(radioHandler.snapshot.playing, isFalse);
+            return true;
+          },
+        );
+        radioHandler = handler;
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        if (active) {
+          await handler.replaceQueue(['song-0'], autoPlay: false);
+          await handler.debugFlushQueuePersistence();
+        }
+        if (saved) {
+          await database.playQueueDao.saveQueue(
+            songIds: ['song-1'],
+            currentIndex: 0,
+          );
+        }
+        if (recent) await database.historyDao.addPlayHistory('song-2');
+        if (liked) {
+          await database.libraryDao.setEntityStarred(
+            'song',
+            'song-3',
+            DateTime.now(),
+          );
+        }
+        if (unavailable != null) {
+          final cached = await database.cacheDao.getCachedTrack(unavailable);
+          await File(cached!.filePath).delete();
+        }
+
+        if (unavailable == 'song-2' || unavailable == 'song-3') {
+          await expectLater(
+            handler.play(),
+            throwsA(isA<PlaybackSourceUnavailableException>()),
+          );
+        } else {
+          await handler.play();
+        }
+
+        expect(handler.snapshot.currentSongId, expected);
+        expect(player.playing, active || expected == 'song-1');
+        expect(
+          radioRequests,
+          !active && !saved && !recent && !liked ? [false] : isEmpty,
+        );
+        if (expected == null && unavailable == null) {
+          expect(
+            handler.playbackState.value.processingState,
+            AudioProcessingState.error,
+          );
+        }
+      });
+    }
+  });
 
   test('Previous restarts the first queue song within three seconds', () async {
     final directory = await Directory.systemTemp.createTemp('navis-previous-');

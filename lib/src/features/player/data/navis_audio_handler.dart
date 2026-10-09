@@ -3357,14 +3357,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (deferredRestore != null) {
       await deferredRestore;
     }
-    final activeSource = navisChooseAutoResumeSource(
-      hasActiveQueue: _radioStation != null || _queueItems.isNotEmpty,
-      hasPersistedQueue: false,
-      hasRecentSongs: false,
-      hasLikedSongs: false,
-      canUseRandomFallback: false,
-    );
-    if (activeSource == NavisAutoResumeSource.activeQueue) {
+    if (_radioStation != null || _queueItems.isNotEmpty) {
       AppLogger.debug(
         'Android Auto resume: using active queue '
         '(queue=${_queueItems.length} radio=${_radioStation != null}).',
@@ -3373,14 +3366,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final persistedSongs = await _playQueueDao.getQueueItems();
-    var source = navisChooseAutoResumeSource(
-      hasActiveQueue: false,
-      hasPersistedQueue: persistedSongs.isNotEmpty,
-      hasRecentSongs: false,
-      hasLikedSongs: false,
-      canUseRandomFallback: false,
-    );
-    if (source == NavisAutoResumeSource.persistedQueue) {
+    if (persistedSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: restoring persisted queue '
         '(count=${persistedSongs.length}).',
@@ -3398,14 +3384,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final recentSongs = await _historyDao
         .watchRecentlyPlayedSongs(limit: 50)
         .first;
-    source = navisChooseAutoResumeSource(
-      hasActiveQueue: false,
-      hasPersistedQueue: false,
-      hasRecentSongs: recentSongs.isNotEmpty,
-      hasLikedSongs: false,
-      canUseRandomFallback: false,
-    );
-    if (source == NavisAutoResumeSource.recentSong) {
+    if (recentSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing recently played songs '
         '(count=${recentSongs.length}).',
@@ -3419,14 +3398,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final likedSongs = await _libraryDao.watchAllStarredSongs().first;
-    source = navisChooseAutoResumeSource(
-      hasActiveQueue: false,
-      hasPersistedQueue: false,
-      hasRecentSongs: false,
-      hasLikedSongs: likedSongs.isNotEmpty,
-      canUseRandomFallback: false,
-    );
-    if (source == NavisAutoResumeSource.likedSong) {
+    if (likedSongs.isNotEmpty) {
       AppLogger.info(
         'Android Auto resume: queueing liked songs '
         '(count=${likedSongs.length}).',
@@ -3439,20 +3411,8 @@ class NavisAudioHandler extends BaseAudioHandler
       return _queueItems.isNotEmpty;
     }
 
-    source = navisChooseAutoResumeSource(
-      hasActiveQueue: false,
-      hasPersistedQueue: false,
-      hasRecentSongs: false,
-      hasLikedSongs: false,
-      canUseRandomFallback: true,
-    );
-    if (source == NavisAutoResumeSource.randomFallback) {
-      AppLogger.info('Android Auto resume: trying random song fallback.');
-      return _startInstantRadio(autoPlay: false);
-    }
-
-    AppLogger.info('Android Auto resume: no playable source available.');
-    return false;
+    AppLogger.info('Android Auto resume: trying random song fallback.');
+    return await _startInstantRadio(autoPlay: false);
   }
 
   void _observeLockCachingSource({

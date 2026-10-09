@@ -9,15 +9,6 @@ enum NavisAndroidAutoSearchType {
   title,
 }
 
-enum NavisAutoResumeSource {
-  activeQueue,
-  persistedQueue,
-  recentSong,
-  likedSong,
-  randomFallback,
-  none,
-}
-
 enum NavisPreviousTrackAction { none, restartCurrent, skipToPrevious }
 
 const Duration navisPreviousTrackRestartThreshold = Duration(seconds: 3);
@@ -88,32 +79,6 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
     return request(NavisAndroidAutoSearchType.playlist, playlist);
   }
   return request(NavisAndroidAutoSearchType.general, fallback);
-}
-
-@visibleForTesting
-NavisAutoResumeSource navisChooseAutoResumeSource({
-  required bool hasActiveQueue,
-  required bool hasPersistedQueue,
-  required bool hasRecentSongs,
-  required bool hasLikedSongs,
-  required bool canUseRandomFallback,
-}) {
-  if (hasActiveQueue) {
-    return NavisAutoResumeSource.activeQueue;
-  }
-  if (hasPersistedQueue) {
-    return NavisAutoResumeSource.persistedQueue;
-  }
-  if (hasRecentSongs) {
-    return NavisAutoResumeSource.recentSong;
-  }
-  if (hasLikedSongs) {
-    return NavisAutoResumeSource.likedSong;
-  }
-  if (canUseRandomFallback) {
-    return NavisAutoResumeSource.randomFallback;
-  }
-  return NavisAutoResumeSource.none;
 }
 
 String? _stringExtra(Map<String, dynamic>? extras, String key) {
