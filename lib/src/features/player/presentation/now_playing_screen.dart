@@ -12,6 +12,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_lyrics_content.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -19,7 +20,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -38,13 +38,11 @@ import 'package:navis/src/features/player/presentation/queue_shuffle_controls.da
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/server_mix_seed_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
-import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -2125,7 +2123,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   layoutBuilder: _coverArtSwitcherLayoutBuilder,
                   transitionBuilder: songSwapTransitionBuilder,
                   child: showInlineLyrics
-                      ? _InlineLyrics(
+                      ? PlaybackLyricsContent(
                           key: ValueKey<String>(
                             'compact-wide-inline-lyrics-$nowPlayingVisualKey',
                           ),
@@ -2379,7 +2377,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             onBack: () => _updateWideOverlayState(() {
               _showWideFullscreenLyrics = false;
             }),
-            child: _InlineLyrics(songId: playback.currentSongId!),
+            child: PlaybackLyricsContent(songId: playback.currentSongId!),
           );
         }
         if (widget.wideEmbeddedMode &&
@@ -2524,7 +2522,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 layoutBuilder: _coverArtSwitcherLayoutBuilder,
                 transitionBuilder: songSwapTransitionBuilder,
                 child: showInlineLyrics
-                    ? _InlineLyrics(
+                    ? PlaybackLyricsContent(
                         key: ValueKey<String>(
                           'inline-lyrics-$nowPlayingVisualKey',
                         ),
@@ -2797,7 +2795,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           ?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                   )
-                : _InlineLyrics(songId: playback.currentSongId!),
+                : PlaybackLyricsContent(songId: playback.currentSongId!),
           ),
         );
         final splitTopInfo = Padding(
