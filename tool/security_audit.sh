@@ -33,9 +33,15 @@ if ! rg -n 'NAVIS_SELF_UPDATE=false' tool/play_release.sh >/dev/null; then
   exit 1
 fi
 
-echo "==> Forgejo APK self-update guard"
+echo "==> Sideload APK self-update guard"
 if ! rg -n 'NAVIS_SELF_UPDATE=true' tool/release.sh >/dev/null; then
   echo "Forgejo release blocker found: tool/release.sh must enable NAVIS_SELF_UPDATE for Android APK builds." >&2
+  exit 1
+fi
+
+echo "==> Update channel pin"
+if ! rg -n "updateBaseUrl = 'https://downloads\.porthorion\.com/navis/'" lib/src/utils/constants.dart >/dev/null; then
+  echo "Update blocker found: AppConstants.updateBaseUrl must pin https://downloads.porthorion.com/navis/." >&2
   exit 1
 fi
 

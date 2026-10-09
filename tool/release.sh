@@ -2,7 +2,9 @@
 # tool/release.sh — Local release script for Navis.
 #
 # Builds selected release artifacts, bumps pubspec.yaml, tags/merges/pushes,
-# creates a Forgejo release, and uploads built assets.
+# and publishes the assets plus a signed update manifest to R2
+# (tool/r2_publish.sh, docs/release-r2.md). With --forgejo it also creates a
+# Forgejo release, which is how 1.4.x installs find 1.5.0.
 #
 # Usage:
 #   ./tool/release.sh <version> [options]
@@ -21,6 +23,7 @@
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true on Forgejo release
+#   --forgejo                  Also publish a Forgejo release (only for the 1.5.0 bridge)
 #   --allow-existing-version   Rebuild or retry a version whose release tag already exists
 #
 # Examples:
@@ -55,6 +58,7 @@ MACOS_NOTARIZE=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
 ALLOW_EXISTING_VERSION=false
+PUBLISH_FORGEJO=false
 
 for arg in "$@"; do
   case "${arg}" in
@@ -72,17 +76,18 @@ for arg in "$@"; do
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --prerelease) FORCE_PRERELEASE=true ;;
     --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
+    --forgejo) PUBLISH_FORGEJO=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version]"
+      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version]"
+  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version] [--forgejo]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -165,9 +170,11 @@ WINDOWS_REMOTE_DIR="${WINDOWS_REMOTE_DIR:-${NAVIS_WINDOWS_REMOTE_DIR:-.navis/rem
 WINDOWS_FLUTTER_DIR="${NAVIS_WINDOWS_FLUTTER_DIR:-}"
 
 # ─── Validate env ───────────────────────────────────────────────────────────
-: "${FORGEJO_URL:?Set FORGEJO_URL in tool/release.env}"
-: "${FORGEJO_REPO:?Set FORGEJO_REPO in tool/release.env}"
-: "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
+if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
+  : "${FORGEJO_URL:?Set FORGEJO_URL in tool/release.env}"
+  : "${FORGEJO_REPO:?Set FORGEJO_REPO in tool/release.env}"
+  : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
+fi
 
 if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   echo "Error: NAVIS_LASTFM_API_KEY is required for Android release builds."
@@ -177,7 +184,7 @@ if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
 fi
 
 # ─── Validate tools ─────────────────────────────────────────────────────────
-for tool in jq flutter git curl; do
+for tool in jq flutter git curl openssl; do
   if ! command -v "${tool}" &>/dev/null; then
     echo "Error: '${tool}' is required but not found on PATH."
     exit 1
@@ -405,6 +412,10 @@ fi
 if [[ "${CURRENT_PUBSPEC_VERSION}" == "${REQUESTED_PUBSPEC_VERSION}" ]]; then
   echo "==> pubspec.yaml is already at ${REQUESTED_PUBSPEC_VERSION} (set during development)."
 fi
+
+# ─── R2 preconditions ───────────────────────────────────────────────────────
+# Fail before building or tagging if the R2 publish at the end cannot succeed.
+"${SCRIPT_DIR}/r2_publish.sh" check --tag="${VERSION}" --channel="${UPDATE_CHANNEL}"
 
 # ─── Checks ─────────────────────────────────────────────────────────────────
 if [[ "${SKIP_CHECKS}" == "false" ]]; then
@@ -861,47 +872,58 @@ git checkout "${CURRENT_BRANCH}"
 echo "==> Generating release notes for ${VERSION}..."
 RELEASE_BODY="$(dart tool/generate_release_notes.dart "${VERSION}" 2>/dev/null)" || true
 if [[ -z "${RELEASE_BODY}" ]]; then
-  PREV_TAG="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo main)"
-  RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"$'\n\n'"See the [full changelog](${FORGEJO_URL}/${FORGEJO_REPO}/compare/${PREV_TAG}...${VERSION}) for details."
+  RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"
   echo "    No changelog entry found — using generic release body."
 else
   echo "    Release notes generated successfully."
 fi
 
-# ─── Create Forgejo release ─────────────────────────────────────────────────
-echo "==> Creating Forgejo release ${VERSION} (channel=${UPDATE_CHANNEL}, prerelease=${RELEASE_PRERELEASE})..."
-RELEASE_RESPONSE=$(curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases" \
-  -H "Authorization: token ${FORGEJO_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n \
-    --arg tag "${VERSION}" \
-    --arg name "Navis ${VERSION}" \
-    --arg body "${RELEASE_BODY}" \
-    --argjson prerelease "${RELEASE_PRERELEASE}" \
-    '{tag_name: $tag, target_commitish: "main", name: $name, body: $body, prerelease: $prerelease, draft: false}'
-  )")
+# ─── Publish to R2 ──────────────────────────────────────────────────────────
+NOTES_FILE="$(mktemp)"
+printf '%s\n' "${RELEASE_BODY}" > "${NOTES_FILE}"
+echo "==> Publishing ${VERSION} to R2 (channel=${UPDATE_CHANNEL})..."
+"${SCRIPT_DIR}/r2_publish.sh" publish --tag="${VERSION}" --channel="${UPDATE_CHANNEL}" \
+  --notes-file="${NOTES_FILE}" "${ASSET_FILES[@]}"
+rm -f "${NOTES_FILE}"
 
-RELEASE_ID="$(echo "${RELEASE_RESPONSE}" | jq -r '.id')"
-if [[ -z "${RELEASE_ID}" || "${RELEASE_ID}" == "null" ]]; then
-  echo "Error: Failed to create Forgejo release. Response:"
-  echo "${RELEASE_RESPONSE}"
-  exit 1
+# ─── Create Forgejo release (1.5.0 bridge only) ─────────────────────────────
+if [[ "${PUBLISH_FORGEJO}" == "true" ]]; then
+  echo "==> Creating Forgejo release ${VERSION} (channel=${UPDATE_CHANNEL}, prerelease=${RELEASE_PRERELEASE})..."
+  RELEASE_RESPONSE=$(curl -sf -X POST \
+    "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases" \
+    -H "Authorization: token ${FORGEJO_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n \
+      --arg tag "${VERSION}" \
+      --arg name "Navis ${VERSION}" \
+      --arg body "${RELEASE_BODY}" \
+      --argjson prerelease "${RELEASE_PRERELEASE}" \
+      '{tag_name: $tag, target_commitish: "main", name: $name, body: $body, prerelease: $prerelease, draft: false}'
+    )")
+
+  RELEASE_ID="$(echo "${RELEASE_RESPONSE}" | jq -r '.id')"
+  if [[ -z "${RELEASE_ID}" || "${RELEASE_ID}" == "null" ]]; then
+    echo "Error: Failed to create Forgejo release. Response:"
+    echo "${RELEASE_RESPONSE}"
+    exit 1
+  fi
+
+  for i in "${!ASSET_FILES[@]}"; do
+    asset_file="${ASSET_FILES[$i]}"
+    asset_name="${ASSET_NAMES[$i]}"
+    echo "==> Uploading ${asset_name} to Forgejo..."
+    curl -sf -X POST \
+      "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${asset_name}" \
+      -H "Authorization: token ${FORGEJO_TOKEN}" \
+      -F "attachment=@${asset_file}" >/dev/null
+    echo "    Uploaded ${asset_name}"
+  done
 fi
 
-# ─── Upload all assets ──────────────────────────────────────────────────────
-for i in "${!ASSET_FILES[@]}"; do
-  asset_file="${ASSET_FILES[$i]}"
-  asset_name="${ASSET_NAMES[$i]}"
-  echo "==> Uploading ${asset_name}..."
-  curl -sf -X POST \
-    "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${asset_name}" \
-    -H "Authorization: token ${FORGEJO_TOKEN}" \
-    -F "attachment=@${asset_file}" >/dev/null
-  echo "    Uploaded ${asset_name}"
-  rm -f "${asset_file}"
-done
+# Artifacts stay on disk until every publish step has succeeded, so a failed
+# upload can be retried with ./tool/r2_publish.sh publish.
+rm -f "${ASSET_FILES[@]}"
 
 echo ""
 echo "==> Done! Release ${VERSION} published."
-echo "    ${FORGEJO_URL}/${FORGEJO_REPO}/releases/tag/${VERSION}"
+echo "    https://downloads.porthorion.com/navis/channels/${UPDATE_CHANNEL}/manifest.json"
