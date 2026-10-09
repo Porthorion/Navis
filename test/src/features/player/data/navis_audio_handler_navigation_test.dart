@@ -2043,6 +2043,33 @@ void main() {
         });
       }
 
+      test('retaining a singleton seed clears deferred played songs', () async {
+        final (handler, player, database) = await trimmed();
+        for (var index = 59; index >= 6; index--) {
+          if (index != 10) await handler.removeAt(index);
+        }
+        expect(head(handler), 6);
+        expect(handler.queue.value.map((item) => item.id), ['song-10']);
+        expect(handler.collectPlaybackDiagnostics()['deferredLength'], 0);
+        expect(player.index, 0);
+        player.simulatedPosition = const Duration(seconds: 15);
+        final seeks = player.seekCalls;
+
+        await handler.retainCurrentSongAsQueue('song-10');
+
+        expect(handler.snapshot.queueSongIds, ['song-10']);
+        expect(head(handler), 0);
+        expect(handler.snapshot.currentIndex, 0);
+        expect(player.sourceIds, ['song-10']);
+        expect(player.simulatedPosition, const Duration(seconds: 15));
+        expect(player.seekCalls, seeks);
+        expect(player.isPlaying, isTrue);
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ['song-10'],
+        );
+      });
+
       test('beyond the window leave the player in batches', () async {
         final (handler, player, database) = await trimmed();
         expect(head(handler), 6);

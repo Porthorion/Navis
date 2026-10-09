@@ -2190,9 +2190,10 @@ generic server results to it.
 A mix starts from the song its caller chose, which need not be the one
 playing (Android Auto starts mixes from browsed songs): the first refill uses
 the requested seed and later refills follow the current song. Starting a mix
-keeps only the seed in the queue, so the first refill treats only the seed as
-already queued; songs from an earlier mix still behind it are fair
-recommendations again. Similarity endpoints know only server ids, so a remote
+keeps only the seed in the queue, clearing deferred played history and upcoming
+songs even when the player already holds only the seed, so the first refill
+treats only the seed as already queued; songs from an earlier mix still behind
+it are fair recommendations again. Similarity endpoints know only server ids, so a remote
 seed (an Octo-Fiesta `ext-` id) mixes from the library copy `getSong` maps it
 to, when the server has one: Server Mix asks for that copy before reporting
 unsupported, and Same Vibes looks it up (even while the remote seed plays) for

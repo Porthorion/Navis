@@ -129,6 +129,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.3',
     entries: [
       ChangelogEntry(
+        'Starting a mix clears played queue history when only the seed remains in the player',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'System queue insert and remove-at controls now edit the playback queue',
         type: ChangelogEntryType.fix,
       ),

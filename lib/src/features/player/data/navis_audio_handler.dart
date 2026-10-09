@@ -5472,6 +5472,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
         if (_queueItems.length == 1 &&
             currentIndex == 0 &&
+            _deferredHead.isEmpty &&
             _deferredTail.isEmpty) {
           return;
         }
