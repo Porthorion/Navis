@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# tool/r2_update_diagnostics_android.sh — Android emulator check of the R2 updater (staging
-# download, corrupt rejection, forged-manifest rejection. Assumes an emulator is booted.
+# tool/r2_update_diagnostics_android.sh — Android emulator check of the R2 updater
+# (staging channel): offer, verified download, corrupt rejection, forged-manifest rejection.
+# Assumes an emulator is booted; set SKIP_BUILD=1 to reuse the last profile APK.
 set -uo pipefail
 WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$WT"
