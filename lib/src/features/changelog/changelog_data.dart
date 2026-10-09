@@ -202,6 +202,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'System queue controls select and remove the correct song after played tracks leave the player window',
+        'Restarting Instant Radio while an earlier start or refill is still finishing no longer lets that old run unlock the new one',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes and Server Mix stop refilling after five failed refills in a row instead of resuming later; start the mix again to continue',
         type: ChangelogEntryType.fix,
       ),

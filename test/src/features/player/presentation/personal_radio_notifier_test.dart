@@ -157,4 +157,100 @@ void main() {
       );
     },
   );
+
+  group('a superseded run cannot release a newer run', () {
+    late _MockRecommendationService service;
+    late List<Completer<RecommendationBatch>> calls;
+    late NotifierProvider<_SnapshotController, PlaybackSnapshot> snapshots;
+    late ProviderContainer container;
+
+    RecommendationBatch batchOf(List<String> ids) => RecommendationBatch(
+      songs: [for (final id in ids) Song(id: id, title: id)],
+      source: RecommendationSource.server,
+    );
+
+    setUp(() {
+      service = _MockRecommendationService();
+      calls = <Completer<RecommendationBatch>>[];
+      when(
+        () => service.personalRadio(
+          any(),
+          excludedIds: any(named: 'excludedIds'),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) {
+        final call = Completer<RecommendationBatch>();
+        calls.add(call);
+        return call.future;
+      });
+      snapshots = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+        _SnapshotController.new,
+      );
+      container = makeContainer(service, snapshots);
+      addTearDown(container.dispose);
+      container.listen(personalRadioProvider, (_, _) {});
+      container.read(snapshots.notifier).setQueue(<String>['old']);
+    });
+
+    test('an old start does not clear the newer start busy flag', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+
+      final startA = radio.start();
+      await pumpEventQueue();
+      radio.stop();
+      final startB = radio.start();
+      await pumpEventQueue();
+      expect(calls, hasLength(2));
+
+      calls[0].complete(batchOf(<String>['a']));
+      await startA;
+
+      // Start B is still preparing, so a third start must be turned away.
+      final startC = await radio.start();
+      expect(startC.succeeded, isFalse);
+      expect(calls, hasLength(2));
+
+      calls[1].complete(batchOf(<String>['b']));
+      expect((await startB).succeeded, isTrue);
+    });
+
+    test('an old refill does not clear the newer refill flag', () async {
+      final radio = container.read(personalRadioProvider.notifier);
+      final snapshotsNotifier = container.read(snapshots.notifier);
+
+      final startA = radio.start();
+      await pumpEventQueue();
+      calls[0].complete(batchOf(<String>['r1', 'r2']));
+      await startA;
+
+      // Refill of the first radio session.
+      snapshotsNotifier.setQueue(<String>['r1', 'r2'], currentIndex: 1);
+      await pumpEventQueue();
+      expect(calls, hasLength(2));
+
+      radio.stop();
+      final startB = radio.start();
+      await pumpEventQueue();
+      calls[2].complete(batchOf(<String>['b1', 'b2']));
+      await startB;
+
+      // Refill of the second radio session.
+      snapshotsNotifier.setQueue(<String>['b1', 'b2'], currentIndex: 1);
+      await pumpEventQueue();
+      expect(calls, hasLength(4));
+
+      // The first session's refill finishes while the second one still runs.
+      calls[1].complete(batchOf(<String>['late']));
+      await pumpEventQueue();
+
+      snapshotsNotifier.setQueue(<String>['b1', 'b2', 'x'], currentIndex: 2);
+      await pumpEventQueue();
+      expect(
+        calls,
+        hasLength(4),
+        reason: 'the newer refill is still running; no second one may start',
+      );
+    });
+  });
 }
