@@ -1823,6 +1823,7 @@ void main() {
         );
         expect(reset.statusCode, HttpStatus.ok);
         expect(reset.body, {
+          'setupHighlightsSeen': <Object?>[],
           'setupHighlightsSeenRelease': null,
           'setupCardDismissedRelease': null,
         });
