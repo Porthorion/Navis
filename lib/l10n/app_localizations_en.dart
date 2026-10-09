@@ -3762,6 +3762,34 @@ class AppLocalizationsEn extends AppLocalizations {
       'Solid colours without glows, gradients or shadows.';
 
   @override
+  String get appearanceCornerStyleLabel => 'Corner Style';
+
+  @override
+  String get appearanceCornerStyleRounded => 'Rounded';
+
+  @override
+  String get appearanceCornerStyleSoft => 'Soft';
+
+  @override
+  String get appearanceCornerStyleSquare => 'Square';
+
+  @override
+  String get appearanceCornerStyleRoundedSub =>
+      'Gently rounded cards and buttons.';
+
+  @override
+  String get appearanceCornerStyleSoftSub =>
+      'Rounder, softer cards and pill buttons.';
+
+  @override
+  String get appearanceCornerStyleSquareSub =>
+      'Crisp corners on cards, buttons and chips.';
+
+  @override
+  String get appearanceCornerStyleArtworkNote =>
+      'Artwork follows Cover Art Shape.';
+
+  @override
   String get appearanceDynamicAlbumColorLabel => 'Dynamic Album Color';
 
   @override

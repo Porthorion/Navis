@@ -19,6 +19,7 @@ import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
+import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -196,6 +197,13 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   final db = ref.read(navisDatabaseProvider);
                   await db.appSettingsDao.updateFlatSurfaces(enabled: enabled);
                 },
+              ),
+              CornerStyleOption(
+                adornment: tagFor(SetupHighlight.cornerStyle),
+                value: ref.watch(cornerStyleProvider),
+                onChanged: (style) => ref
+                    .read(settingsRepositoryProvider)
+                    .updateCornerStyle(style),
               ),
               const Divider(height: 32),
 

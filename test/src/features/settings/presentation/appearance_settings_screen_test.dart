@@ -12,6 +12,7 @@ import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_corner_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -42,7 +43,7 @@ void main() {
         tester.view.physicalSize / tester.view.devicePixelRatio ==
             const Size(800, 600)) {
       // Tall enough that the style tiles, schedule rows and colour grid build.
-      tester.view.physicalSize = const Size(800, 760);
+      tester.view.physicalSize = const Size(800, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
     }
@@ -611,6 +612,41 @@ void main() {
       expect(settings?.flatSurfaces, isTrue);
     });
 
+    // The provider is overridden with defaults (Rounded), so only the
+    // changes away from Rounded fire a selection.
+    for (final style in <NavisCornerStyle>[
+      NavisCornerStyle.soft,
+      NavisCornerStyle.square,
+    ]) {
+      testWidgets('Corner Style ${style.name} saves', (tester) async {
+        final container = await pumpAppearance(tester);
+        final selector = find.byKey(
+          const ValueKey<String>('cornerStyleSelector'),
+        );
+        await scrollTo(tester, selector);
+        expect(
+          find.textContaining(l10n.appearanceCornerStyleArtworkNote),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(l10n.appearanceCornerStyleRoundedSub),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.text(
+            style == NavisCornerStyle.soft
+                ? l10n.appearanceCornerStyleSoft
+                : l10n.appearanceCornerStyleSquare,
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        final settings = await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        );
+        expect(settings?.cornerStyle, style.name);
+      });
+    }
+
     for (final look in NowPlayingBackground.values) {
       testWidgets('Now Playing Background describes ${look.name}', (
         tester,
@@ -643,7 +679,13 @@ void main() {
         tester,
         find.byKey(const ValueKey<String>('nowPlayingBackgroundSelector')),
       );
-      await tester.tap(find.text(l10n.appearanceNowPlayingBackgroundArtwork));
+      final artwork = find.descendant(
+        of: find.byKey(const ValueKey<String>('nowPlayingBackgroundSelector')),
+        matching: find.text(l10n.appearanceNowPlayingBackgroundArtwork),
+      );
+      await tester.ensureVisible(artwork);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(artwork);
       await tester.pump(const Duration(milliseconds: 100));
       final settings = await tester.runAsync(
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
@@ -684,12 +726,13 @@ void main() {
           highlights: SetupHighlight.values.toSet(),
           settle: false,
         );
-        expect(find.byType(NewFeatureTag), findsNWidgets(6));
+        expect(find.byType(NewFeatureTag), findsNWidgets(7));
         for (final label in <String>[
           l10n.appearanceColorStyleLabel,
           l10n.appearanceOledForAutoLabel,
           l10n.appearanceNightScheduleLabel,
           l10n.appearanceFlatSurfacesLabel,
+          l10n.appearanceCornerStyleLabel,
           l10n.appearanceNowPlayingBackgroundLabel,
           l10n.appearanceDensityLabel,
         ]) {

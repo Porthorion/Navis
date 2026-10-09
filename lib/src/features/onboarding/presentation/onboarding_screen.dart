@@ -620,10 +620,13 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final seed = resolveColorSchemeSeedColor(draft.colorSchemeSeed);
     final style = NavisColorStyle.parse(draft.colorStyle);
     final flat = draft.flatSurfaces;
-    if (!dark) return buildLightTheme(seed, style: style, flat: flat);
+    final corners = draft.cornerStyle;
+    if (!dark) {
+      return buildLightTheme(seed, style: style, flat: flat, corners: corners);
+    }
     return _previewOled(context, draft)
-        ? buildOledTheme(seed, style: style, flat: flat)
-        : buildDarkTheme(seed, style: style, flat: flat);
+        ? buildOledTheme(seed, style: style, flat: flat, corners: corners)
+        : buildDarkTheme(seed, style: style, flat: flat, corners: corners);
   }
 
   /// Mirrors app.dart: OLED mode, or Auto with "OLED when dark" while the
@@ -720,6 +723,13 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           adornment: tagFor(SetupHighlight.flatSurfaces),
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(flatSurfaces: value)),
+        ),
+        CornerStyleOption(
+          value: draft.cornerStyle,
+          adornment: tagFor(SetupHighlight.cornerStyle),
+          titleStyle: Theme.of(context).textTheme.titleMedium,
+          onChanged: (value) =>
+              setState(() => _draft = draft.copyWith(cornerStyle: value)),
         ),
         NowPlayingBackgroundOption(
           value: draft.nowPlayingBackground,
