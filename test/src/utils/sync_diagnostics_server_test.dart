@@ -1147,6 +1147,11 @@ void main() {
       librarySyncEngine: engine,
     );
     addTearDown(fixture.close);
+    // The sync controller resets to idle when the (absent) server config
+    // first resolves; let that settle so it cannot land mid-scan.
+    fixture.container.read(librarySyncControllerProvider);
+    await fixture.container.read(serverConfigProvider.future);
+    await Future<void>.delayed(Duration.zero);
     await fixture.database.customStatement('DELETE FROM cache_system_state;');
 
     final response = await _request(

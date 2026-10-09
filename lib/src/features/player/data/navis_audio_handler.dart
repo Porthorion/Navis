@@ -2176,8 +2176,15 @@ class NavisAudioHandler extends BaseAudioHandler
   int? _eqObservedIndex;
   bool _eqRefreshInFlight = false;
 
+  /// The last song of the queue has ended; [_visiblePlaying] reads paused
+  /// until playback is started or moved again.
+  bool _queueFinished = false;
+  ProcessingState? _finishObservedProcessingState;
+
   void _wirePlayerListeners() {
     final wiredPlayer = _player;
+    _queueFinished = false;
+    _finishObservedProcessingState = null;
     _emitBufferState(
       songId: _radioStation == null ? _currentMediaItem?.id : null,
       bufferedPosition: Duration.zero,
@@ -2191,6 +2198,16 @@ class NavisAudioHandler extends BaseAudioHandler
         if (processing == ProcessingState.completed) {
           _continueIntoDeferredTail();
         }
+        if (navisQueueJustFinished(
+          previous: _finishObservedProcessingState,
+          current: processing,
+          continuingPastCompletion: _continuingIntoDeferredTail,
+        )) {
+          _queueFinished = true;
+        } else if (processing != ProcessingState.completed) {
+          _queueFinished = false;
+        }
+        _finishObservedProcessingState = processing;
         if (processing != _eqObservedProcessingState ||
             index != _eqObservedIndex) {
           _eqObservedProcessingState = processing;
@@ -5910,6 +5927,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
+    _queueFinished = false;
     final transportGeneration = _supersedeTransportIntent(
       shouldPlay: true,
       preserveSeek: true,
@@ -6112,6 +6130,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId =
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
+    _queueFinished = false;
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();
     final request = _PendingSeek(
@@ -6209,8 +6228,12 @@ class NavisAudioHandler extends BaseAudioHandler
   bool get _requestedPlaying =>
       _latestExplicitTransportPlaying ?? _player.playing;
 
-  bool get _visiblePlaying =>
-      _pendingSeek == null ? _player.playing : _requestedPlaying;
+  bool get _visiblePlaying => _pendingSeek == null
+      ? navisVisiblePlaying(
+          playerPlaying: _player.playing,
+          queueFinished: _queueFinished,
+        )
+      : _requestedPlaying;
 
   Future<void> _waitForSeekSource(
     _PendingSeek request,

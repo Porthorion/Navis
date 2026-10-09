@@ -614,6 +614,31 @@ bool navisShouldRestartCompletedQueue({
   return currentIndex == null || currentIndex >= queueLength - 1;
 }
 
+/// Whether the UI and system controls should show playback as running.
+///
+/// just_audio leaves `playing` true after the last song ends, which kept a
+/// pause button on a finished queue, so a finished queue reads as paused.
+@visibleForTesting
+bool navisVisiblePlaying({
+  required bool playerPlaying,
+  required bool queueFinished,
+}) => playerPlaying && !queueFinished;
+
+/// Whether a playback event means the queue has just finished.
+///
+/// Only the transition into `completed` counts: the Linux backend can keep
+/// reporting `completed` while a restarted song plays. Continuing into songs
+/// not yet loaded into the player is not a finish.
+@visibleForTesting
+bool navisQueueJustFinished({
+  required ProcessingState? previous,
+  required ProcessingState current,
+  required bool continuingPastCompletion,
+}) =>
+    current == ProcessingState.completed &&
+    previous != ProcessingState.completed &&
+    !continuingPastCompletion;
+
 @visibleForTesting
 bool navisShouldSeekCrossfadeHandoff({
   required int? handoffTargetIndex,

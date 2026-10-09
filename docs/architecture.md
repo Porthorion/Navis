@@ -367,7 +367,13 @@ keep-data logout clears secure credentials and marks the row signed out without
 discarding its committed catalog, sync generation, provider tuning, timestamps,
 or Navis capability metadata. Reauthenticating the same identity updates that
 row in place. A different identity must traverse the explicit destructive
-replacement boundary before its credentials can be stored.
+replacement boundary before its credentials can be stored. Only keep-data
+logout, wipe logout and `clear()` delete the stored password. Reading the
+active server while no row is authenticated returns nothing and leaves the
+password alone, because sign-in stores the password before it marks the row
+authenticated. An earlier read path deleted it in that gap, so a sign-in after
+a keep-data logout lost its password and the next credential read (for
+example an artist page's targeted sync) signed the user out again.
 
 Routing derives a compact `SessionRoutePhase`. A newly authenticated profile
 without a usable catalog stays on the full-screen `/initial-sync` rebuild route.
@@ -2883,7 +2889,13 @@ queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable
 batches. Completed-state Play restarts the queue only after the final prepared
 item; it cannot restart a queue that is still filling. `loadingSongId`
-acknowledges a selection before network startup ends.
+acknowledges a selection before network startup ends. just_audio keeps
+`playing` true after the last song ends, so the handler records the
+transition into `completed` (when it is not continuing into unloaded songs)
+and publishes playback as paused until Play, a seek or any other processing
+state. The UI, headset button and system controls then show Play, and one
+press restarts the queue. Only the transition counts, because the desktop
+backend can keep reporting `completed` while a restarted song plays.
 
 The tracked desktop `just_audio_media_kit` adapter retires an old load waiter
 when a new source replaces it. Its queue insertion moves the actual appended
