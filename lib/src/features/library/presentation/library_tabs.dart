@@ -22,7 +22,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
     final textStyle = Theme.of(context).textTheme.bodySmall;
 
     return InkWell(
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       onTap: onTap,
       onLongPress: onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,

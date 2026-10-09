@@ -31,14 +31,8 @@
     "fontSize": 3,
     "colorLiteral": 3
   },
-  "lib/src/features/onboarding/presentation/onboarding_screen.dart": {
-    "radius": 1
-  },
   "lib/src/features/player/domain/smart_queue_state.dart": {
     "colorLiteral": 4
-  },
-  "lib/src/features/player/presentation/desktop_volume_slider.dart": {
-    "radius": 1
   },
   "lib/src/features/player/presentation/now_playing_screen.dart": {
     "radius": 1
@@ -52,9 +46,6 @@
   "lib/src/features/settings/presentation/appearance_settings_screen.dart": {
     "colorLiteral": 1,
     "paletteColor": 8
-  },
-  "lib/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart": {
-    "radius": 1
   },
   "lib/src/routing/app_shell_mini_player.dart": {
     "fontSize": 2

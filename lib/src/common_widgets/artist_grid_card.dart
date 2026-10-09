@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 
 /// A grid-friendly artist card with a configurable shape avatar and the artist
@@ -31,7 +31,7 @@ class ArtistGridCard extends ConsumerWidget {
     final borderRadius = artworkBorderRadius(shape, extent: double.infinity);
 
     return InkWell(
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       onTap: onTap,
       onSecondaryTapDown: onSecondaryTapDown,
       onLongPress: onLongPress == null

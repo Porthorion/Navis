@@ -12,7 +12,7 @@ import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A graph of authored bands with independent, explicitly labelled output gain.
 class EqGraphEditor extends StatefulWidget {
@@ -415,7 +415,7 @@ class EqGraphEditorState extends State<EqGraphEditor> {
         duration: const Duration(milliseconds: 120),
         decoration: BoxDecoration(
           color: colors.surfaceContainerLow,
-          borderRadius: NavisRadius.lgAll,
+          borderRadius: NavisShapeData.of(context).lgAll,
           border: Border.all(
             color: _focused && widget.enabled && !widget.readOnly
                 ? colors.primary

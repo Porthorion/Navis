@@ -22,7 +22,6 @@ import 'package:navis/src/features/settings/presentation/color_style_selector.da
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_color_style.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
@@ -1878,7 +1877,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
               foregroundColor: isSelected
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
-              shape: RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
+              shape: NavisShapeData.of(context).mdShape,
             ),
           ),
         ),

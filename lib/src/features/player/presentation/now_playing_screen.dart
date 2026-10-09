@@ -2951,7 +2951,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             .clamp(170.0, 340.0);
         final lyricsPane = DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: NavisRadius.xlAll,
+            borderRadius: NavisShapeData.of(context).xlAll,
             border: Border.all(
               color: colorScheme.outlineVariant.withValues(alpha: 0.4),
             ),
@@ -3272,7 +3272,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerLow,
-                          borderRadius: NavisRadius.xlAll,
+                          borderRadius: NavisShapeData.of(context).xlAll,
                           border: Border.all(
                             color: colorScheme.outlineVariant.withValues(
                               alpha: 0.5,

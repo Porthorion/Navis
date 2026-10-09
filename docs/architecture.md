@@ -757,6 +757,10 @@ target-selection rules.
     (button/chip/indicator) corner; component themes and
     `NavisTokens.panelRadius`/`cardRadius` are built from it, and `rounded`
     leaves Material defaults unset. Artwork keeps following Cover Art Shape.
+    Screens read radii through `NavisShapeData.of(context)` (named steps,
+    `controlAll` for badges/tags, `scaled(n)` for one-off literals that must
+    stay identical in `rounded`); circles, dots, drag handles, skeletons and
+    painter internals keep fixed radii.
   - `NavisTokens` is a ThemeExtension for theme-dependent values: frame widths,
     hover/focus opacity, and colour roles `ColorScheme` lacks: the quiet
     warning container and the `success` foreground for completed or

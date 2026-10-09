@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A small "New" pill that marks an option people have not seen yet.
 ///
@@ -20,7 +20,7 @@ class NewFeatureTag extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: scheme.primaryContainer,
-          borderRadius: NavisRadius.pillAll,
+          borderRadius: NavisShapeData.of(context).controlAll,
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),

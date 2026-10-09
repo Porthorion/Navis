@@ -15,6 +15,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
@@ -100,7 +101,7 @@ class _SimilarArtistCard extends ConsumerWidget {
     final libraryArtistId = artist.libraryArtistId;
     final deezerArtistId = artist.deezerArtistId;
     return InkWell(
-      borderRadius: NavisRadius.mdAll,
+      borderRadius: NavisShapeData.of(context).mdAll,
       onTap: () {
         if (libraryArtistId != null) {
           NavService.openArtistDetail(context, ref, libraryArtistId);

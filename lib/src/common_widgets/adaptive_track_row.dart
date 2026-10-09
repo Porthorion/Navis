@@ -4,7 +4,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_density_scope.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 class TrackRowModeScope extends InheritedWidget {
@@ -353,12 +353,12 @@ class AdaptiveTrackRow extends StatelessWidget {
               color: selected
                   ? theme.colorScheme.primary.withValues(alpha: .08)
                   : Colors.transparent,
-              borderRadius: NavisRadius.mdAll,
+              borderRadius: NavisShapeData.of(context).mdAll,
               child: InkWell(
                 onTap: onTap,
                 onLongPress: onLongPress,
                 onSecondaryTapDown: onSecondaryTapDown,
-                borderRadius: NavisRadius.mdAll,
+                borderRadius: NavisShapeData.of(context).mdAll,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: minHeight),
                   child: Padding(
