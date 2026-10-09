@@ -42,11 +42,13 @@ void main() {
                 onPressed: () => showUpdateDialog(
                   context,
                   const UpdateInfo(
+                    sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                    size: 123,
                     tagName: 'v1.2.6',
                     releaseNotes:
                         '**Stability fixes** for artwork and storage.',
                     htmlUrl: 'https://example.invalid/navis',
-                    delivery: UpdateDelivery.forgejoSelfUpdate,
+                    delivery: UpdateDelivery.selfUpdate,
                     downloadUrl: 'https://example.invalid/navis.apk',
                     assetFileName: 'navis-test.apk',
                   ),

@@ -188,7 +188,7 @@ class _UpdateBanner extends ConsumerWidget {
         if (info == null) return const SizedBox.shrink();
         final actionLabel = switch (info.delivery) {
           UpdateDelivery.storeRedirect => l10n.updateOpenPlayStore,
-          UpdateDelivery.forgejoSelfUpdate => l10n.updateInstall,
+          UpdateDelivery.selfUpdate => l10n.updateInstall,
           UpdateDelivery.desktopSelfUpdate =>
             info.downloadUrl != null ? l10n.updateInstall : l10n.updateDownload,
         };

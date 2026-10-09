@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:convert';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,8 +8,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/install_source_service.dart';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
+import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class _MockDio extends Mock implements Dio;
@@ -20,13 +23,12 @@ class _FakeInstallSourceService extends InstallSourceService {
   final String? _installerPackage;
 
   @override
-  Future<InstallSourceInfo?> getInstallSource() async {
-    return InstallSourceInfo(installerPackage: _installerPackage);
-  }
+  Future<InstallSourceInfo?> getInstallSource() async =>
+      InstallSourceInfo(installerPackage: _installerPackage);
 }
 
 class _MemoryUpdateCheckStore extends UpdateCheckStore {
-  new({required this.allowCheck});
+  new({this.allowCheck = true});
 
   bool allowCheck;
   int recordCount = 0;
@@ -35,220 +37,378 @@ class _MemoryUpdateCheckStore extends UpdateCheckStore {
   Future<bool> shouldCheck({bool force = false}) async => force || allowCheck;
 
   @override
-  Future<void> recordCheck([DateTime? checkedAt]) async {
-    recordCount++;
-  }
+  Future<void> recordCheck([DateTime? checkedAt]) async => recordCount++;
 }
+
+const _hash =
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const _assetUrl = '${AppConstants.updateBaseUrl}releases/v1.5.1/navis.apk';
+const _opensslKey = 'w452ghSzhMIwM8lYSFKPFMvOC4CXx9E6ulYYbyG3dEM=';
+const _opensslPayload =
+    'eyJzY2hlbWEiOjEsImNoYW5uZWwiOiJzdGFibGUiLCJ2ZXJzaW9uIjoiOS45LjkiLCJ0YWciOiJ2OS45LjkiLCJhc3NldHMiOnt9fQ==';
+const _opensslSignature =
+    'LKWCp6BiymaWaAK3lGGUWZeNkjJuTQnK/22LnGGxgFZg7hOi+ay6kLFzrcZ+Mo05JjaOFtp7BZJ0jG/7Db4UAw==';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final ed25519 = Ed25519();
+  late _MockDio dio;
+  late SimpleKeyPair keyPair;
+  late String publicKey;
+  late _MemoryUpdateCheckStore store;
+  late Map<String, Object?> payload;
+  Object? envelope;
+  late List<Options> requests;
+  late List<String> urls;
 
-  group('UpdateRepository', () {
-    late _MockDio dio;
+  Future<Map<String, String>> sign(
+    Map<String, Object?> value, {
+    SimpleKeyPair? key,
+  }) async {
+    final bytes = utf8.encode(jsonEncode(value));
+    final signature = await ed25519.sign(bytes, keyPair: key ?? keyPair);
+    return {
+      'payload': base64Encode(bytes),
+      'signature': base64Encode(signature.bytes),
+    };
+  }
 
-    setUp(() {
-      dio = _MockDio();
-    });
+  UpdateRepository repository({
+    bool isIOS = false,
+    bool isAndroid = false,
+    String? installer,
+    String? signingKey,
+    UpdateInstallMode mode = UpdateInstallMode.linuxPortable,
+    String arch = 'amd64',
+  }) => UpdateRepository(
+    dio: dio,
+    signingPublicKey: signingKey ?? publicKey,
+    updateCheckStore: store,
+    isIOS: isIOS,
+    isAndroid: isAndroid,
+    installSourceService: _FakeInstallSourceService(installer),
+    installModeDetector: () => mode,
+    linuxDebArch: () => arch,
+  );
 
-    test('returns null on iOS', () async {
-      if (!Platform.isIOS) {
-        return;
-      }
-
-      final repository = UpdateRepository(dio: dio);
-      final result = await repository.checkForUpdate(forceCheck: true);
-      expect(result, isNull);
-    });
-
-    test(
-      'returns store redirect delivery for Play installs on Android',
-      () async {
-        if (!Platform.isAndroid) {
-          return;
-        }
-
-        when(
-          () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
-        ).thenAnswer(
-          (_) async => Response<List<dynamic>>(
-            data: [
-              {
-                'tag_name': 'v99.0.0',
-                'prerelease': false,
-                'html_url': 'https://example.com/release',
-                'body': 'notes',
-                'assets': [
-                  {
-                    'name': 'navis-v99.0.0.apk',
-                    'browser_download_url': 'https://example.com/navis.apk',
-                  },
-                ],
-              },
-            ],
-            requestOptions: RequestOptions(path: '/releases'),
-            statusCode: 200,
-          ),
-        );
-
-        final repository = UpdateRepository(
-          dio: dio,
-          installSourceService: _FakeInstallSourceService(
-            'com.android.vending',
-          ),
-          updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-        );
-
-        final result = await repository.checkForUpdate(forceCheck: true);
-        expect(result, isNotNull);
-        expect(result!.delivery, UpdateDelivery.storeRedirect);
-        expect(result.downloadUrl, isNull);
-        expect(result.tagName, 'v99.0.0');
-      },
+  setUp(() async {
+    PackageInfo.setMockInitialValues(
+      appName: 'Navis',
+      packageName: 'com.navis.app.navis',
+      version: '1.5.0+42',
+      buildNumber: '42',
+      buildSignature: '',
     );
-
-    test(
-      'returns forgejo self-update for sideload installs on Android',
-      () async {
-        if (!Platform.isAndroid) {
-          return;
-        }
-
-        when(
-          () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
-        ).thenAnswer(
-          (_) async => Response<List<dynamic>>(
-            data: [
-              {
-                'tag_name': 'v99.0.0',
-                'prerelease': false,
-                'html_url': 'https://example.com/release',
-                'body': 'notes',
-                'assets': [
-                  {
-                    'name': 'navis-v99.0.0.apk',
-                    'browser_download_url': 'https://example.com/navis.apk',
-                  },
-                ],
-              },
-            ],
-            requestOptions: RequestOptions(path: '/releases'),
-            statusCode: 200,
-          ),
-        );
-
-        final repository = UpdateRepository(
-          dio: dio,
-          installSourceService: _FakeInstallSourceService('com.android.shell'),
-          updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-        );
-
-        final result = await repository.checkForUpdate(forceCheck: true);
-        expect(result, isNotNull);
-        expect(result!.delivery, UpdateDelivery.forgejoSelfUpdate);
-        expect(result.downloadUrl, 'https://example.com/navis.apk');
+    dio = _MockDio();
+    store = _MemoryUpdateCheckStore();
+    keyPair = await ed25519.newKeyPair();
+    publicKey = base64Encode((await keyPair.extractPublicKey()).bytes);
+    payload = {
+      'schema': 1,
+      'channel': 'stable',
+      'version': '1.5.1',
+      'tag': 'v1.5.1',
+      'published_at': '2026-11-01T12:00:00Z',
+      'notes': '**Release notes**',
+      'notes_url': 'https://navis.porthorion.com/releases/v1.5.1',
+      'assets': {
+        for (final key in ['linuxPortable', 'androidApk', 'linuxDeb-amd64'])
+          key: {'url': _assetUrl, 'sha256': _hash, 'size': 123},
       },
-    );
+    };
+    envelope = await sign(payload);
+    requests = [];
+    urls = [];
+    when(() => dio.get<Object?>(any(), options: any(named: 'options')))
+        .thenAnswer((invocation) async {
+          urls.add(invocation.positionalArguments.first as String);
+          requests.add(invocation.namedArguments[#options] as Options);
+          return Response<Object?>(
+            data: envelope,
+            requestOptions: RequestOptions(path: urls.last),
+            statusCode: 200,
+          );
+        });
+  });
 
-    test('a release whose tag is not a version is never an update', () async {
-      if (Platform.isIOS || Platform.isAndroid) {
-        return;
-      }
-      PackageInfo.setMockInitialValues(
-        appName: 'Navis',
-        packageName: 'com.navis.app.navis',
-        version: '1.4.0',
-        buildNumber: '1',
-        buildSignature: '',
-      );
-      Map<String, Object?> release(String tag) => <String, Object?>{
-        'tag_name': tag,
-        'prerelease': true,
-        'html_url': 'https://example.com/$tag',
-        'body': '',
-        'assets': <Object?>[],
-      };
-      var releases = <Object?>[
-        release('third-party-binaries'),
-        release('v1.3.0'),
-      ];
-      when(() => dio.get<List<dynamic>>(any(), options: any(named: 'options')))
-          .thenAnswer(
-            (_) async => Response<List<dynamic>>(
-              data: releases,
-              requestOptions: RequestOptions(path: '/releases'),
-              statusCode: 200,
+  test(
+    'valid manifest supplies verified artifact and release metadata',
+    () async {
+      final repo = repository();
+      final result = await repo.checkForUpdate();
+      expect(result, isNotNull);
+      expect(result!.tagName, 'v1.5.1');
+      expect(result.downloadUrl, _assetUrl);
+      expect(result.assetFileName, 'navis.apk');
+      expect(result.sha256, _hash);
+      expect(result.size, 123);
+      expect(result.releaseNotes, '**Release notes**');
+      expect(result.htmlUrl, payload['notes_url']);
+      expect(result.delivery, UpdateDelivery.desktopSelfUpdate);
+      expect(urls.single, UpdateRepository.manifestUrlFor('stable'));
+      expect(requests.single.responseType, ResponseType.json);
+      expect(requests.single.receiveTimeout, const Duration(seconds: 10));
+      expect(requests.single.sendTimeout, const Duration(seconds: 10));
+      expect(store.recordCount, 1);
+      expect(repo.lastCheck!.signatureValid, isTrue);
+      expect(repo.lastCheck!.payloadVersion, '1.5.1');
+      expect(repo.lastCheck!.assetKey, 'linuxPortable');
+      expect(repo.lastCheck!.rejectReason, isNull);
+      expect(repo.lastCheck!.tag, 'v1.5.1');
+      expect(repo.lastCheck!.timestamp.isUtc, isTrue);
+    },
+  );
+
+  test('iOS never fetches an update', () async {
+    final repo = repository(isIOS: true);
+    expect(await repo.checkForUpdate(forceCheck: true), isNull);
+    expect(requests, isEmpty);
+    expect(repo.lastCheck, isNull);
+  });
+
+  test('Play installs redirect without download integrity metadata', () async {
+    final result = await repository(
+      isAndroid: true,
+      installer: 'com.android.vending',
+      mode: UpdateInstallMode.androidApk,
+    ).checkForUpdate();
+    expect(result!.delivery, UpdateDelivery.storeRedirect);
+    expect(result.downloadUrl, isNull);
+    expect(result.sha256, isNull);
+    expect(result.size, isNull);
+  });
+
+  test('Android sideload installs use self update', () async {
+    final result = await repository(
+      isAndroid: true,
+      installer: 'com.android.shell',
+      mode: UpdateInstallMode.androidApk,
+    ).checkForUpdate();
+    expect(result!.delivery, UpdateDelivery.selfUpdate);
+    expect(result.downloadUrl, _assetUrl);
+    expect(result.sha256, _hash);
+    expect(result.size, 123);
+  });
+
+  test('only Check now marks requests user initiated', () async {
+    final repo = repository();
+    await repo.checkForUpdate();
+    await repo.checkForUpdate(forceCheck: true);
+    expect(requests[0].extra, isNot(contains(navisUserInitiatedExtraKey)));
+    expect(requests[1].extra, containsPair(navisUserInitiatedExtraKey, true));
+  });
+
+  test('initial throttle skips network with no last check', () async {
+    store = _MemoryUpdateCheckStore(allowCheck: false);
+    final repo = repository();
+    expect(await repo.checkForUpdate(), isNull);
+    expect(requests, isEmpty);
+    expect(repo.lastCheck, isNull);
+  });
+
+  test('24-hour throttle skips fetching and preserves last check', () async {
+    final repo = repository();
+    await repo.checkForUpdate();
+    final last = repo.lastCheck;
+    store.allowCheck = false;
+    expect(await repo.checkForUpdate(), isNull);
+    expect(requests, hasLength(1));
+    expect(repo.lastCheck, same(last));
+    expect(store.recordCount, 1);
+    expect(await repo.checkForUpdate(forceCheck: true), isNotNull);
+    expect(requests, hasLength(2));
+  });
+
+  test('channels are normalized and remain single URL path segments', () async {
+    payload['channel'] = 'staging';
+    envelope = await sign(payload);
+    expect(
+      await repository().checkForUpdate(updateChannel: ' STAGING '),
+      isNotNull,
+    );
+    expect(
+      urls.single,
+      '${AppConstants.updateBaseUrl}channels/staging/manifest.json',
+    );
+    expect(UpdateRepository.channelFor(' '), 'stable');
+    expect(UpdateRepository.manifestUrlFor('a/b'), contains('channels/a%2Fb/'));
+  });
+
+  test('bad signature is rejected before payload parsing', () async {
+    envelope = {
+      ...envelope! as Map,
+      'signature': base64Encode(List.filled(64, 0)),
+    };
+    final repo = repository();
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.signatureValid, isFalse);
+    expect(repo.lastCheck!.payloadVersion, isNull);
+    expect(repo.lastCheck!.rejectReason, 'invalid_signature');
+    expect(store.recordCount, 1);
+  });
+
+  test('manifest signed by another key is rejected', () async {
+    envelope = await sign(payload, key: await ed25519.newKeyPair());
+    final repo = repository();
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.rejectReason, 'invalid_signature');
+  });
+
+  test('tampering with signed payload bytes invalidates signature', () async {
+    final signed = envelope! as Map<String, String>;
+    final bytes = base64Decode(signed['payload']!);
+    bytes[0] ^= 1;
+    envelope = {...signed, 'payload': base64Encode(bytes)};
+    final repo = repository();
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.signatureValid, isFalse);
+  });
+
+  for (final (field, value, reason) in <(String, Object?, String)>[
+    ('channel', 'dev', 'wrong_channel'),
+    ('schema', 2, 'unsupported_schema'),
+    ('version', '1.5.0', 'version_not_newer'),
+    ('version', '1.4.9', 'version_not_newer'),
+    ('version', '1.5.0-dev+99', 'version_not_newer'),
+    ('version', 'invalid', 'invalid_version'),
+    ('assets', <String, Object?>{}, 'missing_asset'),
+    ('tag', null, 'malformed_payload'),
+  ]) {
+    test('rejects $field=$value with $reason', () async {
+      payload[field] = value;
+      envelope = await sign(payload);
+      final repo = repository();
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.signatureValid, isTrue);
+      expect(repo.lastCheck!.rejectReason, reason);
+      expect(repo.lastCheck!.tag, isNull);
+    });
+  }
+
+  for (final (field, value, reason) in <(String, Object?, String)>[
+    (
+      'url',
+      'http://downloads.porthorion.com/navis/file.apk',
+      'invalid_asset_url',
+    ),
+    ('url', 'https://example.com/navis/file.apk', 'invalid_asset_url'),
+    (
+      'url',
+      'https://downloads.porthorion.com.evil/navis/file.apk',
+      'invalid_asset_url',
+    ),
+    ('sha256', 'short', 'invalid_asset_sha256'),
+    ('sha256', 'g' * 64, 'invalid_asset_sha256'),
+    ('size', 0, 'invalid_asset_size'),
+    ('size', -1, 'invalid_asset_size'),
+    ('size', 1.5, 'invalid_asset_size'),
+    ('size', '123', 'invalid_asset_size'),
+  ]) {
+    test('rejects invalid asset $field=$value', () async {
+      ((payload['assets']! as Map)['linuxPortable'] as Map)[field] = value;
+      envelope = await sign(payload);
+      final repo = repository();
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, reason);
+    });
+  }
+
+  test('Deb selection never falls back from arm64 to amd64', () async {
+    final repo = repository(mode: UpdateInstallMode.linuxDeb, arch: 'arm64');
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.assetKey, 'linuxDeb-arm64');
+    expect(repo.lastCheck!.rejectReason, 'missing_asset');
+    (payload['assets']! as Map)['linuxDeb-arm64'] = {
+      'url': _assetUrl,
+      'sha256': _hash,
+      'size': 123,
+    };
+    envelope = await sign(payload);
+    expect(await repo.checkForUpdate(forceCheck: true), isNotNull);
+  });
+
+  test('amd64 Deb uses the amd64 asset', () async {
+    final repo = repository(mode: UpdateInstallMode.linuxDeb);
+    expect(await repo.checkForUpdate(), isNotNull);
+    expect(repo.lastCheck!.assetKey, 'linuxDeb-amd64');
+  });
+
+  for (final notesUrl in [
+    null,
+    'http://navis.porthorion.com/release',
+    'https://evil.com/release',
+  ]) {
+    test('unsafe or absent notes URL $notesUrl uses manual download', () async {
+      payload['notes_url'] = notesUrl;
+      payload.remove('notes');
+      envelope = await sign(payload);
+      final result = await repository().checkForUpdate();
+      expect(result!.htmlUrl, AppConstants.updateManualDownloadUrl);
+      expect(result.releaseNotes, isNull);
+    });
+  }
+
+  for (final malformed in <Object?>[
+    null,
+    [],
+    {'payload': '%%%!', 'signature': _opensslSignature},
+    {'payload': _opensslPayload},
+    {
+      'payload': _opensslPayload,
+      'signature': base64Encode([1]),
+    },
+  ]) {
+    test('malformed envelope $malformed returns null', () async {
+      envelope = malformed;
+      final repo = repository();
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'malformed_envelope');
+    });
+  }
+
+  test(
+    '404 preserves existing Dio error semantics and records failure',
+    () async {
+      // The former releases API did not catch Dio failures. The provider still
+      // receives the transport error, while manifest validation returns null.
+      when(() => dio.get<Object?>(any(), options: any(named: 'options')))
+          .thenThrow(
+            DioException(
+              requestOptions: RequestOptions(path: '/manifest.json'),
+              response: Response<void>(
+                requestOptions: RequestOptions(path: '/manifest.json'),
+                statusCode: 404,
+              ),
+              type: DioExceptionType.badResponse,
             ),
           );
-      final repository = UpdateRepository(
-        dio: dio,
-        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-      );
+      final repo = repository();
+      await expectLater(repo.checkForUpdate(), throwsA(isA<DioException>()));
+      expect(repo.lastCheck!.rejectReason, 'fetch_failed');
+      expect(repo.lastCheck!.signatureValid, isNull);
+      expect(store.recordCount, 0);
+    },
+  );
 
-      expect(
-        await repository.checkForUpdate(forceCheck: true, updateChannel: 'dev'),
-        isNull,
-      );
-      releases = <Object?>[release('third-party-binaries'), release('v1.4.1')];
-      final update = await repository.checkForUpdate(
-        forceCheck: true,
-        updateChannel: 'dev',
-      );
-      expect(update?.tagName, 'v1.4.1');
-    });
+  test(
+    'OpenSSL rawin signature verifies even with no matching asset',
+    () async {
+      envelope = {'payload': _opensslPayload, 'signature': _opensslSignature};
+      final repo = repository(signingKey: _opensslKey);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.signatureValid, isTrue);
+      expect(repo.lastCheck!.payloadVersion, '9.9.9');
+      expect(repo.lastCheck!.rejectReason, 'missing_asset');
+    },
+  );
 
-    test('only "Check now" is marked as a user-initiated request', () async {
-      if (Platform.isIOS) {
-        return;
-      }
-      PackageInfo.setMockInitialValues(
-        appName: 'Navis',
-        packageName: 'com.navis.app.navis',
-        version: '1.4.0',
-        buildNumber: '1',
-        buildSignature: '',
-      );
-      final extras = <Map<String, dynamic>>[];
-      when(() => dio.get<List<dynamic>>(any(), options: any(named: 'options')))
-          .thenAnswer((invocation) async {
-            extras.add(
-              (invocation.namedArguments[#options] as Options).extra ??
-                  const <String, dynamic>{},
-            );
-            return Response<List<dynamic>>(
-              data: const <dynamic>[],
-              requestOptions: RequestOptions(path: '/releases'),
-              statusCode: 200,
-            );
-          });
-      final repository = UpdateRepository(
-        dio: dio,
-        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-      );
-
-      await repository.checkForUpdate();
-      await repository.checkForUpdate(forceCheck: true);
-
-      expect(extras, [
-        isNot(contains(navisUserInitiatedExtraKey)),
-        containsPair(navisUserInitiatedExtraKey, true),
-      ]);
-    });
-
-    test('skips network fetch when update check throttle is active', () async {
-      if (Platform.isIOS) {
-        return;
-      }
-
-      final repository = UpdateRepository(
-        dio: dio,
-        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: false),
-      );
-
-      final throttled = await repository.checkForUpdate(forceCheck: false);
-      expect(throttled, isNull);
-      verifyNever(
-        () => dio.get<List<dynamic>>(any(), options: any(named: 'options')),
-      );
-    });
+  test('OpenSSL fixture fails verification after flipping one byte', () async {
+    final bytes = base64Decode(_opensslPayload);
+    bytes[0] ^= 1;
+    envelope = {'payload': base64Encode(bytes), 'signature': _opensslSignature};
+    final repo = repository(signingKey: _opensslKey);
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.signatureValid, isFalse);
+    expect(repo.lastCheck!.rejectReason, 'invalid_signature');
   });
 }

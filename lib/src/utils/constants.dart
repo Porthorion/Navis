@@ -1,10 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 
-/// Compile-time constants for the Navis Forgejo repository.
-///
-/// These are intentionally not user-configurable — they are hardcoded to the
-/// project's own Forgejo instance and repo.
+/// Compile-time configuration for Navis services and distribution.
 abstract final class AppConstants {
   /// Porthorion's public pages for Navis, linked from About and Privacy.
   static const String websiteUrl = 'https://navis.porthorion.com';
@@ -17,21 +14,14 @@ abstract final class AppConstants {
       'Navis/${changelogs.first.version} '
       '(+https://navis.porthorion.com; support@porthorion.com)';
 
-  /// Base URL of the Forgejo instance hosting the Navis repository.
-  static const String forgejoBaseUrl = 'https://git.porthorion.com';
+  /// Root of the signed update manifests and release artifacts.
+  static const String updateBaseUrl = 'https://downloads.porthorion.com/navis/';
 
-  /// Repository owner (Forgejo username).
-  static const String forgejoOwner = 'khalifa';
+  /// Raw Ed25519 public key used to verify update manifests.
+  static const String updateSigningPublicKey =
+      'vSq61OOmfZS6CNYHeddKudoDAjZa179002wz/wnKtGk=';
 
-  /// Repository name.
-  static const String forgejoRepo = 'Navis';
-
-  /// Full URL of the Navis Forgejo repository (browse page).
-  static const String repoUrl = '$forgejoBaseUrl/$forgejoOwner/$forgejoRepo';
-
-  /// URL of the Forgejo Releases API endpoint for update checks.
-  static const String releasesApiUrl =
-      '$forgejoBaseUrl/api/v1/repos/$forgejoOwner/$forgejoRepo/releases';
+  static const String updateManualDownloadUrl = '$websiteUrl/download';
 
   /// Update channel for release selection.
   ///
@@ -41,12 +31,7 @@ abstract final class AppConstants {
     defaultValue: 'stable',
   );
 
-  /// Expected APK asset prefix for the active update channel.
-  static const String updateAssetPrefix = updateChannel == 'dev'
-      ? 'navis-dev'
-      : 'navis';
-
-  /// Whether this build can self-update via APK install (Forgejo/sideload APKs).
+  /// Whether this build can self-update via APK install (sideload APKs).
   ///
   /// Set to `false` for Google Play App Bundle builds via
   /// `--dart-define=NAVIS_SELF_UPDATE=false`.

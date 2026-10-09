@@ -980,6 +980,8 @@ void main() {
 
   group('update banner integration gate', () {
     const update = UpdateInfo(
+      sha256: null,
+      size: null,
       tagName: 'v9.9.9',
       htmlUrl: 'https://example.com/release',
       delivery: UpdateDelivery.storeRedirect,

@@ -2944,7 +2944,19 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
   );
 });
 
-/// Checks whether a newer Navis release is available on Forgejo.
+/// Retains the updater's last manifest check for diagnostics.
+final updateRepositoryProvider = Provider<UpdateRepository>((ref) {
+  return UpdateRepository(
+    dio: ref.watch(externalDioFactoryProvider)(
+      IntegrationService.updates,
+      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
+    ),
+    installSourceService: ref.watch(installSourceServiceProvider),
+    updateCheckStore: ref.watch(updateCheckStoreProvider),
+  );
+});
+
+/// Checks whether a newer signed Navis release is available.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   final isLoading = ref.watch(
@@ -2974,17 +2986,9 @@ final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
     return null;
   }
 
-  return await UpdateRepository(
-    dio: ref.read(externalDioFactoryProvider)(
-      IntegrationService.updates,
-      options: BaseOptions(headers: {'User-Agent': AppConstants.userAgent}),
-    ),
-    installSourceService: ref.read(installSourceServiceProvider),
-    updateCheckStore: ref.read(updateCheckStoreProvider),
-  ).checkForUpdate(
-    includePrerelease: AppConstants.updateChannel == 'dev',
-    forceCheck: forceCheck,
-  );
+  return await ref
+      .read(updateRepositoryProvider)
+      .checkForUpdate(forceCheck: forceCheck);
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

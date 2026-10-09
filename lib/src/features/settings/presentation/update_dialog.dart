@@ -76,8 +76,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   bool get _isStoreRedirect =>
       widget.info.delivery == UpdateDelivery.storeRedirect;
 
-  bool get _isForgejoSelfUpdate =>
-      widget.info.delivery == UpdateDelivery.forgejoSelfUpdate;
+  bool get _isSelfUpdate => widget.info.delivery == UpdateDelivery.selfUpdate;
 
   Future<void> _openPlayStore() async {
     final launched = await _service.openPlayStoreListing(
@@ -135,7 +134,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         _apkPath = path;
       });
 
-      if (_isForgejoSelfUpdate) {
+      if (_isSelfUpdate) {
         await _service.installApk(path);
       }
     } on DioException catch (e) {
@@ -369,7 +368,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             ),
           ];
         }
-        if (_isForgejoSelfUpdate) {
+        if (_isSelfUpdate) {
           return [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
