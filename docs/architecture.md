@@ -2259,9 +2259,13 @@ expired backoff never resume it. Only starting the mix again re-arms refills.
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
 `NavisAudioHandler` keeps its fields, public API and audio-service overrides in
-`navis_audio_handler.dart`. Private crossfade deck helpers live in
-`navis_audio_handler_crossfade.dart`, a part of the same library using a private
-extension on the handler.
+`navis_audio_handler.dart`. Private helpers are grouped in part files using
+private extensions on the handler within the same library:
+
+| Concern | Part file |
+|---|---|
+| Crossfade decks | `navis_audio_handler_crossfade.dart` |
+| Android Auto loading and browse refresh | `navis_audio_handler_android_auto.dart` |
 
 `StreamingQuality` belongs to the player domain. The composition root selects
 the active profile and injects it into the source resolver; the resolver does
